@@ -164,23 +164,100 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
     }
 }
 
-// All assets the main-menu scene needs. Loaded once at startup; render()
-// paints from these each tick without touching the MPQ again. Set is
-// sourced from FUN_0042e6d0 (game.exe front-end asset loader) — see
-// docs/research/re/frontend-menu-table.md.
+// All assets the frontend needs. Loaded once at startup; renderers paint
+// from these each tick without touching the MPQ again. Sourced from
+// FUN_0042e6d0 (main-menu loader) — see docs/research/re/frontend-menu-table.md.
 struct Scene {
     d2d::palette::Palette pal;
     d2d::dc6::Sprite      bg;                 // TitleScreen or gameselectscreenEXP
-    d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151 letter fire fills
+    d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151, classic only
     d2d::dc6::Sprite      logo_bl, logo_br;   // D2logoBlack{Left,Right} — silhouettes
     d2d::dc6::Sprite      logo_fl, logo_fr;   // D2logoFire{Left,Right} — animated fire
     d2d::dc6::Sprite      btn_wide;           // WideButtonBlank
     d2d::dc6::Sprite      btn_wide2;          // WideButtonBlank02
     d2d::dc6::Sprite      btn_narrow;         // NarrowButtonBlank
     d2d::dc6::Sprite      btn_short;          // ShortButtonBlank
+    d2d::dc6::Sprite      credits_bg;         // creditsbckgexpand.dc6 (or classic fallback)
     d2d::font::Font       font;
+    // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
+    // A '*' prefix on a line marks a section header in D2's format.
+    std::vector<std::string> credits;
     int                   bg_tiles_across{4};
 };
+
+// --- Screen state machine + mouse routing ---------------------------------
+
+enum class Screen { Title, Credits };
+
+struct Button {
+    int x{}, y{}, w{}, h{};
+    const char*             label   = nullptr;
+    const d2d::dc6::Sprite* chrome  = nullptr;
+    // Action: set BOTH goto_screen (screen switch) OR quit (exit). Neither
+    // means "no-op for now" — used for the Battle.net / Multiplayer buttons.
+    Screen                  goto_screen = Screen::Title;
+    bool                    do_switch   = false;
+    bool                    quit        = false;
+    // Transient per-frame state, updated from mouse events.
+    bool                    hovered = false;
+    bool                    pressed = false;
+};
+
+struct Mouse {
+    int  x = 0, y = 0;
+    bool down = false;                 // current button state
+    bool press_this_frame = false;     // rising edge
+    bool release_this_frame = false;   // falling edge
+};
+
+// Return the frame index a button should show: normal (0), hover (1), or
+// pressed (2). Chromes we've seen ship 3 frames in that order.
+std::uint32_t button_frame(const Button& b) {
+    const auto n = b.chrome ? b.chrome->frames_per_direction() : 0u;
+    if (n < 2) return 0;
+    if (b.pressed && b.hovered && n >= 3) return 2;
+    if (b.hovered) return 1;
+    return 0;
+}
+
+// Update hover/pressed state and, on a mouse-up over a hovered+pressed
+// button, invoke the action. Returns true if any action was taken so the
+// caller can early-out.
+bool update_button(Button& b, const Mouse& m, Screen& current_screen,
+                   std::atomic<bool>& quit) {
+    b.hovered = m.x >= b.x && m.x < b.x + b.w
+             && m.y >= b.y && m.y < b.y + b.h;
+    if (b.hovered && m.press_this_frame) b.pressed = true;
+    if (!m.down)                          b.pressed = false;
+    if (b.hovered && m.release_this_frame) {
+        if (b.do_switch) { current_screen = b.goto_screen; return true; }
+        if (b.quit)      { quit = true; return true; }
+    }
+    return false;
+}
+
+// Parse D2's UTF-16LE-with-BOM credits.txt into Latin-1 lines. The file's
+// section headers use a '*' prefix. Skips empty lines but keeps '*' lines
+// as-is (renderer decides whether to style them).
+std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
+    std::vector<std::string> out;
+    std::size_t i = 0;
+    // Skip BOM (FF FE) if present.
+    if (b.size() >= 2 && std::uint8_t(b[0]) == 0xFF
+                      && std::uint8_t(b[1]) == 0xFE) i = 2;
+    std::string cur;
+    while (i + 1 < b.size()) {
+        const auto lo = std::uint8_t(b[i]);
+        const auto hi = std::uint8_t(b[i + 1]);
+        i += 2;
+        if (hi == 0 && lo == '\r') continue;         // ignore CR
+        if (hi == 0 && lo == '\n') { out.push_back(std::move(cur)); cur.clear(); continue; }
+        // Latin-1 subset: keep low byte, drop chars we can't render.
+        if (hi == 0 && lo >= 32) cur.push_back(char(lo));
+    }
+    if (!cur.empty()) out.push_back(std::move(cur));
+    return out;
+}
 
 std::optional<Scene> load_scene(const fs::path& data_dir) {
     const auto d2data = data_dir / "d2data.mpq";
@@ -210,9 +287,20 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .btn_wide2   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank02.dc6)")),
             .btn_narrow  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\NarrowButtonBlank.dc6)")),
             .btn_short   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\ShortButtonBlank.dc6)")),
+            .credits_bg  = [&] {
+                // creditsbckgexpand.dc6 (LoD) → creditsbckg.dc6 (classic).
+                auto b = mpqs.try_read(R"(data\global\ui\CharSelect\creditsbckgexpand.dc6)");
+                if (!b) b = mpqs.read(R"(data\global\ui\CharSelect\creditsbckg.dc6)");
+                return d2d::dc6::Sprite(*b);
+            }(),
             .font        = d2d::font::Font(
                              mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
                              d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
+            .credits     = [&] {
+                auto b = mpqs.try_read(R"(data\local\UI\ENG\ExpansionCredits.txt)");
+                if (!b) b = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
+                return b ? parse_credits_utf16(*b) : std::vector<std::string>{};
+            }(),
         };
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
@@ -226,9 +314,10 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
 // how fast we happen to be rendering (60 Hz, 120 Hz, headless, whatever).
 constexpr std::uint32_t kBaseFrameMs = 40;   // 1000 / 25
 
-void render(std::vector<std::uint8_t>& fb,
-            const Scene& s,
-            std::uint32_t elapsed_ms) {
+void render_title(std::vector<std::uint8_t>& fb,
+                  const Scene& s,
+                  std::span<const Button> buttons,
+                  std::uint32_t elapsed_ms) {
     // Full-screen background — no need to clear; the 4×3 grid tiles fill
     // exactly 800×600 with no gaps.
     blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
@@ -258,29 +347,12 @@ void render(std::vector<std::uint8_t>& fb,
     blit_fire_tinted  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_fire_tinted  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
 
-    // Buttons — LoD variant, RE-verified from menu records 0x709010..0x7090a0
-    // (upper cluster shifted 100 px lower vs. classic to make room for the
-    // "EXPANSION SET / Lord of Destruction" text baked into the background)
-    // plus classic 0x708f80..0x708fe0 for the shared bottom row.
-    struct Btn {
-        const d2d::dc6::Sprite* sprite;
-        int x, y, w, h;
-        const char* label;
-    };
-    const Btn buttons[] = {
-        {&s.btn_wide,   264, 324, 272, 35, "SINGLE PLAYER"},        // 0x709010
-        {&s.btn_wide2,  264, 366, 272, 35, "BATTLE.NET"},           // 0x709040
-        {&s.btn_narrow, 264, 391, 272, 25, "GATEWAY: LOCAL"},       // 0x709070
-        {&s.btn_wide,   264, 433, 272, 35, "OTHER MULTIPLAYER"},    // 0x7090a0
-        {&s.btn_short,  264, 528, 135, 25, "CREDITS"},              // 0x708f80
-        {&s.btn_short,  402, 528, 135, 25, "CINEMATICS"},           // 0x708fb0
-        {&s.btn_wide,   264, 568, 272, 35, "EXIT DIABLO II"},       // 0x708fe0
-    };
+    // Buttons — chrome frame is picked by hover/press state.
     for (const auto& b : buttons) {
-        // Frame 0 = normal state. Chrome DC6s ship 3 frames (normal/hover/pressed);
-        // interactive states land when mouse routing does.
-        if (b.sprite->frames_per_direction() > 0) {
-            const auto& fr = b.sprite->frame(0, 0);
+        if (b.chrome && b.chrome->frames_per_direction() > 0) {
+            const auto fi = button_frame(b);
+            const auto& fr = b.chrome->frame(0,
+                std::min<std::uint32_t>(fi, b.chrome->frames_per_direction() - 1));
             blit_sprite(fb, fr, s.pal, b.x, b.y);
         }
         if (b.label && *b.label) {
@@ -294,6 +366,50 @@ void render(std::vector<std::uint8_t>& fb,
     }
 
     s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14, "d2d dev build");
+}
+
+// Full-screen credits background + scrolling text. The scroll starts with
+// the first line off the bottom of the screen and advances upward at ~1 px
+// per D2 tick (25 Hz). When the last line clears the top, the scroll loops.
+void render_credits(std::vector<std::uint8_t>& fb,
+                    const Scene& s,
+                    std::uint32_t elapsed_ms) {
+    // creditsbckgexpand.dc6 has the same 4×3 sub-frame grid as the title
+    // background; both add up to exactly 800×600.
+    blit_dc6_grid(fb, s.credits_bg, s.pal, 0, 0, s.bg_tiles_across);
+
+    if (s.credits.empty()) {
+        s.font.draw(fb, kW, kH, s.pal, 300, 300, "(no credits.txt found)");
+    } else {
+        // Line pitch: font16 line-height + 4 px spacing.
+        const int pitch = s.font.line_height() + 6;
+        const int total_h = int(s.credits.size()) * pitch;
+        // scroll_y = distance the first line has moved above the bottom.
+        // 40 ms per tick = D2 base; advance one px per tick.
+        const int scroll = int(elapsed_ms / kBaseFrameMs);
+        // total scroll cycle: total_h + kH (start at bottom, end past top).
+        const int cycle = total_h + int(kH);
+        const int off   = scroll % (cycle > 0 ? cycle : 1);
+        // Base y for line 0.
+        int y = int(kH) - off;
+        for (const auto& line : s.credits) {
+            if (y > int(kH))          { y += pitch; continue; }
+            if (y + pitch < 0)        { y += pitch; continue; }
+            // '*' prefix = section header — strip and centre in same style
+            // (the D2 renderer draws them in gold; we just render them
+            // normally until PL2 colormaps land).
+            std::string_view text = line;
+            if (!text.empty() && text.front() == '*') text.remove_prefix(1);
+            if (text.empty())         { y += pitch; continue; }
+            const int lw = s.font.measure(text);
+            s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - lw / 2, y, text);
+            y += pitch;
+        }
+    }
+
+    // Small hint at the bottom-left so anyone can find their way back.
+    s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14,
+                "d2d dev build — click or Esc to return");
 }
 
 // --- SDL3 render loop ------------------------------------------------------
@@ -329,6 +445,53 @@ struct Window {
     }
 };
 
+// Build the main-menu button list. Positions from RE (LoD variant
+// records 0x709010..0x7090a0 + shared bottom row 0x708f80..0x708fe0).
+std::vector<Button> title_buttons(const Scene& s) {
+    std::vector<Button> b(7);
+    b[0] = {264, 324, 272, 35, "SINGLE PLAYER",     &s.btn_wide};
+    b[1] = {264, 366, 272, 35, "BATTLE.NET",        &s.btn_wide2};
+    b[2] = {264, 391, 272, 25, "GATEWAY: LOCAL",    &s.btn_narrow};
+    b[3] = {264, 433, 272, 35, "OTHER MULTIPLAYER", &s.btn_wide};
+    b[4] = {264, 528, 135, 25, "CREDITS",           &s.btn_short,
+            Screen::Credits, /*do_switch=*/true};
+    b[5] = {402, 528, 135, 25, "CINEMATICS",        &s.btn_short};
+    b[6] = {264, 568, 272, 35, "EXIT DIABLO II",    &s.btn_wide,
+            Screen::Title, /*do_switch=*/false, /*quit=*/true};
+    return b;
+}
+
+// Turn SDL mouse events into a per-tick Mouse snapshot. Rising/falling
+// edges are recomputed each tick from the raw button state.
+void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
+                       std::atomic<bool>& quit) {
+    if (ev.type == SDL_EVENT_QUIT) { quit = true; return; }
+    if (ev.type == SDL_EVENT_KEY_DOWN) {
+        if (ev.key.key == SDLK_ESCAPE) {
+            // Esc from any sub-screen returns to Title; Esc from Title quits.
+            if (current_screen == Screen::Title) quit = true;
+            else current_screen = Screen::Title;
+        }
+    } else if (ev.type == SDL_EVENT_MOUSE_MOTION) {
+        m.x = int(ev.motion.x);
+        m.y = int(ev.motion.y);
+    } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        m.x = int(ev.button.x);
+        m.y = int(ev.button.y);
+        if (ev.button.button == SDL_BUTTON_LEFT) {
+            m.down = true;
+            m.press_this_frame = true;
+        }
+    } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        m.x = int(ev.button.x);
+        m.y = int(ev.button.y);
+        if (ev.button.button == SDL_BUTTON_LEFT) {
+            m.down = false;
+            m.release_this_frame = true;
+        }
+    }
+}
+
 int run_windowed(std::vector<std::uint8_t>& fb,
                  const std::optional<Scene>& scene,
                  d2d::devctl::Channel& ch,
@@ -338,36 +501,40 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         std::fprintf(stderr, "[d2d] SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
-
     Window win;
-    if (!win.open(int(kW), int(kH))) {
-        SDL_Quit();
-        return 1;
-    }
+    if (!win.open(int(kW), int(kH))) { SDL_Quit(); return 1; }
+
+    Screen screen = Screen::Title;
+    Mouse  mouse;
+    auto   buttons = scene ? title_buttons(*scene) : std::vector<Button>{};
 
     const auto t0 = SDL_GetTicks();
     while (!quit) {
+        mouse.press_this_frame = false;
+        mouse.release_this_frame = false;
         SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_EVENT_QUIT) quit = true;
-            else if (ev.type == SDL_EVENT_KEY_DOWN &&
-                     ev.key.key == SDLK_ESCAPE)     quit = true;
-        }
-
+        while (SDL_PollEvent(&ev)) handle_sdl_events(ev, mouse, screen, quit);
         if (ch.active()) ch.pump();
 
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
-        if (scene) render(fb, *scene, ms);
-        else       paint_test_pattern(fb);
+        if (scene) {
+            if (screen == Screen::Title) {
+                for (auto& b : buttons) update_button(b, mouse, screen, quit);
+                render_title(fb, *scene, buttons, ms);
+            } else {  // Credits
+                if (mouse.release_this_frame) screen = Screen::Title;
+                render_credits(fb, *scene, ms);
+            }
+        } else {
+            paint_test_pattern(fb);
+        }
 
         SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
         SDL_RenderClear(win.r);
         SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
         SDL_RenderPresent(win.r);
-
         ++frame_count;
     }
-
     SDL_Quit();
     return 0;
 }
@@ -381,15 +548,18 @@ int run_headless(std::vector<std::uint8_t>& fb,
         std::printf("d2d: --headless with no --devctl, single-shot paint. exiting.\n");
         return 0;
     }
+    // Headless mode has no mouse — always render Title so screenshots stay
+    // reproducible for A/B diffs.
+    auto buttons = scene ? title_buttons(*scene) : std::vector<Button>{};
     const auto t0 = std::chrono::steady_clock::now();
     while (!quit) {
         ch.pump();
         const auto ms = std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - t0).count());
-        if (scene) render(fb, *scene, ms);
+        if (scene) render_title(fb, *scene, buttons, ms);
         else       paint_test_pattern(fb);
         ++frame_count;
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));  // ~60 Hz
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
     return 0;
 }
