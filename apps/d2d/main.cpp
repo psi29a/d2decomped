@@ -15,6 +15,7 @@
 #include <mpq.hpp>
 #include <dc6.hpp>
 #include <devctl.hpp>
+#include <font.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
 
@@ -129,6 +130,26 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
         // TitleScreen is a 4×3 grid of sub-frames (12 total) totalling
         // exactly 800×600 — drawn flush with the window origin.
         blit_dc6_grid(fb, spr, pal, 0, 0, /*tiles_across=*/4);
+
+        // Menu labels — no button chrome yet, just text over the background.
+        // font16 is a small UI font whose glyphs use the current palette's
+        // white/gold indices, so it reads naturally against the D2 sky.
+        d2d::font::Font font(
+            a.read(R"(data\local\FONT\LATIN\font16.tbl)"),
+            d2d::dc6::Sprite(a.read(R"(data\local\FONT\LATIN\font16.dc6)")));
+
+        struct MenuItem { const char* text; int y; };
+        const MenuItem items[] = {
+            {"SINGLE PLAYER",     380},
+            {"OTHER MULTIPLAYER", 425},
+            {"EXIT DIABLO II",    475},
+        };
+        for (const auto& mi : items) {
+            const int w = font.measure(mi.text);
+            font.draw(fb, kW, kH, pal, int(kW) / 2 - w / 2, mi.y, mi.text);
+        }
+        // Version stamp bottom-left.
+        font.draw(fb, kW, kH, pal, 8, int(kH) - 14, "d2d dev build");
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] paint: %s\n", e.what());
         paint_test_pattern(fb);
