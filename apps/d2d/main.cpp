@@ -122,8 +122,13 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
     }
     try {
         d2d::mpq::Archive a(d2data);
+        // menu4 is the LoD main-menu palette — dark greens/blacks in the
+        // mid range for the night scene, warm oranges/golds up top for the
+        // fiery DIABLO II logo. Trademark's palette is for the Blizzard
+        // splash before the menu; Sky/ACT1 are outdoor daylight; menu1..3
+        // are supporting screens (char select, connect, etc.).
         d2d::palette::Palette pal(a.read(
-            R"(data\global\palette\Trademark\pal.dat)"));
+            R"(data\global\palette\menu4\pal.dat)"));
 
         auto raw = a.read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         d2d::dc6::Sprite spr(raw);
