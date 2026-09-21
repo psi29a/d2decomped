@@ -1,24 +1,24 @@
-// d2d — the game binary. Skeleton stage: no window yet, no engine loop —
-// just an in-memory framebuffer that the devctl channel can dump to PNG.
-// This exists so the harness (control channel + screenshot pipeline) is
-// wired end-to-end before phase 5's real renderer lands. When SDL3 arrives,
-// the framebuffer becomes an SDL_Texture and the main loop grows an event
-// pump; the devctl surface stays the same.
+// d2d — the game binary. Phase-5 in progress.
+//
+// Now opens an SDL3 window and presents an in-memory framebuffer as a
+// streaming texture. The dev control channel + screenshot pipeline still
+// see that same framebuffer, so `screenshot /tmp/x.png` captures exactly
+// what's on-screen. --headless skips the window and paints once (useful
+// for CI / A/B PNG diffing without a display).
 //
 // CLI:
 //   --devctl <path>   bind AF_UNIX control socket
 //   --data <dir>      MPQ directory (default: ~/Workspace/private/diablo2)
-//   --headless        do not sleep between pumps; exit on `quit` or SIGINT
-//
-// Without --devctl, d2d runs one paint pass and exits. That mode is only
-// useful once there's a real window; today it just proves the framebuffer
-// build path compiles.
+//   --headless        no window; paint once, then serve devctl until quit
+//                     (or exit immediately if --devctl also missing)
 
 #include <mpq.hpp>
 #include <dc6.hpp>
 #include <devctl.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
+
+#include <SDL3/SDL.h>
 
 #include <atomic>
 #include <chrono>
@@ -83,17 +83,14 @@ void paint_test_pattern(std::vector<std::uint8_t>& fb) {
 void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
     paint_test_pattern(fb);
     const auto d2data = data_dir / "d2data.mpq";
-    if (!fs::exists(d2data)) return;   // pattern-only mode
+    if (!fs::exists(d2data)) return;
     try {
         d2d::mpq::Archive a(d2data);
-        // Rogue Encampment palette — the milestone tileset for phase 5.
         d2d::palette::Palette pal(a.read(
             R"(data\global\palette\ACT1\pal.dat)"));
 
         auto raw = a.read(R"(data\global\ui\MENU\helpwhitebullet.dc6)");
         d2d::dc6::Sprite spr(raw);
-        // Tile the bullet across the top-left corner to prove decode +
-        // palette lookup end to end.
         for (int j = 0; j < 12; ++j)
             for (int i = 0; i < 16; ++i)
                 blit_sprite(fb, spr.frame(0, 0), pal,
@@ -101,6 +98,91 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] paint: %s\n", e.what());
     }
+}
+
+// --- SDL3 render loop ------------------------------------------------------
+
+// RAII holders — SDL_Init failure is the only thing we treat as fatal;
+// everything else logs and returns nullptr so the caller can fall back to
+// headless mode.
+struct Window {
+    SDL_Window*   w = nullptr;
+    SDL_Renderer* r = nullptr;
+    SDL_Texture*  t = nullptr;
+
+    Window() = default;
+    ~Window() {
+        if (t) SDL_DestroyTexture(t);
+        if (r) SDL_DestroyRenderer(r);
+        if (w) SDL_DestroyWindow(w);
+    }
+    Window(const Window&)            = delete;
+    Window& operator=(const Window&) = delete;
+
+    bool open(int w_, int h_) {
+        w = SDL_CreateWindow("d2d", w_, h_, 0);
+        if (!w) { std::fprintf(stderr, "[d2d] SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
+        r = SDL_CreateRenderer(w, nullptr);
+        if (!r) { std::fprintf(stderr, "[d2d] SDL_CreateRenderer: %s\n", SDL_GetError()); return false; }
+        // RGBA32 is defined as ABGR8888 on LE / RGBA8888 on BE — memory order
+        // is always (r, g, b, a), matching our framebuffer.
+        t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32,
+                              SDL_TEXTUREACCESS_STREAMING, w_, h_);
+        if (!t) { std::fprintf(stderr, "[d2d] SDL_CreateTexture: %s\n", SDL_GetError()); return false; }
+        return true;
+    }
+};
+
+int run_windowed(const std::vector<std::uint8_t>& fb,
+                 d2d::devctl::Channel& ch,
+                 std::atomic<std::uint64_t>& frame_count,
+                 std::atomic<bool>& quit) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        std::fprintf(stderr, "[d2d] SDL_Init: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    Window win;
+    if (!win.open(int(kW), int(kH))) {
+        SDL_Quit();
+        return 1;
+    }
+
+    while (!quit) {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_EVENT_QUIT) quit = true;
+            else if (ev.type == SDL_EVENT_KEY_DOWN &&
+                     ev.key.key == SDLK_ESCAPE)     quit = true;
+        }
+
+        if (ch.active()) ch.pump();
+
+        SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
+        SDL_RenderClear(win.r);
+        SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
+        SDL_RenderPresent(win.r);
+
+        ++frame_count;
+    }
+
+    SDL_Quit();
+    return 0;
+}
+
+int run_headless(d2d::devctl::Channel& ch,
+                 std::atomic<std::uint64_t>& frame_count,
+                 std::atomic<bool>& quit) {
+    if (!ch.active()) {
+        std::printf("d2d: --headless with no --devctl, single-shot paint. exiting.\n");
+        return 0;
+    }
+    while (!quit) {
+        ch.pump();
+        ++frame_count;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return 0;
 }
 
 }  // namespace
@@ -128,7 +210,6 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     paint(fb, data_dir);
 
-    // Frame counter shared with the devctl handler so `info` can report it.
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
 
@@ -148,21 +229,7 @@ int main(int argc, char** argv) {
     });
     ch.listen(devctl_path);
 
-    if (!ch.active()) {
-        // No socket → single-shot paint. Useful for `d2d --data ... ; open …`
-        // once a real window is in the loop; today it's mostly a smoke test.
-        std::printf("d2d: no control channel, single-shot paint. exiting.\n");
-        return 0;
-    }
-
-    // Cooperative loop. ~30 Hz when interactive; tight when headless (still
-    // sleeps 1ms to keep the box comfy — devctl is line-based and cheap).
-    const auto tick_ms = headless ? 1 : 33;
-    while (!quit) {
-        ch.pump();
-        ++frame_count;
-        std::this_thread::sleep_for(std::chrono::milliseconds(tick_ms));
-    }
-    ch.close();
-    return 0;
+    return headless
+        ? run_headless(ch, frame_count, quit)
+        : run_windowed(fb, ch, frame_count, quit);
 }

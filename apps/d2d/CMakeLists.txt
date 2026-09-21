@@ -1,4 +1,8 @@
-# d2d — the game binary skeleton. Wires the dev control channel + screenshot
-# pipeline so both are testable end-to-end before phase 5's real renderer.
+# d2d — the game binary. SDL3 windowing + streaming framebuffer texture;
+# devctl + screenshot still wired to the same in-memory buffer.
+find_package(SDL3 CONFIG REQUIRED)
+
 add_executable(d2d main.cpp)
-target_link_libraries(d2d PRIVATE mpq dc6 palette devctl screenshot)
+target_link_libraries(d2d PRIVATE
+    mpq dc6 palette devctl screenshot
+    SDL3::SDL3)
