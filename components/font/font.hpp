@@ -78,22 +78,36 @@ public:
              std::uint32_t fbW, std::uint32_t fbH,
              const palette::Palette& pal,
              int x, int y, std::string_view text) const {
+        return draw_tinted(fb, fbW, fbH, pal, x, y, text, 255, 255, 255);
+    }
+
+    // Same as draw(), but multiplies each palette-lookup RGB by (tr, tg, tb)
+    // / 255. Handy for coloured text without a per-colour font DC6 — pass
+    // (255, 200, 60) for a rough gold, (255, 96, 96) for red, etc. Not the
+    // same as D2's PL2 hue-shift (which does index remapping), but visually
+    // close enough for section headers and highlight rows.
+    int draw_tinted(std::vector<std::uint8_t>& fb,
+                    std::uint32_t fbW, std::uint32_t fbH,
+                    const palette::Palette& pal,
+                    int x, int y, std::string_view text,
+                    std::uint8_t tr, std::uint8_t tg, std::uint8_t tb) const {
         for (unsigned char c : text) {
             const auto* g = find(c);
             if (!g) continue;
             const auto& fr = sheet_.frame(0, g->frame);
-            blit_glyph(fb, fbW, fbH, pal, fr, x, y);
+            blit_glyph_tinted(fb, fbW, fbH, pal, fr, x, y, tr, tg, tb);
             x += g->width;
         }
         return x;
     }
 
 private:
-    static void blit_glyph(std::vector<std::uint8_t>& fb,
-                           std::uint32_t fbW, std::uint32_t fbH,
-                           const palette::Palette& pal,
-                           const dc6::Frame& fr,
-                           int dst_x, int dst_y) {
+    static void blit_glyph_tinted(std::vector<std::uint8_t>& fb,
+                                  std::uint32_t fbW, std::uint32_t fbH,
+                                  const palette::Palette& pal,
+                                  const dc6::Frame& fr,
+                                  int dst_x, int dst_y,
+                                  std::uint8_t tr, std::uint8_t tg, std::uint8_t tb) {
         for (std::uint32_t gy = 0; gy < fr.height; ++gy) {
             const int py = dst_y + int(gy);
             if (py < 0 || std::uint32_t(py) >= fbH) continue;
@@ -104,7 +118,10 @@ private:
                 if (idx == 0) continue;
                 const auto c = pal[idx];
                 auto* p = &fb[(std::size_t(py) * fbW + std::uint32_t(px)) * 4];
-                p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = c.a;
+                p[0] = std::uint8_t(int(c.r) * tr / 255);
+                p[1] = std::uint8_t(int(c.g) * tg / 255);
+                p[2] = std::uint8_t(int(c.b) * tb / 255);
+                p[3] = c.a;
             }
         }
     }

@@ -42,6 +42,18 @@ public:
         return std::nullopt;
     }
 
+    // Lookup by the 16-bit `Index` field of the hash node. D2's game.exe
+    // stores that ID directly in menu/UI record fields (e.g. the front-end
+    // menu table at 0x00708ec0+ carries button labels as IDs 0x13f2..).
+    // See docs/research/re/frontend-menu-table.md for the anchor use.
+    [[nodiscard]] std::optional<std::u16string_view>
+    get(std::uint16_t id) const {
+        if (auto it = by_id_.find(id); it != by_id_.end()) {
+            return std::u16string_view(it->second);
+        }
+        return std::nullopt;
+    }
+
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
     [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
 
@@ -96,11 +108,16 @@ private:
                 value.push_back(char16_t(valp[i]));
             }
 
-            entries_.emplace(std::string(keyp, keyLen), std::move(value));
+            // Nodes carry a 16-bit `Index` at offset +0x01 — that's D2's ID.
+            // Stash the value under it too so callers can look up by either.
+            const auto id = rd16(node + 0x01);
+            entries_.emplace(std::string(keyp, keyLen), value);
+            by_id_.emplace(id, std::move(value));
         }
     }
 
-    std::unordered_map<std::string, std::u16string> entries_;
+    std::unordered_map<std::string, std::u16string>   entries_;
+    std::unordered_map<std::uint16_t, std::u16string> by_id_;
 };
 
 }  // namespace d2d::tbl

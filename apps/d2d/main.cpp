@@ -18,6 +18,7 @@
 #include <font.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
+#include <tbl.hpp>
 
 #include <SDL3/SDL.h>
 
@@ -182,6 +183,10 @@ struct Scene {
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
+    // patchstring.tbl / string.tbl. Button labels come out of here by ID
+    // (see docs/research/re/frontend-menu-table.md — records at 0x708ec0+
+    // carry TBL ids 0x13f2..0x13f7 in the +0x18 field).
+    d2d::tbl::Table       strings;
     int                   bg_tiles_across{4};
 };
 
@@ -301,6 +306,17 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 if (!b) b = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
                 return b ? parse_credits_utf16(*b) : std::vector<std::string>{};
             }(),
+            // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
+            // string.tbl per probe. patchstring.tbl (826 entries) overrides
+            // specific IDs when Blizzard shipped patches; expansionstring.tbl
+            // (2788 entries) carries LoD-specific additions. For MVP we use
+            // string.tbl directly; when a subsystem needs a patch-shifted
+            // entry, load all three and query in order (patch → expansion →
+            // base).
+            .strings     = [&] {
+                auto b = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
+                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+            }(),
         };
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
@@ -392,17 +408,24 @@ void render_credits(std::vector<std::uint8_t>& fb,
         const int off   = scroll % (cycle > 0 ? cycle : 1);
         // Base y for line 0.
         int y = int(kH) - off;
+        // Gold-ish tint for section headers, approximating D2's PL2
+        // hue-shift. Regular lines draw untinted (255,255,255 = pass-through).
+        constexpr std::uint8_t kHdrR = 255, kHdrG = 208, kHdrB = 80;
         for (const auto& line : s.credits) {
             if (y > int(kH))          { y += pitch; continue; }
             if (y + pitch < 0)        { y += pitch; continue; }
-            // '*' prefix = section header — strip and centre in same style
-            // (the D2 renderer draws them in gold; we just render them
-            // normally until PL2 colormaps land).
+            const bool header = !line.empty() && line.front() == '*';
             std::string_view text = line;
-            if (!text.empty() && text.front() == '*') text.remove_prefix(1);
+            if (header) text.remove_prefix(1);
             if (text.empty())         { y += pitch; continue; }
             const int lw = s.font.measure(text);
-            s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - lw / 2, y, text);
+            const int x = int(kW) / 2 - lw / 2;
+            if (header) {
+                s.font.draw_tinted(fb, kW, kH, s.pal, x, y, text,
+                                   kHdrR, kHdrG, kHdrB);
+            } else {
+                s.font.draw(fb, kW, kH, s.pal, x, y, text);
+            }
             y += pitch;
         }
     }
@@ -445,20 +468,68 @@ struct Window {
     }
 };
 
-// Build the main-menu button list. Positions from RE (LoD variant
-// records 0x709010..0x7090a0 + shared bottom row 0x708f80..0x708fe0).
-std::vector<Button> title_buttons(const Scene& s) {
-    std::vector<Button> b(7);
-    b[0] = {264, 324, 272, 35, "SINGLE PLAYER",     &s.btn_wide};
-    b[1] = {264, 366, 272, 35, "BATTLE.NET",        &s.btn_wide2};
-    b[2] = {264, 391, 272, 25, "GATEWAY: LOCAL",    &s.btn_narrow};
-    b[3] = {264, 433, 272, 35, "OTHER MULTIPLAYER", &s.btn_wide};
-    b[4] = {264, 528, 135, 25, "CREDITS",           &s.btn_short,
-            Screen::Credits, /*do_switch=*/true};
-    b[5] = {402, 528, 135, 25, "CINEMATICS",        &s.btn_short};
-    b[6] = {264, 568, 272, 35, "EXIT DIABLO II",    &s.btn_wide,
-            Screen::Title, /*do_switch=*/false, /*quit=*/true};
-    return b;
+// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
+std::string u16_to_latin1(std::u16string_view s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char16_t c : s) {
+        // Keep printable Latin-1 (0x20..0xFF), drop the rest — D2 UI strings
+        // are ASCII with occasional accented chars, all inside Latin-1.
+        if (c >= 0x20 && c <= 0xFF) out.push_back(char(c));
+    }
+    return out;
+}
+
+// Store labels alongside the buttons so we own the string memory through
+// the frame. Called once at startup; string lookups happen only there.
+struct TitleUI {
+    std::vector<Button>     buttons;
+    std::vector<std::string> labels;   // owns text buffers Button.label points into
+};
+
+// Build the main-menu button list. Positions from RE (LoD variant records
+// 0x709010..0x7090a0 + shared bottom row 0x708f80..0x708fe0). Labels sourced
+// from patchstring.tbl by ID (from the +0x18 field of each menu record) —
+// falls back to a plausible English string when the TBL entry is missing.
+TitleUI title_ui(const Scene& s) {
+    struct Spec {
+        int x, y, w, h;
+        std::uint16_t tbl_id;
+        const char* fallback;
+        const d2d::dc6::Sprite* chrome;
+        bool do_switch = false;
+        Screen goto_screen = Screen::Title;
+        bool quit = false;
+    };
+    // ID map derived from menu records — see docs/research/re/frontend-menu-table.md.
+    const Spec specs[] = {
+        {264, 324, 272, 35, 0x13f2, "SINGLE PLAYER",     &s.btn_wide},
+        {264, 366, 272, 35, 0x13f3, "BATTLE.NET",        &s.btn_wide2},
+        {264, 391, 272, 25, 0,      "GATEWAY: LOCAL",    &s.btn_narrow},
+        {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &s.btn_wide},
+        {264, 528, 135, 25, 0x13f6, "CREDITS",           &s.btn_short,
+            true, Screen::Credits, false},
+        {402, 528, 135, 25, 0x13f7, "CINEMATICS",        &s.btn_short},
+        {264, 568, 272, 35, 0x13f5, "EXIT DIABLO II",    &s.btn_wide,
+            false, Screen::Title, true},
+    };
+    TitleUI ui;
+    ui.labels.reserve(sizeof(specs) / sizeof(specs[0]));
+    ui.buttons.reserve(ui.labels.capacity());
+    for (const auto& sp : specs) {
+        std::string label;
+        if (sp.tbl_id) {
+            if (auto v = s.strings.get(sp.tbl_id)) label = u16_to_latin1(*v);
+        }
+        if (label.empty() && sp.fallback) label = sp.fallback;
+        ui.labels.push_back(std::move(label));
+        ui.buttons.push_back(Button{
+            sp.x, sp.y, sp.w, sp.h,
+            ui.labels.back().c_str(),
+            sp.chrome, sp.goto_screen, sp.do_switch, sp.quit, false, false,
+        });
+    }
+    return ui;
 }
 
 // Turn SDL mouse events into a per-tick Mouse snapshot. Rising/falling
@@ -506,7 +577,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
     Screen screen = Screen::Title;
     Mouse  mouse;
-    auto   buttons = scene ? title_buttons(*scene) : std::vector<Button>{};
+    TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
     const auto t0 = SDL_GetTicks();
     while (!quit) {
@@ -519,8 +590,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
         if (scene) {
             if (screen == Screen::Title) {
-                for (auto& b : buttons) update_button(b, mouse, screen, quit);
-                render_title(fb, *scene, buttons, ms);
+                for (auto& b : ui.buttons) update_button(b, mouse, screen, quit);
+                render_title(fb, *scene, ui.buttons, ms);
             } else {  // Credits
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
@@ -550,13 +621,13 @@ int run_headless(std::vector<std::uint8_t>& fb,
     }
     // Headless mode has no mouse — always render Title so screenshots stay
     // reproducible for A/B diffs.
-    auto buttons = scene ? title_buttons(*scene) : std::vector<Button>{};
+    TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
     const auto t0 = std::chrono::steady_clock::now();
     while (!quit) {
         ch.pump();
         const auto ms = std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - t0).count());
-        if (scene) render_title(fb, *scene, buttons, ms);
+        if (scene) render_title(fb, *scene, ui.buttons, ms);
         else       paint_test_pattern(fb);
         ++frame_count;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));

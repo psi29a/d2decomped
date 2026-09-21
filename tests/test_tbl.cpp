@@ -43,6 +43,18 @@ int main() {
 
     // Missing keys return nullopt, not an empty string.
     assert(!t.get("this key does not exist").has_value());
+    assert(!t.get(std::uint16_t{0xFFFF}).has_value());
+
+    // ID-based lookup: pull "cancel" back out via its Index field. We don't
+    // know the exact ID a-priori, so scan every u16 to find the one that
+    // yields the same value. Confirms the by-id map is consistent with the
+    // by-key map for at least this canary entry.
+    bool id_hit = false;
+    for (std::uint32_t i = 0; i < 0x10000 && !id_hit; ++i) {
+        if (auto v = t.get(std::uint16_t(i));
+            v && *v == *cancel) { id_hit = true; }
+    }
+    assert(id_hit);
 
     std::printf("OK\n");
     return 0;
