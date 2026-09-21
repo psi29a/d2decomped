@@ -15,5 +15,7 @@ FetchContent_MakeAvailable(stormlib)
 
 add_library(mpq INTERFACE)
 target_link_libraries(mpq INTERFACE storm)
-target_include_directories(mpq INTERFACE ${stormlib_SOURCE_DIR}/src)
+target_include_directories(mpq INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${stormlib_SOURCE_DIR}/src)
 target_compile_features(mpq INTERFACE cxx_std_26)

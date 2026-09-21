@@ -8,3 +8,4 @@ function(d2d_add_test name)
 endfunction()
 
 d2d_add_test(test_iso9660 iso9660)
+d2d_add_test(test_mpq mpq)
