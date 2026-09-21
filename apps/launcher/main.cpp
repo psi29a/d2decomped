@@ -735,7 +735,7 @@ private:
 
         auto* mgr = new QNetworkAccessManager(this);
         QNetworkRequest req{QUrl(url)};
-        req.setRawHeader("User-Agent", "d2-launcher");
+        req.setRawHeader("User-Agent", "d2d-launcher");
         auto* reply = mgr->get(req);
 
         auto* prog = new QProgressDialog(
@@ -789,7 +789,7 @@ private:
                 this, &MainWindow::onUpdateReply);
         QNetworkRequest req{QUrl(url)};
         req.setRawHeader("Accept", "application/vnd.github+json");
-        req.setRawHeader("User-Agent", "d2-launcher");
+        req.setRawHeader("User-Agent", "d2d-launcher");
         mgr->get(req);
     }
 

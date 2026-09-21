@@ -14,7 +14,7 @@ C++26 engine. Ghidra drives decompilation; reference implementations
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *(this commit)*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
-   `d2-launcher`) that reads the 4 D2/LoD ISOs directly (single-header
+   `d2d-launcher`) that reads the 4 D2/LoD ISOs directly (single-header
    `iso9660.hpp`) and copies files into a per-user data dir; later applies
    the 1.14d patch. Same binary grows a launch page in phase 5. *(next)*
 3. **Asset formats** — parsers for MPQ, DC6, DCC, DS1, DT1, COF, TBL, TXT.
@@ -94,7 +94,7 @@ for phases 2–5.
 
 ## Open questions
 
-- Ship as one monolith or `d2-installer` / `d2-launcher` / `d2` binaries?
+- Ship as one monolith or `d2d-installer` / `d2d-launcher` / `d2d` binaries?
   Leaning three binaries so the installer stays boring.
 - Save format: keep 1.14d-compatible or greenfield? Compatible unless it
   hurts.

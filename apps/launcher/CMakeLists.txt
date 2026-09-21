@@ -39,13 +39,13 @@ set(D2_PATCH_URL "" CACHE STRING
 
 configure_file(config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/config.hpp @ONLY)
 
-add_executable(d2-launcher WIN32 MACOSX_BUNDLE
+add_executable(d2d-launcher WIN32 MACOSX_BUNDLE
     main.cpp
 )
 
-target_include_directories(d2-launcher PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(d2d-launcher PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-target_link_libraries(d2-launcher PRIVATE
+target_link_libraries(d2d-launcher PRIVATE
     Qt6::Widgets
     Qt6::Network
     iso9660
