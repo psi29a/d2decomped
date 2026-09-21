@@ -121,17 +121,27 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
         return;
     }
     try {
-        d2d::mpq::Archive a(d2data);
-        // menu4 is the LoD main-menu palette — dark greens/blacks in the
-        // mid range for the night scene, warm oranges/golds up top for the
-        // fiery DIABLO II logo. Trademark's palette is for the Blizzard
-        // splash before the menu; Sky/ACT1 are outdoor daylight; menu1..3
-        // are supporting screens (char select, connect, etc.).
-        d2d::palette::Palette pal(a.read(
-            R"(data\global\palette\menu4\pal.dat)"));
+        // Stack layers d2exp on top of d2data so a `try_read` will find LoD
+        // assets first (gameselectscreenEXP.dc6, etc.) and fall through to
+        // classic-only files (Sky palette, TitleScreen, fonts).
+        d2d::mpq::Stack mpqs;
+        const auto d2exp = data_dir / "d2exp.mpq";
+        if (fs::exists(d2exp)) mpqs.push(d2exp);
+        mpqs.push(d2data);
 
-        auto raw = a.read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
-        d2d::dc6::Sprite spr(raw);
+        // Sky palette — game.exe's menu init hardcodes palette\sky\pal.pl2
+        // at 5 sites, each with the DAT fallback in the same call.
+        d2d::palette::Palette pal(mpqs.read(
+            R"(data\global\palette\Sky\pal.dat)"));
+
+        // LoD ships a different title screen than classic — game.exe picks
+        // one via an expansion flag. gameselectscreenEXP.dc6 is the LoD
+        // version (fenced rogue camp at night); TitleScreen.DC6 is classic.
+        // Prefer LoD, fall back to classic.
+        auto title_bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\gameselectscreenEXP.dc6)");
+        if (!title_bytes) title_bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
+        if (!title_bytes) throw std::runtime_error("no title screen asset");
+        d2d::dc6::Sprite spr(*title_bytes);
         // TitleScreen is a 4×3 grid of sub-frames (12 total) totalling
         // exactly 800×600 — drawn flush with the window origin.
         blit_dc6_grid(fb, spr, pal, 0, 0, /*tiles_across=*/4);
@@ -140,8 +150,8 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
         // font16 is a small UI font whose glyphs use the current palette's
         // white/gold indices, so it reads naturally against the D2 sky.
         d2d::font::Font font(
-            a.read(R"(data\local\FONT\LATIN\font16.tbl)"),
-            d2d::dc6::Sprite(a.read(R"(data\local\FONT\LATIN\font16.dc6)")));
+            mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
+            d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)")));
 
         struct MenuItem { const char* text; int y; };
         const MenuItem items[] = {
