@@ -15,9 +15,12 @@ game-bins/
 *.mpq
 *.iso
 
-# Research and decompilation artifacts — internal only, never commit
-docs/research/
+# Decompilation research — internal only, never commit.
+# File-format specs (docs/research/formats/) and public references
+# (docs/research/refs/) are tracked. Only Ghidra-derived RE notes stay hidden.
+docs/research/re/
 tools/ghidra/gdt/
+tools/ghidra/project/
 *.c.ghidra
 *.decomp.c
 
