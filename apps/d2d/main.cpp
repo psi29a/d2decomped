@@ -88,6 +88,44 @@ void blit_at_anchor(std::vector<std::uint8_t>& fb,
     blit_sprite(fb, f, pal, x, y);
 }
 
+// Additive warm-tint blit — for the fire pieces until PL2 colormap parsing
+// lands. Takes the palette-mapped RGB, boosts red, keeps green mid, tanks
+// blue, and ADDS the result to the existing framebuffer pixel so the fire
+// reads as a warm glow rather than replacing the underlying colour. Not
+// physically accurate to how D2 does it (which applies a fire-specific hue
+// variation colormap from the PL2), but visually close enough to prove
+// the layer is in the right place.
+// ponytail: fake fire tint. Replace with PL2 colormap lookup when the
+// palette::Pl2 parser lands (~1 day of format work).
+void blit_fire_tinted(std::vector<std::uint8_t>& fb,
+                      const d2d::dc6::Frame& f,
+                      const d2d::palette::Palette& pal,
+                      int anchor_x, int anchor_y) {
+    const int dst_x = anchor_x + f.offset_x;
+    const int dst_y = anchor_y + f.offset_y - int(f.height) + 1;
+    for (std::uint32_t y = 0; y < f.height; ++y) {
+        const int py = dst_y + int(y);
+        if (py < 0 || py >= int(kH)) continue;
+        for (std::uint32_t x = 0; x < f.width; ++x) {
+            const int px = dst_x + int(x);
+            if (px < 0 || px >= int(kW)) continue;
+            const auto idx = f.pixels[y * f.width + x];
+            if (idx == 0) continue;
+            const auto c = pal[idx];
+            // Use the source brightness as intensity, remap to warm ramp.
+            const int intensity = int(c.r) + int(c.g) + int(c.b);
+            const int r_add = std::min(255, intensity);           // full red
+            const int g_add = std::min(255, intensity * 2 / 3);   // mid green
+            const int b_add = std::min(255, intensity / 8);       // trace blue
+            auto* p = &fb[(std::size_t(py) * kW + std::size_t(px)) * 4];
+            p[0] = std::uint8_t(std::min(255, p[0] + r_add));
+            p[1] = std::uint8_t(std::min(255, p[1] + g_add));
+            p[2] = std::uint8_t(std::min(255, p[2] + b_add));
+            // alpha stays whatever the framebuffer had (opaque background).
+        }
+    }
+}
+
 void paint_test_pattern(std::vector<std::uint8_t>& fb) {
     // Diagonal gradient — a visually distinctive canary when no MPQ loads.
     for (std::uint32_t y = 0; y < kH; ++y) {
@@ -185,38 +223,50 @@ void render(std::vector<std::uint8_t>& fb,
     // exactly 800×600 with no gaps.
     blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
 
-    // "DIABLO II" logo — anchor picks where the logo's BOTTOM sits (see
-    // blit_at_anchor). With BlackLeft's oy=47 and height=122, anchor_y=170
-    // puts the logo top at ~95px, matching reference. Black silhouettes
-    // first, then the fire fills on top. Both share one 30-frame flicker
-    // cycle advancing at the 25 Hz base rate.
+    // "DIABLO II" logo. Anchor sits at the logo's BOTTOM baseline; with
+    // BlackLeft's oy=47 and height=122 that puts logo top at anchor_y-74.
+    // anchor_y=120 → top≈46, bottom=120 — matches the reference LoD title
+    // where the logo occupies the upper ~third of the screen.
+    // Black silhouette first, then fire fills on top (additive warm tint —
+    // Sky palette's raw fire indices are dark blues; the warm hue is applied
+    // by the PL2 hue-variation colormap the real game uses, deferred for now).
     const auto n_logo = s.logo_bl.frames_per_direction();
     const auto fi = (n_logo == 0) ? 0u
         : std::uint32_t((elapsed_ms / kBaseFrameMs) % n_logo);
     constexpr int kLogoAnchorX = 400;
-    constexpr int kLogoAnchorY = 170;
-    blit_at_anchor(fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_at_anchor(fb, s.logo_br.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_at_anchor(fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_at_anchor(fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    constexpr int kLogoAnchorY = 120;
+    blit_at_anchor    (fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_at_anchor    (fb, s.logo_br.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_fire_tinted  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_fire_tinted  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+
+    // "Lord of Destruction" subtitle beneath the DIABLO II logo. Rendered
+    // in font16; centred, positioned just below the logo baseline.
+    {
+        constexpr const char* sub = "LORD OF DESTRUCTION";
+        const int w = s.font.measure(sub);
+        s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - w / 2, 138, sub);
+    }
 
     // Campfire animation. Fire's oy=132 is constant, height flickers 89..176,
     // so anchoring the base keeps the fire planted on the pit while flames
-    // dance upward. Same 25 Hz base rate; offset by a few ms so the fire
-    // flicker doesn't sync perfectly with the logo flicker.
+    // dance upward. Same 25 Hz base rate; offset a few ms so the fire flicker
+    // doesn't sync with the logo. Additive warm tint (same ponytail as logo).
     const auto n_fire = s.fire.frames_per_direction();
     const auto ff = (n_fire == 0) ? 0u
         : std::uint32_t(((elapsed_ms + 17) / kBaseFrameMs) % n_fire);
     constexpr int kFireAnchorX = 400;
     constexpr int kFireAnchorY = 460;
-    blit_at_anchor(fb, s.fire.frame(0, ff), s.pal, kFireAnchorX, kFireAnchorY);
+    blit_fire_tinted(fb, s.fire.frame(0, ff), s.pal, kFireAnchorX, kFireAnchorY);
 
     // Menu labels — no button chrome yet, just text over the background.
+    // Positions match the reference LoD layout: buttons stacked below the
+    // fire pit, "Exit Diablo II" at the very bottom.
     struct MenuItem { const char* text; int y; };
     constexpr MenuItem items[] = {
         {"SINGLE PLAYER",     380},
         {"OTHER MULTIPLAYER", 425},
-        {"EXIT DIABLO II",    475},
+        {"EXIT DIABLO II",    500},
     };
     for (const auto& mi : items) {
         const int w = s.font.measure(mi.text);
