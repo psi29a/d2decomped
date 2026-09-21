@@ -17,6 +17,7 @@
 #include <mpq.hpp>
 #include <dc6.hpp>
 #include <devctl.hpp>
+#include <palette.hpp>
 #include <screenshot.hpp>
 
 #include <atomic>
@@ -45,10 +46,11 @@ fs::path default_data_dir() {
     return fs::path(home) / "Workspace" / "private" / "diablo2";
 }
 
-// Draw a very rough grayscale-palette blit — every non-zero index becomes a
-// gray value. Placeholder until we load a real PL2 palette.
+// Palette-lookup blit: index 0 is transparent (skip), all other indices map
+// through the supplied palette to real RGBA.
 void blit_sprite(std::vector<std::uint8_t>& fb,
                  const d2d::dc6::Frame& f,
+                 const d2d::palette::Palette& pal,
                  std::uint32_t dst_x, std::uint32_t dst_y) {
     for (std::uint32_t y = 0; y < f.height; ++y) {
         const auto dy = dst_y + y;
@@ -58,8 +60,9 @@ void blit_sprite(std::vector<std::uint8_t>& fb,
             if (dx >= kW) break;
             const auto idx = f.pixels[y * f.width + x];
             if (idx == 0) continue;
+            const auto c = pal[idx];
             auto* p = &fb[(dy * kW + dx) * 4];
-            p[0] = idx; p[1] = idx; p[2] = idx; p[3] = 0xFF;
+            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = c.a;
         }
     }
 }
@@ -83,12 +86,17 @@ void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
     if (!fs::exists(d2data)) return;   // pattern-only mode
     try {
         d2d::mpq::Archive a(d2data);
+        // Rogue Encampment palette — the milestone tileset for phase 5.
+        d2d::palette::Palette pal(a.read(
+            R"(data\global\palette\ACT1\pal.dat)"));
+
         auto raw = a.read(R"(data\global\ui\MENU\helpwhitebullet.dc6)");
         d2d::dc6::Sprite spr(raw);
-        // Tile the bullet across the top-left corner to prove decode.
+        // Tile the bullet across the top-left corner to prove decode +
+        // palette lookup end to end.
         for (int j = 0; j < 12; ++j)
             for (int i = 0; i < 16; ++i)
-                blit_sprite(fb, spr.frame(0, 0),
+                blit_sprite(fb, spr.frame(0, 0), pal,
                             20 + i * 24, 20 + j * 24);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] paint: %s\n", e.what());
