@@ -1,0 +1,5 @@
+project/
+*.gpr
+*.rep
+*.lock
+*.lock~

@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.28)
+project(D2Decomp LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
+
+if(MSVC)
+    add_compile_options(/W4 /permissive-)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+include(FetchContent)
+set(FETCHCONTENT_QUIET OFF)
+
+include(CTest)
+enable_testing()
+
+option(D2D_BUILD_APPS  "Build end-user apps under apps/"  ON)
+option(D2D_BUILD_TOOLS "Build helper tools under tools/"  ON)
+option(D2D_BUILD_TESTS "Build tests under tests/"         ON)
+
+# Components (shared libs) must configure before apps/tests that link them.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/components/CMakeLists.txt")
+    add_subdirectory(components)
+endif()
+if(D2D_BUILD_APPS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/CMakeLists.txt")
+    add_subdirectory(apps)
+endif()
+if(D2D_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/CMakeLists.txt")
+    add_subdirectory(tools)
+endif()
+if(D2D_BUILD_TESTS AND BUILD_TESTING AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+    add_subdirectory(tests)
+endif()

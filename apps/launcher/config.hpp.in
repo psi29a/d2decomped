@@ -1,0 +1,10 @@
+// generated from config.hpp.in — do not edit
+#pragma once
+namespace d2 {
+
+inline constexpr auto kAppVersion   = "@D2LAUNCHER_VERSION@";
+inline constexpr auto kGitCommit    = "@D2LAUNCHER_COMMIT@";
+inline constexpr auto kUpdateApiUrl = "@D2LAUNCHER_UPDATE_URL@";
+inline constexpr auto kPatchUrl     = "@D2_PATCH_URL@";
+
+}  // namespace d2

@@ -1,0 +1,27 @@
+build/
+build-*/
+cmake-build-*/
+_deps/
+.cache/
+compile_commands.json
+
+# Ghidra
+*.gpr
+*.rep/
+*.lock~
+
+# Extracted game binaries — never commit
+game-bins/
+*.mpq
+*.iso
+
+# Research and decompilation artifacts — internal only, never commit
+docs/research/
+tools/ghidra/gdt/
+*.c.ghidra
+*.decomp.c
+
+# Editors
+.idea/
+.vscode/
+.DS_Store
