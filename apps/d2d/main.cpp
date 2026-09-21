@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -51,24 +52,40 @@ fs::path default_data_dir() {
 }
 
 // Palette-lookup blit: index 0 is transparent (skip), all other indices map
-// through the supplied palette to real RGBA.
+// through the supplied palette to real RGBA. Signed dest so negative offsets
+// clip cleanly (logo frames have ox down to -180).
 void blit_sprite(std::vector<std::uint8_t>& fb,
                  const d2d::dc6::Frame& f,
                  const d2d::palette::Palette& pal,
-                 std::uint32_t dst_x, std::uint32_t dst_y) {
+                 int dst_x, int dst_y) {
     for (std::uint32_t y = 0; y < f.height; ++y) {
-        const auto dy = dst_y + y;
-        if (dy >= kH) break;
+        const int dy = dst_y + int(y);
+        if (dy < 0 || dy >= int(kH)) continue;
         for (std::uint32_t x = 0; x < f.width; ++x) {
-            const auto dx = dst_x + x;
-            if (dx >= kW) break;
+            const int dx = dst_x + int(x);
+            if (dx < 0 || dx >= int(kW)) continue;
             const auto idx = f.pixels[y * f.width + x];
             if (idx == 0) continue;
             const auto c = pal[idx];
-            auto* p = &fb[(dy * kW + dx) * 4];
+            auto* p = &fb[(std::size_t(dy) * kW + std::size_t(dx)) * 4];
             p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = c.a;
         }
     }
+}
+
+// Blit a frame at anchor+(frame.offset_x, frame.offset_y - height + 1).
+// D2 convention is BOTTOM-LEFT origin — matches DCC's frame-box math (see
+// OpenDiablo2/dcc_direction_frame.go: `box.top = y_offset - height + 1`).
+// The fire animation confirms this: its oy=132 is constant across frames of
+// varying height, so anchoring the BOTTOM keeps the fire base planted while
+// the flame top flickers up and down.
+void blit_at_anchor(std::vector<std::uint8_t>& fb,
+                    const d2d::dc6::Frame& f,
+                    const d2d::palette::Palette& pal,
+                    int anchor_x, int anchor_y) {
+    const int x = anchor_x + f.offset_x;
+    const int y = anchor_y + f.offset_y - int(f.height) + 1;
+    blit_sprite(fb, f, pal, x, y);
 }
 
 void paint_test_pattern(std::vector<std::uint8_t>& fb) {
@@ -90,17 +107,17 @@ void paint_test_pattern(std::vector<std::uint8_t>& fb) {
 void blit_dc6_grid(std::vector<std::uint8_t>& fb,
                    const d2d::dc6::Sprite& spr,
                    const d2d::palette::Palette& pal,
-                   std::uint32_t origin_x, std::uint32_t origin_y,
+                   int origin_x, int origin_y,
                    int tiles_across) {
     const auto per_dir = spr.frames_per_direction();
-    std::uint32_t cy = origin_y;
-    std::uint32_t cx = origin_x;
-    std::uint32_t row_h = 0;
+    int cy = origin_y;
+    int cx = origin_x;
+    int row_h = 0;
     for (int i = 0; i < int(per_dir); ++i) {
         const auto& f = spr.frame(0, i);
         blit_sprite(fb, f, pal, cx, cy);
-        cx += f.width;
-        if (f.height > row_h) row_h = f.height;
+        cx += int(f.width);
+        if (int(f.height) > row_h) row_h = int(f.height);
         if ((i + 1) % tiles_across == 0) {
             cx  = origin_x;
             cy += row_h;
@@ -109,66 +126,96 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
     }
 }
 
-void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
-    // Solid black background — title screen is 640×480 centred in the 800×600
-    // window, so the border stays black.
-    for (auto& b : fb) b = 0;
-    for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+// All assets the main-menu scene needs. Loaded once at startup; render()
+// paints from these each tick without touching the MPQ again.
+struct Scene {
+    d2d::palette::Palette pal;
+    d2d::dc6::Sprite      bg;
+    d2d::dc6::Sprite      logo_bl, logo_br;   // "DIABLO II" silhouettes
+    d2d::dc6::Sprite      logo_fl, logo_fr;   // fire filling for the logo
+    d2d::dc6::Sprite      fire;               // campfire in the scene
+    d2d::font::Font       font;
+    int                   bg_tiles_across{4};
+};
 
+std::optional<Scene> load_scene(const fs::path& data_dir) {
     const auto d2data = data_dir / "d2data.mpq";
-    if (!fs::exists(d2data)) {
-        paint_test_pattern(fb);
-        return;
-    }
+    if (!fs::exists(d2data)) return std::nullopt;
     try {
-        // Stack layers d2exp on top of d2data so a `try_read` will find LoD
-        // assets first (gameselectscreenEXP.dc6, etc.) and fall through to
-        // classic-only files (Sky palette, TitleScreen, fonts).
         d2d::mpq::Stack mpqs;
         const auto d2exp = data_dir / "d2exp.mpq";
         if (fs::exists(d2exp)) mpqs.push(d2exp);
         mpqs.push(d2data);
 
-        // Sky palette — game.exe's menu init hardcodes palette\sky\pal.pl2
-        // at 5 sites, each with the DAT fallback in the same call.
-        d2d::palette::Palette pal(mpqs.read(
-            R"(data\global\palette\Sky\pal.dat)"));
+        // Prefer the LoD title asset (fenced rogue camp at night). Classic
+        // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
+        auto title = mpqs.try_read(R"(data\global\ui\FrontEnd\gameselectscreenEXP.dc6)");
+        if (!title) title = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
+        if (!title) throw std::runtime_error("no title screen asset");
 
-        // LoD ships a different title screen than classic — game.exe picks
-        // one via an expansion flag. gameselectscreenEXP.dc6 is the LoD
-        // version (fenced rogue camp at night); TitleScreen.DC6 is classic.
-        // Prefer LoD, fall back to classic.
-        auto title_bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\gameselectscreenEXP.dc6)");
-        if (!title_bytes) title_bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
-        if (!title_bytes) throw std::runtime_error("no title screen asset");
-        d2d::dc6::Sprite spr(*title_bytes);
-        // TitleScreen is a 4×3 grid of sub-frames (12 total) totalling
-        // exactly 800×600 — drawn flush with the window origin.
-        blit_dc6_grid(fb, spr, pal, 0, 0, /*tiles_across=*/4);
-
-        // Menu labels — no button chrome yet, just text over the background.
-        // font16 is a small UI font whose glyphs use the current palette's
-        // white/gold indices, so it reads naturally against the D2 sky.
-        d2d::font::Font font(
-            mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
-            d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)")));
-
-        struct MenuItem { const char* text; int y; };
-        const MenuItem items[] = {
-            {"SINGLE PLAYER",     380},
-            {"OTHER MULTIPLAYER", 425},
-            {"EXIT DIABLO II",    475},
+        return Scene{
+            .pal      = d2d::palette::Palette(mpqs.read(
+                          R"(data\global\palette\Sky\pal.dat)")),
+            .bg       = d2d::dc6::Sprite(*title),
+            .logo_bl  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
+            .logo_br  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)")),
+            .logo_fl  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireLeft.DC6)")),
+            .logo_fr  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireRight.DC6)")),
+            .fire     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
+            .font     = d2d::font::Font(
+                          mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
+                          d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
         };
-        for (const auto& mi : items) {
-            const int w = font.measure(mi.text);
-            font.draw(fb, kW, kH, pal, int(kW) / 2 - w / 2, mi.y, mi.text);
-        }
-        // Version stamp bottom-left.
-        font.draw(fb, kW, kH, pal, 8, int(kH) - 14, "d2d dev build");
     } catch (const std::exception& e) {
-        std::fprintf(stderr, "[d2d] paint: %s\n", e.what());
-        paint_test_pattern(fb);
+        std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
+        return std::nullopt;
     }
+}
+
+void render(std::vector<std::uint8_t>& fb,
+            const Scene& s,
+            std::uint64_t tick) {
+    // Full-screen background — no need to clear; the 4×3 grid tiles fill
+    // exactly 800×600 with no gaps.
+    blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
+
+    // "DIABLO II" logo — anchor picks where the logo's BOTTOM sits (see
+    // blit_at_anchor). With BlackLeft's oy=47 and height=122, anchor_y=170
+    // puts the logo top at ~95px, matching reference. Black silhouettes
+    // first, then the fire fills on top. Same 30-frame flicker cycle
+    // across all four pieces — advance one frame every 3 ticks (~20 fps).
+    const auto n_logo = s.logo_bl.frames_per_direction();
+    const auto fi = (n_logo == 0) ? 0u : std::uint32_t((tick / 3) % n_logo);
+    constexpr int kLogoAnchorX = 400;
+    constexpr int kLogoAnchorY = 170;
+    blit_at_anchor(fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_at_anchor(fb, s.logo_br.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_at_anchor(fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_at_anchor(fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+
+    // Campfire animation. Fire's oy=132 is constant, height flickers 89..176,
+    // so anchoring the base keeps the fire planted on the pit while flames
+    // dance upward. Anchor at (400, 460) puts the base near screen-bottom-
+    // centre where the pit is in the LoD scene. Different tick divisor
+    // desyncs the fire flicker from the logo flicker.
+    const auto n_fire = s.fire.frames_per_direction();
+    const auto ff = (n_fire == 0) ? 0u : std::uint32_t((tick / 4) % n_fire);
+    constexpr int kFireAnchorX = 400;
+    constexpr int kFireAnchorY = 460;
+    blit_at_anchor(fb, s.fire.frame(0, ff), s.pal, kFireAnchorX, kFireAnchorY);
+
+    // Menu labels — no button chrome yet, just text over the background.
+    struct MenuItem { const char* text; int y; };
+    constexpr MenuItem items[] = {
+        {"SINGLE PLAYER",     380},
+        {"OTHER MULTIPLAYER", 425},
+        {"EXIT DIABLO II",    475},
+    };
+    for (const auto& mi : items) {
+        const int w = s.font.measure(mi.text);
+        s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - w / 2, mi.y, mi.text);
+    }
+    s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14, "d2d dev build");
 }
 
 // --- SDL3 render loop ------------------------------------------------------
@@ -204,7 +251,8 @@ struct Window {
     }
 };
 
-int run_windowed(const std::vector<std::uint8_t>& fb,
+int run_windowed(std::vector<std::uint8_t>& fb,
+                 const std::optional<Scene>& scene,
                  d2d::devctl::Channel& ch,
                  std::atomic<std::uint64_t>& frame_count,
                  std::atomic<bool>& quit) {
@@ -229,6 +277,10 @@ int run_windowed(const std::vector<std::uint8_t>& fb,
 
         if (ch.active()) ch.pump();
 
+        const auto tick = frame_count.load();
+        if (scene) render(fb, *scene, tick);
+        else       paint_test_pattern(fb);
+
         SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
         SDL_RenderClear(win.r);
         SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
@@ -241,7 +293,9 @@ int run_windowed(const std::vector<std::uint8_t>& fb,
     return 0;
 }
 
-int run_headless(d2d::devctl::Channel& ch,
+int run_headless(std::vector<std::uint8_t>& fb,
+                 const std::optional<Scene>& scene,
+                 d2d::devctl::Channel& ch,
                  std::atomic<std::uint64_t>& frame_count,
                  std::atomic<bool>& quit) {
     if (!ch.active()) {
@@ -250,8 +304,11 @@ int run_headless(d2d::devctl::Channel& ch,
     }
     while (!quit) {
         ch.pump();
+        const auto tick = frame_count.load();
+        if (scene) render(fb, *scene, tick);
+        else       paint_test_pattern(fb);
         ++frame_count;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));  // ~60 Hz
     }
     return 0;
 }
@@ -279,7 +336,8 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
-    paint(fb, data_dir);
+    for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+    auto scene = load_scene(data_dir);   // nullopt if MPQ dir is missing
 
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
@@ -301,6 +359,6 @@ int main(int argc, char** argv) {
     ch.listen(devctl_path);
 
     return headless
-        ? run_headless(ch, frame_count, quit)
-        : run_windowed(fb, ch, frame_count, quit);
+        ? run_headless(fb, scene, ch, frame_count, quit)
+        : run_windowed(fb, scene, ch, frame_count, quit);
 }
