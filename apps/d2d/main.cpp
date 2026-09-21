@@ -172,9 +172,15 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
     }
 }
 
+// D2's base game/anim tick is 25 Hz — every animation rate in AnimData.d2
+// is `25 * animRate / 256`. The frontend menu runs at that base rate;
+// tying our advance to wall-clock ms keeps playback correct regardless of
+// how fast we happen to be rendering (60 Hz, 120 Hz, headless, whatever).
+constexpr std::uint32_t kBaseFrameMs = 40;   // 1000 / 25
+
 void render(std::vector<std::uint8_t>& fb,
             const Scene& s,
-            std::uint64_t tick) {
+            std::uint32_t elapsed_ms) {
     // Full-screen background — no need to clear; the 4×3 grid tiles fill
     // exactly 800×600 with no gaps.
     blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
@@ -182,10 +188,11 @@ void render(std::vector<std::uint8_t>& fb,
     // "DIABLO II" logo — anchor picks where the logo's BOTTOM sits (see
     // blit_at_anchor). With BlackLeft's oy=47 and height=122, anchor_y=170
     // puts the logo top at ~95px, matching reference. Black silhouettes
-    // first, then the fire fills on top. Same 30-frame flicker cycle
-    // across all four pieces — advance one frame every 3 ticks (~20 fps).
+    // first, then the fire fills on top. Both share one 30-frame flicker
+    // cycle advancing at the 25 Hz base rate.
     const auto n_logo = s.logo_bl.frames_per_direction();
-    const auto fi = (n_logo == 0) ? 0u : std::uint32_t((tick / 3) % n_logo);
+    const auto fi = (n_logo == 0) ? 0u
+        : std::uint32_t((elapsed_ms / kBaseFrameMs) % n_logo);
     constexpr int kLogoAnchorX = 400;
     constexpr int kLogoAnchorY = 170;
     blit_at_anchor(fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
@@ -195,11 +202,11 @@ void render(std::vector<std::uint8_t>& fb,
 
     // Campfire animation. Fire's oy=132 is constant, height flickers 89..176,
     // so anchoring the base keeps the fire planted on the pit while flames
-    // dance upward. Anchor at (400, 460) puts the base near screen-bottom-
-    // centre where the pit is in the LoD scene. Different tick divisor
-    // desyncs the fire flicker from the logo flicker.
+    // dance upward. Same 25 Hz base rate; offset by a few ms so the fire
+    // flicker doesn't sync perfectly with the logo flicker.
     const auto n_fire = s.fire.frames_per_direction();
-    const auto ff = (n_fire == 0) ? 0u : std::uint32_t((tick / 4) % n_fire);
+    const auto ff = (n_fire == 0) ? 0u
+        : std::uint32_t(((elapsed_ms + 17) / kBaseFrameMs) % n_fire);
     constexpr int kFireAnchorX = 400;
     constexpr int kFireAnchorY = 460;
     blit_at_anchor(fb, s.fire.frame(0, ff), s.pal, kFireAnchorX, kFireAnchorY);
@@ -267,6 +274,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         return 1;
     }
 
+    const auto t0 = SDL_GetTicks();
     while (!quit) {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
@@ -277,8 +285,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
         if (ch.active()) ch.pump();
 
-        const auto tick = frame_count.load();
-        if (scene) render(fb, *scene, tick);
+        const auto ms = std::uint32_t(SDL_GetTicks() - t0);
+        if (scene) render(fb, *scene, ms);
         else       paint_test_pattern(fb);
 
         SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
@@ -302,10 +310,12 @@ int run_headless(std::vector<std::uint8_t>& fb,
         std::printf("d2d: --headless with no --devctl, single-shot paint. exiting.\n");
         return 0;
     }
+    const auto t0 = std::chrono::steady_clock::now();
     while (!quit) {
         ch.pump();
-        const auto tick = frame_count.load();
-        if (scene) render(fb, *scene, tick);
+        const auto ms = std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t0).count());
+        if (scene) render(fb, *scene, ms);
         else       paint_test_pattern(fb);
         ++frame_count;
         std::this_thread::sleep_for(std::chrono::milliseconds(16));  // ~60 Hz
