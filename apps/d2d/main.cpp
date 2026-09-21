@@ -165,13 +165,19 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
 }
 
 // All assets the main-menu scene needs. Loaded once at startup; render()
-// paints from these each tick without touching the MPQ again.
+// paints from these each tick without touching the MPQ again. Set is
+// sourced from FUN_0042e6d0 (game.exe front-end asset loader) — see
+// docs/research/re/frontend-menu-table.md.
 struct Scene {
     d2d::palette::Palette pal;
-    d2d::dc6::Sprite      bg;
-    d2d::dc6::Sprite      logo_bl, logo_br;   // "DIABLO II" silhouettes
-    d2d::dc6::Sprite      logo_fl, logo_fr;   // fire filling for the logo
-    d2d::dc6::Sprite      fire;               // campfire in the scene
+    d2d::dc6::Sprite      bg;                 // TitleScreen or gameselectscreenEXP
+    d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151 letter fire fills
+    d2d::dc6::Sprite      logo_bl, logo_br;   // D2logoBlack{Left,Right} — silhouettes
+    d2d::dc6::Sprite      logo_fl, logo_fr;   // D2logoFire{Left,Right} — animated fire
+    d2d::dc6::Sprite      btn_wide;           // WideButtonBlank
+    d2d::dc6::Sprite      btn_wide2;          // WideButtonBlank02
+    d2d::dc6::Sprite      btn_narrow;         // NarrowButtonBlank
+    d2d::dc6::Sprite      btn_short;          // ShortButtonBlank
     d2d::font::Font       font;
     int                   bg_tiles_across{4};
 };
@@ -192,17 +198,21 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         if (!title) throw std::runtime_error("no title screen asset");
 
         return Scene{
-            .pal      = d2d::palette::Palette(mpqs.read(
-                          R"(data\global\palette\Sky\pal.dat)")),
-            .bg       = d2d::dc6::Sprite(*title),
-            .logo_bl  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
-            .logo_br  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)")),
-            .logo_fl  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireLeft.DC6)")),
-            .logo_fr  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireRight.DC6)")),
-            .fire     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
-            .font     = d2d::font::Font(
-                          mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
-                          d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
+            .pal         = d2d::palette::Palette(mpqs.read(
+                             R"(data\global\palette\Sky\pal.dat)")),
+            .bg          = d2d::dc6::Sprite(*title),
+            .logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)")),
+            .logo_bl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
+            .logo_br     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)")),
+            .logo_fl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireLeft.DC6)")),
+            .logo_fr     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireRight.DC6)")),
+            .btn_wide    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank.dc6)")),
+            .btn_wide2   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank02.dc6)")),
+            .btn_narrow  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\NarrowButtonBlank.dc6)")),
+            .btn_short   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\ShortButtonBlank.dc6)")),
+            .font        = d2d::font::Font(
+                             mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
+                             d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
         };
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
@@ -223,13 +233,25 @@ void render(std::vector<std::uint8_t>& fb,
     // exactly 800×600 with no gaps.
     blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
 
-    // "DIABLO II" logo. Anchor sits at the logo's BOTTOM baseline; with
-    // BlackLeft's oy=47 and height=122 that puts logo top at anchor_y-74.
-    // anchor_y=120 → top≈46, bottom=120 — matches the reference LoD title
-    // where the logo occupies the upper ~third of the screen.
-    // Black silhouette first, then fire fills on top (additive warm tint —
-    // Sky palette's raw fire indices are dark blues; the warm hue is applied
-    // by the PL2 hue-variation colormap the real game uses, deferred for now).
+    // Diablo2.dc6 — static 320×151 "DIABLO II" fire-fills. Per RE at
+    // menu record 0x708e00: (kind=2, x=240, y=120, w=320, h=151). The
+    // sprite is sliced as a 1×2 grid: frame 0 is 256×151, frame 1 is 64×151.
+    // Draw both side-by-side starting at the record's (x, y).
+    {
+        constexpr int kDia2X = 240, kDia2Y = 120;
+        int cx = kDia2X;
+        for (int f = 0; f < int(s.logo_static.frames_per_direction()); ++f) {
+            const auto& fr = s.logo_static.frame(0, f);
+            blit_fire_tinted(fb, fr, s.pal, cx - int(fr.offset_x), kDia2Y);
+            cx += int(fr.width);
+        }
+    }
+
+    // "DIABLO II" animated logo halves — per RE records at 0x708e30 and
+    // 0x708e60, both anchored at (400, 120). Each DC6 frame's bottom-left
+    // origin (per DCC convention) places itself relative to that anchor.
+    // Black silhouettes first, then fire fills on top with the warm-tint
+    // hack (PL2 hue-variation colormap remains a follow-up).
     const auto n_logo = s.logo_bl.frames_per_direction();
     const auto fi = (n_logo == 0) ? 0u
         : std::uint32_t((elapsed_ms / kBaseFrameMs) % n_logo);
@@ -240,38 +262,40 @@ void render(std::vector<std::uint8_t>& fb,
     blit_fire_tinted  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_fire_tinted  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
 
-    // "Lord of Destruction" subtitle beneath the DIABLO II logo. Rendered
-    // in font16; centred, positioned just below the logo baseline.
-    {
-        constexpr const char* sub = "LORD OF DESTRUCTION";
-        const int w = s.font.measure(sub);
-        s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - w / 2, 138, sub);
-    }
-
-    // Campfire animation. Fire's oy=132 is constant, height flickers 89..176,
-    // so anchoring the base keeps the fire planted on the pit while flames
-    // dance upward. Same 25 Hz base rate; offset a few ms so the fire flicker
-    // doesn't sync with the logo. Additive warm tint (same ponytail as logo).
-    const auto n_fire = s.fire.frames_per_direction();
-    const auto ff = (n_fire == 0) ? 0u
-        : std::uint32_t(((elapsed_ms + 17) / kBaseFrameMs) % n_fire);
-    constexpr int kFireAnchorX = 400;
-    constexpr int kFireAnchorY = 460;
-    blit_fire_tinted(fb, s.fire.frame(0, ff), s.pal, kFireAnchorX, kFireAnchorY);
-
-    // Menu labels — no button chrome yet, just text over the background.
-    // Positions match the reference LoD layout: buttons stacked below the
-    // fire pit, "Exit Diablo II" at the very bottom.
-    struct MenuItem { const char* text; int y; };
-    constexpr MenuItem items[] = {
-        {"SINGLE PLAYER",     380},
-        {"OTHER MULTIPLAYER", 425},
-        {"EXIT DIABLO II",    500},
+    // Buttons — RE-verified from menu records 0x708ec0..0x708fe0 (classic
+    // main menu). Each button is TOP-LEFT (x, y) with width/height chrome
+    // frame drawn from its DC6, then label text centered inside.
+    struct Btn {
+        const d2d::dc6::Sprite* sprite;
+        int x, y, w, h;
+        const char* label;
     };
-    for (const auto& mi : items) {
-        const int w = s.font.measure(mi.text);
-        s.font.draw(fb, kW, kH, s.pal, int(kW) / 2 - w / 2, mi.y, mi.text);
+    const Btn buttons[] = {
+        {&s.btn_wide,   264, 224, 272, 35, "SINGLE PLAYER"},
+        {&s.btn_wide2,  264, 266, 272, 35, "BATTLE.NET"},
+        {&s.btn_narrow, 264, 291, 272, 25, ""},              // gateway link
+        {&s.btn_wide,   264, 333, 272, 35, "OTHER MULTIPLAYER"},
+        {&s.btn_short,  264, 528, 135, 25, "CREDITS"},
+        {&s.btn_short,  402, 528, 135, 25, "CINEMATICS"},
+        {&s.btn_wide,   264, 568, 272, 35, "EXIT DIABLO II"},
+    };
+    for (const auto& b : buttons) {
+        // Frame 0 = normal state. Chrome DC6s ship 3 frames (normal/hover/pressed);
+        // interactive states land when mouse routing does.
+        if (b.sprite->frames_per_direction() > 0) {
+            const auto& fr = b.sprite->frame(0, 0);
+            blit_sprite(fb, fr, s.pal, b.x, b.y);
+        }
+        if (b.label && *b.label) {
+            const int lw = s.font.measure(b.label);
+            const int lh = s.font.line_height();
+            s.font.draw(fb, kW, kH, s.pal,
+                        b.x + (b.w - lw) / 2,
+                        b.y + (b.h - lh) / 2,
+                        b.label);
+        }
     }
+
     s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14, "d2d dev build");
 }
 
