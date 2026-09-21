@@ -35,6 +35,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// D2 LoD 800×600 mode dimensions — matches TitleScreen.DC6, which ships
+// pre-sliced into a 4×3 grid of sub-frames adding up to exactly 800×600
+// (columns 256/256/256/32, rows 256/256/88).
 constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
 
@@ -80,23 +83,55 @@ void paint_test_pattern(std::vector<std::uint8_t>& fb) {
     }
 }
 
+// A DC6 background is often stored as a grid of sub-frames arranged
+// left-to-right, top-to-bottom (D2 splits large images because DC6 frames
+// each cap at 256×256 in practice). This lays them out side by side.
+void blit_dc6_grid(std::vector<std::uint8_t>& fb,
+                   const d2d::dc6::Sprite& spr,
+                   const d2d::palette::Palette& pal,
+                   std::uint32_t origin_x, std::uint32_t origin_y,
+                   int tiles_across) {
+    const auto per_dir = spr.frames_per_direction();
+    std::uint32_t cy = origin_y;
+    std::uint32_t cx = origin_x;
+    std::uint32_t row_h = 0;
+    for (int i = 0; i < int(per_dir); ++i) {
+        const auto& f = spr.frame(0, i);
+        blit_sprite(fb, f, pal, cx, cy);
+        cx += f.width;
+        if (f.height > row_h) row_h = f.height;
+        if ((i + 1) % tiles_across == 0) {
+            cx  = origin_x;
+            cy += row_h;
+            row_h = 0;
+        }
+    }
+}
+
 void paint(std::vector<std::uint8_t>& fb, const fs::path& data_dir) {
-    paint_test_pattern(fb);
+    // Solid black background — title screen is 640×480 centred in the 800×600
+    // window, so the border stays black.
+    for (auto& b : fb) b = 0;
+    for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+
     const auto d2data = data_dir / "d2data.mpq";
-    if (!fs::exists(d2data)) return;
+    if (!fs::exists(d2data)) {
+        paint_test_pattern(fb);
+        return;
+    }
     try {
         d2d::mpq::Archive a(d2data);
         d2d::palette::Palette pal(a.read(
-            R"(data\global\palette\ACT1\pal.dat)"));
+            R"(data\global\palette\Trademark\pal.dat)"));
 
-        auto raw = a.read(R"(data\global\ui\MENU\helpwhitebullet.dc6)");
+        auto raw = a.read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         d2d::dc6::Sprite spr(raw);
-        for (int j = 0; j < 12; ++j)
-            for (int i = 0; i < 16; ++i)
-                blit_sprite(fb, spr.frame(0, 0), pal,
-                            20 + i * 24, 20 + j * 24);
+        // TitleScreen is a 4×3 grid of sub-frames (12 total) totalling
+        // exactly 800×600 — drawn flush with the window origin.
+        blit_dc6_grid(fb, spr, pal, 0, 0, /*tiles_across=*/4);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] paint: %s\n", e.what());
+        paint_test_pattern(fb);
     }
 }
 
