@@ -233,19 +233,15 @@ void render(std::vector<std::uint8_t>& fb,
     // exactly 800×600 with no gaps.
     blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
 
-    // Diablo2.dc6 — static 320×151 "DIABLO II" fire-fills. Per RE at
-    // menu record 0x708e00: (kind=2, x=240, y=120, w=320, h=151). The
-    // sprite is sliced as a 1×2 grid: frame 0 is 256×151, frame 1 is 64×151.
-    // Draw both side-by-side starting at the record's (x, y).
-    {
-        constexpr int kDia2X = 240, kDia2Y = 120;
-        int cx = kDia2X;
-        for (int f = 0; f < int(s.logo_static.frames_per_direction()); ++f) {
-            const auto& fr = s.logo_static.frame(0, f);
-            blit_fire_tinted(fb, fr, s.pal, cx - int(fr.offset_x), kDia2Y);
-            cx += int(fr.width);
-        }
-    }
+    // Diablo2.dc6 (menu record 0x708e00) is the CLASSIC-D2 static DIABLO II
+    // logo — a 320×151 pre-baked title asset. In LoD it stays LOADED but
+    // never drawn: the animated D2logo{Black,Fire}{L,R} pieces replace it,
+    // and gameselectscreenEXP.dc6 already has "EXPANSION SET / Lord of
+    // Destruction" baked into the background. Drawing both stacks two
+    // "DIABLO II"s at different anchors — Bret caught the doubled letters.
+    // ponytail: expansion-flag branch in the drawer; wire when a
+    // classic-mode d2d run needs the fallback path.
+    (void)s.logo_static;
 
     // "DIABLO II" animated logo halves — per RE records at 0x708e30 and
     // 0x708e60, both anchored at (400, 120). Each DC6 frame's bottom-left
@@ -262,22 +258,23 @@ void render(std::vector<std::uint8_t>& fb,
     blit_fire_tinted  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_fire_tinted  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
 
-    // Buttons — RE-verified from menu records 0x708ec0..0x708fe0 (classic
-    // main menu). Each button is TOP-LEFT (x, y) with width/height chrome
-    // frame drawn from its DC6, then label text centered inside.
+    // Buttons — LoD variant, RE-verified from menu records 0x709010..0x7090a0
+    // (upper cluster shifted 100 px lower vs. classic to make room for the
+    // "EXPANSION SET / Lord of Destruction" text baked into the background)
+    // plus classic 0x708f80..0x708fe0 for the shared bottom row.
     struct Btn {
         const d2d::dc6::Sprite* sprite;
         int x, y, w, h;
         const char* label;
     };
     const Btn buttons[] = {
-        {&s.btn_wide,   264, 224, 272, 35, "SINGLE PLAYER"},
-        {&s.btn_wide2,  264, 266, 272, 35, "BATTLE.NET"},
-        {&s.btn_narrow, 264, 291, 272, 25, ""},              // gateway link
-        {&s.btn_wide,   264, 333, 272, 35, "OTHER MULTIPLAYER"},
-        {&s.btn_short,  264, 528, 135, 25, "CREDITS"},
-        {&s.btn_short,  402, 528, 135, 25, "CINEMATICS"},
-        {&s.btn_wide,   264, 568, 272, 35, "EXIT DIABLO II"},
+        {&s.btn_wide,   264, 324, 272, 35, "SINGLE PLAYER"},        // 0x709010
+        {&s.btn_wide2,  264, 366, 272, 35, "BATTLE.NET"},           // 0x709040
+        {&s.btn_narrow, 264, 391, 272, 25, "GATEWAY: LOCAL"},       // 0x709070
+        {&s.btn_wide,   264, 433, 272, 35, "OTHER MULTIPLAYER"},    // 0x7090a0
+        {&s.btn_short,  264, 528, 135, 25, "CREDITS"},              // 0x708f80
+        {&s.btn_short,  402, 528, 135, 25, "CINEMATICS"},           // 0x708fb0
+        {&s.btn_wide,   264, 568, 272, 35, "EXIT DIABLO II"},       // 0x708fe0
     };
     for (const auto& b : buttons) {
         // Frame 0 = normal state. Chrome DC6s ship 3 frames (normal/hover/pressed);
