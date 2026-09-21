@@ -150,15 +150,19 @@ void Channel::pump() {
     // get "err busy" while the old fd hadn't reported EOF yet.
     if (impl_->client_fd >= 0) {
         char buf[512];
+        bool remote_eof = false;
         while (true) {
             ssize_t n = ::recv(impl_->client_fd, buf, sizeof(buf), 0);
             if (n > 0) { impl_->rx_buf.append(buf, std::size_t(n)); continue; }
-            if (n == 0) { impl_->close_client(); break; }
+            if (n == 0) { remote_eof = true; break; }
             if (errno == EAGAIN || errno == EWOULDBLOCK) break;
             if (errno == EINTR) continue;
             impl_->close_client();
             break;
         }
+        // Dispatch every complete line we have — even if the peer half-closed
+        // (SHUT_WR) after sending a batch, they still expect replies before
+        // the server tears the fd down.
         std::size_t nl;
         while (impl_->client_fd >= 0 &&
                (nl = impl_->rx_buf.find('\n')) != std::string::npos) {
@@ -186,8 +190,13 @@ void Channel::pump() {
             write_all(impl_->client_fd, reply);
         }
         // 64 KB is generous for a text protocol; anything larger is a bug.
-        if (impl_->rx_buf.size() > 64 * 1024) {
+        if (impl_->client_fd >= 0 && impl_->rx_buf.size() > 64 * 1024) {
             write_all(impl_->client_fd, "err line too long\n");
+            impl_->close_client();
+        }
+        // Only tear the fd down AFTER the buffered lines have been dispatched
+        // and their replies flushed — the client already stopped writing.
+        if (remote_eof && impl_->client_fd >= 0) {
             impl_->close_client();
         }
     }

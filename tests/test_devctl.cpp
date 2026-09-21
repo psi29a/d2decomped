@@ -129,6 +129,20 @@ int main() {
 
     ::close(c1);
     tick();
+
+    // Regression: a client that sends a batch of commands then SHUT_WRs
+    // must still get every reply — the pump had a bug where EOF on recv
+    // closed the fd before dispatching buffered lines. Repro with a fresh
+    // client that half-closes right after sending.
+    int c3 = connect_client();
+    ::send(c3, "hello alice\nhello bob\nping\n", 27, 0);
+    ::shutdown(c3, SHUT_WR);
+    tick();
+    reply = read_reply(c3);
+    assert(reply == "greet alice\ngreet bob\nok\n");
+    ::close(c3);
+    tick();
+
     ch.close();
     assert(!ch.active());
 
