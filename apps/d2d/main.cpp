@@ -163,7 +163,8 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
 // from these each tick without touching the MPQ again. Sourced from
 // FUN_0042e6d0 (main-menu loader) — see docs/research/re/frontend-menu-table.md.
 struct Scene {
-    d2d::palette::Palette pal;
+    d2d::palette::Palette pal;                // Sky — title/credits palette
+    d2d::palette::Palette charselect_pal;     // fechar — char-select/create palette
     d2d::dc6::Sprite      bg;                 // TitleScreen or gameselectscreenEXP
     d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151, classic only
     d2d::dc6::Sprite      logo_bl, logo_br;   // D2logoBlack{Left,Right} — silhouettes
@@ -301,8 +302,16 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         if (!title) throw std::runtime_error("no title screen asset");
 
         return Scene{
-            .pal         = d2d::palette::Palette(mpqs.read(
-                             R"(data\global\palette\Sky\pal.dat)")),
+            // Sky = title/credits (game.exe hardcodes palette\sky\pal.pl2 in
+            // 5 sites of the menu loader — docs/research/re/frontend-menu-table.md).
+            .pal            = d2d::palette::Palette(mpqs.read(
+                                R"(data\global\palette\Sky\pal.dat)")),
+            // fechar = "Front End CHARacter", the char-select/creation palette.
+            // game.exe's FUN_00435580 (char-select init) loads it right after
+            // the char-select asset loader (FUN_004326f0). Firelit warm tones
+            // — night camp scene lit by the campfire the classes stand around.
+            .charselect_pal = d2d::palette::Palette(mpqs.read(
+                                R"(data\global\palette\fechar\pal.dat)")),
             .bg          = d2d::dc6::Sprite(*title),
             .logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)")),
             .logo_bl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
@@ -487,9 +496,15 @@ void render_credits(std::vector<std::uint8_t>& fb,
 void render_charcreate(std::vector<std::uint8_t>& fb,
                        const Scene& s,
                        std::uint32_t elapsed_ms) {
+    // Everything on this screen uses the fechar palette (RE'd from
+    // FUN_00435580, which loads palette\fechar\pal.pl2 right after the
+    // char-select asset loader). Sky palette gives cool-blue silhouettes
+    // that don't match the firelit camp.
+    const auto& pal = s.charselect_pal;
+
     // Background: charactercreationscreenEXP.dc6 is the same 4×3 800×600
     // grid as the title bg.
-    blit_dc6_grid(fb, s.charcreate_bg, s.pal, 0, 0, s.bg_tiles_across);
+    blit_dc6_grid(fb, s.charcreate_bg, pal, 0, 0, s.bg_tiles_across);
 
     // Class silhouettes. Positions eyeballed to match D2's layout — the
     // classes stand in a rough semi-circle behind the fire pit. Each anchor
@@ -512,7 +527,7 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
         const auto n = spr.frames_per_direction();
         if (n == 0) continue;
         const auto fi = std::uint32_t((ticks + i * 7) % n);   // desync per class
-        blit_at_anchor(fb, spr.frame(0, fi), s.pal, pos[i].x, pos[i].y);
+        blit_at_anchor(fb, spr.frame(0, fi), pal, pos[i].x, pos[i].y);
     }
 
     // Campfire animation between the front classes — position tuned so the
@@ -520,15 +535,14 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     const auto nf = s.fire.frames_per_direction();
     if (nf > 0) {
         const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
-        // Warm-tint like the logo fire (PL2 colormap is the honest fix).
-        blit_additive(fb, s.fire.frame(0, ff), s.pal, 400, 495);
+        blit_additive(fb, s.fire.frame(0, ff), pal, 400, 495);
     }
 
     // Placeholder screen label + return hint. Real UI here has class name,
     // description panel, name entry — later slice.
-    s.font.draw_tinted(fb, kW, kH, s.pal, int(kW)/2 - 90, 20,
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - 90, 20,
                        "SELECT HERO CLASS", 255, 208, 80);
-    s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14,
+    s.font.draw(fb, kW, kH, pal, 8, int(kH) - 14,
                 "d2d dev build — Esc to return to title");
 }
 
