@@ -838,6 +838,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int class_idx,
                    std::string_view name,
                    bool hardcore,
+                   int camera_cx,
+                   int camera_cy,
                    std::uint32_t /*elapsed_ms*/) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
@@ -848,11 +850,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         // uninitialized fb would leak the previous frame's contents.
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
-        // Camera centered roughly on the middle of the DS1 grid — the
-        // rogue-camp DS1s (57x41) put the town center around (28, 20).
-        // ponytail: pinned camera; scrolling comes with input handling.
-        render_world_floor(fb, s, s.world_ds1.width() / 2,
-                                    s.world_ds1.height() / 2);
+        render_world_floor(fb, s, camera_cx, camera_cy);
     } else {
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
@@ -1211,10 +1209,24 @@ TitleUI title_ui(const Scene& s) {
 // Turn SDL mouse + text events into a per-tick snapshot. Rising/falling
 // edges are recomputed each tick from the raw button state. When the
 // active screen has a text field, the caller flips SDL text input on/off.
+struct PanKeys {
+    bool& left; bool& right; bool& up; bool& down;
+};
+
 void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,
+                       PanKeys pan, bool& mouse_seen,
                        std::atomic<bool>& quit) {
     if (ev.type == SDL_EVENT_QUIT) { quit = true; return; }
+    auto pan_flag = [&](SDL_Keycode k, bool v) {
+        switch (k) {
+            case SDLK_A: case SDLK_LEFT:  pan.left  = v; break;
+            case SDLK_D: case SDLK_RIGHT: pan.right = v; break;
+            case SDLK_W: case SDLK_UP:    pan.up    = v; break;
+            case SDLK_S: case SDLK_DOWN:  pan.down  = v; break;
+            default: break;
+        }
+    };
     if (ev.type == SDL_EVENT_KEY_DOWN) {
         if (ev.key.key == SDLK_ESCAPE) {
             // Esc from any sub-screen returns to Title; Esc from Title quits.
@@ -1222,7 +1234,11 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             else current_screen = Screen::Title;
         } else if (ev.key.key == SDLK_BACKSPACE) {
             text_backspace = true;
+        } else {
+            pan_flag(ev.key.key, true);
         }
+    } else if (ev.type == SDL_EVENT_KEY_UP) {
+        pan_flag(ev.key.key, false);
     } else if (ev.type == SDL_EVENT_TEXT_INPUT) {
         // ev.text.text is UTF-8; keep the printable Latin-1 subset.
         for (const char* p = ev.text.text; *p; ++p) {
@@ -1232,6 +1248,7 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     } else if (ev.type == SDL_EVENT_MOUSE_MOTION) {
         m.x = int(ev.motion.x);
         m.y = int(ev.motion.y);
+        mouse_seen = true;
     } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         m.x = int(ev.button.x);
         m.y = int(ev.button.y);
@@ -1255,6 +1272,8 @@ static std::string g_start_screen;
 static int         g_start_class = 0;
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
+static int         g_start_cam_x = -1;   // -1 = "use map center"
+static int         g_start_cam_y = -1;
 
 static Screen parse_screen(std::string_view s) {
     if (s == "credits")    return Screen::Credits;
@@ -1313,6 +1332,24 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // Enable on CharCreate (name entry), disable elsewhere so keys don't
     // leak into fields that don't exist.
     bool text_active = false;
+    // Camera position on the InGame world (in DS1 cells). Seeded to the
+    // middle of the loaded map — arrow keys / WASD / mouse-edge pan from
+    // there. Persists across frames so panning is continuous rather than
+    // step-per-keypress.
+    int camera_cx = g_start_cam_x >= 0 ? g_start_cam_x
+                    : (scene && !scene->world_dt1s.empty()
+                        ? scene->world_ds1.width()  / 2 : 0);
+    int camera_cy = g_start_cam_y >= 0 ? g_start_cam_y
+                    : (scene && !scene->world_dt1s.empty()
+                        ? scene->world_ds1.height() / 2 : 0);
+    std::uint32_t last_ms = 0;
+    // Camera-pan latched key state (updated from SDL_EVENT_KEY_*). Using
+    // discrete events instead of SDL_GetKeyboardState works whether or not
+    // the window has real keyboard focus (headless CI, background test
+    // spawns, etc.) — SDL_GetKeyboardState was hanging under the harness's
+    // detached-window scenario.
+    bool pan_left = false, pan_right = false, pan_up = false, pan_down = false;
+    bool mouse_seen = false;
     while (!quit) {
         // Toggle SDL text input on screen change so keys don't leak into
         // fields that don't exist on the current screen.
@@ -1330,7 +1367,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
             handle_sdl_events(ev, mouse, screen, text_this_frame,
-                              backspace_this_frame, quit);
+                              backspace_this_frame,
+                              PanKeys{pan_left, pan_right, pan_up, pan_down},
+                              mouse_seen, quit);
         if (ch.active()) ch.pump();
 
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
@@ -1346,8 +1385,47 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 break;
             case Screen::InGame: {
                 // ESC handled globally in handle_sdl_events (returns to Title).
+                // Camera pan: WASD or arrow keys, plus D2-style mouse-edge
+                // scroll when the pointer sits in the outer 16px of the
+                // window. Rate: ~6 cells/sec, budgeted from real elapsed
+                // ms so pan speed is frame-rate-independent.
+                if (!scene->world_dt1s.empty()) {
+                    const std::uint32_t dt = ms - last_ms;
+                    int kx = 0, ky = 0;
+                    if (pan_left)  --kx;
+                    if (pan_right) ++kx;
+                    if (pan_up)    --ky;
+                    if (pan_down)  ++ky;
+                    // Mouse-edge scroll only kicks in after the pointer has
+                    // moved at least once (mouse_seen), so the initial
+                    // (0, 0) default doesn't drift the camera to (0, 0).
+                    constexpr int kEdge = 16;
+                    if (mouse_seen) {
+                        if (mouse.x < kEdge)            --kx;
+                        if (mouse.x >= int(kW) - kEdge) ++kx;
+                        if (mouse.y < kEdge)            --ky;
+                        if (mouse.y >= int(kH) - kEdge) ++ky;
+                    }
+                    // Fractional accumulator so 6 cells/sec = 6*dt/1000
+                    // and diagonals don't jitter.
+                    static float ax = 0.f, ay = 0.f;
+                    ax += kx * dt * 0.006f;
+                    ay += ky * dt * 0.006f;
+                    while (ax >=  1.f) { ++camera_cx; ax -= 1.f; }
+                    while (ax <= -1.f) { --camera_cx; ax += 1.f; }
+                    while (ay >=  1.f) { ++camera_cy; ay -= 1.f; }
+                    while (ay <= -1.f) { --camera_cy; ay += 1.f; }
+                    // Keep camera inside the DS1 grid.
+                    const int mw = scene->world_ds1.width();
+                    const int mh = scene->world_ds1.height();
+                    if (camera_cx < 0)   camera_cx = 0;
+                    if (camera_cy < 0)   camera_cy = 0;
+                    if (camera_cx >= mw) camera_cx = mw - 1;
+                    if (camera_cy >= mh) camera_cy = mh - 1;
+                }
                 render_ingame(fb, *scene, std::max(cc.selected, 0),
-                              cc.input_name, cc.hardcore, ms);
+                              cc.input_name, cc.hardcore,
+                              camera_cx, camera_cy, ms);
                 break;
             }
             case Screen::CharCreate: {
@@ -1382,6 +1460,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
         SDL_RenderPresent(win.r);
         ++frame_count;
+        last_ms = ms;
     }
     SDL_Quit();
     return 0;
@@ -1441,6 +1520,11 @@ int main(int argc, char** argv) {
                    "Preload character name");
     app.add_flag  ("--start-hardcore", start_hardcore,
                    "Preload the Hardcore checkbox");
+    int start_cam_x = -1, start_cam_y = -1;
+    app.add_option("--start-cam-x", start_cam_x,
+                   "InGame camera x (grid cell)");
+    app.add_option("--start-cam-y", start_cam_y,
+                   "InGame camera y (grid cell)");
     try {
         app.parse(argc, argv);
     } catch (const CLI::ParseError& e) {
@@ -1475,6 +1559,8 @@ int main(int argc, char** argv) {
     g_start_class    = start_class;
     g_start_name     = start_name;
     g_start_hardcore = start_hardcore;
+    g_start_cam_x    = start_cam_x;
+    g_start_cam_y    = start_cam_y;
 
     return headless
         ? run_headless(fb, scene, ch, frame_count, quit)
