@@ -199,7 +199,7 @@ struct Scene {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits, CharCreate };
+enum class Screen { Title, Credits, CharCreate, InGame };
 
 // Per-class animation state on the char-create screen. Matches D2's flow:
 // classes idle in place (nu1); on click the "just clicked" class walks
@@ -233,7 +233,9 @@ constexpr ClassPos kClassPos[7] = {
     {720, 370, 88, 184},   // Druid
     {232, 364, 88, 184},   // Assassin
 };
-constexpr const char* kClassName[7] = {
+// Fallbacks used when string.tbl can't resolve a class-name key. Order
+// matches Scene::class_anims (BA, NE, PA, AM, SO, DZ, AS).
+constexpr const char* kClassKey[7] = {
     "Barbarian", "Necromancer", "Paladin", "Amazon",
     "Sorceress", "Druid",       "Assassin",
 };
@@ -572,6 +574,46 @@ void render_credits(std::vector<std::uint8_t>& fb,
 // scene, loaded by FUN_004326f0. For MVP we blit each class's nu1 (idle)
 // cycle at hardcoded positions matching the D2 layout, plus the fire
 // animation in the pit. Selection / hover / class labels are follow-ups.
+// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
+// (Forward decl — full definition below title_ui.)
+std::string u16_to_latin1(std::u16string_view s);
+
+// In-game placeholder — a hero has been created; we don't have the actual
+// world/map render yet, so celebrate the character info and offer Esc to
+// go back to the title. Using the credits bg (dark corridor) as backdrop.
+void render_ingame(std::vector<std::uint8_t>& fb,
+                   const Scene& s,
+                   int class_idx,
+                   std::string_view name,
+                   std::uint32_t /*elapsed_ms*/) {
+    // Credits bg happens to be a moody dark corridor — good placeholder
+    // for "you're in the game" until DS1/DT1 tiles land.
+    const auto& pal = s.charselect_pal;
+    blit_dc6_grid(fb, s.credits_bg, pal, 0, 0, s.bg_tiles_across);
+
+    std::string cls = kClassKey[class_idx];
+    if (auto v = s.strings.get(kClassKey[class_idx]); v && !v->empty())
+        cls = u16_to_latin1(*v);
+
+    constexpr const char* welcome = "WELCOME TO SANCTUARY";
+    const int ww = s.font.measure(welcome);
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ww/2, 220,
+                       welcome, 255, 208, 80);
+
+    const std::string line = name.empty() ? cls : std::string(name) + " the " + cls;
+    const int lw = s.font.measure(line);
+    s.font.draw(fb, kW, kH, pal, int(kW)/2 - lw/2, 260, line);
+
+    constexpr const char* hint =
+        "d2d dev build — the rogue-camp tiles land when the DS1 + DT1 compositor does";
+    const int hw = s.font.measure(hint);
+    s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
+    constexpr const char* esc = "press Esc to return to title";
+    const int ew = s.font.measure(esc);
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ew/2, int(kH) - 40,
+                       esc, 200, 200, 200);
+}
+
 // Advance the per-class state machine — completes one-shot animations
 // (Selecting → Selected, Deselecting → Idle) once they finish.
 void advance_char_states(CharCreateUI& ui,
@@ -679,15 +721,20 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     }
 
     // Selected class name — big warm-gold caption above the panel area.
+    // TBL-sourced ("Amazon" / "Sorceress" / etc. all live under those exact
+    // keys in string.tbl per a probe of the file).
+    std::string caption;
     if (ui.selected >= 0) {
-        const auto* name = kClassName[ui.selected];
-        const int w = s.font.measure(name);
-        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w/2, 22, name,
-                           255, 208, 80);
+        if (auto v = s.strings.get(kClassKey[ui.selected]); v && !v->empty())
+            caption = u16_to_latin1(*v);
+        else
+            caption = kClassKey[ui.selected];
     } else {
-        constexpr const char* prompt = "SELECT HERO CLASS";
-        const int w = s.font.measure(prompt);
-        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w/2, 22, prompt,
+        caption = "SELECT HERO CLASS";
+    }
+    {
+        const int w = s.font.measure(caption);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w/2, 22, caption,
                            255, 208, 80);
     }
 
@@ -916,8 +963,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         cc.cancel_btn = Button{ 33, 572, 128, 35, cc.cancel_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::Title, /*do_switch=*/true };
+        // OK's target is InGame; do_switch flips true per tick once a class
+        // is picked AND a name is entered (see the per-frame gate below).
         cc.ok_btn     = Button{ 627, 572, 128, 35, cc.ok_label.c_str(),
-                                &scene->medium_sel_button };
+                                &scene->medium_sel_button,
+                                Screen::InGame, /*do_switch=*/false };
     }
 
     const auto t0 = SDL_GetTicks();
@@ -956,6 +1006,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
                 break;
+            case Screen::InGame: {
+                // ESC handled globally in handle_sdl_events (returns to Title).
+                render_ingame(fb, *scene, std::max(cc.selected, 0),
+                              cc.input_name, ms);
+                break;
+            }
             case Screen::CharCreate: {
                 // Text input into the name buffer (15-char cap = D2's
                 // character-record name limit).
