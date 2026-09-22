@@ -506,6 +506,18 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     // grid as the title bg.
     blit_dc6_grid(fb, s.charcreate_bg, pal, 0, 0, s.bg_tiles_across);
 
+    // Campfire — drawn BEFORE the characters so opaque silhouettes cover
+    // the additive glow instead of it flickering their pixel colours every
+    // frame. Bret spotted the flicker; fire-additive on top of a moving
+    // sprite gives a different composite each tick, which reads as jitter.
+    // D2's Z-order does the same: fire sits in the scene, characters stand
+    // in front of it. Position tuned so the fire base lands on the pit.
+    const auto nf = s.fire.frames_per_direction();
+    if (nf > 0) {
+        const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
+        blit_additive(fb, s.fire.frame(0, ff), pal, 400, 495);
+    }
+
     // Class silhouettes. Positions eyeballed to match D2's layout — the
     // classes stand in a rough semi-circle behind the fire pit. Each anchor
     // is (feet-x, feet-y) with the DC6 offsets doing the height math via
@@ -528,14 +540,6 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
         if (n == 0) continue;
         const auto fi = std::uint32_t((ticks + i * 7) % n);   // desync per class
         blit_at_anchor(fb, spr.frame(0, fi), pal, pos[i].x, pos[i].y);
-    }
-
-    // Campfire animation between the front classes — position tuned so the
-    // base lands on the pit in the background art.
-    const auto nf = s.fire.frames_per_direction();
-    if (nf > 0) {
-        const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
-        blit_additive(fb, s.fire.frame(0, ff), pal, 400, 495);
     }
 
     // Placeholder screen label + return hint. Real UI here has class name,
@@ -570,6 +574,9 @@ struct Window {
         if (!w) { std::fprintf(stderr, "[d2d] SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
         r = SDL_CreateRenderer(w, nullptr);
         if (!r) { std::fprintf(stderr, "[d2d] SDL_CreateRenderer: %s\n", SDL_GetError()); return false; }
+        // VSync avoids tearing when animations don't line up with monitor
+        // refresh. Failure is not fatal — some drivers reject it.
+        SDL_SetRenderVSync(r, 1);
         // RGBA32 is defined as ABGR8888 on LE / RGBA8888 on BE — memory order
         // is always (r, g, b, a), matching our framebuffer.
         t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32,
