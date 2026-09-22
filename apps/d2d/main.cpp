@@ -178,6 +178,7 @@ struct Scene {
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
     d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
+    d2d::dc6::Sprite      textbox;            // textbox.dc6 — name-entry chrome (single 169×26 frame)
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -299,6 +300,17 @@ struct CharCreateUI {
     int selected = -1;           // index of currently-selected class or -1
     Button ok_btn{};
     Button cancel_btn{};
+    // Name entry — SDL text-input feeds this buffer, capped at 15 chars
+    // to match D2's char-name limit (per D2's actual character record
+    // struct). Left/right arrows and non-printable keys are ignored.
+    std::string input_name;
+    // Owned label buffers so Button.label pointers stay live for the
+    // frame; sourced from string.tbl by ID.
+    std::string ok_label;
+    std::string cancel_label;
+    // Selected-class name from string.tbl (u16 → Latin-1). Empty when
+    // no class is picked yet.
+    std::string selected_name;
 };
 
 bool update_button(Button& b, const Mouse& m, Screen& current_screen,
@@ -386,6 +398,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             }(),
             .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
             .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
+            .textbox           = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)")),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -678,8 +691,38 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
                            255, 208, 80);
     }
 
-    // OK / EXIT buttons at the bottom — MediumButtonBlank chrome.
+    // Name-entry field — per RE record 0x70b290: (319, 519, 169, 26)
+    // with textbox.dc6 chrome. Draw the chrome, then the typed name
+    // centered inside. Prompt "Character Name" shows above the box.
+    if (s.textbox.frames_per_direction() > 0) {
+        // Above-box prompt (from string.tbl id 0x140b = "Character Name"
+        // per RE — using a plain fallback until we verify the id).
+        constexpr const char* nprompt = "CHARACTER NAME";
+        const int npw = s.font.measure(nprompt);
+        s.font.draw_tinted(fb, kW, kH, pal, 319 + (169 - npw)/2, 505,
+                           nprompt, 200, 200, 200);
+        blit_sprite(fb, s.textbox.frame(0, 0), pal, 319, 519);
+        // Typed name over the box.
+        const int nw = s.font.measure(ui.input_name);
+        const int nlh = s.font.line_height();
+        s.font.draw_tinted(fb, kW, kH, pal,
+                           319 + (169 - nw) / 2,
+                           519 + (26 - nlh) / 2,
+                           ui.input_name, 255, 208, 80);
+        // Simple blinking cursor after the last char (D2 uses a blinking
+        // underline; we use a solid "|" for now).
+        if (((elapsed_ms / 500) & 1) == 0) {
+            s.font.draw_tinted(fb, kW, kH, pal,
+                               319 + (169 - nw) / 2 + nw,
+                               519 + (26 - nlh) / 2,
+                               "|", 255, 208, 80);
+        }
+    }
+
+    // OK / EXIT buttons at the bottom — MediumSelButtonBlank chrome.
+    // OK renders muted grey when disabled (no class picked yet or empty name).
     for (const Button* b : {&ui.cancel_btn, &ui.ok_btn}) {
+        const bool disabled = (b == &ui.ok_btn) && !b->do_switch;
         if (!b->chrome) continue;
         blit_button_chrome(fb, pal, *b->chrome, b->x, b->y,
                            b->hovered && b->pressed);
@@ -688,7 +731,9 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
             const int lh = s.font.line_height();
             const int lx = b->x + (b->w - lw) / 2;
             const int ly = b->y + (b->h - lh) / 2;
-            if (b->hovered)
+            if (disabled)
+                s.font.draw_tinted(fb, kW, kH, pal, lx, ly, b->label, 96, 96, 96);
+            else if (b->hovered)
                 s.font.draw_tinted(fb, kW, kH, pal, lx, ly, b->label, 255,208,80);
             else
                 s.font.draw(fb, kW, kH, pal, lx, ly, b->label);
@@ -696,7 +741,7 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     }
 
     s.font.draw(fb, kW, kH, pal, 8, int(kH) - 14,
-                "d2d dev build — click a class; OK confirms, EXIT returns");
+                "d2d dev build — pick class, type name, hit OK");
 }
 
 // --- SDL3 render loop ------------------------------------------------------
@@ -800,9 +845,11 @@ TitleUI title_ui(const Scene& s) {
     return ui;
 }
 
-// Turn SDL mouse events into a per-tick Mouse snapshot. Rising/falling
-// edges are recomputed each tick from the raw button state.
+// Turn SDL mouse + text events into a per-tick snapshot. Rising/falling
+// edges are recomputed each tick from the raw button state. When the
+// active screen has a text field, the caller flips SDL text input on/off.
 void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
+                       std::string& text_input, bool& text_backspace,
                        std::atomic<bool>& quit) {
     if (ev.type == SDL_EVENT_QUIT) { quit = true; return; }
     if (ev.type == SDL_EVENT_KEY_DOWN) {
@@ -810,6 +857,14 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             // Esc from any sub-screen returns to Title; Esc from Title quits.
             if (current_screen == Screen::Title) quit = true;
             else current_screen = Screen::Title;
+        } else if (ev.key.key == SDLK_BACKSPACE) {
+            text_backspace = true;
+        }
+    } else if (ev.type == SDL_EVENT_TEXT_INPUT) {
+        // ev.text.text is UTF-8; keep the printable Latin-1 subset.
+        for (const char* p = ev.text.text; *p; ++p) {
+            const auto c = static_cast<unsigned char>(*p);
+            if (c >= 0x20 && c <= 0x7e) text_input.push_back(char(c));
         }
     } else if (ev.type == SDL_EVENT_MOUSE_MOTION) {
         m.x = int(ev.motion.x);
@@ -847,27 +902,47 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
-    // Char-create UI. Button positions from RE'd master-table records:
-    //   EXIT record 0x70ade0: (33, 572, 128, 35) chrome=MediumSelButton
-    //   OK   record 0x70ae10: (627, 572, 128, 35) chrome=MediumSelButton
-    // Chrome file is MediumSelButtonBlank.dc6 (NOT MediumButtonBlank —
-    // MediumSel is a distinct 2-frame asset the char-select loader
-    // pulls in via FUN_004326f0, referenced from those record's +0x1c).
+    // Char-create UI. Positions from RE'd master-table records; labels
+    // from string.tbl by ID (0x13ed = EXIT, 0x13ee = OK per record +0x18).
     CharCreateUI cc;
     if (scene) {
-        cc.cancel_btn = Button{ 33, 572, 128, 35, "EXIT",
+        auto tbl_label = [&](std::uint16_t id, const char* fallback) {
+            if (auto v = scene->strings.get(id); v && !v->empty())
+                return u16_to_latin1(*v);
+            return std::string(fallback);
+        };
+        cc.cancel_label = tbl_label(0x13ed, "EXIT");
+        cc.ok_label     = tbl_label(0x13ee, "OK");
+        cc.cancel_btn = Button{ 33, 572, 128, 35, cc.cancel_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::Title, /*do_switch=*/true };
-        cc.ok_btn     = Button{ 627, 572, 128, 35, "OK",
+        cc.ok_btn     = Button{ 627, 572, 128, 35, cc.ok_label.c_str(),
                                 &scene->medium_sel_button };
     }
 
     const auto t0 = SDL_GetTicks();
+    // Text-input state: SDL delivers TEXT_INPUT events only while enabled.
+    // Enable on CharCreate (name entry), disable elsewhere so keys don't
+    // leak into fields that don't exist.
+    bool text_active = false;
     while (!quit) {
+        // Toggle SDL text input on screen change so keys don't leak into
+        // fields that don't exist on the current screen.
+        const bool want_text = (screen == Screen::CharCreate);
+        if (want_text != text_active) {
+            if (want_text) SDL_StartTextInput(win.w);
+            else           SDL_StopTextInput(win.w);
+            text_active = want_text;
+        }
+
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
+        std::string text_this_frame;
+        bool        backspace_this_frame = false;
         SDL_Event ev;
-        while (SDL_PollEvent(&ev)) handle_sdl_events(ev, mouse, screen, quit);
+        while (SDL_PollEvent(&ev))
+            handle_sdl_events(ev, mouse, screen, text_this_frame,
+                              backspace_this_frame, quit);
         if (ch.active()) ch.pump();
 
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
@@ -881,16 +956,28 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
                 break;
-            case Screen::CharCreate:
+            case Screen::CharCreate: {
+                // Text input into the name buffer (15-char cap = D2's
+                // character-record name limit).
+                if (!text_this_frame.empty()) {
+                    for (char c : text_this_frame) {
+                        if (cc.input_name.size() < 15) cc.input_name.push_back(c);
+                    }
+                }
+                if (backspace_this_frame && !cc.input_name.empty())
+                    cc.input_name.pop_back();
+
+                // OK is only enabled once a class is picked and a name is
+                // entered — mirrors D2's OK-button gating.
+                cc.ok_btn.do_switch = (cc.selected >= 0 && !cc.input_name.empty());
                 update_button(cc.cancel_btn, mouse, screen, quit);
                 update_button(cc.ok_btn,     mouse, screen, quit);
-                // Only run class-select routing if the click wasn't already
-                // consumed by a bottom-row button.
                 if (!cc.cancel_btn.hovered && !cc.ok_btn.hovered)
                     handle_charcreate_click(cc, mouse, ms);
                 advance_char_states(cc, *scene, ms);
                 render_charcreate(fb, *scene, cc, ms);
                 break;
+            }
             }
         } else {
             paint_test_pattern(fb);
