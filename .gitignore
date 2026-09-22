@@ -15,14 +15,17 @@ game-bins/
 *.mpq
 *.iso
 
-# Decompilation research — internal only, never commit.
-# File-format specs (docs/research/formats/) and public references
-# (docs/research/refs/) are tracked. Only Ghidra-derived RE notes stay hidden.
-docs/research/re/
+# Reverse-engineering artifacts.
+#   * RE notes we write ourselves (`.md`) are tracked — including
+#     docs/research/re/ — so future-us can build on them.
+#   * Raw decompiled C from Ghidra is NOT tracked (it's derived output;
+#     the .md notes are the authored artifact).
 tools/ghidra/gdt/
 tools/ghidra/project/
 *.c.ghidra
 *.decomp.c
+docs/research/re/*.c
+docs/research/re/*.tsv
 
 # Editors
 .idea/
