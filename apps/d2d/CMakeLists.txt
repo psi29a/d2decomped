@@ -5,4 +5,4 @@ find_package(SDL3 CONFIG REQUIRED)
 add_executable(d2d main.cpp)
 target_link_libraries(d2d PRIVATE
     mpq dc6 font palette tbl devctl screenshot
-    SDL3::SDL3)
+    SDL3::SDL3 CLI11::CLI11)

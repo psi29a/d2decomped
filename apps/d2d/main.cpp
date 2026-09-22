@@ -21,6 +21,7 @@
 #include <tbl.hpp>
 
 #include <SDL3/SDL.h>
+#include <CLI/CLI.hpp>
 
 #include <array>
 #include <atomic>
@@ -179,6 +180,7 @@ struct Scene {
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
     d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
     d2d::dc6::Sprite      textbox;            // textbox.dc6 — name-entry chrome (single 169×26 frame)
+    d2d::dc6::Sprite      clickbox;           // clickbox.dc6 — Hardcore checkbox chrome (2 frames × 15×16, unchecked/checked)
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -332,10 +334,20 @@ struct CharCreateUI {
     // to match D2's char-name limit (per D2's actual character record
     // struct). Left/right arrows and non-printable keys are ignored.
     std::string input_name;
+    // Hardcore checkbox — LoD char-create has exactly one toggle. Label
+    // from patchstring.tbl id 0x1406 ("Hardcore"), chrome from
+    // clickbox.dc6. The Expansion toggle is on char-SELECT, not create
+    // (verified: no "Expansion" label anywhere in the TBLs, and
+    // FUN_004326f0 loads clickbox.dc6 exactly once).
+    // ponytail: position (445, 550, 15, 16) placed by eye against the
+    // reference screen — the exact record in the char-create master table
+    // (0x70ae40..0x70b470) has not been RE'd yet.
+    bool hardcore = false;
     // Owned label buffers so Button.label pointers stay live for the
     // frame; sourced from string.tbl by ID.
     std::string ok_label;
     std::string cancel_label;
+    std::string hardcore_label;
     // Selected-class name from string.tbl (u16 → Latin-1). Empty when
     // no class is picked yet.
     std::string selected_name;
@@ -427,6 +439,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
             .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
             .textbox           = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)")),
+            .clickbox          = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)")),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -619,6 +632,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
                    std::string_view name,
+                   bool hardcore,
                    std::uint32_t /*elapsed_ms*/) {
     // creditsbckgexpand.dc6 is authored against the Sky palette (same one
     // the credits screen uses). Rendering it with fechar produces the
@@ -634,9 +648,18 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ww/2, 220,
                        welcome, 255, 208, 80);
 
+    // On hardcore, D2 marks the caption with a red " (HC)" suffix — we
+    // fudge that with a red tint on the trailing tag.
     const std::string line = name.empty() ? cls : std::string(name) + " the " + cls;
     const int lw = s.font.measure(line);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - lw/2, 260, line);
+    if (hardcore) {
+        constexpr const char* tag = " (HARDCORE)";
+        const int tw = s.font.measure(tag);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - lw/2 + lw, 260,
+                           tag, 220, 60, 60);
+        (void)tw;
+    }
 
     constexpr const char* hint =
         "d2d dev build — the rogue-camp tiles land when the DS1 + DT1 compositor does";
@@ -678,10 +701,21 @@ void advance_char_states(CharCreateUI& ui,
 // Hit-test click position against class silhouettes and trigger selection
 // transitions. Only one class is Selected/Selecting at a time; picking a
 // new one first sends the previous into Deselecting.
+// Estimated hardcore-checkbox rect (see CharCreateUI comment for the RE
+// caveat). Also used by render_charcreate for placement.
+constexpr int kHardcoreX = 445, kHardcoreY = 550, kHardcoreW = 15, kHardcoreH = 16;
+
 void handle_charcreate_click(CharCreateUI& ui,
                              const Mouse& m,
                              std::uint32_t elapsed_ms) {
     if (!m.release_this_frame) return;
+    // Hardcore checkbox toggle — checked first so a class-hitbox that
+    // happens to overlap can't eat the click.
+    if (m.x >= kHardcoreX && m.x < kHardcoreX + kHardcoreW &&
+        m.y >= kHardcoreY && m.y < kHardcoreY + kHardcoreH) {
+        ui.hardcore = !ui.hardcore;
+        return;
+    }
     // Class hitboxes ARE the (x, y, w, h) rects from the RE'd records — 88×184
     // per class, position varies. D2 uses the same rects for hover + click
     // detection AND for sprite placement anchor.
@@ -776,9 +810,14 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     // with textbox.dc6 chrome. Draw the chrome, then the typed name
     // centered inside. Prompt "Character Name" shows above the box.
     if (s.textbox.frames_per_direction() > 0) {
-        // Above-box prompt (from string.tbl id 0x140b = "Character Name"
-        // per RE — using a plain fallback until we verify the id).
-        constexpr const char* nprompt = "CHARACTER NAME";
+        // Above-box prompt (string.tbl id 0x1405 = "Character Name"; a
+        // TBL scan of the 0x1380..0x1500 id band confirmed this).
+        std::string np_owned;
+        const char* nprompt = "CHARACTER NAME";
+        if (auto v = lookup_string(s, std::uint16_t(0x1405))) {
+            np_owned = u16_to_latin1(*v);
+            if (!np_owned.empty()) nprompt = np_owned.c_str();
+        }
         const int npw = s.font.measure(nprompt);
         s.font.draw_tinted(fb, kW, kH, pal, 319 + (169 - npw)/2, 505,
                            nprompt, 200, 200, 200);
@@ -798,6 +837,25 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
                                519 + (26 - nlh) / 2,
                                "|", 255, 208, 80);
         }
+    }
+
+    // Hardcore checkbox — chrome from clickbox.dc6 (frame 0 unchecked,
+    // 1 checked). Label rendered to the LEFT of the box in the pale
+    // grey D2 uses for inactive-but-toggleable text; goes bright gold
+    // when checked.
+    if (s.clickbox.frames_per_direction() >= 2 && !ui.hardcore_label.empty()) {
+        const auto& fr = s.clickbox.frame(0, ui.hardcore ? 1 : 0);
+        blit_sprite(fb, fr, pal, kHardcoreX, kHardcoreY);
+        const int lw = s.font.measure(ui.hardcore_label);
+        const int lh = s.font.line_height();
+        const int lx = kHardcoreX - lw - 8;
+        const int ly = kHardcoreY + (kHardcoreH - lh) / 2;
+        if (ui.hardcore)
+            s.font.draw_tinted(fb, kW, kH, pal, lx, ly,
+                               ui.hardcore_label, 255, 208, 80);
+        else
+            s.font.draw_tinted(fb, kW, kH, pal, lx, ly,
+                               ui.hardcore_label, 180, 180, 180);
     }
 
     // OK / EXIT buttons at the bottom — MediumSelButtonBlank chrome.
@@ -972,6 +1030,7 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
 static std::string g_start_screen;
 static int         g_start_class = 0;
 static std::string g_start_name;
+static bool        g_start_hardcore = false;
 
 static Screen parse_screen(std::string_view s) {
     if (s == "credits")    return Screen::Credits;
@@ -1005,8 +1064,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
             return std::string(fallback);
         };
-        cc.cancel_label = tbl_label(0x13ed, "EXIT");
-        cc.ok_label     = tbl_label(0x13ee, "OK");
+        cc.cancel_label   = tbl_label(0x13ed, "EXIT");
+        cc.ok_label       = tbl_label(0x13ee, "OK");
+        cc.hardcore_label = tbl_label(0x1406, "Hardcore");
         cc.cancel_btn = Button{ 33, 572, 128, 35, cc.cancel_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::Title, /*do_switch=*/true };
@@ -1018,6 +1078,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // Preload class/name if --start-screen ingame was given.
         if (g_start_class >= 0 && g_start_class < 7) cc.selected = g_start_class;
         if (!g_start_name.empty()) cc.input_name = g_start_name;
+        cc.hardcore = g_start_hardcore;
     }
 
     const auto t0 = SDL_GetTicks();
@@ -1059,7 +1120,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             case Screen::InGame: {
                 // ESC handled globally in handle_sdl_events (returns to Title).
                 render_ingame(fb, *scene, std::max(cc.selected, 0),
-                              cc.input_name, ms);
+                              cc.input_name, cc.hardcore, ms);
                 break;
             }
             case Screen::CharCreate: {
@@ -1133,26 +1194,32 @@ int main(int argc, char** argv) {
     std::string start_screen;   // "title" | "credits" | "charcreate" | "ingame"
     int         start_class = 0;
     std::string start_name;
+    bool        start_hardcore = false;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string_view a = argv[i];
-        if (a == "--devctl" && i + 1 < argc)      devctl_path = argv[++i];
-        else if (a == "--data" && i + 1 < argc)   data_dir    = argv[++i];
-        else if (a == "--headless")               headless    = true;
-        else if (a == "--start-screen" && i + 1 < argc) start_screen = argv[++i];
-        else if (a == "--start-class"  && i + 1 < argc) start_class  = std::atoi(argv[++i]);
-        else if (a == "--start-name"   && i + 1 < argc) start_name   = argv[++i];
-        else if (a == "--help" || a == "-h") {
-            std::printf("usage: d2d [--devctl <path>] [--data <dir>] [--headless]\n"
-                        "           [--start-screen title|credits|charcreate|ingame]\n"
-                        "           [--start-class 0..6] [--start-name NAME]\n");
-            return 0;
-        } else {
-            std::fprintf(stderr, "d2d: unknown arg '%.*s'\n",
-                         int(a.size()), a.data());
-            return 2;
-        }
+    CLI::App app{"d2d — Diablo II re-implementation (dev build)"};
+    app.add_option("--devctl", devctl_path,
+                   "Unix-socket dev-control channel path");
+    std::string data_dir_str = data_dir.string();
+    app.add_option("--data", data_dir_str,
+                   "Path to the D2 MPQ directory");
+    app.add_flag  ("--headless", headless,
+                   "Run without opening a window");
+    app.add_option("--start-screen", start_screen,
+                   "Jump directly to a screen at startup")
+        ->check(CLI::IsMember({"title", "credits", "charcreate", "ingame"}));
+    app.add_option("--start-class", start_class,
+                   "Preselect a class index (0..6)")
+        ->check(CLI::Range(0, 6));
+    app.add_option("--start-name", start_name,
+                   "Preload character name");
+    app.add_flag  ("--start-hardcore", start_hardcore,
+                   "Preload the Hardcore checkbox");
+    try {
+        app.parse(argc, argv);
+    } catch (const CLI::ParseError& e) {
+        return app.exit(e);
     }
+    data_dir = data_dir_str;
 
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
@@ -1177,9 +1244,10 @@ int main(int argc, char** argv) {
     });
     ch.listen(devctl_path);
 
-    g_start_screen = start_screen;
-    g_start_class  = start_class;
-    g_start_name   = start_name;
+    g_start_screen   = start_screen;
+    g_start_class    = start_class;
+    g_start_name     = start_name;
+    g_start_hardcore = start_hardcore;
 
     return headless
         ? run_headless(fb, scene, ch, frame_count, quit)
