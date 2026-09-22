@@ -177,7 +177,14 @@ struct Scene {
     // Character-creation screen (loaded by FUN_004326f0). SP button hops here.
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
-    std::array<d2d::dc6::Sprite, 7> classes;  // nu1 (idle) per class, order: barb/necro/pally/ama/sorc/druid/assn
+    d2d::dc6::Sprite      medium_button;      // MediumButtonBlank.dc6 for OK/EXIT chrome
+    // Class animations — 7 classes × 5 states, per the RE'd class table at
+    // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
+    // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
+    // necromancer, barbarian, sorceress, paladin — but we store them in
+    // our left-to-right visual order (barb/necro/pally/ama/sorc/druid/assn)
+    // to match Scene::class positions.
+    std::array<std::array<d2d::dc6::Sprite, 5>, 7> class_anims;
     d2d::font::Font       font;
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
@@ -192,6 +199,36 @@ struct Scene {
 // --- Screen state machine + mouse routing ---------------------------------
 
 enum class Screen { Title, Credits, CharCreate };
+
+// Per-class animation state on the char-create screen. Matches D2's flow:
+// classes idle in place (nu1); on click the "just clicked" class walks
+// forward one time (fw) and then stands in the selected pose (nu3 loop);
+// clicking a different class or Cancel walks the current selected back
+// (bw once) before returning to idle.
+enum class ClassState : std::uint8_t { Idle, Selecting, Selected, Deselecting };
+
+struct ClassUI {
+    ClassState    state = ClassState::Idle;
+    std::uint32_t state_start_ms = 0;
+};
+
+// Class positions (feet-anchor) — left-to-right visual order matching
+// Scene::class_anims. Kept as a free constant so both the renderer and
+// the click hit-test see the same numbers.
+struct ClassPos { int x, y; };
+constexpr ClassPos kClassPos[7] = {
+    {130, 555},   // Barbarian
+    {225, 545},   // Necromancer
+    {315, 535},   // Paladin
+    {480, 540},   // Amazon
+    {560, 540},   // Sorceress
+    {645, 545},   // Druid
+    {720, 550},   // Assassin
+};
+constexpr const char* kClassName[7] = {
+    "Barbarian", "Necromancer", "Paladin", "Amazon",
+    "Sorceress", "Druid",       "Assassin",
+};
 
 struct Button {
     int x{}, y{}, w{}, h{};
@@ -250,6 +287,13 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 // Update hover/pressed state and, on a mouse-up over a hovered+pressed
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
+struct CharCreateUI {
+    std::array<ClassUI, 7> classes{};
+    int selected = -1;           // index of currently-selected class or -1
+    Button ok_btn{};
+    Button cancel_btn{};
+};
+
 bool update_button(Button& b, const Mouse& m, Screen& current_screen,
                    std::atomic<bool>& quit) {
     b.hovered = m.x >= b.x && m.x < b.x + b.w
@@ -334,18 +378,33 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 return d2d::dc6::Sprite(*b);
             }(),
             .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
-            .classes    = {
-                // Order matches D2's left-to-right visual layout on the
-                // classic char-create screen. LoD-only classes (assassin,
-                // druid) get the same treatment — MPQ has them.
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\barbarian\banu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\necromancer\nenu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\paladin\panu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\amazon\amnu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\sorceress\sonu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\druid\dznu1.dc6)")),
-                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\assassin\asnu1.dc6)")),
-            },
+            .medium_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)")),
+            .class_anims = [&] {
+                // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
+                // Class prefix pairs from FUN_004326f0's loader.
+                struct C { const char* dir; const char* prefix; };
+                constexpr C cs[7] = {
+                    {"barbarian",   "ba"},
+                    {"necromancer", "ne"},
+                    {"paladin",     "pa"},
+                    {"amazon",      "am"},
+                    {"sorceress",   "so"},
+                    {"druid",       "dz"},
+                    {"assassin",    "as"},
+                };
+                constexpr const char* suffix[5] = {"nu1", "nu2", "fw", "nu3", "bw"};
+                std::array<std::array<d2d::dc6::Sprite, 5>, 7> out;
+                for (std::size_t ci = 0; ci < 7; ++ci) {
+                    for (std::size_t si = 0; si < 5; ++si) {
+                        char path[256];
+                        std::snprintf(path, sizeof(path),
+                            R"(data\global\ui\FrontEnd\%s\%s%s.dc6)",
+                            cs[ci].dir, cs[ci].prefix, suffix[si]);
+                        out[ci][si] = d2d::dc6::Sprite(mpqs.read(path));
+                    }
+                }
+                return out;
+            }(),
             .font        = d2d::font::Font(
                              mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
                              d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
@@ -493,61 +552,138 @@ void render_credits(std::vector<std::uint8_t>& fb,
 // scene, loaded by FUN_004326f0. For MVP we blit each class's nu1 (idle)
 // cycle at hardcoded positions matching the D2 layout, plus the fire
 // animation in the pit. Selection / hover / class labels are follow-ups.
+// Advance the per-class state machine — completes one-shot animations
+// (Selecting → Selected, Deselecting → Idle) once they finish.
+void advance_char_states(CharCreateUI& ui,
+                         const Scene& s,
+                         std::uint32_t elapsed_ms) {
+    for (std::size_t i = 0; i < 7; ++i) {
+        auto& cu = ui.classes[i];
+        if (cu.state == ClassState::Selecting) {
+            const auto& fw = s.class_anims[i][2];
+            const auto n = fw.frames_per_direction();
+            const auto elapsed = elapsed_ms - cu.state_start_ms;
+            if (n == 0 || elapsed / kBaseFrameMs >= n) {
+                cu.state = ClassState::Selected;
+                cu.state_start_ms = elapsed_ms;
+            }
+        } else if (cu.state == ClassState::Deselecting) {
+            const auto& bw = s.class_anims[i][4];
+            const auto n = bw.frames_per_direction();
+            const auto elapsed = elapsed_ms - cu.state_start_ms;
+            if (n == 0 || elapsed / kBaseFrameMs >= n) {
+                cu.state = ClassState::Idle;
+                cu.state_start_ms = elapsed_ms;
+            }
+        }
+    }
+}
+
+// Hit-test click position against class silhouettes and trigger selection
+// transitions. Only one class is Selected/Selecting at a time; picking a
+// new one first sends the previous into Deselecting.
+void handle_charcreate_click(CharCreateUI& ui,
+                             const Mouse& m,
+                             std::uint32_t elapsed_ms) {
+    if (!m.release_this_frame) return;
+    // Class hitboxes: a generous rect around each feet-anchor. Sprites are
+    // ~50-120 wide × 180-200 tall; 100×210 centered on (anchor.x, anchor.y-95)
+    // covers every class comfortably without letting them overlap.
+    for (int i = 0; i < 7; ++i) {
+        const auto p = kClassPos[i];
+        const int hx = p.x - 50, hy = p.y - 190, hw = 100, hh = 210;
+        if (m.x >= hx && m.x < hx + hw && m.y >= hy && m.y < hy + hh) {
+            if (ui.selected == i) return;   // clicked selected class → no-op
+            // Deselect old.
+            if (ui.selected >= 0) {
+                auto& prev = ui.classes[ui.selected];
+                prev.state = ClassState::Deselecting;
+                prev.state_start_ms = elapsed_ms;
+            }
+            auto& cur = ui.classes[i];
+            cur.state = ClassState::Selecting;
+            cur.state_start_ms = elapsed_ms;
+            ui.selected = i;
+            return;
+        }
+    }
+}
+
 void render_charcreate(std::vector<std::uint8_t>& fb,
                        const Scene& s,
+                       const CharCreateUI& ui,
                        std::uint32_t elapsed_ms) {
-    // Everything on this screen uses the fechar palette (RE'd from
-    // FUN_00435580, which loads palette\fechar\pal.pl2 right after the
-    // char-select asset loader). Sky palette gives cool-blue silhouettes
-    // that don't match the firelit camp.
+    // fechar palette per FUN_00435580 RE.
     const auto& pal = s.charselect_pal;
 
-    // Background: charactercreationscreenEXP.dc6 is the same 4×3 800×600
-    // grid as the title bg.
     blit_dc6_grid(fb, s.charcreate_bg, pal, 0, 0, s.bg_tiles_across);
 
-    // Campfire — drawn BEFORE the characters so opaque silhouettes cover
-    // the additive glow instead of it flickering their pixel colours every
-    // frame. Bret spotted the flicker; fire-additive on top of a moving
-    // sprite gives a different composite each tick, which reads as jitter.
-    // D2's Z-order does the same: fire sits in the scene, characters stand
-    // in front of it. Position tuned so the fire base lands on the pit.
+    // Campfire behind the classes so opaque silhouettes cover its glow.
     const auto nf = s.fire.frames_per_direction();
     if (nf > 0) {
         const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
         blit_additive(fb, s.fire.frame(0, ff), pal, 400, 495);
     }
 
-    // Class silhouettes. Positions eyeballed to match D2's layout — the
-    // classes stand in a rough semi-circle behind the fire pit. Each anchor
-    // is (feet-x, feet-y) with the DC6 offsets doing the height math via
-    // blit_at_anchor. Class order matches Scene::classes.
-    struct ClassPos { int x, y; };
-    constexpr ClassPos pos[7] = {
-        {130, 555},   // Barbarian — far left
-        {225, 545},   // Necromancer
-        {315, 535},   // Paladin
-        {480, 540},   // Amazon (right of the fire)
-        {560, 540},   // Sorceress
-        {645, 545},   // Druid
-        {720, 550},   // Assassin — far right
-    };
-    // Each nu1 loops at its own frame count. Advance at 25 Hz base tick.
-    const auto ticks = elapsed_ms / kBaseFrameMs;
-    for (std::size_t i = 0; i < s.classes.size(); ++i) {
-        const auto& spr = s.classes[i];
+    // Per-class draw: pick anim + frame based on state.
+    for (std::size_t i = 0; i < 7; ++i) {
+        const auto& cu = ui.classes[i];
+        const auto p = kClassPos[i];
+        // anim indices: 0=nu1, 1=nu2, 2=fw, 3=nu3, 4=bw
+        int anim = 0;
+        std::uint32_t elapsed_for_frame = elapsed_ms + std::uint32_t(i) * 7;
+        bool one_shot = false;
+        switch (cu.state) {
+        case ClassState::Idle:        anim = 0; break;
+        case ClassState::Selecting:   anim = 2; one_shot = true; break;
+        case ClassState::Selected:    anim = 3; break;
+        case ClassState::Deselecting: anim = 4; one_shot = true; break;
+        }
+        const auto& spr = s.class_anims[i][anim];
         const auto n = spr.frames_per_direction();
         if (n == 0) continue;
-        const auto fi = std::uint32_t((ticks + i * 7) % n);   // desync per class
-        blit_at_anchor(fb, spr.frame(0, fi), pal, pos[i].x, pos[i].y);
+        std::uint32_t fi;
+        if (one_shot) {
+            const auto e = elapsed_ms - cu.state_start_ms;
+            fi = std::min<std::uint32_t>(e / kBaseFrameMs, n - 1);
+        } else {
+            fi = std::uint32_t((elapsed_for_frame / kBaseFrameMs) % n);
+        }
+        blit_at_anchor(fb, spr.frame(0, fi), pal, p.x, p.y);
     }
 
-    // Placeholder screen label + return hint. Real UI here has class name,
-    // description panel, name entry — later slice.
-    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - 90, 20,
-                       "SELECT HERO CLASS", 255, 208, 80);
+    // Selected class name — big warm-gold caption above the panel area.
+    if (ui.selected >= 0) {
+        const auto* name = kClassName[ui.selected];
+        const int w = s.font.measure(name);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w/2, 22, name,
+                           255, 208, 80);
+    } else {
+        constexpr const char* prompt = "SELECT HERO CLASS";
+        const int w = s.font.measure(prompt);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w/2, 22, prompt,
+                           255, 208, 80);
+    }
+
+    // OK / EXIT buttons at the bottom — MediumButtonBlank chrome.
+    for (const Button* b : {&ui.cancel_btn, &ui.ok_btn}) {
+        if (!b->chrome) continue;
+        blit_button_chrome(fb, pal, *b->chrome, b->x, b->y,
+                           b->hovered && b->pressed);
+        if (b->label && *b->label) {
+            const int lw = s.font.measure(b->label);
+            const int lh = s.font.line_height();
+            const int lx = b->x + (b->w - lw) / 2;
+            const int ly = b->y + (b->h - lh) / 2;
+            if (b->hovered)
+                s.font.draw_tinted(fb, kW, kH, pal, lx, ly, b->label, 255,208,80);
+            else
+                s.font.draw(fb, kW, kH, pal, lx, ly, b->label);
+        }
+    }
+
     s.font.draw(fb, kW, kH, pal, 8, int(kH) - 14,
-                "d2d dev build — Esc to return to title");
+                "d2d dev build — click a class; OK confirms, EXIT returns");
 }
 
 // --- SDL3 render loop ------------------------------------------------------
@@ -698,6 +834,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
+    // Char-create UI: cancel goes back to Title, OK closes the app for now
+    // (until an in-game placeholder screen exists). Positions eyeballed —
+    // real D2 puts EXIT at bottom-left and OK at bottom-right, roughly at
+    // y=540 with the medium chrome (128×35).
+    CharCreateUI cc;
+    if (scene) {
+        cc.cancel_btn = Button{ 33, 540, 128, 35, "EXIT", &scene->medium_button,
+                                Screen::Title, /*do_switch=*/true };
+        cc.ok_btn     = Button{ 630, 540, 128, 35, "OK",   &scene->medium_button };
+        // ok_btn does nothing yet (no next screen defined).
+    }
+
     const auto t0 = SDL_GetTicks();
     while (!quit) {
         mouse.press_this_frame = false;
@@ -718,8 +866,14 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 render_credits(fb, *scene, ms);
                 break;
             case Screen::CharCreate:
-                if (mouse.release_this_frame) screen = Screen::Title;
-                render_charcreate(fb, *scene, ms);
+                update_button(cc.cancel_btn, mouse, screen, quit);
+                update_button(cc.ok_btn,     mouse, screen, quit);
+                // Only run class-select routing if the click wasn't already
+                // consumed by a bottom-row button.
+                if (!cc.cancel_btn.hovered && !cc.ok_btn.hovered)
+                    handle_charcreate_click(cc, mouse, ms);
+                advance_char_states(cc, *scene, ms);
+                render_charcreate(fb, *scene, cc, ms);
                 break;
             }
         } else {
