@@ -226,6 +226,13 @@ struct Scene {
     d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
     d2d::dc6::Sprite      textbox;            // textbox.dc6 — name-entry chrome (single 169×26 frame)
     d2d::dc6::Sprite      clickbox;           // clickbox.dc6 — Hardcore checkbox chrome (2 frames × 15×16, unchecked/checked)
+    // Character-select screen assets (RE FUN_004359d0, handle 0x00779734).
+    // Slot chrome is 2-frame 256+16 wide × 93 tall (matches WideButton
+    // composite pattern). BG is 12-frame 4×3 grid of ≤256×256 tiles.
+    d2d::dc6::Sprite      charselect_bg;      // characterselectscreenEXP.dc6
+    d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
+    d2d::dc6::Sprite      charselect_boxgrey; // charselectboxgrey.dc6 (empty slot)
+    d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -282,7 +289,7 @@ lookup_string(const Scene& s, std::uint16_t id) {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits, CharCreate, InGame };
+enum class Screen { Title, Credits, CharSelect, CharCreate, InGame };
 
 // Per-class animation state on the char-create screen. Matches D2's flow:
 // classes idle in place (nu1); on click the "just clicked" class walks
@@ -503,6 +510,10 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
             .textbox           = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)")),
             .clickbox          = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)")),
+            .charselect_bg     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\characterselectscreenEXP.dc6)")),
+            .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
+            .charselect_boxgrey = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectboxgrey.dc6)")),
+            .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -692,6 +703,98 @@ void render_title(std::vector<std::uint8_t>& fb,
     }
 
     s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14, "d2d dev build");
+}
+
+// Character-select screen — RE FUN_004359d0 (init) + FUN_0042ef50 (BG draw).
+// LoD layout: characterselectscreenEXP as BG, 2 columns × 4 rows of
+// character slots (charselectbox / charselectboxgrey — 272x93 assembled).
+// Four buttons: CREATE / DELETE (TallButtonBlank chrome, top row at y=528)
+// and OK / EXIT (MediumSelButtonBlank, bottom row at y=572 shared with
+// char-create per char-create-table.md).
+//
+// MVP: we have no persisted characters yet, so every slot renders as the
+// empty (grey) variant and OK stays disabled until you actually make a
+// character. CREATE hops to CharCreate. DELETE and OK are no-ops for now.
+struct CharSelectUI {
+    Button create_btn{};
+    Button delete_btn{};
+    Button cancel_btn{};
+    Button ok_btn{};
+    std::string create_label;
+    std::string delete_label;
+    std::string cancel_label;
+    std::string ok_label;
+};
+
+void render_charselect(std::vector<std::uint8_t>& fb,
+                       const Scene& s,
+                       const CharSelectUI& ui,
+                       std::uint32_t /*elapsed_ms*/) {
+    const auto& pal = s.pal;   // char-select shares the Sky palette
+    blit_dc6_grid(fb, s.charselect_bg, pal, 0, 0, s.bg_tiles_across);
+
+    // 8 empty slots in a 2×4 grid. RE'd assembled slot is 272×93 (256+16
+    // wide, 93 tall). Layout eyeballed from D2 LoD reference against the
+    // BG art; top row at y=137, gap ~5px between rows.
+    constexpr int kSlotW = 272, kSlotH = 93;
+    const int col_x[2] = { 33, 495 };
+    const int row_y[4] = { 137, 236, 335, 434 };
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 2; ++c) {
+            // Two-frame composite: main 256-wide half + 16-wide sliver.
+            if (s.charselect_boxgrey.frames_per_direction() >= 2) {
+                blit_sprite(fb, s.charselect_boxgrey.frame(0, 0),
+                            pal, col_x[c],           row_y[r]);
+                blit_sprite(fb, s.charselect_boxgrey.frame(0, 1),
+                            pal, col_x[c] + 256,     row_y[r]);
+            }
+        }
+    }
+    (void)kSlotW; (void)kSlotH;
+
+    // Empty-list placeholder text — centred on the panel.
+    constexpr const char* empty1 = "NO CHARACTERS YET";
+    constexpr const char* empty2 = "click CREATE NEW CHARACTER to start";
+    const int w1 = s.font.measure(empty1);
+    const int w2 = s.font.measure(empty2);
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w1/2, 260,
+                       empty1, 255, 208, 80);
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w2/2, 280,
+                       empty2, 200, 200, 200);
+
+    // Buttons. TallButtonBlank is single-piece 168x60 (frames 0/1 for
+    // normal/pressed); MediumSelButtonBlank uses blit_button_chrome.
+    auto draw_tall = [&](const Button& b, bool /*disabled*/=false) {
+        if (!b.chrome) return;
+        const auto& fr = b.chrome->frame(0, b.hovered && b.pressed ? 1 : 0);
+        blit_sprite(fb, fr, pal, b.x, b.y);
+        if (b.label && *b.label) {
+            const int lw = s.font.measure(b.label);
+            const int lh = s.font.line_height();
+            s.font.draw(fb, kW, kH, pal,
+                        b.x + (b.w - lw) / 2,
+                        b.y + (b.h - lh) / 2, b.label);
+        }
+    };
+    draw_tall(ui.create_btn);
+    draw_tall(ui.delete_btn);
+
+    for (const Button* b : {&ui.cancel_btn, &ui.ok_btn}) {
+        if (!b->chrome) continue;
+        blit_button_chrome(fb, pal, *b->chrome, b->x, b->y,
+                           b->hovered && b->pressed);
+        if (b->label && *b->label) {
+            const int lw = s.font.measure(b->label);
+            const int lh = s.font.line_height();
+            const int lx = b->x + (b->w - lw) / 2;
+            const int ly = b->y + (b->h - lh) / 2;
+            // OK is grey — we have no character to play.
+            if (b == &ui.ok_btn)
+                s.font.draw_tinted(fb, kW, kH, pal, lx, ly, b->label, 96, 96, 96);
+            else
+                s.font.draw(fb, kW, kH, pal, lx, ly, b->label);
+        }
+    }
 }
 
 // Full-screen credits background + scrolling text. The scroll starts with
@@ -1177,7 +1280,7 @@ TitleUI title_ui(const Scene& s) {
     // ID map derived from menu records — see docs/research/re/frontend-menu-table.md.
     const Spec specs[] = {
         {264, 324, 272, 35, 0x13f2, "SINGLE PLAYER",     &s.btn_wide,
-            true, Screen::CharCreate, false},
+            true, Screen::CharSelect, false},
         {264, 366, 272, 35, 0x13f3, "BATTLE.NET",        &s.btn_wide2},
         {264, 391, 272, 25, 0,      "GATEWAY: LOCAL",    &s.btn_narrow},
         {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &s.btn_wide},
@@ -1229,9 +1332,18 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     };
     if (ev.type == SDL_EVENT_KEY_DOWN) {
         if (ev.key.key == SDLK_ESCAPE) {
-            // Esc from any sub-screen returns to Title; Esc from Title quits.
-            if (current_screen == Screen::Title) quit = true;
-            else current_screen = Screen::Title;
+            // Esc pops one layer up:
+            //   Title       -> quit
+            //   CharCreate  -> CharSelect  (the flow you came from)
+            //   InGame      -> CharSelect  (leaving the game returns to
+            //                               the roster; matches D2)
+            //   everything else -> Title
+            switch (current_screen) {
+                case Screen::Title:      quit = true; break;
+                case Screen::CharCreate:
+                case Screen::InGame:     current_screen = Screen::CharSelect; break;
+                default:                 current_screen = Screen::Title; break;
+            }
         } else if (ev.key.key == SDLK_BACKSPACE) {
             text_backspace = true;
         } else {
@@ -1277,6 +1389,7 @@ static int         g_start_cam_y = -1;
 
 static Screen parse_screen(std::string_view s) {
     if (s == "credits")    return Screen::Credits;
+    if (s == "charselect") return Screen::CharSelect;
     if (s == "charcreate") return Screen::CharCreate;
     if (s == "ingame")     return Screen::InGame;
     return Screen::Title;
@@ -1315,7 +1428,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         cc.hardcore_label = tbl_label(0x1406, "Hardcore");
         cc.cancel_btn = Button{ 33, 572, 128, 35, cc.cancel_label.c_str(),
                                 &scene->medium_sel_button,
-                                Screen::Title, /*do_switch=*/true };
+                                Screen::CharSelect, /*do_switch=*/true };
         // OK's target is InGame; do_switch flips true per tick once a class
         // is picked AND a name is entered (see the per-frame gate below).
         cc.ok_btn     = Button{ 627, 572, 128, 35, cc.ok_label.c_str(),
@@ -1325,6 +1438,34 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         if (g_start_class >= 0 && g_start_class < 7) cc.selected = g_start_class;
         if (!g_start_name.empty()) cc.input_name = g_start_name;
         cc.hardcore = g_start_hardcore;
+    }
+
+    // Char-select UI. Labels from string.tbl: 0x1498 = DELETE, 0x1499 =
+    // CREATE NEW CHARACTER; EXIT and OK reuse 0x13ed / 0x13ee (same as
+    // char-create's bottom row per RE'd char-select master table at
+    // 0x70ac00..0x70ae40). Positions verbatim from RE'd records.
+    CharSelectUI csu;
+    if (scene) {
+        auto tbl_label = [&](std::uint16_t id, const char* fallback) {
+            if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
+            return std::string(fallback);
+        };
+        csu.create_label = tbl_label(0x1499, "CREATE NEW CHARACTER");
+        csu.delete_label = tbl_label(0x1498, "DELETE");
+        csu.cancel_label = tbl_label(0x13ed, "EXIT");
+        csu.ok_label     = tbl_label(0x13ee, "OK");
+        csu.create_btn = Button{ 233, 528, 168, 60, csu.create_label.c_str(),
+                                 &scene->tall_button,
+                                 Screen::CharCreate, /*do_switch=*/true };
+        csu.delete_btn = Button{ 433, 528, 168, 60, csu.delete_label.c_str(),
+                                 &scene->tall_button,
+                                 Screen::CharSelect, /*do_switch=*/false };
+        csu.cancel_btn = Button{ 33, 572, 128, 35, csu.cancel_label.c_str(),
+                                 &scene->medium_sel_button,
+                                 Screen::Title, /*do_switch=*/true };
+        csu.ok_btn     = Button{ 627, 572, 128, 35, csu.ok_label.c_str(),
+                                 &scene->medium_sel_button,
+                                 Screen::InGame, /*do_switch=*/false };
     }
 
     const auto t0 = SDL_GetTicks();
@@ -1382,6 +1523,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             case Screen::Credits:
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
+                break;
+            case Screen::CharSelect:
+                for (Button* b : {&csu.create_btn, &csu.delete_btn,
+                                  &csu.cancel_btn, &csu.ok_btn})
+                    update_button(*b, mouse, screen, quit);
+                render_charselect(fb, *scene, csu, ms);
                 break;
             case Screen::InGame: {
                 // ESC handled globally in handle_sdl_events (returns to Title).
@@ -1512,7 +1659,7 @@ int main(int argc, char** argv) {
                    "Run without opening a window");
     app.add_option("--start-screen", start_screen,
                    "Jump directly to a screen at startup")
-        ->check(CLI::IsMember({"title", "credits", "charcreate", "ingame"}));
+        ->check(CLI::IsMember({"title", "credits", "charselect", "charcreate", "ingame"}));
     app.add_option("--start-class", start_class,
                    "Preselect a class index (0..6)")
         ->check(CLI::Range(0, 6));
