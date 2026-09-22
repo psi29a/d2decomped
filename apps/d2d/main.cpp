@@ -22,6 +22,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -29,6 +30,7 @@
 #include <cstring>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -179,6 +181,10 @@ struct Scene {
     d2d::dc6::Sprite      btn_narrow;         // NarrowButtonBlank
     d2d::dc6::Sprite      btn_short;          // ShortButtonBlank
     d2d::dc6::Sprite      credits_bg;         // creditsbckgexpand.dc6 (or classic fallback)
+    // Character-creation screen (loaded by FUN_004326f0). SP button hops here.
+    d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
+    d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
+    std::array<d2d::dc6::Sprite, 7> classes;  // nu1 (idle) per class, order: barb/necro/pally/ama/sorc/druid/assn
     d2d::font::Font       font;
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
@@ -192,7 +198,7 @@ struct Scene {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits };
+enum class Screen { Title, Credits, CharCreate };
 
 struct Button {
     int x{}, y{}, w{}, h{};
@@ -298,6 +304,24 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 if (!b) b = mpqs.read(R"(data\global\ui\CharSelect\creditsbckg.dc6)");
                 return d2d::dc6::Sprite(*b);
             }(),
+            .charcreate_bg = [&] {
+                auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\charactercreationscreenEXP.dc6)");
+                if (!b) b = mpqs.read(R"(data\global\ui\FrontEnd\CharacterCreate.dc6)");
+                return d2d::dc6::Sprite(*b);
+            }(),
+            .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
+            .classes    = {
+                // Order matches D2's left-to-right visual layout on the
+                // classic char-create screen. LoD-only classes (assassin,
+                // druid) get the same treatment — MPQ has them.
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\barbarian\banu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\necromancer\nenu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\paladin\panu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\amazon\amnu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\sorceress\sonu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\druid\dznu1.dc6)")),
+                d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\assassin\asnu1.dc6)")),
+            },
             .font        = d2d::font::Font(
                              mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
                              d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
@@ -435,6 +459,58 @@ void render_credits(std::vector<std::uint8_t>& fb,
                 "d2d dev build — click or Esc to return");
 }
 
+// Character-creation screen — the iconic seven-classes-around-a-campfire
+// scene, loaded by FUN_004326f0. For MVP we blit each class's nu1 (idle)
+// cycle at hardcoded positions matching the D2 layout, plus the fire
+// animation in the pit. Selection / hover / class labels are follow-ups.
+void render_charcreate(std::vector<std::uint8_t>& fb,
+                       const Scene& s,
+                       std::uint32_t elapsed_ms) {
+    // Background: charactercreationscreenEXP.dc6 is the same 4×3 800×600
+    // grid as the title bg.
+    blit_dc6_grid(fb, s.charcreate_bg, s.pal, 0, 0, s.bg_tiles_across);
+
+    // Class silhouettes. Positions eyeballed to match D2's layout — the
+    // classes stand in a rough semi-circle behind the fire pit. Each anchor
+    // is (feet-x, feet-y) with the DC6 offsets doing the height math via
+    // blit_at_anchor. Class order matches Scene::classes.
+    struct ClassPos { int x, y; };
+    constexpr ClassPos pos[7] = {
+        {130, 555},   // Barbarian — far left
+        {225, 545},   // Necromancer
+        {315, 535},   // Paladin
+        {480, 540},   // Amazon (right of the fire)
+        {560, 540},   // Sorceress
+        {645, 545},   // Druid
+        {720, 550},   // Assassin — far right
+    };
+    // Each nu1 loops at its own frame count. Advance at 25 Hz base tick.
+    const auto ticks = elapsed_ms / kBaseFrameMs;
+    for (std::size_t i = 0; i < s.classes.size(); ++i) {
+        const auto& spr = s.classes[i];
+        const auto n = spr.frames_per_direction();
+        if (n == 0) continue;
+        const auto fi = std::uint32_t((ticks + i * 7) % n);   // desync per class
+        blit_at_anchor(fb, spr.frame(0, fi), s.pal, pos[i].x, pos[i].y);
+    }
+
+    // Campfire animation between the front classes — position tuned so the
+    // base lands on the pit in the background art.
+    const auto nf = s.fire.frames_per_direction();
+    if (nf > 0) {
+        const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
+        // Warm-tint like the logo fire (PL2 colormap is the honest fix).
+        blit_fire_tinted(fb, s.fire.frame(0, ff), s.pal, 400, 495);
+    }
+
+    // Placeholder screen label + return hint. Real UI here has class name,
+    // description panel, name entry — later slice.
+    s.font.draw_tinted(fb, kW, kH, s.pal, int(kW)/2 - 90, 20,
+                       "SELECT HERO CLASS", 255, 208, 80);
+    s.font.draw(fb, kW, kH, s.pal, 8, int(kH) - 14,
+                "d2d dev build — Esc to return to title");
+}
+
 // --- SDL3 render loop ------------------------------------------------------
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
@@ -503,7 +579,8 @@ TitleUI title_ui(const Scene& s) {
     };
     // ID map derived from menu records — see docs/research/re/frontend-menu-table.md.
     const Spec specs[] = {
-        {264, 324, 272, 35, 0x13f2, "SINGLE PLAYER",     &s.btn_wide},
+        {264, 324, 272, 35, 0x13f2, "SINGLE PLAYER",     &s.btn_wide,
+            true, Screen::CharCreate, false},
         {264, 366, 272, 35, 0x13f3, "BATTLE.NET",        &s.btn_wide2},
         {264, 391, 272, 25, 0,      "GATEWAY: LOCAL",    &s.btn_narrow},
         {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &s.btn_wide},
@@ -589,12 +666,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
         if (scene) {
-            if (screen == Screen::Title) {
+            switch (screen) {
+            case Screen::Title:
                 for (auto& b : ui.buttons) update_button(b, mouse, screen, quit);
                 render_title(fb, *scene, ui.buttons, ms);
-            } else {  // Credits
+                break;
+            case Screen::Credits:
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
+                break;
+            case Screen::CharCreate:
+                if (mouse.release_this_frame) screen = Screen::Title;
+                render_charcreate(fb, *scene, ms);
+                break;
             }
         } else {
             paint_test_pattern(fb);
