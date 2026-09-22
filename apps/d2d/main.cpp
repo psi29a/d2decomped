@@ -586,9 +586,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int class_idx,
                    std::string_view name,
                    std::uint32_t /*elapsed_ms*/) {
-    // Credits bg happens to be a moody dark corridor — good placeholder
-    // for "you're in the game" until DS1/DT1 tiles land.
-    const auto& pal = s.charselect_pal;
+    // creditsbckgexpand.dc6 is authored against the Sky palette (same one
+    // the credits screen uses). Rendering it with fechar produces the
+    // cyan/magenta psychedelia we saw on first pass.
+    const auto& pal = s.pal;
     blit_dc6_grid(fb, s.credits_bg, pal, 0, 0, s.bg_tiles_across);
 
     std::string cls = kClassKey[class_idx];
@@ -933,6 +934,19 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     }
 }
 
+// Set by main() before entering the loop — a lazy way to plumb --start-*
+// through without threading extra parameters everywhere.
+static std::string g_start_screen;
+static int         g_start_class = 0;
+static std::string g_start_name;
+
+static Screen parse_screen(std::string_view s) {
+    if (s == "credits")    return Screen::Credits;
+    if (s == "charcreate") return Screen::CharCreate;
+    if (s == "ingame")     return Screen::InGame;
+    return Screen::Title;
+}
+
 int run_windowed(std::vector<std::uint8_t>& fb,
                  const std::optional<Scene>& scene,
                  d2d::devctl::Channel& ch,
@@ -945,7 +959,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Window win;
     if (!win.open(int(kW), int(kH))) { SDL_Quit(); return 1; }
 
-    Screen screen = Screen::Title;
+    Screen screen = g_start_screen.empty() ? Screen::Title
+                                            : parse_screen(g_start_screen);
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
@@ -968,6 +983,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         cc.ok_btn     = Button{ 627, 572, 128, 35, cc.ok_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::InGame, /*do_switch=*/false };
+        // Preload class/name if --start-screen ingame was given.
+        if (g_start_class >= 0 && g_start_class < 7) cc.selected = g_start_class;
+        if (!g_start_name.empty()) cc.input_name = g_start_name;
     }
 
     const auto t0 = SDL_GetTicks();
@@ -1080,14 +1098,22 @@ int main(int argc, char** argv) {
     std::string devctl_path;
     fs::path    data_dir = default_data_dir();
     bool        headless = false;
+    std::string start_screen;   // "title" | "credits" | "charcreate" | "ingame"
+    int         start_class = 0;
+    std::string start_name;
 
     for (int i = 1; i < argc; ++i) {
         std::string_view a = argv[i];
         if (a == "--devctl" && i + 1 < argc)      devctl_path = argv[++i];
         else if (a == "--data" && i + 1 < argc)   data_dir    = argv[++i];
         else if (a == "--headless")               headless    = true;
+        else if (a == "--start-screen" && i + 1 < argc) start_screen = argv[++i];
+        else if (a == "--start-class"  && i + 1 < argc) start_class  = std::atoi(argv[++i]);
+        else if (a == "--start-name"   && i + 1 < argc) start_name   = argv[++i];
         else if (a == "--help" || a == "-h") {
-            std::printf("usage: d2d [--devctl <path>] [--data <dir>] [--headless]\n");
+            std::printf("usage: d2d [--devctl <path>] [--data <dir>] [--headless]\n"
+                        "           [--start-screen title|credits|charcreate|ingame]\n"
+                        "           [--start-class 0..6] [--start-name NAME]\n");
             return 0;
         } else {
             std::fprintf(stderr, "d2d: unknown arg '%.*s'\n",
@@ -1118,6 +1144,10 @@ int main(int argc, char** argv) {
         return std::string("ok\n");
     });
     ch.listen(devctl_path);
+
+    g_start_screen = start_screen;
+    g_start_class  = start_class;
+    g_start_name   = start_name;
 
     return headless
         ? run_headless(fb, scene, ch, frame_count, quit)
