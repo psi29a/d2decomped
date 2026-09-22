@@ -190,12 +190,38 @@ struct Scene {
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
-    // patchstring.tbl / string.tbl. Button labels come out of here by ID
-    // (see docs/research/re/frontend-menu-table.md — records at 0x708ec0+
-    // carry TBL ids 0x13f2..0x13f7 in the +0x18 field).
-    d2d::tbl::Table       strings;
+    // D2's three-tier string tables. Lookup order per D2's own convention:
+    //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
+    //   expansionstring.tbl (2788 entries) — LoD additions (Druid/Assassin
+    //     class names live here in some builds, but 1.14d put them in
+    //     patchstring.tbl — see class-table.md)
+    //   string.tbl (5099 entries) — base classic keys
+    // Frontend button labels come out via ID lookup (see
+    // docs/research/re/frontend-menu-table.md — records at 0x708ec0+ carry
+    // TBL ids 0x13f2..0x13f7 in the +0x18 field). Class-name keys are bare
+    // ("Barbarian", "Assassin", "Druid", …) — see class-table.md.
+    d2d::tbl::Table       strings;         // string.tbl
+    d2d::tbl::Table       patch_strings;   // patchstring.tbl (has Druid/Assassin)
+    d2d::tbl::Table       exp_strings;     // expansionstring.tbl
     int                   bg_tiles_across{4};
 };
+
+// TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
+// matching how the game resolves any string ID/key at runtime.
+inline std::optional<std::u16string_view>
+lookup_string(const Scene& s, std::string_view key) {
+    if (auto v = s.patch_strings.get(key); v && !v->empty()) return v;
+    if (auto v = s.exp_strings.get(key);   v && !v->empty()) return v;
+    if (auto v = s.strings.get(key);       v && !v->empty()) return v;
+    return std::nullopt;
+}
+inline std::optional<std::u16string_view>
+lookup_string(const Scene& s, std::uint16_t id) {
+    if (auto v = s.patch_strings.get(id); v && !v->empty()) return v;
+    if (auto v = s.exp_strings.get(id);   v && !v->empty()) return v;
+    if (auto v = s.strings.get(id);       v && !v->empty()) return v;
+    return std::nullopt;
+}
 
 // --- Screen state machine + mouse routing ---------------------------------
 
@@ -446,6 +472,14 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 auto b = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
                 return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
             }(),
+            .patch_strings = [&] {
+                auto b = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
+                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+            }(),
+            .exp_strings = [&] {
+                auto b = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
+                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+            }(),
         };
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
@@ -593,8 +627,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     blit_dc6_grid(fb, s.credits_bg, pal, 0, 0, s.bg_tiles_across);
 
     std::string cls = kClassKey[class_idx];
-    if (auto v = s.strings.get(kClassKey[class_idx]); v && !v->empty())
-        cls = u16_to_latin1(*v);
+    if (auto v = lookup_string(s, kClassKey[class_idx])) cls = u16_to_latin1(*v);
 
     constexpr const char* welcome = "WELCOME TO SANCTUARY";
     const int ww = s.font.measure(welcome);
@@ -726,7 +759,7 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     // keys in string.tbl per a probe of the file).
     std::string caption;
     if (ui.selected >= 0) {
-        if (auto v = s.strings.get(kClassKey[ui.selected]); v && !v->empty())
+        if (auto v = lookup_string(s, kClassKey[ui.selected]))
             caption = u16_to_latin1(*v);
         else
             caption = kClassKey[ui.selected];
@@ -880,7 +913,7 @@ TitleUI title_ui(const Scene& s) {
     for (const auto& sp : specs) {
         std::string label;
         if (sp.tbl_id) {
-            if (auto v = s.strings.get(sp.tbl_id)) label = u16_to_latin1(*v);
+            if (auto v = lookup_string(s, sp.tbl_id)) label = u16_to_latin1(*v);
         }
         if (label.empty() && sp.fallback) label = sp.fallback;
         ui.labels.push_back(std::move(label));
@@ -969,8 +1002,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     CharCreateUI cc;
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {
-            if (auto v = scene->strings.get(id); v && !v->empty())
-                return u16_to_latin1(*v);
+            if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
             return std::string(fallback);
         };
         cc.cancel_label = tbl_label(0x13ed, "EXIT");

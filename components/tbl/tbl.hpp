@@ -57,6 +57,10 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
     [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
 
+    // Direct map access for diagnostics / bulk scans. Not intended for hot
+    // paths — use get(key) or get(id).
+    [[nodiscard]] const auto& entries() const noexcept { return entries_; }
+
 private:
     static std::uint32_t rd32(const std::byte* p) {
         std::uint32_t v; std::memcpy(&v, p, 4); return v;
