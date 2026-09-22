@@ -51,8 +51,31 @@ constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
 
 fs::path default_data_dir() {
-    // ponytail: match the launcher's default install path on this box. Wire a
-    // proper QSettings/config lookup when a second contributor shows up.
+    // Resolution order (first hit wins):
+    //   1. --data CLI arg (handled in main; not here)
+    //   2. $D2_MPQ_DIR env var — portable, matches the test-suite convention
+    //   3. macOS: the launcher's QSettings-persisted path
+    //      (~/Library/Preferences/com.d2decomp.D2 Launcher.plist, key
+    //      game.dataPath) — same lookup tools/ghidra/import.sh uses
+    //   4. Eyeballed default: ~/Workspace/private/diablo2
+    if (const char* env = std::getenv("D2_MPQ_DIR"); env && *env)
+        return fs::path(env);
+
+#if defined(__APPLE__)
+    if (FILE* p = ::popen(
+            "defaults read 'com.d2decomp.D2 Launcher' game.dataPath 2>/dev/null",
+            "r"); p) {
+        char buf[1024];
+        std::size_t n = std::fread(buf, 1, sizeof(buf) - 1, p);
+        ::pclose(p);
+        while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
+        if (n > 0) {
+            buf[n] = '\0';
+            return fs::path(buf);
+        }
+    }
+#endif
+
     const char* home = std::getenv("HOME");
     if (!home) return {};
     return fs::path(home) / "Workspace" / "private" / "diablo2";
