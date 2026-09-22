@@ -1567,6 +1567,13 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
         m.x = int(ev.motion.x);
         m.y = int(ev.motion.y);
         mouse_seen = true;
+    } else if (ev.type == SDL_EVENT_WINDOW_MOUSE_LEAVE) {
+        // Kill mouse-edge pan when the pointer leaves the window — a
+        // cursor sitting on the terminal (or anywhere off-window)
+        // otherwise pins the last-seen edge and pans forever.
+        mouse_seen = false;
+    } else if (ev.type == SDL_EVENT_WINDOW_MOUSE_ENTER) {
+        mouse_seen = true;
     } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         m.x = int(ev.button.x);
         m.y = int(ev.button.y);
@@ -1827,6 +1834,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             paint_test_pattern(fb);
         }
 
+        const std::uint32_t t_after_render = std::uint32_t(SDL_GetTicks());
         // Skip GPU work when the window is minimized — Metal's swapchain
         // stalls if we keep pushing frames to a hidden drawable, which
         // is the classic macOS beachball trigger for SDL apps that
@@ -1838,28 +1846,43 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
             SDL_RenderPresent(win.r);
         }
+        const std::uint32_t t_after_present = std::uint32_t(SDL_GetTicks());
         ++frame_count;
         last_ms = ms;
-        // Per-frame diagnostics — max/avg frame time reported once a
-        // second so we can spot macOS compositor stalls without
-        // spamming stderr. Warns on any single frame > 100ms (macOS
-        // beachballs after ~5s of unresponsive event pump).
-        const auto ft = std::uint32_t(SDL_GetTicks()) - frame_start_ms;
-        static std::uint32_t stat_frames = 0, stat_sum_ms = 0, stat_max_ms = 0;
+        // Per-frame diagnostics — break the frame into `render` (all our
+        // CPU blits, filling the framebuffer) and `present` (SDL upload +
+        // clear + texture + present, which is where Metal can stall). The
+        // 5s alive line prints both averages, both maxes, AND the current
+        // camera position so we can correlate a stall with a specific
+        // area of the map.
+        const std::uint32_t dt_render  = t_after_render  - frame_start_ms;
+        const std::uint32_t dt_present = t_after_present - t_after_render;
+        static std::uint32_t stat_frames = 0;
+        static std::uint32_t stat_render_sum = 0, stat_render_max = 0;
+        static std::uint32_t stat_present_sum = 0, stat_present_max = 0;
         static std::uint32_t stat_last_report_ms = 0;
         ++stat_frames;
-        stat_sum_ms += ft;
-        if (ft > stat_max_ms) stat_max_ms = ft;
-        if (ft > 100) {
-            std::fprintf(stderr, "[d2d] slow frame: %u ms (screen=%d)\n",
-                         ft, int(screen));
+        stat_render_sum  += dt_render;
+        stat_present_sum += dt_present;
+        if (dt_render  > stat_render_max)  stat_render_max  = dt_render;
+        if (dt_present > stat_present_max) stat_present_max = dt_present;
+        // Any single phase > 100ms is a stall candidate — log it with
+        // whichever phase spiked so we can tell CPU-side from GPU-side.
+        if (dt_render > 100 || dt_present > 100) {
+            std::fprintf(stderr,
+                "[d2d] slow frame: render=%u ms present=%u ms screen=%d cam=(%d,%d)\n",
+                dt_render, dt_present, int(screen), camera_cx, camera_cy);
         }
         if (ms - stat_last_report_ms >= 5000) {
-            const std::uint32_t avg = stat_frames ? stat_sum_ms / stat_frames : 0;
+            const std::uint32_t avg_r = stat_frames ? stat_render_sum  / stat_frames : 0;
+            const std::uint32_t avg_p = stat_frames ? stat_present_sum / stat_frames : 0;
             std::fprintf(stderr,
-                "[d2d] alive: %u frames in 5s, avg %u ms max %u ms (screen=%d)\n",
-                stat_frames, avg, stat_max_ms, int(screen));
-            stat_frames = 0; stat_sum_ms = 0; stat_max_ms = 0;
+                "[d2d] alive: %u frames/5s | render avg=%u max=%u | present avg=%u max=%u | screen=%d cam=(%d,%d)\n",
+                stat_frames, avg_r, stat_render_max, avg_p, stat_present_max,
+                int(screen), camera_cx, camera_cy);
+            stat_frames = 0;
+            stat_render_sum = 0;  stat_render_max = 0;
+            stat_present_sum = 0; stat_present_max = 0;
             stat_last_report_ms = ms;
         }
         pace_frame(frame_start_ms);
@@ -1901,8 +1924,19 @@ int run_headless(std::vector<std::uint8_t>& fb,
 // the raw volatile int rather than a std::atomic<bool>. Every main
 // loop polls this each iteration and treats it as a `quit` request
 // identical to SDL_EVENT_QUIT.
-volatile std::sig_atomic_t g_sigint_quit = 0;
-extern "C" void d2d_sigint_handler(int) { g_sigint_quit = 1; }
+//
+// Double-tap escape hatch: a SECOND SIGINT/SIGTERM before the loop
+// notices the first calls _exit() unconditionally. This exists for
+// the exact scenario Bret hit — the main thread is beach-balled in
+// SDL_RenderPresent, our polled quit flag never gets checked, but
+// hammering Ctrl-C still gets you out without needing `kill -9`.
+volatile std::sig_atomic_t g_sigint_quit  = 0;
+volatile std::sig_atomic_t g_sigint_count = 0;
+extern "C" void d2d_sigint_handler(int) {
+    g_sigint_quit = 1;
+    g_sigint_count = g_sigint_count + 1;
+    if (g_sigint_count >= 2) _exit(130);
+}
 
 int main(int argc, char** argv) {
     // Ctrl-C and SIGTERM set the loop-quit flag instead of terminating
