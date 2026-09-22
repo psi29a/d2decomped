@@ -366,14 +366,14 @@ struct CharCreateUI {
     // to match D2's char-name limit (per D2's actual character record
     // struct). Left/right arrows and non-printable keys are ignored.
     std::string input_name;
-    // Hardcore checkbox — LoD char-create has exactly one toggle. Label
-    // from patchstring.tbl id 0x1406 ("Hardcore"), chrome from
-    // clickbox.dc6. The Expansion toggle is on char-SELECT, not create
-    // (verified: no "Expansion" label anywhere in the TBLs, and
-    // FUN_004326f0 loads clickbox.dc6 exactly once).
-    // ponytail: position (445, 550, 15, 16) placed by eye against the
-    // reference screen — the exact record in the char-create master table
-    // (0x70ae40..0x70b470) has not been RE'd yet.
+    // Hardcore checkbox — the char-create master-table record at 0x70b0b0
+    // (kind=6 button, x=319, y=560, w=15, h=16, handle=DAT_007797c0
+    // (clickbox.dc6), on_click=FUN_00430730 which sets bit 0x04 of the
+    // character-struct flags word at [0x7795d4]+0x1ef — that's the D2S
+    // "Character Status" hardcore bit). Label from patchstring.tbl id
+    // 0x1406 ("Hardcore"). See docs/research/re/char-create-table.md for
+    // the full 33-record breakdown, including the Ladder (bit 0x40) and
+    // Expansion (bit 0x20) checkbox records also present in the table.
     bool hardcore = false;
     // Owned label buffers so Button.label pointers stay live for the
     // frame; sourced from string.tbl by ID.
@@ -897,18 +897,20 @@ void advance_char_states(CharCreateUI& ui,
 // Hit-test click position against class silhouettes and trigger selection
 // transitions. Only one class is Selected/Selecting at a time; picking a
 // new one first sends the previous into Deselecting.
-// Estimated hardcore-checkbox rect (see CharCreateUI comment for the RE
-// caveat). Also used by render_charcreate for placement.
-constexpr int kHardcoreX = 445, kHardcoreY = 550, kHardcoreW = 15, kHardcoreH = 16;
+// Hardcore-checkbox rect — RE'd char-create master table 0x70b0b0.
+constexpr int kHardcoreX = 319, kHardcoreY = 560, kHardcoreW = 15, kHardcoreH = 16;
 
 void handle_charcreate_click(CharCreateUI& ui,
                              const Mouse& m,
                              std::uint32_t elapsed_ms) {
     if (!m.release_this_frame) return;
-    // Hardcore checkbox toggle — checked first so a class-hitbox that
-    // happens to overlap can't eat the click.
-    if (m.x >= kHardcoreX && m.x < kHardcoreX + kHardcoreW &&
-        m.y >= kHardcoreY && m.y < kHardcoreY + kHardcoreH) {
+    // Hardcore checkbox toggle — the click zone is the RE'd hitbox at
+    // 0x70b080 (339, 561, 100, 32) unioned with the box chrome itself, so
+    // clicking either the box OR its label toggles.
+    const int hcRx = kHardcoreX, hcRw = kHardcoreW + 5 + 100;   // box + gap + label
+    const int hcRy = kHardcoreY - 4, hcRh = 24;                 // vertical padding
+    if (m.x >= hcRx && m.x < hcRx + hcRw &&
+        m.y >= hcRy && m.y < hcRy + hcRh) {
         ui.hardcore = !ui.hardcore;
         return;
     }
@@ -1042,9 +1044,11 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     if (s.clickbox.frames_per_direction() >= 2 && !ui.hardcore_label.empty()) {
         const auto& fr = s.clickbox.frame(0, ui.hardcore ? 1 : 0);
         blit_sprite(fb, fr, pal, kHardcoreX, kHardcoreY);
-        const int lw = s.font.measure(ui.hardcore_label);
+        // Label rendered right of the box — RE'd hitbox 0x70b080 sits at
+        // x=339 (20px right of the box's x=319), covering the label's
+        // click zone.
         const int lh = s.font.line_height();
-        const int lx = kHardcoreX - lw - 8;
+        const int lx = kHardcoreX + kHardcoreW + 5;
         const int ly = kHardcoreY + (kHardcoreH - lh) / 2;
         if (ui.hardcore)
             s.font.draw_tinted(fb, kW, kH, pal, lx, ly,
