@@ -624,8 +624,9 @@ void render_title(std::vector<std::uint8_t>& fb,
     // and gameselectscreenEXP.dc6 already has "EXPANSION SET / Lord of
     // Destruction" baked into the background. Drawing both stacks two
     // "DIABLO II"s at different anchors — Bret caught the doubled letters.
-    // ponytail: expansion-flag branch in the drawer; wire when a
-    // classic-mode d2d run needs the fallback path.
+    // RE: game.exe gates the classic-mode fallback on DAT_007795ec == 0
+    // (the "expansion installed" flag; see char-create-table.md). We
+    // never load classic-only, so `logo_static` is intentionally unused.
     (void)s.logo_static;
 
     // "DIABLO II" animated logo halves — per RE records at 0x708e30 and
@@ -1258,6 +1259,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
     // Char-create UI. Positions from RE'd master-table records; labels
     // from string.tbl by ID (0x13ed = EXIT, 0x13ee = OK per record +0x18).
+    // OK/EXIT bottom-row buttons are RE'd as records 0x70ade0 and 0x70ae10
+    // — the last two entries of the char-select master table, shared
+    // with char-create by convention (see char-create-table.md).
     CharCreateUI cc;
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {

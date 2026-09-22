@@ -99,29 +99,154 @@ is a 16-byte-per-record class table; each row holds the 5 animation
 slot pointers (nu1, nu2, fw, nu3, bw). Documented in
 [[class-table]].
 
-## OK / EXIT on the char-create screen
+## OK / EXIT on the char-create screen — RE'd
 
-The buttons at 0x70b3b0 / 0x70b3e0 (x=281 and x=421, y=337) are the
-**modal-popup** OK/EXIT — probably the "Are you sure?" that appears
-when clicking EXIT with unsaved input. The main char-create OK/EXIT
-buttons at the bottom of the screen are **NOT** in this table — likely
-either hardcoded, sourced from a different table, or belong to the
-generic "bottom-bar buttons" pattern shared with char-select. Follow-up:
-locate them (they're what our code positions at (627, 572) and (33, 572)
-by eye — currently unverified against RE).
+The bottom-row buttons are NOT in the char-create table proper; they
+sit **immediately before it**, as the last two records of the
+char-select master table (which runs `0x70ac00..0x70ae40` and shares
+its bottom-bar buttons with the char-create screen):
+
+| Addr       | Kind | (x, y, w, h)       | flags | tbl_id | handle       | on_click     | Purpose      |
+|------------|------|--------------------|-------|--------|--------------|--------------|--------------|
+| **0x70ade0** | 6  | **(33, 572, 128, 35)** | 0x1b | 0x13ed | `0x00779744` (MediumSelButtonBlank) | `0x00430c30` | **EXIT** |
+| **0x70ae10** | 6  | **(627, 572, 128, 35)** | 0x0d | 0x13ee | `0x00779744` | `0x004369f0` | **OK** |
+
+Both use `MediumSelButtonBlank.dc6` chrome, TBL ids `0x13ed`/`0x13ee`,
+and match our current placement exactly — so those buttons were placed
+correctly by eye and are now RE-confirmed.
+
+The `flags` byte differs (0x1b on EXIT, 0x0d on OK) — likely render
+hints (highlight/disabled state; the main-menu EXIT record at
+`0x708fe0` also uses 0x1b, suggesting a "quit-family" marker).
+
+The two records at `0x70b3b0` / `0x70b3e0` (x=281/421, y=337) that ARE
+inside the char-create table proper are the **modal-popup** OK/CANCEL
+that appears when the user commits or aborts an in-progress creation
+("Are you sure you want to create <name> the <class>?"), separate from
+the always-visible bottom-bar buttons above.
+
+## Preceding table (char-select, 0x70ac00..0x70ae40)
+
+The char-select records are outside the scope of this doc but were
+captured en route to finding the bottom buttons. Notable rows:
+
+| Addr       | Kind | (x, y, w, h)       | tbl_id  | handle   | Purpose (guessed) |
+|------------|------|--------------------|---------|----------|--------------------|
+| 0x70ac00   | 6    | (233, 528, 168, 60) | 22732  | 0x779730 (TallButtonBlank) | Bottom-row "CONVERT..." button? |
+| 0x70ac30   | 6    | (433, 528, 168, 60) | 5272   | 0x779730 | Bottom-row button |
+| 0x70ac90/acc0/acf0 | 6 | (264, 297/340/383, 272, 35) | 10018/10017/10016 | 0x779738 (WideButton) | 3 stacked char-list slots |
+| 0x70ad50   | 2    | (237, 400, 326, 200) | | 0x77976c | Char-select BG panel |
+
+## Screen state machine — how records get onto the screen
+
+The whole record pool sits at **`DAT_00708d10`**, one contiguous
+48-byte-record array. A record's *global index* is `(addr - 0x708d10) / 48`
+— so the char-create BG at `0x70ae40` is record `0xB1` (177 decimal), and
+the Hardcore checkbox at `0x70b0b0` is record `0xBE` (190).
+
+Two runtime primitives own the pool:
+
+| Address       | Fn                    | Role |
+|---------------|-----------------------|------|
+| `FUN_0042f430(N)` | `register_record(N)` | Copies record N into the active screen's live list: calls `FUN_004f93c0(&DAT_00708d10 + N * 0x30)`, stores the returned handle at `DAT_00779350[DAT_00779944++]`. Caps at 64 records (`0x3f`). |
+| `FUN_0042f480()`  | `teardown_screen()`  | Walks `DAT_00779350[0..DAT_00779944]`, calls `FUN_004f95c0(handle)` (destroy) on each, resets the count to 0. Called at the start of every screen-init. |
+
+`FUN_004f93c0` is the record processor — a per-kind dispatch:
+
+| Kind | Handler       | Purpose                       |
+|------|---------------|-------------------------------|
+| 1    | `FUN_005001d0` | Kind-1 marker (name-field enter handler etc.) |
+| 2    | `FUN_004fd6c0` | Sprite / static background     |
+| 3    | `FUN_00500850` | Paired-anim (class silhouette, fire) |
+| 4    | `FUN_004fc7a0` | Hitbox                         |
+| 5    | `FUN_005084f0` | (unknown — sub-menu marker?)    |
+| 6    | `FUN_00501290` | Button (chrome + label + click) |
+| 7    | `FUN_005075e0` | (unknown)                       |
+| 8    | `FUN_004fd9d0` | Kind-8 marker (hotspot?)        |
+| 9    | `FUN_00506b70` | (unknown)                       |
+| 10   | `FUN_00507e50` | (unknown)                       |
+| 12   | `FUN_00507ca0` | (unknown)                       |
+| 13   | `FUN_004fd770` | (unknown)                       |
+
+So there is no "drawer that iterates the master table". Each kind's
+handler registers itself with the game's global draw/tick lists at
+create-time, and per-frame drawing runs off those subsystem lists —
+not off `DAT_00779350` directly.
+
+## Char-create init — which records this screen actually shows
+
+`FUN_00435580` (called by `FUN_00435e10`, the screen dispatch) is the
+init. It first calls `FUN_0042f480` (tear down previous screen), then
+zeros the character-status flags word:
+
+```c
+*(undefined2 *)(DAT_007795d4 + 0x1ef) = 0;
+```
+
+...then makes many `register_record(N)` calls (captured from raw x86
+asm; the decompiler hid the fastcall ECX args). The exact indices for
+LoD 1.14d:
+
+```
+0xB1 charcreate_bg (0x70ae40)
+0xC5 wide hitbox (0x70b200)
+0xC7 wide hitbox (0x70b260)
+0xAF EXIT button (0x70ade0) ← from the preceding table
+0xC8 name-field textbox (0x70b290)
+0xCC name-field enter marker (0x70b350)
+0xD3 ladder hitbox (0x70b4a0)   ┐
+0xD4 EXPANSION checkbox y=540  ├ inside `if (DAT_007795ec == 1)` branch
+0xD5 (past table, 0x70b500)    ┘   — only registered when expansion is installed
+0xBE HARDCORE checkbox y=560   ← THE primary HC render
+0xBD HARDCORE hitbox           ← its label click zone
+0xC3 (hitbox 0x70b1a0)
+0xCA (hitbox 0x70b2f0)
+0xCB HARDCORE checkbox y=540   ← alt / modal-dialog variant (also drawn)
+0xC1 (hitbox 0x70b140)
+0xBF (hitbox 0x70b0e0)
+0xB0 OK button (0x70ae10)      ← from the preceding table
+```
+
+Alt-checkbox mystery resolved: **BOTH** HC records (0xBE at y=560 and
+0xCB at y=540) are registered on the LoD char-create path. The y=560
+record is the canonical rendered position (matches D2's reference
+screen). The y=540 one is likely for the "confirm creation" modal
+overlay that opens on OK-click — the char-create table's records at
+0x70b380..0x70b410 look like modal-panel content, and 0xCB sits in
+that same cluster.
+
+Runtime flags used by init:
+
+| Global         | Meaning                                        |
+|----------------|------------------------------------------------|
+| `DAT_007795d4` | Pointer to "character being created" struct    |
+| `+0x1ef` byte  | D2S Character Status: bit 2=HC, 5=Expansion, 6=Ladder |
+| `DAT_007795ec` | 1 = expansion (LoD) is installed               |
+| `DAT_00779da4` | Non-zero = some LoD sub-mode toggle (guards the alt-load path) |
+| `FUN_00408f20()` | Returns non-zero when expansion mode is active |
 
 ## How this table was captured
 
-`tools/ghidra/scripts/DumpBytes.java` — a new Ghidra headless script
-that dumps a virtual-address range as one line per record (both hex
-bytes and 32-bit LE dwords), which makes 48-byte struct arrays trivial
-to slice. Invoked as:
+Three new Ghidra headless scripts under `tools/ghidra/scripts/`:
 
-```
-analyzeHeadless project D2Decomp -noanalysis -process game.exe \
-  -postScript DumpBytes.java 0x70ae40 0x70b500 0x30 out.txt
-```
+- **`DumpBytes.java`** — dumps a virtual-address range as one line per
+  record (hex bytes + 32-bit LE dwords side-by-side). Ideal for 48-byte
+  struct-array tables like this one:
+  ```
+  analyzeHeadless project D2Decomp -noanalysis -process game.exe \
+    -postScript DumpBytes.java 0x70ae40 0x70b500 0x30 out.txt
+  ```
+- **`FindPattern.java`** — scans every loaded memory block for a byte
+  pattern with `??` wildcards. Used to sweep for records with a specific
+  `(y, w)` shape (e.g. `06 00 00 00 ?? ?? ?? ?? 3c 02 00 00` = kind=6
+  button at y=572).
+- **`XrefsTo.java`** — lists every reference to a target address, with
+  the containing function. Used to walk from `FUN_004326f0` (asset
+  loader) → `FUN_00435580` (screen init) → `FUN_00435e10` (dispatch).
+- **`Disasm.java`** — raw x86 disassembly for a range. Needed to read
+  the fastcall `ECX` args to `FUN_0042f430` which the decompiler drops.
 
-The three checkbox handlers were disassembled by hand from the raw
-byte dump because Ghidra hadn't identified them as function entries
-(they're small stubs in a code gap).
+The three checkbox handlers (`0x430730`, `0x430750`, `0x430770`) were
+disassembled by hand from the raw byte dump because Ghidra hadn't
+identified them as function entries — they're small stubs in a code
+gap between `FUN_004306c0` and `FUN_004307a0`.
