@@ -1692,10 +1692,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     }
 
     const auto t0 = SDL_GetTicks();
-    // Text-input state: SDL delivers TEXT_INPUT events only while enabled.
-    // Enable on CharCreate (name entry), disable elsewhere so keys don't
-    // leak into fields that don't exist.
-    bool text_active = false;
+    // Text-input is enabled ONCE for the lifetime of the window. Reason:
+    // SDL_StartTextInput() / SDL_StopTextInput() on macOS talk to the
+    // system IME, which can stall the main thread — a real user of ours
+    // hit a beachball right after the last alive print on CharCreate,
+    // and the toggle is the only per-screen SDL call that changes there.
+    // Callers gate the text-input consumers themselves (only CharCreate
+    // reads text_this_frame); TEXT_INPUT events for other screens are
+    // handed to the frame but no consumer picks them up.
+    SDL_StartTextInput(win.w);
     // Camera position on the InGame world (in DS1 cells). Seeded to the
     // middle of the loaded map — arrow keys / WASD / mouse-edge pan from
     // there. Persists across frames so panning is continuous rather than
@@ -1720,14 +1725,6 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // close still work through handle_sdl_events.
         if (g_sigint_quit) { quit = true; break; }
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
-        // Toggle SDL text input on screen change so keys don't leak into
-        // fields that don't exist on the current screen.
-        const bool want_text = (screen == Screen::CharCreate);
-        if (want_text != text_active) {
-            if (want_text) SDL_StartTextInput(win.w);
-            else           SDL_StopTextInput(win.w);
-            text_active = want_text;
-        }
 
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
