@@ -273,7 +273,10 @@ struct Scene {
     // aren't found (headless / bad data dir).
     d2d::ds1::Map                            world_ds1;
     std::vector<d2d::dt1::Archive>           world_dt1s;
-    std::unordered_map<std::uint32_t, const d2d::dt1::Tile*> world_floor_lookup;
+    // Keyed by (style, seq, type) — one map covers floors, walls, trees,
+    // shadows, roofs; the DT1's `type` field disambiguates orientations
+    // that share (style, seq). First matching tile wins across DT1s.
+    std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> world_tile_lookup;
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
 };
@@ -633,10 +636,13 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
     return out;
 }
 
-// Encode (style, sequence) into a single lookup key. Style + sequence are
-// both bytes in the DS1 record but hold values up to 63 / 255 respectively.
-[[nodiscard]] inline std::uint32_t tile_key(int style, int seq) {
-    return (std::uint32_t(style) << 16) | std::uint32_t(seq & 0xFFFF);
+// Encode (style, sequence, type) into a single lookup key. Style + sequence
+// are DS1-record bytes; type is the DT1 orientation code (0..16 per D2's
+// tile-type table). 24 bits × 24 bits × 16 bits comfortably fits u64.
+[[nodiscard]] inline std::uint64_t tile_key(int style, int seq, int type) {
+    return (std::uint64_t(std::uint32_t(style)) << 40)
+         | (std::uint64_t(std::uint32_t(seq  )) << 16)
+         |  std::uint64_t(std::uint16_t(type ));
 }
 
 // Load one DS1 + every DT1 it references (silently skips missing ones —
@@ -663,14 +669,14 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
                          mpq_path.c_str(), e.what());
         }
     }
-    // Floor lookup — first DT1 to define a (style, seq) wins. type=0 is
-    // the floor orientation; walls use non-zero types and get their own
-    // lookup later.
+    // Populate the (style, seq, type) lookup across all DT1s. First DT1
+    // to define a tuple wins — matches how D2's renderer resolves tile
+    // priority against its Stack-ordered tileset list. Covers floors,
+    // walls, trees, roofs, shadows in one map.
     for (const auto& dt1 : scene.world_dt1s) {
         for (const auto& t : dt1.tiles()) {
-            if (t.type != 0) continue;
-            const auto k = tile_key(t.style, t.sequence);
-            scene.world_floor_lookup.try_emplace(k, &t);
+            const auto k = tile_key(t.style, t.sequence, t.type);
+            scene.world_tile_lookup.try_emplace(k, &t);
         }
     }
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
@@ -927,47 +933,128 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
     }
 }
 
-// Render the loaded DS1's floor layer onto the framebuffer, centered on
-// grid cell (camera_cx, camera_cy). Missing tile lookups (style/sequence
-// pairs the loaded DT1s don't cover — some rogue-camp DS1s reference
-// .tg1 groups that aren't in 1.14d) leave those cells transparent, so
-// the ground below shows through instead of crashing the frame.
-void render_world_floor(std::vector<std::uint8_t>& fb,
-                        const Scene& s,
-                        int camera_cx, int camera_cy) {
+// Render the loaded DS1 onto the framebuffer, centered on grid cell
+// (camera_cx, camera_cy). Draws in D2's back-to-front Z order:
+//   1. All floor tiles (type=0) in row order — the ground plane
+//   2. All shadow tiles (type=13) in row order — soft dark decals
+//   3. Walls / trees / roofs per row, top-back rows first, so
+//      lower/nearer rows can occlude higher/farther ones
+//
+// Missing tile lookups are silent — a cell whose (style, seq, type)
+// tuple isn't in any loaded DT1 leaves whatever's below it showing
+// through, which is the same behaviour D2 itself has for stripped
+// tilesets.
+void render_world(std::vector<std::uint8_t>& fb,
+                  const Scene& s,
+                  int camera_cx, int camera_cy) {
     const auto& m = s.world_ds1;
-    if (m.floors().empty() || m.width() == 0) return;
+    if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-    const auto& cells = m.floors()[0].cells;
-    // Screen center anchor for the camera cell. Iso projects around this.
     const int cx0 = int(kW) / 2;
     const int cy0 = int(kH) / 2;
-    // Determine visible cell window so we don't iterate the whole grid.
-    // A generous margin covers tiles that stick up (128px tall) or drop
-    // off (walls, later). 12 cells each way easily covers 800x600.
-    for (int dy = -12; dy <= 12; ++dy) {
-        for (int dx = -12; dx <= 12; ++dx) {
+    const int mw  = m.width();
+
+    // Iso footprint for the 800x600 window: each screen cell is 160x80.
+    // A ±12 grid-cell window around the camera covers > 2× screen area,
+    // leaving room for tall walls (up to 128+px) to reach in from cells
+    // that are off-screen at their base.
+    constexpr int kR = 12;
+
+    // Blit a single tile at cell (gx, gy)'s iso position, honouring the
+    // 80-tall-diamond-at-bottom convention shared by floor/wall pixel
+    // buffers.
+    auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t) {
+        const int dx = gx - camera_cx;
+        const int dy = gy - camera_cy;
+        const int iso_x = cx0 + (dx - dy) * (kIsoW / 2);
+        const int iso_y = cy0 + (dx + dy) * (kIsoH / 2);
+        const int th = std::abs(t.height);
+        const int sx = iso_x - t.width / 2;
+        const int sy = iso_y - (th - kIsoH);
+        blit_dt1_tile(fb, t, pal, sx, sy);
+    };
+
+    auto find_tile = [&](int style, int seq, int type)
+        -> const d2d::dt1::Tile* {
+        const auto it = s.world_tile_lookup.find(tile_key(style, seq, type));
+        return it == s.world_tile_lookup.end() ? nullptr : it->second;
+    };
+
+    // Row-major sweep so back rows render first. dy increases downward
+    // in screen space, so we iterate low→high dy for back-to-front.
+    for (int dy = -kR; dy <= kR; ++dy) {
+        for (int dx = -kR; dx <= kR; ++dx) {
             const int gx = camera_cx + dx;
             const int gy = camera_cy + dy;
-            if (gx < 0 || gy < 0 || gx >= m.width() || gy >= m.height())
-                continue;
-            const auto& c = cells[std::size_t(gy) * m.width() + gx];
-            if (c.hidden) continue;
-            const auto it = s.world_floor_lookup.find(
-                tile_key(c.style, c.sequence));
-            if (it == s.world_floor_lookup.end()) continue;
-            const auto& t = *it->second;
-            // Iso top-corner of cell (gx, gy) relative to (camera_cx, cy).
-            const int iso_x = cx0 + (dx - dy) * (kIsoW / 2);
-            const int iso_y = cy0 + (dx + dy) * (kIsoH / 2);
-            // Floor pixel-buffer is width x abs(height); the 80-tall
-            // diamond sits at the BOTTOM of that buffer, so top-of-diamond
-            // in tile-local coords is (abs(height) - 80). Place so that
-            // aligns with the cell iso-top on screen.
-            const int th = std::abs(t.height);
-            const int sx = iso_x - t.width / 2;
-            const int sy = iso_y - (th - kIsoH);
-            blit_dt1_tile(fb, t, pal, sx, sy);
+            if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
+            const std::size_t off = std::size_t(gy) * mw + gx;
+
+            // Floor (single layer typical). Type 0 in the floor stream
+            // is the "no floor here" marker (dropped by the game); we
+            // still need to look up type=0 for actual floors from DT1s.
+            for (const auto& fl : m.floors()) {
+                const auto& c = fl.cells[off];
+                if (c.hidden) continue;
+                if (c.style == 0 && c.sequence == 0 && c.wall_type == 0) {
+                    // Rogue-camp floors often have (0, 0, 0) as literal
+                    // grass tile — draw it. Only skip cells the DS1
+                    // marks hidden.
+                }
+                if (auto* t = find_tile(c.style, c.sequence, /*type=*/0))
+                    blit_cell(gx, gy, *t);
+            }
+
+            // Shadow layer — 50% alpha decals under characters/objects.
+            // For MVP we blit them as regular tiles (index-0 transparent);
+            // proper Pl2 blend50 compositing is a follow-up.
+            for (const auto& sh : m.shadows()) {
+                const auto& c = sh.cells[off];
+                if (c.hidden) continue;
+                if (c.style == 0 && c.sequence == 0 && c.wall_type == 0) continue;
+                if (auto* t = find_tile(c.style, c.sequence, /*type=*/13))
+                    blit_cell(gx, gy, *t);
+            }
+        }
+    }
+
+    // Walls / trees / roofs — same row-major sweep, per-cell one-pass
+    // draw. All non-floor orientation types share the same iso
+    // positioning; the DT1 tile's own y_shift + per-block y encode the
+    // vertical layout, so height-varying elements (columns, trees, roofs)
+    // land correctly relative to the cell iso anchor without special
+    // per-type math here. Roofs (type 15) get a small extra vertical
+    // hoist from the DS1 orientation dword's upper 24 bits when
+    // present — for MVP we use the DT1's per-tile roof_height instead.
+    for (int dy = -kR; dy <= kR; ++dy) {
+        for (int dx = -kR; dx <= kR; ++dx) {
+            const int gx = camera_cx + dx;
+            const int gy = camera_cy + dy;
+            if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
+            const std::size_t off = std::size_t(gy) * mw + gx;
+            for (const auto& wl : m.walls()) {
+                const auto& c = wl.cells[off];
+                if (c.hidden) continue;
+                const int type = c.wall_type;
+                if (type == 0) continue;         // floor marker in wall stream
+                if (type == 13) continue;        // shadow (drawn above)
+                if (auto* t = find_tile(c.style, c.sequence, type)) {
+                    if (type == 15) {
+                        // Roof — hoist by the DT1's own roof_height plus
+                        // any DS1-encoded offset in wall_zero's upper bits.
+                        const int dx_ = gx - camera_cx;
+                        const int dy_ = gy - camera_cy;
+                        const int iso_x = cx0 + (dx_ - dy_) * (kIsoW / 2);
+                        const int iso_y = cy0 + (dx_ + dy_) * (kIsoH / 2)
+                                              - t->roof_height;
+                        const int th = std::abs(t->height);
+                        const int sx = iso_x - t->width / 2;
+                        const int sy = iso_y - (th - kIsoH);
+                        blit_dt1_tile(fb, *t, pal, sx, sy);
+                    } else {
+                        blit_cell(gx, gy, *t);
+                    }
+                }
+            }
         }
     }
 }
@@ -1042,7 +1129,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         // uninitialized fb would leak the previous frame's contents.
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
-        render_world_floor(fb, s, camera_cx, camera_cy);
+        render_world(fb, s, camera_cx, camera_cy);
         // Player sprite sits on top of the floor. Follows the class
         // picked on char-create; falls through silently for classes
         // whose DCC didn't load.
