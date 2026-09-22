@@ -73,6 +73,45 @@ int main() {
         assert(p[1].b == 10);
     }
 
+    // Pl2 colormap — real PL2 file. Check base + additive + blend50 LUTs
+    // hold their invariants (additive is commutative; identity axes hit;
+    // blend50 diagonal is identity).
+    {
+        const auto raw = mpq.read(R"(data\global\palette\menu1\Pal.PL2)");
+        assert(raw.size() == d2d::palette::Pl2::kFileSize);
+        d2d::palette::Pl2 p(raw);
+        assert(p.base_palette()[0].a == 0);
+        // additive(i, 0) == i and additive(0, j) == j for every index.
+        for (int i = 0; i < 256; ++i) {
+            assert(p.additive(std::uint8_t(i), 0) == i);
+            assert(p.additive(0, std::uint8_t(i)) == i);
+        }
+        // blend50 diagonal identity: blending an index with itself is itself.
+        for (int i = 0; i < 256; ++i) {
+            assert(p.blend50(std::uint8_t(i), std::uint8_t(i)) == i);
+        }
+        // Commutativity of additive.
+        for (int i = 0; i < 256; i += 17) {
+            for (int j = 0; j < 256; j += 13) {
+                assert(p.additive(std::uint8_t(i), std::uint8_t(j))
+                    == p.additive(std::uint8_t(j), std::uint8_t(i)));
+            }
+        }
+        std::printf("PL2 base[94]  = %02x %02x %02x\n",
+                    p.base_palette()[94].r, p.base_palette()[94].g,
+                    p.base_palette()[94].b);
+        std::printf("PL2 additive(94, 200) = %u\n", p.additive(94, 200));
+    }
+
+    // Pl2 short buffer throws.
+    {
+        std::vector<std::byte> tiny(1024);
+        bool threw = false;
+        try { d2d::palette::Pl2 p(tiny); }
+        catch (const std::runtime_error&) { threw = true; }
+        assert(threw);
+    }
+
     std::printf("OK\n");
     return 0;
 }

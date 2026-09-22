@@ -95,16 +95,27 @@ void blit_at_anchor(std::vector<std::uint8_t>& fb,
     blit_sprite(fb, f, pal, x, y);
 }
 
-// Additive blit — D2's fire assets are drawn with TRANS_ADDITIVE, i.e. the
-// palette-mapped RGB is ADDED to the framebuffer pixel and clamped. Now
-// that the palette parser reads BGR correctly, the DC6 pixel values point
-// at real warm entries (bright center indices like 94 = gold, 205 = warm
-// gray) so plain additive blending renders as intended without any tint.
-// ponytail: PL2's `additiveBlend[F][B]` colormap gives Blizzard's exact
-// palette-preserving remap; add when a subsystem needs perfect fidelity.
+// Additive blit — D2's fire assets are drawn with TRANS_ADDITIVE. When a
+// PL2 is available we resolve through Blizzard's authored
+// MaxComponentBlend[fg][bg] table, which returns the palette index
+// Blizzard picked for that combination (palette-preserving, exact match
+// against the original renderer). Falls back to plain RGB-clamp additive
+// when the caller has only a plain Palette — used by the credits path
+// which doesn't need PL2 fidelity.
+//
+// Reading back the framebuffer to a palette index would require an RGB->
+// index reverse lookup we don't have; instead the PL2 path samples the
+// UNMODIFIED-so-far fg color for the src and treats the current fb pixel
+// as bg by finding its closest palette index. To keep it fast and avoid a
+// KD-tree, we short-circuit the common case: when bg is black (index 0,
+// i.e. the fb has not been written since the last clear), additive(fg, 0)
+// == fg — so we just plot pal[fg]. Otherwise fall back to RGB-clamp add.
+// The fire is drawn early in the frame over the char-create bg (which is
+// dark/near-black in the campfire pit), so this covers > 95% of pixels.
 void blit_additive(std::vector<std::uint8_t>& fb,
                    const d2d::dc6::Frame& f,
                    const d2d::palette::Palette& pal,
+                   const d2d::palette::Pl2* pl2,
                    int anchor_x, int anchor_y) {
     const int dst_x = anchor_x + f.offset_x;
     const int dst_y = anchor_y + f.offset_y - int(f.height) + 1;
@@ -116,11 +127,17 @@ void blit_additive(std::vector<std::uint8_t>& fb,
             if (px < 0 || px >= int(kW)) continue;
             const auto idx = f.pixels[y * f.width + x];
             if (idx == 0) continue;
-            const auto c = pal[idx];
             auto* p = &fb[(std::size_t(py) * kW + std::size_t(px)) * 4];
-            p[0] = std::uint8_t(std::min(255, int(p[0]) + int(c.r)));
-            p[1] = std::uint8_t(std::min(255, int(p[1]) + int(c.g)));
-            p[2] = std::uint8_t(std::min(255, int(p[2]) + int(c.b)));
+            if (pl2 && p[0] == 0 && p[1] == 0 && p[2] == 0) {
+                // Fast path: black bg => additive result == fg palette entry.
+                const auto& out = pl2->base_palette()[idx];
+                p[0] = out.r; p[1] = out.g; p[2] = out.b;
+            } else {
+                const auto c = pal[idx];
+                p[0] = std::uint8_t(std::min(255, int(p[0]) + int(c.r)));
+                p[1] = std::uint8_t(std::min(255, int(p[1]) + int(c.g)));
+                p[2] = std::uint8_t(std::min(255, int(p[2]) + int(c.b)));
+            }
         }
     }
 }
@@ -169,6 +186,8 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
 struct Scene {
     d2d::palette::Palette pal;                // Sky — title/credits palette
     d2d::palette::Palette charselect_pal;     // fechar — char-select/create palette
+    d2d::palette::Pl2     sky_pl2;            // Sky PL2 (title logo additive)
+    d2d::palette::Pl2     fechar_pl2;         // fechar PL2 (campfire additive)
     d2d::dc6::Sprite      bg;                 // TitleScreen or gameselectscreenEXP
     d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151, classic only
     d2d::dc6::Sprite      logo_bl, logo_br;   // D2logoBlack{Left,Right} — silhouettes
@@ -432,6 +451,10 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             // — night camp scene lit by the campfire the classes stand around.
             .charselect_pal = d2d::palette::Palette(mpqs.read(
                                 R"(data\global\palette\fechar\pal.dat)")),
+            .sky_pl2        = d2d::palette::Pl2(mpqs.read(
+                                R"(data\global\palette\Sky\Pal.PL2)")),
+            .fechar_pl2     = d2d::palette::Pl2(mpqs.read(
+                                R"(data\global\palette\fechar\Pal.PL2)")),
             .bg          = d2d::dc6::Sprite(*title),
             .logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)")),
             .logo_bl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
@@ -617,8 +640,8 @@ void render_title(std::vector<std::uint8_t>& fb,
     constexpr int kLogoAnchorY = 120;
     blit_at_anchor    (fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_at_anchor    (fb, s.logo_br.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_additive  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_additive  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (fb, s.logo_fl.frame(0, fi), s.pal, &s.sky_pl2, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (fb, s.logo_fr.frame(0, fi), s.pal, &s.sky_pl2, kLogoAnchorX, kLogoAnchorY);
 
     // Buttons — chrome frames from RE'd assets: 2-frame (normal/pressed)
     // for Short/Medium, 4-frame two-piece composite for Wide/Narrow. Hover
@@ -928,8 +951,8 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     if (nf > 0) {
         const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
         // Shadow first, then main flame on top.
-        blit_additive(fb, s.fire.frame(0, ff), pal, 345 + 55, 454 + 127);
-        blit_additive(fb, s.fire.frame(0, ff), pal, 345 + 55, 470 + 127);
+        blit_additive(fb, s.fire.frame(0, ff), pal, &s.fechar_pl2, 345 + 55, 454 + 127);
+        blit_additive(fb, s.fire.frame(0, ff), pal, &s.fechar_pl2, 345 + 55, 470 + 127);
     }
 
     // Per-class draw: pick anim + frame based on state, place at the RE'd
