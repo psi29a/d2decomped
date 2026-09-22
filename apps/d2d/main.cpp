@@ -1415,12 +1415,19 @@ struct Window {
     Window& operator=(const Window&) = delete;
 
     bool open(int w_, int h_) {
-        w = SDL_CreateWindow("d2d", w_, h_, 0);
+        // Hints have to be set BEFORE SDL_CreateWindow to take effect.
+        // Disable the CGWindowServer "wants full-screen space" nag on
+        // macOS — that dialog is what triggers user reports of the
+        // window appearing to freeze right after launch. Also request
+        // high-DPI so the renderer picks up the true screen scale.
+        SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
+        w = SDL_CreateWindow("d2d", w_, h_, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!w) { std::fprintf(stderr, "[d2d] SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
         r = SDL_CreateRenderer(w, nullptr);
         if (!r) { std::fprintf(stderr, "[d2d] SDL_CreateRenderer: %s\n", SDL_GetError()); return false; }
-        // VSync avoids tearing when animations don't line up with monitor
-        // refresh. Failure is not fatal — some drivers reject it.
+        // VSync avoids tearing AND caps our frame rate at the monitor
+        // refresh — the primary yield mechanism. Failure is not fatal;
+        // pace_frame() delays anyway as a floor.
         SDL_SetRenderVSync(r, 1);
         // RGBA32 is defined as ABGR8888 on LE / RGBA8888 on BE — memory order
         // is always (r, g, b, a), matching our framebuffer.
@@ -1513,6 +1520,11 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     // "user wants out" for us since we're single-window.
     if (ev.type == SDL_EVENT_QUIT ||
         ev.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+        quit = true; return;
+    }
+    // Cmd-Q backup — some window managers eat the SDL_EVENT_QUIT.
+    if (ev.type == SDL_EVENT_KEY_DOWN &&
+        ev.key.key == SDLK_Q && (ev.key.mod & SDL_KMOD_GUI)) {
         quit = true; return;
     }
     auto pan_flag = [&](SDL_Keycode k, bool v) {
@@ -1818,12 +1830,41 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             paint_test_pattern(fb);
         }
 
-        SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
-        SDL_RenderClear(win.r);
-        SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
-        SDL_RenderPresent(win.r);
+        // Skip GPU work when the window is minimized — Metal's swapchain
+        // stalls if we keep pushing frames to a hidden drawable, which
+        // is the classic macOS beachball trigger for SDL apps that
+        // don't gate render on window visibility.
+        const auto wflags = SDL_GetWindowFlags(win.w);
+        if (!(wflags & SDL_WINDOW_MINIMIZED)) {
+            SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
+            SDL_RenderClear(win.r);
+            SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
+            SDL_RenderPresent(win.r);
+        }
         ++frame_count;
         last_ms = ms;
+        // Per-frame diagnostics — max/avg frame time reported once a
+        // second so we can spot macOS compositor stalls without
+        // spamming stderr. Warns on any single frame > 100ms (macOS
+        // beachballs after ~5s of unresponsive event pump).
+        const auto ft = std::uint32_t(SDL_GetTicks()) - frame_start_ms;
+        static std::uint32_t stat_frames = 0, stat_sum_ms = 0, stat_max_ms = 0;
+        static std::uint32_t stat_last_report_ms = 0;
+        ++stat_frames;
+        stat_sum_ms += ft;
+        if (ft > stat_max_ms) stat_max_ms = ft;
+        if (ft > 100) {
+            std::fprintf(stderr, "[d2d] slow frame: %u ms (screen=%d)\n",
+                         ft, int(screen));
+        }
+        if (ms - stat_last_report_ms >= 5000) {
+            const std::uint32_t avg = stat_frames ? stat_sum_ms / stat_frames : 0;
+            std::fprintf(stderr,
+                "[d2d] alive: %u frames in 5s, avg %u ms max %u ms (screen=%d)\n",
+                stat_frames, avg, stat_max_ms, int(screen));
+            stat_frames = 0; stat_sum_ms = 0; stat_max_ms = 0;
+            stat_last_report_ms = ms;
+        }
         pace_frame(frame_start_ms);
     }
     SDL_Quit();
