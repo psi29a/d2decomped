@@ -15,6 +15,8 @@
 #include <mpq.hpp>
 #include <dc6.hpp>
 #include <devctl.hpp>
+#include <ds1.hpp>
+#include <dt1.hpp>
 #include <font.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
@@ -22,6 +24,7 @@
 
 #include <SDL3/SDL.h>
 #include <CLI/CLI.hpp>
+#include <unordered_map>
 
 #include <array>
 #include <atomic>
@@ -206,6 +209,16 @@ struct Scene {
     d2d::tbl::Table       patch_strings;   // patchstring.tbl (has Druid/Assassin)
     d2d::tbl::Table       exp_strings;     // expansionstring.tbl
     int                   bg_tiles_across{4};
+
+    // Rogue-camp world data — one DS1 + the DT1s it references, plus a
+    // (style, sequence)->tile lookup pre-built for floor rendering. See
+    // render_ingame_world() for the compositor. Empty when the assets
+    // aren't found (headless / bad data dir).
+    d2d::ds1::Map                            world_ds1;
+    std::vector<d2d::dt1::Archive>           world_dt1s;
+    std::unordered_map<std::uint32_t, const d2d::dt1::Tile*> world_floor_lookup;
+    // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
+    d2d::palette::Palette                    act1_pal;
 };
 
 // TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
@@ -389,6 +402,10 @@ std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
     return out;
 }
 
+// Forward decl — full body lives after Scene{} construction so it can use
+// the same members without repeating field types.
+void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
+
 std::optional<Scene> load_scene(const fs::path& data_dir) {
     const auto d2data = data_dir / "d2data.mpq";
     if (!fs::exists(d2data)) return std::nullopt;
@@ -404,7 +421,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         if (!title) title = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         if (!title) throw std::runtime_error("no title screen asset");
 
-        return Scene{
+        Scene scene = Scene{
             // Sky = title/credits (game.exe hardcodes palette\sky\pal.pl2 in
             // 5 sites of the menu loader — docs/research/re/frontend-menu-table.md).
             .pal            = d2d::palette::Palette(mpqs.read(
@@ -494,10 +511,74 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
             }(),
         };
+        // Rogue-camp world data — separate call so a DS1/DT1 miss doesn't
+        // nuke the whole scene; the InGame screen falls back to the credits
+        // placeholder when world is empty.
+        load_world(scene, mpqs,
+                   R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
+        return scene;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
         return std::nullopt;
     }
+}
+
+// Translate a DS1-embedded tileset path (e.g. "\d2\data\global\tiles\act1\
+// town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
+// DS1 files store paths as they were on Blizzard's build box, with a
+// leading "\d2\" prefix and forward slashes never — normalize both.
+[[nodiscard]] inline std::string ds1_path_to_mpq(std::string_view s) {
+    if (s.size() > 4 && (s.starts_with("\\d2\\") || s.starts_with("/d2/")))
+        s.remove_prefix(4);
+    else if (!s.empty() && (s[0] == '\\' || s[0] == '/'))
+        s.remove_prefix(1);
+    std::string out(s);
+    for (auto& c : out) if (c == '/') c = '\\';
+    return out;
+}
+
+// Encode (style, sequence) into a single lookup key. Style + sequence are
+// both bytes in the DS1 record but hold values up to 63 / 255 respectively.
+[[nodiscard]] inline std::uint32_t tile_key(int style, int seq) {
+    return (std::uint32_t(style) << 16) | std::uint32_t(seq & 0xFFFF);
+}
+
+// Load one DS1 + every DT1 it references (silently skips missing ones —
+// some rogue-camp DS1s reference .tg1 tile-group files, which aren't
+// present in 1.14d). Populates world_ds1, world_dt1s, world_floor_lookup
+// and act1_pal on the scene. Idempotent, called once during load_scene.
+void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
+    auto b = mpqs.try_read(ds1_path);
+    if (!b) {
+        std::fprintf(stderr, "[d2d] world: %s not found — placeholder mode\n",
+                     ds1_path);
+        return;
+    }
+    scene.world_ds1 = d2d::ds1::Map(*b);
+    scene.world_dt1s.reserve(scene.world_ds1.files().size());
+    for (const auto& f : scene.world_ds1.files()) {
+        const auto mpq_path = ds1_path_to_mpq(f);
+        auto db = mpqs.try_read(mpq_path);
+        if (!db) continue;   // .tg1 or otherwise-missing — silent skip
+        try {
+            scene.world_dt1s.emplace_back(*db);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[d2d] world: %s: %s\n",
+                         mpq_path.c_str(), e.what());
+        }
+    }
+    // Floor lookup — first DT1 to define a (style, seq) wins. type=0 is
+    // the floor orientation; walls use non-zero types and get their own
+    // lookup later.
+    for (const auto& dt1 : scene.world_dt1s) {
+        for (const auto& t : dt1.tiles()) {
+            if (t.type != 0) continue;
+            const auto k = tile_key(t.style, t.sequence);
+            scene.world_floor_lookup.try_emplace(k, &t);
+        }
+    }
+    if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
+        scene.act1_pal = d2d::palette::Palette(*pb);
 }
 
 // D2's base game/anim tick is 25 Hz — every animation rate in AnimData.d2
@@ -625,6 +706,83 @@ void render_credits(std::vector<std::uint8_t>& fb,
 // (Forward decl — full definition below title_ui.)
 std::string u16_to_latin1(std::u16string_view s);
 
+// D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
+// step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
+// See OpenDiablo2's mapengine for the same convention.
+constexpr int kIsoW = 160;
+constexpr int kIsoH = 80;
+
+// Blit one DT1 tile's pre-decoded palette-indexed pixels through `pal`.
+// The tile's pixel buffer is (tile.width x abs(tile.height)); index 0 is
+// transparent. Screen position is the buffer's top-left; caller does the
+// iso math to place it. Bounds-checked per-pixel — off-screen tiles are
+// clipped rather than skipped so the compositor can walk the whole grid.
+void blit_dt1_tile(std::vector<std::uint8_t>& fb,
+                   const d2d::dt1::Tile& t,
+                   const d2d::palette::Palette& pal,
+                   int sx, int sy) {
+    const int th = std::abs(t.height);
+    for (int y = 0; y < th; ++y) {
+        const int py = sy + y;
+        if (py < 0 || py >= int(kH)) continue;
+        const auto* row = t.pixels.data() + std::size_t(y) * t.width;
+        for (int x = 0; x < t.width; ++x) {
+            const std::uint8_t idx = row[x];
+            if (idx == 0) continue;   // transparent
+            const int px = sx + x;
+            if (px < 0 || px >= int(kW)) continue;
+            const auto c = pal[idx];
+            auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = 0xFF;
+        }
+    }
+}
+
+// Render the loaded DS1's floor layer onto the framebuffer, centered on
+// grid cell (camera_cx, camera_cy). Missing tile lookups (style/sequence
+// pairs the loaded DT1s don't cover — some rogue-camp DS1s reference
+// .tg1 groups that aren't in 1.14d) leave those cells transparent, so
+// the ground below shows through instead of crashing the frame.
+void render_world_floor(std::vector<std::uint8_t>& fb,
+                        const Scene& s,
+                        int camera_cx, int camera_cy) {
+    const auto& m = s.world_ds1;
+    if (m.floors().empty() || m.width() == 0) return;
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const auto& cells = m.floors()[0].cells;
+    // Screen center anchor for the camera cell. Iso projects around this.
+    const int cx0 = int(kW) / 2;
+    const int cy0 = int(kH) / 2;
+    // Determine visible cell window so we don't iterate the whole grid.
+    // A generous margin covers tiles that stick up (128px tall) or drop
+    // off (walls, later). 12 cells each way easily covers 800x600.
+    for (int dy = -12; dy <= 12; ++dy) {
+        for (int dx = -12; dx <= 12; ++dx) {
+            const int gx = camera_cx + dx;
+            const int gy = camera_cy + dy;
+            if (gx < 0 || gy < 0 || gx >= m.width() || gy >= m.height())
+                continue;
+            const auto& c = cells[std::size_t(gy) * m.width() + gx];
+            if (c.hidden) continue;
+            const auto it = s.world_floor_lookup.find(
+                tile_key(c.style, c.sequence));
+            if (it == s.world_floor_lookup.end()) continue;
+            const auto& t = *it->second;
+            // Iso top-corner of cell (gx, gy) relative to (camera_cx, cy).
+            const int iso_x = cx0 + (dx - dy) * (kIsoW / 2);
+            const int iso_y = cy0 + (dx + dy) * (kIsoH / 2);
+            // Floor pixel-buffer is width x abs(height); the 80-tall
+            // diamond sits at the BOTTOM of that buffer, so top-of-diamond
+            // in tile-local coords is (abs(height) - 80). Place so that
+            // aligns with the cell iso-top on screen.
+            const int th = std::abs(t.height);
+            const int sx = iso_x - t.width / 2;
+            const int sy = iso_y - (th - kIsoH);
+            blit_dt1_tile(fb, t, pal, sx, sy);
+        }
+    }
+}
+
 // In-game placeholder — a hero has been created; we don't have the actual
 // world/map render yet, so celebrate the character info and offer Esc to
 // go back to the title. Using the credits bg (dark corridor) as backdrop.
@@ -634,11 +792,26 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    std::string_view name,
                    bool hardcore,
                    std::uint32_t /*elapsed_ms*/) {
-    // creditsbckgexpand.dc6 is authored against the Sky palette (same one
-    // the credits screen uses). Rendering it with fechar produces the
-    // cyan/magenta psychedelia we saw on first pass.
-    const auto& pal = s.pal;
-    blit_dc6_grid(fb, s.credits_bg, pal, 0, 0, s.bg_tiles_across);
+    // Prefer the real tile-composited world when townE1.ds1 loaded; fall
+    // back to the credits DC6 placeholder when it didn't (headless CI, a
+    // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
+    // the tiles, Sky for the credits DC6 which was authored against it.
+    if (!s.world_dt1s.empty()) {
+        // Clear to black — tiles don't cover every subtile so an
+        // uninitialized fb would leak the previous frame's contents.
+        std::fill(fb.begin(), fb.end(), std::uint8_t{0});
+        for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+        // Camera centered roughly on the middle of the DS1 grid — the
+        // rogue-camp DS1s (57x41) put the town center around (28, 20).
+        // ponytail: pinned camera; scrolling comes with input handling.
+        render_world_floor(fb, s, s.world_ds1.width() / 2,
+                                    s.world_ds1.height() / 2);
+    } else {
+        std::fill(fb.begin(), fb.end(), std::uint8_t{0});
+        for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+        blit_dc6_grid(fb, s.credits_bg, s.pal, 0, 0, s.bg_tiles_across);
+    }
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
 
     std::string cls = kClassKey[class_idx];
     if (auto v = lookup_string(s, kClassKey[class_idx])) cls = u16_to_latin1(*v);
@@ -662,7 +835,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     }
 
     constexpr const char* hint =
-        "d2d dev build — the rogue-camp tiles land when the DS1 + DT1 compositor does";
+        "d2d dev build — townE1.ds1 rendering; walls + objects + scroll are next";
     const int hw = s.font.measure(hint);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
     constexpr const char* esc = "press Esc to return to title";
