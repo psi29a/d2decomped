@@ -91,19 +91,17 @@ void blit_at_anchor(std::vector<std::uint8_t>& fb,
     blit_sprite(fb, f, pal, x, y);
 }
 
-// Additive warm-tint blit — for the fire pieces until PL2 colormap parsing
-// lands. Takes the palette-mapped RGB, boosts red, keeps green mid, tanks
-// blue, and ADDS the result to the existing framebuffer pixel so the fire
-// reads as a warm glow rather than replacing the underlying colour. Not
-// physically accurate to how D2 does it (which applies a fire-specific hue
-// variation colormap from the PL2), but visually close enough to prove
-// the layer is in the right place.
-// ponytail: fake fire tint. Replace with PL2 colormap lookup when the
-// palette::Pl2 parser lands (~1 day of format work).
-void blit_fire_tinted(std::vector<std::uint8_t>& fb,
-                      const d2d::dc6::Frame& f,
-                      const d2d::palette::Palette& pal,
-                      int anchor_x, int anchor_y) {
+// Additive blit — D2's fire assets are drawn with TRANS_ADDITIVE, i.e. the
+// palette-mapped RGB is ADDED to the framebuffer pixel and clamped. Now
+// that the palette parser reads BGR correctly, the DC6 pixel values point
+// at real warm entries (bright center indices like 94 = gold, 205 = warm
+// gray) so plain additive blending renders as intended without any tint.
+// ponytail: PL2's `additiveBlend[F][B]` colormap gives Blizzard's exact
+// palette-preserving remap; add when a subsystem needs perfect fidelity.
+void blit_additive(std::vector<std::uint8_t>& fb,
+                   const d2d::dc6::Frame& f,
+                   const d2d::palette::Palette& pal,
+                   int anchor_x, int anchor_y) {
     const int dst_x = anchor_x + f.offset_x;
     const int dst_y = anchor_y + f.offset_y - int(f.height) + 1;
     for (std::uint32_t y = 0; y < f.height; ++y) {
@@ -115,16 +113,10 @@ void blit_fire_tinted(std::vector<std::uint8_t>& fb,
             const auto idx = f.pixels[y * f.width + x];
             if (idx == 0) continue;
             const auto c = pal[idx];
-            // Use the source brightness as intensity, remap to warm ramp.
-            const int intensity = int(c.r) + int(c.g) + int(c.b);
-            const int r_add = std::min(255, intensity);           // full red
-            const int g_add = std::min(255, intensity * 2 / 3);   // mid green
-            const int b_add = std::min(255, intensity / 8);       // trace blue
             auto* p = &fb[(std::size_t(py) * kW + std::size_t(px)) * 4];
-            p[0] = std::uint8_t(std::min(255, p[0] + r_add));
-            p[1] = std::uint8_t(std::min(255, p[1] + g_add));
-            p[2] = std::uint8_t(std::min(255, p[2] + b_add));
-            // alpha stays whatever the framebuffer had (opaque background).
+            p[0] = std::uint8_t(std::min(255, int(p[0]) + int(c.r)));
+            p[1] = std::uint8_t(std::min(255, int(p[1]) + int(c.g)));
+            p[2] = std::uint8_t(std::min(255, int(p[2]) + int(c.b)));
         }
     }
 }
@@ -384,8 +376,8 @@ void render_title(std::vector<std::uint8_t>& fb,
     constexpr int kLogoAnchorY = 120;
     blit_at_anchor    (fb, s.logo_bl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_at_anchor    (fb, s.logo_br.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_fire_tinted  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
-    blit_fire_tinted  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
+    blit_additive  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
 
     // Buttons — chrome frame is picked by hover/press state.
     for (const auto& b : buttons) {
@@ -500,7 +492,7 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
     if (nf > 0) {
         const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
         // Warm-tint like the logo fire (PL2 colormap is the honest fix).
-        blit_fire_tinted(fb, s.fire.frame(0, ff), s.pal, 400, 495);
+        blit_additive(fb, s.fire.frame(0, ff), s.pal, 400, 495);
     }
 
     // Placeholder screen label + return hint. Real UI here has class name,
