@@ -60,6 +60,19 @@ int main() {
         assert(p[0].a == 0xFF);
     }
 
+    // BGR ordering — pal.dat stores (b, g, r) per DAT format. Feed a synthetic
+    // buffer where index 1 is BGR (10, 20, 30) and check we read R=30 B=10.
+    {
+        std::array<std::byte, 256*3> bytes{};
+        bytes[1*3 + 0] = std::byte{10};   // B
+        bytes[1*3 + 1] = std::byte{20};   // G
+        bytes[1*3 + 2] = std::byte{30};   // R
+        d2d::palette::Palette p(bytes);
+        assert(p[1].r == 30);
+        assert(p[1].g == 20);
+        assert(p[1].b == 10);
+    }
+
     std::printf("OK\n");
     return 0;
 }
