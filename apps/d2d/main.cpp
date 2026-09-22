@@ -25,6 +25,7 @@
 
 #include <SDL3/SDL.h>
 #include <CLI/CLI.hpp>
+#include <csignal>
 #include <unordered_map>
 
 #include <array>
@@ -42,6 +43,11 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+// Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.
+// Declared at global scope because std::signal handlers must have C
+// linkage. Defined further below.
+extern volatile std::sig_atomic_t g_sigint_quit;
 
 namespace {
 
@@ -1501,7 +1507,14 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,
                        PanKeys pan, bool& mouse_seen,
                        std::atomic<bool>& quit) {
-    if (ev.type == SDL_EVENT_QUIT) { quit = true; return; }
+    // SDL_EVENT_QUIT fires on app-level termination (Cmd-Q, all windows
+    // closed). WINDOW_CLOSE_REQUESTED fires when a specific window's ✕
+    // is clicked — SDL3 does NOT auto-promote it to QUIT. Both mean
+    // "user wants out" for us since we're single-window.
+    if (ev.type == SDL_EVENT_QUIT ||
+        ev.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+        quit = true; return;
+    }
     auto pan_flag = [&](SDL_Keycode k, bool v) {
         switch (k) {
             case SDLK_A: case SDLK_LEFT:  pan.left  = v; break;
@@ -1574,6 +1587,23 @@ static Screen parse_screen(std::string_view s) {
     if (s == "charcreate") return Screen::CharCreate;
     if (s == "ingame")     return Screen::InGame;
     return Screen::Title;
+}
+
+// Frame pacer — hits target FPS via SDL_Delay for whatever's left of the
+// budget after render, then a mandatory 1ms floor. Matches D2's own
+// pattern (FUN_004f6190 in game.exe): compute time budget remaining,
+// Sleep 1..5ms if we're ahead. Without this, an unlucky vsync miss or a
+// windowed compositor that skips vsync sends us into a 100% CPU spin.
+constexpr std::uint32_t kFrameBudgetMs = 16;   // ~60 fps ceiling
+inline void pace_frame(std::uint32_t frame_start_ms) {
+    const std::uint32_t elapsed = std::uint32_t(SDL_GetTicks()) - frame_start_ms;
+    if (elapsed < kFrameBudgetMs) {
+        SDL_Delay(kFrameBudgetMs - elapsed);
+    } else {
+        // Even when we blew the budget, yield 1ms so we don't monopolise
+        // the scheduler.
+        SDL_Delay(1);
+    }
 }
 
 int run_windowed(std::vector<std::uint8_t>& fb,
@@ -1673,6 +1703,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool pan_left = false, pan_right = false, pan_up = false, pan_down = false;
     bool mouse_seen = false;
     while (!quit) {
+        // Signal-driven quit — Ctrl-C / SIGTERM. The atomic write from
+        // d2d_sigint_handler is polled here; SDL_EVENT_QUIT and window
+        // close still work through handle_sdl_events.
+        if (g_sigint_quit) { quit = true; break; }
+        const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
         // Toggle SDL text input on screen change so keys don't leak into
         // fields that don't exist on the current screen.
         const bool want_text = (screen == Screen::CharCreate);
@@ -1789,6 +1824,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         SDL_RenderPresent(win.r);
         ++frame_count;
         last_ms = ms;
+        pace_frame(frame_start_ms);
     }
     SDL_Quit();
     return 0;
@@ -1808,6 +1844,7 @@ int run_headless(std::vector<std::uint8_t>& fb,
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
     const auto t0 = std::chrono::steady_clock::now();
     while (!quit) {
+        if (g_sigint_quit) { quit = true; break; }
         ch.pump();
         const auto ms = std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - t0).count());
@@ -1821,7 +1858,22 @@ int run_headless(std::vector<std::uint8_t>& fb,
 
 }  // namespace
 
+// Ctrl-C / kill (TERM) plumbing. std::signal handlers need C linkage
+// and can only touch objects with `sig_atomic_t` semantics — hence
+// the raw volatile int rather than a std::atomic<bool>. Every main
+// loop polls this each iteration and treats it as a `quit` request
+// identical to SDL_EVENT_QUIT.
+volatile std::sig_atomic_t g_sigint_quit = 0;
+extern "C" void d2d_sigint_handler(int) { g_sigint_quit = 1; }
+
 int main(int argc, char** argv) {
+    // Ctrl-C and SIGTERM set the loop-quit flag instead of terminating
+    // mid-frame. SIGPIPE gets ignored so a closed devctl client doesn't
+    // kill the game.
+    std::signal(SIGINT,  d2d_sigint_handler);
+    std::signal(SIGTERM, d2d_sigint_handler);
+    std::signal(SIGPIPE, SIG_IGN);
+
     std::string devctl_path;
     fs::path    data_dir = default_data_dir();
     bool        headless = false;
