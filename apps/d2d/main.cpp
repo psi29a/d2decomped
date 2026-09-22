@@ -14,6 +14,7 @@
 
 #include <mpq.hpp>
 #include <dc6.hpp>
+#include <dcc.hpp>
 #include <devctl.hpp>
 #include <ds1.hpp>
 #include <dt1.hpp>
@@ -233,6 +234,13 @@ struct Scene {
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
     d2d::dc6::Sprite      charselect_boxgrey; // charselectboxgrey.dc6 (empty slot)
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
+    // In-game player torso — DCC town-neutral (TN) idle, LIT armor tier,
+    // per-class. Loaded once at init. 16 directions × 6..16 frames each.
+    // Weapon-code suffix per class defaults: BA/NE/SO/DZ = HTH,
+    // PA = 1HS, AM = 1HT, AS (folder token 'AI', dev codename) = HTH.
+    // Only the torso (TR) is rendered — HD/LG/RA/LA would need proper
+    // Z-ordered compositing which is a follow-up.
+    std::array<d2d::dcc::Sprite, 7>  player_torso;
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -463,6 +471,11 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         const auto d2exp = data_dir / "d2exp.mpq";
         if (fs::exists(d2exp)) mpqs.push(d2exp);
         mpqs.push(d2data);
+        // Character animations live in d2char.mpq — Stack lookup is
+        // priority-ordered so later pushes rank lower; DCC-not-found is
+        // silent in load_scene and per-class loaders skip on miss.
+        const auto d2char = data_dir / "d2char.mpq";
+        if (fs::exists(d2char)) mpqs.push(d2char);
 
         // Prefer the LoD title asset (fenced rogue camp at night). Classic
         // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
@@ -514,6 +527,32 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
             .charselect_boxgrey = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectboxgrey.dc6)")),
             .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
+            .player_torso      = [&] {
+                // Class → CHARS folder + weapon-code suffix (Assassin lives
+                // under folder "AI", the dev codename). Weapon defaults per
+                // class: Barb/Necro/Sorc/Druid/Assassin = HTH bare-hand;
+                // Paladin = 1HS (1-handed sword); Amazon = 1HT (thrust).
+                struct C { const char* folder; const char* wpn; };
+                constexpr C cs[7] = {
+                    {"BA", "HTH"}, {"NE", "HTH"}, {"PA", "1HS"},
+                    {"AM", "1HT"}, {"SO", "HTH"}, {"DZ", "HTH"},
+                    {"AI", "HTH"},
+                };
+                std::array<d2d::dcc::Sprite, 7> out{};
+                for (std::size_t i = 0; i < 7; ++i) {
+                    char path[256];
+                    std::snprintf(path, sizeof(path),
+                        R"(data\global\CHARS\%s\TR\%sTRLITTN%s.dcc)",
+                        cs[i].folder, cs[i].folder, cs[i].wpn);
+                    auto b = mpqs.try_read(path);
+                    if (!b) continue;
+                    try { out[i] = d2d::dcc::Sprite(*b); }
+                    catch (const std::exception& e) {
+                        std::fprintf(stderr, "[d2d] %s: %s\n", path, e.what());
+                    }
+                }
+                return out;
+            }(),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -936,6 +975,56 @@ void render_world_floor(std::vector<std::uint8_t>& fb,
 // In-game placeholder — a hero has been created; we don't have the actual
 // world/map render yet, so celebrate the character info and offer Esc to
 // go back to the title. Using the credits bg (dark corridor) as backdrop.
+// Blit a DCC frame at (anchor_x, anchor_y) after applying its own
+// x/y_offset (DCC anchor convention). Palette-indexed; index 0 is
+// transparent so limbs compose cleanly over each other and over tiles.
+void blit_dcc_frame(std::vector<std::uint8_t>& fb,
+                    const d2d::dcc::Frame& f,
+                    const d2d::palette::Palette& pal,
+                    int anchor_x, int anchor_y) {
+    const int dst_x = anchor_x + f.x_offset;
+    const int dst_y = anchor_y + f.y_offset;
+    for (std::int32_t y = 0; y < f.height; ++y) {
+        const int py = dst_y + y;
+        if (py < 0 || py >= int(kH)) continue;
+        const auto* row = f.pixels.data() + std::size_t(y) * f.width;
+        for (std::int32_t x = 0; x < f.width; ++x) {
+            const auto idx = row[x];
+            if (idx == 0) continue;
+            const int px = dst_x + x;
+            if (px < 0 || px >= int(kW)) continue;
+            const auto c = pal[idx];
+            auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = 0xFF;
+        }
+    }
+}
+
+// Render the picked class's town-idle torso at the camera-center tile.
+// D2's TN mode (Town Neutral) runs at ~10 fps (250ms / frame at 25 Hz
+// base tick × animRate 100/256 = ~40ms; TN is a chill 100ms). We pick
+// direction 4 (SW, D2's canonical "camera-facing" pose). Idle only —
+// walking is a follow-up. Skips when the DCC failed to load.
+void render_player_at_camera(std::vector<std::uint8_t>& fb,
+                             const Scene& s,
+                             int class_idx,
+                             std::uint32_t elapsed_ms) {
+    const auto& spr = s.player_torso[class_idx];
+    if (spr.directions() == 0) return;
+    const auto fpd = spr.frames_per_direction();
+    if (fpd <= 0) return;
+    // Direction 4 of 16 = SW (facing screen). Frame cycles at 100ms
+    // (D2 TN default). Palette follows the tile-composite render (ACT1).
+    const std::uint8_t dir = std::min<std::uint8_t>(4, spr.directions() - 1);
+    const auto frame_idx = std::int32_t((elapsed_ms / 100) % fpd);
+    const auto& f = spr.frame(dir, frame_idx);
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    // Camera-center cell top-corner projects to screen center; the
+    // character's feet plant at the diamond bottom center, which is
+    // (kW/2, kH/2 + kIsoH/2).
+    blit_dcc_frame(fb, f, pal, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -943,7 +1032,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    bool hardcore,
                    int camera_cx,
                    int camera_cy,
-                   std::uint32_t /*elapsed_ms*/) {
+                   std::uint32_t elapsed_ms) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -954,6 +1043,11 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
         render_world_floor(fb, s, camera_cx, camera_cy);
+        // Player sprite sits on top of the floor. Follows the class
+        // picked on char-create; falls through silently for classes
+        // whose DCC didn't load.
+        if (class_idx >= 0 && class_idx < 7)
+            render_player_at_camera(fb, s, class_idx, elapsed_ms);
     } else {
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
