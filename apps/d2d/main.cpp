@@ -177,7 +177,7 @@ struct Scene {
     // Character-creation screen (loaded by FUN_004326f0). SP button hops here.
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
-    d2d::dc6::Sprite      medium_button;      // MediumButtonBlank.dc6 for OK/EXIT chrome
+    d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -212,18 +212,25 @@ struct ClassUI {
     std::uint32_t state_start_ms = 0;
 };
 
-// Class positions (feet-anchor) — left-to-right visual order matching
-// Scene::class_anims. Kept as a free constant so both the renderer and
-// the click hit-test see the same numbers.
-struct ClassPos { int x, y; };
+// Class placement records — sourced from RE'd char-create menu table at
+// 0x70aed0..0x70b470 (each entry is one kind=3 record from the master
+// table). (x, y, w, h) is the bounding-box rect the D2 drawer uses to
+// position the class sprite and to hit-test clicks. Sprite renders so
+// its logical origin (feet-centre) lands at (x + w/2, y + h), which
+// combined with each frame's own DC6 offset positions the actual pixels.
+// Order matches Scene::class_anims (BA, NE, PA, AM, SO, DZ, AS — our
+// left-to-right visual order). Individual records source addresses:
+//   AM 0x70b050  NE 0x70afc0  AS 0x70b440  BA 0x70af30
+//   PA 0x70b020  SO 0x70aff0  DZ 0x70b470
+struct ClassPos { int x, y, w, h; };
 constexpr ClassPos kClassPos[7] = {
-    {130, 555},   // Barbarian
-    {225, 545},   // Necromancer
-    {315, 535},   // Paladin
-    {480, 540},   // Amazon
-    {560, 540},   // Sorceress
-    {645, 545},   // Druid
-    {720, 550},   // Assassin
+    {400, 330, 88, 184},   // Barbarian
+    {217, 360, 88, 184},   // Necromancer
+    {521, 339, 88, 184},   // Paladin
+    {100, 337, 88, 184},   // Amazon
+    {626, 353, 88, 184},   // Sorceress
+    {720, 370, 88, 184},   // Druid
+    {232, 364, 88, 184},   // Assassin
 };
 constexpr const char* kClassName[7] = {
     "Barbarian", "Necromancer", "Paladin", "Amazon",
@@ -378,7 +385,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 return d2d::dc6::Sprite(*b);
             }(),
             .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
-            .medium_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)")),
+            .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -586,13 +593,12 @@ void handle_charcreate_click(CharCreateUI& ui,
                              const Mouse& m,
                              std::uint32_t elapsed_ms) {
     if (!m.release_this_frame) return;
-    // Class hitboxes: a generous rect around each feet-anchor. Sprites are
-    // ~50-120 wide × 180-200 tall; 100×210 centered on (anchor.x, anchor.y-95)
-    // covers every class comfortably without letting them overlap.
+    // Class hitboxes ARE the (x, y, w, h) rects from the RE'd records — 88×184
+    // per class, position varies. D2 uses the same rects for hover + click
+    // detection AND for sprite placement anchor.
     for (int i = 0; i < 7; ++i) {
         const auto p = kClassPos[i];
-        const int hx = p.x - 50, hy = p.y - 190, hw = 100, hh = 210;
-        if (m.x >= hx && m.x < hx + hw && m.y >= hy && m.y < hy + hh) {
+        if (m.x >= p.x && m.x < p.x + p.w && m.y >= p.y && m.y < p.y + p.h) {
             if (ui.selected == i) return;   // clicked selected class → no-op
             // Deselect old.
             if (ui.selected >= 0) {
@@ -618,18 +624,23 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
 
     blit_dc6_grid(fb, s.charcreate_bg, pal, 0, 0, s.bg_tiles_across);
 
-    // Campfire behind the classes so opaque silhouettes cover its glow.
+    // Campfire — RE record 0x70ae70: (x=345, y=470, w=110, h=127).
+    // D2's drawer treats (x, y) as sprite origin (feet-of-flame); anchor
+    // for BOTTOM-LEFT DC6 convention = (x + w/2, y + h). A shadow layer
+    // exists at (345, 454) — same handle, 16 px higher — draw both.
     const auto nf = s.fire.frames_per_direction();
     if (nf > 0) {
         const auto ff = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % nf);
-        blit_additive(fb, s.fire.frame(0, ff), pal, 400, 495);
+        // Shadow first, then main flame on top.
+        blit_additive(fb, s.fire.frame(0, ff), pal, 345 + 55, 454 + 127);
+        blit_additive(fb, s.fire.frame(0, ff), pal, 345 + 55, 470 + 127);
     }
 
-    // Per-class draw: pick anim + frame based on state.
+    // Per-class draw: pick anim + frame based on state, place at the RE'd
+    // rect's centre-bottom (matches D2's per-class positioning).
     for (std::size_t i = 0; i < 7; ++i) {
         const auto& cu = ui.classes[i];
         const auto p = kClassPos[i];
-        // anim indices: 0=nu1, 1=nu2, 2=fw, 3=nu3, 4=bw
         int anim = 0;
         std::uint32_t elapsed_for_frame = elapsed_ms + std::uint32_t(i) * 7;
         bool one_shot = false;
@@ -649,7 +660,9 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
         } else {
             fi = std::uint32_t((elapsed_for_frame / kBaseFrameMs) % n);
         }
-        blit_at_anchor(fb, spr.frame(0, fi), pal, p.x, p.y);
+        // Anchor is the box's centre-bottom point; each frame's own DC6
+        // offset places the actual pixels relative to that anchor.
+        blit_at_anchor(fb, spr.frame(0, fi), pal, p.x + p.w / 2, p.y + p.h);
     }
 
     // Selected class name — big warm-gold caption above the panel area.
@@ -834,16 +847,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
-    // Char-create UI: cancel goes back to Title, OK closes the app for now
-    // (until an in-game placeholder screen exists). Positions eyeballed —
-    // real D2 puts EXIT at bottom-left and OK at bottom-right, roughly at
-    // y=540 with the medium chrome (128×35).
+    // Char-create UI. Button positions from RE'd master-table records:
+    //   EXIT record 0x70ade0: (33, 572, 128, 35) chrome=MediumSelButton
+    //   OK   record 0x70ae10: (627, 572, 128, 35) chrome=MediumSelButton
+    // Chrome file is MediumSelButtonBlank.dc6 (NOT MediumButtonBlank —
+    // MediumSel is a distinct 2-frame asset the char-select loader
+    // pulls in via FUN_004326f0, referenced from those record's +0x1c).
     CharCreateUI cc;
     if (scene) {
-        cc.cancel_btn = Button{ 33, 540, 128, 35, "EXIT", &scene->medium_button,
+        cc.cancel_btn = Button{ 33, 572, 128, 35, "EXIT",
+                                &scene->medium_sel_button,
                                 Screen::Title, /*do_switch=*/true };
-        cc.ok_btn     = Button{ 630, 540, 128, 35, "OK",   &scene->medium_button };
-        // ok_btn does nothing yet (no next screen defined).
+        cc.ok_btn     = Button{ 627, 572, 128, 35, "OK",
+                                &scene->medium_sel_button };
     }
 
     const auto t0 = SDL_GetTicks();
