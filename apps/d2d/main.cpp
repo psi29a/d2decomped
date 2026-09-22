@@ -213,14 +213,37 @@ struct Mouse {
     bool release_this_frame = false;   // falling edge
 };
 
-// Return the frame index a button should show: normal (0), hover (1), or
-// pressed (2). Chromes we've seen ship 3 frames in that order.
-std::uint32_t button_frame(const Button& b) {
-    const auto n = b.chrome ? b.chrome->frames_per_direction() : 0u;
-    if (n < 2) return 0;
-    if (b.pressed && b.hovered && n >= 3) return 2;
-    if (b.hovered) return 1;
-    return 0;
+// Composite the chrome for one button. D2's chrome DC6s come in two shapes
+// (verified against the actual assets):
+//   * 2 frames — single-piece, full width. f=0 normal, f=1 pressed.
+//     (ShortButtonBlank 135×25, MediumButtonBlank 128×35.)
+//   * 4 frames — two-piece: `wide + sliver`, drawn side-by-side. f=0 is
+//     the 256×h left piece, f=1 is the 16×h right sliver. f=2 + f=3 are
+//     the pressed variants of the same split.
+//     (WideButtonBlank / WideButtonBlank02 / NarrowButtonBlank.)
+// There is NO hover-only frame — D2 signals hover by brightening the LABEL
+// instead. Callers pick the label tint separately.
+void blit_button_chrome(std::vector<std::uint8_t>& fb,
+                        const d2d::palette::Palette& pal,
+                        const d2d::dc6::Sprite& chrome,
+                        int x, int y, bool pressed) {
+    const auto n = chrome.frames_per_direction();
+    if (n == 0) return;
+    if (n == 2) {
+        const auto& fr = chrome.frame(0, pressed ? 1 : 0);
+        blit_sprite(fb, fr, pal, x, y);
+        return;
+    }
+    // 4-frame split. First half goes at x; second half right after it.
+    const auto base = pressed ? 2u : 0u;
+    if (n > base) {
+        const auto& left = chrome.frame(0, base);
+        blit_sprite(fb, left, pal, x, y);
+        if (n > base + 1) {
+            const auto& right = chrome.frame(0, base + 1);
+            blit_sprite(fb, right, pal, x + int(left.width), y);
+        }
+    }
 }
 
 // Update hover/pressed state and, on a mouse-up over a hovered+pressed
@@ -379,21 +402,27 @@ void render_title(std::vector<std::uint8_t>& fb,
     blit_additive  (fb, s.logo_fl.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
     blit_additive  (fb, s.logo_fr.frame(0, fi), s.pal, kLogoAnchorX, kLogoAnchorY);
 
-    // Buttons — chrome frame is picked by hover/press state.
+    // Buttons — chrome frames from RE'd assets: 2-frame (normal/pressed)
+    // for Short/Medium, 4-frame two-piece composite for Wide/Narrow. Hover
+    // brightens the label to gold; no chrome-only hover frame exists.
     for (const auto& b : buttons) {
-        if (b.chrome && b.chrome->frames_per_direction() > 0) {
-            const auto fi = button_frame(b);
-            const auto& fr = b.chrome->frame(0,
-                std::min<std::uint32_t>(fi, b.chrome->frames_per_direction() - 1));
-            blit_sprite(fb, fr, s.pal, b.x, b.y);
+        if (b.chrome) {
+            blit_button_chrome(fb, s.pal, *b.chrome, b.x, b.y,
+                               b.hovered && b.pressed);
         }
         if (b.label && *b.label) {
             const int lw = s.font.measure(b.label);
             const int lh = s.font.line_height();
-            s.font.draw(fb, kW, kH, s.pal,
-                        b.x + (b.w - lw) / 2,
-                        b.y + (b.h - lh) / 2,
-                        b.label);
+            const int lx = b.x + (b.w - lw) / 2;
+            const int ly = b.y + (b.h - lh) / 2;
+            if (b.hovered) {
+                // Gold hover — matches the highlight D2 draws through a
+                // PL2 text-colour shift.
+                s.font.draw_tinted(fb, kW, kH, s.pal, lx, ly, b.label,
+                                   255, 208, 80);
+            } else {
+                s.font.draw(fb, kW, kH, s.pal, lx, ly, b.label);
+            }
         }
     }
 
