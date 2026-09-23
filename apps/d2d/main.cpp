@@ -73,6 +73,9 @@ constexpr std::uint32_t kH = 600;
 constexpr int kIsoW = 160;
 constexpr int kIsoH = 80;
 
+// Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
+static bool g_debug_collision = false;
+
 fs::path default_data_dir(std::string_view cfg_data) {
     // Resolution order (first hit wins):
     //   1. --data CLI arg (handled in main; not here)
@@ -322,6 +325,16 @@ struct Scene {
     std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> world_tile_lookup;
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
+    // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
+    // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
+    // 0x08 blocks player walking (DT1 subtile flag bits).
+    std::vector<std::uint8_t> world_walk;
+    [[nodiscard]] bool blocked(float x, float y) const {
+        const int w = world_ds1.width() * 5, h = world_ds1.height() * 5;
+        const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
+        if (sx < 0 || sy < 0 || sx >= w || sy >= h || world_walk.empty()) return true;
+        return world_walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & 0x09;
+    }
 };
 
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
@@ -915,6 +928,31 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
             scene.world_tile_lookup.try_emplace(k, &t);
         }
     }
+    // Collision grid from the same tiles the renderer draws: floors
+    // (type 0) and walls/objects, but not shadows (13) or roofs (15).
+    // ponytail: subtile flag k taken as (x, y) = (k % 5, k / 5); objects
+    // and NPCs (DS1 object list) don't block yet.
+    const auto& m = scene.world_ds1;
+    const int ww = m.width() * 5;
+    scene.world_walk.assign(std::size_t(ww) * std::size_t(m.height()) * 5, 0);
+    auto stamp = [&](int gx, int gy, int style, int seq, int type) {
+        const auto it = scene.world_tile_lookup.find(tile_key(style, seq, type));
+        if (it == scene.world_tile_lookup.end()) return;
+        for (int k = 0; k < 25; ++k)
+            scene.world_walk[std::size_t(gy * 5 + k / 5) * std::size_t(ww) + std::size_t(gx * 5 + k % 5)]
+                |= it->second->subtile_flags[std::size_t(k)];
+    };
+    for (int gy = 0; gy < m.height(); ++gy)
+        for (int gx = 0; gx < m.width(); ++gx) {
+            const std::size_t off = std::size_t(gy) * std::size_t(m.width()) + std::size_t(gx);
+            for (const auto& fl : m.floors())
+                if (!fl.cells[off].hidden) stamp(gx, gy, fl.cells[off].style, fl.cells[off].sequence, 0);
+            for (const auto& wl : m.walls()) {
+                const auto& c = wl.cells[off];
+                if (c.hidden || c.wall_type == 0 || c.wall_type == 13 || c.wall_type == 15) continue;
+                stamp(gx, gy, c.style, c.sequence, c.wall_type);
+            }
+        }
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);
 }
@@ -1528,6 +1566,24 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             draw_composite(fb, s.composite(kUiToSaveClass[class_idx], player_mode, gfx), pal,
                            player_dir, elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
         }
+        // Dev overlay: a red dot on every blocked subtile around the camera.
+        if (g_debug_collision) {
+            const int cx = int(cam_x * 5), cy = int(cam_y * 5);
+            for (int sy = cy - 60; sy <= cy + 60; ++sy)
+                for (int sx = cx - 60; sx <= cx + 60; ++sx) {
+                    const float wx = (float(sx) + 0.5f) / 5, wy = (float(sy) + 0.5f) / 5;
+                    if (!s.blocked(wx, wy)) continue;
+                    const int px = int(kW) / 2 + int(std::lround(((wx - cam_x) - (wy - cam_y)) * (kIsoW / 2)));
+                    const int py = int(kH) / 2 + kIsoH / 2 + int(std::lround(((wx - cam_x) + (wy - cam_y)) * (kIsoH / 2)));
+                    for (int oy = -1; oy <= 1; ++oy)
+                        for (int ox = -1; ox <= 1; ++ox) {
+                            const int x = px + ox, y = py + oy;
+                            if (x < 0 || y < 0 || x >= int(kW) || y >= int(kH)) continue;
+                            auto* d = fb.data() + (std::size_t(y) * kW + std::size_t(x)) * 4;
+                            d[0] = 255; d[1] = 0; d[2] = 0;
+                        }
+                }
+        }
         set_phase(MainPhase::IngameHudText);
     } else {
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
@@ -1559,7 +1615,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     }
 
     constexpr const char* hint =
-        "d2d dev build — click to walk; collision, objects + NPCs are next";
+        "d2d dev build — click to walk; objects, NPCs + draw order are next";
     const int hw = s.font.measure(hint);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
     constexpr const char* esc = "press Esc to return to title";
@@ -2113,6 +2169,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                       : have_world ? float(scene->world_ds1.width() / 2) : 0.f) + 0.5f;
     float player_y = (g_start_cam_y >= 0 ? float(g_start_cam_y)
                       : have_world ? float(scene->world_ds1.height() / 2) : 0.f) + 0.5f;
+    // Never start inside a tent: search outward, a subtile (0.2 cell) per
+    // ring, for the nearest walkable spot.
+    if (have_world && scene->blocked(player_x, player_y)) {
+        const auto [fx, fy] = [&]() -> std::pair<float, float> {
+            for (int r = 1; r < 200; ++r)
+                for (int i = -r; i <= r; ++i)
+                    for (auto [ox, oy] : { std::pair{i, -r}, {i, r}, {-r, i}, {r, i} })
+                        if (!scene->blocked(player_x + ox * 0.2f, player_y + oy * 0.2f))
+                            return { player_x + ox * 0.2f, player_y + oy * 0.2f };
+            return { player_x, player_y };
+        }();
+        player_x = fx; player_y = fy;
+    }
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
     int   player_dir = 4;   // south, facing the viewer
@@ -2175,6 +2244,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                      .integer_y = std::stoi(args[1]) };
         SDL_PushEvent(&ev);
         return std::string("ok\n");
+    });
+    ch.on("debug", [&](const std::vector<std::string>& args) {
+        if (args.size() < 2 || args[1] != "collision") return std::string("err debug collision\n");
+        g_debug_collision = !g_debug_collision;
+        return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
     ch.on("state", [&](const std::vector<std::string>&) {
         return std::string("screen=") + screen_name(screen)
@@ -2291,13 +2365,16 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const float dx = target_x - player_x, dy = target_y - player_y;
                         const float dist = std::hypot(dx, dy), step = kWalkCellsPerSec * dt;
                         if (dist > 0.05f) player_dir = direction16(dx, dy);
-                        if (dist <= step) { player_x = target_x; player_y = target_y; walking = false; }
-                        else              { player_x += dx / dist * step; player_y += dy / dist * step; }
-                        // ponytail: no collision yet — only the map edge
-                        // stops you. DT1 subtile flags have the walls.
-                        const float mw = float(scene->world_ds1.width()), mh = float(scene->world_ds1.height());
-                        player_x = std::clamp(player_x, 0.f, mw - 0.01f);
-                        player_y = std::clamp(player_y, 0.f, mh - 0.01f);
+                        const float k = dist <= step ? 1.f : step / dist;
+                        const float nx = player_x + dx * k, ny = player_y + dy * k;
+                        // Blocked subtile ahead: slide along one axis, else
+                        // stop. ponytail: D2 paths around obstacles; this
+                        // only slides along walls.
+                        if      (!scene->blocked(nx, ny))       { player_x = nx; player_y = ny; }
+                        else if (!scene->blocked(nx, player_y)) { player_x = nx; }
+                        else if (!scene->blocked(player_x, ny)) { player_y = ny; }
+                        else walking = false;
+                        if (dist <= step) walking = false;
                     }
                 }
                 const int ui_cls = std::max(cc.selected, 0);
