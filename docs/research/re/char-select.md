@@ -90,3 +90,23 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 - `FUN_0043a9d0` (slot click): selection = offset + slot; a second
   0x201 press on the same character within 500 ms (GetTickCount) calls
   `FUN_00439840` — OK, i.e. double-click plays.
+
+## Unit animation timing (in game)
+
+- `FUN_005533d0` (SUnit.cpp) starts a unit's mode: it zeroes the 8.8
+  frame counter (unit+0x30) and sets the end to `frames_per_dir << 8`
+  (unit+0x48), so every mode plays from frame 0.
+- `FUN_00620f00` stores the mode's animdata.d2 record at unit+0x50.
+  Records are looked up by COF name (token + mode + weapon class,
+  uppercased, bucketed by byte sum) in `FUN_0066a8f0`. Missing names
+  fall back to 8 frames at speed 256.
+- `FUN_00623f50` sets the per-tick rate (unit+0x4c):
+  - base: the animdata speed;
+  - attack modes: scaled by IAS;
+  - cast modes: scaled by FCR;
+  - get-hit: scaled by FHR + 50;
+  - block: scaled by FBR (+50 or +100);
+  - other modes: scaled by stat 69 `other_animrate`, clamped to 15..175 %;
+  - walk/run: take it straight.
+
+  The frame advances by rate/256 each 40 ms tick.

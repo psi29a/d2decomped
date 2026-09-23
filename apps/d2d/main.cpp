@@ -1902,6 +1902,7 @@ struct NpcState {
     bool walking = false;
     std::size_t next = 0;             // path point being walked to
     std::uint32_t wait_until = 0;     // ms; idle until then
+    std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
 };
 
 struct Unit {
@@ -1909,6 +1910,10 @@ struct Unit {
     const Scene::PlayerAnim* anim = nullptr;
     int dir = 0;
     const std::string* name = nullptr;   // hover label, if selectable
+    // When the unit's current mode started: animations run from frame 0
+    // of each mode, like game.exe's mode start (FUN_005533d0 zeroes the
+    // 8.8 frame counter at unit+0x30).
+    std::uint32_t mode_ms = 0;
 };
 
 // Screen rectangle a composite's current frame covers with its feet at
@@ -2050,10 +2055,10 @@ void render_world(std::vector<std::uint8_t>& fb,
             const Unit& u = *order[next_unit];
             const auto [ax, ay] = iso_point(u.x, u.y);
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
-            draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms, ax, ay);
+            draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms - u.mode_ms, ax, ay);
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && u.name && !u.name->empty()) {
-                const auto b = composite_bounds(*u.anim, u.dir, elapsed_ms, ax, ay);
+                const auto b = composite_bounds(*u.anim, u.dir, elapsed_ms - u.mode_ms, ax, ay);
                 if (mouse_x >= b[0] && mouse_x < b[2] && mouse_y >= b[1] && mouse_y < b[3])
                     *hovered = { &u, b };
             }
@@ -2626,7 +2631,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const std::vector<d2d::d2s::Item>* inventory = nullptr,
                    const d2d::d2s::Stats* char_stats = nullptr,
                    const d2d::d2s::Stats* hud_stats = nullptr,
-                   const PanelStats* panel = nullptr) {
+                   const PanelStats* panel = nullptr,
+                   std::uint32_t player_mode_ms = 0) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2646,7 +2652,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         units.reserve(s.world_npcs.size() + 1);
         if (class_idx >= 0 && class_idx < 7)
             units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
-                              player_dir });
+                              player_dir, nullptr, player_mode_ms });
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < s.world_npcs.size(); ++i) {
             const auto& n = s.world_npcs[i];
@@ -2654,7 +2660,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             const float x = st ? st->x : n.x, y = st ? st->y : n.y;
             if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
             const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));
-            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name });
+            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name, st ? st->mode_ms : 0 });
         }
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
@@ -3301,6 +3307,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
+    bool  player_walked = false;           // `walking` as of the last frame
+    std::uint32_t player_mode_ms = 0;      // when the player's walk/idle mode started
     int   player_dir = 4;   // south, facing the viewer
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
@@ -3587,7 +3595,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         if (path.empty()) continue;
                         auto& st = npc_states[i];
                         if (!st.walking) {
-                            if (ms >= st.wait_until) st.walking = true;
+                            if (ms >= st.wait_until) { st.walking = true; st.mode_ms = ms; }
                             continue;
                         }
                         const auto [tx, ty] = path[st.next % path.size()];
@@ -3595,7 +3603,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const float dist = std::hypot(dx, dy), step = kNpcWalkCellsPerSec * dt;
                         if (dist > 0.05f) st.dir = direction16(dx, dy);
                         if (dist <= step) {
-                            st.x = tx; st.y = ty; st.walking = false;
+                            st.x = tx; st.y = ty; st.walking = false; st.mode_ms = ms;
                             st.next = (st.next + 1) % path.size();
                             st.wait_until = ms + 2000 + std::uint32_t((i * 1237 + st.next * 911) % 3000);
                         } else {
@@ -3603,6 +3611,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         }
                     }
                 }
+                if (walking != player_walked) { player_walked = walking; player_mode_ms = ms; }
                 const int ui_cls = std::max(cc.selected, 0);
                 render_ingame(fb, *scene, ui_cls,
                               cc.appearance ? *cc.appearance
@@ -3611,7 +3620,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_x, player_y, walking ? kModeTW : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
-                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel);
+                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms);
                 break;
             }
             case Screen::CharCreate: {
