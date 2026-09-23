@@ -66,11 +66,26 @@ private:
 inline constexpr int kWeapon = 45, kArmor = 50, kTorso = 3, kShield = 51,
                      kHelm = 37, kCirclet = 75;
 
+// Composite weapon-class tokens, indexed by D2Comp's weapon-class id
+// (table after the layer names in game.exe; count 15 at 0x72e198).
+inline constexpr std::array<std::string_view, 15> kWClass = {
+    "", "hth", "1ht", "2ht", "1hs", "2hs", "bow", "xbw", "stf",
+    "1js", "1jt", "1ss", "1st", "ht1", "ht2",
+};
+// Item wclass token -> id; empty/unknown is hand-to-hand, as D2 maps
+// unmatched codes through {code, n} at 0x72ef68 to 0x72ef30[0] = 1.
+inline int wclass_id(std::string_view token) {
+    for (std::size_t i = 1; i < kWClass.size(); ++i)
+        if (kWClass[i] == token) return int(i);
+    return 1;
+}
+
 struct Entry {
-    std::string code;      // DCC component token, e.g. "lit", "hax", "buc"
-    std::string wclass;    // weapons: one-handed / default weapon class
-    std::string wclass2;   // weapons: two-handed weapon class
-    int         type = -1; // ItemTypes index; -1 for lit/med/hvy
+    std::string code;          // DCC component token, e.g. "lit", "hax", "buc"
+    int         wclass  = 1;   // weapon-class id held in one hand (0x87d83c)
+    int         wclass2 = 1;   // ... held with both hands (0x87e430)
+    int         type    = -1;  // ItemTypes index; -1 for lit/med/hvy
+    bool        armor   = false;  // is-a Any Armor (shields, helms held)
 };
 
 // Reserved type per slot (first dword of each 12-byte record at 0x72e1e8,
@@ -122,13 +137,59 @@ inline std::vector<Entry> build(const txt::Table& itemtypes, const txt::Table& w
                    !table[std::size_t(idx)].code.empty())
                 ++idx;
             if (idx > 0xfe) idx = cursor;   // D2 falls back to the cursor slot
-            table[std::size_t(idx)] = { code, std::string(t->get(r, c_wc)),
-                                        std::string(t->get(r, c_wc2)), ty };
+            table[std::size_t(idx)] = { code, wclass_id(t->get(r, c_wc)),
+                                        wclass_id(t->get(r, c_wc2)), ty,
+                                        types.isa(ty, kArmor) };
             if (idx == cursor) ++cursor;
         }
     }
     table.resize(0x100);   // appearance bytes are u8; 0xff = empty
     return table;
+}
+
+// Weapon class a composite animates with, from the right-hand, left-hand
+// and shield appearance bytes (0xff = empty). Port of FUN_00504af0,
+// including its quirks: a lone weapon uses its two-handed class, claws
+// only count for the Assassin (d2s class 6), and two claws resolve to
+// "ht1". Returns "" for combinations D2 rejects (it then falls back to a
+// default composite).
+inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& table,
+                                     std::uint8_t rh, std::uint8_t lh, std::uint8_t sh) {
+    const bool both = rh != 0xff && lh != 0xff;
+    auto claw = [&](int w) { return (w == 13 || w == 14) && d2s_class != 6; };
+    int a = 0, b = 0;
+    if (rh != 0xff) {
+        const auto& e = table[rh];
+        a = (both || (lh == 0xff && sh == 0xff && e.wclass2 != e.wclass)) ? e.wclass2 : e.wclass;
+        if (claw(a) || e.armor) a = 0;   // reserved-list wclass, 0 for these slots
+    }
+    if (lh != 0xff) {
+        const auto& e = table[lh];
+        b = both ? e.wclass2 : e.wclass;
+        if (claw(b) || e.armor) b = 0;
+    }
+    auto id = [&]() -> int {
+        if (a == 0) return b == 0 ? 1 : b;
+        if (a == b && (a == 6 || a == 7)) return a;   // bow/xbow pair
+        if (a == 8) return 8;                         // staff
+        if (b == 0) return a;
+        // Dual wield: 1hs(4) 1ht(2) 2hs(5) combos -> 1js/1jt/1ss/1st.
+        if (a == 4 && b == 4) return 11;
+        if (a == 4 && b == 2) return 9;
+        if (a == 5 && b == 2) return 11;
+        if (a == 2 && b == 4) return 12;
+        if (b == 4 || b == 5) {
+            if (a == 2) return 11;
+        } else if (a == 2) {
+            return b == 2 ? 10 : 0;
+        }
+        if (a == 5) return (b == 4 || b == 5) ? 11 : 0;
+        if (a == 4) return b == 5 ? 11 : 0;
+        if (a == 13) return b == 13 ? 13 : 0;
+        if (a == 14) return b == 14 ? 13 : 0;
+        return (a == 1 && b == 1) ? 1 : 0;
+    }();
+    return kWClass[std::size_t(id)];
 }
 
 }  // namespace d2d::compcode

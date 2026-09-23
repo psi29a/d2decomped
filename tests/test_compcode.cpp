@@ -62,8 +62,38 @@ int main() {
         }
     }
     assert(bad == 0);
-    assert(table[4].wclass == "1hs");          // hand axe swings one-handed
+    assert(d2d::compcode::kWClass[std::size_t(table[4].wclass)] == "1hs");  // hand axe
     assert(table[0].code.empty());             // 0 = no component
+    assert(table[79].armor && !table[4].armor);
+
+    // Weapon class from real saves' RH/LH/SH bytes (d2s class id first).
+    using d2d::compcode::weapon_class;
+    struct { const char* who; int cls; int rh, lh, sh; const char* want; } wc[] = {
+        {"Lyndon BA flail+club",   4, 15,   12,   0xff, "1ss"},
+        {"Joanna AM bow in LH",    0, 0xff, 55,   0xff, "bow"},
+        {"Mule AS two claws",      6, 43,   43,   0xff, "ht1"},
+        {"Eirena SO orb+tower",    1, 53,   0xff, 82,   "1hs"},
+        {"Fedora NE wand",         2, 11,   0xff, 0xff, "1hs"},
+        {"Dark_Savant PA dagger",  3, 25,   0xff, 93,   "1ht"},
+        {"lone giant sword",       4, 24,   0xff, 0xff, "2hs"},
+        {"claw on a barbarian",    4, 43,   0xff, 0xff, "hth"},
+        {"empty hands",            5, 0xff, 0xff, 0xff, "hth"},
+    };
+    const char* cc[7] = {"AM", "SO", "NE", "PA", "BA", "DZ", "AI"};
+    const bool have_chars = fs::exists(dir / "d2char.mpq");
+    if (have_chars) mpqs.push(dir / "d2char.mpq");
+    for (const auto& c : wc) {
+        const auto got = weapon_class(c.cls, table, std::uint8_t(c.rh),
+                                      std::uint8_t(c.lh), std::uint8_t(c.sh));
+        if (got != c.want) std::printf("%s: got '%.*s' want '%s'\n", c.who,
+                                       int(got.size()), got.data(), c.want);
+        assert(got == c.want);
+        if (have_chars) {   // the animation D2 would load must exist
+            std::string cof = std::string(R"(data\global\CHARS\)") + cc[c.cls] +
+                              R"(\COF\)" + cc[c.cls] + "TN" + std::string(got) + ".cof";
+            assert(mpqs.contains(cof));
+        }
+    }
     std::printf("OK\n");
     return 0;
 }

@@ -45,3 +45,25 @@ bytes: every pair matches (`tests/test_compcode.cpp`), e.g. 4 hax,
 Two things tripped the first model: weapons.txt spells the column
 `alternateGfx` (armor.txt `alternategfx`), and the "Expansion" separator
 rows are not items.
+
+## Weapon class: `FUN_00504af0`
+
+Picks the composite's weapon class from the RH / LH / SH bytes. Ids
+index D2Comp's token list (`"" hth 1ht 2ht 1hs 2hs bow xbw stf 1js 1jt
+1ss 1st ht1 ht2`, after the layer names at 0x72e0f0); an item's wclass
+token maps to the same id through `{code, n}` pairs at 0x72ef68 and
+0x72ef30[n] (unmatched → 1, hth).
+
+- Both hands used → both sides take their two-handed class; a lone RH
+  weapon (LH and SH empty) also takes its two-handed class (lone giant
+  sword → 2hs).
+- Claw classes (13/14) only count for the Assassin; an armour-typed
+  item in a hand counts as nothing.
+- Pairs: 1hs+1hs → 1ss, 1hs+1ht → 1js, 1ht+1hs → 1st, 1ht+1ht → 1jt,
+  2hs with 1ht / 1hs / 2hs → 1ss, bow+bow / xbw+xbw kept, staff wins,
+  two claws → ht1 (not ht2). Anything else → 0, and the caller
+  (`FUN_00504040`) falls back to class 7, mode TN, hth.
+- Composite name tables sit together in game.exe: classes (count 25 at
+  0x72e04c: AM SO NE PA BA DZ AI RO RH RH O1..), modes (count 20: DT NU
+  WL RN GH TN TW A1 ..), layers (HD TR LG RA LA RH LH SH S1..S8), armour
+  tiers (lit med hvy), weapon classes (count 15).
