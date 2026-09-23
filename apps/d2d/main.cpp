@@ -330,6 +330,17 @@ struct Scene {
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
     // 0x08 blocks player walking (DT1 subtile flag bits).
     std::vector<std::uint8_t> world_walk;
+    // Town NPCs placed by the DS1 (type-1 objects): monster token, world
+    // position in cells, and the MonStats2 composite recipe.
+    struct Npc {
+        std::string code;                    // data\global\monsters\<code>\ ...
+        std::string base_w;                  // MonStats2 BaseW (weapon class)
+        std::array<std::string, 16> comp;    // per layer, "" = not present
+        float x = 0, y = 0;
+    };
+    std::vector<Npc> world_npcs;
+    mutable std::map<std::string, PlayerAnim> npc_anims;   // by code + mode
+    const PlayerAnim& npc_anim(const Npc& n, int mode) const;
     [[nodiscard]] bool blocked(float x, float y) const {
         const int w = world_ds1.width() * 5, h = world_ds1.height() * 5;
         const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
@@ -657,6 +668,85 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
     return it->second;
 }
 
+// Load an NPC composite: COF monsters\<code>\COF\<code><mode><BaseW>,
+// then per COF layer monsters\<code>\<LY>\<code><LY><comp><mode><wclass>
+// with the MonStats2 variant for that layer ("lit" when blank).
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n, int mode) {
+    Scene::PlayerAnim out;
+    char path[256];
+    std::snprintf(path, sizeof(path), R"(data\global\monsters\%s\COF\%s%s%s.cof)",
+                  n.code.c_str(), n.code.c_str(), kModeCode[mode], n.base_w.c_str());
+    auto cof = mpqs.try_read(path);
+    if (!cof) return out;
+    try {
+        out.cof = d2d::cof::Cof(*cof);
+        for (const auto& L : out.cof.layer_defs()) {
+            if (L.type >= 16) continue;
+            std::string comp = n.comp[L.type].empty() ? "lit" : n.comp[L.type];
+            std::string lw = L.weapon_class;
+            for (auto* t : { &comp, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
+            std::snprintf(path, sizeof(path), R"(data\global\monsters\%s\%s\%s%s%s%s%s.dcc)",
+                          n.code.c_str(), kLayerCode[L.type], n.code.c_str(), kLayerCode[L.type],
+                          comp.c_str(), kModeCode[mode], lw.c_str());
+            if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
+        }
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "[d2d] %s: %s\n", path, e.what());
+    }
+    return out;
+}
+
+const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, int mode) const {
+    const auto key = n.code + kModeCode[mode];
+    auto it = npc_anims.find(key);
+    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n, mode)).first;
+    return it->second;
+}
+
+// Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
+// (Act 1 rows) Place -> MonStats2 row (by Id) -> MonStats row at the same
+// index for the monster token (both are indexed by hcIdx; our MonStats is
+// the CD's, whose names differ, 1.14d's being a compressed patch entry).
+// Positions are in subtiles; a unit stands at its subtile's centre.
+// ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
+void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
+    auto txt = [&](const char* n) {
+        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
+        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    };
+    const auto preset = txt("MonPreset"), ms = txt("MonStats"), ms2 = txt("MonStats2");
+    if (preset.size() == 0 || ms2.size() == 0) return;
+    std::vector<std::size_t> act1;
+    for (std::size_t r = 0; r < preset.size(); ++r)
+        if (preset.get(r, "Act") == "1") act1.push_back(r);
+    std::unordered_map<std::string, std::size_t> ms2_row;
+    for (std::size_t r = 0; r < ms2.size(); ++r) ms2_row.emplace(std::string(ms2.get(r, "Id")), r);
+    static constexpr const char* kVariant[16] = {
+        "HDv", "TRv", "LGv", "RAv", "LAv", "RHv", "LHv", "SHv",
+        "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
+    };
+    for (const auto& o : scene.world_ds1.objects()) {
+        if (o.type != 1 || o.id < 0 || std::size_t(o.id) >= act1.size()) continue;
+        const std::string place(preset.get(act1[std::size_t(o.id)], "Place"));
+        const auto it = ms2_row.find(place);
+        if (it == ms2_row.end()) continue;           // place_* markers etc.
+        Scene::Npc n;
+        n.code   = std::string(ms.get(it->second, "Code"));
+        n.base_w = std::string(ms2.get(it->second, "BaseW"));
+        if (n.code.empty()) continue;
+        if (n.base_w.empty()) n.base_w = "hth";
+        for (std::size_t l = 0; l < 16; ++l) {
+            if (ms2.get(it->second, kLayerCode[l]) != "1") continue;
+            const auto v = ms2.get(it->second, kVariant[l]);
+            const auto first = v.substr(0, v.find(','));
+            n.comp[l] = first.empty() ? "lit" : std::string(first);
+        }
+        n.x = (float(o.x) + 0.5f) / 5;
+        n.y = (float(o.y) + 0.5f) / 5;
+        scene.world_npcs.push_back(std::move(n));
+    }
+}
+
 // Excel tables + the derived composite data: the component table and each
 // class's starting-gear appearance (CharStats.txt item1..: "rarm" item in
 // the right hand, a "larm" shield on the shield layer; body parts "lit").
@@ -863,6 +953,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         load_world(scene, mpqs,
                    R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
         load_composite_data(scene, mpqs);
+        load_npcs(scene, mpqs);
         scene.patched = patched;
         scene.mpqs = std::move(mpqs);
         return scene;
@@ -1363,10 +1454,18 @@ inline void set_phase(MainPhase p) {
 // tuple isn't in any loaded DT1 leaves whatever's below it showing
 // through, which is the same behaviour D2 itself has for stripped
 // tilesets.
+// Something drawn in the wall pass by depth: the player, an NPC.
+struct Unit {
+    float x = 0, y = 0;                  // world position, cells
+    const Scene::PlayerAnim* anim = nullptr;
+    int dir = 0;
+};
+
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
                   float cam_x, float cam_y,
-                  const std::function<void()>& draw_units = {}) {
+                  std::uint32_t elapsed_ms = 0,
+                  std::span<const Unit> units = {}) {
     const auto& m = s.world_ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -1379,6 +1478,12 @@ void render_world(std::vector<std::uint8_t>& fb,
     // kH/2 + kIsoH/2), i.e. a cell centre when the camera sits on one.
     auto iso = [&](int gx, int gy) {
         const float dx = float(gx) - cam_x, dy = float(gy) - cam_y;
+        return std::pair{ cx0 + int(std::lround((dx - dy) * (kIsoW / 2))),
+                          cy0 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))) };
+    };
+    // Screen position of a continuous world point (a unit's feet).
+    auto iso_point = [&](float x, float y) {
+        const float dx = x - cam_x, dy = y - cam_y;
         return std::pair{ cx0 + int(std::lround((dx - dy) * (kIsoW / 2))),
                           cy0 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))) };
     };
@@ -1454,16 +1559,30 @@ void render_world(std::vector<std::uint8_t>& fb,
     // present — for MVP we use the DT1's per-tile roof_height instead.
     //
     // Walls go back to front by iso depth (gx + gy, one diagonal at a
-    // time), and units — for now just the player at the camera point —
-    // are drawn once their own cell's diagonal is done: a tent north of
-    // the player stays behind them, one south of them covers them.
+    // time), and each unit is drawn once its own cell's diagonal is done:
+    // a tent north of the player stays behind them, one south of them
+    // covers them. Units on the same diagonal go in screen-y order.
     // ponytail: cell-granular; D2 sorts units and walls by subtile and
     // wall orientation, which matters once units stand inside a cell's
     // wall line.
-    const int unit_diag = (int(std::floor(cam_x)) - base_x) + (int(std::floor(cam_y)) - base_y);
-    bool units_drawn = !draw_units;
+    std::vector<const Unit*> order;
+    for (const auto& u : units) if (u.anim) order.push_back(&u);
+    auto diag_of = [&](const Unit* u) {
+        return (int(std::floor(u->x)) - base_x) + (int(std::floor(u->y)) - base_y);
+    };
+    std::ranges::sort(order, {}, [](const Unit* u) { return u->x + u->y; });
+    std::size_t next_unit = 0;
+    const auto& upal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    auto draw_units_through = [&](int diag) {
+        for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
+            const Unit& u = *order[next_unit];
+            const auto [ax, ay] = iso_point(u.x, u.y);
+            if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
+            draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms, ax, ay);
+        }
+    };
     for (int diag = -2 * kR; diag <= 2 * kR; ++diag) {
-        if (!units_drawn && diag > unit_diag) { draw_units(); units_drawn = true; }
+        draw_units_through(diag - 1);
         for (int dx = std::max(-kR, diag - kR); dx <= std::min(kR, diag + kR); ++dx) {
             const int dy = diag - dx;
             const int gx = base_x + dx;
@@ -1493,7 +1612,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             }
         }
     }
-    if (!units_drawn) draw_units();
+    draw_units_through(1 << 20);
 }
 
 // In-game placeholder — a hero has been created; we don't have the actual
@@ -1575,14 +1694,16 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         // point (kW/2, kH/2 + kIsoH/2); render_world slots them into the
         // wall pass by depth. Wears the loaded save's gear, or the
         // class's starting gear.
-        render_world(fb, s, cam_x, cam_y, [&] {
-            if (class_idx < 0 || class_idx >= 7) return;
-            set_phase(MainPhase::IngamePlayer);
-            const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-            draw_composite(fb, s.composite(kUiToSaveClass[class_idx], player_mode, gfx), pal,
-                           player_dir, elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
-            set_phase(MainPhase::IngameWalls);
-        });
+        std::vector<Unit> units;
+        units.reserve(s.world_npcs.size() + 1);
+        if (class_idx >= 0 && class_idx < 7)
+            units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
+                              player_dir });
+        // NPCs idle in NU, facing south-west (direction 0) for now.
+        for (const auto& n : s.world_npcs)
+            if (std::abs(n.x - cam_x) < 14 && std::abs(n.y - cam_y) < 14)
+                units.push_back({ n.x, n.y, &s.npc_anim(n, kModeNU), 0 });
+        render_world(fb, s, cam_x, cam_y, elapsed_ms, units);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
