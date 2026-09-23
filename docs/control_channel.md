@@ -34,7 +34,8 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `info`                      | `w=… h=… frame=…\nok`  | Framebuffer dimensions + current frame counter.           |
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
-| `state`                     | `screen=… save=… class=… name=… hardcore=… cam=x,y saves=…\nok` | Loop state for scripted asserts. |
+| `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
+| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x,y saves=…\nok` | Loop state for scripted asserts. |
 
 Future verbs (as the engine grows): `key <name>`, `load <act>/<level>`, etc.
 

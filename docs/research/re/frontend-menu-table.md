@@ -15,9 +15,9 @@ offset  size  field       purpose
  +0x00   u32  kind         2=sprite/bg, 3=paired-anim, 4=hitbox,
                            6=button (label + chrome), 1/8=hotspot markers
  +0x04   u32  x            top-left X (screen px)
- +0x08   u32  y            top-left Y for kind 2/6; BOTTOM Y for kind 2
-                           BG assets that draw full-screen (TitleScreen
-                           has y=599 with h=600, spans 0..599)
+ +0x08   u32  y            BOTTOM Y (bottom-left anchor) for every kind
+                           checked so far (2, 4, 6) — TitleScreen has
+                           y=599 with h=600, spans 0..599
  +0x0c   u32  w            bounding-box width
  +0x10   u32  h            bounding-box height
  +0x14   u32  flags        0 for most; 0x1b on EXIT (LoD-only variant)
@@ -120,8 +120,12 @@ Working hypothesis after cross-checking the sprite dimensions:
   per DCC convention) positions the frame relative to that anchor.
   Left half spans ~x=231..390, right half ~x=409..568, both roughly
   y=46..168.
-- **Kind 6 button**: `(x, y)` is TOP-LEFT of a `w × h` chrome rectangle.
-  The label centres inside it.
+- **Kind 6 button** (and kind 4 boxes): `(x, y)` is the BOTTOM-LEFT of a
+  `w × h` rectangle — top row = `y - h + 1`, same as the kind-2 BG
+  `(0, 599, 800, 600)`. Earlier notes said top-left; that put EXIT at
+  y=568..603 (off-screen) and overlapped BATTLE.NET (y=366, h=35) with
+  GATEWAY (y=391, h=25). Bottom-left stacks them flush. d2d converts with
+  `rec_top()` in apps/d2d/main.cpp. The label centres inside.
 
 ## Follow-ups
 

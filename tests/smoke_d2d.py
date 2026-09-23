@@ -39,12 +39,16 @@ if real:
 else:
     make_save("Alpha", 0x24, 0, 10)   # hardcore expansion Amazon
     make_save("Beta",  0x20, 3, 20)   # expansion Paladin
+    for i in range(3, 12):            # 11 saves total: 6 rows -> scrollbar
+        make_save(f"Char{i:02}", 0x20, i % 7, i)
 
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_smoke_{os.getpid()}.sock")
 env = dict(os.environ, HOME=home)
 env.pop("D2_MPQ_DIR", None)   # --data wins anyway; keep the env honest
+# --scale 2: every click below is in 800x600 game pixels, so the whole run
+# also checks window<->game coordinate conversion.
 proc = subprocess.Popen([d2d, "--headless", "--data", data, "--devctl", sock_path,
-                         "--start-screen", "charselect"], env=env)
+                         "--start-screen", "charselect", "--scale", "2"], env=env)
 
 def cmd(line):
     # Replies end with a line starting "ok" (maybe "ok <payload>") or "err".
@@ -81,15 +85,30 @@ try:
     n = int(st["saves"])
     assert n == (len([f for f in os.listdir(saves) if f.endswith(".d2s")]))
 
-    cmd("click 690 590")              # OK with nothing picked: stays put
+    cmd("click 690 555")              # OK with nothing picked: stays put
     frames()
     assert state()["screen"] == "charselect"
 
-    cmd("click 133 177")              # slot 0 (saves sort by name)
+    # Scrolling: one step = one row = 2 saves, clamped to the last row.
+    max_scroll = max(0, (n + 1) // 2 * 2 - 8)
+    cmd("click 592 450")              # scrollbar down arrow
+    frames()
+    assert state()["scroll"] == str(min(2, max_scroll))
+    cmd("wheel -10")                  # way past the end: clamps
+    frames()
+    assert state()["scroll"] == str(max_scroll)
+    cmd("click 142 120")              # slot 0 while scrolled
+    frames()
+    assert state()["save"] == str(max_scroll)
+    cmd("wheel 10")                   # back to the top
+    frames()
+    assert state()["scroll"] == "0"
+
+    cmd("click 142 120")              # slot 0 (saves sort by name)
     frames()
     assert state()["save"] == "0"
 
-    cmd("click 690 590")              # OK -> InGame as that save
+    cmd("click 690 555")              # OK -> InGame as that save
     frames()
     st = state()
     assert st["screen"] == "ingame"

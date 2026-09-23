@@ -10,8 +10,10 @@
 //   --devctl <path>   bind AF_UNIX control socket
 //   --data <dir>      MPQ directory (default: ~/Workspace/private/diablo2)
 //   --headless        no window (SDL dummy driver); needs --devctl
+//   --scale <n>       window = 800x600 * n, SDL zooms (also `scale` in d2d.cfg)
 
 #include <mpq.hpp>
+#include <cof.hpp>
 #include <dc6.hpp>
 #include <dcc.hpp>
 #include <devctl.hpp>
@@ -29,6 +31,7 @@
 #include <csignal>
 #include <unordered_map>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -243,14 +246,25 @@ struct Scene {
     d2d::dc6::Sprite      charselect_bg;      // characterselectscreenEXP.dc6
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
     d2d::dc6::Sprite      charselect_boxgrey; // charselectboxgrey.dc6 (empty slot)
+    d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
-    // In-game player torso — DCC town-neutral (TN) idle, LIT armor tier,
-    // per-class. Loaded once at init. 16 directions × 6..16 frames each.
-    // Weapon-code suffix per class defaults: BA/NE/SO/DZ = HTH,
-    // PA = 1HS, AM = 1HT, AS (folder token 'AI', dev codename) = HTH.
-    // Only the torso (TR) is rendered — HD/LG/RA/LA would need proper
-    // Z-ordered compositing which is a follow-up.
-    std::array<d2d::dcc::Sprite, 7>  player_torso;
+    // In-game player — town-neutral (TN) idle, LIT armor tier, per class.
+    // The COF names the body-part layers and their per-frame draw order;
+    // each layer is its own DCC, indexed here by COF composite type
+    // (0 HD, 1 TR, 2 LG, 3 RA, 4 LA, 5 RH, 6 LH, 7 SH, 8.. S1..S8).
+    // ponytail: RH/LH/SH (weapon/shield) resolve by item code, so bare
+    // LIT layers only; wire in item codes once inventory is parsed.
+    struct PlayerAnim {
+        d2d::cof::Cof                     cof;
+        std::array<d2d::dcc::Sprite, 16>  layers;
+    };
+    // Loaded on first use (player_anim) — decoding all 7 classes' layers
+    // up front doubled startup (0.75 s -> 1.4 s). Cache is `mutable` so
+    // the const Scene the renderers get can still fill it.
+    mutable std::array<std::optional<PlayerAnim>, 7> player;
+    const PlayerAnim& player_anim(int class_idx) const;
+    // Kept open for lazy loads after startup.
+    d2d::mpq::Stack mpqs;
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -361,14 +375,31 @@ constexpr const char* kClassKey[7] = {
 // (BA NE PA AM SO DZ AS, see kClassKey).
 constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
 
-// Char-select slot grid, 2 columns x 4 rows. RE'd assembled slot is
-// 272x93 (256+16 wide, 93 tall). Layout eyeballed from D2 LoD reference
-// against the BG art; top row at y=137, gap ~5px between rows.
+// D2's frontend records store (x, y, w, h) with y = the BOTTOM row
+// (bottom-left anchor, like its DC6 blits): the full-screen BG record is
+// (0, 599, 800, 600). Our blits and hit tests are top-left, so convert.
+constexpr int rec_top(int y_bottom, int h) { return y_bottom - h + 1; }
+
+// Char-select slot grid, 2 columns x 4 rows — RE'd from the LoD
+// char-select init FUN_0043ae30 / drawer FUN_004380f0: 8 visible slots
+// (DAT_0070cc0c), column x alternates 0x25/0x135, row bottom y =
+// 0xb2 + 0x5d*row — so tops at 86..365, filling the panel's 4x93 interior.
+// Each 272x93 slot is a 200x92 text box (records 0x84..0x8b) + a 72x93
+// portrait cell on its right (0x8c..0x93). See docs/research/re/char-select.md.
 constexpr int kSlotW = 272, kSlotH = 93;
-constexpr int kSlotX[2] = { 33, 495 };
-constexpr int kSlotY[4] = { 137, 236, 335, 434 };
-// ponytail: 8 slots, no scrolling; add D2's scroll bar when >8 saves matters.
+constexpr int kSlotX[2] = { 37, 309 };
+constexpr int kSlotY[4] = { rec_top(178, kSlotH), rec_top(271, kSlotH),
+                            rec_top(364, kSlotH), rec_top(457, kSlotH) };
 constexpr int kSlots = 8;
+// Scrollbar (record 0xa7, joingamescrollbars.dc6: f0/f2 up, f1/f3 down
+// normal/pressed, f4 thumb; 12x14 each). Shown only when saves > 8; one
+// step = one row = 2 saves (callback 0x439df0).
+// RE'd box (564, 457, 34, 371) = x 564..597, y 87..457: the rail drawn
+// into the BG art's right edge. The 12 px bar sits right-aligned in it.
+// ponytail: right-aligned by eye against the art; D2Win's kind-5 widget
+// (FUN_005084f0 / draw FUN_00508370) has the exact math if it's off by a px.
+constexpr int kScrollX = 564 + 34 - 12, kScrollTop = rec_top(457, 371),
+              kScrollBot = 457 + 1, kScrollArrow = 14;
 
 struct Button {
     int x{}, y{}, w{}, h{};
@@ -389,6 +420,7 @@ struct Mouse {
     bool down = false;                 // current button state
     bool press_this_frame = false;     // rising edge
     bool release_this_frame = false;   // falling edge
+    int  wheel = 0;                    // wheel notches this frame, +up
 };
 
 // Composite the chrome for one button. D2's chrome DC6s come in two shapes
@@ -495,6 +527,54 @@ std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
 // the same members without repeating field types.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 
+// One class's town-neutral composite: the COF plus every LIT layer DCC it
+// names. Missing layers (weapon/shield) stay empty and are skipped at draw.
+Scene::PlayerAnim load_player(const d2d::mpq::Stack& mpqs, int class_idx) {
+    // Class → CHARS folder + weapon class (Assassin lives under folder
+    // "AI", the dev codename). Starting-weapon classes: Barb/Necro/Sorc/
+    // Druid/Assassin = HTH bare-hand; Paladin = 1HS; Amazon = 1HT.
+    struct C { const char* folder; const char* wpn; };
+    constexpr C cs[7] = {
+        {"BA", "HTH"}, {"NE", "HTH"}, {"PA", "1HS"},
+        {"AM", "1HT"}, {"SO", "HTH"}, {"DZ", "HTH"},
+        {"AI", "HTH"},
+    };
+    constexpr const char* kLayer[16] = {
+        "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
+        "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
+    };
+    const auto& c = cs[class_idx];
+    Scene::PlayerAnim out;
+    char path[256];
+    std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\COF\%sTN%s.cof)",
+                  c.folder, c.folder, c.wpn);
+    try {
+        auto cof = mpqs.try_read(path);
+        if (!cof) return out;
+        out.cof = d2d::cof::Cof(*cof);
+        for (const auto& L : out.cof.layer_defs()) {
+            if (L.type >= 16) continue;
+            std::string wc = L.weapon_class;
+            for (auto& ch : wc) ch = char(std::toupper(ch));
+            // <CC>\<LY>\<CC><LY>LIT<mode><wclass>.dcc
+            std::snprintf(path, sizeof(path),
+                R"(data\global\CHARS\%s\%s\%s%sLITTN%s.dcc)",
+                c.folder, kLayer[L.type], c.folder, kLayer[L.type], wc.c_str());
+            if (auto b = mpqs.try_read(path))
+                out.layers[L.type] = d2d::dcc::Sprite(*b);
+        }
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "[d2d] %s: %s\n", path, e.what());
+    }
+    return out;
+}
+
+const Scene::PlayerAnim& Scene::player_anim(int class_idx) const {
+    auto& slot = player[std::size_t(class_idx)];
+    if (!slot) slot = load_player(mpqs, class_idx);
+    return *slot;
+}
+
 // Headers of every valid .d2s in `dir`, sorted by name. Bad files are
 // logged and skipped — saves are user-supplied.
 std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
@@ -577,33 +657,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .charselect_bg     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\characterselectscreenEXP.dc6)")),
             .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
             .charselect_boxgrey = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectboxgrey.dc6)")),
+            .charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)")),
             .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
-            .player_torso      = [&] {
-                // Class → CHARS folder + weapon-code suffix (Assassin lives
-                // under folder "AI", the dev codename). Weapon defaults per
-                // class: Barb/Necro/Sorc/Druid/Assassin = HTH bare-hand;
-                // Paladin = 1HS (1-handed sword); Amazon = 1HT (thrust).
-                struct C { const char* folder; const char* wpn; };
-                constexpr C cs[7] = {
-                    {"BA", "HTH"}, {"NE", "HTH"}, {"PA", "1HS"},
-                    {"AM", "1HT"}, {"SO", "HTH"}, {"DZ", "HTH"},
-                    {"AI", "HTH"},
-                };
-                std::array<d2d::dcc::Sprite, 7> out{};
-                for (std::size_t i = 0; i < 7; ++i) {
-                    char path[256];
-                    std::snprintf(path, sizeof(path),
-                        R"(data\global\CHARS\%s\TR\%sTRLITTN%s.dcc)",
-                        cs[i].folder, cs[i].folder, cs[i].wpn);
-                    auto b = mpqs.try_read(path);
-                    if (!b) continue;
-                    try { out[i] = d2d::dcc::Sprite(*b); }
-                    catch (const std::exception& e) {
-                        std::fprintf(stderr, "[d2d] %s: %s\n", path, e.what());
-                    }
-                }
-                return out;
-            }(),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -663,6 +718,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         // placeholder when world is empty.
         load_world(scene, mpqs,
                    R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
+        scene.mpqs = std::move(mpqs);
         return scene;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] load_scene: %s\n", e.what());
@@ -818,9 +874,15 @@ struct CharSelectUI {
     std::string cancel_label;
     std::string ok_label;
     int selected = -1;           // index into Scene::saves, or -1
+    int scroll = 0;              // index of the save in slot 0; always even
 };
 
-// Slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
+// Largest valid CharSelectUI::scroll for `n` saves: last row at the bottom.
+int charselect_max_scroll(int n) {
+    return std::max(0, (n + 1) / 2 * 2 - kSlots);
+}
+
+// Visible slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
 int charselect_slot_at(int x, int y) {
     for (int i = 0; i < kSlots; ++i) {
         const int sx = kSlotX[i % 2], sy = kSlotY[i / 2];
@@ -840,25 +902,37 @@ void render_charselect(std::vector<std::uint8_t>& fb,
         const int x = kSlotX[i % 2], y = kSlotY[i / 2];
         // Two-frame composite: main 256-wide half + 16-wide sliver.
         // Selected slot gets the filled box, the rest the grey one.
-        const auto& box = i == ui.selected ? s.charselect_box : s.charselect_boxgrey;
+        const int si = ui.scroll + i;   // save index shown in this slot
+        const auto& box = si == ui.selected ? s.charselect_box : s.charselect_boxgrey;
         if (box.frames_per_direction() >= 2) {
             blit_sprite(fb, box.frame(0, 0), pal, x,       y);
             blit_sprite(fb, box.frame(0, 1), pal, x + 256, y);
         }
-        if (i >= int(s.saves.size())) continue;
-        // ponytail: text only, no class portrait; add the DCC idle when
-        // the slot needs to look like D2's.
-        const auto& h = s.saves[std::size_t(i)];
+        if (si >= int(s.saves.size())) continue;
+        // ponytail: text only, no class portrait; add the DCC idle in the
+        // 72px cell on the slot's right when the slot needs to look like D2's.
+        const auto& h = s.saves[std::size_t(si)];
         const int ci = kSaveClassToUi[h.cls];
         std::string cls = kClassKey[ci];
         if (auto v = lookup_string(s, kClassKey[ci])) cls = u16_to_latin1(*v);
         const std::string line2 = "Level " + std::to_string(h.level) + " " + cls;
-        s.font.draw_tinted(fb, kW, kH, pal, x + 90, y + 20, h.name.c_str(),
+        s.font.draw_tinted(fb, kW, kH, pal, x + 12, y + 20, h.name.c_str(),
                            255, 208, 80);
-        s.font.draw(fb, kW, kH, pal, x + 90, y + 40, line2.c_str());
+        s.font.draw(fb, kW, kH, pal, x + 12, y + 40, line2.c_str());
         if (h.hardcore())
-            s.font.draw_tinted(fb, kW, kH, pal, x + 90, y + 60, "Hardcore",
+            s.font.draw_tinted(fb, kW, kH, pal, x + 12, y + 60, "Hardcore",
                                255, 64, 64);
+    }
+
+    if (const int max = charselect_max_scroll(int(s.saves.size()));
+        max > 0 && s.charselect_scroll.frames_per_direction() >= 5) {
+        const auto& sb = s.charselect_scroll;
+        blit_sprite(fb, sb.frame(0, 0), pal, kScrollX, kScrollTop);
+        blit_sprite(fb, sb.frame(0, 1), pal, kScrollX, kScrollBot - kScrollArrow);
+        // Thumb slides between the arrows, proportional to the scroll row.
+        const int track = kScrollBot - kScrollTop - 3 * kScrollArrow;
+        blit_sprite(fb, sb.frame(0, 4), pal, kScrollX,
+                    kScrollTop + kScrollArrow + track * ui.scroll / max);
     }
 
     if (s.saves.empty()) {
@@ -1177,15 +1251,16 @@ void render_world(std::vector<std::uint8_t>& fb,
 // In-game placeholder — a hero has been created; we don't have the actual
 // world/map render yet, so celebrate the character info and offer Esc to
 // go back to the title. Using the credits bg (dark corridor) as backdrop.
-// Blit a DCC frame at (anchor_x, anchor_y) after applying its own
-// x/y_offset (DCC anchor convention). Palette-indexed; index 0 is
+// Blit a DCC frame with its origin at (anchor_x, anchor_y). A DCC frame's
+// y_offset is its BOTTOM row relative to the origin (feet), so the pixel
+// block's top-left is (box_left, box_top). Palette-indexed; index 0 is
 // transparent so limbs compose cleanly over each other and over tiles.
 void blit_dcc_frame(std::vector<std::uint8_t>& fb,
                     const d2d::dcc::Frame& f,
                     const d2d::palette::Palette& pal,
                     int anchor_x, int anchor_y) {
-    const int dst_x = anchor_x + f.x_offset;
-    const int dst_y = anchor_y + f.y_offset;
+    const int dst_x = anchor_x + f.box_left;
+    const int dst_y = anchor_y + f.box_top;
     for (std::int32_t y = 0; y < f.height; ++y) {
         const int py = dst_y + y;
         if (py < 0 || py >= int(kH)) continue;
@@ -1202,29 +1277,36 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
     }
 }
 
-// Render the picked class's town-idle torso at the camera-center tile.
-// D2's TN mode (Town Neutral) runs at ~10 fps (250ms / frame at 25 Hz
-// base tick × animRate 100/256 = ~40ms; TN is a chill 100ms). We pick
-// direction 4 (SW, D2's canonical "camera-facing" pose). Idle only —
-// walking is a follow-up. Skips when the DCC failed to load.
+// Render the picked class's town-idle composite at the camera-center tile:
+// every loaded body layer, in the COF's per-(direction, frame) draw order.
+// Frame time from the COF speed byte: D2 advances speed/256 frames per
+// 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 → 128 ms).
+// ponytail: COF speed as the rate; AnimData.d2 is authoritative — read it
+// when an animation visibly runs at the wrong pace. No shadow, no
+// transparent-layer draw effects yet (no TN layer sets `transparent`).
 void render_player_at_camera(std::vector<std::uint8_t>& fb,
                              const Scene& s,
                              int class_idx,
                              std::uint32_t elapsed_ms) {
-    const auto& spr = s.player_torso[class_idx];
-    if (spr.directions() == 0) return;
-    const auto fpd = spr.frames_per_direction();
-    if (fpd <= 0) return;
-    // Direction 4 of 16 = SW (facing screen). Frame cycles at 100ms
-    // (D2 TN default). Palette follows the tile-composite render (ACT1).
-    const std::uint8_t dir = std::min<std::uint8_t>(4, spr.directions() - 1);
-    const auto frame_idx = std::int32_t((elapsed_ms / 100) % fpd);
-    const auto& f = spr.frame(dir, frame_idx);
+    const auto& p = s.player_anim(class_idx);
+    const auto dirs = p.cof.directions();
+    const auto fpd  = p.cof.frames_per_direction();
+    if (dirs == 0 || fpd == 0) return;
+    // Direction 4 of 16 = SW (facing screen).
+    const auto dir = std::uint8_t(std::min(4, dirs - 1));
+    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.cof.speed(), 1);
+    const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     // Camera-center cell top-corner projects to screen center; the
     // character's feet plant at the diamond bottom center, which is
     // (kW/2, kH/2 + kIsoH/2).
-    blit_dcc_frame(fb, f, pal, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
+    for (const auto type : p.cof.priority(dir, frame)) {
+        if (type >= p.layers.size()) continue;
+        const auto& spr = p.layers[type];
+        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
+        blit_dcc_frame(fb, spr.frame(dir, frame), pal,
+                       int(kW) / 2, int(kH) / 2 + kIsoH / 2);
+    }
 }
 
 void render_ingame(std::vector<std::uint8_t>& fb,
@@ -1324,7 +1406,8 @@ void advance_char_states(CharCreateUI& ui,
 // transitions. Only one class is Selected/Selecting at a time; picking a
 // new one first sends the previous into Deselecting.
 // Hardcore-checkbox rect — RE'd char-create master table 0x70b0b0.
-constexpr int kHardcoreX = 319, kHardcoreY = 560, kHardcoreW = 15, kHardcoreH = 16;
+constexpr int kHardcoreX = 319, kHardcoreW = 15, kHardcoreH = 16;
+constexpr int kHardcoreY = rec_top(560, kHardcoreH);
 
 void handle_charcreate_click(CharCreateUI& ui,
                              const Mouse& m,
@@ -1334,7 +1417,7 @@ void handle_charcreate_click(CharCreateUI& ui,
     // 0x70b080 (339, 561, 100, 32) unioned with the box chrome itself, so
     // clicking either the box OR its label toggles.
     const int hcRx = kHardcoreX, hcRw = kHardcoreW + 5 + 100;   // box + gap + label
-    const int hcRy = kHardcoreY - 4, hcRh = 24;                 // vertical padding
+    const int hcRy = rec_top(561, 32), hcRh = 32;              // 0x70b080's rows
     if (m.x >= hcRx && m.x < hcRx + hcRw &&
         m.y >= hcRy && m.y < hcRy + hcRh) {
         ui.hardcore = !ui.hardcore;
@@ -1443,22 +1526,23 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
             if (!np_owned.empty()) nprompt = np_owned.c_str();
         }
         const int npw = s.font.measure(nprompt);
-        s.font.draw_tinted(fb, kW, kH, pal, 319 + (169 - npw)/2, 505,
+        constexpr int kNameTop = rec_top(519, 26);
+        s.font.draw_tinted(fb, kW, kH, pal, 319 + (169 - npw)/2, kNameTop - 14,
                            nprompt, 200, 200, 200);
-        blit_sprite(fb, s.textbox.frame(0, 0), pal, 319, 519);
+        blit_sprite(fb, s.textbox.frame(0, 0), pal, 319, kNameTop);
         // Typed name over the box.
         const int nw = s.font.measure(ui.input_name);
         const int nlh = s.font.line_height();
         s.font.draw_tinted(fb, kW, kH, pal,
                            319 + (169 - nw) / 2,
-                           519 + (26 - nlh) / 2,
+                           kNameTop + (26 - nlh) / 2,
                            ui.input_name, 255, 208, 80);
         // Simple blinking cursor after the last char (D2 uses a blinking
         // underline; we use a solid "|" for now).
         if (((elapsed_ms / 500) & 1) == 0) {
             s.font.draw_tinted(fb, kW, kH, pal,
                                319 + (169 - nw) / 2 + nw,
-                               519 + (26 - nlh) / 2,
+                               kNameTop + (26 - nlh) / 2,
                                "|", 255, 208, 80);
         }
     }
@@ -1527,14 +1611,19 @@ struct Window {
     Window(const Window&)            = delete;
     Window& operator=(const Window&) = delete;
 
-    bool open(int w_, int h_) {
+    // Game renders at the fixed w_ x h_ (D2 LoD's 800x600); the window is
+    // `scale` times that and SDL's logical presentation does the zoom,
+    // letterboxing any other window size. Same setup as thirdeye's
+    // graphics.cpp — pair with SDL_ConvertEventToRenderCoordinates so
+    // mouse events arrive in game pixels.
+    bool open(int w_, int h_, int scale) {
         // Hints have to be set BEFORE SDL_CreateWindow to take effect.
         // Disable the CGWindowServer "wants full-screen space" nag on
         // macOS — that dialog is what triggers user reports of the
         // window appearing to freeze right after launch. Also request
         // high-DPI so the renderer picks up the true screen scale.
         SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
-        w = SDL_CreateWindow("d2d", w_, h_, SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        w = SDL_CreateWindow("d2d", w_ * scale, h_ * scale, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!w) { std::fprintf(stderr, "[d2d] SDL_CreateWindow: %s\n", SDL_GetError()); return false; }
         r = SDL_CreateRenderer(w, nullptr);
         if (!r) { std::fprintf(stderr, "[d2d] SDL_CreateRenderer: %s\n", SDL_GetError()); return false; }
@@ -1542,11 +1631,14 @@ struct Window {
         // refresh — the primary yield mechanism. Failure is not fatal;
         // pace_frame() delays anyway as a floor.
         SDL_SetRenderVSync(r, 1);
+        SDL_SetRenderLogicalPresentation(r, w_, h_, SDL_LOGICAL_PRESENTATION_LETTERBOX);
         // RGBA32 is defined as ABGR8888 on LE / RGBA8888 on BE — memory order
         // is always (r, g, b, a), matching our framebuffer.
         t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32,
                               SDL_TEXTUREACCESS_STREAMING, w_, h_);
         if (!t) { std::fprintf(stderr, "[d2d] SDL_CreateTexture: %s\n", SDL_GetError()); return false; }
+        // Linear filter on upscale, as thirdeye does.
+        SDL_SetTextureScaleMode(t, SDL_SCALEMODE_LINEAR);
         return true;
     }
 };
@@ -1608,7 +1700,7 @@ TitleUI title_ui(const Scene& s) {
         if (label.empty() && sp.fallback) label = sp.fallback;
         ui.labels.push_back(std::move(label));
         ui.buttons.push_back(Button{
-            sp.x, sp.y, sp.w, sp.h,
+            sp.x, rec_top(sp.y, sp.h), sp.w, sp.h,
             ui.labels.back().c_str(),
             sp.chrome, sp.goto_screen, sp.do_switch, sp.quit, false, false,
         });
@@ -1694,6 +1786,8 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             m.down = true;
             m.press_this_frame = true;
         }
+    } else if (ev.type == SDL_EVENT_MOUSE_WHEEL) {
+        m.wheel += ev.wheel.integer_y;
     } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP) {
         m.x = int(ev.button.x);
         m.y = int(ev.button.y);
@@ -1712,6 +1806,7 @@ static std::string g_start_name;
 static bool        g_start_hardcore = false;
 static int         g_start_cam_x = -1;   // -1 = "use map center"
 static int         g_start_cam_y = -1;
+static int         g_scale = 1;          // window = game res * g_scale
 
 static Screen parse_screen(std::string_view s) {
     if (s == "credits")    return Screen::Credits;
@@ -1759,7 +1854,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         return 1;
     }
     Window win;
-    if (!win.open(int(kW), int(kH))) { SDL_Quit(); return 1; }
+    if (!win.open(int(kW), int(kH), g_scale)) { SDL_Quit(); return 1; }
 
     Screen screen = g_start_screen.empty() ? Screen::Title
                                             : parse_screen(g_start_screen);
@@ -1780,12 +1875,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         cc.cancel_label   = tbl_label(0x13ed, "EXIT");
         cc.ok_label       = tbl_label(0x13ee, "OK");
         cc.hardcore_label = tbl_label(0x1406, "Hardcore");
-        cc.cancel_btn = Button{ 33, 572, 128, 35, cc.cancel_label.c_str(),
+        cc.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, cc.cancel_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::CharSelect, /*do_switch=*/true };
         // OK's target is InGame; do_switch flips true per tick once a class
         // is picked AND a name is entered (see the per-frame gate below).
-        cc.ok_btn     = Button{ 627, 572, 128, 35, cc.ok_label.c_str(),
+        cc.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, cc.ok_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::InGame, /*do_switch=*/false };
         // Preload class/name if --start-screen ingame was given.
@@ -1808,16 +1903,16 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         csu.delete_label = tbl_label(0x1498, "DELETE");
         csu.cancel_label = tbl_label(0x13ed, "EXIT");
         csu.ok_label     = tbl_label(0x13ee, "OK");
-        csu.create_btn = Button{ 233, 528, 168, 60, csu.create_label.c_str(),
+        csu.create_btn = Button{ 233, rec_top(528, 60), 168, 60, csu.create_label.c_str(),
                                  &scene->tall_button,
                                  Screen::CharCreate, /*do_switch=*/true };
-        csu.delete_btn = Button{ 433, 528, 168, 60, csu.delete_label.c_str(),
+        csu.delete_btn = Button{ 433, rec_top(528, 60), 168, 60, csu.delete_label.c_str(),
                                  &scene->tall_button,
                                  Screen::CharSelect, /*do_switch=*/false };
-        csu.cancel_btn = Button{ 33, 572, 128, 35, csu.cancel_label.c_str(),
+        csu.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, csu.cancel_label.c_str(),
                                  &scene->medium_sel_button,
                                  Screen::Title, /*do_switch=*/true };
-        csu.ok_btn     = Button{ 627, 572, 128, 35, csu.ok_label.c_str(),
+        csu.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, csu.ok_label.c_str(),
                                  &scene->medium_sel_button,
                                  Screen::InGame, /*do_switch=*/false };
     }
@@ -1881,7 +1976,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // the captures never outlive it.
     ch.on("click", [&](const std::vector<std::string>& args) {
         if (args.size() < 3) return std::string("err click <x> <y>\n");
-        const float x = std::stof(args[1]), y = std::stof(args[2]);
+        // Args are game pixels; queued events carry window coords and get
+        // converted back by SDL_ConvertEventToRenderCoordinates on poll.
+        float x = 0, y = 0;
+        SDL_RenderCoordinatesToWindow(win.r, std::stof(args[1]), std::stof(args[2]), &x, &y);
         // Motion + down + up land in the next frame's poll. One frame is
         // enough: update_button and the slot picker both accept a press
         // and release in the same frame.
@@ -1898,9 +1996,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return std::string("ok\n");
     });
+    ch.on("wheel", [&](const std::vector<std::string>& args) {
+        if (args.size() < 2) return std::string("err wheel <dy>\n");
+        SDL_Event ev{};
+        ev.wheel = { .type = SDL_EVENT_MOUSE_WHEEL, .windowID = SDL_GetWindowID(win.w),
+                     .integer_y = std::stoi(args[1]) };
+        SDL_PushEvent(&ev);
+        return std::string("ok\n");
+    });
     ch.on("state", [&](const std::vector<std::string>&) {
         return std::string("screen=") + screen_name(screen)
              + " save=" + std::to_string(csu.selected)
+             + " scroll=" + std::to_string(csu.scroll)
              + " class=" + std::to_string(cc.selected)
              + " name=" + cc.input_name
              + " hardcore=" + (cc.hardcore ? "1" : "0")
@@ -1919,16 +2026,21 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
+        mouse.wheel = 0;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
         SDL_Event ev;
-        while (SDL_PollEvent(&ev))
+        while (SDL_PollEvent(&ev)) {
+            // SDL3 doesn't rescale event coords under logical presentation;
+            // convert so the mouse lands in 800x600 game pixels.
+            SDL_ConvertEventToRenderCoordinates(win.r, &ev);
             handle_sdl_events(ev, mouse, screen, text_this_frame,
                               backspace_this_frame,
                               PanKeys{pan_left, pan_right, pan_up, pan_down},
                               mouse_seen, quit);
+        }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
         if (ch.active()) ch.pump();
@@ -1947,11 +2059,23 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 render_credits(fb, *scene, ms);
                 break;
             case Screen::CharSelect: {
+                const int n = int(scene->saves.size());
+                const int max_scroll = charselect_max_scroll(n);
+                int rows = -mouse.wheel;   // wheel up = scroll toward the top
                 if (mouse.press_this_frame) {
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
-                    if (slot >= 0 && slot < int(scene->saves.size()))
-                        csu.selected = slot;
+                    if (slot >= 0 && csu.scroll + slot < n)
+                        csu.selected = csu.scroll + slot;
+                    // Scrollbar arrows (only live while the bar is shown).
+                    if (max_scroll > 0 && mouse.x >= kScrollX
+                        && mouse.x < kScrollX + 12) {
+                        if (mouse.y >= kScrollTop && mouse.y < kScrollTop + kScrollArrow)
+                            rows = -1;
+                        if (mouse.y >= kScrollBot - kScrollArrow && mouse.y < kScrollBot)
+                            rows = 1;
+                    }
                 }
+                csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
                 // OK only enters the game with a save picked.
                 csu.ok_btn.do_switch = csu.selected >= 0;
                 for (Button* b : {&csu.create_btn, &csu.delete_btn,
@@ -2163,6 +2287,9 @@ int main(int argc, char** argv) {
     app.add_option("--devctl", devctl_path,
                    "Unix-socket dev-control channel path");
     std::string data_dir_str = data_dir.string();
+    int scale = cfg.contains("scale") ? std::atoi(cfg["scale"].c_str()) : 1;
+    app.add_option("--scale", scale, "Window scale (game renders at 800x600)")
+        ->check(CLI::Range(1, 8));
     app.add_option("--data", data_dir_str,
                    "Path to the D2 MPQ directory");
     app.add_flag  ("--headless", headless,
@@ -2222,6 +2349,7 @@ int main(int argc, char** argv) {
     g_start_hardcore = start_hardcore;
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
+    g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
 
     if (headless) {
         if (!ch.active()) {

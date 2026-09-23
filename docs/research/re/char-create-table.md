@@ -111,9 +111,9 @@ its bottom-bar buttons with the char-create screen):
 | **0x70ade0** | 6  | **(33, 572, 128, 35)** | 0x1b | 0x13ed | `0x00779744` (MediumSelButtonBlank) | `0x00430c30` | **EXIT** |
 | **0x70ae10** | 6  | **(627, 572, 128, 35)** | 0x0d | 0x13ee | `0x00779744` | `0x004369f0` | **OK** |
 
-Both use `MediumSelButtonBlank.dc6` chrome, TBL ids `0x13ed`/`0x13ee`,
-and match our current placement exactly — so those buttons were placed
-correctly by eye and are now RE-confirmed.
+Both use `MediumSelButtonBlank.dc6` chrome, TBL ids `0x13ed`/`0x13ee`.
+Record y is the BOTTOM row (see [[frontend-menu-table]]), so they span
+y=538..572 — our first placement used 572 as the top and clipped them.
 
 The `flags` byte differs (0x1b on EXIT, 0x0d on OK) — likely render
 hints (highlight/disabled state; the main-menu EXIT record at
