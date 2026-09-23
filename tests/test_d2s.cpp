@@ -1,9 +1,15 @@
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
 #include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <mpq.hpp>
 
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <vector>
 
 namespace {
@@ -57,6 +63,65 @@ int main() {
     assert(throws(make_save(96, "",  0, 0, 1)));
     assert(throws(std::vector<std::byte>(0x20)));   // truncated
     assert(throws(std::vector<std::byte>(0xA7)));   // cut inside tints[]
+
+    // Item list: one hand-built simple item (a stack-less "hp1" potion in
+    // the belt), bit for bit, then the real saves when they're around.
+    {
+        std::vector<std::byte> b(0x2FD + 4 + 14);
+        std::size_t bit = (0x2FD + 4) * 8;
+        auto put = [&](std::uint32_t v, int n) {
+            for (int i = 0; i < n; ++i, ++bit)
+                if (v >> i & 1) b[bit >> 3] |= std::byte(1 << (bit & 7));
+        };
+        std::memcpy(b.data() + 0x2FD, "JM\x01\x00", 4);
+        put(0x4d4a, 16);
+        put(1u << 21 | 1u << 4, 32);         // simple, identified
+        put(101, 10);                        // item version
+        put(2, 3); put(0, 4); put(3, 4); put(0, 4); put(0, 3);   // belt, col 3
+        for (char c : std::string("hp1 ")) put(std::uint8_t(c), 8);
+        put(0, 3);                           // no socketed items
+        const auto items = d2d::d2s::parse_items(b, d2d::d2s::ItemTables{});
+        assert(items.size() == 1);
+        assert(items[0].code == "hp1" && items[0].simple && items[0].identified);
+        assert(items[0].location == 2 && items[0].column == 3);
+    }
+    {
+        const char* sd = std::getenv("D2_SAVES_DIR");
+        const char* md = std::getenv("D2_MPQ_DIR");
+        const char* pi = std::getenv("D2_PATCH_INSTALLER");
+        namespace fs = std::filesystem;
+        const fs::path mpq_dir = md ? fs::path(md)
+            : fs::path(std::getenv("HOME") ? std::getenv("HOME") : "") / "Workspace/private/diablo2";
+        if (!sd || !pi || !fs::exists(mpq_dir / "d2data.mpq")) {
+            std::printf("SKIP real items: set D2_SAVES_DIR and D2_PATCH_INSTALLER\n");
+        } else {
+            d2d::mpq::Stack st;
+            st.push_installer(pi);                // ItemStatCost.txt is 1.14d-only
+            if (fs::exists(mpq_dir / "d2exp.mpq")) st.push(mpq_dir / "d2exp.mpq");
+            st.push(mpq_dir / "d2data.mpq");
+            auto tab = [&](const char* n) {
+                return d2d::txt::Table(st.read(std::string(R"(data\global\excel\)") + n + ".txt"));
+            };
+            const auto t = d2d::d2s::ItemTables::from(tab("ItemStatCost"), tab("armor"),
+                                                      tab("weapons"), tab("misc"));
+            int saves = 0;
+            for (const auto& e : fs::directory_iterator(sd)) {
+                if (e.path().extension() != ".d2s") continue;
+                std::ifstream in(e.path(), std::ios::binary);
+                std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
+                const auto items = d2d::d2s::parse_items(std::as_bytes(std::span(raw)), t);
+                int equipped = 0;
+                for (const auto& it : items) {
+                    assert(!it.code.empty());
+                    equipped += it.location == 1;
+                }
+                assert(items.size() > 0 && equipped > 0);
+                ++saves;
+            }
+            std::printf("items: %d real saves parsed\n", saves);
+            assert(saves > 0);
+        }
+    }
 
     std::printf("OK\n");
     return 0;
