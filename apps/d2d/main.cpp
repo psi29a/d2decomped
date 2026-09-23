@@ -1924,15 +1924,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     }
 
     const auto t0 = SDL_GetTicks();
-    // Text-input is enabled ONCE for the lifetime of the window. Reason:
-    // SDL_StartTextInput() / SDL_StopTextInput() on macOS talk to the
-    // system IME, which can stall the main thread — a real user of ours
-    // hit a beachball right after the last alive print on CharCreate,
-    // and the toggle is the only per-screen SDL call that changes there.
-    // Callers gate the text-input consumers themselves (only CharCreate
-    // reads text_this_frame); TEXT_INPUT events for other screens are
-    // handed to the frame but no consumer picks them up.
-    SDL_StartTextInput(win.w);
+    // SDL text input only while CharCreate's name field is up. While it's
+    // on, macOS routes every key through the input method (IMK); leaving
+    // it on everywhere cost ~100 ms inside SDL_PollEvent on Esc in InGame
+    // (logged with "error messaging the mach port for
+    // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
+    // beachball suspect; that beachball was the pan-left float loop.
+    bool text_active = false;
     // Camera position on the InGame world (in DS1 cells). Seeded to the
     // middle of the loaded map — arrow keys / WASD / mouse-edge pan from
     // there. Persists across frames so panning is continuous rather than
@@ -2028,6 +2026,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // close still work through handle_sdl_events.
         if (g_sigint_quit) { quit = true; break; }
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
+        // Toggled inside the `input` timing window, so any IME cost of the
+        // switch itself shows up there.
+        if (const bool want = screen == Screen::CharCreate; want != text_active) {
+            if (want) SDL_StartTextInput(win.w);
+            else      SDL_StopTextInput(win.w);
+            text_active = want;
+        }
         heartbeat_ms.store(frame_start_ms, std::memory_order_relaxed);
 
         mouse.press_this_frame = false;
