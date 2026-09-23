@@ -14,6 +14,7 @@
 
 #include <mpq.hpp>
 #include <cof.hpp>
+#include <compcode.hpp>
 #include <dc6.hpp>
 #include <dcc.hpp>
 #include <devctl.hpp>
@@ -24,6 +25,7 @@
 #include <palette.hpp>
 #include <screenshot.hpp>
 #include <tbl.hpp>
+#include <txt.hpp>
 #include <userdir.hpp>
 
 #include <SDL3/SDL.h>
@@ -39,6 +41,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <optional>
 #include <span>
@@ -249,21 +252,23 @@ struct Scene {
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
     d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
-    // In-game player — town-neutral (TN) idle, LIT armor tier, per class.
-    // The COF names the body-part layers and their per-frame draw order;
-    // each layer is its own DCC, indexed here by COF composite type
-    // (0 HD, 1 TR, 2 LG, 3 RA, 4 LA, 5 RH, 6 LH, 7 SH, 8.. S1..S8).
-    // ponytail: RH/LH/SH (weapon/shield) resolve by item code, so bare
-    // LIT layers only; wire in item codes once inventory is parsed.
+    // Character composites (in-game player, char-select portraits). The
+    // COF names the body-part layers and their per-frame draw order; each
+    // layer is its own DCC, indexed by COF composite type (0 HD, 1 TR,
+    // 2 LG, 3 RA, 4 LA, 5 RH, 6 LH, 7 SH, 8.. S1..S8). What each layer
+    // wears comes from 16 appearance bytes — a .d2s header's, or a new
+    // character's starting gear — through `comp` (components/compcode).
     struct PlayerAnim {
         d2d::cof::Cof                     cof;
         std::array<d2d::dcc::Sprite, 16>  layers;
     };
-    // Loaded on first use (player_anim) — decoding all 7 classes' layers
-    // up front doubled startup (0.75 s -> 1.4 s). Cache is `mutable` so
-    // the const Scene the renderers get can still fill it.
-    mutable std::array<std::optional<PlayerAnim>, 7> player;
-    const PlayerAnim& player_anim(int class_idx) const;
+    using Appearance = std::array<std::uint8_t, 16>;
+    std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
+    std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
+    // Loaded on first use and kept — decoding every composite up front
+    // doubled startup. `mutable` so the const Scene renderers can fill it.
+    mutable std::map<std::array<std::uint8_t, 18>, PlayerAnim> composites;
+    const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;
     // Kept open for lazy loads after startup.
     d2d::mpq::Stack mpqs;
     // Class animations — 7 classes × 5 states, per the RE'd class table at
@@ -380,6 +385,7 @@ constexpr const char* kClassKey[7] = {
 // .d2s class id (AM SO NE PA BA DZ AS) -> our visual-order index
 // (BA NE PA AM SO DZ AS, see kClassKey).
 constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
+constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
 
 // D2's frontend records store (x, y, w, h) with y = the BOTTOM row
 // (bottom-left anchor, like its DC6 blits): the full-screen BG record is
@@ -471,6 +477,9 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 struct CharCreateUI {
     std::array<ClassUI, 7> classes{};
     int selected = -1;           // index of currently-selected class or -1
+    // Gear the in-game character wears: a loaded save's appearance bytes,
+    // or unset for a fresh character (starting gear).
+    std::optional<std::array<std::uint8_t, 16>> appearance;
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -536,41 +545,55 @@ std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
 // the same members without repeating field types.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 
-// One class's town-neutral composite: the COF plus every LIT layer DCC it
-// names. Missing layers (weapon/shield) stay empty and are skipped at draw.
-Scene::PlayerAnim load_player(const d2d::mpq::Stack& mpqs, int class_idx) {
-    // Class → CHARS folder + weapon class (Assassin lives under folder
-    // "AI", the dev codename). Starting-weapon classes: Barb/Necro/Sorc/
-    // Druid/Assassin = HTH bare-hand; Paladin = 1HS; Amazon = 1HT.
-    struct C { const char* folder; const char* wpn; };
-    constexpr C cs[7] = {
-        {"BA", "HTH"}, {"NE", "HTH"}, {"PA", "1HS"},
-        {"AM", "1HT"}, {"SO", "HTH"}, {"DZ", "HTH"},
-        {"AI", "HTH"},
-    };
-    constexpr const char* kLayer[16] = {
-        "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
-        "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
-    };
-    const auto& c = cs[class_idx];
+// Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
+// dev codename), D2 mode ids we use, and layer names by COF type.
+constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
+constexpr int kModeNU = 1, kModeTN = 5;
+constexpr const char* kModeCode[6] = { "DT", "NU", "WL", "RN", "GH", "TN" };
+constexpr const char* kLayerCode[16] = {
+    "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
+    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
+};
+
+// Load one composite: COF <CC><mode><wclass>, then per COF layer the DCC
+// <CC><LY><component><mode><layer wclass>. The weapon class comes from
+// the hand/shield bytes (compcode::weapon_class, falling back to hth when
+// D2 would reject the combination). Empty body layers wear "lit" (a bare
+// head under a circlet, say); empty RH/LH/SH draw nothing.
+// ponytail: tints (appearance+16) and the dead-hardcore ghost aren't
+// applied yet; add the item colormaps when a portrait's colours matter.
+Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
+                                 const std::vector<d2d::compcode::Entry>& comp,
+                                 int cls, int mode, const Scene::Appearance& gfx) {
     Scene::PlayerAnim out;
+    const char* cc = kCharCode[cls];
+    std::string wc(comp.empty() ? std::string_view{}
+                                : d2d::compcode::weapon_class(cls, comp, gfx[5], gfx[6], gfx[7]));
     char path[256];
-    std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\COF\%sTN%s.cof)",
-                  c.folder, c.folder, c.wpn);
+    auto cof_path = [&](std::string_view w) {
+        std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\COF\%s%s%.*s.cof)",
+                      cc, cc, kModeCode[mode], int(w.size()), w.data());
+        return mpqs.try_read(path);
+    };
+    auto cof = cof_path(wc.empty() ? "hth" : wc);
+    if (!cof) cof = cof_path("hth");
+    if (!cof) return out;
     try {
-        auto cof = mpqs.try_read(path);
-        if (!cof) return out;
         out.cof = d2d::cof::Cof(*cof);
         for (const auto& L : out.cof.layer_defs()) {
             if (L.type >= 16) continue;
-            std::string wc = L.weapon_class;
-            for (auto& ch : wc) ch = char(std::toupper(ch));
-            // <CC>\<LY>\<CC><LY>LIT<mode><wclass>.dcc
-            std::snprintf(path, sizeof(path),
-                R"(data\global\CHARS\%s\%s\%s%sLITTN%s.dcc)",
-                c.folder, kLayer[L.type], c.folder, kLayer[L.type], wc.c_str());
-            if (auto b = mpqs.try_read(path))
-                out.layers[L.type] = d2d::dcc::Sprite(*b);
+            const auto b = gfx[L.type];
+            std::string code = (b != 0 && b != 0xff && b < comp.size()) ? comp[b].code : "";
+            if (code.empty()) {
+                if (L.type >= 5 && L.type <= 7) continue;   // empty hand / no shield
+                code = "lit";
+            }
+            std::string lw = L.weapon_class;
+            for (auto* t : { &code, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
+            std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%s%s%s%s.dcc)",
+                          cc, kLayerCode[L.type], cc, kLayerCode[L.type], code.c_str(),
+                          kModeCode[mode], lw.c_str());
+            if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
         }
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[d2d] %s: %s\n", path, e.what());
@@ -578,11 +601,52 @@ Scene::PlayerAnim load_player(const d2d::mpq::Stack& mpqs, int class_idx) {
     return out;
 }
 
-const Scene::PlayerAnim& Scene::player_anim(int class_idx) const {
-    auto& slot = player[std::size_t(class_idx)];
-    if (!slot) slot = load_player(mpqs, class_idx);
-    return *slot;
+const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appearance& gfx) const {
+    std::array<std::uint8_t, 18> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
+    std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
+    auto it = composites.find(key);
+    if (it == composites.end())
+        it = composites.emplace(key, load_composite(mpqs, comp, d2s_class, mode, gfx)).first;
+    return it->second;
 }
+
+// Excel tables + the derived composite data: the component table and each
+// class's starting-gear appearance (CharStats.txt item1..: "rarm" item in
+// the right hand, a "larm" shield on the shield layer; body parts "lit").
+void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
+    auto txt = [&](const char* n) {
+        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
+        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    };
+    const auto types = txt("ItemTypes"), weapons = txt("weapons"), armor = txt("armor"),
+               misc = txt("misc"), charstats = txt("CharStats");
+    if (types.size() == 0 || weapons.size() == 0) return;
+    scene.comp = d2d::compcode::build(types, weapons, armor, misc);
+    auto index_of = [&](std::string_view code) {
+        for (std::size_t i = 1; i < scene.comp.size(); ++i)
+            if (scene.comp[i].code == code) return std::uint8_t(i);
+        return std::uint8_t(0xff);
+    };
+    for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
+        auto& g = scene.starting_gear[c];
+        g.fill(0xff);
+        for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit
+        for (int i = 1; i <= 10; ++i) {
+            const auto item = charstats.get(c, "item" + std::to_string(i));
+            const auto loc  = charstats.get(c, "item" + std::to_string(i) + "loc");
+            const auto idx  = index_of(item);
+            if (idx == 0xff) continue;
+            if (loc == "rarm") g[5] = idx;
+            else if (loc == "larm") g[scene.comp[idx].armor ? 7 : 6] = idx;
+        }
+    }
+}
+
+// Draws a composite frame, feet at the anchor (defined with the other
+// DCC blitters below).
+void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+                    const d2d::palette::Palette& pal, int dir_want,
+                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 
 // Headers of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
@@ -733,6 +797,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         // placeholder when world is empty.
         load_world(scene, mpqs,
                    R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
+        load_composite_data(scene, mpqs);
         scene.mpqs = std::move(mpqs);
         return scene;
     } catch (const std::exception& e) {
@@ -937,7 +1002,7 @@ int charselect_slot_at(int x, int y) {
 void render_charselect(std::vector<std::uint8_t>& fb,
                        const Scene& s,
                        const CharSelectUI& ui,
-                       std::uint32_t /*elapsed_ms*/) {
+                       std::uint32_t elapsed_ms) {
     const auto& pal = s.pal;   // char-select shares the Sky palette
     blit_dc6_grid(fb, s.charselect_bg, pal, 0, 0, s.bg_tiles_across);
 
@@ -959,6 +1024,16 @@ void render_charselect(std::vector<std::uint8_t>& fb,
         // portrait. [title] name in red (hardcore) or gold, "Level N Class"
         // in white, then "EXPANSION CHARACTER" in green for LoD chars.
         const auto& h = s.saves[std::size_t(si)];
+        // Portrait: the character's own composite (FUN_00438ad0 builds it
+        // from the save's appearance bytes; FUN_004380f0 parks it at slot
+        // x + 30, slot bottom - 13). Town-neutral, or NU for a living
+        // LoD hardcore character. Direction 0 (FUN_005051a0(anim, 0)).
+        // ponytail: dead hardcore should use the ghost class (8/9).
+        {
+            const bool nu = h.hardcore() && !h.died() && (h.expansion() || h.cls < 5);
+            draw_composite(fb, s.composite(h.cls, nu ? kModeNU : kModeTN, h.appearance),
+                           pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
+        }
         const int ci = kSaveClassToUi[h.cls];
         std::string cls = kClassKey[ci];
         if (auto v = lookup_string(s, kClassKey[ci])) cls = u16_to_latin1(*v);
@@ -1337,41 +1412,34 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
     }
 }
 
-// Render the picked class's town-idle composite at the camera-center tile:
-// every loaded body layer, in the COF's per-(direction, frame) draw order.
+// Draw a composite's current frame with its feet at (anchor_x, anchor_y):
+// every loaded layer, in the COF's per-(direction, frame) draw order.
 // Frame time from the COF speed byte: D2 advances speed/256 frames per
-// 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 → 128 ms).
+// 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 -> 128 ms).
 // ponytail: COF speed as the rate; AnimData.d2 is authoritative — read it
 // when an animation visibly runs at the wrong pace. No shadow, no
 // transparent-layer draw effects yet (no TN layer sets `transparent`).
-void render_player_at_camera(std::vector<std::uint8_t>& fb,
-                             const Scene& s,
-                             int class_idx,
-                             std::uint32_t elapsed_ms) {
-    const auto& p = s.player_anim(class_idx);
+void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+                    const d2d::palette::Palette& pal, int dir_want,
+                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y) {
     const auto dirs = p.cof.directions();
     const auto fpd  = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return;
-    // Direction 4 of 16 = SW (facing screen).
-    const auto dir = std::uint8_t(std::min(4, dirs - 1));
+    const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
     const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.cof.speed(), 1);
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
-    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-    // Camera-center cell top-corner projects to screen center; the
-    // character's feet plant at the diamond bottom center, which is
-    // (kW/2, kH/2 + kIsoH/2).
     for (const auto type : p.cof.priority(dir, frame)) {
         if (type >= p.layers.size()) continue;
         const auto& spr = p.layers[type];
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        blit_dcc_frame(fb, spr.frame(dir, frame), pal,
-                       int(kW) / 2, int(kH) / 2 + kIsoH / 2);
+        blit_dcc_frame(fb, spr.frame(dir, frame), pal, anchor_x, anchor_y);
     }
 }
 
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
+                   const Scene::Appearance& gfx,
                    std::string_view name,
                    bool hardcore,
                    int camera_cx,
@@ -1389,12 +1457,15 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
         set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
         render_world(fb, s, camera_cx, camera_cy);
-        // Player sprite sits on top of the floor. Follows the class
-        // picked on char-create; falls through silently for classes
-        // whose DCC didn't load.
+        // Player on top of the floor, feet at the camera-centre cell's
+        // diamond bottom (kW/2, kH/2 + kIsoH/2), facing the viewer
+        // (direction 4 of 16 = south). Wears the loaded save's gear, or
+        // the class's starting gear for a fresh character.
         if (class_idx >= 0 && class_idx < 7) {
             set_phase(MainPhase::IngamePlayer);
-            render_player_at_camera(fb, s, class_idx, elapsed_ms);
+            const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+            draw_composite(fb, s.composite(kUiToSaveClass[class_idx], kModeTN, gfx), pal, 4,
+                           elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
         }
         set_phase(MainPhase::IngameHudText);
     } else {
@@ -2156,6 +2227,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.selected   = kSaveClassToUi[h.cls];
                     cc.input_name = h.name;
                     cc.hardcore   = h.hardcore();
+                    cc.appearance = h.appearance;
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -2203,12 +2275,16 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (camera_cx >= mw) camera_cx = mw - 1;
                     if (camera_cy >= mh) camera_cy = mh - 1;
                 }
-                render_ingame(fb, *scene, std::max(cc.selected, 0),
+                const int ui_cls = std::max(cc.selected, 0);
+                render_ingame(fb, *scene, ui_cls,
+                              cc.appearance ? *cc.appearance
+                                            : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
                               camera_cx, camera_cy, ms);
                 break;
             }
             case Screen::CharCreate: {
+                cc.appearance.reset();   // a new character wears starting gear
                 // Text input into the name buffer (15-char cap = D2's
                 // character-record name limit).
                 if (!text_this_frame.empty()) {
