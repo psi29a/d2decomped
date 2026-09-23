@@ -81,13 +81,9 @@ try:
     frames()
 
     st = state()
-    assert st["screen"] == "charselect" and st["save"] == "-1"
+    assert st["screen"] == "charselect" and st["save"] == "0"   # LoD preselects 0
     n = int(st["saves"])
     assert n == (len([f for f in os.listdir(saves) if f.endswith(".d2s")]))
-
-    cmd("click 690 555")              # OK with nothing picked: stays put
-    frames()
-    assert state()["screen"] == "charselect"
 
     # Scrolling: one step = one row = 2 saves, clamped to the last row.
     max_scroll = max(0, (n + 1) // 2 * 2 - 8)

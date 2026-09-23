@@ -246,7 +246,6 @@ struct Scene {
     // composite pattern). BG is 12-frame 4×3 grid of ≤256×256 tiles.
     d2d::dc6::Sprite      charselect_bg;      // characterselectscreenEXP.dc6
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
-    d2d::dc6::Sprite      charselect_boxgrey; // charselectboxgrey.dc6 (empty slot)
     d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
     // In-game player — town-neutral (TN) idle, LIT armor tier, per class.
@@ -658,7 +657,6 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
             .clickbox          = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)")),
             .charselect_bg     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\characterselectscreenEXP.dc6)")),
             .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
-            .charselect_boxgrey = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectboxgrey.dc6)")),
             .charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)")),
             .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
             .class_anims = [&] {
@@ -858,7 +856,7 @@ void render_title(std::vector<std::uint8_t>& fb,
 
 // Character-select screen — RE FUN_004359d0 (init) + FUN_0042ef50 (BG draw).
 // LoD layout: characterselectscreenEXP as BG, 2 columns × 4 rows of
-// character slots (charselectbox / charselectboxgrey — 272x93 assembled).
+// character slots; one gold charselectbox (272x93 assembled) marks the pick.
 // Four buttons: CREATE / DELETE (TallButtonBlank, record bottom y=528) and
 // OK / EXIT (MediumButtonBlank, bottom y=572). Char-create's OK/EXIT sit at
 // the same spot but use MediumSelButtonBlank (handle 0x779744), which is
@@ -902,11 +900,13 @@ void render_charselect(std::vector<std::uint8_t>& fb,
 
     for (int i = 0; i < kSlots; ++i) {
         const int x = kSlotX[i % 2], y = kSlotY[i / 2];
+        // LoD draws ONE frame: the gold charselectbox (record 0x96) moved
+        // onto the selected slot while it's on screen (FUN_004390a0). The
+        // grey box is classic-only (record 0x97, FUN_0043b080).
         // Two-frame composite: main 256-wide half + 16-wide sliver.
-        // Selected slot gets the filled box, the rest the grey one.
         const int si = ui.scroll + i;   // save index shown in this slot
-        const auto& box = si == ui.selected ? s.charselect_box : s.charselect_boxgrey;
-        if (box.frames_per_direction() >= 2) {
+        const auto& box = s.charselect_box;
+        if (si == ui.selected && box.frames_per_direction() >= 2) {
             blit_sprite(fb, box.frame(0, 0), pal, x,       y);
             blit_sprite(fb, box.frame(0, 1), pal, x + 256, y);
         }
@@ -1897,6 +1897,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // char-create's bottom row per RE'd char-select master table at
     // 0x70ac00..0x70ae40). Positions verbatim from RE'd records.
     CharSelectUI csu;
+    // LoD init (FUN_0043ae30) starts the selection at 0: first character
+    // preselected, OK live straight away.
+    if (scene && !scene->saves.empty()) csu.selected = 0;
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {
             if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
