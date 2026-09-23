@@ -35,11 +35,12 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
+| `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
 | `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x,y walking=… dir=… saves=…\nok` | Loop state for scripted asserts. |
 
-Future verbs (as the engine grows): `key <name>`, `load <act>/<level>`, etc.
+Future verbs (as the engine grows): `load <act>/<level>`, etc.
 
 ## Enabling
 

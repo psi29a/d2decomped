@@ -1218,6 +1218,7 @@ struct CharSelectUI {
     std::string ok_label;
     int selected = -1;           // index into Scene::saves, or -1
     int scroll = 0;              // index of the save in slot 0; always even
+    std::uint32_t last_click_ms = 0;   // double-click = OK (FUN_0043a9d0)
 };
 
 // Largest valid CharSelectUI::scroll for `n` saves: last row at the bottom.
@@ -2235,7 +2236,7 @@ TitleUI title_ui(const Scene& s) {
 // active screen has a text field, the caller flips SDL text input on/off.
 void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,
-                       std::atomic<bool>& quit) {
+                       std::vector<SDL_Keycode>& keys, std::atomic<bool>& quit) {
     // SDL_EVENT_QUIT fires on app-level termination (Cmd-Q, all windows
     // closed). WINDOW_CLOSE_REQUESTED fires when a specific window's ✕
     // is clicked — SDL3 does NOT auto-promote it to QUIT. Both mean
@@ -2265,6 +2266,8 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             }
         } else if (ev.key.key == SDLK_BACKSPACE) {
             text_backspace = true;
+        } else {
+            keys.push_back(ev.key.key);   // per-screen key handling
         }
     } else if (ev.type == SDL_EVENT_TEXT_INPUT) {
         // ev.text.text is UTF-8; keep the printable Latin-1 subset.
@@ -2516,6 +2519,20 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return std::string("ok\n");
     });
+    ch.on("key", [&](const std::vector<std::string>& args) {
+        if (args.size() < 2) return std::string("err key <name>\n");
+        const SDL_Keycode k = SDL_GetKeyFromName(args[1].c_str());
+        if (k == SDLK_UNKNOWN) return std::string("err unknown key\n");
+        for (auto type : { SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP }) {
+            SDL_Event ev{};
+            ev.key.type = type;
+            ev.key.windowID = SDL_GetWindowID(win.w);
+            ev.key.key = k;
+            ev.key.down = type == SDL_EVENT_KEY_DOWN;
+            SDL_PushEvent(&ev);
+        }
+        return std::string("ok\n");
+    });
     ch.on("move", [&](const std::vector<std::string>& args) {
         if (args.size() < 3) return std::string("err move <x> <y>\n");
         float x = 0, y = 0;
@@ -2571,6 +2588,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         mouse.wheel = 0;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
+        std::vector<SDL_Keycode> keys_this_frame;
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
         SDL_Event ev;
@@ -2579,7 +2597,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             // convert so the mouse lands in 800x600 game pixels.
             SDL_ConvertEventToRenderCoordinates(win.r, &ev);
             handle_sdl_events(ev, mouse, screen, text_this_frame,
-                              backspace_this_frame, quit);
+                              backspace_this_frame, keys_this_frame, quit);
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
@@ -2603,10 +2621,16 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 const int n = int(scene->saves.size());
                 const int max_scroll = charselect_max_scroll(n);
                 int rows = -mouse.wheel;   // wheel up = scroll toward the top
+                bool play = false;
                 if (mouse.press_this_frame) {
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
-                    if (slot >= 0 && csu.scroll + slot < n)
+                    if (slot >= 0 && csu.scroll + slot < n) {
+                        // A second press on the same character within
+                        // 500 ms plays it, like OK (FUN_0043a9d0).
+                        play = csu.selected == csu.scroll + slot && ms - csu.last_click_ms < 500;
                         csu.selected = csu.scroll + slot;
+                        csu.last_click_ms = ms;
+                    }
                     // Scrollbar arrows (only live while the bar is shown).
                     if (max_scroll > 0 && mouse.x >= kScrollX
                         && mouse.x < kScrollX + 12) {
@@ -2617,11 +2641,31 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     }
                 }
                 csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
+                // Keyboard, as LoD's FUN_00439e90: Home/End jump to the
+                // ends, Left/Right only move within the row (2 columns),
+                // Up/Down a whole row; the list scrolls to keep the pick
+                // on screen. Enter plays it.
+                for (const auto k : keys_this_frame) {
+                    if (n == 0) break;
+                    int& sel = csu.selected;
+                    if (sel < 0) sel = 0;
+                    else if (k == SDLK_HOME)                       sel = 0;
+                    else if (k == SDLK_END)                        sel = n - 1;
+                    else if (k == SDLK_LEFT  && sel % 2 == 1)      sel -= 1;
+                    else if (k == SDLK_RIGHT && sel % 2 == 0 && sel + 1 < n) sel += 1;
+                    else if (k == SDLK_UP    && sel >= 2)          sel -= 2;
+                    else if (k == SDLK_DOWN  && sel + 2 < n)       sel += 2;
+                    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) play = true;
+                    const int row0 = sel / 2 * 2;
+                    if (row0 < csu.scroll) csu.scroll = row0;
+                    if (row0 > csu.scroll + kSlots - 2) csu.scroll = row0 - (kSlots - 2);
+                }
                 // OK only enters the game with a save picked.
                 csu.ok_btn.do_switch = csu.selected >= 0;
                 for (Button* b : {&csu.create_btn, &csu.convert_btn, &csu.delete_btn,
                                   &csu.cancel_btn, &csu.ok_btn})
                     update_button(*b, mouse, screen, quit);
+                if (play && csu.selected >= 0 && csu.selected < n) screen = Screen::InGame;
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
                     const auto& h = scene->saves[std::size_t(csu.selected)];

@@ -81,5 +81,12 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   (y-h)+9 (90..103), thumb at `(h-30)*pos/max - h + 19 + y`.
 
 ## Not yet RE'd
-- Keyboard navigation (`FUN_00439e90`, `FUN_0043a0d0`, `FUN_0043a9d0`
-  read the offset/selection).
+## Input
+
+- `FUN_00439e90` (LoD keys; `FUN_0043a0d0` is the one-column classic
+  variant): VK 0x24 Home → first, 0x23 End → last (scroll to the end),
+  0x25 Left only from the right column, 0x27 Right only from the left
+  column, 0x26/0x28 Up/Down by a row (±2); the offset follows the pick.
+- `FUN_0043a9d0` (slot click): selection = offset + slot; a second
+  0x201 press on the same character within 500 ms (GetTickCount) calls
+  `FUN_00439840` — OK, i.e. double-click plays.

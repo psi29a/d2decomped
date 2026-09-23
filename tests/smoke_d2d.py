@@ -104,7 +104,26 @@ try:
     frames()
     assert state()["save"] == "0"
 
+    # Keyboard, as LoD: Left/Right stay in the row, Up/Down move a row,
+    # End/Home jump and scroll to keep the pick visible.
+    for key, want in (("Left", "0"), ("Right", "1"), ("Right", "1"), ("Down", "3"),
+                      ("Up", "1"), ("Home", "0")):
+        cmd(f"key {key}"); frames(3)
+        assert state()["save"] == want, (key, state())
+    if n > 8:
+        cmd("key End"); frames(3)
+        st = state()
+        assert st["save"] == str(n - 1) and st["scroll"] == str(max_scroll)
+        cmd("key Home"); frames(3)
+        assert state()["save"] == "0" and state()["scroll"] == "0"
+
     cmd("click 690 555")              # OK -> InGame as that save
+    frames()
+    assert state()["screen"] == "ingame"
+    cmd("key Escape")                 # back to the roster
+    frames()
+    assert state()["screen"] == "charselect"
+    cmd("click 142 120"); frames(2); cmd("click 142 120")   # double-click plays
     frames()
     st = state()
     assert st["screen"] == "ingame"
