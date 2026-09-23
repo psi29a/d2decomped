@@ -237,6 +237,7 @@ struct Scene {
     // Character-creation screen (loaded by FUN_004326f0). SP button hops here.
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
+    d2d::dc6::Sprite      medium_button;      // MediumButtonBlank.dc6 — char-select OK/EXIT (handle 0x77973c, Sky palette)
     d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
     d2d::dc6::Sprite      textbox;            // textbox.dc6 — name-entry chrome (single 169×26 frame)
     d2d::dc6::Sprite      clickbox;           // clickbox.dc6 — Hardcore checkbox chrome (2 frames × 15×16, unchecked/checked)
@@ -651,6 +652,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
                 return d2d::dc6::Sprite(*b);
             }(),
             .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
+            .medium_button     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)")),
             .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
             .textbox           = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)")),
             .clickbox          = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)")),
@@ -857,13 +859,13 @@ void render_title(std::vector<std::uint8_t>& fb,
 // Character-select screen — RE FUN_004359d0 (init) + FUN_0042ef50 (BG draw).
 // LoD layout: characterselectscreenEXP as BG, 2 columns × 4 rows of
 // character slots (charselectbox / charselectboxgrey — 272x93 assembled).
-// Four buttons: CREATE / DELETE (TallButtonBlank chrome, top row at y=528)
-// and OK / EXIT (MediumSelButtonBlank, bottom row at y=572 shared with
-// char-create per char-create-table.md).
+// Four buttons: CREATE / DELETE (TallButtonBlank, record bottom y=528) and
+// OK / EXIT (MediumButtonBlank, bottom y=572). Char-create's OK/EXIT sit at
+// the same spot but use MediumSelButtonBlank (handle 0x779744), which is
+// authored for the fechar palette — on this Sky screen it speckles.
 //
-// MVP: we have no persisted characters yet, so every slot renders as the
-// empty (grey) variant and OK stays disabled until you actually make a
-// character. CREATE hops to CharCreate. DELETE and OK are no-ops for now.
+// Slots list <user dir>/save/*.d2s; OK enters InGame once one is picked.
+// CREATE hops to CharCreate. DELETE is a no-op for now.
 struct CharSelectUI {
     Button create_btn{};
     Button delete_btn{};
@@ -948,7 +950,7 @@ void render_charselect(std::vector<std::uint8_t>& fb,
     }
 
     // Buttons. TallButtonBlank is single-piece 168x60 (frames 0/1 for
-    // normal/pressed); MediumSelButtonBlank uses blit_button_chrome.
+    // normal/pressed); the medium OK/EXIT chrome uses blit_button_chrome.
     auto draw_tall = [&](const Button& b, bool /*disabled*/=false) {
         if (!b.chrome) return;
         const auto& fr = b.chrome->frame(0, b.hovered && b.pressed ? 1 : 0);
@@ -973,8 +975,9 @@ void render_charselect(std::vector<std::uint8_t>& fb,
             const int lh = s.font.line_height();
             const int lx = b->x + (b->w - lw) / 2;
             const int ly = b->y + (b->h - lh) / 2;
-            // OK is grey — we have no character to play.
-            if (b == &ui.ok_btn)
+            // OK greys out until a save is picked (do_switch is gated
+            // on that each frame, before this draw).
+            if (b == &ui.ok_btn && !b->do_switch)
                 s.font.draw_tinted(fb, kW, kH, pal, lx, ly, b->label, 96, 96, 96);
             else
                 s.font.draw(fb, kW, kH, pal, lx, ly, b->label);
@@ -1910,10 +1913,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                  &scene->tall_button,
                                  Screen::CharSelect, /*do_switch=*/false };
         csu.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, csu.cancel_label.c_str(),
-                                 &scene->medium_sel_button,
+                                 &scene->medium_button,
                                  Screen::Title, /*do_switch=*/true };
         csu.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, csu.ok_label.c_str(),
-                                 &scene->medium_sel_button,
+                                 &scene->medium_button,
                                  Screen::InGame, /*do_switch=*/false };
     }
 
