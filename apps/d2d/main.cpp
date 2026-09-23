@@ -28,6 +28,8 @@
 #include <txt.hpp>
 #include <userdir.hpp>
 
+#include "obj_preset.hpp"
+
 #include <SDL3/SDL.h>
 #include <CLI/CLI.hpp>
 #include <csignal>
@@ -330,17 +332,20 @@ struct Scene {
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
     // 0x08 blocks player walking (DT1 subtile flag bits).
     std::vector<std::uint8_t> world_walk;
-    // Town NPCs placed by the DS1 (type-1 objects): monster token, world
-    // position in cells, and the MonStats2 composite recipe.
+    // Things the DS1 places (its object list): NPCs (type 1, from
+    // data\global\monsters) and objects (type 2 — torches, fires, the
+    // waypoint..., from data\global\objects). Both are composites.
     struct Npc {
-        std::string code;                    // data\global\monsters\<code>\ ...
-        std::string base_w;                  // MonStats2 BaseW (weapon class)
+        std::string root;                    // "monsters" or "objects"
+        std::string code;                    // <root>\<code>\ ...
+        std::string mode;                    // animation mode token (NU, ON...)
+        std::string base_w;                  // weapon class ("hth" for objects)
         std::array<std::string, 16> comp;    // per layer, "" = not present
         float x = 0, y = 0;
     };
     std::vector<Npc> world_npcs;
-    mutable std::map<std::string, PlayerAnim> npc_anims;   // by code + mode
-    const PlayerAnim& npc_anim(const Npc& n, int mode) const;
+    mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
+    const PlayerAnim& npc_anim(const Npc& n) const;
     [[nodiscard]] bool blocked(float x, float y) const {
         const int w = world_ds1.width() * 5, h = world_ds1.height() * 5;
         const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
@@ -668,14 +673,14 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
     return it->second;
 }
 
-// Load an NPC composite: COF monsters\<code>\COF\<code><mode><BaseW>,
-// then per COF layer monsters\<code>\<LY>\<code><LY><comp><mode><wclass>
-// with the MonStats2 variant for that layer ("lit" when blank).
-Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n, int mode) {
+// Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><BaseW>,
+// then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
+// with the recipe's component for that layer ("lit" when blank).
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n) {
     Scene::PlayerAnim out;
     char path[256];
-    std::snprintf(path, sizeof(path), R"(data\global\monsters\%s\COF\%s%s%s.cof)",
-                  n.code.c_str(), n.code.c_str(), kModeCode[mode], n.base_w.c_str());
+    std::snprintf(path, sizeof(path), R"(data\global\%s\%s\COF\%s%s%s.cof)",
+                  n.root.c_str(), n.code.c_str(), n.code.c_str(), n.mode.c_str(), n.base_w.c_str());
     auto cof = mpqs.try_read(path);
     if (!cof) return out;
     try {
@@ -685,9 +690,9 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::N
             std::string comp = n.comp[L.type].empty() ? "lit" : n.comp[L.type];
             std::string lw = L.weapon_class;
             for (auto* t : { &comp, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
-            std::snprintf(path, sizeof(path), R"(data\global\monsters\%s\%s\%s%s%s%s%s.dcc)",
-                          n.code.c_str(), kLayerCode[L.type], n.code.c_str(), kLayerCode[L.type],
-                          comp.c_str(), kModeCode[mode], lw.c_str());
+            std::snprintf(path, sizeof(path), R"(data\global\%s\%s\%s\%s%s%s%s%s.dcc)",
+                          n.root.c_str(), n.code.c_str(), kLayerCode[L.type], n.code.c_str(),
+                          kLayerCode[L.type], comp.c_str(), n.mode.c_str(), lw.c_str());
             if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
         }
     } catch (const std::exception& e) {
@@ -696,10 +701,10 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::N
     return out;
 }
 
-const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, int mode) const {
-    const auto key = n.code + kModeCode[mode];
+const Scene::PlayerAnim& Scene::npc_anim(const Npc& n) const {
+    const auto key = n.root + "/" + n.code + "/" + n.mode;
     auto it = npc_anims.find(key);
-    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n, mode)).first;
+    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n)).first;
     return it->second;
 }
 
@@ -731,6 +736,8 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         const auto it = ms2_row.find(place);
         if (it == ms2_row.end()) continue;           // place_* markers etc.
         Scene::Npc n;
+        n.root   = "monsters";
+        n.mode   = "NU";
         n.code   = std::string(ms.get(it->second, "Code"));
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
         if (n.code.empty()) continue;
@@ -741,6 +748,34 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
             const auto first = v.substr(0, v.find(','));
             n.comp[l] = first.empty() ? "lit" : std::string(first);
         }
+        n.x = (float(o.x) + 0.5f) / 5;
+        n.y = (float(o.y) + 0.5f) / 5;
+        scene.world_npcs.push_back(std::move(n));
+    }
+
+    // Type-2 objects: id -> objects.txt Id through game.exe's own preset
+    // table (obj_preset.hpp), then that row's Token and layer flags. Start
+    // mode: ON for things with a light in ON (torches, fires, the camp
+    // waypoint), else NU. ponytail: D2 sets it per object in its InitFn.
+    const auto objects = txt("objects");
+    std::unordered_map<std::string, std::size_t> obj_row;
+    for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
+    for (const auto& o : scene.world_ds1.objects()) {
+        if (o.type != 2 || o.id < 0 || o.id >= 150) continue;
+        const int oid = kObjPreset[0][std::size_t(o.id)];    // act 1
+        const auto it = obj_row.find(std::to_string(oid));
+        if (oid == 0 || it == obj_row.end()) continue;
+        const auto r = it->second;
+        Scene::Npc n;
+        n.root   = "objects";
+        n.code   = std::string(objects.get(r, "Token"));
+        n.base_w = "hth";
+        const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
+                     && objects.get(r, "Lit2") != "0";
+        n.mode   = on ? "ON" : "NU";
+        for (std::size_t l = 0; l < 16; ++l)
+            if (objects.get(r, kLayerCode[l]) == "1") n.comp[l] = "lit";
+        if (n.code.empty()) continue;
         n.x = (float(o.x) + 0.5f) / 5;
         n.y = (float(o.y) + 0.5f) / 5;
         scene.world_npcs.push_back(std::move(n));
@@ -1699,10 +1734,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (class_idx >= 0 && class_idx < 7)
             units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
                               player_dir });
-        // NPCs idle in NU, facing south-west (direction 0) for now.
+        // NPCs and objects, facing south-west (direction 0) for now.
         for (const auto& n : s.world_npcs)
             if (std::abs(n.x - cam_x) < 14 && std::abs(n.y - cam_y) < 14)
-                units.push_back({ n.x, n.y, &s.npc_anim(n, kModeNU), 0 });
+                units.push_back({ n.x, n.y, &s.npc_anim(n), 0 });
         render_world(fb, s, cam_x, cam_y, elapsed_ms, units);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
