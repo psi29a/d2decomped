@@ -44,6 +44,7 @@
 #include <filesystem>
 #include <map>
 #include <fstream>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -1364,7 +1365,8 @@ inline void set_phase(MainPhase p) {
 // tilesets.
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
-                  float cam_x, float cam_y) {
+                  float cam_x, float cam_y,
+                  const std::function<void()>& draw_units = {}) {
     const auto& m = s.world_ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -1450,8 +1452,20 @@ void render_world(std::vector<std::uint8_t>& fb,
     // per-type math here. Roofs (type 15) get a small extra vertical
     // hoist from the DS1 orientation dword's upper 24 bits when
     // present — for MVP we use the DT1's per-tile roof_height instead.
-    for (int dy = -kR; dy <= kR; ++dy) {
-        for (int dx = -kR; dx <= kR; ++dx) {
+    //
+    // Walls go back to front by iso depth (gx + gy, one diagonal at a
+    // time), and units — for now just the player at the camera point —
+    // are drawn once their own cell's diagonal is done: a tent north of
+    // the player stays behind them, one south of them covers them.
+    // ponytail: cell-granular; D2 sorts units and walls by subtile and
+    // wall orientation, which matters once units stand inside a cell's
+    // wall line.
+    const int unit_diag = (int(std::floor(cam_x)) - base_x) + (int(std::floor(cam_y)) - base_y);
+    bool units_drawn = !draw_units;
+    for (int diag = -2 * kR; diag <= 2 * kR; ++diag) {
+        if (!units_drawn && diag > unit_diag) { draw_units(); units_drawn = true; }
+        for (int dx = std::max(-kR, diag - kR); dx <= std::min(kR, diag + kR); ++dx) {
+            const int dy = diag - dx;
             const int gx = base_x + dx;
             const int gy = base_y + dy;
             if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
@@ -1479,6 +1493,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             }
         }
     }
+    if (!units_drawn) draw_units();
 }
 
 // In-game placeholder — a hero has been created; we don't have the actual
@@ -1556,16 +1571,18 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
         set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
-        render_world(fb, s, cam_x, cam_y);
-        // Player on top of the floor: the camera follows them, so their
-        // feet sit on the camera point (kW/2, kH/2 + kIsoH/2). Wears the
-        // loaded save's gear, or the class's starting gear.
-        if (class_idx >= 0 && class_idx < 7) {
+        // Player: the camera follows them, so their feet sit on the camera
+        // point (kW/2, kH/2 + kIsoH/2); render_world slots them into the
+        // wall pass by depth. Wears the loaded save's gear, or the
+        // class's starting gear.
+        render_world(fb, s, cam_x, cam_y, [&] {
+            if (class_idx < 0 || class_idx >= 7) return;
             set_phase(MainPhase::IngamePlayer);
             const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
             draw_composite(fb, s.composite(kUiToSaveClass[class_idx], player_mode, gfx), pal,
                            player_dir, elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
-        }
+            set_phase(MainPhase::IngameWalls);
+        });
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -1615,7 +1632,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     }
 
     constexpr const char* hint =
-        "d2d dev build — click to walk; objects, NPCs + draw order are next";
+        "d2d dev build — click to walk; objects + NPCs are next";
     const int hw = s.font.measure(hint);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
     constexpr const char* esc = "press Esc to return to title";
