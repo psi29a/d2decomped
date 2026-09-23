@@ -278,7 +278,12 @@ struct Scene {
     struct PlayerAnim {
         d2d::cof::Cof                     cof;
         std::array<d2d::dcc::Sprite, 16>  layers;
+        std::string                       name;       // COF base name, e.g. "AITW1HS"
+        std::uint32_t                     speed = 0;  // animdata.d2 rate (256 = a frame per tick)
     };
+    // data\global\animdata.d2: COF name -> animation speed. The game's
+    // rate source; COFs of walk/run modes store 0.
+    std::unordered_map<std::string, std::uint32_t> anim_speed;
     using Appearance = std::array<std::uint8_t, 16>;
     std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
     std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
@@ -771,6 +776,9 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
     if (!cof) return out;
     try {
         out.cof = d2d::cof::Cof(*cof);
+        const std::string_view pv(path);
+        out.name = std::string(pv.substr(pv.rfind('\\') + 1, pv.rfind('.') - pv.rfind('\\') - 1));
+        for (auto& ch : out.name) ch = char(std::toupper(ch));
         for (const auto& L : out.cof.layer_defs()) {
             if (L.type >= 16) continue;
             const auto b = gfx[L.type];
@@ -796,8 +804,10 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
     std::array<std::uint8_t, 18> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
     std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
     auto it = composites.find(key);
-    if (it == composites.end())
+    if (it == composites.end()) {
         it = composites.emplace(key, load_composite(mpqs, comp, d2s_class, mode, gfx)).first;
+        if (const auto a = anim_speed.find(it->second.name); a != anim_speed.end()) it->second.speed = a->second;
+    }
     return it->second;
 }
 
@@ -814,6 +824,9 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::N
     if (!cof) return out;
     try {
         out.cof = d2d::cof::Cof(*cof);
+        const std::string_view pv(path);
+        out.name = std::string(pv.substr(pv.rfind('\\') + 1, pv.rfind('.') - pv.rfind('\\') - 1));
+        for (auto& ch : out.name) ch = char(std::toupper(ch));
         for (const auto& L : out.cof.layer_defs()) {
             if (L.type >= 16) continue;
             std::string comp = n.comp[L.type].empty() ? "lit" : n.comp[L.type];
@@ -834,7 +847,10 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
     const std::string m(mode);
     const auto key = n.root + "/" + n.code + "/" + m;
     auto it = npc_anims.find(key);
-    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n, m)).first;
+    if (it == npc_anims.end()) {
+        it = npc_anims.emplace(key, load_npc_composite(mpqs, n, m)).first;
+        if (const auto a = anim_speed.find(it->second.name); a != anim_speed.end()) it->second.speed = a->second;
+    }
     return it->second;
 }
 
@@ -1102,6 +1118,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                       std::string(cs.get(r, "StrSkillTab3")) },
                                     std::string(cs.get(r, "StrClassOnly")) };
     }
+    // animdata.d2: blocks of u32 count + count * 160-byte records
+    // {char name[8], u32 frames/dir, u32 speed, u8 events[144]}.
+    if (auto b = mpqs.try_read(R"(data\global\animdata.d2)"))
+        for (std::size_t p = 0; p + 4 <= b->size();) {
+            std::uint32_t n; std::memcpy(&n, b->data() + p, 4); p += 4;
+            for (std::uint32_t i = 0; i < n && p + 160 <= b->size(); ++i, p += 160) {
+                std::string name(reinterpret_cast<const char*>(b->data() + p), 8);
+                name.resize(std::strlen(name.c_str()));
+                for (auto& ch : name) ch = char(std::toupper(ch));
+                std::uint32_t spd; std::memcpy(&spd, b->data() + p + 12, 4);
+                scene.anim_speed.emplace(std::move(name), spd);
+            }
+        }
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
@@ -1890,7 +1919,8 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
     const auto dirs = p.cof.directions(), fpd = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return r;
     const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
-    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.cof.speed(), 1);
+    // 25 ticks/s; each tick advances speed/256 frames.
+    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (const auto& spr : p.layers) {
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
@@ -2106,7 +2136,8 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     const auto fpd  = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return;
     const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
-    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.cof.speed(), 1);
+    // 25 ticks/s; each tick advances speed/256 frames.
+    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (const auto type : p.cof.priority(dir, frame)) {
         if (type >= p.layers.size()) continue;
