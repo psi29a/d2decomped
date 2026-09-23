@@ -22,3 +22,4 @@ d2d_add_test(test_devctl devctl)
 d2d_add_test(test_screenshot screenshot)   # zlib transitive via screenshot
 d2d_add_test(test_palette mpq palette)
 d2d_add_test(test_font mpq font)
+d2d_add_test(test_d2s d2s)
