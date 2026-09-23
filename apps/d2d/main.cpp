@@ -939,6 +939,57 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
     }
 }
 
+// Watchdog — a background thread that fires a diagnostic when the main
+// thread stops advancing its heartbeat. This is our only visibility
+// into a beachball, because a hung main thread stops running our
+// per-frame `slow frame` / `alive` prints. The watchdog needs to touch
+// NO SDL state (SDL is main-thread only on macOS); it only reads two
+// atomics and writes to stderr.
+enum class MainPhase : std::uint32_t {
+    Idle           = 0,
+    PollEvents     = 1,
+    Devctl         = 2,
+    Render         = 3,
+    Upload         = 4,   // SDL_UpdateTexture
+    Present        = 5,   // SDL_RenderPresent
+    PaceDelay      = 6,   // SDL_Delay at end of frame
+    // InGame sub-phases so we can pinpoint the stuck one exactly.
+    IngameClear    = 10,
+    IngameFloor    = 11,
+    IngameShadow   = 12,
+    IngameWalls    = 13,
+    IngamePlayer   = 14,
+    IngameHudText  = 15,
+};
+inline const char* main_phase_name(std::uint32_t p) {
+    switch (MainPhase(p)) {
+        case MainPhase::Idle:          return "idle";
+        case MainPhase::PollEvents:    return "poll-events";
+        case MainPhase::Devctl:        return "devctl-pump";
+        case MainPhase::Render:        return "render";
+        case MainPhase::Upload:        return "sdl-update-texture";
+        case MainPhase::Present:       return "sdl-render-present";
+        case MainPhase::PaceDelay:     return "sdl-delay-pace";
+        case MainPhase::IngameClear:   return "ingame:fb-clear";
+        case MainPhase::IngameFloor:   return "ingame:world-floor";
+        case MainPhase::IngameShadow:  return "ingame:world-shadow";
+        case MainPhase::IngameWalls:   return "ingame:world-walls";
+        case MainPhase::IngamePlayer:  return "ingame:player-dcc";
+        case MainPhase::IngameHudText: return "ingame:hud-text";
+    }
+    return "?";
+}
+
+// Set by the main loop before entering render_ingame so the watchdog
+// can report which sub-phase we're stuck in. Declared ahead of
+// render_ingame so it can write the ingame sub-phases.
+inline std::atomic<std::uint32_t>* g_current_phase_ptr = nullptr;
+inline void set_phase(MainPhase p) {
+    if (g_current_phase_ptr)
+        g_current_phase_ptr->store(std::uint32_t(p),
+                                   std::memory_order_relaxed);
+}
+
 // Render the loaded DS1 onto the framebuffer, centered on grid cell
 // (camera_cx, camera_cy). Draws in D2's back-to-front Z order:
 //   1. All floor tiles (type=0) in row order — the ground plane
@@ -1023,6 +1074,7 @@ void render_world(std::vector<std::uint8_t>& fb,
         }
     }
 
+    set_phase(MainPhase::IngameWalls);
     // Walls / trees / roofs — same row-major sweep, per-cell one-pass
     // draw. All non-floor orientation types share the same iso
     // positioning; the DT1 tile's own y_shift + per-block y encode the
@@ -1131,16 +1183,21 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
     // the tiles, Sky for the credits DC6 which was authored against it.
     if (!s.world_dt1s.empty()) {
+        set_phase(MainPhase::IngameClear);
         // Clear to black — tiles don't cover every subtile so an
         // uninitialized fb would leak the previous frame's contents.
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+        set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
         render_world(fb, s, camera_cx, camera_cy);
         // Player sprite sits on top of the floor. Follows the class
         // picked on char-create; falls through silently for classes
         // whose DCC didn't load.
-        if (class_idx >= 0 && class_idx < 7)
+        if (class_idx >= 0 && class_idx < 7) {
+            set_phase(MainPhase::IngamePlayer);
             render_player_at_camera(fb, s, class_idx, elapsed_ms);
+        }
+        set_phase(MainPhase::IngameHudText);
     } else {
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
@@ -1726,25 +1783,58 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // detached-window scenario.
     bool pan_left = false, pan_right = false, pan_up = false, pan_down = false;
     bool mouse_seen = false;
+
+    // Watchdog — writes to stderr the second the main thread stops
+    // updating its heartbeat. Atomic reads only; no SDL calls (would
+    // crash — SDL is main-thread only on macOS).
+    std::atomic<std::uint32_t> heartbeat_ms{std::uint32_t(SDL_GetTicks())};
+    std::atomic<std::uint32_t> current_phase{std::uint32_t(MainPhase::Idle)};
+    g_current_phase_ptr = &current_phase;
+    std::atomic<bool> watchdog_stop{false};
+    std::thread watchdog([&] {
+        std::uint32_t last_reported = 0;
+        while (!watchdog_stop.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            const auto now = std::uint32_t(SDL_GetTicks());
+            const auto beat = heartbeat_ms.load(std::memory_order_relaxed);
+            const auto since = now - beat;
+            if (since >= 1000 && (now - last_reported) >= 1000) {
+                const auto phase = current_phase.load(std::memory_order_relaxed);
+                std::fprintf(stderr,
+                    "[d2d] MAIN STUCK: %u ms in phase='%s' (frame not advancing)\n",
+                    since, main_phase_name(phase));
+                std::fflush(stderr);
+                last_reported = now;
+            }
+        }
+    });
+
     while (!quit) {
         // Signal-driven quit — Ctrl-C / SIGTERM. The atomic write from
         // d2d_sigint_handler is polled here; SDL_EVENT_QUIT and window
         // close still work through handle_sdl_events.
         if (g_sigint_quit) { quit = true; break; }
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
+        heartbeat_ms.store(frame_start_ms, std::memory_order_relaxed);
 
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
+        current_phase.store(std::uint32_t(MainPhase::PollEvents),
+                            std::memory_order_relaxed);
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
             handle_sdl_events(ev, mouse, screen, text_this_frame,
                               backspace_this_frame,
                               PanKeys{pan_left, pan_right, pan_up, pan_down},
                               mouse_seen, quit);
+        current_phase.store(std::uint32_t(MainPhase::Devctl),
+                            std::memory_order_relaxed);
         if (ch.active()) ch.pump();
 
+        current_phase.store(std::uint32_t(MainPhase::Render),
+                            std::memory_order_relaxed);
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
         if (scene) {
             switch (screen) {
@@ -1769,7 +1859,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // window. Rate: ~6 cells/sec, budgeted from real elapsed
                 // ms so pan speed is frame-rate-independent.
                 if (!scene->world_dt1s.empty()) {
-                    const std::uint32_t dt = ms - last_ms;
+                    // float, not uint32: int kx * uint32 dt promotes -1 to
+                    // 4294967295u, sending ax past 2^24 where `ax -= 1.f`
+                    // is a no-op — the pan-left/up beachball.
+                    const float dt = float(ms - last_ms);
                     int kx = 0, ky = 0;
                     if (pan_left)  --kx;
                     if (pan_right) ++kx;
@@ -1841,9 +1934,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // don't gate render on window visibility.
         const auto wflags = SDL_GetWindowFlags(win.w);
         if (!(wflags & SDL_WINDOW_MINIMIZED)) {
+            current_phase.store(std::uint32_t(MainPhase::Upload),
+                                std::memory_order_relaxed);
             SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
             SDL_RenderClear(win.r);
             SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
+            current_phase.store(std::uint32_t(MainPhase::Present),
+                                std::memory_order_relaxed);
             SDL_RenderPresent(win.r);
         }
         const std::uint32_t t_after_present = std::uint32_t(SDL_GetTicks());
@@ -1885,8 +1982,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             stat_present_sum = 0; stat_present_max = 0;
             stat_last_report_ms = ms;
         }
+        current_phase.store(std::uint32_t(MainPhase::PaceDelay),
+                            std::memory_order_relaxed);
         pace_frame(frame_start_ms);
     }
+    // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
+    // and touch stale pointers.
+    watchdog_stop.store(true, std::memory_order_relaxed);
+    watchdog.join();
+    g_current_phase_ptr = nullptr;
     SDL_Quit();
     return 0;
 }
