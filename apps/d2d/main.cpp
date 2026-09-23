@@ -313,7 +313,13 @@ struct Scene {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    struct ItemInfo { std::string invfile; int w = 1, h = 1; };
+    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr; };
+    // String keys for item names, indexed the way the save's IDs are (see
+    // item_lines): uniques/sets by row without separators, magic affixes by
+    // raw row, rare names by raw row, runewords by RunewordN rank.
+    struct ItemNames {
+        std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
+    } item_names;
     std::unordered_map<std::string, ItemInfo> item_info;
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
     const d2d::dc6::Sprite* item_sprite(const std::string& code) const;
@@ -942,7 +948,32 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             scene.item_info[std::string(t->get(r, "code"))] = {
                 std::string(t->get(r, "invfile")),
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
-                std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())) };
+                std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
+                std::string(t->get(r, "namestr")) };
+    auto keys = [&](const char* n, const char* col, bool all) {
+        std::vector<std::string> v;
+        if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
+            const d2d::txt::Table t(*b, all);
+            for (std::size_t r = 0; r < t.size(); ++r) v.emplace_back(t.get(r, col));
+        }
+        return v;
+    };
+    auto& nm = scene.item_names;
+    nm.unique   = keys("UniqueItems", "index", false);
+    nm.set      = keys("SetItems", "index", false);
+    nm.prefix   = keys("MagicPrefix", "Name", true);
+    nm.suffix   = keys("MagicSuffix", "Name", true);
+    nm.rare_pre = keys("RarePrefix", "name", true);
+    nm.rare_suf = keys("RareSuffix", "name", true);
+    {
+        // Runes.txt "RunewordN" rows sorted by N (80 and 96 don't exist);
+        // the save's ID is that rank + 27.
+        std::vector<std::pair<int, std::string>> rw;
+        for (const auto& k : keys("Runes", "Name", false))
+            if (k.starts_with("Runeword")) rw.emplace_back(std::atoi(k.c_str() + 8), k);
+        std::ranges::sort(rw);
+        for (auto& [n, k] : rw) nm.runeword.push_back(std::move(k));
+    }
     for (auto [name, into] : { std::pair{ "font8", &scene.font_small }, { "font6", &scene.font_tiny } })
         if (auto t = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"))
             if (auto d = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6"))
@@ -1939,13 +1970,106 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     }
 }
 
+// An item's hover text, top line first, in D2's quality colours. Name IDs
+// resolve as verified against 19 real saves (test data): unique/set ID =
+// UniqueItems/SetItems row without "Expansion" separators; magic
+// prefix/suffix ID = MagicPrefix/MagicSuffix raw data row (row 0 is the
+// blank "none"); rare names = RarePrefix row (id - 156) + RareSuffix row
+// (id - 1); runeword ID = rank of its RunewordN + 27.
+// ponytail: names, defence, quantity and sockets only — no property lines
+// (ItemStatCost descfunc), requirements or durability yet.
+struct TextLine { std::string text; std::array<std::uint8_t, 3> rgb; };
+constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105, 105, 255 },
+    kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
+    kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 };
+
+std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it) {
+    auto str = [&](std::string_view key) {
+        if (key.empty()) return std::string{};
+        const auto v = lookup_string(s, key);
+        return v ? u16_to_latin1(*v) : std::string(key);
+    };
+    auto at = [](const std::vector<std::string>& v, int i) -> std::string_view {
+        return i >= 0 && std::size_t(i) < v.size() ? std::string_view(v[std::size_t(i)]) : std::string_view{};
+    };
+    const auto& nm = s.item_names;
+    const auto info = s.item_info.find(it.code);
+    const std::string base = str(info != s.item_info.end() && !info->second.namestr.empty()
+                                     ? std::string_view(info->second.namestr) : std::string_view(it.code));
+    std::vector<TextLine> out;
+    auto two = [&](std::string name, std::array<std::uint8_t, 3> c) {
+        if (name.empty()) { out.push_back({ base, c }); return; }
+        out.push_back({ std::move(name), c });
+        out.push_back({ base, c });
+    };
+    auto join = [](std::string a, const std::string& b) {
+        if (a.empty()) return b;
+        if (b.empty()) return a;
+        return a + " " + b;
+    };
+    if (it.runeword) {
+        const int rank = it.runeword_id == 2718 ? 48 - 27 : it.runeword_id - 27;   // 2718: Delirium's odd ID
+        out.push_back({ str(at(nm.runeword, rank)), kTxtGold });
+        out.push_back({ base, kTxtGrey });
+    } else switch (it.quality) {
+        case 1: {
+            static constexpr const char* kLow[] = { "Crude", "Cracked", "Damaged", "Low Quality" };
+            out.push_back({ join(str(it.qsub >= 0 && it.qsub < 4 ? kLow[it.qsub] : ""), base), kTxtWhite });
+            break;
+        }
+        case 3: out.push_back({ join(str("Hiquality"), base), kTxtWhite }); break;
+        case 4: out.push_back({ join(join(str(at(nm.prefix, it.prefix)), base), str(at(nm.suffix, it.suffix))),
+                                kTxtBlue }); break;
+        case 5: two(str(at(nm.set, it.set_id)), kTxtGreen); break;
+        case 7: two(str(at(nm.unique, it.unique_id)), kTxtGold); break;
+        case 6: case 8:
+            two(join(str(at(nm.rare_pre, it.rare1 - 156)), str(at(nm.rare_suf, it.rare2 - 1))),
+                it.quality == 6 ? kTxtYellow : kTxtOrange);
+            break;
+        default: out.push_back({ base, it.ethereal || it.socketed ? kTxtGrey : kTxtWhite }); break;
+    }
+    if (it.personalized && !it.owner.empty()) out.front().text = it.owner + "'s " + out.front().text;
+    if (it.defense >= 0) out.push_back({ "Defense: " + std::to_string(it.defense), kTxtWhite });
+    if (it.quantity >= 0) out.push_back({ "Quantity: " + std::to_string(it.quantity), kTxtWhite });
+    if (it.ethereal) out.push_back({ "Ethereal", kTxtBlue });
+    if (it.socketed) out.push_back({ "Socketed (" + std::to_string(it.sockets) + ")", kTxtBlue });
+    return out;
+}
+
+// Hover text box: lines centred over [x0, x1], bottom on `bottom` (below
+// `top` instead when it would leave the screen), on a darkened backdrop.
+void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<TextLine>& lines,
+                     int x0, int x1, int top, int bottom) {
+    if (lines.empty()) return;
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int lh = 16;                                   // font16 cell height
+    int w = 0;
+    for (const auto& l : lines) w = std::max(w, s.font.measure(l.text));
+    const int h = lh * int(lines.size());
+    int bx = std::clamp((x0 + x1) / 2 - w / 2 - 2, 0, std::max(0, int(kW) - w - 4));
+    int by = bottom - h - 2;
+    if (by < 0) by = std::min(top, int(kH) - h - 4);
+    for (int y = std::max(0, by); y < std::min(int(kH), by + h + 4); ++y)
+        for (int x = bx; x < std::min(int(kW), bx + w + 4); ++x) {
+            auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
+            p[0] = std::uint8_t(p[0] / 4); p[1] = std::uint8_t(p[1] / 4); p[2] = std::uint8_t(p[2] / 4);
+        }
+    int y = by + 2;
+    for (const auto& l : lines) {
+        const int lw = s.font.measure(l.text);
+        s.font.draw_tinted(fb, kW, kH, pal, bx + 2 + (w - lw) / 2, y, l.text, l.rgb[0], l.rgb[1], l.rgb[2]);
+        y += lh;
+    }
+}
+
 // The inventory panel (inventory.txt "<Class>2" layout, invchar6.dc6):
 // grid items (panel 1) centred in their w x h cell block, equipped items
 // centred in their body slot's box. Palette: the act's, like the world.
+// The item under (mx, my) gets its hover text.
 // ponytail: base item graphics only (no unique/set invfiles, no colour
-// tints), no belt/cube/stash, no hover tooltips.
+// tints), no belt/cube/stash.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
-                    const std::vector<d2d::d2s::Item>& items) {
+                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -1962,18 +2086,25 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
         const auto& f = spr->frame(0, 0);
         blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
     };
+    const d2d::d2s::Item* hover = nullptr;
+    std::array<int, 4> hover_box{};
     for (const auto& it : items) {
+        std::array<int, 4> r{};
         if (it.location == 0 && it.panel == 1) {
             const auto info = s.item_info.find(it.code);
             const int iw = info != s.item_info.end() ? info->second.w : 1;
             const int ih = info != s.item_info.end() ? info->second.h : 1;
-            draw_in(it, L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h,
-                    iw * L.box_w, ih * L.box_h);
+            r = { L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h, iw * L.box_w, ih * L.box_h };
         } else if (it.location == 1 && it.slot >= 1 && it.slot <= 10) {
-            const auto& r = L.slots[std::size_t(it.slot)];
-            if (r[2] > 0) draw_in(it, r[0], r[1], r[2], r[3]);
+            r = L.slots[std::size_t(it.slot)];
         }
+        if (r[2] <= 0) continue;
+        draw_in(it, r[0], r[1], r[2], r[3]);
+        if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) { hover = &it; hover_box = r; }
     }
+    if (hover)
+        draw_hover_text(fb, s, item_lines(s, *hover), hover_box[0], hover_box[0] + hover_box[2],
+                        hover_box[1] + hover_box[3], hover_box[1]);
 }
 
 // Character panel (left of the inventory: 800x600 puts the left panels
@@ -1981,8 +2112,6 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
 // game.exe's own tables — labels {x0, y, x1, string id} at 0x724818
 // (18-byte records), values {x0, y, x1, stat id} at 0x724928 — in panel
 // coordinates; text is centred in [x0, x1].
-// ponytail: computed values (next-level exp, defence, resistances)
-// blank; name/class line placed by eye.
 constexpr int kCharPanelX = 80, kCharPanelY = 60;
 struct PanelText { int x0, y, x1, id; };
 constexpr PanelText kCharLabels[] = {
@@ -2171,7 +2300,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                         b[1] - s.font.line_height() - 2, nm);
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
-            draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory);
+            draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
+                           mouse_x, mouse_y);
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         // Dev overlay: a red dot on every blocked subtile around the camera.
