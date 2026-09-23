@@ -24,3 +24,7 @@ d2d_add_test(test_palette mpq palette)
 d2d_add_test(test_font mpq font)
 d2d_add_test(test_d2s d2s)
 d2d_add_test(test_userdir userdir)
+
+# End-to-end: headless d2d driven over devctl (SDL dummy driver).
+add_test(NAME smoke_d2d
+         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/smoke_d2d.py $<TARGET_FILE:d2d>)

@@ -30,12 +30,13 @@ Everything else is registered by the host binary via `Channel::on()`.
 
 | verb                        | reply                  | notes                                                     |
 |-----------------------------|------------------------|-----------------------------------------------------------|
-| `screenshot <path>`         | `ok`                   | Writes current framebuffer to `<path>` as PNG.            |
+| `screenshot <path>`         | `ok <bytes>`           | Writes current framebuffer to `<path>` as PNG. Relative paths land in `<user dir>/screenshots/` (e.g. `~/Library/Preferences/d2d/screenshots/`). |
 | `info`                      | `w=… h=… frame=…\nok`  | Framebuffer dimensions + current frame counter.           |
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
+| `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
+| `state`                     | `screen=… save=… class=… name=… hardcore=… cam=x,y saves=…\nok` | Loop state for scripted asserts. |
 
-Future verbs (as the engine grows): `key <name>`, `click <x> <y>`,
-`state`, `load <act>/<level>`, etc.
+Future verbs (as the engine grows): `key <name>`, `load <act>/<level>`, etc.
 
 ## Enabling
 
@@ -46,7 +47,8 @@ it. Absent that, zero cost — nothing binds, no threads, no cleanup.
 ## Driving from the shell
 
 ```
-# Start the game with control enabled:
+# Start the game with control enabled (add --headless for no window —
+# SDL dummy driver + software renderer; tests/smoke_d2d.py drives it):
 d2d --devctl /tmp/d2d.sock
 
 # Drive it from another shell:

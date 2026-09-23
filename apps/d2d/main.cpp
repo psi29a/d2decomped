@@ -3,25 +3,26 @@
 // Now opens an SDL3 window and presents an in-memory framebuffer as a
 // streaming texture. The dev control channel + screenshot pipeline still
 // see that same framebuffer, so `screenshot /tmp/x.png` captures exactly
-// what's on-screen. --headless skips the window and paints once (useful
-// for CI / A/B PNG diffing without a display).
+// what's on-screen. --headless runs the same loop on SDL's dummy video
+// driver (no window) so CI / scripts can drive it over devctl.
 //
 // CLI:
 //   --devctl <path>   bind AF_UNIX control socket
 //   --data <dir>      MPQ directory (default: ~/Workspace/private/diablo2)
-//   --headless        no window; paint once, then serve devctl until quit
-//                     (or exit immediately if --devctl also missing)
+//   --headless        no window (SDL dummy driver); needs --devctl
 
 #include <mpq.hpp>
 #include <dc6.hpp>
 #include <dcc.hpp>
 #include <devctl.hpp>
+#include <d2s.hpp>
 #include <ds1.hpp>
 #include <dt1.hpp>
 #include <font.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
 #include <tbl.hpp>
+#include <userdir.hpp>
 
 #include <SDL3/SDL.h>
 #include <CLI/CLI.hpp>
@@ -35,6 +36,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <span>
 #include <string>
@@ -57,16 +59,18 @@ namespace {
 constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
 
-fs::path default_data_dir() {
+fs::path default_data_dir(std::string_view cfg_data) {
     // Resolution order (first hit wins):
     //   1. --data CLI arg (handled in main; not here)
     //   2. $D2_MPQ_DIR env var — portable, matches the test-suite convention
-    //   3. macOS: the launcher's QSettings-persisted path
+    //   3. `data = …` in d2d.cfg (user / ./ / global dir, see main)
+    //   4. macOS: the launcher's QSettings-persisted path
     //      (~/Library/Preferences/com.d2decomp.D2 Launcher.plist, key
     //      game.dataPath) — same lookup tools/ghidra/import.sh uses
-    //   4. Eyeballed default: ~/Workspace/private/diablo2
+    //   5. Eyeballed default: ~/Workspace/private/diablo2
     if (const char* env = std::getenv("D2_MPQ_DIR"); env && *env)
         return fs::path(env);
+    if (!cfg_data.empty()) return fs::path(cfg_data);
 
 #if defined(__APPLE__)
     if (FILE* p = ::popen(
@@ -258,6 +262,8 @@ struct Scene {
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
+    // Character saves from <user dir>/save/*.d2s, sorted by name.
+    std::vector<d2d::d2s::Header> saves;
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
     //   expansionstring.tbl (2788 entries) — LoD additions (Druid/Assassin
@@ -286,6 +292,10 @@ struct Scene {
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
 };
+
+// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
+// (Forward decl — full definition below title_ui.)
+std::string u16_to_latin1(std::u16string_view s);
 
 // TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
 // matching how the game resolves any string ID/key at runtime.
@@ -346,6 +356,19 @@ constexpr const char* kClassKey[7] = {
     "Barbarian", "Necromancer", "Paladin", "Amazon",
     "Sorceress", "Druid",       "Assassin",
 };
+
+// .d2s class id (AM SO NE PA BA DZ AS) -> our visual-order index
+// (BA NE PA AM SO DZ AS, see kClassKey).
+constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
+
+// Char-select slot grid, 2 columns x 4 rows. RE'd assembled slot is
+// 272x93 (256+16 wide, 93 tall). Layout eyeballed from D2 LoD reference
+// against the BG art; top row at y=137, gap ~5px between rows.
+constexpr int kSlotW = 272, kSlotH = 93;
+constexpr int kSlotX[2] = { 33, 495 };
+constexpr int kSlotY[4] = { 137, 236, 335, 434 };
+// ponytail: 8 slots, no scrolling; add D2's scroll bar when >8 saves matters.
+constexpr int kSlots = 8;
 
 struct Button {
     int x{}, y{}, w{}, h{};
@@ -471,6 +494,25 @@ std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
 // Forward decl — full body lives after Scene{} construction so it can use
 // the same members without repeating field types.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
+
+// Headers of every valid .d2s in `dir`, sorted by name. Bad files are
+// logged and skipped — saves are user-supplied.
+std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
+    std::vector<d2d::d2s::Header> out;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(dir, ec)) {
+        if (e.path().extension() != ".d2s") continue;
+        std::ifstream in(e.path(), std::ios::binary);
+        std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
+        try {
+            out.push_back(d2d::d2s::parse_header(std::as_bytes(std::span(raw))));
+        } catch (const std::exception& ex) {
+            std::fprintf(stderr, "[d2d] %s: %s\n", e.path().string().c_str(), ex.what());
+        }
+    }
+    std::ranges::sort(out, {}, &d2d::d2s::Header::name);
+    return out;
+}
 
 std::optional<Scene> load_scene(const fs::path& data_dir) {
     const auto d2data = data_dir / "d2data.mpq";
@@ -775,7 +817,17 @@ struct CharSelectUI {
     std::string delete_label;
     std::string cancel_label;
     std::string ok_label;
+    int selected = -1;           // index into Scene::saves, or -1
 };
+
+// Slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
+int charselect_slot_at(int x, int y) {
+    for (int i = 0; i < kSlots; ++i) {
+        const int sx = kSlotX[i % 2], sy = kSlotY[i / 2];
+        if (x >= sx && x < sx + kSlotW && y >= sy && y < sy + kSlotH) return i;
+    }
+    return -1;
+}
 
 void render_charselect(std::vector<std::uint8_t>& fb,
                        const Scene& s,
@@ -784,34 +836,42 @@ void render_charselect(std::vector<std::uint8_t>& fb,
     const auto& pal = s.pal;   // char-select shares the Sky palette
     blit_dc6_grid(fb, s.charselect_bg, pal, 0, 0, s.bg_tiles_across);
 
-    // 8 empty slots in a 2×4 grid. RE'd assembled slot is 272×93 (256+16
-    // wide, 93 tall). Layout eyeballed from D2 LoD reference against the
-    // BG art; top row at y=137, gap ~5px between rows.
-    constexpr int kSlotW = 272, kSlotH = 93;
-    const int col_x[2] = { 33, 495 };
-    const int row_y[4] = { 137, 236, 335, 434 };
-    for (int r = 0; r < 4; ++r) {
-        for (int c = 0; c < 2; ++c) {
-            // Two-frame composite: main 256-wide half + 16-wide sliver.
-            if (s.charselect_boxgrey.frames_per_direction() >= 2) {
-                blit_sprite(fb, s.charselect_boxgrey.frame(0, 0),
-                            pal, col_x[c],           row_y[r]);
-                blit_sprite(fb, s.charselect_boxgrey.frame(0, 1),
-                            pal, col_x[c] + 256,     row_y[r]);
-            }
+    for (int i = 0; i < kSlots; ++i) {
+        const int x = kSlotX[i % 2], y = kSlotY[i / 2];
+        // Two-frame composite: main 256-wide half + 16-wide sliver.
+        // Selected slot gets the filled box, the rest the grey one.
+        const auto& box = i == ui.selected ? s.charselect_box : s.charselect_boxgrey;
+        if (box.frames_per_direction() >= 2) {
+            blit_sprite(fb, box.frame(0, 0), pal, x,       y);
+            blit_sprite(fb, box.frame(0, 1), pal, x + 256, y);
         }
+        if (i >= int(s.saves.size())) continue;
+        // ponytail: text only, no class portrait; add the DCC idle when
+        // the slot needs to look like D2's.
+        const auto& h = s.saves[std::size_t(i)];
+        const int ci = kSaveClassToUi[h.cls];
+        std::string cls = kClassKey[ci];
+        if (auto v = lookup_string(s, kClassKey[ci])) cls = u16_to_latin1(*v);
+        const std::string line2 = "Level " + std::to_string(h.level) + " " + cls;
+        s.font.draw_tinted(fb, kW, kH, pal, x + 90, y + 20, h.name.c_str(),
+                           255, 208, 80);
+        s.font.draw(fb, kW, kH, pal, x + 90, y + 40, line2.c_str());
+        if (h.hardcore())
+            s.font.draw_tinted(fb, kW, kH, pal, x + 90, y + 60, "Hardcore",
+                               255, 64, 64);
     }
-    (void)kSlotW; (void)kSlotH;
 
-    // Empty-list placeholder text — centred on the panel.
-    constexpr const char* empty1 = "NO CHARACTERS YET";
-    constexpr const char* empty2 = "click CREATE NEW CHARACTER to start";
-    const int w1 = s.font.measure(empty1);
-    const int w2 = s.font.measure(empty2);
-    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w1/2, 260,
-                       empty1, 255, 208, 80);
-    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w2/2, 280,
-                       empty2, 200, 200, 200);
+    if (s.saves.empty()) {
+        // Empty-list placeholder text — centred on the panel.
+        constexpr const char* empty1 = "NO CHARACTERS YET";
+        constexpr const char* empty2 = "click CREATE NEW CHARACTER to start";
+        const int w1 = s.font.measure(empty1);
+        const int w2 = s.font.measure(empty2);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w1/2, 260,
+                           empty1, 255, 208, 80);
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - w2/2, 280,
+                           empty2, 200, 200, 200);
+    }
 
     // Buttons. TallButtonBlank is single-piece 168x60 (frames 0/1 for
     // normal/pressed); MediumSelButtonBlank uses blit_button_chrome.
@@ -903,9 +963,6 @@ void render_credits(std::vector<std::uint8_t>& fb,
 // scene, loaded by FUN_004326f0. For MVP we blit each class's nu1 (idle)
 // cycle at hardcoded positions matching the D2 layout, plus the fire
 // animation in the pit. Selection / hover / class labels are follow-ups.
-// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
-// (Forward decl — full definition below title_ui.)
-std::string u16_to_latin1(std::u16string_view s);
 
 // D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
 // step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
@@ -1455,8 +1512,7 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
 // --- SDL3 render loop ------------------------------------------------------
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
-// everything else logs and returns nullptr so the caller can fall back to
-// headless mode.
+// everything else logs and returns false so the caller can bail out.
 struct Window {
     SDL_Window*   w = nullptr;
     SDL_Renderer* r = nullptr;
@@ -1665,6 +1721,17 @@ static Screen parse_screen(std::string_view s) {
     return Screen::Title;
 }
 
+static const char* screen_name(Screen s) {
+    switch (s) {
+        case Screen::Title:      return "title";
+        case Screen::Credits:    return "credits";
+        case Screen::CharSelect: return "charselect";
+        case Screen::CharCreate: return "charcreate";
+        case Screen::InGame:     return "ingame";
+    }
+    return "?";
+}
+
 // Frame pacer — hits target FPS via SDL_Delay for whatever's left of the
 // budget after render, then a mandatory 1ms floor. Matches D2's own
 // pattern (FUN_004f6190 in game.exe): compute time budget remaining,
@@ -1809,6 +1876,39 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
     });
 
+    // Input + state verbs for scripted tests. Registered here because they
+    // touch loop locals; the channel is only pumped inside this loop, so
+    // the captures never outlive it.
+    ch.on("click", [&](const std::vector<std::string>& args) {
+        if (args.size() < 3) return std::string("err click <x> <y>\n");
+        const float x = std::stof(args[1]), y = std::stof(args[2]);
+        // Motion + down + up land in the next frame's poll. One frame is
+        // enough: update_button and the slot picker both accept a press
+        // and release in the same frame.
+        SDL_Event ev{};
+        ev.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(win.w), .x = x, .y = y };
+        SDL_PushEvent(&ev);
+        for (auto type : { SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP }) {
+            ev = {};
+            ev.button = { .type = type, .windowID = SDL_GetWindowID(win.w),
+                          .button = SDL_BUTTON_LEFT,
+                          .down = type == SDL_EVENT_MOUSE_BUTTON_DOWN,
+                          .clicks = 1, .x = x, .y = y };
+            SDL_PushEvent(&ev);
+        }
+        return std::string("ok\n");
+    });
+    ch.on("state", [&](const std::vector<std::string>&) {
+        return std::string("screen=") + screen_name(screen)
+             + " save=" + std::to_string(csu.selected)
+             + " class=" + std::to_string(cc.selected)
+             + " name=" + cc.input_name
+             + " hardcore=" + (cc.hardcore ? "1" : "0")
+             + " cam=" + std::to_string(camera_cx) + "," + std::to_string(camera_cy)
+             + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
+             + "\nok\n";
+    });
+
     while (!quit) {
         // Signal-driven quit — Ctrl-C / SIGTERM. The atomic write from
         // d2d_sigint_handler is polled here; SDL_EVENT_QUIT and window
@@ -1846,12 +1946,27 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(fb, *scene, ms);
                 break;
-            case Screen::CharSelect:
+            case Screen::CharSelect: {
+                if (mouse.press_this_frame) {
+                    const int slot = charselect_slot_at(mouse.x, mouse.y);
+                    if (slot >= 0 && slot < int(scene->saves.size()))
+                        csu.selected = slot;
+                }
+                // OK only enters the game with a save picked.
+                csu.ok_btn.do_switch = csu.selected >= 0;
                 for (Button* b : {&csu.create_btn, &csu.delete_btn,
                                   &csu.cancel_btn, &csu.ok_btn})
                     update_button(*b, mouse, screen, quit);
+                if (screen == Screen::InGame) {
+                    // Load the picked save into the in-game character.
+                    const auto& h = scene->saves[std::size_t(csu.selected)];
+                    cc.selected   = kSaveClassToUi[h.cls];
+                    cc.input_name = h.name;
+                    cc.hardcore   = h.hardcore();
+                }
                 render_charselect(fb, *scene, csu, ms);
                 break;
+            }
             case Screen::InGame: {
                 // ESC handled globally in handle_sdl_events (returns to Title).
                 // Camera pan: WASD or arrow keys, plus D2-style mouse-edge
@@ -1995,32 +2110,6 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     return 0;
 }
 
-int run_headless(std::vector<std::uint8_t>& fb,
-                 const std::optional<Scene>& scene,
-                 d2d::devctl::Channel& ch,
-                 std::atomic<std::uint64_t>& frame_count,
-                 std::atomic<bool>& quit) {
-    if (!ch.active()) {
-        std::printf("d2d: --headless with no --devctl, single-shot paint. exiting.\n");
-        return 0;
-    }
-    // Headless mode has no mouse — always render Title so screenshots stay
-    // reproducible for A/B diffs.
-    TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
-    const auto t0 = std::chrono::steady_clock::now();
-    while (!quit) {
-        if (g_sigint_quit) { quit = true; break; }
-        ch.pump();
-        const auto ms = std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - t0).count());
-        if (scene) render_title(fb, *scene, ui.buttons, ms);
-        else       paint_test_pattern(fb);
-        ++frame_count;
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    }
-    return 0;
-}
-
 }  // namespace
 
 // Ctrl-C / kill (TERM) plumbing. std::signal handlers need C linkage
@@ -2050,8 +2139,20 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, d2d_sigint_handler);
     std::signal(SIGPIPE, SIG_IGN);
 
+    // Per-user dir, thirdeye layout (components/userdir): d2d.cfg, save/,
+    // screenshots/. Config loads global -> ./ -> user, later wins.
+    const fs::path user_dir = d2d::userdir::user_dir("d2d");
+    const fs::path save_dir = user_dir / "save";
+    const fs::path shot_dir = user_dir / "screenshots";
+    std::error_code mk_ec;
+    fs::create_directories(save_dir, mk_ec);
+    fs::create_directories(shot_dir, mk_ec);
+    d2d::userdir::Config cfg;
+    for (const auto& d : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
+        d2d::userdir::load_cfg(d / "d2d.cfg", cfg);
+
     std::string devctl_path;
-    fs::path    data_dir = default_data_dir();
+    fs::path    data_dir = default_data_dir(cfg["data"]);
     bool        headless = false;
     std::string start_screen;   // "title" | "credits" | "charcreate" | "ingame"
     int         start_class = 0;
@@ -2091,6 +2192,7 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
     auto scene = load_scene(data_dir);   // nullopt if MPQ dir is missing
+    if (scene) scene->saves = load_saves(save_dir);
 
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
@@ -2102,7 +2204,10 @@ int main(int argc, char** argv) {
     });
     ch.on("screenshot", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err screenshot <path>\n");
-        const auto n = d2d::screenshot::save_png(args[1], fb, kW, kH);
+        // Relative paths land in the user screenshots dir.
+        const fs::path out = fs::path(args[1]).is_relative() ? shot_dir / args[1]
+                                                             : fs::path(args[1]);
+        const auto n = d2d::screenshot::save_png(out, fb, kW, kH);
         return "ok " + std::to_string(n) + "\n";
     });
     ch.on("quit", [&](const std::vector<std::string>&) {
@@ -2118,7 +2223,17 @@ int main(int argc, char** argv) {
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
 
-    return headless
-        ? run_headless(fb, scene, ch, frame_count, quit)
-        : run_windowed(fb, scene, ch, frame_count, quit);
+    if (headless) {
+        if (!ch.active()) {
+            std::printf("d2d: --headless with no --devctl has nothing to do. exiting.\n");
+            return 0;
+        }
+        // Same loop as the windowed build on SDL's dummy video driver +
+        // software renderer: no window, no GL, but events, devctl and
+        // screenshots all work. (The "offscreen" driver needs EGL, which
+        // macOS doesn't have.)
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+        SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
+    }
+    return run_windowed(fb, scene, ch, frame_count, quit);
 }
