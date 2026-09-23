@@ -3286,6 +3286,27 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                       : have_world ? float(scene->world_ds1.width() / 2) : 0.f) + 0.5f;
     float player_y = (g_start_cam_y >= 0 ? float(g_start_cam_y)
                       : have_world ? float(scene->world_ds1.height() / 2) : 0.f) + 0.5f;
+    // The town start, as game.exe picks it on joining: DS1 special walls
+    // (orientation 10/11) with main index 30..33 become the level's spawn
+    // list (code at 0x667d09: main 30 sub n -> index n, 31 -> n+5,
+    // 32 -> 10, 33 -> 11 (town-portal arrival)); a join asks for index 0,
+    // which matches any of group 0 (indices 0..4) at random
+    // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
+    // free spot. ponytail: first match instead of a random one — each
+    // Act 1 town DS1 has exactly one.
+    if (have_world && g_start_cam_x < 0 && g_start_cam_y < 0) {
+        const auto& m = scene->world_ds1;
+        for (const auto& L : m.walls())
+            for (std::size_t i = 0; i < L.cells.size(); ++i) {
+                const auto& t = L.cells[i];
+                if ((t.wall_type == 10 || t.wall_type == 11) && t.style == 30 && t.sequence <= 4) {
+                    player_x = (float(i % m.width()) * 5 + 3 + 0.5f) / 5;
+                    player_y = (float(i / m.width()) * 5 + 3 + 0.5f) / 5;
+                    goto found_start;
+                }
+            }
+    found_start:;
+    }
     // Never start inside a tent: search outward, a subtile (0.2 cell) per
     // ring, for the nearest walkable spot.
     if (have_world && scene->blocked(player_x, player_y)) {
