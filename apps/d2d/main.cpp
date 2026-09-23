@@ -37,6 +37,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -65,6 +66,12 @@ namespace {
 // (columns 256/256/256/32, rows 256/256/88).
 constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
+
+// D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
+// step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
+// See OpenDiablo2's mapengine for the same convention.
+constexpr int kIsoW = 160;
+constexpr int kIsoH = 80;
 
 fs::path default_data_dir(std::string_view cfg_data) {
     // Resolution order (first hit wins):
@@ -556,8 +563,26 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
-constexpr int kModeNU = 1, kModeTN = 5;
-constexpr const char* kModeCode[6] = { "DT", "NU", "WL", "RN", "GH", "TN" };
+constexpr int kModeNU = 1, kModeTN = 5, kModeTW = 6;
+
+// ponytail: town walk speed picked by eye so the TW cycle doesn't skate
+// (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
+// input; derive from it once movement units are RE'd.
+constexpr float kWalkCellsPerSec = 2.0f;
+
+// Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
+// cells. Directions are screen-space: project to screen, take the angle
+// clockwise from straight down, and map the 16 sectors through D2's
+// ordering — the 8 main directions first (0 SW, 1 NW, 2 NE, 3 SE, 4 S,
+// 5 W, 6 N, 7 E), then the half-steps (8 between S and SW, ...).
+inline int direction16(float dx, float dy) {
+    constexpr int kFromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
+    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
+    const float a = std::atan2(-sx, sy);                    // 0 = down, + = clockwise
+    const int sector = int(std::lround(a / (2 * 3.14159265f / 16)));
+    return kFromSector[std::size_t((sector % 16 + 16) % 16)];
+}
+constexpr const char* kModeCode[7] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW" };
 constexpr const char* kLayerCode[16] = {
     "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
     "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
@@ -1210,11 +1235,6 @@ void render_credits(std::vector<std::uint8_t>& fb,
 // cycle at hardcoded positions matching the D2 layout, plus the fire
 // animation in the pit. Selection / hover / class labels are follow-ups.
 
-// D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
-// step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
-// See OpenDiablo2's mapengine for the same convention.
-constexpr int kIsoW = 160;
-constexpr int kIsoH = 80;
 
 // Blit one DT1 tile's pre-decoded palette-indexed pixels through `pal`.
 // The tile's pixel buffer is (tile.width x abs(tile.height)); index 0 is
@@ -1293,8 +1313,8 @@ inline void set_phase(MainPhase p) {
                                    std::memory_order_relaxed);
 }
 
-// Render the loaded DS1 onto the framebuffer, centered on grid cell
-// (camera_cx, camera_cy). Draws in D2's back-to-front Z order:
+// Render the loaded DS1 onto the framebuffer around the camera point
+// (cam_x, cam_y), in cells. Draws in D2's back-to-front Z order:
 //   1. All floor tiles (type=0) in row order — the ground plane
 //   2. All shadow tiles (type=13) in row order — soft dark decals
 //   3. Walls / trees / roofs per row, top-back rows first, so
@@ -1306,13 +1326,22 @@ inline void set_phase(MainPhase p) {
 // tilesets.
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
-                  int camera_cx, int camera_cy) {
+                  float cam_x, float cam_y) {
     const auto& m = s.world_ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int cx0 = int(kW) / 2;
     const int cy0 = int(kH) / 2;
     const int mw  = m.width();
+    const int base_x = int(std::floor(cam_x)), base_y = int(std::floor(cam_y));
+    // Screen position of cell (gx, gy)'s top diamond corner. The camera
+    // point (cam_x, cam_y) — continuous, in cells — lands at (kW/2,
+    // kH/2 + kIsoH/2), i.e. a cell centre when the camera sits on one.
+    auto iso = [&](int gx, int gy) {
+        const float dx = float(gx) - cam_x, dy = float(gy) - cam_y;
+        return std::pair{ cx0 + int(std::lround((dx - dy) * (kIsoW / 2))),
+                          cy0 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))) };
+    };
 
     // Iso footprint for the 800x600 window: each screen cell is 160x80.
     // A ±12 grid-cell window around the camera covers > 2× screen area,
@@ -1324,10 +1353,7 @@ void render_world(std::vector<std::uint8_t>& fb,
     // 80-tall-diamond-at-bottom convention shared by floor/wall pixel
     // buffers.
     auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t) {
-        const int dx = gx - camera_cx;
-        const int dy = gy - camera_cy;
-        const int iso_x = cx0 + (dx - dy) * (kIsoW / 2);
-        const int iso_y = cy0 + (dx + dy) * (kIsoH / 2);
+        const auto [iso_x, iso_y] = iso(gx, gy);
         const int th = std::abs(t.height);
         const int sx = iso_x - t.width / 2;
         const int sy = iso_y - (th - kIsoH);
@@ -1344,8 +1370,8 @@ void render_world(std::vector<std::uint8_t>& fb,
     // in screen space, so we iterate low→high dy for back-to-front.
     for (int dy = -kR; dy <= kR; ++dy) {
         for (int dx = -kR; dx <= kR; ++dx) {
-            const int gx = camera_cx + dx;
-            const int gy = camera_cy + dy;
+            const int gx = base_x + dx;
+            const int gy = base_y + dy;
             if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
             const std::size_t off = std::size_t(gy) * mw + gx;
 
@@ -1388,8 +1414,8 @@ void render_world(std::vector<std::uint8_t>& fb,
     // present — for MVP we use the DT1's per-tile roof_height instead.
     for (int dy = -kR; dy <= kR; ++dy) {
         for (int dx = -kR; dx <= kR; ++dx) {
-            const int gx = camera_cx + dx;
-            const int gy = camera_cy + dy;
+            const int gx = base_x + dx;
+            const int gy = base_y + dy;
             if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
             const std::size_t off = std::size_t(gy) * mw + gx;
             for (const auto& wl : m.walls()) {
@@ -1402,11 +1428,8 @@ void render_world(std::vector<std::uint8_t>& fb,
                     if (type == 15) {
                         // Roof — hoist by the DT1's own roof_height plus
                         // any DS1-encoded offset in wall_zero's upper bits.
-                        const int dx_ = gx - camera_cx;
-                        const int dy_ = gy - camera_cy;
-                        const int iso_x = cx0 + (dx_ - dy_) * (kIsoW / 2);
-                        const int iso_y = cy0 + (dx_ + dy_) * (kIsoH / 2)
-                                              - t->roof_height;
+                        auto [iso_x, iso_y] = iso(gx, gy);
+                        iso_y -= t->roof_height;
                         const int th = std::abs(t->height);
                         const int sx = iso_x - t->width / 2;
                         const int sy = iso_y - (th - kIsoH);
@@ -1479,8 +1502,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene::Appearance& gfx,
                    std::string_view name,
                    bool hardcore,
-                   int camera_cx,
-                   int camera_cy,
+                   float cam_x,
+                   float cam_y,
+                   int player_mode,
+                   int player_dir,
                    std::uint32_t elapsed_ms) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
@@ -1493,16 +1518,15 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         std::fill(fb.begin(), fb.end(), std::uint8_t{0});
         for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
         set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
-        render_world(fb, s, camera_cx, camera_cy);
-        // Player on top of the floor, feet at the camera-centre cell's
-        // diamond bottom (kW/2, kH/2 + kIsoH/2), facing the viewer
-        // (direction 4 of 16 = south). Wears the loaded save's gear, or
-        // the class's starting gear for a fresh character.
+        render_world(fb, s, cam_x, cam_y);
+        // Player on top of the floor: the camera follows them, so their
+        // feet sit on the camera point (kW/2, kH/2 + kIsoH/2). Wears the
+        // loaded save's gear, or the class's starting gear.
         if (class_idx >= 0 && class_idx < 7) {
             set_phase(MainPhase::IngamePlayer);
             const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-            draw_composite(fb, s.composite(kUiToSaveClass[class_idx], kModeTN, gfx), pal, 4,
-                           elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
+            draw_composite(fb, s.composite(kUiToSaveClass[class_idx], player_mode, gfx), pal,
+                           player_dir, elapsed_ms, int(kW) / 2, int(kH) / 2 + kIsoH / 2);
         }
         set_phase(MainPhase::IngameHudText);
     } else {
@@ -1517,24 +1541,25 @@ void render_ingame(std::vector<std::uint8_t>& fb,
 
     constexpr const char* welcome = "WELCOME TO SANCTUARY";
     const int ww = s.font.measure(welcome);
-    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ww/2, 220,
+    // Dev HUD at the top edge, clear of the player at screen centre.
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ww/2, 8,
                        welcome, 255, 208, 80);
 
     // On hardcore, D2 marks the caption with a red " (HC)" suffix — we
     // fudge that with a red tint on the trailing tag.
     const std::string line = name.empty() ? cls : std::string(name) + " the " + cls;
     const int lw = s.font.measure(line);
-    s.font.draw(fb, kW, kH, pal, int(kW)/2 - lw/2, 260, line);
+    s.font.draw(fb, kW, kH, pal, int(kW)/2 - lw/2, 28, line);
     if (hardcore) {
         constexpr const char* tag = " (HARDCORE)";
         const int tw = s.font.measure(tag);
-        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - lw/2 + lw, 260,
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - lw/2 + lw, 28,
                            tag, 220, 60, 60);
         (void)tw;
     }
 
     constexpr const char* hint =
-        "d2d dev build — townE1.ds1 rendering; walls + objects + scroll are next";
+        "d2d dev build — click to walk; collision, objects + NPCs are next";
     const int hw = s.font.measure(hint);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
     constexpr const char* esc = "press Esc to return to title";
@@ -1879,13 +1904,8 @@ TitleUI title_ui(const Scene& s) {
 // Turn SDL mouse + text events into a per-tick snapshot. Rising/falling
 // edges are recomputed each tick from the raw button state. When the
 // active screen has a text field, the caller flips SDL text input on/off.
-struct PanKeys {
-    bool& left; bool& right; bool& up; bool& down;
-};
-
 void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,
-                       PanKeys pan, bool& mouse_seen,
                        std::atomic<bool>& quit) {
     // SDL_EVENT_QUIT fires on app-level termination (Cmd-Q, all windows
     // closed). WINDOW_CLOSE_REQUESTED fires when a specific window's ✕
@@ -1900,15 +1920,6 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
         ev.key.key == SDLK_Q && (ev.key.mod & SDL_KMOD_GUI)) {
         quit = true; return;
     }
-    auto pan_flag = [&](SDL_Keycode k, bool v) {
-        switch (k) {
-            case SDLK_A: case SDLK_LEFT:  pan.left  = v; break;
-            case SDLK_D: case SDLK_RIGHT: pan.right = v; break;
-            case SDLK_W: case SDLK_UP:    pan.up    = v; break;
-            case SDLK_S: case SDLK_DOWN:  pan.down  = v; break;
-            default: break;
-        }
-    };
     if (ev.type == SDL_EVENT_KEY_DOWN) {
         if (ev.key.key == SDLK_ESCAPE) {
             // Esc pops one layer up:
@@ -1925,11 +1936,7 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             }
         } else if (ev.key.key == SDLK_BACKSPACE) {
             text_backspace = true;
-        } else {
-            pan_flag(ev.key.key, true);
         }
-    } else if (ev.type == SDL_EVENT_KEY_UP) {
-        pan_flag(ev.key.key, false);
     } else if (ev.type == SDL_EVENT_TEXT_INPUT) {
         // ev.text.text is UTF-8; keep the printable Latin-1 subset.
         for (const char* p = ev.text.text; *p; ++p) {
@@ -1939,14 +1946,6 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     } else if (ev.type == SDL_EVENT_MOUSE_MOTION) {
         m.x = int(ev.motion.x);
         m.y = int(ev.motion.y);
-        mouse_seen = true;
-    } else if (ev.type == SDL_EVENT_WINDOW_MOUSE_LEAVE) {
-        // Kill mouse-edge pan when the pointer leaves the window — a
-        // cursor sitting on the terminal (or anywhere off-window)
-        // otherwise pins the last-seen edge and pans forever.
-        mouse_seen = false;
-    } else if (ev.type == SDL_EVENT_WINDOW_MOUSE_ENTER) {
-        mouse_seen = true;
     } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         m.x = int(ev.button.x);
         m.y = int(ev.button.y);
@@ -2106,24 +2105,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
-    // Camera position on the InGame world (in DS1 cells). Seeded to the
-    // middle of the loaded map — arrow keys / WASD / mouse-edge pan from
-    // there. Persists across frames so panning is continuous rather than
-    // step-per-keypress.
-    int camera_cx = g_start_cam_x >= 0 ? g_start_cam_x
-                    : (scene && !scene->world_dt1s.empty()
-                        ? scene->world_ds1.width()  / 2 : 0);
-    int camera_cy = g_start_cam_y >= 0 ? g_start_cam_y
-                    : (scene && !scene->world_dt1s.empty()
-                        ? scene->world_ds1.height() / 2 : 0);
+    // The player in the InGame world, in DS1 cells (continuous; x.5 is a
+    // cell centre). The camera follows them. Seeded to --start-cam-x/y or
+    // the middle of the loaded map.
+    const bool have_world = scene && !scene->world_dt1s.empty();
+    float player_x = (g_start_cam_x >= 0 ? float(g_start_cam_x)
+                      : have_world ? float(scene->world_ds1.width() / 2) : 0.f) + 0.5f;
+    float player_y = (g_start_cam_y >= 0 ? float(g_start_cam_y)
+                      : have_world ? float(scene->world_ds1.height() / 2) : 0.f) + 0.5f;
+    float target_x = player_x, target_y = player_y;
+    bool  walking = false;
+    int   player_dir = 4;   // south, facing the viewer
     std::uint32_t last_ms = 0;
-    // Camera-pan latched key state (updated from SDL_EVENT_KEY_*). Using
-    // discrete events instead of SDL_GetKeyboardState works whether or not
-    // the window has real keyboard focus (headless CI, background test
-    // spawns, etc.) — SDL_GetKeyboardState was hanging under the harness's
-    // detached-window scenario.
-    bool pan_left = false, pan_right = false, pan_up = false, pan_down = false;
-    bool mouse_seen = false;
 
     // Watchdog — writes to stderr the second the main thread stops
     // updating its heartbeat. Atomic reads only; no SDL calls (would
@@ -2190,7 +2183,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " class=" + std::to_string(cc.selected)
              + " name=" + cc.input_name
              + " hardcore=" + (cc.hardcore ? "1" : "0")
-             + " cam=" + std::to_string(camera_cx) + "," + std::to_string(camera_cy)
+             + " cam=" + std::to_string(int(player_x)) + "," + std::to_string(int(player_y))
+             + " walking=" + (walking ? "1" : "0") + " dir=" + std::to_string(player_dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
              + "\nok\n";
     });
@@ -2223,9 +2217,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             // convert so the mouse lands in 800x600 game pixels.
             SDL_ConvertEventToRenderCoordinates(win.r, &ev);
             handle_sdl_events(ev, mouse, screen, text_this_frame,
-                              backspace_this_frame,
-                              PanKeys{pan_left, pan_right, pan_up, pan_down},
-                              mouse_seen, quit);
+                              backspace_this_frame, quit);
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
@@ -2281,53 +2273,40 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             }
             case Screen::InGame: {
                 // ESC handled globally in handle_sdl_events (returns to Title).
-                // Camera pan: WASD or arrow keys, plus D2-style mouse-edge
-                // scroll when the pointer sits in the outer 16px of the
-                // window. Rate: ~6 cells/sec, budgeted from real elapsed
-                // ms so pan speed is frame-rate-independent.
-                if (!scene->world_dt1s.empty()) {
-                    // float, not uint32: int kx * uint32 dt promotes -1 to
-                    // 4294967295u, sending ax past 2^24 where `ax -= 1.f`
-                    // is a no-op — the pan-left/up beachball.
-                    const float dt = float(ms - last_ms);
-                    int kx = 0, ky = 0;
-                    if (pan_left)  --kx;
-                    if (pan_right) ++kx;
-                    if (pan_up)    --ky;
-                    if (pan_down)  ++ky;
-                    // Mouse-edge scroll only kicks in after the pointer has
-                    // moved at least once (mouse_seen), so the initial
-                    // (0, 0) default doesn't drift the camera to (0, 0).
-                    constexpr int kEdge = 16;
-                    if (mouse_seen) {
-                        if (mouse.x < kEdge)            --kx;
-                        if (mouse.x >= int(kW) - kEdge) ++kx;
-                        if (mouse.y < kEdge)            --ky;
-                        if (mouse.y >= int(kH) - kEdge) ++ky;
+                // D2 movement: press or hold the left button on the ground
+                // and the character walks toward that point (the target
+                // tracks the cursor while held); the camera follows.
+                if (have_world) {
+                    const float dt = float(ms - last_ms) / 1000.f;
+                    if (mouse.down || mouse.press_this_frame) {
+                        // Screen -> world: invert the iso projection around
+                        // the player, who sits at (kW/2, kH/2 + kIsoH/2).
+                        const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
+                        const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
+                        target_x = player_x + (u + v) / 2;
+                        target_y = player_y + (v - u) / 2;
+                        walking = true;
                     }
-                    // Fractional accumulator so 6 cells/sec = 6*dt/1000
-                    // and diagonals don't jitter.
-                    static float ax = 0.f, ay = 0.f;
-                    ax += kx * dt * 0.006f;
-                    ay += ky * dt * 0.006f;
-                    while (ax >=  1.f) { ++camera_cx; ax -= 1.f; }
-                    while (ax <= -1.f) { --camera_cx; ax += 1.f; }
-                    while (ay >=  1.f) { ++camera_cy; ay -= 1.f; }
-                    while (ay <= -1.f) { --camera_cy; ay += 1.f; }
-                    // Keep camera inside the DS1 grid.
-                    const int mw = scene->world_ds1.width();
-                    const int mh = scene->world_ds1.height();
-                    if (camera_cx < 0)   camera_cx = 0;
-                    if (camera_cy < 0)   camera_cy = 0;
-                    if (camera_cx >= mw) camera_cx = mw - 1;
-                    if (camera_cy >= mh) camera_cy = mh - 1;
+                    if (walking) {
+                        const float dx = target_x - player_x, dy = target_y - player_y;
+                        const float dist = std::hypot(dx, dy), step = kWalkCellsPerSec * dt;
+                        if (dist > 0.05f) player_dir = direction16(dx, dy);
+                        if (dist <= step) { player_x = target_x; player_y = target_y; walking = false; }
+                        else              { player_x += dx / dist * step; player_y += dy / dist * step; }
+                        // ponytail: no collision yet — only the map edge
+                        // stops you. DT1 subtile flags have the walls.
+                        const float mw = float(scene->world_ds1.width()), mh = float(scene->world_ds1.height());
+                        player_x = std::clamp(player_x, 0.f, mw - 0.01f);
+                        player_y = std::clamp(player_y, 0.f, mh - 0.01f);
+                    }
                 }
                 const int ui_cls = std::max(cc.selected, 0);
                 render_ingame(fb, *scene, ui_cls,
                               cc.appearance ? *cc.appearance
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
-                              camera_cx, camera_cy, ms);
+                              player_x, player_y, walking ? kModeTW : kModeTN,
+                              player_dir, ms);
                 break;
             }
             case Screen::CharCreate: {
@@ -2404,7 +2383,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         if (dt_input > 100 || dt_render > 100 || dt_present > 100) {
             std::fprintf(stderr,
                 "[d2d] slow frame: input=%u ms render=%u ms present=%u ms screen=%d cam=(%d,%d)\n",
-                dt_input, dt_render, dt_present, int(screen), camera_cx, camera_cy);
+                dt_input, dt_render, dt_present, int(screen), int(player_x), int(player_y));
         }
         if (ms - stat_last_report_ms >= 5000) {
             const std::uint32_t avg_r = stat_frames ? stat_render_sum  / stat_frames : 0;
@@ -2412,7 +2391,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             std::fprintf(stderr,
                 "[d2d] alive: %u frames/5s | input max=%u | render avg=%u max=%u | present avg=%u max=%u | screen=%d cam=(%d,%d)\n",
                 stat_frames, stat_input_max, avg_r, stat_render_max, avg_p, stat_present_max,
-                int(screen), camera_cx, camera_cy);
+                int(screen), int(player_x), int(player_y));
             stat_frames = 0;      stat_input_max = 0;
             stat_render_sum = 0;  stat_render_max = 0;
             stat_present_sum = 0; stat_present_max = 0;
