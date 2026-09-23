@@ -26,3 +26,28 @@ resistances are computed from experience.txt and equipment.
 
 Found by searching game.exe for the label string IDs (Strength 0xfdc,
 Dexterity 0xfde, Vitality 0xfe2 within a few bytes of each other).
+
+## Drawing (FUN_004a7d00)
+
+Every string is centred in its box as `x0 + (x1 - x0 + 1 - w) / 2`
+(left-aligned at `x0` when it doesn't fit); `y` is the baseline — font
+DC6 cells blit bottom-anchored like any DC6 (font6 cells are 11 px tall,
+baseline on row 8; font16 16 px, row 14), so the cell top is
+`y - cell_height + 1`, not `y - tbl_height`.
+
+- **Labels**: font 6 (`font6`). A label with a `\n` (the resistances)
+  draws its two halves at `y - 4` and `y + 4`.
+- **Name**: box 13..161, baseline 25; font16, font8 when the name is 12–13
+  chars, font6 at 14+. **Class**: font16, box 193..311, baseline 25.
+- **Values**: font16. Life/mana/stamina/defence drop to font8 when > 999
+  or at least as wide as the box. Colour (`local_8`): 3 blue when the
+  current value beats the base, 1 red when below, 4 gold for a maxed
+  resistance.
+- **Next level** (30): experience.txt row `<level>` (same for every
+  class); blank at max level.
+- **Resistances**: stat + difficulty penalty (expansion: DifficultyLevels
+  `ResistPenalty`, 0/-40/-100; classic: hard-coded 0/-20/-50), clamped to
+  `[-100, min(75 + max-res stat, 95)]`.
+
+The save's active difficulty is the `difficulty[3]` byte at d2s 0xA8
+with bit 0x80 set.

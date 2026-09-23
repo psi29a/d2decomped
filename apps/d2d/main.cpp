@@ -290,6 +290,8 @@ struct Scene {
     // is the CD's (826 entries), whose IDs don't match what 1.14d code asks
     // for (10832 is "CREATE NEW" in 1.14d, "Bonus to Attack Rating" on CD).
     bool patched = false;
+    std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
+    std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -298,7 +300,8 @@ struct Scene {
     // to match Scene::class positions.
     std::array<std::array<d2d::dc6::Sprite, 5>, 7> class_anims;
     d2d::font::Font       font;
-    d2d::font::Font       font_small;         // font8 — panel labels and values
+    d2d::font::Font       font_small;         // font8 — long panel values
+    d2d::font::Font       font_tiny;          // font6 — panel labels
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
@@ -543,6 +546,53 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 // Update hover/pressed state and, on a mouse-up over a hovered+pressed
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
+// The char panel's computed values (stat 30 next level, 31 defence,
+// resistances 39/43/41/45), as FUN_004a7d00 shows them. From the save's
+// base stats and gear.
+// ponytail: equipped slots 1..10 (the primary weapon set), jewels and
+// charms; no gem/rune socket bonuses (gems.txt), set bonuses, skills or
+// auras.
+struct PanelStats {
+    std::int64_t next = -1, defense = 0;
+    std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
+};
+
+PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
+                       const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st) {
+    PanelStats p;
+    const auto lvl = st.get(d2d::d2s::kLevel);
+    if (lvl >= 0 && std::size_t(lvl) + 1 < s.exp_next.size()) p.next = s.exp_next[std::size_t(lvl)];
+    std::array<std::int64_t, 64> sum{};
+    auto add = [&](const std::vector<d2d::d2s::ItemProp>& props) {
+        for (const auto& pr : props) if (pr.stat >= 0 && pr.stat < 64) sum[std::size_t(pr.stat)] += pr.value;
+    };
+    std::int64_t item_def = 0, per_level = 0;
+    for (const auto& it : items) {
+        const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
+        const bool charm = it.location == 0 && it.panel == 1
+                        && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
+        if (!worn && !charm) continue;
+        add(it.props);
+        for (const auto& j : it.socketed_items) add(j.props);
+        std::int64_t ed = 0;
+        for (const auto& pr : it.props) {
+            if (pr.stat == 16) ed += pr.value;            // item_armor_percent: this item's base
+            if (pr.stat == 214) per_level += pr.value;    // item_armor_perlevel, 1/8 per level
+        }
+        if (it.defense > 0) item_def += it.defense * (100 + ed) / 100;
+    }
+    p.defense = item_def + sum[31] + per_level * lvl / 8 + st.get(d2d::d2s::kDex) / 4;
+    const int diff = h.active_difficulty();
+    const std::int64_t penalty = h.expansion() ? s.resist_penalty[std::size_t(diff)]
+                                               : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
+    constexpr int kRes[4] = { 39, 43, 41, 45 };
+    for (int i = 0; i < 4; ++i) {
+        const auto cap = std::min<std::int64_t>(75 + sum[std::size_t(kRes[i] + 1)], 95);
+        p.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
+    }
+    return p;
+}
+
 struct CharCreateUI {
     std::array<ClassUI, 7> classes{};
     int selected = -1;           // index of currently-selected class or -1
@@ -551,6 +601,7 @@ struct CharCreateUI {
     std::optional<std::array<std::uint8_t, 16>> appearance;
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
     d2d::d2s::Stats stats;               // ... and attributes
+    PanelStats panel;                    // ... and what the char panel computes
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -870,6 +921,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (types.size() == 0 || weapons.size() == 0) return;
     scene.comp = d2d::compcode::build(types, weapons, armor, misc);
 
+    // Char panel: next-level experience (row "<level>", same for every
+    // class) and the expansion's resistance penalty per difficulty.
+    if (const auto xp = txt("experience"); xp.size() > 0)
+        for (std::size_t r = 0; r < xp.size(); ++r)
+            if (const auto l = xp.get(r, "Level"); !l.empty() && l[0] >= '0' && l[0] <= '9') {
+                const auto lv = std::size_t(std::stoi(std::string(l)));
+                if (lv >= scene.exp_next.size()) scene.exp_next.resize(lv + 1, -1);
+                scene.exp_next[lv] = std::stoll(std::string(xp.get(r, "Amazon")));
+            }
+    if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
+        for (std::size_t r = 0; r < 3; ++r)
+            scene.resist_penalty[r] = std::stoll(std::string(dl.get(r, "ResistPenalty")));
+
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
     if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
         scene.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
@@ -879,9 +943,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::string(t->get(r, "invfile")),
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())) };
-    if (auto t8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.tbl)"))
-        if (auto d8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.dc6)"))
-            scene.font_small = d2d::font::Font(*t8, d2d::dc6::Sprite(*d8));
+    for (auto [name, into] : { std::pair{ "font8", &scene.font_small }, { "font6", &scene.font_tiny } })
+        if (auto t = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"))
+            if (auto d = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6"))
+                *into = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\800ctrlpnl7.dc6)", &scene.ctrl_panel },
                                { R"(data\global\ui\PANEL\hlthmana.dc6)", &scene.globes },
                                { R"(data\global\ui\PANEL\overlap.dc6)", &scene.globe_glass } })
@@ -1937,6 +2002,7 @@ constexpr PanelText kCharValues[] = {
 };
 
 void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st,
+                     const PanelStats& ps,
                      std::string_view name, int class_idx) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int px = kCharPanelX, py = kCharPanelY;
@@ -1947,35 +2013,59 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
         blit_sprite(fb, s.inv_panel.frame(0, 2), pal, px, py + int(f0.height));
         blit_sprite(fb, s.inv_panel.frame(0, 3), pal, px + int(f0.width), py + int(f0.height));
     }
-    // Small font (font8) like D2's panel; multi-line strings ("Fire\nResistance")
-    // stack, the block centred on the box's y.
-    const auto& font = s.font_small.line_height() > 0 ? s.font_small : s.font;
-    const int lh = font.line_height();
-    auto centred = [&](const PanelText& t, const std::string& txt) {
-        std::vector<std::string> lines;
-        for (std::size_t a = 0;;) {
-            const auto nl = txt.find('\n', a);
-            lines.push_back(txt.substr(a, nl == txt.npos ? txt.npos : nl - a));
-            if (nl == txt.npos) break;
-            a = nl + 1;
-        }
-        int y = py + t.y - int(lines.size()) * lh / 2;
-        for (const auto& l : lines) {
-            font.draw(fb, kW, kH, pal, px + (t.x0 + t.x1) / 2 - font.measure(l) / 2, y, l);
-            y += lh;
-        }
+    // As FUN_004a7d00 draws it: text centred in [x0, x1] as
+    // x0 + (x1 - x0 + 1 - w) / 2 (left-aligned when it doesn't fit), y the
+    // baseline. Labels in font6, a "Fire\nResistance" pair at y-4 / y+4;
+    // values in font16, dropping to font8 when > 999 or too wide (life/
+    // mana/stamina); name font16/font8/font6 by length, class font16.
+    // ponytail: all white; the game colours boosted/lowered values blue/red
+    // and maxed resistances gold (local_8 in FUN_004a7d00).
+    auto pick = [&](const d2d::font::Font& f) -> const d2d::font::Font& {
+        return f.line_height() > 0 ? f : s.font;
     };
-    for (const auto& t : kCharLabels)
-        if (auto v = lookup_string(s, std::uint16_t(t.id))) centred(t, u16_to_latin1(*v));
+    const auto& f16 = s.font;
+    const auto& f8 = pick(s.font_small);
+    const auto& f6 = pick(s.font_tiny);
+    auto text = [&](const d2d::font::Font& f, int x0, int x1, int y, const std::string& t) {
+        const int w = f.measure(t);
+        const int x = w < x1 - x0 + 1 ? x0 + (x1 - x0 + 1 - w) / 2 : x0;
+        // Glyph cells blit bottom-anchored at y, like any DC6 (font6 cells
+        // are 11 tall with the baseline on row 8).
+        f.draw(fb, kW, kH, pal, px + x, py + y - int(f.sheet().frame(0, 0).height) + 1, t);
+    };
+    for (const auto& t : kCharLabels) {
+        const auto v = lookup_string(s, std::uint16_t(t.id));
+        if (!v) continue;
+        const auto txt = u16_to_latin1(*v);
+        if (const auto nl = txt.find('\n'); nl != txt.npos) {
+            text(f6, t.x0, t.x1, t.y - 4, txt.substr(0, nl));
+            text(f6, t.x0, t.x1, t.y + 4, txt.substr(nl + 1));
+        } else {
+            text(f6, t.x0, t.x1, t.y, txt);
+        }
+    }
     for (const auto& t : kCharValues) {
-        if (t.id > 13) continue;                          // computed stats: not yet
         const bool fixed = t.id >= 6 && t.id <= 11;       // life/mana/stamina, 8.8
-        centred(t, std::to_string(fixed ? st.fixed(t.id) : st.get(t.id)));
+        std::int64_t v = fixed ? st.fixed(t.id) : st.get(t.id);
+        switch (t.id) {
+            case 30: v = ps.next; break;
+            case 31: v = ps.defense; break;
+            case 39: v = ps.res[0]; break;
+            case 43: v = ps.res[1]; break;
+            case 41: v = ps.res[2]; break;
+            case 45: v = ps.res[3]; break;
+            default: break;
+        }
+        if (t.id == 30 && v < 0) continue;                // max level: blank
+        const auto txt = std::to_string(v);
+        const bool small = (fixed || t.id == 31) && (v > 999 || f16.measure(txt) >= t.x1 - t.x0);
+        text(small ? f8 : f16, t.x0, t.x1, t.y, txt);
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
     if (auto v = lookup_string(s, cls)) cls = u16_to_latin1(*v);
-    centred({ 10, 18, 160, 0 }, std::string(name));
-    centred({ 170, 18, 310, 0 }, cls);
+    const auto& fname = name.size() + 1 <= 11 ? f16 : name.size() + 1 < 14 ? f8 : f6;
+    text(fname, 13, 13 + 0xa1 - 0xd - 1, 25, std::string(name));
+    text(f16, 0xc1, 0x137 - 1, 25, cls);
 }
 
 // The bottom HUD, as game.exe's 800x600 path draws it (FUN_004983d0 for
@@ -2038,7 +2128,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    std::span<const NpcState> npcs = {},
                    const std::vector<d2d::d2s::Item>* inventory = nullptr,
                    const d2d::d2s::Stats* char_stats = nullptr,
-                   const d2d::d2s::Stats* hud_stats = nullptr) {
+                   const d2d::d2s::Stats* hud_stats = nullptr,
+                   const PanelStats* panel = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2081,7 +2172,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory);
-        if (char_stats) draw_char_panel(fb, s, *char_stats, name, class_idx);
+        if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
@@ -2131,6 +2222,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         (void)tw;
     }
 
+    if (inventory || char_stats) return;                  // the hint would run under a panel
     constexpr const char* hint =
         "d2d dev build — click to walk around the Rogue camp";
     const int hw = s.font.measure(hint);
@@ -2925,6 +3017,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                    : std::vector<d2d::d2s::Item>{};
                     cc.stats = csu.selected < int(scene->save_stats.size())
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
+                    cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -3007,7 +3100,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_x, player_y, walking ? kModeTW : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
-                              char_open ? &cc.stats : nullptr, &cc.stats);
+                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel);
                 break;
             }
             case Screen::CharCreate: {

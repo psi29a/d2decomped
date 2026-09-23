@@ -17,6 +17,8 @@
 //              SH S1..S8), an index into D2's component table (see
 //              components/compcode), 0xff = empty
 //   +0x98 u8   tints[16]: per-layer item colormap, 0xff = none
+//   +0xA8 u8   difficulty[3]: normal/nightmare/hell; 0x80 = the one the
+//              character was last played on, low 3 bits = act
 // ponytail: header only. Stats/skills/items are bit-packed sections after
 // 0x2FD; parse them when gameplay needs more than what char-select shows.
 #pragma once
@@ -46,6 +48,12 @@ struct Header {
     std::uint32_t last_played = 0;
     std::array<std::uint8_t, 16> appearance{};
     std::array<std::uint8_t, 16> tints{};
+    std::array<std::uint8_t, 3>  difficulty{};
+    // 0 normal, 1 nightmare, 2 hell — the last one played.
+    [[nodiscard]] int active_difficulty() const noexcept {
+        for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
+        return 0;
+    }
 
     [[nodiscard]] bool hardcore()  const noexcept { return status & 0x04; }
     [[nodiscard]] bool died()      const noexcept { return status & 0x08; }
@@ -55,7 +63,7 @@ struct Header {
 // Throws std::runtime_error on anything that isn't a 1.09–1.14d save.
 // Saves are user-supplied files: validate before trusting any field.
 inline Header parse_header(std::span<const std::byte> b) {
-    constexpr std::size_t kHeaderEnd = 0xA8;   // through tints[]
+    constexpr std::size_t kHeaderEnd = 0xAB;   // through difficulty[]
     if (b.size() < kHeaderEnd) throw std::runtime_error("d2s: truncated header");
     auto rd32 = [&](std::size_t off) {
         std::uint32_t v; std::memcpy(&v, b.data() + off, 4); return v;
@@ -79,6 +87,7 @@ inline Header parse_header(std::span<const std::byte> b) {
     h.last_played = rd32(0x30);
     std::memcpy(h.appearance.data(), b.data() + 0x88, 16);
     std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
+    std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
     if (h.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(h.cls));
     return h;
 }

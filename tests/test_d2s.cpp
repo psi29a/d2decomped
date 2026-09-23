@@ -120,6 +120,9 @@ int main() {
                 for (const auto& it : items) {
                     assert(!it.code.empty());
                     equipped += it.location == 1;
+                    if (it.quality == 4) assert(it.prefix || it.suffix);     // magic: named by affix
+                    if (it.quality == 6 || it.quality == 8) assert(it.rare1 && it.rare2);
+                    if (it.quality == 5) assert(it.set_id >= 0);
                 }
                 assert(items.size() > 0 && equipped > 0);
                 ++saves;

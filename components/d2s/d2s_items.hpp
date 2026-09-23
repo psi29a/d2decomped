@@ -44,8 +44,15 @@ struct Item {
     int  quality = 2;                  // 1 low .. 8 crafted; 2 = normal
     int  ilvl = 0, defense = -1, quantity = -1, sockets = 0;
     int  set_id = -1, unique_id = -1;
+    int  qsub = 0;                     // low (0 crude..3) / superior subtype
+    int  prefix = 0, suffix = 0;       // magic: MagicPrefix/MagicSuffix row (0 = none)
+    int  rare1 = 0, rare2 = 0;         // rare/crafted name: RarePrefix/RareSuffix IDs
+    std::array<int, 6> affixes{};      // rare/crafted: prefix, suffix, prefix, ... (0 = none)
+    int  runeword_id = -1;
+    std::string owner;                 // personalized
     std::uint32_t uid = 0;
-    std::vector<ItemProp> props;       // main list (set/runeword lists appended)
+    std::vector<ItemProp> props;       // main list, runeword list appended
+    std::vector<ItemProp> set_props;   // set bonus lists (active by pieces worn)
     std::vector<Item>     socketed_items;
 };
 
@@ -142,18 +149,18 @@ inline Item item(Bits& bs, const ItemTables& t) {
             if (bs.read(1)) bs.read(3);            // picture
             if (bs.read(1)) bs.read(11);           // class-specific auto affix
             switch (it.quality) {
-                case 1: case 3: bs.read(3); break;
-                case 4: bs.read(11); bs.read(11); break;
+                case 1: case 3: it.qsub = int(bs.read(3)); break;
+                case 4: it.prefix = int(bs.read(11)); it.suffix = int(bs.read(11)); break;
                 case 5: it.set_id = int(bs.read(12)); break;
                 case 7: it.unique_id = int(bs.read(12)); break;
                 case 6: case 8:
-                    bs.read(8); bs.read(8);
-                    for (int i = 0; i < 6; ++i) if (bs.read(1)) bs.read(11);
+                    it.rare1 = int(bs.read(8)); it.rare2 = int(bs.read(8));
+                    for (auto& a : it.affixes) a = bs.read(1) ? int(bs.read(11)) : 0;
                     break;
                 default: break;
             }
-            if (it.runeword) { bs.read(12); bs.read(4); }
-            if (it.personalized) while (bs.read(7)) {}
+            if (it.runeword) { it.runeword_id = int(bs.read(12)); bs.read(4); }
+            if (it.personalized) while (const auto c = bs.read(7)) it.owner.push_back(char(c));
             if (it.code == "tbk" || it.code == "ibk") bs.read(5);
             bs.read(1);
             if (t.armor.contains(it.code)) it.defense = int(bs.read(11)) - 10;
@@ -164,7 +171,7 @@ inline Item item(Bits& bs, const ItemTables& t) {
             int lists = 0;
             if (it.quality == 5) for (auto sf = bs.read(5); sf; sf &= sf - 1) ++lists;
             props(bs, t, it.props);
-            for (int i = 0; i < lists; ++i) props(bs, t, it.props);
+            for (int i = 0; i < lists; ++i) props(bs, t, it.set_props);
             if (it.runeword) props(bs, t, it.props);
         }
     }
