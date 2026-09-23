@@ -265,6 +265,7 @@ struct Scene {
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
     d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
+    d2d::dc6::Sprite      cursor;             // CURSOR\ohand.dc6 — D2's gauntlet, 8 frames
     // Character composites (in-game player, char-select portraits). The
     // COF names the body-part layers and their per-frame draw order; each
     // layer is its own DCC, indexed by COF composite type (0 HD, 1 TR,
@@ -948,6 +949,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
             .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
             .charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)")),
             .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
+            .cursor            = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)")),
             .class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
@@ -2073,6 +2075,7 @@ struct Window {
         // refresh — the primary yield mechanism. Failure is not fatal;
         // pace_frame() delays anyway as a floor.
         SDL_SetRenderVSync(r, 1);
+        SDL_HideCursor();   // d2d draws D2's gauntlet into the frame
         SDL_SetRenderLogicalPresentation(r, w_, h_, SDL_LOGICAL_PRESENTATION_LETTERBOX);
         // RGBA32 is defined as ABGR8888 on LE / RGBA8888 on BE — memory order
         // is always (r, g, b, a), matching our framebuffer.
@@ -2602,6 +2605,20 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 render_charcreate(fb, *scene, cc, ms);
                 break;
             }
+            }
+            // D2's own cursor, drawn into the frame so it scales with the
+            // game (the OS pointer is hidden). DC6 frames anchor bottom-
+            // left, which puts the fingertip on the hotspot. Palette of
+            // the screen underneath.
+            // ponytail: frame 0 idle, the closed hand (7) while pressed;
+            // D2 plays the grab frames in between.
+            if (scene->cursor.frames_per_direction() >= 8) {
+                const auto& pal = screen == Screen::InGame
+                                      ? (scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal)
+                                  : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
+                const auto& f = scene->cursor.frame(0, mouse.down ? 7 : 0);
+                blit_sprite(fb, f, pal, mouse.x + f.offset_x,
+                            mouse.y + f.offset_y - int(f.height) + 1);
             }
         } else {
             paint_test_pattern(fb);
