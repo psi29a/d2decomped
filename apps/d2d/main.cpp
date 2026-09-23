@@ -45,6 +45,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -276,7 +277,7 @@ struct Scene {
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
-    // Character saves from <user dir>/save/*.d2s, sorted by name.
+    // Character saves from <user dir>/save/*.d2s, most recently played first.
     std::vector<d2d::d2s::Header> saves;
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
@@ -322,9 +323,14 @@ lookup_string(const Scene& s, std::string_view key) {
 }
 inline std::optional<std::u16string_view>
 lookup_string(const Scene& s, std::uint16_t id) {
-    if (auto v = s.patch_strings.get(id); v && !v->empty()) return v;
-    if (auto v = s.exp_strings.get(id);   v && !v->empty()) return v;
-    if (auto v = s.strings.get(id);       v && !v->empty()) return v;
+    // Numeric IDs are banked, not layered (RE'd from char-select: 0x58cb =
+    // 22731 resolves to expansionstring[2731] "EXPANSION CHARACTER"):
+    //   0..9999 string.tbl, 10000..19999 patchstring, 20000+ expansionstring.
+    // Trying every table with the raw ID hits the wrong one — string.tbl
+    // 2731 is "Bile".
+    const auto& t = id >= 20000 ? s.exp_strings : id >= 10000 ? s.patch_strings : s.strings;
+    const auto local = std::uint16_t(id >= 20000 ? id - 20000 : id >= 10000 ? id - 10000 : id);
+    if (auto v = t.get(local); v && !v->empty()) return v;
     return std::nullopt;
 }
 
@@ -391,15 +397,18 @@ constexpr int kSlotX[2] = { 37, 309 };
 constexpr int kSlotY[4] = { rec_top(178, kSlotH), rec_top(271, kSlotH),
                             rec_top(364, kSlotH), rec_top(457, kSlotH) };
 constexpr int kSlots = 8;
-// Scrollbar (record 0xa7, joingamescrollbars.dc6: f0/f2 up, f1/f3 down
-// normal/pressed, f4 thumb; 12x14 each). Shown only when saves > 8; one
-// step = one row = 2 saves (callback 0x439df0).
-// RE'd box (564, 457, 34, 371) = x 564..597, y 87..457: the rail drawn
-// into the BG art's right edge. The 12 px bar sits right-aligned in it.
-// ponytail: right-aligned by eye against the art; D2Win's kind-5 widget
-// (FUN_005084f0 / draw FUN_00508370) has the exact math if it's off by a px.
-constexpr int kScrollX = 564 + 34 - 12, kScrollTop = rec_top(457, 371),
-              kScrollBot = 457 + 1, kScrollArrow = 14;
+// Scrollbar: record 0xa7 is a text box with flag 4 ("has scrollbar"),
+// whose child scrollbar (kind 5, FUN_005084f0) takes its geometry from
+// {585, 457, 363} at 0x708d00: x, bottom y, height. Art is
+// joingamescrollbars.dc6 (f0/f2 up, f1/f3 down normal/pressed, f4 thumb,
+// f5 track; 12x14 each). Shown only when saves > 8; one step = one row =
+// 2 saves (callback 0x439df0). Draw math from FUN_00508370, bottom-left
+// anchored like every D2 cel: down arrow at bottom y-1, track tiles every
+// 10 px above it, up arrow at bottom (y-h)+9, thumb at bottom
+// (h-30)*pos/max - h + 19 + y.
+constexpr int kScrollX = 585, kScrollBottom = 457, kScrollH = 363, kScrollArrow = 14;
+constexpr int kScrollUpTop   = rec_top(kScrollBottom - kScrollH + 9, kScrollArrow);  // 90
+constexpr int kScrollDownTop = rec_top(kScrollBottom - 1, kScrollArrow);             // 443
 
 struct Button {
     int x{}, y{}, w{}, h{};
@@ -575,7 +584,7 @@ const Scene::PlayerAnim& Scene::player_anim(int class_idx) const {
     return *slot;
 }
 
-// Headers of every valid .d2s in `dir`, sorted by name. Bad files are
+// Headers of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
 std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
     std::vector<d2d::d2s::Header> out;
@@ -590,7 +599,13 @@ std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
             std::fprintf(stderr, "[d2d] %s: %s\n", e.path().string().c_str(), ex.what());
         }
     }
-    std::ranges::sort(out, {}, &d2d::d2s::Header::name);
+    // Newest first — LoD inserts each character by last-played time,
+    // descending (FUN_00438ad0), and preselects slot 0.
+    // Ties (e.g. synthetic saves with no timestamp) fall back to name so
+    // the order doesn't depend on directory iteration.
+    std::ranges::sort(out, [](const auto& a, const auto& b) {
+        return std::tie(b.last_played, a.name) < std::tie(a.last_played, b.name);
+    });
     return out;
 }
 
@@ -882,6 +897,34 @@ int charselect_max_scroll(int n) {
     return std::max(0, (n + 1) / 2 * 2 - kSlots);
 }
 
+// D2 font colours used on char-select (FUN_004fc9b0 colour arg).
+constexpr std::uint8_t kTextRed[3]   = { 255, 77, 77 };    // 1
+constexpr std::uint8_t kTextGreen[3] = { 0, 255, 0 };      // 2
+constexpr std::uint8_t kTextGold[3]  = { 199, 179, 119 };  // 4
+
+// Name prefix earned by beating difficulties — FUN_005068a0 picks a tier
+// from the progression byte, FUN_00505640 the (hard-coded English) word.
+// Tier: classic <4/<8/<12/else, LoD <5/<10/<15/else -> 0..3; hardcore
+// shifts non-zero tiers by 3. Female: Amazon, Sorceress, Assassin.
+std::string char_title(const d2d::d2s::Header& h) {
+    const int p = h.progression;
+    const bool lod = h.expansion();
+    int tier = lod ? (p < 5 ? 0 : p < 10 ? 1 : p < 15 ? 2 : 3)
+                   : (p < 4 ? 0 : p < 8 ? 1 : p < 12 ? 2 : 3);
+    if (tier == 0) return {};
+    if (h.hardcore()) tier += 3;
+    const bool female = h.cls == 0 || h.cls == 1 || h.cls == 6;
+    static constexpr const char* kClassic[2][7] = {
+        { "", "Sir ",  "Lord ", "Baron ",    "Count ",    "Duke ",    "King "  },
+        { "", "Dame ", "Lady ", "Baroness ", "Countess ", "Duchess ", "Queen " },
+    };
+    static constexpr const char* kLod[2][7] = {
+        { "", "Slayer ", "Champion ", "Patriarch ", "Destroyer ", "Conqueror ", "Guardian " },
+        { "", "Slayer ", "Champion ", "Matriarch ", "Destroyer ", "Conqueror ", "Guardian " },
+    };
+    return (lod ? kLod : kClassic)[female][tier];
+}
+
 // Visible slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
 int charselect_slot_at(int x, int y) {
     for (int i = 0; i < kSlots; ++i) {
@@ -911,30 +954,44 @@ void render_charselect(std::vector<std::uint8_t>& fb,
             blit_sprite(fb, box.frame(0, 1), pal, x + 256, y);
         }
         if (si >= int(s.saves.size())) continue;
-        // ponytail: text only, no class portrait; add the DCC idle in the
-        // 72px cell on the slot's right when the slot needs to look like D2's.
+        // Text, per FUN_004380f0: lines go into the slot's text box (record
+        // 0x84+i: 200x92, left margin 76, top margin 3), right of the
+        // portrait. [title] name in red (hardcore) or gold, "Level N Class"
+        // in white, then "EXPANSION CHARACTER" in green for LoD chars.
         const auto& h = s.saves[std::size_t(si)];
         const int ci = kSaveClassToUi[h.cls];
         std::string cls = kClassKey[ci];
         if (auto v = lookup_string(s, kClassKey[ci])) cls = u16_to_latin1(*v);
-        const std::string line2 = "Level " + std::to_string(h.level) + " " + cls;
-        s.font.draw_tinted(fb, kW, kH, pal, x + 12, y + 20, h.name.c_str(),
-                           255, 208, 80);
-        s.font.draw(fb, kW, kH, pal, x + 12, y + 40, line2.c_str());
-        if (h.hardcore())
-            s.font.draw_tinted(fb, kW, kH, pal, x + 12, y + 60, "Hardcore",
-                               255, 64, 64);
+        std::string level = "Level";
+        if (auto v = lookup_string(s, std::uint16_t(0xfd9))) level = u16_to_latin1(*v);
+        const std::string line1 = char_title(h) + h.name;
+        const std::string line2 = level + " " + std::to_string(h.level) + " " + cls;
+        const int tx = x + 76, lh = s.font.line_height();
+        int ty = y + 3;
+        const auto& name_rgb = h.hardcore() ? kTextRed : kTextGold;
+        s.font.draw_tinted(fb, kW, kH, pal, tx, ty, line1.c_str(),
+                           name_rgb[0], name_rgb[1], name_rgb[2]);
+        s.font.draw(fb, kW, kH, pal, tx, ty += lh, line2.c_str());
+        if (h.expansion()) {
+            std::string exp = "EXPANSION CHARACTER";
+            if (auto v = lookup_string(s, std::uint16_t(22731))) exp = u16_to_latin1(*v);
+            s.font.draw_tinted(fb, kW, kH, pal, tx, ty += lh, exp.c_str(),
+                               kTextGreen[0], kTextGreen[1], kTextGreen[2]);
+        }
     }
 
     if (const int max = charselect_max_scroll(int(s.saves.size()));
         max > 0 && s.charselect_scroll.frames_per_direction() >= 5) {
         const auto& sb = s.charselect_scroll;
-        blit_sprite(fb, sb.frame(0, 0), pal, kScrollX, kScrollTop);
-        blit_sprite(fb, sb.frame(0, 1), pal, kScrollX, kScrollBot - kScrollArrow);
-        // Thumb slides between the arrows, proportional to the scroll row.
-        const int track = kScrollBot - kScrollTop - 3 * kScrollArrow;
-        blit_sprite(fb, sb.frame(0, 4), pal, kScrollX,
-                    kScrollTop + kScrollArrow + track * ui.scroll / max);
+        blit_sprite(fb, sb.frame(0, 1), pal, kScrollX, kScrollDownTop);
+        if (sb.frames_per_direction() >= 6)
+            for (int n = 20, b = kScrollBottom - 1; n < kScrollH; n += 10)
+                blit_sprite(fb, sb.frame(0, 5), pal, kScrollX, rec_top(b -= 10, kScrollArrow));
+        blit_sprite(fb, sb.frame(0, 0), pal, kScrollX, kScrollUpTop);
+        // Thumb: pos/max in rows (the widget counts rows, we store saves).
+        const int thumb_bottom = (kScrollH - 30) * (ui.scroll / 2) / (max / 2)
+                               - kScrollH + 19 + kScrollBottom;
+        blit_sprite(fb, sb.frame(0, 4), pal, kScrollX, rec_top(thumb_bottom, kScrollArrow));
     }
 
     if (s.saves.empty()) {
@@ -2081,9 +2138,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     // Scrollbar arrows (only live while the bar is shown).
                     if (max_scroll > 0 && mouse.x >= kScrollX
                         && mouse.x < kScrollX + 12) {
-                        if (mouse.y >= kScrollTop && mouse.y < kScrollTop + kScrollArrow)
+                        if (mouse.y >= kScrollUpTop && mouse.y < kScrollUpTop + kScrollArrow)
                             rows = -1;
-                        if (mouse.y >= kScrollBot - kScrollArrow && mouse.y < kScrollBot)
+                        if (mouse.y >= kScrollDownTop && mouse.y < kScrollDownTop + kScrollArrow)
                             rows = 1;
                     }
                 }

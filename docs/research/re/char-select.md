@@ -52,10 +52,34 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   `0x439da0` down (if `visible + offset < total`), also dragging the
   selection along.
 
-## Not yet RE'd
+## Slot contents (`FUN_004380f0`, list built by `FUN_00438ad0`)
 
-- Exact pixel placement of the scrollbar arrows/thumb inside the `0xa7`
-  box (D2Win kind-5 widget, ctor `FUN_005084f0`, draw `FUN_00508370`).
-  d2d right-aligns the 12 px bar at x = 586 over y 87..457.
+- Kind-4 records are text boxes. The dispatcher (`FUN_004f93c0`) passes
+  x/y in ECX/EDX (fastcall) and pushes: `+0x14` left margin, `+0x18` top
+  margin, `+0x2c` flags (2 centre, 0x10 right, 4 = has scrollbar). Slot
+  boxes `0x84+i`: 200x92, **left margin 76, top margin 3**, flags 0x20.
+- Lines, top to bottom: `[title ]name` in red (hardcore) / gold, then
+  `"Level" (string 0xfd9) N ClassName` in white, then string 22731
+  "EXPANSION CHARACTER" in green if status & 0x20, then string 10927 in
+  gold if the ladder byte is set; Battle.net adds an expiry line.
+- Title: `FUN_005068a0(class, progression, hc, lod)` → tier (classic
+  <4/<8/<12, LoD <5/<10/<15; hardcore +3), `FUN_00505640` → hard-coded
+  "Sir/Dame … King/Queen", "Slayer … Patriarch/Matriarch … Guardian".
+- String IDs are banked: <10000 string.tbl, <20000 patchstring
+  (id-10000), else expansionstring (id-20000).
+- Portrait: per-char composite `FUN_005066c0(class, mode, appearance,
+  tints)` from the .d2s appearance bytes (0x88/0x98), drawn at
+  (slot x + 30, slot bottom - 13). Mode TN, NU for living hardcore; dead
+  hardcore uses ghost class 8 (female) / 9 (male).
+- Order: newest first — inserted by last-played time, descending.
+
+## Scrollbar geometry (`FUN_005084f0` / draw `FUN_00508370`)
+
+- Child of record `0xa7` with geometry `{585, 457, 363}` from `0x708d00`
+  (x, bottom y, height). Cels are bottom-left anchored: down arrow at
+  y-1 (443..456), track (f5) every 10 px above it, up arrow at
+  (y-h)+9 (90..103), thumb at `(h-30)*pos/max - h + 19 + y`.
+
+## Not yet RE'd
 - Keyboard navigation (`FUN_00439e90`, `FUN_0043a0d0`, `FUN_0043a9d0`
   read the offset/selection).

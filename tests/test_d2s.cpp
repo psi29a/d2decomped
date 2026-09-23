@@ -20,6 +20,9 @@ std::vector<std::byte> make_save(std::uint32_t version, const char* name,
     b[0x24] = std::byte(status);
     b[0x28] = std::byte(cls);
     b[0x2B] = std::byte(level);
+    b[0x25] = std::byte{15};
+    wr32(0x30, 1625730359u);
+    for (int i = 0; i < 16; ++i) { b[0x88 + i] = std::byte(i); b[0x98 + i] = std::byte{0xff}; }
     return b;
 }
 
@@ -37,6 +40,8 @@ int main() {
     assert(h.name == "Shadowdancerxyz");
     assert(h.cls == 6 && h.level == 42);
     assert(h.hardcore() && h.expansion() && !h.died());
+    assert(h.progression == 15 && h.last_played == 1625730359u);
+    assert(h.appearance[0] == 0 && h.appearance[5] == 5 && h.tints[3] == 0xff);
 
     // Full 16 bytes with no NUL must not read past the field.
     auto full = make_save(96, "ABCDEFGHIJKLMNOP", 0, 0, 1);
@@ -51,6 +56,7 @@ int main() {
     assert(throws(make_save(96, "a", 0, 7, 1)));    // no class 7
     assert(throws(make_save(96, "",  0, 0, 1)));
     assert(throws(std::vector<std::byte>(0x20)));   // truncated
+    assert(throws(std::vector<std::byte>(0xA7)));   // cut inside tints[]
 
     std::printf("OK\n");
     return 0;
