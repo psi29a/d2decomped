@@ -120,8 +120,25 @@ u32 raw size           u64 FILETIME (2005 for data, 2016+ for binaries)
 129 of 215 are raw — every patchstring.tbl (1.14d ENG: 1062 entries vs
 the CD's 826), most UI DC6s, compcode/monster/skill tables, the binaries.
 The other 86 (armor/weapons/misc/charstats/ItemTypes/levels .txt/.bin…)
-use a compression not yet identified: literal text runs broken by control
-bytes, so some LZ variant — or deltas against the pre-patch files.
+are **binary deltas against the base file in d2data/d2exp.mpq** — which
+every 1.07+ install has, so one patch serves them all. For armor.txt the
+header's "unpacked size" (82472) is the d2exp.mpq armor.txt's size and
+the next field (76370) the 1.14d file's. Payload so far:
+
+```
+u32 11763   u32 13321        # sum = payload - 8: likely op-bytes / literal-bytes
+ops: [b0 b1 b2] [u16 lit_len] [lit bytes]
+     copy_len = b0 | (b1 & 0x3f) << 8, b1 >> 6 = 1 on the first ops
+```
+
+The first three ops check out against the base: copy 142 (`…code\t`) +
+insert `namestr`; copy 276 from base 141 (one byte *back*) + insert
+`type2\tdropsound\tdropsfxframe\tuse`; copy 114 from 417 + insert
+`StrBonus\tDexBonus`. The third byte (00 / 78 / 60) is not a plain
+offset delta (ops 2 and 4 both step back one byte but encode it
+differently), and op 4's framing already breaks — so the op encoding is
+variable-length or bit-packed. Not decoded yet; the installer's own
+unpacker (the stub exe / BNUpdate) is where to RE it.
 
 `mpq::Stack::push_installer()` layers the installer on top the way
 patch_d2.mpq would be: raw entries by game path, compressed ones fall
