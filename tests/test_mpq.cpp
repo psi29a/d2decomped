@@ -77,7 +77,18 @@ int main() {
         assert(ps && ps->size() > 1000);
         const auto cc = st.try_read("data/global/excel/COMPCODE.txt");   // any case/slash
         assert(cc && std::memcmp(cc->data(), "component\tcode", 14) == 0);
-        assert(!st.contains(R"(data\global\excel\armor.txt)"));      // compressed entry
+        assert(!st.contains(R"(data\global\excel\armor.txt)"));      // delta, no base yet
+        // With the base MPQs underneath, deltas are applied: 1.14d armor.txt
+        // (76370 bytes, "namestr" column) from the CD's.
+        if (fs::exists(dir / "d2exp.mpq")) {
+            st.push(dir / "d2exp.mpq");
+            st.push(dir / "d2data.mpq");
+            const auto armor = st.try_read(R"(data\global\excel\armor.txt)");
+            assert(armor && armor->size() == 76370);
+            const std::string head(reinterpret_cast<const char*>(armor->data()), 400);
+            assert(head.find("\tnamestr\t") != std::string::npos);
+            std::printf("installer delta applied: armor.txt %zu bytes\n", armor->size());
+        }
         assert(!st.contains("patch.lst"));                             // not a game path
         std::printf("installer layer OK\n");
     } else {

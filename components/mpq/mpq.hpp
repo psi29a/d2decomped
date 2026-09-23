@@ -14,6 +14,8 @@
 
 #include <StormLib.h>
 
+#include "bnpatch.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -60,12 +62,12 @@ public:
     // archive; patch.lst maps game paths to them ("data\global\excel\
     // armor.txt;armor.txt;0x0", ENG patchstring.tbl = patchstring~01.tbl)
     // and each carries a 24-byte header:
-    //   u16 size (24), u8 ?, u8 stored (1 = raw, 0 = compressed),
-    //   u32 checksum, u32 unpacked size, u32 raw size, u64 filetime.
-    // ponytail: raw entries only (129 of 215 in 1.14d: every patchstring,
-    // most UI DC6s, compcode/monster/skill tables). Compressed ones (armor,
-    // weapons, misc, charstats ...) fall through to the next archive until
-    // the installer's compression is RE'd.
+    //   u16 size (24), u8 4, u8 stored (1 = raw, 0 = delta),
+    //   u32 CRC-32 of the base file, u32 base size, u32 output size,
+    //   u64 filetime.
+    // Raw entries (stored = 1) come back directly; the rest are BNUpdate
+    // deltas against the same file in the base MPQs, which Stack applies
+    // (bnpatch.hpp) — Archive alone can't see the base.
     [[nodiscard]] static Archive installer(const std::filesystem::path& path) {
         Archive a(path);
         const auto lst = a.try_read("patch.lst");
@@ -82,6 +84,16 @@ public:
                              std::string(line.substr(a1 + 1, a2 == line.npos ? a2 : a2 - a1 - 1)));
         }
         return a;
+    }
+
+    [[nodiscard]] bool is_installer() const noexcept { return !remap_.empty(); }
+
+    // Installer only: the entry for a game path, 24-byte header included.
+    [[nodiscard]] std::optional<std::vector<std::byte>>
+    installer_entry(std::string_view name) const {
+        const auto it = remap_.find(key(name));
+        if (it == remap_.end()) return std::nullopt;
+        return read_raw(it->second);
     }
 
     [[nodiscard]] bool contains(std::string_view name) const {
@@ -163,10 +175,22 @@ public:
         return std::move(*data);
     }
 
+    // First archive that has the file wins. An installer's delta entry is
+    // applied to the file from the archives below it; when that base
+    // doesn't match (CRC/size), the lookup falls through to the base.
     [[nodiscard]] std::optional<std::vector<std::byte>>
     try_read(std::string_view name) const {
-        for (const auto& a : archives_) {
+        for (std::size_t i = 0; i < archives_.size(); ++i) {
+            const auto& a = archives_[i];
             if (auto data = a.try_read(name)) return data;
+            if (!a.is_installer()) continue;
+            const auto entry = a.installer_entry(name);
+            if (!entry) continue;
+            for (std::size_t j = i + 1; j < archives_.size(); ++j)
+                if (auto base = archives_[j].try_read(name)) {
+                    if (auto out = bnpatch::apply(*entry, *base)) return out;
+                    break;
+                }
         }
         return std::nullopt;
     }

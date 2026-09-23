@@ -112,37 +112,55 @@ the binaries, `delete.lst` files to remove, `prepatch.lst`/`patch.cmd` the
 install script. Every payload file has a 24-byte header:
 
 ```
-u16 header size (24)   u8 ?(4)   u8 stored: 1 raw, 0 compressed
-u32 checksum           u32 unpacked size (0 when raw)
-u32 raw size           u64 FILETIME (2005 for data, 2016+ for binaries)
+u16 header size (24)   u8 4   u8 stored: 1 raw, 0 delta
+u32 CRC-32 of the base file   u32 base size (0 when raw)
+u32 output size        u64 FILETIME (2005 for data, 2016+ for binaries)
 ```
 
 129 of 215 are raw — every patchstring.tbl (1.14d ENG: 1062 entries vs
 the CD's 826), most UI DC6s, compcode/monster/skill tables, the binaries.
-The other 86 (armor/weapons/misc/charstats/ItemTypes/levels .txt/.bin…)
-are **binary deltas against the base file in d2data/d2exp.mpq** — which
-every 1.07+ install has, so one patch serves them all. For armor.txt the
-header's "unpacked size" (82472) is the d2exp.mpq armor.txt's size and
-the next field (76370) the 1.14d file's. Payload so far:
+The other 86 (armor/weapons/misc/charstats/ItemTypes/levels .txt/.bin,
+the Act 1 wing/town DS1s…) are **binary deltas against the same file in
+d2data/d2exp.mpq** — which every 1.07+ install has, so one patch serves
+them all. The base is checked by size and standard CRC-32 first.
 
-```
-u32 11763   u32 13321        # sum = payload - 8: likely op-bytes / literal-bytes
-ops: [b0 b1 b2] [u16 lit_len] [lit bytes]
-     copy_len = b0 | (b1 & 0x3f) << 8, b1 >> 6 = 1 on the first ops
-```
+### Delta format (BNUpdate.exe, `bnupdate\ptc.cpp`, FUN_004072d0)
 
-The first three ops check out against the base: copy 142 (`…code\t`) +
-insert `namestr`; copy 276 from base 141 (one byte *back*) + insert
-`type2\tdropsound\tdropsfxframe\tuse`; copy 114 from 417 + insert
-`StrBonus\tDexBonus`. The third byte (00 / 78 / 60) is not a plain
-offset delta (ops 2 and 4 both step back one byte but encode it
-differently), and op 4's framing already breaks — so the op encoding is
-variable-length or bit-packed. Not decoded yet; the installer's own
-unpacker (the stub exe / BNUpdate) is where to RE it.
+After the header: `u32 len1, u32 len2`, then stream 1 (ops, `len1`
+bytes) and stream 2 (fixups, `len2` bytes).
+
+Stream 1 is a list of `u16` ops, kind = top two bits, n = low 14. A
+cursor walks the base; every op advances it by n:
+
+| kind     | op                                                             |
+|----------|----------------------------------------------------------------|
+| `0x4000` | cursor += signed varint; copy n base bytes                     |
+| `0x8000` | cursor += signed varint; n/2 words: `out[o] = fbase[cursor] + out[o-2]` |
+| `0x0000` | n literal bytes follow                                         |
+| `0xC000` | n zero bytes                                                   |
+
+`fbase` is the base with each 16-bit word (walked from the end, 2-byte
+steps) minus the word before it — so a `0x8000` op re-integrates base
+data whose words all shifted by a constant (record IDs, offsets in .bin
+tables).
+
+Stream 2 then adds 16-bit values at output positions: a signed varint
+`v`; if nonzero, a position and then position deltas until 0, each
+getting `+v`. After that, groups of `{value delta, position, position
+deltas…, 0}` (the value accumulates) until a 0 value delta.
+
+Varints are 1–4 bytes by the first byte's top bits: `0xxxxxxx` 7 bits,
+`10xxxxxx` +1 byte (14 bits), `110xxxxx` +2 (21), `111xxxxx` +3 (29),
+little-end first; the signed form sign-extends from that width.
+
+Implemented in `components/mpq/bnpatch.hpp`; all 86 deltas rebuild to
+their stated size (armor.txt: 82472-byte CD file → 76370-byte 1.14d file
+with the `namestr` column).
 
 `mpq::Stack::push_installer()` layers the installer on top the way
-patch_d2.mpq would be: raw entries by game path, compressed ones fall
-through. d2d uses a real patch_d2.mpq if the data dir has one, else the
+patch_d2.mpq would be: raw entries by game path; deltas are applied to
+the file from the archives below, falling through to it if the base
+doesn't match. d2d uses a real patch_d2.mpq if the data dir has one, else the
 installer from d2d.cfg `patch = …` or `<data dir>/LODPatch_114d.exe`.
 Without either, patchstring IDs (10000..19999) aren't trusted: the CD's
 patchstring numbers don't match 1.14d's (10832 is "CREATE NEW" in 1.14d,
