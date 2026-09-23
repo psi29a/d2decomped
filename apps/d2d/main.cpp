@@ -342,6 +342,7 @@ struct Scene {
         std::string base_w;                  // weapon class ("hth" for objects)
         std::array<std::string, 16> comp;    // per layer, "" = not present
         float x = 0, y = 0;
+        int size_x = 0, size_y = 0;          // collision footprint, subtiles
     };
     std::vector<Npc> world_npcs;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
@@ -740,6 +741,8 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.mode   = "NU";
         n.code   = std::string(ms.get(it->second, "Code"));
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
+        n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
+        n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
         if (n.code.empty()) continue;
         if (n.base_w.empty()) n.base_w = "hth";
         for (std::size_t l = 0; l < 16; ++l) {
@@ -773,12 +776,29 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
                      && objects.get(r, "Lit2") != "0";
         n.mode   = on ? "ON" : "NU";
+        // Blocks walking in its start mode (HasCollision0 = NU, 2 = ON).
+        if (objects.get(r, on ? "HasCollision2" : "HasCollision0") == "1") {
+            n.size_x = std::atoi(std::string(objects.get(r, "SizeX")).c_str());
+            n.size_y = std::atoi(std::string(objects.get(r, "SizeY")).c_str());
+        }
         for (std::size_t l = 0; l < 16; ++l)
             if (objects.get(r, kLayerCode[l]) == "1") n.comp[l] = "lit";
         if (n.code.empty()) continue;
         n.x = (float(o.x) + 0.5f) / 5;
         n.y = (float(o.y) + 0.5f) / 5;
         scene.world_npcs.push_back(std::move(n));
+    }
+
+    // Footprints into the walk grid, centred on each unit's subtile.
+    // ponytail: static — fine while NPCs only idle; moving units need a
+    // separate occupancy layer.
+    const int ww = scene.world_ds1.width() * 5, wh = scene.world_ds1.height() * 5;
+    for (const auto& n : scene.world_npcs) {
+        const int cx = int(n.x * 5), cy = int(n.y * 5);
+        for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
+            for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
+                if (x >= 0 && y >= 0 && x < ww && y < wh)
+                    scene.world_walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
     }
 }
 
@@ -1788,7 +1808,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     }
 
     constexpr const char* hint =
-        "d2d dev build — click to walk; objects + NPCs are next";
+        "d2d dev build — click to walk around the Rogue camp";
     const int hw = s.font.measure(hint);
     s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
     constexpr const char* esc = "press Esc to return to title";
