@@ -39,6 +39,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
 | `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x,y walking=… dir=… saves=…\nok` | Loop state for scripted asserts. |
+| `items`                     | per item `[code loc=… slot=… q=…]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
 
 Future verbs (as the engine grows): `load <act>/<level>`, etc.
 
