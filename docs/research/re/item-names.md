@@ -20,3 +20,23 @@ Name strings are the row's key column (`index`, `Name`, `name`) looked
 up in patchstring → expansionstring → string; base names are
 armor/weapons/misc `namestr`. Two-line names (set, unique, rare,
 runeword) show the base item on the second line.
+
+## Property lines
+
+The rest of the hover text comes from the item's stat list, described by
+ItemStatCost's `descfunc`/`descval`/`descstrpos`/`descstrneg`/`descstr2`,
+highest `descpriority` first (d2d `prop_lines`). Repeats of a
+(stat, param) sum first, like the unit's stat list. `dgrp` groups
+(all resistances, all attributes) print once when every member is
+present with the same value. Min/max damage pairs are hard-coded to the
+`strMod*DamageRange` strings ("Adds %d-%d fire damage"), poison scaled
+by length/256 over length/25 seconds; 17+18 with equal values become
+"+X% Enhanced Damage". Per-level stats (op 2..5) show `value * clvl >>
+op param`.
+
+Filled sockets add their bonuses: a jewel its own properties, a gem or
+rune its gems.txt `weaponMod`/`helmMod`/`shieldMod` row (shield when the
+parent's ItemTypes ancestry reaches `shld`), each mod code resolved
+through Properties.txt (`func` 1/3 = value, 15/16 = min/max, 17 = param,
+5/6/7 = min/max/% damage). Runewords get their rune bonuses this way —
+the save only stores the runeword's own list.

@@ -35,6 +35,8 @@
 #include <CLI/CLI.hpp>
 #include <csignal>
 #include <unordered_map>
+#include <unordered_set>
+#include <variant>
 
 #include <algorithm>
 #include <array>
@@ -313,13 +315,28 @@ struct Scene {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr; };
+    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr, type; int kind = 0; };  // kind: 0 misc, 1 armor, 2 weapon
+    std::unordered_map<std::string, std::array<std::string, 2>> type_equiv;   // ItemTypes Equiv1/2
+    // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
+    // helm/armour, shield), already resolved through Properties.txt.
+    std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
     // String keys for item names, indexed the way the save's IDs are (see
     // item_lines): uniques/sets by row without separators, magic affixes by
     // raw row, rare names by raw row, runewords by RunewordN rank.
     struct ItemNames {
         std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
     } item_names;
+    // ItemStatCost.txt description columns, by stat ID, and what the skill
+    // descfuncs need: skill name keys by skill ID, CharStats strings by class.
+    struct StatDesc {
+        int prio = 0, func = 0, val = 0, op = 0, op_param = 0, dgrp = 0, dgrp_func = 0, dgrp_val = 0;
+        std::string pos, neg, str2, dgrp_pos, dgrp_neg, dgrp_str2;
+    };
+    std::vector<StatDesc> stat_desc;
+    std::vector<std::string> skill_name;         // string key
+    std::vector<int>         skill_class;        // CharStats row, -1 none
+    struct ClassStrs { std::string all_skills, tab[3], only; };
+    std::array<ClassStrs, 7> class_strs;
     std::unordered_map<std::string, ItemInfo> item_info;
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
     const d2d::dc6::Sprite* item_sprite(const std::string& code) const;
@@ -552,12 +569,35 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 // Update hover/pressed state and, on a mouse-up over a hovered+pressed
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
+// Is item type `t` (or an Equiv ancestor) `want`?
+bool type_is(const Scene& s, const std::string& t, std::string_view want, int depth = 0) {
+    if (t.empty() || depth > 8) return false;
+    if (t == want) return true;
+    const auto e = s.type_equiv.find(t);
+    return e != s.type_equiv.end()
+        && (type_is(s, e->second[0], want, depth + 1) || type_is(s, e->second[1], want, depth + 1));
+}
+
+// What a filled socket adds to `parent`: a jewel's own properties, or the
+// gem/rune's gems.txt bonus for the parent's kind (weapon, shield, else
+// helm/armour).
+std::vector<d2d::d2s::ItemProp> socket_props(const Scene& s, const d2d::d2s::Item& parent,
+                                             const d2d::d2s::Item& filled) {
+    auto out = filled.props;
+    const auto g = s.gem_props.find(filled.code);
+    const auto info = s.item_info.find(parent.code);
+    if (g == s.gem_props.end() || info == s.item_info.end()) return out;
+    const int k = info->second.kind == 2 ? 0 : type_is(s, info->second.type, "shld") ? 2 : 1;
+    const auto& add = g->second[std::size_t(k)];
+    out.insert(out.end(), add.begin(), add.end());
+    return out;
+}
+
 // The char panel's computed values (stat 30 next level, 31 defence,
 // resistances 39/43/41/45), as FUN_004a7d00 shows them. From the save's
 // base stats and gear.
-// ponytail: equipped slots 1..10 (the primary weapon set), jewels and
-// charms; no gem/rune socket bonuses (gems.txt), set bonuses, skills or
-// auras.
+// ponytail: equipped slots 1..10 (the primary weapon set), socket
+// bonuses and charms; no set bonuses, skills or auras.
 struct PanelStats {
     std::int64_t next = -1, defense = 0;
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
@@ -579,7 +619,7 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
                         && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
         if (!worn && !charm) continue;
         add(it.props);
-        for (const auto& j : it.socketed_items) add(j.props);
+        for (const auto& j : it.socketed_items) add(socket_props(s, it, j));
         std::int64_t ed = 0;
         for (const auto& pr : it.props) {
             if (pr.stat == 16) ed += pr.value;            // item_armor_percent: this item's base
@@ -949,7 +989,11 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::string(t->get(r, "invfile")),
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
-                std::string(t->get(r, "namestr")) };
+                std::string(t->get(r, "namestr")), std::string(t->get(r, "type")),
+                t == &armor ? 1 : t == &weapons ? 2 : 0 };
+    for (std::size_t r = 0; r < types.size(); ++r)
+        scene.type_equiv[std::string(types.get(r, "Code"))] = { std::string(types.get(r, "Equiv1")),
+                                                                std::string(types.get(r, "Equiv2")) };
     auto keys = [&](const char* n, const char* col, bool all) {
         std::vector<std::string> v;
         if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
@@ -958,6 +1002,89 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         return v;
     };
+    if (auto b = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
+        const d2d::txt::Table t(*b);
+        auto num = [&](std::size_t r, const char* c) { return std::atoi(std::string(t.get(r, c)).c_str()); };
+        for (std::size_t r = 0; r < t.size(); ++r) {
+            const auto id = std::size_t(num(r, "ID"));
+            if (id >= scene.stat_desc.size()) scene.stat_desc.resize(id + 1);
+            scene.stat_desc[id] = { num(r, "descpriority"), num(r, "descfunc"), num(r, "descval"),
+                                    num(r, "op"), num(r, "op param"), num(r, "dgrp"), num(r, "dgrpfunc"),
+                                    num(r, "dgrpval"),
+                                    std::string(t.get(r, "descstrpos")), std::string(t.get(r, "descstrneg")),
+                                    std::string(t.get(r, "descstr2")), std::string(t.get(r, "dgrpstrpos")),
+                                    std::string(t.get(r, "dgrpstrneg")), std::string(t.get(r, "dgrpstr2")) };
+        }
+    }
+    {
+        // Socket bonuses: gems.txt mods -> Properties.txt funcs -> stats.
+        // Property funcs used by gems: 1/3 value, 15/16 min/max, 17 param,
+        // 5/6/7 min/max/% damage. ponytail: other funcs dropped.
+        std::unordered_map<std::string, int> stat_id;
+        if (auto b = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
+            const d2d::txt::Table t(*b);
+            for (std::size_t r = 0; r < t.size(); ++r)
+                stat_id[std::string(t.get(r, "Stat"))] = std::atoi(std::string(t.get(r, "ID")).c_str());
+        }
+        std::unordered_map<std::string, std::vector<std::pair<int, int>>> prop;   // code -> (func, stat)
+        const auto pt = txt("Properties");
+        for (std::size_t r = 0; r < pt.size(); ++r)
+            for (int i = 1; i <= 7; ++i) {
+                const int f = std::atoi(std::string(pt.get(r, "func" + std::to_string(i))).c_str());
+                if (!f) continue;
+                const auto st = stat_id.find(std::string(pt.get(r, "stat" + std::to_string(i))));
+                prop[std::string(pt.get(r, "code"))].emplace_back(f, st == stat_id.end() ? -1 : st->second);
+            }
+        const auto gt = txt("gems");
+        static constexpr const char* kSlot[3] = { "weaponMod", "helmMod", "shieldMod" };
+        for (std::size_t r = 0; r < gt.size(); ++r)
+            for (int k = 0; k < 3; ++k)
+                for (int m = 1; m <= 3; ++m) {
+                    const std::string pre = std::string(kSlot[k]) + std::to_string(m);
+                    const auto it = prop.find(std::string(gt.get(r, pre + "Code")));
+                    if (it == prop.end()) continue;
+                    auto num = [&](const char* c) { return std::atoi(std::string(gt.get(r, pre + c)).c_str()); };
+                    const int par = num("Param"), mn = num("Min"), mx = num("Max");
+                    auto& out = scene.gem_props[std::string(gt.get(r, "code"))][std::size_t(k)];
+                    for (auto [f, st] : it->second) {
+                        switch (f) {
+                            case 1: case 3: if (st >= 0) out.push_back({ st, par, mn }); break;
+                            case 15: if (st >= 0) out.push_back({ st, 0, mn }); break;
+                            case 16: if (st >= 0) out.push_back({ st, 0, mx }); break;
+                            case 17: if (st >= 0) out.push_back({ st, 0, par }); break;
+                            case 5: out.push_back({ 21, 0, mn }); break;
+                            case 6: out.push_back({ 22, 0, mx }); break;
+                            case 7: out.push_back({ 17, 0, mn }); out.push_back({ 18, 0, mn }); break;
+                            default: break;
+                        }
+                    }
+                }
+    }
+    {
+        std::unordered_map<std::string, std::string> desc_name;     // SkillDesc key -> "str name"
+        if (auto b = mpqs.try_read(R"(data\global\excel\SkillDesc.txt)")) {
+            const d2d::txt::Table t(*b);
+            for (std::size_t r = 0; r < t.size(); ++r)
+                desc_name[std::string(t.get(r, "skilldesc"))] = std::string(t.get(r, "str name"));
+        }
+        static constexpr std::string_view kCls[] = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+        if (auto b = mpqs.try_read(R"(data\global\excel\skills.txt)")) {
+            const d2d::txt::Table t(*b);
+            for (std::size_t r = 0; r < t.size(); ++r) {
+                const auto id = std::size_t(std::atoi(std::string(t.get(r, "Id")).c_str()));
+                if (id >= scene.skill_name.size()) { scene.skill_name.resize(id + 1); scene.skill_class.resize(id + 1, -1); }
+                scene.skill_name[id] = desc_name[std::string(t.get(r, "skilldesc"))];
+                const auto cc = t.get(r, "charclass");
+                for (int c = 0; c < 7; ++c) if (cc == kCls[c]) scene.skill_class[id] = c;
+            }
+        }
+        const auto cs = txt("CharStats");
+        for (std::size_t r = 0; r < std::min<std::size_t>(cs.size(), 7); ++r)
+            scene.class_strs[r] = { std::string(cs.get(r, "StrAllSkills")),
+                                    { std::string(cs.get(r, "StrSkillTab1")), std::string(cs.get(r, "StrSkillTab2")),
+                                      std::string(cs.get(r, "StrSkillTab3")) },
+                                    std::string(cs.get(r, "StrClassOnly")) };
+    }
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     nm.set      = keys("SetItems", "index", false);
@@ -1976,14 +2103,190 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // prefix/suffix ID = MagicPrefix/MagicSuffix raw data row (row 0 is the
 // blank "none"); rare names = RarePrefix row (id - 156) + RareSuffix row
 // (id - 1); runeword ID = rank of its RunewordN + 27.
-// ponytail: names, defence, quantity and sockets only — no property lines
-// (ItemStatCost descfunc), requirements or durability yet.
+// ponytail: no requirements, durability, set bonus lines or weapon damage.
 struct TextLine { std::string text; std::array<std::uint8_t, 3> rgb; };
+
+// D2's printf subset in its strings: %d, %+d, %s, %%. Args in order.
+std::string d2_format(std::string_view f, std::initializer_list<std::variant<std::int64_t, std::string>> args) {
+    std::string out;
+    auto a = args.begin();
+    for (std::size_t i = 0; i < f.size(); ++i) {
+        if (f[i] != '%' || i + 1 == f.size()) { out += f[i]; continue; }
+        if (f[i + 1] == '%') { out += '%'; ++i; continue; }
+        const bool plus = f[i + 1] == '+';
+        const std::size_t k = i + (plus ? 2 : 1);
+        if (k >= f.size() || (f[k] != 'd' && f[k] != 's' && f[k] != 'i')) { out += f[i]; continue; }
+        if (a != args.end()) {
+            if (const auto* n = std::get_if<std::int64_t>(&*a)) out += (plus && *n >= 0 ? "+" : "") + std::to_string(*n);
+            else out += std::get<std::string>(*a);
+            ++a;
+        }
+        i = k;
+    }
+    return out;
+}
+
+// An item's property list as the tooltip's text lines, by ItemStatCost
+// descfunc (the column semantics the game's item-description code uses),
+// highest descpriority first. dgrp groups (all resistances, all
+// attributes) collapse into one line when every member is present with
+// the same value; min/max damage pairs become "Adds X-Y ..." and 17/18
+// "+X% Enhanced Damage", as the game hard-codes them.
+// ponytail: no descfunc 17/18 (time-of-day), 22/23 (monster types);
+// charges/skill lines use the skill's string key.
+std::vector<std::string> prop_lines(const Scene& s, std::vector<d2d::d2s::ItemProp> props, int clvl) {
+    auto str = [&](std::string_view key) {
+        if (key.empty()) return std::string{};
+        const auto v = lookup_string(s, key);
+        std::string t = v ? u16_to_latin1(*v) : std::string(key);
+        while (!t.empty() && (t.back() == '\n' || t.back() == ' ')) t.pop_back();
+        return t;
+    };
+    auto desc = [&](int stat) -> const Scene::StatDesc* {
+        return stat >= 0 && std::size_t(stat) < s.stat_desc.size() ? &s.stat_desc[std::size_t(stat)] : nullptr;
+    };
+    auto skill = [&](int id) {
+        return id >= 0 && std::size_t(id) < s.skill_name.size() ? str(s.skill_name[std::size_t(id)]) : std::string{};
+    };
+    // One stat list, like the unit's: repeats of a (stat, param) add up.
+    {
+        std::vector<d2d::d2s::ItemProp> merged;
+        for (const auto& p : props) {
+            auto m = std::ranges::find_if(merged, [&](const auto& q) { return q.stat == p.stat && q.param == p.param; });
+            if (m != merged.end() && p.stat != 204) m->value += p.value;      // 204: charges don't add
+            else merged.push_back(p);
+        }
+        props = std::move(merged);
+    }
+    struct Out { int prio; std::string text; };
+    std::vector<Out> out;
+    auto value_of = [&](int stat) -> std::optional<std::int64_t> {
+        for (const auto& p : props) if (p.stat == stat) return p.value;
+        return std::nullopt;
+    };
+    std::unordered_set<int> done;
+    // Hard-coded pairs.
+    auto range = [&](int lo, int hi, const char* range_key, const char* single_key, int prio, int len_stat = -1) {
+        const auto a = value_of(lo), b = value_of(hi);
+        if (!a || !b) return;
+        std::int64_t x = *a, y = *b;
+        std::optional<std::int64_t> secs;
+        if (len_stat >= 0) {
+            const auto len = value_of(len_stat).value_or(0);
+            x = x * len / 256; y = y * len / 256; secs = len / 25;
+            done.insert(len_stat);
+        }
+        std::string t = x == y && single_key ? (secs ? d2_format(str(single_key), { x, *secs })
+                                                     : d2_format(str(single_key), { x }))
+                      : secs ? d2_format(str(range_key), { x, y, *secs }) : d2_format(str(range_key), { x, y });
+        out.push_back({ prio, std::move(t) });
+        done.insert(lo); done.insert(hi);
+    };
+    range(21, 22, "strModMinDamageRange", nullptr, 127);
+    // Two-handed/thrown copies of min/max damage only show without the base.
+    if (value_of(21)) { done.insert(23); done.insert(159); }
+    if (value_of(22)) { done.insert(24); done.insert(160); }
+    range(48, 49, "strModFireDamageRange", "strModFireDamage", 102);
+    range(50, 51, "strModLightningDamageRange", "strModLightningDamage", 99);
+    range(52, 53, "strModMagicDamageRange", "strModMagicDamage", 104);
+    range(54, 55, "strModColdDamageRange", "strModColdDamage", 96);
+    if (done.contains(54)) done.insert(56);
+    range(57, 58, "strModPoisonDamageRange", "strModPoisonDamage", 92, 59);
+    if (const auto a = value_of(17), b = value_of(18); a && b && *a == *b) {
+        out.push_back({ 130, "+" + std::to_string(*a) + "% " + str("strModEnhancedDamage") });
+        done.insert(17); done.insert(18);
+    }
+    // dgrp groups.
+    std::unordered_map<int, std::vector<int>> groups;
+    for (std::size_t i = 0; i < s.stat_desc.size(); ++i)
+        if (s.stat_desc[i].dgrp) groups[s.stat_desc[i].dgrp].push_back(int(i));
+    for (const auto& [g, members] : groups) {
+        std::optional<std::int64_t> v;
+        bool same = true;
+        for (int m : members) {
+            const auto x = value_of(m);
+            if (!x || (v && *v != *x)) { same = false; break; }
+            v = x;
+        }
+        if (!same || !v) continue;
+        const auto& d = *desc(members.front());
+        const std::string s1 = str(*v < 0 ? d.dgrp_neg : d.dgrp_pos);
+        std::string t;
+        switch (d.dgrp_func) {
+            case 1: case 6: case 12: t = d.dgrp_val == 2 ? s1 + " " + d2_format("%+d", { *v }) : d2_format("%+d", { *v }) + " " + s1; break;
+            case 3: case 9: t = d.dgrp_val == 2 ? s1 + " " + std::to_string(*v) : std::to_string(*v) + " " + s1; break;
+            case 4: case 8: t = d.dgrp_val == 2 ? s1 + " " + d2_format("%+d%%", { *v }) : d2_format("%+d%%", { *v }) + " " + s1; break;
+            case 19: t = d2_format(s1, { *v }); break;
+            default: t = d2_format(s1, { *v }); break;
+        }
+        out.push_back({ d.prio, std::move(t) });
+        for (int m : members) done.insert(m);
+    }
+    for (const auto& p : props) {
+        if (done.contains(p.stat)) continue;
+        const auto* d = desc(p.stat);
+        if (!d || d->func == 0) continue;
+        std::int64_t v = p.value;
+        // Per-level stats (op 2..5 with op param): value * clvl >> param.
+        if (d->op >= 2 && d->op <= 5 && d->op_param > 0) v = v * clvl >> d->op_param;
+        const std::string s1 = str(v < 0 ? d->neg : d->pos), s2 = str(d->str2);
+        auto place = [&](const std::string& num) {
+            if (d->val == 0) return s1;
+            return d->val == 2 ? s1 + " " + num : num + " " + s1;
+        };
+        auto with2 = [&](std::string t) { return s2.empty() ? t : t + " " + s2; };
+        std::string t;
+        switch (d->func) {
+            case 1: case 12: t = place(d2_format("%+d", { v })); break;
+            case 2: t = place(std::to_string(v) + "%"); break;
+            case 3: t = place(std::to_string(v)); break;
+            case 4: t = place(d2_format("%+d%%", { v })); break;
+            case 5: t = place(std::to_string(v * 100 / 128) + "%"); break;
+            case 6: t = with2(place(d2_format("%+d", { v }))); break;
+            case 7: t = with2(place(std::to_string(v) + "%")); break;
+            case 8: t = with2(place(d2_format("%+d%%", { v }))); break;
+            case 9: t = with2(place(std::to_string(v))); break;
+            case 10: t = with2(place(std::to_string(v * 100 / 128) + "%")); break;
+            case 11: t = d2_format(s1, { std::int64_t(1), v ? 100 / v : 0 }); break;
+            case 13: t = d2_format("%+d", { v }) + " " + (p.param >= 0 && p.param < 7
+                         ? str(s.class_strs[std::size_t(p.param)].all_skills) : std::string{}); break;
+            case 14: {
+                const int cls = p.param >> 3, tab = p.param & 7;
+                if (cls < 0 || cls >= 7 || tab > 2) break;
+                const auto& cs = s.class_strs[std::size_t(cls)];
+                t = d2_format(str(cs.tab[tab]), { v }) + " " + str(cs.only);
+                break;
+            }
+            case 15: t = d2_format(s1, { v, std::int64_t(p.param & 63), skill(p.param >> 6) }); break;
+            case 16: t = d2_format(s1, { v, skill(p.param) }); break;
+            case 19: t = d2_format(s1, { v }); break;
+            case 20: t = place(std::to_string(-v) + "%"); break;
+            case 21: t = place(std::to_string(-v)); break;
+            case 24:                                       // descstr is just "(%d/%d Charges)"
+                t = "Level " + std::to_string(p.param & 63) + " " + skill(p.param >> 6) + " "
+                  + d2_format(s1, { v & 255, v >> 8 });
+                break;
+            case 27: {
+                const int c = std::size_t(p.param) < s.skill_class.size() ? s.skill_class[std::size_t(p.param)] : -1;
+                t = d2_format("%+d", { v }) + " to " + skill(p.param)
+                  + (c >= 0 ? " " + str(s.class_strs[std::size_t(c)].only) : "");
+                break;
+            }
+            case 28: t = d2_format("%+d", { v }) + " to " + skill(p.param); break;
+            default: break;
+        }
+        if (!t.empty()) out.push_back({ d->prio, std::move(t) });
+    }
+    std::ranges::stable_sort(out, [](const Out& a, const Out& b) { return a.prio > b.prio; });
+    std::vector<std::string> lines;
+    for (auto& o : out) lines.push_back(std::move(o.text));
+    return lines;
+}
 constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105, 105, 255 },
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 };
 
-std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it) {
+std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
         const auto v = lookup_string(s, key);
@@ -2029,8 +2332,24 @@ std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it) {
         default: out.push_back({ base, it.ethereal || it.socketed ? kTxtGrey : kTxtWhite }); break;
     }
     if (it.personalized && !it.owner.empty()) out.front().text = it.owner + "'s " + out.front().text;
-    if (it.defense >= 0) out.push_back({ "Defense: " + std::to_string(it.defense), kTxtWhite });
+    if (it.defense >= 0) {
+        // Shown with the item's own +% and flat defence applied (16, 31).
+        std::int64_t ed = 0, flat = 0;
+        for (const auto& p : it.props) {
+            if (p.stat == 16) ed += p.value;
+            if (p.stat == 31) flat += p.value;
+            if (p.stat == 214) flat += p.value * clvl / 8;         // armor per level
+        }
+        const auto def = std::int64_t(it.defense) * (100 + ed) / 100 + flat;
+        out.push_back({ str("ItemStats1h") + " " + std::to_string(def), def != it.defense ? kTxtBlue : kTxtWhite });
+    }
     if (it.quantity >= 0) out.push_back({ "Quantity: " + std::to_string(it.quantity), kTxtWhite });
+    auto props = it.props;
+    for (const auto& j : it.socketed_items) {
+        const auto sp = socket_props(s, it, j);
+        props.insert(props.end(), sp.begin(), sp.end());
+    }
+    for (auto& l : prop_lines(s, std::move(props), clvl)) out.push_back({ std::move(l), kTxtBlue });
     if (it.ethereal) out.push_back({ "Ethereal", kTxtBlue });
     if (it.socketed) out.push_back({ "Socketed (" + std::to_string(it.sockets) + ")", kTxtBlue });
     return out;
@@ -2069,7 +2388,7 @@ void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::v
 // ponytail: base item graphics only (no unique/set invfiles, no colour
 // tints), no belt/cube/stash.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
-                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1) {
+                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -2103,7 +2422,7 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
         if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) { hover = &it; hover_box = r; }
     }
     if (hover)
-        draw_hover_text(fb, s, item_lines(s, *hover), hover_box[0], hover_box[0] + hover_box[2],
+        draw_hover_text(fb, s, item_lines(s, *hover, clvl), hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
 }
 
@@ -2301,7 +2620,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                           mouse_x, mouse_y);
+                           mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         // Dev overlay: a red dot on every blocked subtile around the camera.
@@ -3023,6 +3342,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         if (args.size() < 2 || args[1] != "collision") return std::string("err debug collision\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
+    });
+    // Every item of the in-game character with its hover text, one item
+    // per paragraph (headless check for the tooltips).
+    ch.on("items", [&](const std::vector<std::string>&) {
+        if (!scene) return std::string("err no scene\n");
+        std::string out;
+        for (const auto& it : cc.items) {
+            out += "[" + it.code + " loc=" + std::to_string(it.location) + " slot=" + std::to_string(it.slot)
+                 + " q=" + std::to_string(it.quality) + "]\n";
+            for (const auto& l : item_lines(*scene, it, int(cc.stats.get(d2d::d2s::kLevel))))
+                out += "  " + l.text + "\n";
+        }
+        return out + "ok\n";
     });
     ch.on("state", [&](const std::vector<std::string>&) {
         return std::string("screen=") + screen_name(screen)
