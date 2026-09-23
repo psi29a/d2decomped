@@ -348,6 +348,9 @@ struct Scene {
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
     const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;
     std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
+    // belts.txt "default2" (800x600) boxes 1..4, {left, right, top, bottom}:
+    // the belt's first row, the one the HUD shows.
+    std::array<std::array<int, 4>, 4> belt_boxes{};
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     struct InvLayout {
         int panel_x = 400, panel_y = 60;
@@ -1130,6 +1133,16 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::uint32_t spd; std::memcpy(&spd, b->data() + p + 12, 4);
                 scene.anim_speed.emplace(std::move(name), spd);
             }
+        }
+    if (const auto bt = txt("belts"); bt.size() > 0)
+        for (std::size_t r = 0; r < bt.size(); ++r) {
+            if (bt.get(r, "name") != "default2") continue;
+            for (int i = 0; i < 4; ++i)
+                for (int k = 0; k < 4; ++k) {
+                    static constexpr const char* kSide[4] = { "left", "right", "top", "bottom" };
+                    scene.belt_boxes[std::size_t(i)][std::size_t(k)] = std::atoi(std::string(
+                        bt.get(r, "box" + std::to_string(i + 1) + kSide[k])).c_str());
+                }
         }
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
@@ -2615,6 +2628,30 @@ void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Sta
     at_bottom(s.globe_glass, 1, W - 0x6e, H - 9);
 }
 
+// The belt's first row in the HUD's belt strip: items in location 2 keep
+// their belt slot (0..15, 4 per row) in the column field; slots 0..3 sit
+// in belts.txt default2 boxes 1..4, the item centred. Hovering one shows
+// its hover text above the box.
+// ponytail: no belt popup (rows 2..4), no slot hotkey numbers.
+void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
+               int mx, int my, int clvl) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const d2d::d2s::Item* hover = nullptr;
+    std::array<int, 4> hb{};
+    for (const auto& it : items) {
+        if (it.location != 2 || it.column < 0 || it.column > 3) continue;
+        const auto& b = s.belt_boxes[std::size_t(it.column)];
+        if (b[1] <= b[0]) continue;
+        if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
+            const auto& f = spr->frame(0, 0);
+            blit_sprite(fb, f, pal, b[0] + (b[1] - b[0] + 1 - int(f.width)) / 2,
+                        b[2] + (b[3] - b[2] + 1 - int(f.height)) / 2);
+        }
+        if (mx >= b[0] && mx <= b[1] && my >= b[2] && my <= b[3]) { hover = &it; hb = b; }
+    }
+    if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[1] + 1, hb[3] + 1, hb[2]);
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -2632,7 +2669,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const d2d::d2s::Stats* char_stats = nullptr,
                    const d2d::d2s::Stats* hud_stats = nullptr,
                    const PanelStats* panel = nullptr,
-                   std::uint32_t player_mode_ms = 0) {
+                   std::uint32_t player_mode_ms = 0,
+                   const std::vector<d2d::d2s::Item>* belt = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2678,6 +2716,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
+        if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -3641,7 +3680,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_x, player_y, walking ? kModeTW : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
-                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms);
+                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items);
                 break;
             }
             case Screen::CharCreate: {
