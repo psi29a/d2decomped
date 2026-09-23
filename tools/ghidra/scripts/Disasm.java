@@ -24,6 +24,9 @@ public class Disasm extends GhidraScript {
         File out = new File(args[2]);
         if (out.getParentFile() != null) out.getParentFile().mkdirs();
         Listing listing = currentProgram.getListing();
+        // Code only reached via data tables (menu-record on_click etc.)
+        // was never disassembled by auto-analysis — do it on demand.
+        if (listing.getInstructionAt(start) == null) disassemble(start);
         int count = 0;
         try (PrintWriter w = new PrintWriter(new BufferedWriter(new FileWriter(out)))) {
             w.printf("// disasm %s..%s%n%n", start, end);
