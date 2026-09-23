@@ -65,12 +65,18 @@ struct Layer {
     std::vector<Tile> cells;   // width * height, row-major
 };
 
+struct PathPoint {
+    std::int32_t x{}, y{};      // subtiles, like Object::x/y
+    std::int32_t action{};      // v15+: what the NPC does on arrival
+};
+
 struct Object {
     std::int32_t type{};
     std::int32_t id{};
     std::int32_t x{};
     std::int32_t y{};
     std::int32_t flags{};
+    std::vector<PathPoint> path;   // NPC patrol path (v14+), empty if none
 };
 
 class Map {
@@ -230,9 +236,34 @@ private:
             }
         }
 
-        // Substitutions, NPCs, and NPC action paths follow. Not parsed — the
-        // caller can layer another pass on the remaining bytes when needed.
-        // ponytail: skip trailing tail. add when a subsystem needs it.
+        // Substitution groups (v12+, sub_type 1/2): tile-swap rectangles
+        // for quest state. Skipped — only their size matters here.
+        if (version_ >= 12 && (sub_type == 1 || sub_type == 2) && c.p < c.end) {
+            if (version_ >= 18) c.skip(4);
+            const auto n = c.rd_i32();
+            if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus group count");
+            for (std::int32_t g = 0; g < n; ++g) c.skip(version_ >= 13 ? 20 : 16);
+        }
+
+        // NPC paths (v14+): {count, x, y} then `count` points. The path
+        // belongs to the object standing at (x, y).
+        if (version_ >= 14 && c.p < c.end) {
+            const auto n = c.rd_i32();
+            if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus path count");
+            for (std::int32_t k = 0; k < n; ++k) {
+                const auto count = c.rd_i32();
+                const auto x = c.rd_i32(), y = c.rd_i32();
+                if (count < 0 || count > 10000) throw std::runtime_error("DS1: bogus path length");
+                std::vector<PathPoint> path(static_cast<std::size_t>(count));
+                for (auto& pt : path) {
+                    pt.x = c.rd_i32();
+                    pt.y = c.rd_i32();
+                    if (version_ >= 15) pt.action = c.rd_i32();
+                }
+                for (auto& o : objects_)
+                    if (o.x == x && o.y == y) { o.path = path; break; }
+            }
+        }
     }
 
     int                        version_{};

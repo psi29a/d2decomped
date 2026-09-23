@@ -56,6 +56,25 @@ int main() {
         assert(any_floor);
     }
 
+    // The full Rogue Encampment: v18, with NPC patrol paths (Akara, Kashya,
+    // Warriv, Charsi, Gheed) after the substitution groups.
+    {
+        const auto raw = mpq.read(R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
+        d2d::ds1::Map m(raw);
+        int walkers = 0;
+        for (const auto& o : m.objects()) {
+            if (o.path.empty()) continue;
+            ++walkers;
+            assert(o.type == 1);                       // only NPCs patrol
+            for (const auto& pt : o.path) {            // points stay on the map
+                assert(pt.x >= 0 && pt.x < m.width() * 5);
+                assert(pt.y >= 0 && pt.y < m.height() * 5);
+            }
+        }
+        std::printf("townE1: v%d, %d NPCs with paths\n", m.version(), walkers);
+        assert(walkers == 5);
+    }
+
     std::printf("OK\n");
     return 0;
 }

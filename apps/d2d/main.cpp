@@ -345,10 +345,11 @@ struct Scene {
         float x = 0, y = 0;
         int size_x = 0, size_y = 0;          // collision footprint, subtiles
         std::string name;                    // hover label; "" = not selectable
+        std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
     };
     std::vector<Npc> world_npcs;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
-    const PlayerAnim& npc_anim(const Npc& n) const;
+    const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
     [[nodiscard]] bool blocked(float x, float y) const {
         const int w = world_ds1.width() * 5, h = world_ds1.height() * 5;
         const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
@@ -602,6 +603,7 @@ constexpr int kModeNU = 1, kModeTN = 5, kModeTW = 6;
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
 // input; derive from it once movement units are RE'd.
 constexpr float kWalkCellsPerSec = 2.0f;
+constexpr float kNpcWalkCellsPerSec = 1.2f;   // town NPCs stroll
 
 // Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
 // cells. Directions are screen-space: project to screen, take the angle
@@ -679,11 +681,12 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
 // Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><BaseW>,
 // then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
 // with the recipe's component for that layer ("lit" when blank).
-Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n) {
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n,
+                                     const std::string& mode) {
     Scene::PlayerAnim out;
     char path[256];
     std::snprintf(path, sizeof(path), R"(data\global\%s\%s\COF\%s%s%s.cof)",
-                  n.root.c_str(), n.code.c_str(), n.code.c_str(), n.mode.c_str(), n.base_w.c_str());
+                  n.root.c_str(), n.code.c_str(), n.code.c_str(), mode.c_str(), n.base_w.c_str());
     auto cof = mpqs.try_read(path);
     if (!cof) return out;
     try {
@@ -695,7 +698,7 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::N
             for (auto* t : { &comp, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
             std::snprintf(path, sizeof(path), R"(data\global\%s\%s\%s\%s%s%s%s%s.dcc)",
                           n.root.c_str(), n.code.c_str(), kLayerCode[L.type], n.code.c_str(),
-                          kLayerCode[L.type], comp.c_str(), n.mode.c_str(), lw.c_str());
+                          kLayerCode[L.type], comp.c_str(), mode.c_str(), lw.c_str());
             if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
         }
     } catch (const std::exception& e) {
@@ -704,10 +707,11 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::N
     return out;
 }
 
-const Scene::PlayerAnim& Scene::npc_anim(const Npc& n) const {
-    const auto key = n.root + "/" + n.code + "/" + n.mode;
+const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) const {
+    const std::string m(mode);
+    const auto key = n.root + "/" + n.code + "/" + m;
     auto it = npc_anims.find(key);
-    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n)).first;
+    if (it == npc_anims.end()) it = npc_anims.emplace(key, load_npc_composite(mpqs, n, m)).first;
     return it->second;
 }
 
@@ -762,6 +766,8 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         n.x = (float(o.x) + 0.5f) / 5;
         n.y = (float(o.y) + 0.5f) / 5;
+        for (const auto& pt : o.path)
+            n.path.emplace_back((float(pt.x) + 0.5f) / 5, (float(pt.y) + 0.5f) / 5);
         scene.world_npcs.push_back(std::move(n));
     }
 
@@ -810,6 +816,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     // separate occupancy layer.
     const int ww = scene.world_ds1.width() * 5, wh = scene.world_ds1.height() * 5;
     for (const auto& n : scene.world_npcs) {
+        if (!n.path.empty()) continue;           // walkers don't hold a spot
         const int cx = int(n.x * 5), cy = int(n.y * 5);
         for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
             for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
@@ -1527,6 +1534,16 @@ inline void set_phase(MainPhase p) {
 // through, which is the same behaviour D2 itself has for stripped
 // tilesets.
 // Something drawn in the wall pass by depth: the player, an NPC.
+// Where each world NPC is right now (index-aligned with Scene::world_npcs):
+// patrolling NPCs walk their DS1 path, pausing at each point.
+struct NpcState {
+    float x = 0, y = 0;
+    int dir = 0;
+    bool walking = false;
+    std::size_t next = 0;             // path point being walked to
+    std::uint32_t wait_until = 0;     // ms; idle until then
+};
+
 struct Unit {
     float x = 0, y = 0;                  // world position, cells
     const Scene::PlayerAnim* anim = nullptr;
@@ -1779,7 +1796,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int player_mode,
                    int player_dir,
                    std::uint32_t elapsed_ms,
-                   int mouse_x = -1, int mouse_y = -1) {
+                   int mouse_x = -1, int mouse_y = -1,
+                   std::span<const NpcState> npcs = {}) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -1800,10 +1818,15 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (class_idx >= 0 && class_idx < 7)
             units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
                               player_dir });
-        // NPCs and objects, facing south-west (direction 0) for now.
-        for (const auto& n : s.world_npcs)
-            if (std::abs(n.x - cam_x) < 14 && std::abs(n.y - cam_y) < 14)
-                units.push_back({ n.x, n.y, &s.npc_anim(n), 0, &n.name });
+        // NPCs and objects, at their live position when they patrol.
+        for (std::size_t i = 0; i < s.world_npcs.size(); ++i) {
+            const auto& n = s.world_npcs[i];
+            const NpcState* st = i < npcs.size() ? &npcs[i] : nullptr;
+            const float x = st ? st->x : n.x, y = st ? st->y : n.y;
+            if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
+            const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));
+            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name });
+        }
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
         // Name over whatever the cursor points at, centred above it.
@@ -2432,6 +2455,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }();
         player_x = fx; player_y = fy;
     }
+    std::vector<NpcState> npc_states;
+    if (scene)
+        for (std::size_t i = 0; i < scene->world_npcs.size(); ++i) {
+            const auto& n = scene->world_npcs[i];
+            npc_states.push_back({ n.x, n.y, 0, false, 0, std::uint32_t(1000 + 700 * i % 3000) });
+        }
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
     int   player_dir = 4;   // south, facing the viewer
@@ -2635,6 +2664,30 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         else walking = false;
                         if (dist <= step) walking = false;
                     }
+                    // Patrolling NPCs: walk to the next DS1 path point, idle
+                    // a few seconds there, move on. ponytail: the per-point
+                    // action (1..4 — likely S1 specials like Charsi's
+                    // hammering) isn't interpreted; pauses are 2-5 s.
+                    for (std::size_t i = 0; i < npc_states.size(); ++i) {
+                        const auto& path = scene->world_npcs[i].path;
+                        if (path.empty()) continue;
+                        auto& st = npc_states[i];
+                        if (!st.walking) {
+                            if (ms >= st.wait_until) st.walking = true;
+                            continue;
+                        }
+                        const auto [tx, ty] = path[st.next % path.size()];
+                        const float dx = tx - st.x, dy = ty - st.y;
+                        const float dist = std::hypot(dx, dy), step = kNpcWalkCellsPerSec * dt;
+                        if (dist > 0.05f) st.dir = direction16(dx, dy);
+                        if (dist <= step) {
+                            st.x = tx; st.y = ty; st.walking = false;
+                            st.next = (st.next + 1) % path.size();
+                            st.wait_until = ms + 2000 + std::uint32_t((i * 1237 + st.next * 911) % 3000);
+                        } else {
+                            st.x += dx / dist * step; st.y += dy / dist * step;
+                        }
+                    }
                 }
                 const int ui_cls = std::max(cc.selected, 0);
                 render_ingame(fb, *scene, ui_cls,
@@ -2642,7 +2695,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
                               player_x, player_y, walking ? kModeTW : kModeTN,
-                              player_dir, ms, mouse.x, mouse.y);
+                              player_dir, ms, mouse.x, mouse.y, npc_states);
                 break;
             }
             case Screen::CharCreate: {
