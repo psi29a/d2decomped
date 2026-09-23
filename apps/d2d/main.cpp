@@ -298,6 +298,7 @@ struct Scene {
     // to match Scene::class positions.
     std::array<std::array<d2d::dc6::Sprite, 5>, 7> class_anims;
     d2d::font::Font       font;
+    d2d::font::Font       font_small;         // font8 — panel labels and values
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
@@ -305,6 +306,7 @@ struct Scene {
     // with each save's items (empty if they couldn't be parsed).
     std::vector<d2d::d2s::Header> saves;
     std::vector<std::vector<d2d::d2s::Item>> save_items;
+    std::vector<d2d::d2s::Stats> save_stats;
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
@@ -547,6 +549,7 @@ struct CharCreateUI {
     // or unset for a fresh character (starting gear).
     std::optional<std::array<std::uint8_t, 16>> appearance;
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
+    d2d::d2s::Stats stats;               // ... and attributes
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -875,6 +878,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::string(t->get(r, "invfile")),
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())) };
+    if (auto t8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.tbl)"))
+        if (auto d8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.dc6)"))
+            scene.font_small = d2d::font::Font(*t8, d2d::dc6::Sprite(*d8));
     if (auto p = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
         scene.inv_panel = d2d::dc6::Sprite(*p);
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
@@ -925,7 +931,7 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // Headers (and items) of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
 void load_saves(Scene& scene, const fs::path& dir) {
-    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; };
+    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; };
     std::vector<Entry> out;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
@@ -934,9 +940,12 @@ void load_saves(Scene& scene, const fs::path& dir) {
         std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
         const auto bytes = std::as_bytes(std::span(raw));
         try {
-            Entry en{ d2d::d2s::parse_header(bytes), {} };
+            Entry en{ d2d::d2s::parse_header(bytes), {}, {} };
             if (scene.item_tables) {
-                try { en.items = d2d::d2s::parse_items(bytes, *scene.item_tables); }
+                try {
+                    en.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
+                    en.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
+                }
                 catch (const std::exception& ex) {
                     std::fprintf(stderr, "[d2d] %s items: %s\n", e.path().string().c_str(), ex.what());
                 }
@@ -954,10 +963,11 @@ void load_saves(Scene& scene, const fs::path& dir) {
         return std::tie(b.header.last_played, a.header.name)
              < std::tie(a.header.last_played, b.header.name);
     });
-    scene.saves.clear(); scene.save_items.clear();
+    scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear();
     for (auto& en : out) {
         scene.saves.push_back(std::move(en.header));
         scene.save_items.push_back(std::move(en.items));
+        scene.save_stats.push_back(en.stats);
     }
 }
 
@@ -1896,6 +1906,73 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
     }
 }
 
+// Character panel (left of the inventory: 800x600 puts the left panels
+// at 80..400). Art: invchar6.dc6 frames 0..3. Label and value boxes are
+// game.exe's own tables — labels {x0, y, x1, string id} at 0x724818
+// (18-byte records), values {x0, y, x1, stat id} at 0x724928 — in panel
+// coordinates; text is centred in [x0, x1].
+// ponytail: computed values (next-level exp, defence, resistances)
+// blank; name/class line placed by eye.
+constexpr int kCharPanelX = 80, kCharPanelY = 60;
+struct PanelText { int x0, y, x1, id; };
+constexpr PanelText kCharLabels[] = {
+    {  11,  44,  52, 0xfd9 }, {  65,  44, 180, 0xfda }, { 193,  44, 308, 0xfdb },
+    {  10,  97,  73, 0xfdc }, {  10, 160,  73, 0xfde }, { 174, 207, 268, 0xfe0 },
+    {  10, 245,  73, 0xfe2 }, { 174, 245, 228, 0xfe3 }, { 174, 269, 228, 0xfe4 },
+    {  10, 307,  73, 0xfe5 }, { 174, 307, 228, 0xfe6 }, { 190, 346, 268, 0xfe7 },
+    { 190, 370, 268, 0xfe8 }, { 190, 395, 268, 0xfe9 }, { 190, 419, 268, 0xfea },
+};
+constexpr PanelText kCharValues[] = {
+    {  13,  59,  53, 12 }, {  67,  59, 180, 13 }, { 195,  59, 308, 30 },
+    {  77,  99, 112,  0 }, {  77, 161, 112,  2 }, { 273, 209, 307, 31 },
+    {  77, 247, 112,  3 }, { 232, 246, 267, 11 }, { 273, 246, 308, 10 },
+    { 232, 270, 267,  7 }, { 273, 270, 308,  6 }, {  77, 308, 112,  1 },
+    { 232, 308, 267,  9 }, { 273, 308, 308,  8 }, { 273, 348, 307, 39 },
+    { 273, 372, 307, 43 }, { 273, 396, 307, 41 }, { 273, 420, 307, 45 },
+};
+
+void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st,
+                     std::string_view name, int class_idx) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int px = kCharPanelX, py = kCharPanelY;
+    if (s.inv_panel.frames_per_direction() >= 8) {
+        const auto& f0 = s.inv_panel.frame(0, 0);
+        blit_sprite(fb, f0, pal, px, py);
+        blit_sprite(fb, s.inv_panel.frame(0, 1), pal, px + int(f0.width), py);
+        blit_sprite(fb, s.inv_panel.frame(0, 2), pal, px, py + int(f0.height));
+        blit_sprite(fb, s.inv_panel.frame(0, 3), pal, px + int(f0.width), py + int(f0.height));
+    }
+    // Small font (font8) like D2's panel; multi-line strings ("Fire\nResistance")
+    // stack, the block centred on the box's y.
+    const auto& font = s.font_small.line_height() > 0 ? s.font_small : s.font;
+    const int lh = font.line_height();
+    auto centred = [&](const PanelText& t, const std::string& txt) {
+        std::vector<std::string> lines;
+        for (std::size_t a = 0;;) {
+            const auto nl = txt.find('\n', a);
+            lines.push_back(txt.substr(a, nl == txt.npos ? txt.npos : nl - a));
+            if (nl == txt.npos) break;
+            a = nl + 1;
+        }
+        int y = py + t.y - int(lines.size()) * lh / 2;
+        for (const auto& l : lines) {
+            font.draw(fb, kW, kH, pal, px + (t.x0 + t.x1) / 2 - font.measure(l) / 2, y, l);
+            y += lh;
+        }
+    };
+    for (const auto& t : kCharLabels)
+        if (auto v = lookup_string(s, std::uint16_t(t.id))) centred(t, u16_to_latin1(*v));
+    for (const auto& t : kCharValues) {
+        if (t.id > 13) continue;                          // computed stats: not yet
+        const bool fixed = t.id >= 6 && t.id <= 11;       // life/mana/stamina, 8.8
+        centred(t, std::to_string(fixed ? st.fixed(t.id) : st.get(t.id)));
+    }
+    std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
+    if (auto v = lookup_string(s, cls)) cls = u16_to_latin1(*v);
+    centred({ 10, 18, 160, 0 }, std::string(name));
+    centred({ 170, 18, 310, 0 }, cls);
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -1909,7 +1986,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    std::uint32_t elapsed_ms,
                    int mouse_x = -1, int mouse_y = -1,
                    std::span<const NpcState> npcs = {},
-                   const std::vector<d2d::d2s::Item>* inventory = nullptr) {
+                   const std::vector<d2d::d2s::Item>* inventory = nullptr,
+                   const d2d::d2s::Stats* char_stats = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -1952,6 +2030,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory);
+        if (char_stats) draw_char_panel(fb, s, *char_stats, name, class_idx);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -2284,9 +2363,10 @@ std::string u16_to_latin1(std::u16string_view s) {
     std::string out;
     out.reserve(s.size());
     for (char16_t c : s) {
-        // Keep printable Latin-1 (0x20..0xFF), drop the rest — D2 UI strings
+        // Keep printable Latin-1 (0x20..0xFF) and line breaks (two-line
+        // labels like "Fire\nResistance"), drop the rest — D2 UI strings
         // are ASCII with occasional accented chars, all inside Latin-1.
-        if (c >= 0x20 && c <= 0xFF) out.push_back(char(c));
+        if ((c >= 0x20 && c <= 0xFF) || c == '\n') out.push_back(char(c));
     }
     return out;
 }
@@ -2581,6 +2661,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  walking = false;
     int   player_dir = 4;   // south, facing the viewer
     bool  inv_open = false;   // 'I' — inventory panel
+    bool  char_open = false;  // 'C' — character panel
     std::uint32_t last_ms = 0;
 
     // Watchdog — writes to stderr the second the main thread stops
@@ -2790,6 +2871,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.items = csu.selected < int(scene->save_items.size())
                                    ? scene->save_items[std::size_t(csu.selected)]
                                    : std::vector<d2d::d2s::Item>{};
+                    cc.stats = csu.selected < int(scene->save_stats.size())
+                                   ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -2801,14 +2884,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // tracks the cursor while held); the camera follows.
                 for (const auto k : keys_this_frame) {
                     if (k == SDLK_I) inv_open = !inv_open;
+                    if (k == SDLK_C) char_open = !char_open;
                     if (k == SDLK_ESCAPE) {
-                        if (inv_open) inv_open = false;          // panels close first
-                        else          screen = Screen::CharSelect;
+                        if (inv_open || char_open) inv_open = char_open = false;   // panels first
+                        else screen = Screen::CharSelect;
                     }
                 }
                 const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
-                const bool over_panel = inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
-                                     && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432;
+                const bool over_panel =
+                    (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
+                              && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
+                    (char_open && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
+                               && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
                     if ((mouse.down || mouse.press_this_frame) && !over_panel) {
@@ -2867,12 +2954,14 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               cc.input_name, cc.hardcore,
                               player_x, player_y, walking ? kModeTW : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
-                              inv_open ? &cc.items : nullptr);
+                              inv_open ? &cc.items : nullptr,
+                              char_open ? &cc.stats : nullptr);
                 break;
             }
             case Screen::CharCreate: {
                 cc.appearance.reset();   // a new character wears starting gear
                 cc.items.clear();
+                cc.stats = {};
                 // Text input into the name buffer (15-char cap = D2's
                 // character-record name limit).
                 if (!text_this_frame.empty()) {
