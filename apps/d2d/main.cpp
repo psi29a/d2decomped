@@ -19,6 +19,7 @@
 #include <dcc.hpp>
 #include <devctl.hpp>
 #include <d2s.hpp>
+#include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <dt1.hpp>
 #include <font.hpp>
@@ -300,8 +301,24 @@ struct Scene {
     // Credits.txt / ExpansionCredits.txt parsed to plain Latin-1 lines.
     // A '*' prefix on a line marks a section header in D2's format.
     std::vector<std::string> credits;
-    // Character saves from <user dir>/save/*.d2s, most recently played first.
+    // Character saves from <user dir>/save/*.d2s, most recently played first,
+    // with each save's items (empty if they couldn't be parsed).
     std::vector<d2d::d2s::Header> saves;
+    std::vector<std::vector<d2d::d2s::Item>> save_items;
+    // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
+    // inventory graphic + size, and the 800x600 inventory panel/layouts.
+    std::optional<d2d::d2s::ItemTables> item_tables;
+    struct ItemInfo { std::string invfile; int w = 1, h = 1; };
+    std::unordered_map<std::string, ItemInfo> item_info;
+    mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
+    const d2d::dc6::Sprite* item_sprite(const std::string& code) const;
+    struct InvLayout {
+        int panel_x = 400, panel_y = 60;
+        int grid_x = 0, grid_y = 0, box_w = 29, box_h = 29;
+        std::array<std::array<int, 4>, 11> slots{};   // by body slot 1..10: x, y, w, h
+    };
+    std::array<InvLayout, 7> inv_layout{};            // by d2s class
+    d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
     //   expansionstring.tbl (2788 entries) — LoD additions (Druid/Assassin
@@ -529,6 +546,7 @@ struct CharCreateUI {
     // Gear the in-game character wears: a loaded save's appearance bytes,
     // or unset for a fresh character (starting gear).
     std::optional<std::array<std::uint8_t, 16>> appearance;
+    std::vector<d2d::d2s::Item> items;   // a loaded save's items
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -715,6 +733,16 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
     return it->second;
 }
 
+const d2d::dc6::Sprite* Scene::item_sprite(const std::string& code) const {
+    const auto info = item_info.find(code);
+    if (info == item_info.end() || info->second.invfile.empty()) return nullptr;
+    auto [it, fresh] = item_sprites.try_emplace(info->second.invfile);
+    if (fresh)
+        if (auto b = mpqs.try_read(R"(data\global\items\)" + info->second.invfile + ".dc6"))
+            it->second = d2d::dc6::Sprite(*b);
+    return it->second ? &*it->second : nullptr;
+}
+
 // Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
 // (Act 1 rows) Place -> MonStats2 row (by Id) -> MonStats row at the same
 // index for the monster token (both are indexed by hcIdx; our MonStats is
@@ -837,6 +865,37 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                misc = txt("misc"), charstats = txt("CharStats");
     if (types.size() == 0 || weapons.size() == 0) return;
     scene.comp = d2d::compcode::build(types, weapons, armor, misc);
+
+    // Items. ItemStatCost.txt only exists in the 1.14d patch data.
+    if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
+        scene.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
+    for (const auto* t : { &weapons, &armor, &misc })
+        for (std::size_t r = 0; r < t->size(); ++r)
+            scene.item_info[std::string(t->get(r, "code"))] = {
+                std::string(t->get(r, "invfile")),
+                std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
+                std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())) };
+    if (auto p = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
+        scene.inv_panel = d2d::dc6::Sprite(*p);
+    // inventory.txt "<Class>2" rows are the 800x600 layouts.
+    const auto inv = txt("inventory");
+    static constexpr const char* kInvClass[7] = {
+        "Amazon2", "Sorceress2", "Necromancer2", "Paladin2", "Barbarian2", "Druid2", "Assassin2" };
+    static constexpr const char* kSlotCol[11] = {
+        nullptr, "head", "neck", "torso", "rArm", "lArm", "rHand", "lHand", "belt", "feet", "gloves" };
+    for (std::size_t c = 0; c < 7; ++c)
+        for (std::size_t r = 0; r < inv.size(); ++r) {
+            if (inv.get(r, "class") != kInvClass[c]) continue;
+            auto num = [&](std::string col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
+            auto& L = scene.inv_layout[c];
+            L.panel_x = num("invLeft"); L.panel_y = num("invTop");
+            L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
+            L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
+            for (std::size_t sl = 1; sl < 11; ++sl) {
+                const std::string k = kSlotCol[sl];
+                L.slots[sl] = { num(k + "Left"), num(k + "Top"), num(k + "Width"), num(k + "Height") };
+            }
+        }
     auto index_of = [&](std::string_view code) {
         for (std::size_t i = 1; i < scene.comp.size(); ++i)
             if (scene.comp[i].code == code) return std::uint8_t(i);
@@ -863,17 +922,26 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
                     const d2d::palette::Palette& pal, int dir_want,
                     std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 
-// Headers of every valid .d2s in `dir`, most recently played first. Bad files are
+// Headers (and items) of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
-std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
-    std::vector<d2d::d2s::Header> out;
+void load_saves(Scene& scene, const fs::path& dir) {
+    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; };
+    std::vector<Entry> out;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
         if (e.path().extension() != ".d2s") continue;
         std::ifstream in(e.path(), std::ios::binary);
         std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
+        const auto bytes = std::as_bytes(std::span(raw));
         try {
-            out.push_back(d2d::d2s::parse_header(std::as_bytes(std::span(raw))));
+            Entry en{ d2d::d2s::parse_header(bytes), {} };
+            if (scene.item_tables) {
+                try { en.items = d2d::d2s::parse_items(bytes, *scene.item_tables); }
+                catch (const std::exception& ex) {
+                    std::fprintf(stderr, "[d2d] %s items: %s\n", e.path().string().c_str(), ex.what());
+                }
+            }
+            out.push_back(std::move(en));
         } catch (const std::exception& ex) {
             std::fprintf(stderr, "[d2d] %s: %s\n", e.path().string().c_str(), ex.what());
         }
@@ -882,10 +950,15 @@ std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
     // descending (FUN_00438ad0), and preselects slot 0.
     // Ties (e.g. synthetic saves with no timestamp) fall back to name so
     // the order doesn't depend on directory iteration.
-    std::ranges::sort(out, [](const auto& a, const auto& b) {
-        return std::tie(b.last_played, a.name) < std::tie(a.last_played, b.name);
+    std::ranges::sort(out, [](const Entry& a, const Entry& b) {
+        return std::tie(b.header.last_played, a.header.name)
+             < std::tie(a.header.last_played, b.header.name);
     });
-    return out;
+    scene.saves.clear(); scene.save_items.clear();
+    for (auto& en : out) {
+        scene.saves.push_back(std::move(en.header));
+        scene.save_items.push_back(std::move(en.items));
+    }
 }
 
 std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer) {
@@ -1786,6 +1859,43 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     }
 }
 
+// The inventory panel (inventory.txt "<Class>2" layout, invchar6.dc6):
+// grid items (panel 1) centred in their w x h cell block, equipped items
+// centred in their body slot's box. Palette: the act's, like the world.
+// ponytail: base item graphics only (no unique/set invfiles, no colour
+// tints), no belt/cube/stash, no hover tooltips.
+void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
+                    const std::vector<d2d::d2s::Item>& items) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
+    // frames 4..7 are the inventory, 0..3 the character-stats page.
+    if (s.inv_panel.frames_per_direction() >= 8) {
+        const auto& f0 = s.inv_panel.frame(0, 4);
+        blit_sprite(fb, f0, pal, L.panel_x, L.panel_y);
+        blit_sprite(fb, s.inv_panel.frame(0, 5), pal, L.panel_x + int(f0.width), L.panel_y);
+        blit_sprite(fb, s.inv_panel.frame(0, 6), pal, L.panel_x, L.panel_y + int(f0.height));
+        blit_sprite(fb, s.inv_panel.frame(0, 7), pal, L.panel_x + int(f0.width), L.panel_y + int(f0.height));
+    }
+    auto draw_in = [&](const d2d::d2s::Item& it, int x, int y, int w, int h) {
+        const auto* spr = s.item_sprite(it.code);
+        if (!spr || spr->frames_per_direction() == 0) return;
+        const auto& f = spr->frame(0, 0);
+        blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
+    };
+    for (const auto& it : items) {
+        if (it.location == 0 && it.panel == 1) {
+            const auto info = s.item_info.find(it.code);
+            const int iw = info != s.item_info.end() ? info->second.w : 1;
+            const int ih = info != s.item_info.end() ? info->second.h : 1;
+            draw_in(it, L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h,
+                    iw * L.box_w, ih * L.box_h);
+        } else if (it.location == 1 && it.slot >= 1 && it.slot <= 10) {
+            const auto& r = L.slots[std::size_t(it.slot)];
+            if (r[2] > 0) draw_in(it, r[0], r[1], r[2], r[3]);
+        }
+    }
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -1798,7 +1908,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int player_dir,
                    std::uint32_t elapsed_ms,
                    int mouse_x = -1, int mouse_y = -1,
-                   std::span<const NpcState> npcs = {}) {
+                   std::span<const NpcState> npcs = {},
+                   const std::vector<d2d::d2s::Item>* inventory = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -1839,6 +1950,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             s.font.draw(fb, kW, kH, pal, (b[0] + b[2]) / 2 - s.font.measure(nm) / 2,
                         b[1] - s.font.line_height() - 2, nm);
         }
+        if (inventory && class_idx >= 0 && class_idx < 7)
+            draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -2255,13 +2368,13 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
             // Esc pops one layer up:
             //   Title       -> quit
             //   CharCreate  -> CharSelect  (the flow you came from)
-            //   InGame      -> CharSelect  (leaving the game returns to
-            //                               the roster; matches D2)
+            //   InGame      -> closes an open panel, else CharSelect (the
+            //                  roster; matches D2) — handled in-game
             //   everything else -> Title
             switch (current_screen) {
                 case Screen::Title:      quit = true; break;
-                case Screen::CharCreate:
-                case Screen::InGame:     current_screen = Screen::CharSelect; break;
+                case Screen::CharCreate: current_screen = Screen::CharSelect; break;
+                case Screen::InGame:     keys.push_back(ev.key.key); break;
                 default:                 current_screen = Screen::Title; break;
             }
         } else if (ev.key.key == SDLK_BACKSPACE) {
@@ -2467,6 +2580,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
     int   player_dir = 4;   // south, facing the viewer
+    bool  inv_open = false;   // 'I' — inventory panel
     std::uint32_t last_ms = 0;
 
     // Watchdog — writes to stderr the second the main thread stops
@@ -2673,6 +2787,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.input_name = h.name;
                     cc.hardcore   = h.hardcore();
                     cc.appearance = h.appearance;
+                    cc.items = csu.selected < int(scene->save_items.size())
+                                   ? scene->save_items[std::size_t(csu.selected)]
+                                   : std::vector<d2d::d2s::Item>{};
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -2682,9 +2799,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // D2 movement: press or hold the left button on the ground
                 // and the character walks toward that point (the target
                 // tracks the cursor while held); the camera follows.
+                for (const auto k : keys_this_frame) {
+                    if (k == SDLK_I) inv_open = !inv_open;
+                    if (k == SDLK_ESCAPE) {
+                        if (inv_open) inv_open = false;          // panels close first
+                        else          screen = Screen::CharSelect;
+                    }
+                }
+                const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+                const bool over_panel = inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
+                                     && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
-                    if (mouse.down || mouse.press_this_frame) {
+                    if ((mouse.down || mouse.press_this_frame) && !over_panel) {
                         // Screen -> world: invert the iso projection around
                         // the player, who sits at (kW/2, kH/2 + kIsoH/2).
                         const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
@@ -2739,11 +2866,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
                               player_x, player_y, walking ? kModeTW : kModeTN,
-                              player_dir, ms, mouse.x, mouse.y, npc_states);
+                              player_dir, ms, mouse.x, mouse.y, npc_states,
+                              inv_open ? &cc.items : nullptr);
                 break;
             }
             case Screen::CharCreate: {
                 cc.appearance.reset();   // a new character wears starting gear
+                cc.items.clear();
                 // Text input into the name buffer (15-char cap = D2's
                 // character-record name limit).
                 if (!text_this_frame.empty()) {
@@ -2942,7 +3071,7 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
     auto scene = load_scene(data_dir, cfg["patch"]);   // nullopt if MPQ dir is missing
-    if (scene) scene->saves = load_saves(save_dir);
+    if (scene) load_saves(*scene, save_dir);
 
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
