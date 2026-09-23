@@ -321,6 +321,7 @@ struct Scene {
     };
     std::array<InvLayout, 7> inv_layout{};            // by d2s class
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
+    d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
     //   expansionstring.tbl (2788 entries) — LoD additions (Druid/Assassin
@@ -881,6 +882,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (auto t8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.tbl)"))
         if (auto d8 = mpqs.try_read(R"(data\local\FONT\LATIN\font8.dc6)"))
             scene.font_small = d2d::font::Font(*t8, d2d::dc6::Sprite(*d8));
+    for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\800ctrlpnl7.dc6)", &scene.ctrl_panel },
+                               { R"(data\global\ui\PANEL\hlthmana.dc6)", &scene.globes },
+                               { R"(data\global\ui\PANEL\overlap.dc6)", &scene.globe_glass } })
+        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     if (auto p = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
         scene.inv_panel = d2d::dc6::Sprite(*p);
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
@@ -1973,6 +1978,51 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
     centred({ 170, 18, 310, 0 }, cls);
 }
 
+// The bottom HUD, as game.exe's 800x600 path draws it (FUN_004983d0 for
+// the bar, FUN_00496f80 / FUN_00497110 for the globes). All cels are
+// bottom-anchored on the screen's bottom edge:
+//   bar: frame 0 (life housing) at x 0, frames 1..4 at 400-235, -107,
+//   +21, +149, frame 5 (mana housing) at 800-117; the 48px gaps are the
+//   skill buttons.
+//   globes: fill = cur * 80 / max rows of hlthmana frame 0 (life; 2 when
+//   poisoned) / 1 (mana), bottom at H-13, x 29 / W-111; then the glass
+//   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
+// ponytail: saved life/mana are base values (no item bonuses); no
+// poison tint, stamina bar, skill icons or run/walk yet.
+void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int W = int(kW), H = int(kH);
+    auto at_bottom = [&](const d2d::dc6::Sprite& spr, int frame, int x, int bottom) {
+        if (frame >= int(spr.frames_per_direction())) return;
+        const auto& f = spr.frame(0, std::uint32_t(frame));
+        blit_sprite(fb, f, pal, x, bottom - int(f.height));
+    };
+    if (s.ctrl_panel.frames_per_direction() >= 6) {
+        const int xs[6] = { 0, W / 2 - 0xeb, W / 2 - 0x6b, W / 2 + 0x15, W / 2 + 0x95, W - 0x75 };
+        for (int i = 0; i < 6; ++i) at_bottom(s.ctrl_panel, i, xs[i], H);
+    }
+    // Globe fill: only the bottom `rows` rows of the 80x80 cel.
+    auto fill = [&](int frame, int x, std::int64_t cur, std::int64_t max) {
+        if (max <= 0 || frame >= int(s.globes.frames_per_direction())) return;
+        const auto& f = s.globes.frame(0, std::uint32_t(frame));
+        const int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        const int top = H - 13 - int(f.height);
+        for (int y = int(f.height) - rows; y < int(f.height); ++y)
+            for (int x0 = 0; x0 < int(f.width); ++x0) {
+                const auto idx = f.pixels[std::size_t(y) * f.width + std::size_t(x0)];
+                const int px = x + x0, py = top + y;
+                if (!idx || px < 0 || py < 0 || px >= W || py >= H) continue;
+                const auto c = pal[idx];
+                auto* d = fb.data() + (std::size_t(py) * kW + std::size_t(px)) * 4;
+                d[0] = c.r; d[1] = c.g; d[2] = c.b;
+            }
+    };
+    fill(0, 29, st.fixed(d2d::d2s::kLife), st.fixed(d2d::d2s::kMaxLife));
+    fill(1, W - 0x6f, st.fixed(d2d::d2s::kMana), st.fixed(d2d::d2s::kMaxMana));
+    at_bottom(s.globe_glass, 0, 28, H - 5);
+    at_bottom(s.globe_glass, 1, W - 0x6e, H - 9);
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -1987,7 +2037,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int mouse_x = -1, int mouse_y = -1,
                    std::span<const NpcState> npcs = {},
                    const std::vector<d2d::d2s::Item>* inventory = nullptr,
-                   const d2d::d2s::Stats* char_stats = nullptr) {
+                   const d2d::d2s::Stats* char_stats = nullptr,
+                   const d2d::d2s::Stats* hud_stats = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2031,6 +2082,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (inventory && class_idx >= 0 && class_idx < 7)
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory);
         if (char_stats) draw_char_panel(fb, s, *char_stats, name, class_idx);
+        if (hud_stats) draw_hud(fb, s, *hud_stats);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -2082,10 +2134,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     constexpr const char* hint =
         "d2d dev build — click to walk around the Rogue camp";
     const int hw = s.font.measure(hint);
-    s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 60, hint);
+    s.font.draw(fb, kW, kH, pal, int(kW)/2 - hw/2, int(kH) - 140, hint);   // above the HUD bar
     constexpr const char* esc = "press Esc to return to title";
     const int ew = s.font.measure(esc);
-    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ew/2, int(kH) - 40,
+    s.font.draw_tinted(fb, kW, kH, pal, int(kW)/2 - ew/2, int(kH) - 120,
                        esc, 200, 200, 200);
 }
 
@@ -2955,7 +3007,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_x, player_y, walking ? kModeTW : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
-                              char_open ? &cc.stats : nullptr);
+                              char_open ? &cc.stats : nullptr, &cc.stats);
                 break;
             }
             case Screen::CharCreate: {
