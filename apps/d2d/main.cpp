@@ -344,6 +344,7 @@ struct Scene {
         std::array<std::string, 16> comp;    // per layer, "" = not present
         float x = 0, y = 0;
         int size_x = 0, size_y = 0;          // collision footprint, subtiles
+        std::string name;                    // hover label; "" = not selectable
     };
     std::vector<Npc> world_npcs;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
@@ -744,6 +745,13 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
         n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
         n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
+        // Hover name: MonStats' string key (namco); client-only critters
+        // (the chicken) can't be selected.
+        if (ms.get(it->second, "ClientOnly") != "1") {
+            const std::string key(ms.get(it->second, "namco"));
+            auto v = lookup_string(scene, key);
+            n.name = v ? u16_to_latin1(*v) : key;
+        }
         if (n.code.empty()) continue;
         if (n.base_w.empty()) n.base_w = "hth";
         for (std::size_t l = 0; l < 16; ++l) {
@@ -777,6 +785,13 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
                      && objects.get(r, "Lit2") != "0";
         n.mode   = on ? "ON" : "NU";
+        // Hover name when selectable in its start mode (Selectable0 = NU,
+        // 2 = ON): objects.txt Name through the string tables.
+        if (objects.get(r, on ? "Selectable2" : "Selectable0") == "1") {
+            const std::string key(objects.get(r, "Name"));
+            auto v = lookup_string(scene, key);
+            n.name = v ? u16_to_latin1(*v) : key;
+        }
         // Blocks walking in its start mode (HasCollision0 = NU, 2 = ON).
         if (objects.get(r, on ? "HasCollision2" : "HasCollision0") == "1") {
             n.size_x = std::atoi(std::string(objects.get(r, "SizeX")).c_str());
@@ -1516,13 +1531,35 @@ struct Unit {
     float x = 0, y = 0;                  // world position, cells
     const Scene::PlayerAnim* anim = nullptr;
     int dir = 0;
+    const std::string* name = nullptr;   // hover label, if selectable
 };
+
+// Screen rectangle a composite's current frame covers with its feet at
+// (ax, ay): the union of every drawn layer's frame box. {x0, y0, x1, y1}.
+std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
+                                    std::uint32_t elapsed_ms, int ax, int ay) {
+    std::array<int, 4> r{ INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN };
+    const auto dirs = p.cof.directions(), fpd = p.cof.frames_per_direction();
+    if (dirs == 0 || fpd == 0) return r;
+    const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
+    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.cof.speed(), 1);
+    const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
+    for (const auto& spr : p.layers) {
+        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
+        const auto& f = spr.frame(dir, frame);
+        r = { std::min(r[0], ax + f.box_left), std::min(r[1], ay + f.box_top),
+              std::max(r[2], ax + f.box_right), std::max(r[3], ay + f.box_bottom) };
+    }
+    return r;
+}
 
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
                   float cam_x, float cam_y,
                   std::uint32_t elapsed_ms = 0,
-                  std::span<const Unit> units = {}) {
+                  std::span<const Unit> units = {},
+                  int mouse_x = -1, int mouse_y = -1,
+                  std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr) {
     const auto& m = s.world_ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -1636,6 +1673,12 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [ax, ay] = iso_point(u.x, u.y);
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
             draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms, ax, ay);
+            // Last drawn unit under the cursor = the frontmost one.
+            if (hovered && u.name && !u.name->empty()) {
+                const auto b = composite_bounds(*u.anim, u.dir, elapsed_ms, ax, ay);
+                if (mouse_x >= b[0] && mouse_x < b[2] && mouse_y >= b[1] && mouse_y < b[3])
+                    *hovered = { &u, b };
+            }
         }
     };
     for (int diag = -2 * kR; diag <= 2 * kR; ++diag) {
@@ -1735,7 +1778,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    float cam_y,
                    int player_mode,
                    int player_dir,
-                   std::uint32_t elapsed_ms) {
+                   std::uint32_t elapsed_ms,
+                   int mouse_x = -1, int mouse_y = -1) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -1759,8 +1803,18 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         // NPCs and objects, facing south-west (direction 0) for now.
         for (const auto& n : s.world_npcs)
             if (std::abs(n.x - cam_x) < 14 && std::abs(n.y - cam_y) < 14)
-                units.push_back({ n.x, n.y, &s.npc_anim(n), 0 });
-        render_world(fb, s, cam_x, cam_y, elapsed_ms, units);
+                units.push_back({ n.x, n.y, &s.npc_anim(n), 0, &n.name });
+        std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
+        render_world(fb, s, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
+        // Name over whatever the cursor points at, centred above it.
+        // ponytail: no highlight tint yet (D2 brightens the unit too).
+        if (hovered.first) {
+            const auto& nm = *hovered.first->name;
+            const auto& b  = hovered.second;
+            const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+            s.font.draw(fb, kW, kH, pal, (b[0] + b[2]) / 2 - s.font.measure(nm) / 2,
+                        b[1] - s.font.line_height() - 2, nm);
+        }
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -2433,6 +2487,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return std::string("ok\n");
     });
+    ch.on("move", [&](const std::vector<std::string>& args) {
+        if (args.size() < 3) return std::string("err move <x> <y>\n");
+        float x = 0, y = 0;
+        SDL_RenderCoordinatesToWindow(win.r, std::stof(args[1]), std::stof(args[2]), &x, &y);
+        SDL_Event ev{};
+        ev.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(win.w), .x = x, .y = y };
+        SDL_PushEvent(&ev);
+        return std::string("ok\n");
+    });
     ch.on("wheel", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err wheel <dy>\n");
         SDL_Event ev{};
@@ -2579,7 +2642,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
                               player_x, player_y, walking ? kModeTW : kModeTN,
-                              player_dir, ms);
+                              player_dir, ms, mouse.x, mouse.y);
                 break;
             }
             case Screen::CharCreate: {
