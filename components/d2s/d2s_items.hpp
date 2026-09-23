@@ -45,6 +45,7 @@ struct Item {
     int  ilvl = 0, defense = -1, quantity = -1, sockets = 0;
     int  set_id = -1, unique_id = -1;
     int  qsub = 0;                     // low (0 crude..3) / superior subtype
+    int  picture = -1;                 // ItemTypes InvGfx index (rings, charms, jewels ...)
     int  prefix = 0, suffix = 0;       // magic: MagicPrefix/MagicSuffix row (0 = none)
     int  rare1 = 0, rare2 = 0;         // rare/crafted name: RarePrefix/RareSuffix IDs
     std::array<int, 6> affixes{};      // rare/crafted: prefix, suffix, prefix, ... (0 = none)
@@ -146,7 +147,7 @@ inline Item item(Bits& bs, const ItemTables& t) {
         filled = int(bs.read(3));
         if (!it.simple) {
             it.uid = bs.read(32); it.ilvl = int(bs.read(7)); it.quality = int(bs.read(4));
-            if (bs.read(1)) bs.read(3);            // picture
+            if (bs.read(1)) it.picture = int(bs.read(3));
             if (bs.read(1)) bs.read(11);           // class-specific auto affix
             switch (it.quality) {
                 case 1: case 3: it.qsub = int(bs.read(3)); break;

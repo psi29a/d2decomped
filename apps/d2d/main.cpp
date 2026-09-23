@@ -339,7 +339,11 @@ struct Scene {
     std::array<ClassStrs, 7> class_strs;
     std::unordered_map<std::string, ItemInfo> item_info;
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
-    const d2d::dc6::Sprite* item_sprite(const std::string& code) const;
+    // An item's inventory graphic: the unique's/set item's own invfile,
+    // else the picture variant (ItemTypes InvGfx<n>), else the base's.
+    const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;
+    std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
+    std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     struct InvLayout {
         int panel_x = 400, panel_y = 60;
         int grid_x = 0, grid_y = 0, box_w = 29, box_h = 29;
@@ -834,12 +838,22 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
     return it->second;
 }
 
-const d2d::dc6::Sprite* Scene::item_sprite(const std::string& code) const {
-    const auto info = item_info.find(code);
-    if (info == item_info.end() || info->second.invfile.empty()) return nullptr;
-    auto [it, fresh] = item_sprites.try_emplace(info->second.invfile);
+const d2d::dc6::Sprite* Scene::item_sprite(const d2d::d2s::Item& item) const {
+    const auto info = item_info.find(item.code);
+    if (info == item_info.end()) return nullptr;
+    auto pick = [](const std::vector<std::string>& v, int i) {
+        return i >= 0 && std::size_t(i) < v.size() ? v[std::size_t(i)] : std::string{};
+    };
+    std::string file = item.quality == 7 ? pick(unique_inv, item.unique_id)
+                     : item.quality == 5 ? pick(set_inv, item.set_id) : std::string{};
+    if (file.empty() && item.picture >= 0 && item.picture < 6)
+        if (const auto g = type_invgfx.find(info->second.type); g != type_invgfx.end())
+            file = g->second[std::size_t(item.picture)];
+    if (file.empty()) file = info->second.invfile;
+    if (file.empty()) return nullptr;
+    auto [it, fresh] = item_sprites.try_emplace(file);
     if (fresh)
-        if (auto b = mpqs.try_read(R"(data\global\items\)" + info->second.invfile + ".dc6"))
+        if (auto b = mpqs.try_read(R"(data\global\items\)" + file + ".dc6"))
             it->second = d2d::dc6::Sprite(*b);
     return it->second ? &*it->second : nullptr;
 }
@@ -991,9 +1005,12 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
                 std::string(t->get(r, "namestr")), std::string(t->get(r, "type")),
                 t == &armor ? 1 : t == &weapons ? 2 : 0 };
-    for (std::size_t r = 0; r < types.size(); ++r)
-        scene.type_equiv[std::string(types.get(r, "Code"))] = { std::string(types.get(r, "Equiv1")),
-                                                                std::string(types.get(r, "Equiv2")) };
+    for (std::size_t r = 0; r < types.size(); ++r) {
+        const std::string code(types.get(r, "Code"));
+        scene.type_equiv[code] = { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) };
+        auto& g = scene.type_invgfx[code];
+        for (int i = 0; i < 6; ++i) g[std::size_t(i)] = std::string(types.get(r, "InvGfx" + std::to_string(i + 1)));
+    }
     auto keys = [&](const char* n, const char* col, bool all) {
         std::vector<std::string> v;
         if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
@@ -1087,6 +1104,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     }
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
+    scene.unique_inv = keys("UniqueItems", "invfile", false);
+    scene.set_inv    = keys("SetItems", "invfile", false);
     nm.set      = keys("SetItems", "index", false);
     nm.prefix   = keys("MagicPrefix", "Name", true);
     nm.suffix   = keys("MagicSuffix", "Name", true);
@@ -2385,8 +2404,7 @@ void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::v
 // grid items (panel 1) centred in their w x h cell block, equipped items
 // centred in their body slot's box. Palette: the act's, like the world.
 // The item under (mx, my) gets its hover text.
-// ponytail: base item graphics only (no unique/set invfiles, no colour
-// tints), no belt/cube/stash.
+// ponytail: no colour tints (item transform colormaps), belt/cube/stash.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
                     const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -2400,7 +2418,7 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
         blit_sprite(fb, s.inv_panel.frame(0, 7), pal, L.panel_x + int(f0.width), L.panel_y + int(f0.height));
     }
     auto draw_in = [&](const d2d::d2s::Item& it, int x, int y, int w, int h) {
-        const auto* spr = s.item_sprite(it.code);
+        const auto* spr = s.item_sprite(it);
         if (!spr || spr->frames_per_direction() == 0) return;
         const auto& f = spr->frame(0, 0);
         blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
