@@ -109,7 +109,13 @@ int main() {
                 if (e.path().extension() != ".d2s") continue;
                 std::ifstream in(e.path(), std::ios::binary);
                 std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
-                const auto items = d2d::d2s::parse_items(std::as_bytes(std::span(raw)), t);
+                const auto bytes = std::as_bytes(std::span(raw));
+                const auto st = d2d::d2s::parse_stats(bytes, t);
+                const auto hdr = d2d::d2s::parse_header(bytes);
+                assert(st.get(d2d::d2s::kLevel) == hdr.level);      // two copies agree
+                assert(st.fixed(d2d::d2s::kMaxLife) > 0 && st.get(d2d::d2s::kVit) > 0);
+                assert(bytes[st.items_at] == std::byte{'J'} && bytes[st.items_at + 1] == std::byte{'M'});
+                const auto items = d2d::d2s::parse_items(bytes, t);
                 int equipped = 0;
                 for (const auto& it : items) {
                     assert(!it.code.empty());

@@ -23,6 +23,7 @@
 
 #include <txt.hpp>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -50,7 +51,7 @@ struct Item {
 
 // What the parser needs from the excel tables.
 struct ItemTables {
-    struct Stat { int save_bits = 0, save_add = 0, param_bits = 0; };
+    struct Stat { int save_bits = 0, save_add = 0, param_bits = 0, csv_bits = 0; };
     std::vector<Stat> stats;                        // by ItemStatCost ID
     std::unordered_set<std::string> armor, weapons, stackable;
 
@@ -58,14 +59,16 @@ struct ItemTables {
                            const txt::Table& weapons_t, const txt::Table& misc_t) {
         ItemTables t;
         const auto c_id = isc.col("ID"), c_b = isc.col("Save Bits"),
-                   c_a = isc.col("Save Add"), c_p = isc.col("Save Param Bits");
+                   c_a = isc.col("Save Add"), c_p = isc.col("Save Param Bits"),
+                   c_c = isc.col("CSvBits");
         auto num = [](std::string_view s) { return s.empty() ? 0 : std::stoi(std::string(s)); };
         for (std::size_t r = 0; r < isc.size(); ++r) {
             const auto id = isc.get(r, c_id);
             if (id.empty()) continue;
             const auto i = std::size_t(num(id));
             if (i >= t.stats.size()) t.stats.resize(i + 1);
-            t.stats[i] = { num(isc.get(r, c_b)), num(isc.get(r, c_a)), num(isc.get(r, c_p)) };
+            t.stats[i] = { num(isc.get(r, c_b)), num(isc.get(r, c_a)), num(isc.get(r, c_p)),
+                           num(isc.get(r, c_c)) };
         }
         auto codes = [&](const txt::Table& tab, auto& into) {
             for (std::size_t r = 0; r < tab.size(); ++r) {
@@ -171,11 +174,49 @@ inline Item item(Bits& bs, const ItemTables& t) {
 }
 }  // namespace detail
 
+// Character attributes — the "gf" section at 0x2FD: 9-bit stat id, value
+// of ItemStatCost CSvBits width, until 0x1ff; then "if" + 30 skill bytes,
+// then the items. Life/mana/stamina (6..11) are 8.8 fixed point.
+struct Stats {
+    std::array<std::int64_t, 16> v{};   // by stat id 0..15 (strength .. goldbank)
+    std::size_t items_at = 0;           // byte offset of the item list's "JM"
+    [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? v[std::size_t(id)] : 0; }
+    [[nodiscard]] std::int64_t fixed(int id) const { return get(id) >> 8; }   // life/mana/stamina
+};
+enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 5,
+              kLife = 6, kMaxLife = 7, kMana = 8, kMaxMana = 9, kStamina = 10,
+              kMaxStamina = 11, kLevel = 12, kExp = 13, kGold = 14, kGoldBank = 15 };
+
+inline Stats parse_stats(std::span<const std::byte> save, const ItemTables& t) {
+    constexpr std::size_t kGf = 0x2FD;
+    if (save.size() < kGf + 2 || save[kGf] != std::byte{'g'} || save[kGf + 1] != std::byte{'f'})
+        throw std::runtime_error("d2s: no stats section");
+    Stats st;
+    detail::Bits bs{ save, (kGf + 2) * 8 };
+    for (;;) {
+        const int id = int(bs.read(9));
+        if (id == 0x1ff) break;
+        if (std::size_t(id) >= t.stats.size() || t.stats[std::size_t(id)].csv_bits == 0)
+            throw std::runtime_error("d2s: unknown character stat " + std::to_string(id));
+        const auto val = bs.read(t.stats[std::size_t(id)].csv_bits);
+        if (id < 16) st.v[std::size_t(id)] = val;
+    }
+    const std::size_t at = (bs.pos + 7) / 8;              // "if" + 30 bytes follow
+    if (at + 32 > save.size() || save[at] != std::byte{'i'} || save[at + 1] != std::byte{'f'})
+        throw std::runtime_error("d2s: skills section not after stats");
+    st.items_at = at + 32;
+    return st;
+}
+
 // The player's item list. Throws on anything that doesn't parse cleanly.
 inline std::vector<Item> parse_items(std::span<const std::byte> save, const ItemTables& t) {
-    std::size_t at = 0x2FD;   // items live after the fixed-size sections
-    for (; at + 4 <= save.size(); ++at)
-        if (save[at] == std::byte{'J'} && save[at + 1] == std::byte{'M'}) break;
+    // Exactly after the stats + skills sections; the fixed-width scan is
+    // only a fallback for tables without CSvBits (unit tests).
+    std::size_t at = 0x2FD;
+    try { at = parse_stats(save, t).items_at; } catch (const std::runtime_error&) {
+        for (; at + 4 <= save.size(); ++at)
+            if (save[at] == std::byte{'J'} && save[at + 1] == std::byte{'M'}) break;
+    }
     if (at + 4 > save.size()) throw std::runtime_error("d2s items: no item list");
     const int count = int(std::uint8_t(save[at + 2])) | int(std::uint8_t(save[at + 3])) << 8;
     detail::Bits bs{ save, (at + 4) * 8 };
