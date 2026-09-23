@@ -2051,6 +2051,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             std::memory_order_relaxed);
         if (ch.active()) ch.pump();
 
+        const std::uint32_t t_after_input = std::uint32_t(SDL_GetTicks());
         current_phase.store(std::uint32_t(MainPhase::Render),
                             std::memory_order_relaxed);
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
@@ -2191,14 +2192,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         const std::uint32_t t_after_present = std::uint32_t(SDL_GetTicks());
         ++frame_count;
         last_ms = ms;
-        // Per-frame diagnostics — break the frame into `render` (all our
-        // CPU blits, filling the framebuffer) and `present` (SDL upload +
-        // clear + texture + present, which is where Metal can stall). The
-        // 5s alive line prints both averages, both maxes, AND the current
-        // camera position so we can correlate a stall with a specific
-        // area of the map.
-        const std::uint32_t dt_render  = t_after_render  - frame_start_ms;
+        // Per-frame diagnostics — break the frame into `input` (SDL event
+        // pump + devctl; macOS blocks in here during window drags / focus
+        // changes), `render` (our CPU blits into the framebuffer) and
+        // `present` (SDL upload + present, where Metal can stall). `render`
+        // used to start at frame_start and silently include `input`, which
+        // is how event-loop stalls showed up as 143-541 ms "render" spikes
+        // that never reproduce as render work. The 5s alive line prints
+        // input max plus render/present avg + max and the camera position.
+        const std::uint32_t dt_input   = t_after_input   - frame_start_ms;
+        const std::uint32_t dt_render  = t_after_render  - t_after_input;
         const std::uint32_t dt_present = t_after_present - t_after_render;
+        static std::uint32_t stat_input_max = 0;
         static std::uint32_t stat_frames = 0;
         static std::uint32_t stat_render_sum = 0, stat_render_max = 0;
         static std::uint32_t stat_present_sum = 0, stat_present_max = 0;
@@ -2206,23 +2211,24 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         ++stat_frames;
         stat_render_sum  += dt_render;
         stat_present_sum += dt_present;
+        if (dt_input   > stat_input_max)   stat_input_max   = dt_input;
         if (dt_render  > stat_render_max)  stat_render_max  = dt_render;
         if (dt_present > stat_present_max) stat_present_max = dt_present;
         // Any single phase > 100ms is a stall candidate — log it with
         // whichever phase spiked so we can tell CPU-side from GPU-side.
-        if (dt_render > 100 || dt_present > 100) {
+        if (dt_input > 100 || dt_render > 100 || dt_present > 100) {
             std::fprintf(stderr,
-                "[d2d] slow frame: render=%u ms present=%u ms screen=%d cam=(%d,%d)\n",
-                dt_render, dt_present, int(screen), camera_cx, camera_cy);
+                "[d2d] slow frame: input=%u ms render=%u ms present=%u ms screen=%d cam=(%d,%d)\n",
+                dt_input, dt_render, dt_present, int(screen), camera_cx, camera_cy);
         }
         if (ms - stat_last_report_ms >= 5000) {
             const std::uint32_t avg_r = stat_frames ? stat_render_sum  / stat_frames : 0;
             const std::uint32_t avg_p = stat_frames ? stat_present_sum / stat_frames : 0;
             std::fprintf(stderr,
-                "[d2d] alive: %u frames/5s | render avg=%u max=%u | present avg=%u max=%u | screen=%d cam=(%d,%d)\n",
-                stat_frames, avg_r, stat_render_max, avg_p, stat_present_max,
+                "[d2d] alive: %u frames/5s | input max=%u | render avg=%u max=%u | present avg=%u max=%u | screen=%d cam=(%d,%d)\n",
+                stat_frames, stat_input_max, avg_r, stat_render_max, avg_p, stat_present_max,
                 int(screen), camera_cx, camera_cy);
-            stat_frames = 0;
+            stat_frames = 0;      stat_input_max = 0;
             stat_render_sum = 0;  stat_render_max = 0;
             stat_present_sum = 0; stat_present_max = 0;
             stat_last_report_ms = ms;
