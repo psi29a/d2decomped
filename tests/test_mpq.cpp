@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <string>
 
@@ -62,6 +63,25 @@ int main() {
         assert(s.contains("(listfile)"));   // both have it; d2char answers first
         const auto data = s.read("(listfile)");
         assert(!data.empty());
+    }
+
+    // 1.14d patch installer as the patch_d2 layer (D2_PATCH_INSTALLER, or
+    // LODPatch_114d.exe next to the MPQs). Raw entries come back unwrapped
+    // through patch.lst names; compressed ones fall through to lower layers.
+    const char* pi = std::getenv("D2_PATCH_INSTALLER");
+    const fs::path inst = pi ? fs::path(pi) : dir / "LODPatch_114d.exe";
+    if (fs::exists(inst)) {
+        d2d::mpq::Stack st;
+        st.push_installer(inst);
+        const auto ps = st.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
+        assert(ps && ps->size() > 1000);
+        const auto cc = st.try_read("data/global/excel/COMPCODE.txt");   // any case/slash
+        assert(cc && std::memcmp(cc->data(), "component\tcode", 14) == 0);
+        assert(!st.contains(R"(data\global\excel\armor.txt)"));      // compressed entry
+        assert(!st.contains("patch.lst"));                             // not a game path
+        std::printf("installer layer OK\n");
+    } else {
+        std::printf("SKIP installer: %s not found\n", inst.string().c_str());
     }
 
     std::printf("OK\n");

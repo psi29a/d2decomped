@@ -101,3 +101,32 @@ adapter code: pick a priority order, open the archives, and expose a
 - The read pool at `FUN_004fb010` looks like a chunked-read optimization
   for large sequential reads. Confirm before porting (may be avoidable
   with modern IO).
+
+## The 1.14d patch installer as the patch layer
+
+`LODPatch_114d.exe` is an MPQ-appended installer (StormLib opens it). Its
+215 payload files sit flat in the archive; `patch.lst` maps each target
+game path to one (`data\global\excel\armor.txt;armor.txt;0x0`, per-language
+`data\local\LNG\ENG\patchstring.tbl;patchstring~01.tbl;0x0`), `hdfiles.lst`
+the binaries, `delete.lst` files to remove, `prepatch.lst`/`patch.cmd` the
+install script. Every payload file has a 24-byte header:
+
+```
+u16 header size (24)   u8 ?(4)   u8 stored: 1 raw, 0 compressed
+u32 checksum           u32 unpacked size (0 when raw)
+u32 raw size           u64 FILETIME (2005 for data, 2016+ for binaries)
+```
+
+129 of 215 are raw — every patchstring.tbl (1.14d ENG: 1062 entries vs
+the CD's 826), most UI DC6s, compcode/monster/skill tables, the binaries.
+The other 86 (armor/weapons/misc/charstats/ItemTypes/levels .txt/.bin…)
+use a compression not yet identified: literal text runs broken by control
+bytes, so some LZ variant — or deltas against the pre-patch files.
+
+`mpq::Stack::push_installer()` layers the installer on top the way
+patch_d2.mpq would be: raw entries by game path, compressed ones fall
+through. d2d uses a real patch_d2.mpq if the data dir has one, else the
+installer from d2d.cfg `patch = …` or `<data dir>/LODPatch_114d.exe`.
+Without either, patchstring IDs (10000..19999) aren't trusted: the CD's
+patchstring numbers don't match 1.14d's (10832 is "CREATE NEW" in 1.14d,
+"Bonus to Attack Rating" on the CD).

@@ -271,6 +271,10 @@ struct Scene {
     const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;
     // Kept open for lazy loads after startup.
     d2d::mpq::Stack mpqs;
+    // True when 1.14d patch data is layered in. Without it patchstring.tbl
+    // is the CD's (826 entries), whose IDs don't match what 1.14d code asks
+    // for (10832 is "CREATE NEW" in 1.14d, "Bonus to Attack Rating" on CD).
+    bool patched = false;
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,
@@ -333,6 +337,7 @@ lookup_string(const Scene& s, std::uint16_t id) {
     //   0..9999 string.tbl, 10000..19999 patchstring, 20000+ expansionstring.
     // Trying every table with the raw ID hits the wrong one — string.tbl
     // 2731 is "Bile".
+    if (id >= 10000 && id < 20000 && !s.patched) return std::nullopt;
     const auto& t = id >= 20000 ? s.exp_strings : id >= 10000 ? s.patch_strings : s.strings;
     const auto local = std::uint16_t(id >= 20000 ? id - 20000 : id >= 10000 ? id - 10000 : id);
     if (auto v = t.get(local); v && !v->empty()) return v;
@@ -428,6 +433,9 @@ struct Button {
     // Transient per-frame state, updated from mouse events.
     bool                    hovered = false;
     bool                    pressed = false;
+    // Second label line (char-select's tall buttons: FUN_00500bf0 adds
+    // one under the record's own label). Last so positional inits hold.
+    const char*             label2  = nullptr;
 };
 
 struct Mouse {
@@ -673,11 +681,29 @@ std::vector<d2d::d2s::Header> load_saves(const fs::path& dir) {
     return out;
 }
 
-std::optional<Scene> load_scene(const fs::path& data_dir) {
+std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer) {
     const auto d2data = data_dir / "d2data.mpq";
     if (!fs::exists(d2data)) return std::nullopt;
     try {
         d2d::mpq::Stack mpqs;
+        // 1.14d's patch layer ranks above everything (game.exe opens
+        // patch_d2.mpq first). A real install has patch_d2.mpq; a CD-copied
+        // data dir can use the LODPatch_114d.exe installer instead (d2d.cfg
+        // `patch = ...`, or dropped next to the MPQs).
+        bool patched = false;
+        if (fs::exists(data_dir / "patch_d2.mpq")) {
+            mpqs.push(data_dir / "patch_d2.mpq");
+            patched = true;
+        } else {
+            for (const auto& p : { patch_installer, data_dir / "LODPatch_114d.exe" }) {
+                if (p.empty() || !fs::exists(p)) continue;
+                try { mpqs.push_installer(p); patched = true; break; }
+                catch (const std::exception& e) { std::fprintf(stderr, "[d2d] %s\n", e.what()); }
+            }
+        }
+        if (!patched)
+            std::fprintf(stderr, "[d2d] no 1.14d patch data (patch_d2.mpq or LODPatch_114d.exe): "
+                                 "using CD-era tables and strings\n");
         const auto d2exp = data_dir / "d2exp.mpq";
         if (fs::exists(d2exp)) mpqs.push(d2exp);
         mpqs.push(d2data);
@@ -798,6 +824,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir) {
         load_world(scene, mpqs,
                    R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
         load_composite_data(scene, mpqs);
+        scene.patched = patched;
         scene.mpqs = std::move(mpqs);
         return scene;
     } catch (const std::exception& e) {
@@ -946,11 +973,13 @@ void render_title(std::vector<std::uint8_t>& fb,
 // CREATE hops to CharCreate. DELETE is a no-op for now.
 struct CharSelectUI {
     Button create_btn{};
+    Button convert_btn{};
     Button delete_btn{};
     Button cancel_btn{};
     Button ok_btn{};
-    std::string create_label;
-    std::string delete_label;
+    std::string create_label, create_label2;
+    std::string convert_label, convert_label2;
+    std::string delete_label, delete_label2;
     std::string cancel_label;
     std::string ok_label;
     int selected = -1;           // index into Scene::saves, or -1
@@ -1083,19 +1112,27 @@ void render_charselect(std::vector<std::uint8_t>& fb,
 
     // Buttons. TallButtonBlank is single-piece 168x60 (frames 0/1 for
     // normal/pressed); the medium OK/EXIT chrome uses blit_button_chrome.
-    auto draw_tall = [&](const Button& b, bool /*disabled*/=false) {
+    auto draw_tall = [&](const Button& b, bool disabled = false) {
         if (!b.chrome) return;
         const auto& fr = b.chrome->frame(0, b.hovered && b.pressed ? 1 : 0);
         blit_sprite(fb, fr, pal, b.x, b.y);
-        if (b.label && *b.label) {
-            const int lw = s.font.measure(b.label);
-            const int lh = s.font.line_height();
-            s.font.draw(fb, kW, kH, pal,
-                        b.x + (b.w - lw) / 2,
-                        b.y + (b.h - lh) / 2, b.label);
+        const int lh = s.font.line_height();
+        const int lines = b.label2 ? 2 : 1;
+        int ly = b.y + (b.h - lines * lh) / 2;
+        for (const char* t : { b.label, b.label2 }) {
+            if (!t || !*t) continue;
+            const int lx = b.x + (b.w - s.font.measure(t)) / 2;
+            if (disabled) s.font.draw_tinted(fb, kW, kH, pal, lx, ly, t, 96, 96, 96);
+            else          s.font.draw(fb, kW, kH, pal, lx, ly, t);
+            ly += lh;
         }
     };
     draw_tall(ui.create_btn);
+    // Convert-to-expansion only applies to a classic character (ponytail:
+    // drawn, never actionable).
+    const bool classic_pick = ui.selected >= 0 && ui.selected < int(s.saves.size())
+                           && !s.saves[std::size_t(ui.selected)].expansion();
+    draw_tall(ui.convert_btn, !classic_pick);
     draw_tall(ui.delete_btn);
 
     for (const Button* b : {&ui.cancel_btn, &ui.ok_btn}) {
@@ -2020,10 +2057,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         cc.hardcore = g_start_hardcore;
     }
 
-    // Char-select UI. Labels from string.tbl: 0x1498 = DELETE, 0x1499 =
-    // CREATE NEW CHARACTER; EXIT and OK reuse 0x13ed / 0x13ee (same as
-    // char-create's bottom row per RE'd char-select master table at
-    // 0x70ac00..0x70ae40). Positions verbatim from RE'd records.
+    // Char-select UI, from the LoD init (FUN_0043ae30): records 0xa4..0xa6
+    // are the tall buttons CREATE NEW / CONVERT TO / DELETE at x 33/233/433,
+    // each with a second line set by FUN_00500bf0 (0x5524 "CHARACTER",
+    // 0x58ca "EXPANSION"); 0xa2/0xa3 are OK/EXIT (0x13ee / 0x13ed).
     CharSelectUI csu;
     // LoD init (FUN_0043ae30) starts the selection at 0: first character
     // preselected, OK live straight away.
@@ -2033,16 +2070,26 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
             return std::string(fallback);
         };
-        csu.create_label = tbl_label(0x1499, "CREATE NEW CHARACTER");
-        csu.delete_label = tbl_label(0x1498, "DELETE");
+        csu.create_label   = tbl_label(0x2a50, "CREATE NEW");
+        csu.create_label2  = tbl_label(0x5524, "CHARACTER");
+        csu.convert_label  = tbl_label(0x58cc, "CONVERT TO");
+        csu.convert_label2 = tbl_label(0x58ca, "EXPANSION");
+        csu.delete_label   = tbl_label(0x1498, "DELETE");
+        csu.delete_label2  = tbl_label(0x5524, "CHARACTER");
         csu.cancel_label = tbl_label(0x13ed, "EXIT");
         csu.ok_label     = tbl_label(0x13ee, "OK");
-        csu.create_btn = Button{ 233, rec_top(528, 60), 168, 60, csu.create_label.c_str(),
+        csu.create_btn = Button{ 33, rec_top(528, 60), 168, 60, csu.create_label.c_str(),
                                  &scene->tall_button,
                                  Screen::CharCreate, /*do_switch=*/true };
+        csu.create_btn.label2 = csu.create_label2.c_str();
+        csu.convert_btn = Button{ 233, rec_top(528, 60), 168, 60, csu.convert_label.c_str(),
+                                  &scene->tall_button,
+                                  Screen::CharSelect, /*do_switch=*/false };
+        csu.convert_btn.label2 = csu.convert_label2.c_str();
         csu.delete_btn = Button{ 433, rec_top(528, 60), 168, 60, csu.delete_label.c_str(),
                                  &scene->tall_button,
                                  Screen::CharSelect, /*do_switch=*/false };
+        csu.delete_btn.label2 = csu.delete_label2.c_str();
         csu.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, csu.cancel_label.c_str(),
                                  &scene->medium_button,
                                  Screen::Title, /*do_switch=*/true };
@@ -2218,7 +2265,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
                 // OK only enters the game with a save picked.
                 csu.ok_btn.do_switch = csu.selected >= 0;
-                for (Button* b : {&csu.create_btn, &csu.delete_btn,
+                for (Button* b : {&csu.create_btn, &csu.convert_btn, &csu.delete_btn,
                                   &csu.cancel_btn, &csu.ok_btn})
                     update_button(*b, mouse, screen, quit);
                 if (screen == Screen::InGame) {
@@ -2468,7 +2515,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
-    auto scene = load_scene(data_dir);   // nullopt if MPQ dir is missing
+    auto scene = load_scene(data_dir, cfg["patch"]);   // nullopt if MPQ dir is missing
     if (scene) scene->saves = load_saves(save_dir);
 
     std::atomic<std::uint64_t> frame_count{0};

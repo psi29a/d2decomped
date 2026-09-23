@@ -14,12 +14,16 @@
 
 #include <StormLib.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -40,17 +44,48 @@ public:
     Archive& operator=(const Archive&) = delete;
 
     Archive(Archive&& other) noexcept
-        : h_(std::exchange(other.h_, nullptr)) {}
+        : h_(std::exchange(other.h_, nullptr)), remap_(std::move(other.remap_)) {}
 
     Archive& operator=(Archive&& other) noexcept {
         if (this != &other) {
             if (h_) SFileCloseArchive(h_);
             h_ = std::exchange(other.h_, nullptr);
+            remap_ = std::move(other.remap_);
         }
         return *this;
     }
 
+    // A Blizzard patch installer (LODPatch_114d.exe: an MPQ appended to an
+    // exe) read as the patch_d2.mpq it would install. Files sit flat in the
+    // archive; patch.lst maps game paths to them ("data\global\excel\
+    // armor.txt;armor.txt;0x0", ENG patchstring.tbl = patchstring~01.tbl)
+    // and each carries a 24-byte header:
+    //   u16 size (24), u8 ?, u8 stored (1 = raw, 0 = compressed),
+    //   u32 checksum, u32 unpacked size, u32 raw size, u64 filetime.
+    // ponytail: raw entries only (129 of 215 in 1.14d: every patchstring,
+    // most UI DC6s, compcode/monster/skill tables). Compressed ones (armor,
+    // weapons, misc, charstats ...) fall through to the next archive until
+    // the installer's compression is RE'd.
+    [[nodiscard]] static Archive installer(const std::filesystem::path& path) {
+        Archive a(path);
+        const auto lst = a.try_read("patch.lst");
+        if (!lst) throw std::runtime_error("not a patch installer: " + path.string());
+        std::string_view all(reinterpret_cast<const char*>(lst->data()), lst->size());
+        while (!all.empty()) {
+            auto line = all.substr(0, all.find('\n'));
+            all.remove_prefix(std::min(all.size(), line.size() + 1));
+            if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+            const auto a1 = line.find(';');
+            if (a1 == line.npos) continue;
+            const auto a2 = line.find(';', a1 + 1);
+            a.remap_.emplace(key(line.substr(0, a1)),
+                             std::string(line.substr(a1 + 1, a2 == line.npos ? a2 : a2 - a1 - 1)));
+        }
+        return a;
+    }
+
     [[nodiscard]] bool contains(std::string_view name) const {
+        if (!remap_.empty()) return try_read(name).has_value();
         return SFileHasFile(h_, std::string(name).c_str());
     }
 
@@ -64,6 +99,30 @@ public:
 
     [[nodiscard]] std::optional<std::vector<std::byte>>
     try_read(std::string_view name) const {
+        if (!remap_.empty()) {
+            const auto it = remap_.find(key(name));
+            if (it == remap_.end()) return std::nullopt;
+            auto raw = read_raw(it->second);
+            if (!raw || raw->size() < 24) return std::nullopt;
+            const auto u8 = [&](std::size_t o) { return std::uint8_t((*raw)[o]); };
+            const std::uint32_t len = u8(12) | u8(13) << 8 | u8(14) << 16 | std::uint32_t(u8(15)) << 24;
+            if ((u8(0) | u8(1) << 8) != 24 || u8(3) != 1 || 24 + std::size_t(len) > raw->size())
+                return std::nullopt;   // compressed entry: not decodable yet
+            return std::vector<std::byte>(raw->begin() + 24, raw->begin() + 24 + len);
+        }
+        return read_raw(name);
+    }
+
+private:
+    // Case/slash-insensitive lookup key, like MPQ name hashing.
+    static std::string key(std::string_view name) {
+        std::string k(name);
+        for (auto& c : k) c = c == '/' ? '\\' : char(std::tolower((unsigned char)c));
+        return k;
+    }
+
+    [[nodiscard]] std::optional<std::vector<std::byte>>
+    read_raw(std::string_view name) const {
         const std::string namez(name);
         HANDLE f{};
         if (!SFileOpenFileEx(h_, namez.c_str(), 0, &f)) return std::nullopt;
@@ -77,14 +136,17 @@ public:
         return buf;
     }
 
-private:
     HANDLE h_ = nullptr;
+    std::unordered_map<std::string, std::string> remap_;   // installer only
 };
 
 class Stack {
 public:
     // Highest priority first. D2 pushes patch_d2.mpq before base archives.
     void push(const std::filesystem::path& p) { archives_.emplace_back(p); }
+    void push_installer(const std::filesystem::path& p) {
+        archives_.push_back(Archive::installer(p));
+    }
 
     [[nodiscard]] bool empty() const noexcept { return archives_.empty(); }
     [[nodiscard]] std::size_t size() const noexcept { return archives_.size(); }
