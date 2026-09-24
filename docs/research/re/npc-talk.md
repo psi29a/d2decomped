@@ -61,8 +61,15 @@ drawn at `0x49d5a0`.
 ## d2d
 
 - Topics, submenu and scrolling are as above.
-- Quest-gated topics read every quest state as 0: the save's quest flags
-  aren't parsed yet.
+- Quest-gated topics test the save's quest flags for the difficulty it
+  was last played on. The d2s block at 0x14F is "Woo!", u32 6, u16 298,
+  then 3 × 96 bytes: 16 bits per quest, bit 0 = done. That is the
+  game's own layout: `FUN_0065c310(flags, quest, bit)` tests bit
+  `quest*16 + bit` through `FUN_00410b30` (`byte[n>>3] & mask[n&7]`).
+- The submenu's quest topics are *not* shown. They come from
+  `DAT_007bf250`, a list of message IDs the server sends (entries of
+  type 2, `FUN_00661390` / `FUN_006613c0`), so the game-server quest
+  scripts decide them.
 - Lines are clipped to the box rather than revealed partially.
 - No voice.
 - A click or Esc skips the speech.

@@ -19,6 +19,10 @@
 //   +0x98 u8   tints[16]: per-layer item colormap, 0xff = none
 //   +0xA8 u8   difficulty[3]: normal/nightmare/hell; 0x80 = the one the
 //              character was last played on, low 3 bits = act
+//   +0x14F "Woo!" u32 version (6) u16 size (298), then per difficulty 96
+//              bytes of quest flags: 16 bits per quest, bit 0 = done —
+//              the game's own flag block (FUN_0065c310 tests bit
+//              quest*16 + n, LSB first; 1 Den of Evil .. 6 Andariel)
 // ponytail: header only. Stats/skills/items are bit-packed sections after
 // 0x2FD; parse them when gameplay needs more than what char-select shows.
 #pragma once
@@ -49,6 +53,12 @@ struct Header {
     std::array<std::uint8_t, 16> appearance{};
     std::array<std::uint8_t, 16> tints{};
     std::array<std::uint8_t, 3>  difficulty{};
+    std::array<std::array<std::uint8_t, 96>, 3> quests{};   // zero when the save has none
+    [[nodiscard]] bool quest_flag(int diff, int quest, int bit) const noexcept {
+        const int n = quest * 16 + bit;
+        if (diff < 0 || diff > 2 || n < 0 || n >= 96 * 8) return false;
+        return quests[std::size_t(diff)][std::size_t(n >> 3)] >> (n & 7) & 1;
+    }
     // 0 normal, 1 nightmare, 2 hell — the last one played.
     [[nodiscard]] int active_difficulty() const noexcept {
         for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
@@ -88,6 +98,8 @@ inline Header parse_header(std::span<const std::byte> b) {
     std::memcpy(h.appearance.data(), b.data() + 0x88, 16);
     std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
     std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
+    if (b.size() >= 0x159 + 3 * 96 && std::memcmp(b.data() + 0x14F, "Woo!", 4) == 0)
+        for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.quests[d].data(), b.data() + 0x159 + d * 96, 96);
     if (h.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(h.cls));
     return h;
 }

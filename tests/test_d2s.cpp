@@ -48,6 +48,7 @@ int main() {
     assert(h.hardcore() && h.expansion() && !h.died());
     assert(h.progression == 15 && h.last_played == 1625730359u);
     assert(h.appearance[0] == 0 && h.appearance[5] == 5 && h.tints[3] == 0xff);
+    assert(!h.quest_flag(0, 1, 0));                  // no "Woo!" block: no quests done
 
     // Full 16 bytes with no NUL must not read past the field.
     auto full = make_save(96, "ABCDEFGHIJKLMNOP", 0, 0, 1);
@@ -113,6 +114,9 @@ int main() {
                 const auto st = d2d::d2s::parse_stats(bytes, t);
                 const auto hdr = d2d::d2s::parse_header(bytes);
                 assert(st.get(d2d::d2s::kLevel) == hdr.level);      // two copies agree
+                // Level 80+ characters: Den of Evil (1) and Andariel (6)
+                // done in Normal; the flags past the last quest are clear.
+                assert(hdr.quest_flag(0, 1, 0) && hdr.quest_flag(0, 6, 0));
                 assert(st.fixed(d2d::d2s::kMaxLife) > 0 && st.get(d2d::d2s::kVit) > 0);
                 assert(bytes[st.items_at] == std::byte{'J'} && bytes[st.items_at + 1] == std::byte{'M'});
                 const auto items = d2d::d2s::parse_items(bytes, t);

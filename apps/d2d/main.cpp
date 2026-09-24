@@ -764,8 +764,9 @@ void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y
 // Gossip (FUN_004b1680): a random topic >= 2 whose class is 7 (any) or the
 // player's and, if quest-gated, whose quest state matches — up to 10
 // tries, else topic 2. game.exe picks it once per game per NPC; so do we.
-// ponytail: quest states read as 0 (the save's quest flags aren't parsed).
-int talk_topic(const NpcTalk& t, bool intro, int cls, std::uint32_t& rng) {
+// Quest states are the save's flags for the difficulty it was played on.
+int talk_topic(const NpcTalk& t, bool intro, int cls, std::uint32_t& rng,
+               const std::function<bool(int quest)>& quest_done) {
     if (intro) return t.topics.size() > 1 && int(t.topics[1].cls) == cls ? 1 : 0;
     const int n = int(t.topics.size());
     for (int tries = 10; tries > 0 && n > 0; --tries) {
@@ -774,7 +775,7 @@ int talk_topic(const NpcTalk& t, bool intro, int cls, std::uint32_t& rng) {
         if (i < 2) continue;
         const auto& tp = t.topics[std::size_t(i)];
         if (tp.cls != 7 && int(tp.cls) != cls) continue;
-        if (tp.quest_gated && tp.quest_state != 0) continue;
+        if (tp.quest_gated && quest_done(int(tp.quest)) != (tp.quest_state != 0)) continue;
         return i;
     }
     return std::min(2, n - 1);
@@ -882,6 +883,7 @@ struct CharCreateUI {
     d2d::d2s::Stats stats;               // ... and attributes
     PanelStats panel;                    // ... and what the char panel computes
     bool expansion = true;               // the save's expansion flag (stash size)
+    d2d::d2s::Header header;             // the loaded save's header (quest flags ...)
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -3980,6 +3982,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
+                    cc.header = h;
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -4056,11 +4059,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             const int cls = int(kUiToSaveClass[std::max(cc.selected, 0)]);
                             if (gossip_pick.size() != scene->world_npcs.size()) gossip_pick.assign(scene->world_npcs.size(), -1);
                             int topic;
+                            auto done = [&](int q) { return cc.header.quest_flag(cc.header.active_difficulty(), q, 0); };
                             if (action == NpcMenuState::kIntro) {
-                                topic = talk_topic(*t, true, cls, talk_rng);
+                                topic = talk_topic(*t, true, cls, talk_rng, done);
                             } else {
                                 if (gossip_pick[std::size_t(who)] < 0)
-                                    gossip_pick[std::size_t(who)] = talk_topic(*t, false, cls, talk_rng);
+                                    gossip_pick[std::size_t(who)] = talk_topic(*t, false, cls, talk_rng, done);
                                 topic = gossip_pick[std::size_t(who)];
                             }
                             speech = start_speech(*scene, who, t->topics[std::size_t(topic)].string, ms);
