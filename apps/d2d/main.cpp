@@ -29,6 +29,7 @@
 #include <txt.hpp>
 #include <userdir.hpp>
 
+#include "npc_menu.hpp"
 #include "obj_preset.hpp"
 
 #include <SDL3/SDL.h>
@@ -422,7 +423,9 @@ struct Scene {
         std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
         float velocity = 3;                  // MonStats Velocity
         int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+        int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     };
+    d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
@@ -671,6 +674,89 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
         p.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
     }
     return p;
+}
+
+// An open NPC menu, as game.exe builds and lays it out (FUN_004b4830,
+// FUN_004b85f0, FUN_004b8410; docs/research/re/npc-menu.md): a gold
+// font16 header with the NPC's name (21 px line), the npc_menu.hpp
+// entries and "cancel" (string 0x102e), 15 px lines, white. Box: widest
+// line + 20 by the line heights + 15, placed at (cx - w/2, cy - h/3) where
+// (cx, cy) is the NPC's feet on screen raised 150 px (FUN_004b1c80), then
+// kept inside the screen.
+struct NpcMenuState {
+    int npc = -1;                            // world_npcs index, -1 = closed
+    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; };
+    std::vector<Line> lines;
+    int x = 0, y = 0, w = 0, h = 0;
+    // Index of the selectable line under (mx, my), or -1.
+    [[nodiscard]] int line_at(int mx, int my) const {
+        if (npc < 0 || mx < x || mx >= x + w) return -1;
+        int base = y;
+        for (std::size_t i = 0; i < lines.size(); ++i) {
+            base += lines[i].height;
+            if (!lines[i].header && my > base - lines[i].height && my <= base) return int(i);
+        }
+        return -1;
+    }
+};
+
+NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y) {
+    NpcMenuState m;
+    const auto& n = s.world_npcs[std::size_t(npc)];
+    const auto it = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
+    if (it == kNpcMenus.end()) return m;
+    m.npc = npc;
+    auto str = [&](std::uint16_t id) {
+        const auto v = lookup_string(s, id);
+        return v ? u16_to_latin1(*v) : std::string{};
+    };
+    m.lines.push_back({ n.name, 21, 0, 0, true });
+    for (const auto id : it->entries)
+        if (id) m.lines.push_back({ str(id), 15 });
+    m.lines.push_back({ str(0x102e), 15 });
+    int tw = 0;
+    for (auto& l : m.lines) { l.width = s.font.measure(l.text); tw = std::max(tw, l.width); m.h += l.height; }
+    m.w = tw + 20;
+    m.h += 15;
+    for (auto& l : m.lines) l.x = l.width < m.w ? (m.w - l.width + 1) / 2 + 1 : 0;
+    const int cx = screen_x, cy = std::max(screen_y - 150, 20);
+    m.x = cx - m.w / 2;
+    m.y = cy - m.h / 3;
+    if (m.x + m.w > int(kW) - 10) m.x = int(kW) - m.w;
+    if (m.y + m.h > int(kH) - 0x3a) m.y = int(kH) - m.h - 0x30;
+    if (m.x < 11) m.x = 10;
+    if (m.y < 11) m.y = 10;
+    return m;
+}
+
+// FUN_004b8100: a black box at draw mode 1 (half transparent), each line's
+// text with its baseline at the box top + the heights so far + its own;
+// the hovered entry gets focus16 (frame = draw count % 7) bottom-anchored
+// at (x - 24, baseline + 4) and (x + width + 2, baseline + 4).
+void draw_npc_menu(std::vector<std::uint8_t>& fb, const Scene& s, const NpcMenuState& m,
+                   int mx, int my, std::uint32_t ms) {
+    if (m.npc < 0) return;
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    for (int y = std::max(0, m.y); y < std::min(int(kH), m.y + m.h); ++y)
+        for (int x = std::max(0, m.x); x < std::min(int(kW), m.x + m.w); ++x) {
+            auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
+            p[0] = std::uint8_t(p[0] / 2); p[1] = std::uint8_t(p[1] / 2); p[2] = std::uint8_t(p[2] / 2);
+        }
+    const int hover = m.line_at(mx, my);
+    const int cell = s.font.sheet().frames_per_direction() > 0 ? int(s.font.sheet().frame(0, 0).height) : 16;
+    int base = m.y;
+    for (std::size_t i = 0; i < m.lines.size(); ++i) {
+        const auto& l = m.lines[i];
+        base += l.height;
+        const int x = m.x + l.x;
+        if (l.header) s.font.draw_tinted(fb, kW, kH, pal, x, base - cell + 1, l.text, 199, 179, 119);
+        else          s.font.draw(fb, kW, kH, pal, x, base - cell + 1, l.text);
+        if (int(i) == hover && s.focus16.frames_per_direction() > 0) {
+            const auto& f = s.focus16.frame(0, (ms / 40) % std::min<std::uint32_t>(7, s.focus16.frames_per_direction()));
+            blit_sprite(fb, f, pal, x - 24, base + 4 - int(f.height) + 1);
+            blit_sprite(fb, f, pal, x + l.width + 2, base + 4 - int(f.height) + 1);
+        }
+    }
 }
 
 struct CharCreateUI {
@@ -935,14 +1021,17 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.root   = "monsters";
         n.mode   = "NU";
         n.code   = std::string(ms.get(it->second, "Code"));
+        n.hc_idx = std::atoi(std::string(ms.get(it->second, "hcIdx")).c_str());
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
         n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
         n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
         if (const auto v = ms.get(it->second, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
-        // Hover name: MonStats' string key (namco); client-only critters
-        // (the chicken) can't be selected.
-        if (ms.get(it->second, "ClientOnly") != "1") {
-            const std::string key(ms.get(it->second, "namco"));
+        // Hover name: MonStats' string key, only for units MonStats2 marks
+        // selectable (isSel) — not the chicken or the camp's guard rogues,
+        // whose name key "Dummy" reads "an evil force".
+        if (ms2.get(it->second, "isSel") == "1") {
+            std::string key(ms.get(it->second, "NameStr"));        // 1.14d; "namco" on the CD
+            if (key.empty()) key = std::string(ms.get(it->second, "namco"));
             auto v = lookup_string(scene, key);
             n.name = v ? u16_to_latin1(*v) : key;
         }
@@ -1181,6 +1270,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 }
         }
     if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
+    if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
@@ -2782,7 +2872,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const std::vector<d2d::d2s::Item>* belt = nullptr,
                    int* hovered_npc = nullptr,
                    const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
-                   bool belt_popup = false, bool cube_open = false) {
+                   bool belt_popup = false, bool cube_open = false,
+                   const NpcMenuState* npc_menu = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2837,6 +2928,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                 draw_storage(fb, s, *stash, s.stash_panel[std::size_t(e)], s.stash_layout[std::size_t(e)], 5,
                              mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         }
+        if (npc_menu) draw_npc_menu(fb, s, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
                             belt_popup);
@@ -3496,6 +3588,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  stash_open = false;
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
+    NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
     int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -3607,6 +3700,23 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return out + "ok\n";
     });
+    // Named NPCs/objects with their feet on screen (game pixels) and
+    // whether they have an NPC menu: "<name>\t<x>\t<y>\t<menu 0/1>".
+    ch.on("npcs", [&](const std::vector<std::string>&) {
+        if (!scene) return std::string("err no scene\n");
+        std::string out;
+        for (std::size_t i = 0; i < scene->world_npcs.size(); ++i) {
+            const auto& n = scene->world_npcs[i];
+            if (n.name.empty()) continue;
+            const bool live = i < npc_states.size() && !n.path.empty();
+            const float dx = (live ? npc_states[i].x : n.x) - player_x, dy = (live ? npc_states[i].y : n.y) - player_y;
+            const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
+            const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
+            const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
+            out += n.name + "\t" + std::to_string(sx) + "\t" + std::to_string(sy) + "\t" + (menu ? "1" : "0") + "\n";
+        }
+        return out + "ok\n";
+    });
     ch.on("state", [&](const std::vector<std::string>&) {
         return std::string("screen=") + screen_name(screen)
              + " save=" + std::to_string(csu.selected)
@@ -3619,6 +3729,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
              + " stash=" + (stash_open ? "1" : "0")
              + " cube=" + (cube_open ? "1" : "0")
+             + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + "\nok\n";
     });
 
@@ -3750,7 +3861,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
                     if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
                     if (k == SDLK_ESCAPE) {
-                        if (inv_open || char_open || stash_open || cube_open)   // panels first
+                        if (npc_menu.npc >= 0) npc_menu = {};               // the menu first
+                        else if (inv_open || char_open || stash_open || cube_open)   // then panels
                             inv_open = char_open = stash_open = cube_open = false;
                         else screen = Screen::CharSelect;
                     }
@@ -3784,7 +3896,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             cube_open = true; stash_open = char_open = false;
                         }
                     }
-                const bool over_ui = over_panel || over_belt;
+                // An open NPC menu takes every click: an entry runs (only
+                // "cancel" so far — every entry closes it), anything else
+                // closes it. ponytail: talk/trade/hire/gamble not built.
+                bool menu_click = false;
+                if (npc_menu.npc >= 0 && mouse.press_this_frame) {
+                    npc_menu = {};
+                    menu_click = true;
+                }
+                const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
                     if ((mouse.down || mouse.press_this_frame) && !over_ui) {
@@ -3798,22 +3918,38 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         // Clicking an object you can operate walks to it
                         // first (D2 operates on arrival).
                         interact_npc = -1;
-                        if (mouse.press_this_frame && hovered_npc >= 0
-                            && scene->world_npcs[std::size_t(hovered_npc)].operate_fn == 32) {
-                            interact_npc = hovered_npc;
-                            target_x = scene->world_npcs[std::size_t(hovered_npc)].x;
-                            target_y = scene->world_npcs[std::size_t(hovered_npc)].y;
+                        if (mouse.press_this_frame && hovered_npc >= 0) {
+                            const auto& o = scene->world_npcs[std::size_t(hovered_npc)];
+                            const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
+                            if (o.operate_fn == 32 || (o.root == "monsters" && menu)) {
+                                interact_npc = hovered_npc;
+                                const auto& st = npc_states[std::size_t(hovered_npc)];
+                                target_x = o.path.empty() ? o.x : st.x;
+                                target_y = o.path.empty() ? o.y : st.y;
+                            }
                         }
                     }
                     // Close enough to the stash: open it with the inventory.
                     // ponytail: 2 cells, not D2's per-object operate range.
                     if (interact_npc >= 0) {
                         const auto& o = scene->world_npcs[std::size_t(interact_npc)];
-                        if (std::hypot(o.x - player_x, o.y - player_y) < 2.f) {
-                            stash_open = inv_open = true; char_open = false;
+                        const auto& st = npc_states[std::size_t(interact_npc)];
+                        const float ox = o.path.empty() ? o.x : st.x, oy = o.path.empty() ? o.y : st.y;
+                        if (std::hypot(ox - player_x, oy - player_y) < 2.f) {
+                            if (o.operate_fn == 32) {
+                                stash_open = inv_open = true; char_open = false;
+                            } else {
+                                // The NPC's feet on screen, as render_world projects them.
+                                const float dx = ox - player_x, dy = oy - player_y;
+                                npc_menu = open_npc_menu(*scene, interact_npc,
+                                    int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
+                                    int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))));
+                            }
                             walking = false; interact_npc = -1;
                         } else if (!walking) {
                             interact_npc = -1;                         // blocked on the way
+                        } else {
+                            target_x = ox; target_y = oy;              // follow a walking NPC
                         }
                     }
                     if (walking) {
@@ -3841,6 +3977,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const auto& path = scene->world_npcs[i].path;
                         if (path.empty()) continue;
                         auto& st = npc_states[i];
+                        if (int(i) == npc_menu.npc) {                  // talking: stand still
+                            if (st.walking) { st.walking = false; st.mode_ms = ms; }
+                            st.wait_until = ms + 2000;
+                            continue;
+                        }
                         if (!st.walking) {
                             if (ms >= st.wait_until) { st.walking = true; st.mode_ms = ms; }
                             continue;
@@ -3872,7 +4013,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
                               &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
-                              cube_open);
+                              cube_open, &npc_menu);
                 break;
             }
             case Screen::CharCreate: {

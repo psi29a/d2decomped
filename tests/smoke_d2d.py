@@ -138,6 +138,22 @@ try:
         cmd("key Escape"); frames()
         st = state()
         assert st["stash"] == "0" and st["screen"] == "ingame"
+        # Warriv (patrols near the start): click him -> walk over -> his
+        # menu (name, talk, cancel); Esc closes it.
+        def npc_at(name):
+            for l in cmd("npcs").splitlines():
+                p = l.split("\t")
+                if p[0].endswith(name):
+                    return int(p[1]), int(p[2])
+        for _ in range(5):
+            x, y = npc_at("Warriv")
+            cmd(f"move {x} {y - 40}"); frames(6)
+            cmd(f"click {x} {y - 40}"); frames(70)
+            if state()["menu"] != "0":
+                break
+        assert state()["menu"] == "3", "Warriv's menu did not open"
+        cmd("key Escape"); frames()
+        assert state()["menu"] == "0" and state()["screen"] == "ingame"
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"
