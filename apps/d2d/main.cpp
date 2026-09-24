@@ -440,6 +440,16 @@ struct Scene {
     };
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
+    // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
+    // game.exe's level-type names (0x6e7d50: "None", "1 Town", ...),
+    // TileName through its orientation names (0x6e7f90: fl wl wr wtlr
+    // wtll wtr wbl wbr wld wrd wle wre co sh tr rf ld rd fd fi), Style =
+    // main index, Start/EndSequence = sub-index range, the valid Cel1..4
+    // (FUN_0061fff0 picks one at random). Act 1 draws MaxiMap.dc6.
+    struct AutomapRule { int level_type = 0, orientation = 0, main = -1, sub0 = -1, sub1 = -1; std::vector<int> cels; };
+    std::vector<AutomapRule> automap_rules;
+    d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
+    int town_level_type = 1;                           // Levels.txt Id 1's LevelType
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
     struct Sound { std::string file; int volume = 255; bool loop = false, music = false; };
@@ -1414,6 +1424,42 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
     if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
     if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
+    {
+        static constexpr std::string_view kLevelTypeName[] = {
+            "None", "1 Town", "1 Wilderness", "1 Cave", "1 Crypt", "1 Monestary", "1 Courtyard", "1 Barracks",
+            "1 Jail", "1 Cathedral", "1 Catacombs", "1 Tristram", "2 Town", "2 Sewer", "2 Harem", "2 Basement",
+            "2 Desert", "2 Tomb", "2 Lair", "2 Arcane", "3 Town", "3 Jungle", "3 Kurast", "3 Spider", "3 Dungeon",
+            "3 Sewer", "4 Town", "4 Mesa", "4 Lava", "5 Town", "5 Siege", "5 Barricade", "5 Temple", "5 Ice",
+            "5 Baal", "5 Lava" };
+        static constexpr std::string_view kOrientName[] = {
+            "fl", "wl", "wr", "wtlr", "wtll", "wtr", "wbl", "wbr", "wld", "wrd", "wle", "wre", "co", "sh", "tr",
+            "rf", "ld", "rd", "fd", "fi" };
+        const auto am = txt("AutoMap");
+        auto idx = [](auto& names, std::string_view v) {
+            for (std::size_t i = 0; i < std::size(names); ++i) if (names[i] == v) return int(i);
+            return -1;
+        };
+        auto num = [&](std::size_t r, std::string_view c) {
+            const auto v = am.get(r, c);
+            return v.empty() ? -1 : std::atoi(std::string(v).c_str());
+        };
+        for (std::size_t r = 0; r < am.size(); ++r) {
+            Scene::AutomapRule rule;
+            rule.level_type = idx(kLevelTypeName, am.get(r, "LevelName"));
+            rule.orientation = idx(kOrientName, am.get(r, "TileName"));
+            if (rule.level_type < 0 || rule.orientation < 0) continue;
+            rule.main = num(r, "Style");
+            rule.sub0 = num(r, "StartSequence");
+            rule.sub1 = num(r, "EndSequence");
+            for (const char* c : { "Cel1", "Cel2", "Cel3", "Cel4" })
+                if (const int v = num(r, c); v >= 0) rule.cels.push_back(v);
+            if (!rule.cels.empty()) scene.automap_rules.push_back(std::move(rule));
+        }
+        if (auto b = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*b);
+        const auto lv = txt("Levels");
+        for (std::size_t r = 0; r < lv.size(); ++r)
+            if (lv.get(r, "Id") == "1") scene.town_level_type = std::atoi(std::string(lv.get(r, "LevelType")).c_str());
+    }
     // Rogue Encampment (Levels.txt Id 1) -> SoundEnv -> SoundEnviron Song /
     // Day Ambience (Sounds.txt indices).
     {
@@ -3027,6 +3073,73 @@ void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<
     if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[1] + 1, hb[3] + 1, hb[2]);
 }
 
+// The automap (UI\automap.cpp). Each revealed tile adds one cell
+// (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's
+// world pixel position ((x - y) * 80, (x + y) * 40) / 10, lower walls
+// (orientation > 15) 24 further down. Drawn (FUN_00459700/FUN_00459440)
+// at cell - scroll, scroll = player's world pixels / 10 - screen / 2 +
+// (40, 15), with DC6's bottom-left anchoring.
+// ponytail: reveals tiles within 12 of the player (D2 reveals by room),
+// cel picked by a tile hash rather than the game's RNG, no fade near the
+// centre, no player/NPC marks.
+struct Automap {
+    struct Cell { int cel, x, y; };
+    std::vector<Cell> cells;
+    std::vector<std::uint8_t> revealed;       // per DS1 tile
+    bool open = false;
+};
+
+int automap_cel(const Scene& s, int orientation, int main, int sub, std::uint32_t hash) {
+    for (const auto& r : s.automap_rules) {
+        if (r.level_type != s.town_level_type || r.orientation != orientation) continue;
+        if (r.main >= 0 && r.main != main) continue;
+        if (r.sub0 >= 0 && (sub < r.sub0 || sub > r.sub1)) continue;
+        return r.cels[hash % r.cels.size()];
+    }
+    return -1;
+}
+
+void automap_reveal(const Scene& s, Automap& am, float px, float py) {
+    const auto& m = s.world_ds1;
+    const int w = int(m.width()), h = int(m.height());
+    if (w == 0) return;
+    if (am.revealed.size() != std::size_t(w * h)) am.revealed.assign(std::size_t(w * h), 0);
+    const int cx = int(px), cy = int(py), R = 12;
+    for (int ty = std::max(0, cy - R); ty < std::min(h, cy + R); ++ty)
+        for (int tx = std::max(0, cx - R); tx < std::min(w, cx + R); ++tx) {
+            auto& done = am.revealed[std::size_t(ty * w + tx)];
+            if (done) continue;
+            done = 1;
+            const std::uint32_t hash = std::uint32_t(tx * 73856093) ^ std::uint32_t(ty * 19349663);
+            const int ax = (tx - ty) * 80 / 10, ay = (tx + ty) * 40 / 10;
+            for (const auto& L : m.floors()) {
+                const auto& t = L.cells[std::size_t(ty * w + tx)];
+                if (t.hidden || (t.style == 0 && t.sequence == 0 && t.prop1 == 0)) continue;
+                if (const int c = automap_cel(s, 0, t.style, t.sequence, hash); c >= 0) am.cells.push_back({ c, ax, ay });
+            }
+            for (const auto& L : m.walls()) {
+                const auto& t = L.cells[std::size_t(ty * w + tx)];
+                if (t.hidden || t.wall_type == 0) continue;
+                if (const int c = automap_cel(s, t.wall_type, t.style, t.sequence, hash); c >= 0)
+                    am.cells.push_back({ c, ax, ay + (t.wall_type > 15 ? 24 : 0) });
+            }
+        }
+}
+
+void draw_automap(std::vector<std::uint8_t>& fb, const Scene& s, const Automap& am, float px, float py) {
+    if (!am.open || s.automap_cels.frames_per_direction() == 0) return;
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int scroll_x = int(std::lround((px - py) * 80 / 10)) - int(kW) / 2 + 40;
+    const int scroll_y = int(std::lround((px + py) * 40 / 10)) - int(kH) / 2 + 15;
+    for (const auto& c : am.cells) {
+        if (c.cel < 0 || std::uint32_t(c.cel) >= s.automap_cels.frames_per_direction()) continue;
+        const auto& f = s.automap_cels.frame(0, std::uint32_t(c.cel));
+        const int x = c.x - scroll_x, y = c.y - scroll_y;
+        if (x < -32 || x > int(kW) + 32 || y < -64 || y > int(kH) + 64) continue;
+        blit_sprite(fb, f, pal, x, y - int(f.height) + 1);
+    }
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -3049,7 +3162,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int* hovered_npc = nullptr,
                    const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
                    bool belt_popup = false, bool cube_open = false,
-                   const NpcMenuState* npc_menu = nullptr, const Speech* speech = nullptr) {
+                   const NpcMenuState* npc_menu = nullptr, const Speech* speech = nullptr,
+                   const Automap* automap = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -3104,6 +3218,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                 draw_storage(fb, s, *stash, s.stash_panel[std::size_t(e)], s.stash_layout[std::size_t(e)], 5,
                              mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         }
+        if (automap) draw_automap(fb, s, *automap, cam_x, cam_y);
         if (npc_menu) draw_npc_menu(fb, s, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(fb, s, *speech, elapsed_ms);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
@@ -4100,6 +4215,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
+    Automap automap;                       // Tab
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     std::uint32_t talk_rng = 0x2545f491u;
@@ -4198,7 +4314,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         return std::string("ok\n");
     });
     ch.on("debug", [&](const std::vector<std::string>& args) {
-        if (args.size() < 2 || args[1] != "collision") return std::string("err debug collision\n");
+        if (args.size() >= 2 && args[1] == "automap" && scene) {    // reveal the whole level
+            const auto& m = scene->world_ds1;
+            for (int y = 0; y < int(m.height()); y += 12)
+                for (int x = 0; x < int(m.width()); x += 12) automap_reveal(*scene, automap, float(x), float(y));
+            return "ok " + std::to_string(automap.cells.size()) + "\n";
+        }
+        if (args.size() < 2 || args[1] != "collision") return std::string("err debug collision|automap\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
@@ -4257,6 +4379,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " stash=" + (stash_open ? "1" : "0")
              + " cube=" + (cube_open ? "1" : "0")
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
+             + " automap=" + std::to_string(automap.open ? int(automap.cells.size()) : 0)
              + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
              + " voice=" + std::to_string(audio.voice_sound())
              + " music=" + std::to_string(audio.music.sound)
@@ -4470,6 +4593,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (k == SDLK_I) inv_open = !inv_open;
                     if (k == SDLK_R) running = !running;              // D2's run/walk toggle
                     if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
+                    if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
                     if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
                     if (k == SDLK_ESCAPE) {
                         if (speech.npc >= 0) speech = {};                   // speech first
@@ -4512,6 +4636,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // "cancel" so far — every entry closes it), anything else
                 // closes it. ponytail: talk/trade/hire/gamble not built.
                 bool menu_click = false;
+                automap_reveal(*scene, automap, player_x, player_y);
                 // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
                 // the speech string) follows the speech box.
                 if (speech.npc < 0 && audio.voice.src) audio.stop_voice();
@@ -4671,7 +4796,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
                               &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
-                              cube_open, &npc_menu, &speech);
+                              cube_open, &npc_menu, &speech, &automap);
                 break;
             }
             case Screen::CharCreate: {
