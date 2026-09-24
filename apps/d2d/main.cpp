@@ -35,6 +35,14 @@
 #include "obj_preset.hpp"
 
 #include <SDL3/SDL.h>
+
+#if __has_include(<AL/al.h>)
+#  include <AL/al.h>
+#  include <AL/alc.h>
+#else
+#  include <OpenAL/al.h>
+#  include <OpenAL/alc.h>
+#endif
 #include <CLI/CLI.hpp>
 #include <csignal>
 #include <unordered_map>
@@ -3379,40 +3387,107 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.
-// Sound output: SDL3 audio streams on the default playback device (the
-// dummy driver when headless). Channels: the NPC voice, the level's song
-// and its ambience; Sounds.txt `Loop` entries are re-queued as they drain.
-// Files: music (`Music Vol` 1) under data\global\music, the rest under
-// data\global\sfx, speech under data\local\sfx.
-// ponytail: no mixer limits, 3D falloff, fades or effect sounds yet.
+// Sound output: OpenAL (openal-soft, as ../thirdeye), one source + buffer
+// per channel: the NPC voice, the level's song, its ambience and UI
+// clicks. Sounds.txt `Loop` entries play with AL_LOOPING. WAVs are decoded
+// with SDL (PCM/ADPCM) to 8/16-bit PCM. Files: music (`Music Vol` 1)
+// under data\global\music, the rest under data\global\sfx, speech under
+// data\local\sfx. Headless runs use openal-soft's null backend.
+// ponytail: channels are head-relative (no 3D positions yet), no fades.
 struct Audio {
+    struct Decoded { ALenum format = 0; ALsizei freq = 0; std::vector<Uint8> pcm; };
     struct Channel {
-        SDL_AudioStream* stream = nullptr;
-        std::vector<Uint8> pcm;
-        int sound = 0;                           // Sounds.txt index, 0 = silent
-        bool loop = false;
+        ALuint src = 0, buf = 0;
+        int sound = 0;                           // Sounds.txt index, 0 = silent, -1 = a fixed file
     };
     bool ok = false;
+    ALCdevice* dev = nullptr;
+    ALCcontext* ctx = nullptr;
     Channel voice, music, ambience, ui;
+    int voice_sound() const { return voice.sound; }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
-    // own MPQ handles (StormLib handles aren't shared across threads), the
-    // stream made here once it's ready.
-    struct Decoded { SDL_AudioSpec spec{}; std::vector<Uint8> pcm; };
+    // own MPQ handles (StormLib handles aren't shared across threads).
     std::future<std::optional<Decoded>> music_job;
     int music_job_sound = 0;
     float music_job_gain = 1.f;
-    int voice_sound() const { return voice.sound; }
+    std::unordered_map<std::string, std::vector<std::byte>> file_cache;
 
-    void init() { ok = SDL_InitSubSystem(SDL_INIT_AUDIO); if (!ok) std::fprintf(stderr, "[d2d] audio: %s\n", SDL_GetError()); }
+    void init() {
+        dev = alcOpenDevice(nullptr);
+        if (dev) ctx = alcCreateContext(dev, nullptr);
+        ok = ctx && alcMakeContextCurrent(ctx);
+        if (!ok) std::fprintf(stderr, "[d2d] audio: no OpenAL device\n");
+    }
+    ~Audio() {
+        for (auto* c : { &voice, &music, &ambience, &ui }) stop(*c);
+        if (music_job.valid()) music_job.wait();
+        alcMakeContextCurrent(nullptr);
+        if (ctx) alcDestroyContext(ctx);
+        if (dev) alcCloseDevice(dev);
+    }
     static std::optional<Decoded> decode(std::span<const std::byte> wav) {
-        Decoded d;
+        SDL_AudioSpec spec{};
         Uint8* buf = nullptr;
         Uint32 len = 0;
-        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(wav.data(), wav.size()), true, &d.spec, &buf, &len)) return std::nullopt;
-        d.pcm.assign(buf, buf + len);
+        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(wav.data(), wav.size()), true, &spec, &buf, &len)) return std::nullopt;
+        Decoded d;
+        d.freq = spec.freq;
+        if (spec.format == SDL_AUDIO_U8 || spec.format == SDL_AUDIO_S16LE) {
+            d.pcm.assign(buf, buf + len);
+        } else {                                 // anything else -> S16
+            SDL_AudioSpec to{ SDL_AUDIO_S16LE, spec.channels, spec.freq };
+            Uint8* out = nullptr;
+            int out_len = 0;
+            if (!SDL_ConvertAudioSamples(&spec, buf, int(len), &to, &out, &out_len)) { SDL_free(buf); return std::nullopt; }
+            d.pcm.assign(out, out + out_len);
+            SDL_free(out);
+            spec.format = SDL_AUDIO_S16LE;
+        }
         SDL_free(buf);
+        const bool eight = spec.format == SDL_AUDIO_U8;
+        if (spec.channels == 1) d.format = eight ? AL_FORMAT_MONO8 : AL_FORMAT_MONO16;
+        else if (spec.channels == 2) d.format = eight ? AL_FORMAT_STEREO8 : AL_FORMAT_STEREO16;
+        else return std::nullopt;
         return d;
     }
+    void stop(Channel& c) {
+        if (c.src) { alSourceStop(c.src); alDeleteSources(1, &c.src); }
+        if (c.buf) alDeleteBuffers(1, &c.buf);
+        c = {};
+    }
+    void stop_voice() { stop(voice); }
+    bool start(Channel& c, const Decoded& d, float gain, bool loop, int index) {
+        stop(c);
+        if (!ok) return false;
+        alGenBuffers(1, &c.buf);
+        alBufferData(c.buf, d.format, d.pcm.data(), ALsizei(d.pcm.size()), d.freq);
+        alGenSources(1, &c.src);
+        alSourcei(c.src, AL_BUFFER, ALint(c.buf));
+        alSourcef(c.src, AL_GAIN, gain);
+        alSourcei(c.src, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+        alSourcei(c.src, AL_SOURCE_RELATIVE, AL_TRUE);
+        alSourcePlay(c.src);
+        if (alGetError() != AL_NO_ERROR) { stop(c); return false; }
+        c.sound = index;
+        return true;
+    }
+    bool start(Channel& c, std::span<const std::byte> wav, float gain, bool loop, int index) {
+        const auto d = decode(wav);
+        if (!d) { std::fprintf(stderr, "[d2d] sound %d: %s\n", index, SDL_GetError()); return false; }
+        return start(c, *d, gain, loop, index);
+    }
+    void play(Channel& c, const Scene& s, int index) {
+        stop(c);
+        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
+        const auto& snd = s.sounds[std::size_t(index)];
+        std::optional<std::vector<std::byte>> wav;
+        if (snd.music) wav = s.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
+            if (!wav) wav = s.mpqs.try_read(std::string(root) + snd.file);
+        if (!wav) { std::fprintf(stderr, "[d2d] sound %d: %s not found\n", index, snd.file.c_str()); return; }
+        start(c, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
+    }
+    void play_voice(const Scene& s, int index) { play(voice, s, index); }
     void play_music(const Scene& s, int index) {
         stop(music);
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
@@ -3428,41 +3503,8 @@ struct Audio {
             return wav ? decode(*wav) : std::nullopt;
         });
     }
-    static void stop(Channel& c) {
-        if (c.stream) SDL_DestroyAudioStream(c.stream);
-        c = {};
-    }
-    void stop_voice() { stop(voice); }
-    // Start WAV bytes on a channel (replacing what it played).
-    bool start(Channel& c, std::span<const std::byte> wav, float gain, bool loop, int index) {
-        stop(c);
-        auto d = decode(wav);
-        if (!d) { std::fprintf(stderr, "[d2d] sound %d: %s\n", index, SDL_GetError()); return false; }
-        c.pcm = std::move(d->pcm);
-        c.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &d->spec, nullptr, nullptr);
-        if (!c.stream) { c.pcm.clear(); return false; }
-        SDL_SetAudioStreamGain(c.stream, gain);
-        SDL_PutAudioStreamData(c.stream, c.pcm.data(), int(c.pcm.size()));
-        if (!loop) SDL_FlushAudioStream(c.stream);
-        SDL_ResumeAudioStreamDevice(c.stream);
-        c.sound = index;
-        c.loop = loop;
-        return true;
-    }
-    void play(Channel& c, const Scene& s, int index) {
-        stop(c);
-        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
-        const auto& snd = s.sounds[std::size_t(index)];
-        std::optional<std::vector<std::byte>> wav;
-        if (snd.music) wav = s.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
-        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
-            if (!wav) wav = s.mpqs.try_read(std::string(root) + snd.file);
-        if (!wav) { std::fprintf(stderr, "[d2d] sound %d: %s not found\n", index, snd.file.c_str()); return; }
-        start(c, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
-    }
-    // A fixed-path UI sound (game.exe names these directly, not via Sounds.txt).
-    // The decoded WAV is cached; each play restarts the channel.
-    std::unordered_map<std::string, std::vector<std::byte>> file_cache;
+    // A fixed-path UI sound (game.exe names these directly, not via
+    // Sounds.txt); the file is cached, each play restarts the channel.
     void play_file(Channel& c, const Scene& s, const std::string& path) {
         if (!ok) return;
         auto it = file_cache.find(path);
@@ -3473,31 +3515,18 @@ struct Audio {
         }
         start(c, it->second, 1.f, false, -1);
     }
-    void play_voice(const Scene& s, int index) { play(voice, s, index); }
-    // Re-queue loops before they drain; drop one-shots that have played out.
+    // Land a finished music job; free one-shots that have played out.
     void update() {
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto d = music_job.get();
             if (!d) std::fprintf(stderr, "[d2d] music %d: not loaded\n", music_job_sound);
-            if (d && music.sound == music_job_sound) {
-                music.pcm = std::move(d->pcm);
-                music.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &d->spec, nullptr, nullptr);
-                if (!music.stream) std::fprintf(stderr, "[d2d] music: %s\n", SDL_GetError());
-                if (music.stream) {
-                    SDL_SetAudioStreamGain(music.stream, music_job_gain);
-                    SDL_PutAudioStreamData(music.stream, music.pcm.data(), int(music.pcm.size()));
-                    SDL_ResumeAudioStreamDevice(music.stream);
-                    music.loop = true;
-                }
-            }
+            else if (music.sound == music_job_sound) start(music, *d, music_job_gain, true, music_job_sound);
         }
-        for (auto* c : { &voice, &music, &ambience, &ui }) {
-            if (!c->stream) continue;
-            const int queued = SDL_GetAudioStreamQueued(c->stream);
-            if (c->loop && queued < int(c->pcm.size() / 4))
-                SDL_PutAudioStreamData(c->stream, c->pcm.data(), int(c->pcm.size()));
-            else if (!c->loop && queued <= 0)
-                stop(*c);
+        for (auto* c : { &voice, &ui, &ambience }) {
+            if (!c->src) continue;
+            ALint state = 0;
+            alGetSourcei(c->src, AL_SOURCE_STATE, &state);
+            if (state == AL_STOPPED) stop(*c);
         }
     }
 };
@@ -4087,9 +4116,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
         // Level music and ambience belong to the game screen.
         if (screen != Screen::InGame && audio.music.sound != 0) {
-            Audio::stop(audio.music);
-            Audio::stop(audio.ambience);
-            Audio::stop(audio.voice);
+            audio.stop(audio.music);
+            audio.stop(audio.ambience);
+            audio.stop(audio.voice);
         }
         audio.update();
         if (scene) {
@@ -4223,7 +4252,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 bool menu_click = false;
                 // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
                 // the speech string) follows the speech box.
-                if (speech.npc < 0 && audio.voice.stream) audio.stop_voice();
+                if (speech.npc < 0 && audio.voice.src) audio.stop_voice();
                 // The level's SoundEnviron (Levels.txt SoundEnv -> Song, Day
                 // Ambience). ponytail: the Rogue Encampment's, env 1: song
                 // 4673 music_town_1, ambience 70; no night or events yet.
@@ -4628,7 +4657,7 @@ int main(int argc, char** argv) {
         // macOS doesn't have.)
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
-        SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
+        setenv("ALSOFT_DRIVERS", "null", 0);            // openal-soft's silent backend
     }
     return run_windowed(fb, scene, ch, frame_count, quit);
 }
