@@ -97,4 +97,20 @@ The base y is 539 (= 60 + 255 + 224):
   5. × quantity for non-stackables; a sale is capped at the NPC's
      max buy for the difficulty; the minimum is 1.
   Checked: an Akara Scepter (cost 350, buy mult 512) = 175.
-- Not yet: magic stock, buying/selling, repair, and the real roll.
+- Gold (FUN_00488100, font16 white; 800x600 offsets 0x7a2858 = 80,
+  0x7a285c = −60):
+  - inventory: goldcoinbtn at bottom-left (484, 469), carried gold
+    (stat 14) at x 508, baseline 468;
+  - store open (0x7bcbf0 in 1..9): "Stash" (0xcf3) at x 101, baseline
+    434, stash gold (stat 15) right-aligned to x 278.
+- Buying and selling:
+  - right-click stock buys; Buy or Sell toggled on makes a left click
+    buy the stock item or sell the clicked inventory item;
+  - buying needs a free 10×4 inventory spot (column-major first fit) and
+    enough carried + stash gold (carried first, a guess); perm items
+    stay in stock;
+  - selling adds the sell value to carried gold (capped at clvl × 10000)
+    and puts the item into the vendor's stock.
+  - All in memory; the save isn't written.
+- Not yet: magic stock, repair, quest-item refusal, messages, and the
+  real roll.

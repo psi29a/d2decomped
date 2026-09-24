@@ -465,6 +465,7 @@ struct Scene {
     std::vector<std::pair<int, int>> prefix_cost, suffix_cost, unique_cost, set_cost;
     std::unordered_map<std::string, ItemBase> item_base;
     d2d::dc6::Sprite store_panel, store_tabs, store_buttons;   // PANEL\buysell, buyselltabs, buysellbtn
+    d2d::dc6::Sprite gold_coin;                                   // PANEL\goldcoinbtn
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
     int town_level_type = 1;                           // Levels.txt Id 1's LevelType
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
@@ -1340,7 +1341,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             }
         for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\buysell.dc6)", &scene.store_panel },
                                    { R"(data\global\ui\PANEL\buyselltabs.dc6)", &scene.store_tabs },
-                                   { R"(data\global\ui\PANEL\buysellbtn.dc6)", &scene.store_buttons } })
+                                   { R"(data\global\ui\PANEL\buysellbtn.dc6)", &scene.store_buttons },
+                                   { R"(data\global\ui\PANEL\goldcoinbtn.dc6)", &scene.gold_coin } })
             if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     }
     auto keys = [&](const char* n, const char* col, bool all) {
@@ -3307,13 +3309,63 @@ void draw_automap(std::vector<std::uint8_t>& fb, const Scene& s, const Automap& 
 // ponytail: stock = each listed item <Vendor>Min..Max times plus the
 // PermStoreItems once, packed first-fit by kind (armour tab 0, weapons
 // 1 then 2, misc 3) — the server's roll isn't located yet, no magic
-// stock, no buying/selling/prices.
+// stock.
 struct Store {
     int npc = -1, vendor = -1, tab = 0;
+    int mode = 0;                               // 1 buy, 2 sell: the button toggled on, the next click trades
     d2d::d2s::Header header;                    // the player's (quest flags, difficulty) for prices
     std::array<std::vector<d2d::d2s::Item>, 4> tabs;
     std::array<bool, 4> pressed{};
+    std::vector<std::string> perm;              // PermStoreItems: buying doesn't use them up
 };
+
+// First free w x h spot in a cols x rows grid of placed items, scanning
+// column by column (where D2 autoplaces pickups); {-1, -1} if full.
+std::pair<int, int> free_spot(const Scene& s, const std::vector<const d2d::d2s::Item*>& placed,
+                              int cols, int rows, int w, int h) {
+    std::vector<bool> used(std::size_t(cols * rows));
+    for (const auto* it : placed) {
+        const auto info = s.item_info.find(it->code);
+        const int iw = info != s.item_info.end() ? info->second.w : 1, ih = info != s.item_info.end() ? info->second.h : 1;
+        for (int y = it->row; y < std::min(it->row + ih, rows); ++y)
+            for (int x = it->column; x < std::min(it->column + iw, cols); ++x) used[std::size_t(y * cols + x)] = true;
+    }
+    for (int x = 0; x + w <= cols; ++x)
+        for (int y = 0; y + h <= rows; ++y) {
+            bool free = true;
+            for (int yy = y; yy < y + h && free; ++yy)
+                for (int xx = x; xx < x + w && free; ++xx) free = !used[std::size_t(yy * cols + xx)];
+            if (free) return { x, y };
+        }
+    return { -1, -1 };
+}
+
+std::pair<int, int> item_size(const Scene& s, const std::string& code) {
+    const auto info = s.item_info.find(code);
+    return info != s.item_info.end() ? std::pair{ info->second.w, info->second.h } : std::pair{ 1, 1 };
+}
+
+// Puts an item into the store grid from tab on (weapons spill 1 -> 2).
+bool store_place(const Scene& s, Store& st, int tab, d2d::d2s::Item it) {
+    const auto [w, h] = item_size(s, it.code);
+    for (int t = tab; t < 4; ++t) {
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& i : st.tabs[std::size_t(t)]) placed.push_back(&i);
+        if (const auto [x, y] = free_spot(s, placed, 10, 10, w, h); x >= 0) {
+            it.column = x; it.row = y; it.location = 0; it.panel = 1;
+            st.tabs[std::size_t(t)].push_back(std::move(it));
+            return true;
+        }
+        if (t != 1) break;
+    }
+    return false;
+}
+
+int store_tab_for(const Scene& s, const std::string& code) {
+    const auto info = s.item_info.find(code);
+    const int kind = info != s.item_info.end() ? info->second.kind : 0;
+    return kind == 1 ? 0 : kind == 2 ? 1 : 3;
+}
 
 int vendor_index(int hc_idx) {
     switch (hc_idx) {
@@ -3334,38 +3386,67 @@ Store open_store(const Scene& s, int npc, std::uint32_t& rng) {
     st.npc = npc;
     st.vendor = vendor_index(s.world_npcs[std::size_t(npc)].hc_idx);
     if (st.vendor < 0) return st;
-    std::array<std::array<bool, 100>, 4> used{};
-    auto place = [&](int tab, const std::string& code) {
-        const auto info = s.item_info.find(code);
-        const int w = info != s.item_info.end() ? info->second.w : 1, h = info != s.item_info.end() ? info->second.h : 1;
-        for (int t = tab; t < 4; ++t) {
-            for (int y = 0; y + h <= 10; ++y)
-                for (int x = 0; x + w <= 10; ++x) {
-                    bool free = true;
-                    for (int yy = y; yy < y + h && free; ++yy)
-                        for (int xx = x; xx < x + w && free; ++xx) free = !used[std::size_t(t)][std::size_t(yy * 10 + xx)];
-                    if (!free) continue;
-                    for (int yy = y; yy < y + h; ++yy)
-                        for (int xx = x; xx < x + w; ++xx) used[std::size_t(t)][std::size_t(yy * 10 + xx)] = true;
-                    d2d::d2s::Item it;
-                    it.code = code;
-                    it.column = x; it.row = y; it.panel = 1;
-                    if (const auto b = s.item_base.find(code); b != s.item_base.end()) it.defense = b->second.minac;
-                    st.tabs[std::size_t(t)].push_back(std::move(it));
-                    return;
-                }
-            if (tab != 1) break;                          // only weapons spill into the second weapons tab
-        }
-    };
     for (const auto& vi : s.vendor_items[std::size_t(st.vendor)]) {
-        const auto info = s.item_info.find(vi.code);
-        const int kind = info != s.item_info.end() ? info->second.kind : 0;
-        const int tab = kind == 1 ? 0 : kind == 2 ? 1 : 3;
+        if (vi.perm) st.perm.push_back(vi.code);
         int n = vi.perm ? 1 : vi.min + (vi.max > vi.min ? int((rng = rng * 0x6ac690c5u + 1u) % std::uint32_t(vi.max - vi.min + 1)) : 0);
-        while (n-- > 0) place(tab, vi.code);
+        while (n-- > 0) {
+            d2d::d2s::Item it;
+            it.code = vi.code;
+            if (const auto b = s.item_base.find(vi.code); b != s.item_base.end() && store_tab_for(s, vi.code) == 0)
+                it.defense = b->second.minac;
+            store_place(s, st, store_tab_for(s, vi.code), std::move(it));
+        }
     }
     for (int t = 0; t < 4; ++t) if (!st.tabs[std::size_t(t)].empty()) { st.tab = t; break; }
     return st;
+}
+
+// The store item under the cursor (index into the open tab), or -1.
+int store_item_at(const Scene& s, const Store& st, int mx, int my) {
+    const auto& tab = st.tabs[std::size_t(st.tab)];
+    for (std::size_t i = 0; i < tab.size(); ++i) {
+        const auto [w, h] = item_size(s, tab[i].code);
+        const int x = 96 + tab[i].column * 29, y = 123 + tab[i].row * 29;
+        if (mx >= x && mx < x + w * 29 && my >= y && my < y + h * 29) return int(i);
+    }
+    return -1;
+}
+
+// Buys stock item i of the open tab into the inventory (10x4): gold
+// down by the price, the item leaves the stock unless it's a perm one.
+// False if it doesn't fit or you can't afford it.
+// ponytail: no "not enough gold"/"no room" message, no stacks or quantity.
+bool store_buy(const Scene& s, Store& st, int i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    auto& tab = st.tabs[std::size_t(st.tab)];
+    const auto& it = tab[std::size_t(i)];
+    const int price = item_price(s, it, s.world_npcs[std::size_t(st.npc)], false, st.header);
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    std::vector<const d2d::d2s::Item*> inv;
+    for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+    const auto [w, h] = item_size(s, it.code);
+    const auto [x, y] = free_spot(s, inv, 10, 4, w, h);
+    if (x < 0) return false;
+    auto bought = it;
+    bought.column = x; bought.row = y; bought.location = 0; bought.panel = 1;
+    items.push_back(std::move(bought));
+    // Carried gold first, then the stash (the store shows it for that).
+    // ponytail: that order is a guess; the server's buy isn't RE'd.
+    const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
+    stats.v[d2d::d2s::kGold] -= from_inv;
+    stats.v[d2d::d2s::kGoldBank] -= price - from_inv;
+    if (std::ranges::find(st.perm, it.code) == st.perm.end()) tab.erase(tab.begin() + i);
+    return true;
+}
+
+// Sells inventory item i: gold up by the sell value (carried gold caps
+// at clvl x 10000), the item joins the stock.
+// ponytail: quest items aren't refused, no belt/equipped selling.
+void store_sell(const Scene& s, Store& st, std::size_t i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    const int price = item_price(s, items[i], s.world_npcs[std::size_t(st.npc)], true, st.header);
+    stats.v[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
+                                                       stats.get(d2d::d2s::kLevel) * 10000);
+    store_place(s, st, store_tab_for(s, items[i].code), items[i]);
+    items.erase(items.begin() + std::ptrdiff_t(i));
 }
 
 std::array<int, 4> store_button_frames(const Scene& s, const Store& st) {
@@ -3402,7 +3483,8 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
     static constexpr int kBtnX[4] = { 116, 169, 221, 273 };
     for (int i = 0; i < 4; ++i)
         if (std::uint32_t(frames[std::size_t(i)] + 1) < s.store_buttons.frames_per_direction()) {
-            const auto& f = s.store_buttons.frame(0, std::uint32_t(frames[std::size_t(i)] + (st.pressed[std::size_t(i)] ? 1 : 0)));
+            const bool down = st.pressed[std::size_t(i)] || (i < 2 && st.mode == i + 1);
+            const auto& f = s.store_buttons.frame(0, std::uint32_t(frames[std::size_t(i)] + (down ? 1 : 0)));
             blit_sprite(fb, f, pal, kCharPanelX - 1 + kBtnX[i], 476 - int(f.height) + 1);
         }
     // Stock, Monster2 grid.
@@ -3425,6 +3507,29 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
                           kTxtWhite });
         draw_hover_text(fb, s, lines, hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
     }
+}
+
+// Gold readouts (FUN_00488100, docs/research/re/store.md), font16 white,
+// baselines at 800x600: the inventory's carried gold (stat 14) at x 508,
+// y 468 after the goldcoinbtn (frame 0, bottom-left 484,469); with a
+// store open, "Stash" (0xcf3) at x 101, y 434 and the stash gold (15)
+// right-aligned to x 278.
+// ponytail: the coin button doesn't click (no gold drop/withdraw yet).
+void draw_gold(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st, bool store) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int cell = s.font.sheet().frames_per_direction() > 0 ? int(s.font.sheet().frame(0, 0).height) : 16;
+    auto text = [&](int x, int baseline, const std::string& t) { s.font.draw(fb, kW, kH, pal, x, baseline - cell + 1, t); };
+    if (!store) {
+        if (s.gold_coin.frames_per_direction() > 0) {
+            const auto& f = s.gold_coin.frame(0, 0);
+            blit_sprite(fb, f, pal, 484, 469 - int(f.height) + 1);
+        }
+        text(508, 468, std::to_string(st.get(d2d::d2s::kGold)));
+        return;
+    }
+    text(101, 434, string_id(s, 0xcf3));
+    const auto n = std::to_string(st.get(d2d::d2s::kGoldBank));
+    text(278 - s.font.measure(n), 434, n);
 }
 
 void render_ingame(std::vector<std::uint8_t>& fb,
@@ -3502,10 +3607,14 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                 };
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);
+            if (hud_stats) draw_gold(fb, s, *hud_stats, false);
         }
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (store && store->npc >= 0)
+        {
             draw_store(fb, s, *store, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+            if (hud_stats) draw_gold(fb, s, *hud_stats, true);
+        }
         if (stash) {
             const int e = stash_expansion ? 1 : 0;
             if (cube_open)
@@ -4677,6 +4786,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " stash=" + (stash_open ? "1" : "0")
              + " cube=" + (cube_open ? "1" : "0")
              + " store=" + std::to_string(store.npc >= 0 ? store.vendor : -1)
+             + " gold=" + std::to_string(cc.stats.get(d2d::d2s::kGold))
+             + " items=" + std::to_string(cc.items.size())
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(automap.open ? int(automap.cells.size()) : 0)
              + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
@@ -5000,6 +5111,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const int bx = kCharPanelX - 1 + kBtnX[i], by = 476 - 32 + 1;
                         const bool on = mouse.x >= bx && mouse.x < bx + 32 && mouse.y >= by && mouse.y < by + 32;
                         if (on && mouse.down) store.pressed[std::size_t(i)] = true;
+                        if (on && mouse.release_this_frame && i < 2) store.mode = store.mode == i + 1 ? 0 : i + 1;
                         if (on && mouse.release_this_frame && i == 3 && store_button_frames(*scene, store)[3] == 10) {
                             store = {}; inv_open = false;
                             break;
@@ -5008,6 +5120,21 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (mouse.press_this_frame && mouse.y >= 60 && mouse.y <= 90
                         && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320)
                         store.tab = (mouse.x - kCharPanelX) / 80;
+                    // Right-click on stock buys; with Buy or Sell toggled on,
+                    // a left click buys the stock item / sells your item.
+                    const int si = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
+                    if (si >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
+                        store_buy(*scene, store, si, cc.items, cc.stats);
+                    if (store.npc >= 0 && mouse.press_this_frame && store.mode == 2)
+                        for (std::size_t i = 0; i < cc.items.size(); ++i) {
+                            const auto& it = cc.items[i];
+                            if (it.location != 0 || it.panel != 1) continue;
+                            const auto r = grid_rect(*scene, lay, it);
+                            if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
+                                store_sell(*scene, store, i, cc.items, cc.stats);
+                                break;
+                            }
+                        }
                 }
                 const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0;
                 if (have_world) {
