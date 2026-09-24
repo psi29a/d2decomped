@@ -99,3 +99,25 @@ for phases 2–5.
 - Save format: keep 1.14d-compatible or greenfield? Compatible unless it
   hurts.
 - Networking: leave off until singleplayer runs.
+
+## Known issues / to investigate
+
+Noted while playing the dev build (2026-09-24):
+
+- **Walking through objects.** The player sometimes passes through
+  objects. d2d's collision is our own approximation: DS1 wall-tile
+  flags plus MonStats2/objects.txt footprints, sliding along one axis
+  when blocked. RE the real collision (the D2Common COLLISION_* checks
+  and the room collision grid, mask 0x1c09 as seen in FUN_0064e7b0) and
+  the pathing, then port them.
+- **NPC menu entries.** Not every menu item does something yet:
+  - trade, gamble, hire and identify are missing;
+  - quest topics and the extra entries (Kashya's hire, Warriv's "go
+    east") come from the game server (docs/research/re/npc-talk.md).
+
+## Next up (as of 2026-09-24)
+
+1. Trade (vendor panel and stock).
+2. Waypoint panel.
+3. Leaving town (Act 1 wilderness DRLG) waits until more fundamentals
+   are in place.
