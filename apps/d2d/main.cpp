@@ -3488,20 +3488,29 @@ struct Audio {
         start(c, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
     }
     void play_voice(const Scene& s, int index) { play(voice, s, index); }
-    void play_music(const Scene& s, int index) {
+    // Music from its full path, on the worker. `id` identifies it (a
+    // Sounds.txt index for level songs, negative for the frontend list).
+    bool music_job_loop = true;
+    void play_music_path(const Scene& s, std::string path, int id, float gain, bool loop) {
         stop(music);
-        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
-        const auto& snd = s.sounds[std::size_t(index)];
-        music.sound = index;                     // pending until the job lands
-        music_job_sound = index;
-        music_job_gain = float(std::clamp(snd.volume, 0, 255)) / 255.f;
-        music_job = std::async(std::launch::async, [dir = s.data_dir, file = snd.file]() -> std::optional<Decoded> {
+        if (!ok) return;
+        music.sound = id;                        // pending until the job lands
+        music_job_sound = id;
+        music_job_gain = gain;
+        music_job_loop = loop;
+        music_job = std::async(std::launch::async, [dir = s.data_dir, path = std::move(path)]() -> std::optional<Decoded> {
             d2d::mpq::Stack st;
             for (const char* n : { "d2xmusic.mpq", "d2music.mpq" })
                 if (fs::exists(dir / n)) st.push(dir / n);
-            const auto wav = st.try_read(std::string(R"(data\global\music\)") + file);
+            const auto wav = st.try_read(path);
             return wav ? decode(*wav) : std::nullopt;
         });
+    }
+    void play_music(const Scene& s, int index) {
+        if (index <= 0 || std::size_t(index) >= s.sounds.size()) { stop(music); return; }
+        const auto& snd = s.sounds[std::size_t(index)];
+        play_music_path(s, std::string(R"(data\global\music\)") + snd.file, index,
+                        float(std::clamp(snd.volume, 0, 255)) / 255.f, true);
     }
     // A fixed-path UI sound (game.exe names these directly, not via
     // Sounds.txt); the file is cached, each play restarts the channel.
@@ -3520,9 +3529,9 @@ struct Audio {
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto d = music_job.get();
             if (!d) std::fprintf(stderr, "[d2d] music %d: not loaded\n", music_job_sound);
-            else if (music.sound == music_job_sound) start(music, *d, music_job_gain, true, music_job_sound);
+            else if (music.sound == music_job_sound) start(music, *d, music_job_gain, music_job_loop, music_job_sound);
         }
-        for (auto* c : { &voice, &ui, &ambience }) {
+        for (auto* c : { &voice, &ui, &ambience, &music }) {
             if (!c->src) continue;
             ALint state = 0;
             alGetSourcei(c->src, AL_SOURCE_STATE, &state);
@@ -3915,6 +3924,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     std::uint32_t talk_rng = 0x2545f491u;
+    std::array<bool, 8> frontend_played{};
     int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -4115,12 +4125,30 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             std::memory_order_relaxed);
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
         // Level music and ambience belong to the game screen.
-        if (screen != Screen::InGame && audio.music.sound != 0) {
+        if (screen != Screen::InGame && audio.music.sound > 0) {
             audio.stop(audio.music);
             audio.stop(audio.ambience);
             audio.stop(audio.voice);
         }
+        if (screen == Screen::InGame && audio.music.sound < 0) audio.stop(audio.music);
         audio.update();
+        // Frontend music (FUN_00516250's music thread + FUN_00514990): on
+        // the menus, whenever nothing plays, a random not-yet-played track
+        // of the 8-track list (the LoD one at 0x72f8b8; classic uses
+        // 0x72f878's), each played by path at full volume; all played ->
+        // start over (FUN_00514860). Entering a game stops it.
+        if (scene && screen != Screen::InGame && audio.ok && audio.music.sound == 0) {
+            static constexpr const char* kFrontendMusic[8] = {
+                R"(data\global\music\introedit.wav)", R"(data\global\music\act5\icecaves.wav)",
+                R"(data\global\music\act5\xtemple.wav)", R"(data\global\music\act2\desert.wav)",
+                R"(data\global\music\act2\sewer.wav)", R"(data\global\music\act3\kurast.wav)",
+                R"(data\global\music\act3\kurastsewer.wav)", R"(data\global\music\act4\diablo.wav)" };
+            if (std::ranges::all_of(frontend_played, std::identity{})) frontend_played.fill(false);
+            int i = int((talk_rng = talk_rng * 0x6ac690c5u + 1u) % 8u);
+            while (frontend_played[std::size_t(i)]) i = (i + 1) % 8;
+            frontend_played[std::size_t(i)] = true;
+            audio.play_music_path(*scene, kFrontendMusic[i], -(i + 1), 1.f, false);
+        }
         if (scene) {
             switch (screen) {
             case Screen::Title:
