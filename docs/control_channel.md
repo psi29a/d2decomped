@@ -41,7 +41,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
-| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 menu=<lines> speech=<lines>\nok` | Loop state for scripted asserts. |
+| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 menu=<lines> speech=<lines> voice=<Sounds.txt index>\nok` | Loop state for scripted asserts. |
 | `items`                     | per item `[code loc=… slot=… q=…]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
 
 Future verbs (as the engine grows): `load <act>/<level>`, etc.

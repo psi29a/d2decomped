@@ -165,8 +165,12 @@ try:
         x, y = menu_line("introduction")
         cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
         assert state()["speech"] != "0", "no speech"
+        assert state()["voice"] != "0", "no voice (Sounds.txt / d2speech.mpq)"
         cmd("key Escape"); frames()
-        assert state()["speech"] == "0" and state()["menu"] == "0" and state()["screen"] == "ingame"
+        st = state()
+        assert st["speech"] == "0" and st["menu"] == "0" and st["screen"] == "ingame"
+        frames(2)
+        assert state()["voice"] == "0", "voice kept playing after the speech closed"
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"

@@ -31,6 +31,7 @@
 
 #include "npc_menu.hpp"
 #include "npc_talk.hpp"
+#include "speech_sound.hpp"
 #include "obj_preset.hpp"
 
 #include <SDL3/SDL.h>
@@ -428,6 +429,10 @@ struct Scene {
     };
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
+    // Sounds.txt by Index: file (under data\global\sfx or, for speech,
+    // data\local\sfx) and volume 0..255.
+    struct Sound { std::string file; int volume = 255; };
+    std::vector<Sound> sounds;
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
@@ -793,6 +798,8 @@ struct Speech {
     std::vector<std::string> lines;
     int rate = 8;
     std::uint32_t start_ms = 0;
+    std::uint16_t string = 0;            // string.tbl id
+    int voice = 0;                       // Sounds.txt index, 0 = not started, -1 = none
     [[nodiscard]] int offset_px(std::uint32_t ms) const { return int(std::uint64_t(ms - start_ms) / 4 * std::uint64_t(rate) >> 10); }
     [[nodiscard]] bool done(std::uint32_t ms) const {
         return offset_px(ms) > std::max(int(lines.size()) - 1, 1) * 18 + 0x70;
@@ -803,6 +810,7 @@ Speech start_speech(const Scene& s, int npc, std::uint16_t string, std::uint32_t
     Speech sp;
     sp.npc = npc;
     sp.start_ms = ms;
+    sp.string = string;
     const std::string text = string_id(s, string);
     std::size_t a = 0;
     bool first = true;
@@ -1386,6 +1394,14 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
     if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
     if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
+    if (const auto st = txt("Sounds"); st.size() > 0)
+        for (std::size_t r = 0; r < st.size(); ++r) {
+            const int i = std::atoi(std::string(st.get(r, "Index")).c_str());
+            if (i < 0 || i > 20000) continue;
+            if (std::size_t(i) >= scene.sounds.size()) scene.sounds.resize(std::size_t(i) + 1);
+            scene.sounds[std::size_t(i)] = { std::string(st.get(r, "FileName")),
+                                             std::atoi(std::string(st.get(r, "Volume")).c_str()) };
+        }
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
             scene.font_formal11 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
@@ -1551,6 +1567,9 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         // silent in load_scene and per-class loaders skip on miss.
         const auto d2char = data_dir / "d2char.mpq";
         if (fs::exists(d2char)) mpqs.push(d2char);
+        // Sounds: expansion speech, speech, effects (Sounds.txt paths).
+        for (const char* n : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
+            if (fs::exists(data_dir / n)) mpqs.push(data_dir / n);
 
         // Prefer the LoD title asset (fenced rogue camp at night). Classic
         // TitleScreen is only 4×3 sub-frames; LoD is the same layout.
@@ -3333,6 +3352,49 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.
+// Sound output: SDL3 audio streams on the default playback device (the
+// dummy driver when headless). One stream per voice, dropped when done.
+// ponytail: only NPC speech so far; no mixer limits, 3D falloff or music.
+struct Audio {
+    bool ok = false;
+    SDL_AudioStream* voice = nullptr;
+    int voice_sound = 0;                         // Sounds.txt index playing, 0 = none
+
+    void init() { ok = SDL_InitSubSystem(SDL_INIT_AUDIO); if (!ok) std::fprintf(stderr, "[d2d] audio: %s\n", SDL_GetError()); }
+    void stop_voice() {
+        if (voice) SDL_DestroyAudioStream(voice);
+        voice = nullptr; voice_sound = 0;
+    }
+    // Plays Sounds.txt entry `index` as the voice, replacing any other.
+    void play_voice(const Scene& s, int index) {
+        stop_voice();
+        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
+        const auto& snd = s.sounds[std::size_t(index)];
+        std::optional<std::vector<std::byte>> wav;
+        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
+            if (!wav) wav = s.mpqs.try_read(std::string(root) + snd.file);
+        if (!wav) { std::fprintf(stderr, "[d2d] sound %d: %s not found\n", index, snd.file.c_str()); return; }
+        SDL_AudioSpec spec{};
+        Uint8* buf = nullptr;
+        Uint32 len = 0;
+        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(wav->data(), wav->size()), true, &spec, &buf, &len)) {
+            std::fprintf(stderr, "[d2d] sound %s: %s\n", snd.file.c_str(), SDL_GetError());
+            return;
+        }
+        voice = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+        if (voice) {
+            SDL_SetAudioStreamGain(voice, float(std::clamp(snd.volume, 0, 255)) / 255.f);
+            SDL_PutAudioStreamData(voice, buf, int(len));
+            SDL_FlushAudioStream(voice);
+            SDL_ResumeAudioStreamDevice(voice);
+            voice_sound = index;
+        }
+        SDL_free(buf);
+    }
+    // Drops the voice stream once it has played out.
+    void update() { if (voice && SDL_GetAudioStreamQueued(voice) <= 0) stop_voice(); }
+};
+
 struct Window {
     SDL_Window*   w = nullptr;
     SDL_Renderer* r = nullptr;
@@ -3571,6 +3633,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     }
     Window win;
     if (!win.open(int(kW), int(kH), g_scale)) { SDL_Quit(); return 1; }
+    Audio audio;
+    audio.init();
 
     Screen screen = g_start_screen.empty() ? Screen::Title
                                             : parse_screen(g_start_screen);
@@ -3866,6 +3930,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " cube=" + (cube_open ? "1" : "0")
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
+             + " voice=" + std::to_string(audio.voice_sound)
              + "\nok\n";
     });
 
@@ -4038,6 +4103,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // "cancel" so far — every entry closes it), anything else
                 // closes it. ponytail: talk/trade/hire/gamble not built.
                 bool menu_click = false;
+                // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
+                // the speech string) follows the speech box.
+                if (speech.npc < 0 && audio.voice) audio.stop_voice();
+                if (speech.npc >= 0 && speech.voice == 0) {
+                    speech.voice = -1;
+                    const auto v = std::ranges::find_if(kSpeechSound, [&](const auto& e) { return e.first == speech.string; });
+                    if (v != kSpeechSound.end()) { speech.voice = v->second; audio.play_voice(*scene, v->second); }
+                }
+                audio.update();
                 if (speech.npc >= 0 && (speech.done(ms) || mouse.press_this_frame)) {
                     menu_click = mouse.press_this_frame;          // a click skips the speech
                     speech = {};
@@ -4429,6 +4503,7 @@ int main(int argc, char** argv) {
         // macOS doesn't have.)
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
+        SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
     }
     return run_windowed(fb, scene, ch, frame_count, quit);
 }

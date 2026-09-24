@@ -71,5 +71,11 @@ drawn at `0x49d5a0`.
   type 2, `FUN_00661390` / `FUN_006613c0`), so the game-server quest
   scripts decide them.
 - Lines are clipped to the box rather than revealed partially.
-- No voice.
+- Voice: when a speech starts, `FUN_004a10e0` looks up its string with
+  `FUN_004e0650`. That walks `{u32 sound, u32 string}` pairs at
+  `0x72b0e0` (864, zero-terminated; `apps/d2d/speech_sound.hpp`) and plays
+  the Sounds.txt sound it finds. Example: AkaraIntroGossip1 (11) → 3499
+  `akara_act1_intro`, `act1\akara\aka_act1_intro.wav`. Speech WAVs are in
+  `data\local\sfx\` (d2speech / d2xtalk); effects are in
+  `data\global\sfx\`. d2d stops the voice when the box closes.
 - A click or Esc skips the speech.
