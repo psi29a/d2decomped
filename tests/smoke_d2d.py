@@ -152,8 +152,21 @@ try:
             if state()["menu"] != "0":
                 break
         assert state()["menu"] == "3", "Warriv's menu did not open"
+        # talk -> the talk submenu (talk, introduction, gossip, cancel);
+        # introduction -> his speech scrolls; Esc ends it.
+        def menu_line(text):
+            for l in cmd("menu").splitlines():
+                p = l.split("\t")
+                if p[0].lower() == text:
+                    return int(p[1]), int(p[2])
+        x, y = menu_line("talk")
+        cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
+        assert state()["menu"] == "4", "talk submenu did not open"
+        x, y = menu_line("introduction")
+        cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
+        assert state()["speech"] != "0", "no speech"
         cmd("key Escape"); frames()
-        assert state()["menu"] == "0" and state()["screen"] == "ingame"
+        assert state()["speech"] == "0" and state()["menu"] == "0" and state()["screen"] == "ingame"
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"

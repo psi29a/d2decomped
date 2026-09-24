@@ -30,6 +30,7 @@
 #include <userdir.hpp>
 
 #include "npc_menu.hpp"
+#include "npc_talk.hpp"
 #include "obj_preset.hpp"
 
 #include <SDL3/SDL.h>
@@ -426,6 +427,7 @@ struct Scene {
         int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     };
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
+    d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
@@ -685,7 +687,9 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
 // kept inside the screen.
 struct NpcMenuState {
     int npc = -1;                            // world_npcs index, -1 = closed
-    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; };
+    // What choosing a line does. ponytail: trade/hire/gamble/... just close.
+    enum Action { kClose, kTalk, kIntro, kGossip };
+    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; };
     std::vector<Line> lines;
     int x = 0, y = 0, w = 0, h = 0;
     // Index of the selectable line under (mx, my), or -1.
@@ -700,20 +704,47 @@ struct NpcMenuState {
     }
 };
 
+std::string string_id(const Scene& s, std::uint16_t id) {
+    const auto v = lookup_string(s, id);
+    return v ? u16_to_latin1(*v) : std::string{};
+}
+
+void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y);
+
 NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y) {
     NpcMenuState m;
     const auto& n = s.world_npcs[std::size_t(npc)];
     const auto it = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
     if (it == kNpcMenus.end()) return m;
     m.npc = npc;
-    auto str = [&](std::uint16_t id) {
-        const auto v = lookup_string(s, id);
-        return v ? u16_to_latin1(*v) : std::string{};
-    };
     m.lines.push_back({ n.name, 21, 0, 0, true });
     for (const auto id : it->entries)
-        if (id) m.lines.push_back({ str(id), 15 });
-    m.lines.push_back({ str(0x102e), 15 });
+        if (id) m.lines.push_back({ string_id(s, id), 15, 0, 0, false,
+                                    id == 0xd35 ? NpcMenuState::kTalk : NpcMenuState::kClose });
+    m.lines.push_back({ string_id(s, 0x102e), 15 });
+    layout_npc_menu(s, m, screen_x, screen_y);
+    return m;
+}
+
+// The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"
+// unless the NPC's talk record says no_intro, "gossip", then "cancel"
+// (0xd48). ponytail: no quest topics (FUN_0049f900) or Greiz/Cain extras.
+NpcMenuState open_talk_menu(const Scene& s, int npc, int screen_x, int screen_y) {
+    NpcMenuState m;
+    const auto& n = s.world_npcs[std::size_t(npc)];
+    const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
+    m.npc = npc;
+    m.lines.push_back({ string_id(s, 0xd35), 21, 0, 0, true });
+    if (t != kNpcTalk.end() && !t->topics.empty()) {
+        if (!t->no_intro) m.lines.push_back({ string_id(s, 0xd47), 15, 0, 0, false, NpcMenuState::kIntro });
+        m.lines.push_back({ string_id(s, 0xd43), 15, 0, 0, false, NpcMenuState::kGossip });
+    }
+    m.lines.push_back({ string_id(s, 0xd48), 15 });
+    layout_npc_menu(s, m, screen_x, screen_y);
+    return m;
+}
+
+void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y) {
     int tw = 0;
     for (auto& l : m.lines) { l.width = s.font.measure(l.text); tw = std::max(tw, l.width); m.h += l.height; }
     m.w = tw + 20;
@@ -726,7 +757,89 @@ NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y) 
     if (m.y + m.h > int(kH) - 0x3a) m.y = int(kH) - m.h - 0x30;
     if (m.x < 11) m.x = 10;
     if (m.y < 11) m.y = 10;
-    return m;
+}
+
+// An NPC's speech topic for the player's class. Introduction
+// (FUN_004b41e0): topic 1 when its class is the player's, else topic 0.
+// Gossip (FUN_004b1680): a random topic >= 2 whose class is 7 (any) or the
+// player's and, if quest-gated, whose quest state matches — up to 10
+// tries, else topic 2. game.exe picks it once per game per NPC; so do we.
+// ponytail: quest states read as 0 (the save's quest flags aren't parsed).
+int talk_topic(const NpcTalk& t, bool intro, int cls, std::uint32_t& rng) {
+    if (intro) return t.topics.size() > 1 && int(t.topics[1].cls) == cls ? 1 : 0;
+    const int n = int(t.topics.size());
+    for (int tries = 10; tries > 0 && n > 0; --tries) {
+        rng = rng * 0x6ac690c5u + 1u;
+        const int i = int(rng % std::uint32_t(n));
+        if (i < 2) continue;
+        const auto& tp = t.topics[std::size_t(i)];
+        if (tp.cls != 7 && int(tp.cls) != cls) continue;
+        if (tp.quest_gated && tp.quest_state != 0) continue;
+        return i;
+    }
+    return std::min(2, n - 1);
+}
+
+// NPC speech (FUN_004a10e0 / FUN_004a05e0 / the draw at 0x49d5a0): the
+// string's line 0 is the scroll rate (8 if not a number), the rest is
+// pre-wrapped. A half-dark 325x122 box at ((W-325)/2, 12-5); FontFormal11
+// lines at x+16, 18 px apart, entering at the bottom (baseline top+112)
+// and rising by (ms/4)*rate/1024 px. Done once the offset passes
+// (lines-1)*18 + 112. ponytail: whole lines clipped to the box instead of
+// FUN_00501df0's partial-line reveal; no voice.
+struct Speech {
+    int npc = -1;
+    std::vector<std::string> lines;
+    int rate = 8;
+    std::uint32_t start_ms = 0;
+    [[nodiscard]] int offset_px(std::uint32_t ms) const { return int(std::uint64_t(ms - start_ms) / 4 * std::uint64_t(rate) >> 10); }
+    [[nodiscard]] bool done(std::uint32_t ms) const {
+        return offset_px(ms) > std::max(int(lines.size()) - 1, 1) * 18 + 0x70;
+    }
+};
+
+Speech start_speech(const Scene& s, int npc, std::uint16_t string, std::uint32_t ms) {
+    Speech sp;
+    sp.npc = npc;
+    sp.start_ms = ms;
+    const std::string text = string_id(s, string);
+    std::size_t a = 0;
+    bool first = true;
+    while (a <= text.size()) {
+        const auto nl = text.find('\n', a);
+        const std::string line = text.substr(a, nl == std::string::npos ? std::string::npos : nl - a);
+        if (first) {
+            first = false;
+            const bool num = !line.empty() && std::ranges::all_of(line, [](char c) { return c >= '0' && c <= '9'; });
+            sp.rate = num ? std::atoi(line.c_str()) : 8;
+            if (!num) sp.lines.push_back(line);
+        } else {
+            sp.lines.push_back(line);
+        }
+        if (nl == std::string::npos) break;
+        a = nl + 1;
+    }
+    return sp;
+}
+
+void draw_speech(std::vector<std::uint8_t>& fb, const Scene& s, const Speech& sp, std::uint32_t ms) {
+    if (sp.npc < 0) return;
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int bx = (int(kW) - 0x145) / 2, top = 12;
+    for (int y = std::max(0, top - 5); y < top - 5 + 0x7a; ++y)
+        for (int x = bx; x < bx + 0x145; ++x) {
+            auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
+            p[0] = std::uint8_t(p[0] / 2); p[1] = std::uint8_t(p[1] / 2); p[2] = std::uint8_t(p[2] / 2);
+        }
+    const auto& f = s.font_formal11.line_height() > 0 ? s.font_formal11 : s.font;
+    const int cell = f.sheet().frames_per_direction() > 0 ? int(f.sheet().frame(0, 0).height) : 16;
+    const int off = sp.offset_px(ms);
+    for (std::size_t i = 0; i < sp.lines.size(); ++i) {
+        const int base = top + 0x70 - off + int(i) * 18;
+        if (base < top - 5 || base - cell > top - 5 + 0x7a) continue;
+        f.draw_tinted(fb, kW, kH, pal, bx + 16, base - cell + 1, sp.lines[i], 255, 255, 255,
+                      top - 5, top - 5 + 0x7a);
+    }
 }
 
 // FUN_004b8100: a black box at draw mode 1 (half transparent), each line's
@@ -1271,6 +1384,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
     if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
     if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
+    if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
+        if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
+            scene.font_formal11 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
@@ -2873,7 +2989,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int* hovered_npc = nullptr,
                    const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
                    bool belt_popup = false, bool cube_open = false,
-                   const NpcMenuState* npc_menu = nullptr) {
+                   const NpcMenuState* npc_menu = nullptr, const Speech* speech = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2929,6 +3045,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                              mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         }
         if (npc_menu) draw_npc_menu(fb, s, *npc_menu, mouse_x, mouse_y, elapsed_ms);
+        if (speech) draw_speech(fb, s, *speech, elapsed_ms);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
                             belt_popup);
@@ -2957,6 +3074,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         blit_dc6_grid(fb, s.credits_bg, s.pal, 0, 0, s.bg_tiles_across);
     }
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    if (speech && speech->npc >= 0) return;               // the dev overlay would cover the speech box
 
     std::string cls = kClassKey[class_idx];
     if (auto v = lookup_string(s, kClassKey[class_idx])) cls = u16_to_latin1(*v);
@@ -3589,6 +3707,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
+    Speech speech;                         // NPC talking (npc < 0: none)
+    std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
+    std::uint32_t talk_rng = 0x2545f491u;
     int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -3717,6 +3838,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return out + "ok\n";
     });
+    // The open NPC menu's lines: "<text>\t<x>\t<y>" with a point inside
+    // each (game pixels), header first.
+    ch.on("menu", [&](const std::vector<std::string>&) {
+        std::string out;
+        int base = npc_menu.y;
+        for (const auto& l : npc_menu.lines) {
+            base += l.height;
+            out += l.text + "\t" + std::to_string(npc_menu.x + npc_menu.w / 2) + "\t"
+                 + std::to_string(base - l.height / 2) + "\n";
+        }
+        return out + "ok\n";
+    });
     ch.on("state", [&](const std::vector<std::string>&) {
         return std::string("screen=") + screen_name(screen)
              + " save=" + std::to_string(csu.selected)
@@ -3730,6 +3863,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " stash=" + (stash_open ? "1" : "0")
              + " cube=" + (cube_open ? "1" : "0")
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
+             + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
              + "\nok\n";
     });
 
@@ -3861,7 +3995,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
                     if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
                     if (k == SDLK_ESCAPE) {
-                        if (npc_menu.npc >= 0) npc_menu = {};               // the menu first
+                        if (speech.npc >= 0) speech = {};                   // speech first
+                        else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                         else if (inv_open || char_open || stash_open || cube_open)   // then panels
                             inv_open = char_open = stash_open = cube_open = false;
                         else screen = Screen::CharSelect;
@@ -3900,8 +4035,37 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // "cancel" so far — every entry closes it), anything else
                 // closes it. ponytail: talk/trade/hire/gamble not built.
                 bool menu_click = false;
-                if (npc_menu.npc >= 0 && mouse.press_this_frame) {
+                if (speech.npc >= 0 && (speech.done(ms) || mouse.press_this_frame)) {
+                    menu_click = mouse.press_this_frame;          // a click skips the speech
+                    speech = {};
+                } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
+                    const int li = npc_menu.line_at(mouse.x, mouse.y);
+                    const auto action = li >= 0 ? npc_menu.lines[std::size_t(li)].action : NpcMenuState::kClose;
+                    const int who = npc_menu.npc;
+                    const auto& n = scene->world_npcs[std::size_t(who)];
+                    const auto& st = npc_states[std::size_t(who)];
+                    const float dx = (n.path.empty() ? n.x : st.x) - player_x, dy = (n.path.empty() ? n.y : st.y) - player_y;
+                    const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
+                    const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
                     npc_menu = {};
+                    if (action == NpcMenuState::kTalk) {
+                        npc_menu = open_talk_menu(*scene, who, sx, sy);
+                    } else if (action == NpcMenuState::kIntro || action == NpcMenuState::kGossip) {
+                        const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
+                        if (t != kNpcTalk.end() && !t->topics.empty()) {
+                            const int cls = int(kUiToSaveClass[std::max(cc.selected, 0)]);
+                            if (gossip_pick.size() != scene->world_npcs.size()) gossip_pick.assign(scene->world_npcs.size(), -1);
+                            int topic;
+                            if (action == NpcMenuState::kIntro) {
+                                topic = talk_topic(*t, true, cls, talk_rng);
+                            } else {
+                                if (gossip_pick[std::size_t(who)] < 0)
+                                    gossip_pick[std::size_t(who)] = talk_topic(*t, false, cls, talk_rng);
+                                topic = gossip_pick[std::size_t(who)];
+                            }
+                            speech = start_speech(*scene, who, t->topics[std::size_t(topic)].string, ms);
+                        }
+                    }
                     menu_click = true;
                 }
                 const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0;
@@ -3977,7 +4141,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const auto& path = scene->world_npcs[i].path;
                         if (path.empty()) continue;
                         auto& st = npc_states[i];
-                        if (int(i) == npc_menu.npc) {                  // talking: stand still
+                        if (int(i) == npc_menu.npc || int(i) == speech.npc) {   // talking: stand still
                             if (st.walking) { st.walking = false; st.mode_ms = ms; }
                             st.wait_until = ms + 2000;
                             continue;
@@ -4013,7 +4177,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
                               &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
-                              cube_open, &npc_menu);
+                              cube_open, &npc_menu, &speech);
                 break;
             }
             case Screen::CharCreate: {

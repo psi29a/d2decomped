@@ -86,16 +86,18 @@ public:
     // (255, 200, 60) for a rough gold, (255, 96, 96) for red, etc. Not the
     // same as D2's PL2 hue-shift (which does index remapping), but visually
     // close enough for section headers and highlight rows.
+    // Rows outside [clip_y0, clip_y1) are skipped (a scrolling text box).
     int draw_tinted(std::vector<std::uint8_t>& fb,
                     std::uint32_t fbW, std::uint32_t fbH,
                     const palette::Palette& pal,
                     int x, int y, std::string_view text,
-                    std::uint8_t tr, std::uint8_t tg, std::uint8_t tb) const {
+                    std::uint8_t tr, std::uint8_t tg, std::uint8_t tb,
+                    int clip_y0 = 0, int clip_y1 = 1 << 30) const {
         for (unsigned char c : text) {
             const auto* g = find(c);
             if (!g) continue;
             const auto& fr = sheet_.frame(0, g->frame);
-            blit_glyph_tinted(fb, fbW, fbH, pal, fr, x, y, tr, tg, tb);
+            blit_glyph_tinted(fb, fbW, fbH, pal, fr, x, y, tr, tg, tb, clip_y0, clip_y1);
             x += g->width;
         }
         return x;
@@ -107,10 +109,11 @@ private:
                                   const palette::Palette& pal,
                                   const dc6::Frame& fr,
                                   int dst_x, int dst_y,
-                                  std::uint8_t tr, std::uint8_t tg, std::uint8_t tb) {
+                                  std::uint8_t tr, std::uint8_t tg, std::uint8_t tb,
+                                  int clip_y0, int clip_y1) {
         for (std::uint32_t gy = 0; gy < fr.height; ++gy) {
             const int py = dst_y + int(gy);
-            if (py < 0 || std::uint32_t(py) >= fbH) continue;
+            if (py < 0 || std::uint32_t(py) >= fbH || py < clip_y0 || py >= clip_y1) continue;
             for (std::uint32_t gx = 0; gx < fr.width; ++gx) {
                 const int px = dst_x + int(gx);
                 if (px < 0 || std::uint32_t(px) >= fbW) continue;
