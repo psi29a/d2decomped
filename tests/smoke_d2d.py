@@ -42,6 +42,15 @@ else:
     for i in range(3, 12):            # 11 saves total: 6 rows -> scrollbar
         make_save(f"Char{i:02}", 0x20, i % 7, i)
 
+# The 1.14d patch installer (D2_PATCH_INSTALLER) brings the town objects
+# the stash step needs; without it that step is skipped.
+patch = os.environ.get("D2_PATCH_INSTALLER")
+if patch and os.path.exists(patch):
+    with open(os.path.join(user, "d2d.cfg"), "w") as f:
+        f.write(f"patch = {patch}\n")
+else:
+    patch = None
+
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_smoke_{os.getpid()}.sock")
 env = dict(os.environ, HOME=home)
 env.pop("D2_MPQ_DIR", None)   # --data wins anyway; keep the env honest
@@ -120,6 +129,15 @@ try:
     cmd("click 690 555")              # OK -> InGame as that save
     frames()
     assert state()["screen"] == "ingame"
+    # The town start is next to the stash (townE1 special tile 30/0):
+    # hover the chest, click it -> stash (and inventory) open; Esc closes.
+    if patch:
+        cmd("move 270 285"); frames(6)
+        cmd("click 270 285"); frames(30)
+        assert state()["stash"] == "1", "stash did not open"
+        cmd("key Escape"); frames()
+        st = state()
+        assert st["stash"] == "0" and st["screen"] == "ingame"
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"

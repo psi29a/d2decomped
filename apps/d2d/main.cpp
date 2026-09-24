@@ -359,6 +359,12 @@ struct Scene {
         std::array<std::array<int, 4>, 11> slots{};   // by body slot 1..10: x, y, w, h
     };
     std::array<InvLayout, 7> inv_layout{};            // by d2s class
+    // Stash: inventory.txt "Bank Page2" (classic, 6x4) / "Big Bank Page2"
+    // (expansion, 6x8) grids; art PANEL\bank / PANEL\TradeStash (game.exe
+    // loads the latter only for expansion games, FUN_00489e50), drawn in
+    // the left-panel spot like the char panel (0x48f1a4).
+    std::array<InvLayout, 2> stash_layout{};          // [expansion]
+    std::array<d2d::dc6::Sprite, 2> stash_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     // D2's three-tier string tables. Lookup order per D2's own convention:
@@ -406,6 +412,7 @@ struct Scene {
         std::string name;                    // hover label; "" = not selectable
         std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
         float velocity = 3;                  // MonStats Velocity
+        int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     };
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
@@ -665,6 +672,7 @@ struct CharCreateUI {
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
     d2d::d2s::Stats stats;               // ... and attributes
     PanelStats panel;                    // ... and what the char panel computes
+    bool expansion = true;               // the save's expansion flag (stash size)
     Button ok_btn{};
     Button cancel_btn{};
     // Name entry — SDL text-input feeds this buffer, capped at 15 chars
@@ -959,6 +967,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         Scene::Npc n;
         n.root   = "objects";
         n.code   = std::string(objects.get(r, "Token"));
+        n.operate_fn = std::atoi(std::string(objects.get(r, "OperateFn")).c_str());
         n.base_w = "hth";
         const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
                      && objects.get(r, "Lit2") != "0";
@@ -1188,6 +1197,18 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.inv_panel = d2d::dc6::Sprite(*p);
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
     const auto inv = txt("inventory");
+    for (std::size_t r = 0; r < inv.size(); ++r) {
+        const auto cls = inv.get(r, "class");
+        const int e = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0 : -1;
+        if (e < 0) continue;
+        auto num = [&](const char* col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
+        auto& L = scene.stash_layout[std::size_t(e)];
+        L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
+        L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
+    }
+    for (auto [path, e] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
+                            { R"(data\global\ui\PANEL\TradeStash.dc6)", 1 } })
+        if (auto b = mpqs.try_read(path)) scene.stash_panel[std::size_t(e)] = d2d::dc6::Sprite(*b);
     static constexpr const char* kInvClass[7] = {
         "Amazon2", "Sorceress2", "Necromancer2", "Paladin2", "Barbarian2", "Druid2", "Assassin2" };
     static constexpr const char* kSlotCol[11] = {
@@ -1941,6 +1962,7 @@ struct Unit {
     // of each mode, like game.exe's mode start (FUN_005533d0 zeroes the
     // 8.8 frame counter at unit+0x30).
     std::uint32_t mode_ms = 0;
+    int npc = -1;                        // Scene::world_npcs index, -1 = the player
 };
 
 // Screen rectangle a composite's current frame covers with its feet at
@@ -2467,7 +2489,7 @@ void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::v
 // grid items (panel 1) centred in their w x h cell block, equipped items
 // centred in their body slot's box. Palette: the act's, like the world.
 // The item under (mx, my) gets its hover text.
-// ponytail: no colour tints (item transform colormaps), belt/cube/stash.
+// ponytail: no colour tints (item transform colormaps), cube.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
                     const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -2642,6 +2664,38 @@ void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Sta
     at_bottom(s.globe_glass, 1, W - 0x6e, H - 9);
 }
 
+// The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
+// (location 0, panel 5) in the inventory.txt bank grid.
+// ponytail: no gold line, no "close" button; classic stash untested.
+void draw_stash(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
+                bool expansion, int mx, int my, int clvl) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const auto& art = s.stash_panel[expansion ? 1 : 0];
+    const auto& L = s.stash_layout[expansion ? 1 : 0];
+    if (art.frames_per_direction() >= 4) {
+        const auto& f0 = art.frame(0, 0);
+        blit_sprite(fb, f0, pal, kCharPanelX, kCharPanelY);
+        blit_sprite(fb, art.frame(0, 1), pal, kCharPanelX + int(f0.width), kCharPanelY);
+        blit_sprite(fb, art.frame(0, 2), pal, kCharPanelX, kCharPanelY + int(f0.height));
+        blit_sprite(fb, art.frame(0, 3), pal, kCharPanelX + int(f0.width), kCharPanelY + int(f0.height));
+    }
+    const d2d::d2s::Item* hover = nullptr;
+    std::array<int, 4> hb{};
+    for (const auto& it : items) {
+        if (it.location != 0 || it.panel != 5) continue;
+        const auto info = s.item_info.find(it.code);
+        const int w = (info != s.item_info.end() ? info->second.w : 1) * L.box_w;
+        const int h = (info != s.item_info.end() ? info->second.h : 1) * L.box_h;
+        const int x = L.grid_x + it.column * L.box_w, y = L.grid_y + it.row * L.box_h;
+        if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
+            const auto& f = spr->frame(0, 0);
+            blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
+        }
+        if (mx >= x && mx < x + w && my >= y && my < y + h) { hover = &it; hb = { x, y, w, h }; }
+    }
+    if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
+}
+
 // The belt's first row in the HUD's belt strip: items in location 2 keep
 // their belt slot (0..15, 4 per row) in the column field; slots 0..3 sit
 // in belts.txt default2 boxes 1..4, the item centred. Hovering one shows
@@ -2684,7 +2738,9 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const d2d::d2s::Stats* hud_stats = nullptr,
                    const PanelStats* panel = nullptr,
                    std::uint32_t player_mode_ms = 0,
-                   const std::vector<d2d::d2s::Item>* belt = nullptr) {
+                   const std::vector<d2d::d2s::Item>* belt = nullptr,
+                   int* hovered_npc = nullptr,
+                   const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2712,10 +2768,11 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             const float x = st ? st->x : n.x, y = st ? st->y : n.y;
             if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
             const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));
-            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name, st ? st->mode_ms : 0 });
+            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name, st ? st->mode_ms : 0, int(i) });
         }
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
+        if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
         // ponytail: no highlight tint yet (D2 brightens the unit too).
         if (hovered.first) {
@@ -2729,6 +2786,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
+        if (stash) draw_stash(fb, s, *stash, stash_expansion, mouse_x, mouse_y,
+                              hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         // Dev overlay: a red dot on every blocked subtile around the camera.
@@ -3382,6 +3441,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
     bool  running = false;                 // R toggles, like D2's run/walk button
+    bool  stash_open = false;
+    int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
+    int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
     std::uint32_t player_mode_ms = 0;      // when the player's walk/idle mode started
     bool  player_ran = false;
@@ -3499,6 +3561,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " cam=" + std::format("{:.2f},{:.2f}", player_x, player_y)
              + " walking=" + (walking ? "1" : "0") + " dir=" + std::to_string(player_dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
+             + " stash=" + (stash_open ? "1" : "0")
              + "\nok\n";
     });
 
@@ -3613,6 +3676,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.stats = csu.selected < int(scene->save_stats.size())
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
+                    cc.expansion = h.expansion();
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -3625,9 +3689,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 for (const auto k : keys_this_frame) {
                     if (k == SDLK_I) inv_open = !inv_open;
                     if (k == SDLK_R) running = !running;              // D2's run/walk toggle
-                    if (k == SDLK_C) char_open = !char_open;
+                    if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = false; }
                     if (k == SDLK_ESCAPE) {
-                        if (inv_open || char_open) inv_open = char_open = false;   // panels first
+                        if (inv_open || char_open || stash_open)             // panels first
+                            inv_open = char_open = stash_open = false;
                         else screen = Screen::CharSelect;
                     }
                 }
@@ -3635,7 +3700,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 const bool over_panel =
                     (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                               && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
-                    (char_open && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
+                    ((char_open || stash_open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                                && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
@@ -3647,6 +3712,26 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         target_x = player_x + (u + v) / 2;
                         target_y = player_y + (v - u) / 2;
                         walking = true;
+                        // Clicking an object you can operate walks to it
+                        // first (D2 operates on arrival).
+                        interact_npc = -1;
+                        if (mouse.press_this_frame && hovered_npc >= 0
+                            && scene->world_npcs[std::size_t(hovered_npc)].operate_fn == 32) {
+                            interact_npc = hovered_npc;
+                            target_x = scene->world_npcs[std::size_t(hovered_npc)].x;
+                            target_y = scene->world_npcs[std::size_t(hovered_npc)].y;
+                        }
+                    }
+                    // Close enough to the stash: open it with the inventory.
+                    // ponytail: 2 cells, not D2's per-object operate range.
+                    if (interact_npc >= 0) {
+                        const auto& o = scene->world_npcs[std::size_t(interact_npc)];
+                        if (std::hypot(o.x - player_x, o.y - player_y) < 2.f) {
+                            stash_open = inv_open = true; char_open = false;
+                            walking = false; interact_npc = -1;
+                        } else if (!walking) {
+                            interact_npc = -1;                         // blocked on the way
+                        }
                     }
                     if (walking) {
                         const float dx = target_x - player_x, dy = target_y - player_y;
@@ -3702,7 +3787,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_x, player_y, walking ? (running ? kModeRN : kModeTW) : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
-                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items);
+                              char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
+                              &hovered_npc, stash_open ? &cc.items : nullptr, cc.expansion);
                 break;
             }
             case Screen::CharCreate: {
