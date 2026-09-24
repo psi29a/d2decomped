@@ -220,8 +220,8 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
 struct NpcMenuState {
     int npc = -1;                            // world_npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble };
-    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer };
+    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
     std::vector<Line> lines;
     int x = 0, y = 0, w = 0, h = 0;
     // Index of the selectable line under (mx, my), or -1.
@@ -243,18 +243,27 @@ std::string string_id(const Scene& s, std::uint16_t id) {
 
 void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y);
 
-NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y) {
+// clvl and the unidentified item count adjust the table like game.exe:
+// Kashya gains "hire" above level 7 (FUN_004b66b0 -> FUN_004b6410
+// patches her record to talk, hire); "identify items" only shows when
+// something needs it (FUN_004b4830).
+NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0) {
     NpcMenuState m;
     const auto& n = s.world_npcs[std::size_t(npc)];
     const auto it = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
     if (it == kNpcMenus.end()) return m;
     m.npc = npc;
     m.lines.push_back({ n.name, 21, 0, 0, true });
-    for (const auto id : it->entries)
-        if (id) m.lines.push_back({ string_id(s, id), 15, 0, 0, false,
-                                    id == 0xd35 ? NpcMenuState::kTalk
-                                    : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade
-                                    : id == 0xd46 ? NpcMenuState::kGamble : NpcMenuState::kClose });
+    auto entries = it->entries;
+    if (n.hc_idx == 150 && clvl > 7) entries = { 0xd35, 0xd45 };
+    for (const auto id : entries)
+        if (id && !(id == 0xfb4 && unidentified == 0))
+            m.lines.push_back({ string_id(s, id), 15, 0, 0, false,
+                                id == 0xd35 ? NpcMenuState::kTalk
+                                : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade
+                                : id == 0xd46 ? NpcMenuState::kGamble
+                                : id == 0xd45 ? NpcMenuState::kHire
+                                : id == 0xfb4 ? NpcMenuState::kIdentify : NpcMenuState::kClose });
     m.lines.push_back({ string_id(s, 0x102e), 15 });
     layout_npc_menu(s, m, screen_x, screen_y);
     return m;

@@ -56,6 +56,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         for (std::size_t i = 0; i < s.world_npcs.size(); ++i) {
             const auto& n = s.world_npcs[i];
             const NpcState* st = i < npcs.size() ? &npcs[i] : nullptr;
+            if (st && st->hidden) continue;
             const float x = st ? st->x : n.x, y = st ? st->y : n.y;
             if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
             const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));

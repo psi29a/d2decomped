@@ -16,6 +16,7 @@ struct NpcState {
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
     float goal_x = 0, goal_y = 0;     // where the merc's route was planned to
+    bool hidden = false;              // a quest-gated NPC who isn't here (yet)
 };
 
 std::vector<NpcState> npc_start(const Scene& s) {

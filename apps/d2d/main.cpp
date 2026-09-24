@@ -227,40 +227,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                       : have_world ? float(scene->world_ds1.width() / 2) : 0.f) + 0.5f;
     float player_y = (g_start_cam_y >= 0 ? float(g_start_cam_y)
                       : have_world ? float(scene->world_ds1.height() / 2) : 0.f) + 0.5f;
-    // The town start, as game.exe picks it on joining: DS1 special walls
-    // (orientation 10/11) with main index 30..33 become the level's spawn
-    // list (code at 0x667d09: main 30 sub n -> index n, 31 -> n+5,
-    // 32 -> 10, 33 -> 11 (town-portal arrival)); a join asks for index 0,
-    // which matches any of group 0 (indices 0..4) at random
-    // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
-    // free spot. ponytail: first match instead of a random one — each
-    // Act 1 town DS1 has exactly one.
-    if (have_world && g_start_cam_x < 0 && g_start_cam_y < 0) {
-        const auto& m = scene->world_ds1;
-        for (const auto& L : m.walls())
-            for (std::size_t i = 0; i < L.cells.size(); ++i) {
-                const auto& t = L.cells[i];
-                if ((t.wall_type == 10 || t.wall_type == 11) && t.style == 30 && t.sequence <= 4) {
-                    player_x = (float(i % m.width()) * 5 + 3 + 0.5f) / 5;
-                    player_y = (float(i / m.width()) * 5 + 3 + 0.5f) / 5;
-                    goto found_start;
-                }
-            }
-    found_start:;
-    }
-    // Never start inside a tent: search outward, a subtile (0.2 cell) per
-    // ring, for the nearest walkable spot.
-    if (have_world && scene->unit_blocked(player_x, player_y)) {
-        const auto [fx, fy] = [&]() -> std::pair<float, float> {
-            for (int r = 1; r < 200; ++r)
-                for (int i = -r; i <= r; ++i)
-                    for (auto [ox, oy] : { std::pair{i, -r}, {i, r}, {-r, i}, {r, i} })
-                        if (!scene->unit_blocked(player_x + ox * 0.2f, player_y + oy * 0.2f))
-                            return { player_x + ox * 0.2f, player_y + oy * 0.2f };
-            return { player_x, player_y };
-        }();
-        player_x = fx; player_y = fy;
-    }
+    // The town start (Scene::town_start), then the nearest free spot so
+    // we never start inside a tent.
+    if (have_world && g_start_cam_x < 0 && g_start_cam_y < 0 && scene->town_start.first >= 0)
+        std::tie(player_x, player_y) = scene->town_start;
+    if (have_world) std::tie(player_x, player_y) = scene->nearest_free(player_x, player_y);
     std::vector<NpcState> npc_states = scene ? npc_start(*scene) : std::vector<NpcState>{};
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
@@ -272,10 +243,23 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
     int   skill_pressed = -1;              // skill icon held down
     std::optional<NpcState> merc;          // the save's mercenary, following
+    std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
     std::vector<std::pair<float, float>> merc_path, player_path;   // walk_path routes
     float planned_x = 0, planned_y = 0;    // the target player_path was planned for
     const Scene::Npc* merc_npc = nullptr;
     std::string merc_label;
+    // The character's merc (cc.header) next to the player, if alive.
+    auto spawn_merc = [&] {
+        merc.reset();
+        merc_path.clear();
+        const auto& h = cc.header;
+        if (const auto m = scene->mercs.find(h.merc_type); h.merc_seed && !h.merc_dead && m != scene->mercs.end()) {
+            merc = NpcState{ player_x + 1, player_y + 1 };
+            std::tie(merc->x, merc->y) = scene->nearest_free(merc->x, merc->y);
+            merc_npc = &m->second.npc;
+            merc_label = merc_name(*scene, m->second, h.merc_name);
+        }
+    };
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
@@ -390,6 +374,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             walking = false;
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "unid") {       // unidentify every carried item
+            for (auto& it : cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
+            return "ok " + std::to_string(d2d::rules::unidentified(cc.items)) + "\n";
+        }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
             for (auto& it : cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
             return std::string("ok\n");
@@ -399,7 +387,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|warp <x> <y>\n");
+            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|warp <x> <y>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
@@ -424,7 +412,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         std::string out;
         for (std::size_t i = 0; i < scene->world_npcs.size(); ++i) {
             const auto& n = scene->world_npcs[i];
-            if (n.name.empty()) continue;
+            if (n.name.empty() || (i < npc_states.size() && npc_states[i].hidden)) continue;
             const bool live = i < npc_states.size() && !n.path.empty();
             const float dx = (live ? npc_states[i].x : n.x) - player_x, dy = (live ? npc_states[i].y : n.y) - player_y;
             const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
@@ -468,6 +456,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " waypoint=" + std::to_string(waypoint.open ? int(scene->waypoint_levels[std::size_t(waypoint.tab)].size()) : 0)
              + " items=" + std::to_string(cc.items.size())
              + " held=" + (held ? held->code : "-")
+             + " unid=" + std::to_string(d2d::rules::unidentified(cc.items))
              + " merc=" + (merc ? std::format("{:.1f},{:.1f}", merc->x, merc->y) + ":" + merc_npc->code : std::string("-"))
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(automap.open ? int(automap.cells.size()) : 0)
@@ -671,12 +660,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
                     cc.header = h;
-                    merc.reset();
-                    if (const auto m = scene->mercs.find(h.merc_type); h.merc_seed && !h.merc_dead && m != scene->mercs.end()) {
-                        merc = NpcState{ player_x + 1, player_y + 1 };
-                        merc_npc = &m->second.npc;
-                        merc_label = merc_name(*scene, m->second, h.merc_name);
-                    }
+                    spawn_merc();
+                    // Quest-gated NPCs (Cain after Act 1 quest 4).
+                    for (std::size_t i = 0; i < scene->world_npcs.size() && i < npc_states.size(); ++i)
+                        if (const int q = scene->world_npcs[i].quest)
+                            npc_states[i].hidden = !h.quest_flag(h.active_difficulty(), q, 0);
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -811,6 +799,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
                     const int li = npc_menu.line_at(mouse.x, mouse.y);
                     const auto action = li >= 0 ? npc_menu.lines[std::size_t(li)].action : NpcMenuState::kClose;
+                    const int npc_menu_arg = li >= 0 ? npc_menu.lines[std::size_t(li)].arg : -1;
                     const int who = npc_menu.npc;
                     const auto& n = scene->world_npcs[std::size_t(who)];
                     const auto& st = npc_states[std::size_t(who)];
@@ -818,7 +807,26 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
                     const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
                     npc_menu = {};
-                    if (action == NpcMenuState::kGamble) {
+                    if (action == NpcMenuState::kHire) {
+                        // Kashya's list. ponytail: the server's offer count
+                        // isn't traced; five, rolled when the list opens.
+                        d2d::rules::Rng r{ talk_rng };
+                        hire_offers.clear();
+                        for (int k = 0; k < 5; ++k)
+                            if (auto o = d2d::rules::merc_offer(scene->rules, cc.expansion, 0, cc.header.active_difficulty(),
+                                                                int(cc.stats.get(d2d::d2s::kLevel)), r))
+                                hire_offers.push_back(*o);
+                        talk_rng = r.s;
+                        npc_menu = open_hire_menu(*scene, who, hire_offers,
+                                                  cc.stats.get(d2d::d2s::kGold) + cc.stats.get(d2d::d2s::kGoldBank));
+                    } else if (action == NpcMenuState::kHireOffer) {
+                        const int k = npc_menu_arg;
+                        if (k >= 0 && std::size_t(k) < hire_offers.size()
+                            && d2d::rules::hire(hire_offers[std::size_t(k)], cc.header, cc.stats))
+                            spawn_merc();
+                    } else if (action == NpcMenuState::kIdentify) {
+                        d2d::rules::identify_all(cc.items);
+                    } else if (action == NpcMenuState::kGamble) {
                         store = d2d::rules::open_gamble(scene->rules, n.id, int(cc.stats.get(d2d::d2s::kLevel)));
                         store.npc = who;
                         store.header = cc.header;
@@ -960,7 +968,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                 if (d2d::rules::is_healer(o.hc_idx)) d2d::rules::heal(cc.stats);
                                 npc_menu = open_npc_menu(*scene, interact_npc,
                                     int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
-                                    int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))));
+                                    int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),
+                                    int(cc.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(cc.items));
                             }
                             walking = false; interact_npc = -1;
                         } else if (!walking) {

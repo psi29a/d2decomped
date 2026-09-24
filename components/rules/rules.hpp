@@ -76,6 +76,14 @@ struct PropFunc { int func = 0, stat = -1, val = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
 struct GambleRates { int rare = 10000, set = 100, unique = 50; };
 
+// hireling.txt row (the stat and cost columns FUN_006637f0 reads).
+struct Hireling {
+    int version = 0, id = 0, cls = 0, act = 0, difficulty = 0, level = 0, gold = 0, exp_per_level = 0;
+    int hp = 0, hp_per_level = 0, def = 0, def_per_level = 0, str = 0, str_per_level = 0, dex = 0, dex_per_level = 0;
+    int dmg_min = 0, dmg_max = 0, dmg_per_level = 0;
+    int names = 1;                                      // NameFirst..NameLast
+};
+
 struct Tables {
     std::unordered_map<std::string, ItemType> types;       // by type code
     std::unordered_map<std::string, ItemInfo> item_info;   // by item code
@@ -99,6 +107,7 @@ struct Tables {
     int rare_prefixes = 0, rare_suffixes = 0;              // RarePrefix / RareSuffix rows
     std::vector<std::string> gamble;                       // gamble.txt codes
     std::array<GambleRates, 3> gamble_rates{};
+    std::vector<Hireling> hirelings;                       // hireling.txt rows
 };
 
 // ponytail: stock = each listed item <Vendor>Min..Max times plus the
@@ -812,6 +821,79 @@ inline bool store_gamble(const Tables& t, Store& st, int i, std::vector<d2d::d2s
     stats.v[d2d::d2s::kGold] -= from_inv;
     stats.v[d2d::d2s::kGoldBank] -= price - from_inv;
     return true;
+}
+
+// A mercenary for hire, as FUN_006637f0 rolls it for the hire list.
+struct MercOffer {
+    int id = 0, level = 0, life = 0, str = 0, dex = 0, cost = 0, def = 0, dmg_min = 0, dmg_max = 0;
+    std::uint32_t exp = 0, seed = 0;
+    int name = 0;                                       // index from NameFirst
+};
+
+// One offer for act (0-based) and difficulty (0-2): FUN_00656580 lists
+// the rows of that act, difficulty and version (100 = LoD) sharing the
+// first one's Level; one is picked, the level is clvl - 5 + rand(5)
+// (at least 2), and with d = level - the row's Level:
+//   life = HP + HP/Lvl * d (>= 40), str/dex = base + (per-level * d >> 3)
+//   (>= 10), cost = Gold * (15d + 100) / 100 (>= Gold), exp =
+//   (level + 1) * Exp/Lvl * level^2, def = Def + Def/Lvl * d, damage =
+//   Dmg-Min/Max + (Dmg/Lvl * d >> 3).
+inline std::optional<MercOffer> merc_offer(const Tables& t, bool expansion, int act, int diff, int clvl, Rng& rng) {
+    std::vector<const Hireling*> rows;
+    for (const auto& h : t.hirelings)
+        if (h.act == act + 1 && h.difficulty == diff + 1 && h.version == (expansion ? 100 : 0)
+            && (rows.empty() || h.level == rows.front()->level))
+            rows.push_back(&h);
+    if (rows.empty()) return std::nullopt;
+    const auto& h = *rows[std::size_t(rng(int(rows.size())))];
+    MercOffer o;
+    o.id = h.id;
+    o.seed = std::uint32_t(rng(0x7fffffff)) | 1;
+    o.level = std::max(2, clvl - 5 + rng(5));
+    const int d = o.level - h.level;
+    o.life = std::max(40, h.hp + h.hp_per_level * d);
+    o.str = std::max(10, h.str + (h.str_per_level * d >> 3));
+    o.dex = std::max(10, h.dex + (h.dex_per_level * d >> 3));
+    o.cost = std::max(h.gold, h.gold * (d * 15 + 100) / 100);
+    o.exp = std::uint32_t(std::max<long long>(0, (long long)(o.level + 1) * h.exp_per_level * o.level * o.level));
+    o.def = std::max(0, h.def + h.def_per_level * d);
+    o.dmg_min = std::max(0, h.dmg_min + (h.dmg_per_level * d >> 3));
+    o.dmg_max = std::max(1, h.dmg_max + (h.dmg_per_level * d >> 3));
+    o.name = rng(std::max(1, h.names));
+    return o;
+}
+
+// Hires `o`: pays its cost (carried gold, then the stash) and makes it
+// the save's mercenary. False if it can't be paid for.
+inline bool hire(const MercOffer& o, d2d::d2s::Header& h, d2d::d2s::Stats& st) {
+    using namespace d2d::d2s;
+    if (st.get(kGold) + st.get(kGoldBank) < o.cost) return false;
+    const auto from_inv = std::min<std::int64_t>(st.get(kGold), o.cost);
+    st.v[kGold] -= from_inv;
+    st.v[kGoldBank] -= o.cost - from_inv;
+    h.merc_dead = false;
+    h.merc_seed = o.seed;
+    h.merc_type = std::uint16_t(o.id);
+    h.merc_name = std::uint16_t(o.name);
+    h.merc_exp = o.exp;
+    return true;
+}
+
+// Cain's "Identify Items": the carried and worn ones. Returns how many.
+// ponytail: the server's scope isn't traced (stash and cube are left).
+inline int unidentified(const std::vector<d2d::d2s::Item>& items) {
+    return int(std::ranges::count_if(items, [](const auto& it) {
+        return !it.identified && (it.location == 1 || it.location == 2 || (it.location == 0 && it.panel == 1));
+    }));
+}
+inline int identify_all(std::vector<d2d::d2s::Item>& items) {
+    int n = 0;
+    for (auto& it : items)
+        if (!it.identified && (it.location == 1 || it.location == 2 || (it.location == 0 && it.panel == 1))) {
+            it.identified = true;
+            ++n;
+        }
+    return n;
 }
 
 // Pathing over subtiles for a unit that can't stand where blocked(x, y):

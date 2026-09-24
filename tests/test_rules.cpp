@@ -332,5 +332,33 @@ int main() {
     assert(!near.empty() && near.back() == std::pair(17, 0));
     assert(find_path(3, 3, 3, 3, wall).empty());
 
+    // Mercenaries: the hire list's offers and hiring.
+    Tables m;
+    m.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,
+                      .hp = 45, .hp_per_level = 9, .def = 15, .def_per_level = 8, .str = 35, .str_per_level = 10,
+                      .dex = 45, .dex_per_level = 16, .dmg_min = 1, .dmg_max = 3, .dmg_per_level = 5, .names = 41 },
+                    { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 36, .gold = 100 },   // other Level: skipped
+                    { .version = 0, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 7 } };     // classic row
+    for (int i = 0; i < 20; ++i) {
+        const auto o = merc_offer(m, true, 0, 0, 20, roll);
+        assert(o && o->id == 0 && o->level >= 15 && o->level <= 19 && o->name >= 0 && o->name < 41);
+        const int d = o->level - 3;
+        assert(o->life == 45 + 9 * d && o->cost == 100 * (d * 15 + 100) / 100 && o->def == 15 + 8 * d);
+        assert(o->str == 35 + (10 * d >> 3) && o->exp == std::uint32_t((o->level + 1) * 100 * o->level * o->level));
+    }
+    assert(merc_offer(m, true, 0, 0, 1, roll)->level == 2);                  // never below 2
+    assert(!merc_offer(m, true, 1, 0, 20, roll));                           // no act 2 rows
+    d2d::d2s::Header hh;
+    d2d::d2s::Stats wallet2;
+    wallet2.v[kGold] = 50; wallet2.v[kGoldBank] = 100;
+    const MercOffer offer{ .id = 7, .level = 20, .cost = 120, .exp = 999, .seed = 5, .name = 3 };
+    assert(hire(offer, hh, wallet2) && hh.merc_type == 7 && hh.merc_seed == 5 && hh.merc_name == 3 && hh.merc_exp == 999);
+    assert(wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 30 && !hire(offer, hh, wallet2));
+
+    // Identify: carried, worn and belt items; not the stash.
+    std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };
+    unid[2].location = 1;
+    assert(unidentified(unid) == 2 && identify_all(unid) == 2 && unidentified(unid) == 0 && !unid[1].identified);
+
     std::puts("test_rules: ok");
 }

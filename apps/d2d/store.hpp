@@ -15,6 +15,41 @@ Store open_store(const Scene& s, int npc, std::uint32_t& rng) {
     return st;
 }
 
+// The hire list (FUN_004b5c60): a 490x350 NPC text window, header
+// "Your Gold: %d     Hire which Mercenary?" (0xd24, carried + stash gold)
+// in gold, one line per offer — its name, " - ", then "Lvl" (0xd28),
+// "Life" (0xd26), "Def" (0xd27), "Cost" (0xd29), each ": %u" — and
+// "cancel" (0xd48).
+// ponytail: one centred text line per offer in the NPC-menu style; the
+// game's scrolling list widget (FUN_004bf8f0, 490x280 at (W-490)/2,
+// H/2-160, rows 35 high) and the second line of hire description aren't
+// drawn.
+NpcMenuState open_hire_menu(const Scene& s, int npc, const std::vector<d2d::rules::MercOffer>& offers,
+                            std::int64_t gold) {
+    NpcMenuState m;
+    m.npc = npc;
+    std::string head = string_id(s, 0xd24);
+    if (const auto p = head.find("%d"); p != head.npos) head.replace(p, 2, std::to_string(gold));
+    m.lines.push_back({ head, 21, 0, 0, true });
+    auto label = [&](std::uint16_t id) { return string_id(s, id) + ": "; };
+    for (std::size_t i = 0; i < offers.size(); ++i) {
+        const auto& o = offers[i];
+        const auto merc = s.mercs.find(o.id);
+        const auto name = merc != s.mercs.end() ? merc_name(s, merc->second, o.name) : std::string("?");
+        m.lines.push_back({ name + " - " + label(0xd28) + std::to_string(o.level) + "  " + label(0xd26) + std::to_string(o.life)
+                                + "  " + label(0xd27) + std::to_string(o.def) + "  " + label(0xd29) + std::to_string(o.cost),
+                            0x23, 0, 0, false, NpcMenuState::kHireOffer, int(i) });
+    }
+    m.lines.push_back({ string_id(s, 0xd48), 0x23 });
+    m.w = 0x1ea; m.h = 0x15e;
+    m.x = (int(kW) - m.w) / 2; m.y = (int(kH) - m.h) / 2;
+    for (auto& l : m.lines) {
+        l.width = s.font.measure(l.text);
+        l.x = std::max(4, (m.w - l.width) / 2);
+    }
+    return m;
+}
+
 // The store item under the cursor (index into the open tab), or -1.
 int store_item_at(const Scene& s, const Store& st, int mx, int my) {
     const auto& tab = st.tabs[std::size_t(st.tab)];

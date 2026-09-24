@@ -33,8 +33,44 @@ Some entries are special-cased while building:
 - 0xfb4 shows identify only when there's something to identify.
 - 0x2ba0 depends on quest 0x29.
 
-Quest-gated extras such as Kashya's hire or Warriv's "go east" are added
-elsewhere; d2d shows the base table only.
+Runtime changes to the table (FUN_004b66b0, opening an NPC):
+- Kashya (hcIdx 0x96): above character level 7, FUN_004b6410 rewrites
+  her record to 3 entries with string[1] = 0xd45 "hire", handler
+  0x4b5c60. Not quest-gated.
+- The act hire NPCs (0xfc, 0xc6, 0x16f, 0x203, and Kashya):
+  FUN_004b6440 adds "resurrect" (0x1507? handler FUN_004b1dd0) ahead of
+  hire while the merc is dead.
+- 0xfb4 "identify items" only shows when there's something to identify.
+Warriv's "go east" still comes from elsewhere.
+
+## Hire (FUN_004b5c60)
+
+A 490x350 NPC text window: header 0xd24 "Your Gold: %d     Hire which
+Mercenary?" (carried + stash gold) in gold, a list widget (FUN_004bf8f0,
+490x280 at ((W-490)/2, H/2-160), rows 0x23 high) of the offers the server
+sent (0x7c0c85), and 0xd48 "cancel". A row: the merc's name string, " - ",
+then 0xd28 "Lvl", 0xd26 "Life", 0xd27 "Def", 0xd29 "Cost", each ": %u".
+Name ID 0x421 shows 0x2b0d instead.
+
+Offer stats (FUN_006637f0, from the offer's seed): FUN_00656580 lists the
+hireling.txt rows of the act, difficulty and version (100 LoD, 0 classic)
+that share the first row's Level; one is picked; level = clvl − 5 +
+rand(5), at least 2; with d = level − row Level: life = HP + HP/Lvl·d
+(≥ 40), str/dex = base + (per-level·d >> 3) (≥ 10), cost = Gold·(15d +
+100)/100 (≥ Gold), exp = (level + 1)·Exp/Lvl·level², defence = Def +
+Def/Lvl·d, damage = Dmg-Min/Max + (Dmg/Lvl·d >> 3).
+
+d2d: `rules::merc_offer` / `hire`; five offers per opening (the server's
+count isn't traced), one line each.
+
+## Identify (FUN_004b2020)
+
+Sends the request (FUN_00478680) and the server identifies the items.
+d2d identifies carried, worn and belt items (`rules::identify_all`).
+Cain is cain5 (hcIdx 265 = 0x109, whose record has 0xfb4). a1q4.cpp spawns
+him in camp on the rescue where the player came back through the portal
+(FUN_00596de0 → FUN_00592960); where a game with the quest already done
+places him isn't located — d2d stands him 3 subtiles off the town start.
 
 ## Building (`FUN_004b4830`)
 

@@ -112,8 +112,8 @@ Noted while playing the dev build (2026-09-24):
   entry flag bits, units blocking each other, doors, and D2's own
   pathing in place of our A*.
 - **NPC menu entries.** Not every menu item does something yet:
-  - trade/repair, gamble and healing work; hire and identify are
-    missing (see Next up);
+  - trade/repair, gamble, healing, hire and identify work (see Next up
+    for what's approximate);
   - quest topics and the extra entries (Kashya's hire, Warriv's "go
     east") come from the game server (docs/research/re/npc-talk.md).
 
@@ -124,10 +124,8 @@ Noted while playing the dev build (2026-09-24):
    `components/rules` with `test_rules`. NPC patrol can follow once it's
    off `Scene`.
 2. Trade leftovers: magic stock, the real stock roll, charge recharging.
-3. NPC menu leftovers:
-   - hire: Kashya's list is a 490x350 dialog on game.exe's list widget
-     (FUN_004b5c60, FUN_004bf8f0) fed by the server's merc offers — RE
-     both; the save's own merc already shows and follows;
-   - identify: Cain only stands in camp after his rescue quest.
+3. NPC menu leftovers: Warriv's "go east", resurrecting a dead merc, the
+   hire list's own list widget and offer count, Cain's spawn spot in a
+   game where he's already rescued.
 4. Waypoint travel and leaving town (Act 1 wilderness DRLG), once more
    fundamentals are in place.

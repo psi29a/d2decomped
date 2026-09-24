@@ -197,6 +197,7 @@ struct Scene {
         int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
         int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
         std::string id;                      // MonStats Id (npc.txt key)
+        int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
     };
     // Mercenary units by hireling.txt Id (the save's merc type): the
     // monster, and the first name key (merc01, merca201, MercX101, ...).
@@ -251,6 +252,18 @@ struct Scene {
         return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
             || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
     }
+    // The nearest spot a unit can stand, searching outward a subtile per
+    // ring (FUN_0064dea0 does it per room for spawns).
+    [[nodiscard]] std::pair<float, float> nearest_free(float x, float y) const {
+        if (!unit_blocked(x, y)) return { x, y };
+        for (int r = 1; r < 200; ++r)
+            for (int i = -r; i <= r; ++i)
+                for (auto [ox, oy] : { std::pair{ i, -r }, { i, r }, { -r, i }, { r, i } })
+                    if (!unit_blocked(x + float(ox) * 0.2f, y + float(oy) * 0.2f))
+                        return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
+        return { x, y };
+    }
+    std::pair<float, float> town_start{ -1, -1 };       // cells; see load_world
 };
 
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.

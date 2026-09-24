@@ -291,16 +291,34 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     }
 
     // Footprints into the walk grid, centred on each unit's subtile.
+    // (Quest-gated units like Cain stay out of it: they're not always there.)
     // ponytail: static — fine while NPCs only idle; moving units need a
     // separate occupancy layer.
     const int ww = scene.world_ds1.width() * 5, wh = scene.world_ds1.height() * 5;
     for (const auto& n : scene.world_npcs) {
-        if (!n.path.empty()) continue;           // walkers don't hold a spot
+        if (!n.path.empty() || n.quest) continue;   // walkers don't hold a spot
         const int cx = int(n.x * 5), cy = int(n.y * 5);
         for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
             for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
                 if (x >= 0 && y >= 0 && x < ww && y < wh)
                     scene.world_walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
+    }
+
+    // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify
+    // items"), in camp once Act 1 quest 4 is done. On the rescue itself
+    // a1q4.cpp (FUN_00596de0 -> FUN_00592960) spawns him where the player
+    // came back through the portal.
+    // ponytail: where a game with the quest already done places him isn't
+    // located; he stands 3 subtiles off the town start, like the
+    // Tristram spawn's offset (FUN_00593290).
+    for (std::size_t r = 0; r < ms.size() && scene.town_start.first >= 0; ++r) {
+        if (ms.get(r, "hcIdx") != "265") continue;
+        auto n = monster(r);
+        if (n.code.empty()) break;
+        n.quest = 4;
+        std::tie(n.x, n.y) = scene.nearest_free(scene.town_start.first + 0.6f, scene.town_start.second + 0.6f);
+        scene.world_npcs.push_back(std::move(n));
+        break;
     }
 }
 
@@ -651,6 +669,16 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
         scene.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
         scene.rules.gamble = keys("gamble", "code", false);
+        if (const auto ht = txt("hireling"); ht.size() > 0)
+            for (std::size_t r = 0; r < ht.size(); ++r) {
+                auto n = [&](const char* c) { return num(ht.get(r, c)); };
+                const std::string first(ht.get(r, "NameFirst")), last(ht.get(r, "NameLast"));
+                const int names = first.size() >= 2 && last.size() >= 2
+                    ? std::atoi(last.substr(last.size() - 2).c_str()) - std::atoi(first.substr(first.size() - 2).c_str()) + 1 : 1;
+                scene.rules.hirelings.push_back({ n("Version"), n("Id"), n("Class"), n("Act"), n("Difficulty"), n("Level"),
+                    n("Gold"), n("Exp/Lvl"), n("HP"), n("HP/Lvl"), n("Defense"), n("Def/Lvl"), n("Str"), n("Str/Lvl"),
+                    n("Dex"), n("Dex/Lvl"), n("Dmg-Min"), n("Dmg-Max"), n("Dmg/Lvl"), std::max(1, names) });
+            }
         if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
             for (std::size_t r = 0; r < 3; ++r)
                 scene.rules.gamble_rates[r] = { num(dl.get(r, "GambleRare")), num(dl.get(r, "GambleSet")),
@@ -1114,6 +1142,21 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
                 if (c.hidden || c.wall_type == 0 || c.wall_type == 13 || c.wall_type == 15) continue;
                 stamp(gx, gy, c.style, c.sequence, c.wall_type);
             }
+        }
+    // The town start, as game.exe picks it on joining: DS1 special walls
+    // (orientation 10/11) with main index 30..33 become the level's spawn
+    // list (code at 0x667d09: main 30 sub n -> index n, 31 -> n+5,
+    // 32 -> 10, 33 -> 11 (town-portal arrival)); a join asks for index 0,
+    // which matches any of group 0 (indices 0..4) at random
+    // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
+    // free spot. ponytail: first match instead of a random one — each
+    // Act 1 town DS1 has exactly one.
+    for (const auto& L : m.walls())
+        for (std::size_t i = 0; i < L.cells.size() && scene.town_start.first < 0; ++i) {
+            const auto& t = L.cells[i];
+            if ((t.wall_type == 10 || t.wall_type == 11) && t.style == 30 && t.sequence <= 4)
+                scene.town_start = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
+                                     (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
         }
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);

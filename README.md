@@ -25,8 +25,9 @@ Phase 5 (core loop) is in progress. You can:
   voice.
 - **Trade**: vendor stock, prices, buying and selling with gold;
   repair at Charsi; gambling at Gheed (real magic/rare/set/unique rolls);
-  Akara heals.
-- **Mercenary**: your save's merc follows you round town.
+  Akara heals; Kashya hires rogues; Deckard Cain identifies (once
+  rescued).
+- **Mercenary**: your save's merc (or a newly hired one) follows you.
 - **Movement**: collision as game.exe builds it; clicks path round
   obstacles.
 - **Waypoint**: the panel, act tabs and activation (no travel yet).
