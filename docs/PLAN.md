@@ -111,13 +111,15 @@ Noted while playing the dev build (2026-09-24):
   and the room collision grid, mask 0x1c09 as seen in FUN_0064e7b0) and
   the pathing, then port them.
 - **NPC menu entries.** Not every menu item does something yet:
-  - trade, gamble, hire and identify are missing;
+  - gamble, hire and identify are missing (trade works);
   - quest topics and the extra entries (Kashya's hire, Warriv's "go
     east") come from the game server (docs/research/re/npc-talk.md).
 
 ## Next up (as of 2026-09-24)
 
-1. Trade (vendor panel and stock).
-2. Waypoint panel.
+1. Trade: done (panel, stock, prices, buy/sell with gold). Left:
+   repair, magic stock, the real stock roll.
+2. Waypoint panel: done (panel, tabs, activation). Travel waits for
+   leaving town.
 3. Leaving town (Act 1 wilderness DRLG) waits until more fundamentals
    are in place.

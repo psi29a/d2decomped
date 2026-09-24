@@ -466,6 +466,12 @@ struct Scene {
     std::unordered_map<std::string, ItemBase> item_base;
     d2d::dc6::Sprite store_panel, store_tabs, store_buttons;   // PANEL\buysell, buyselltabs, buysellbtn
     d2d::dc6::Sprite gold_coin;                                   // PANEL\goldcoinbtn
+    // Waypoints (docs/research/re/waypoint.md): Levels.txt rows with a
+    // Waypoint index, per act in index order; art ui\menu\waygate*.
+    struct WaypointLevel { int wp = 0, level = 0; std::string name; };
+    std::array<std::vector<WaypointLevel>, 5> waypoint_levels;
+    d2d::dc6::Sprite wp_bg, wp_icons;
+    std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
     int town_level_type = 1;                           // Levels.txt Id 1's LevelType
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
@@ -1502,6 +1508,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         const auto lv = txt("Levels");
         for (std::size_t r = 0; r < lv.size(); ++r)
             if (lv.get(r, "Id") == "1") scene.town_level_type = std::atoi(std::string(lv.get(r, "LevelType")).c_str());
+        for (std::size_t r = 0; r < lv.size(); ++r) {
+            const auto wp = lv.get(r, "Waypoint");
+            const int act = std::atoi(std::string(lv.get(r, "Act")).c_str());
+            if (wp.empty() || wp == "255" || act < 0 || act > 4) continue;
+            scene.waypoint_levels[std::size_t(act)].push_back({ std::atoi(std::string(wp).c_str()),
+                std::atoi(std::string(lv.get(r, "Id")).c_str()), std::string(lv.get(r, "LevelName")) });
+        }
+        for (auto& a : scene.waypoint_levels) std::ranges::sort(a, {}, &Scene::WaypointLevel::wp);
+        for (auto [path, into] : { std::pair{ R"(data\global\ui\menu\waygatebackground.dc6)", &scene.wp_bg },
+                                   { R"(data\global\ui\menu\waygateicons.dc6)", &scene.wp_icons },
+                                   { R"(data\global\ui\menu\waygatetabs.dc6)", &scene.wp_tabs[0] },
+                                   { R"(data\global\ui\menu\expwaygatetabs.dc6)", &scene.wp_tabs[1] } })
+            if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     }
     // Rogue Encampment (Levels.txt Id 1) -> SoundEnv -> SoundEnviron Song /
     // Day Ambience (Sounds.txt indices).
@@ -3532,6 +3551,107 @@ void draw_gold(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::St
     text(278 - s.font.measure(n), 434, n);
 }
 
+// The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),
+// in the left-panel spot at 800x600 (+80, +60 on game.exe's numbers):
+// - waygatebackground 2x2; act tabs at bottom 94, x 80 + {3, 67, 129,
+//   191, 253} (expansion, 64 wide hits) or {3, 81, 159, 237} (80 wide),
+//   frame 2i active / 2i+1 other, drawn only once the act is open
+//   (quest 7, 15, 23, 26 done: the previous act's end);
+// - up to 9 rows (0x7224e8, 6 ints each): icon at x 97, bottom 149 +
+//   ~36i (frame 0 the level you're in, 3/4 activated / hovered, none
+//   when not activated), name (Levels.txt LevelName) in font16 at x 160,
+//   baseline 144 + 35i: grey not activated, blue hovered or current;
+//   hover rows are activated ones, x 97..377, 30 tall from 120 + ~36i;
+// - title centred at 240, baseline 108: "Choose your destination"
+//   (0xf96) or "No Other Waypoints Activated" (0xf97);
+// - cancel: buysellbtn frame 10/11 at 353, bottom 477 (hit 353..389,
+//   447..481), "Cancel" (0x1022) on hover.
+struct WaypointUI {
+    bool open = false;
+    int tab = 0, hover = -1;
+    bool cancel_down = false;
+};
+constexpr int kWpIconBottom[9] = { 89, 125, 161, 197, 234, 270, 306, 342, 378 };
+constexpr int kWpTextBase[9]   = { 84, 119, 154, 189, 224, 259, 294, 329, 364 };
+constexpr int kWpHitTop[9]     = { 60, 96, 132, 168, 205, 241, 277, 313, 349 };
+
+bool waypoint_act_open(const d2d::d2s::Header& h, int act) {
+    static constexpr int kQuest[5] = { -1, 7, 15, 23, 26 };
+    return act == 0 || h.quest_flag(h.active_difficulty(), kQuest[act], 0);
+}
+
+// Row under the cursor (activated waypoints only), or -1.
+int waypoint_row_at(const Scene& s, const WaypointUI& ui, const d2d::d2s::Header& h, int mx, int my) {
+    const auto& rows = s.waypoint_levels[std::size_t(ui.tab)];
+    for (std::size_t i = 0; i < rows.size() && i < 9; ++i) {
+        if (!h.waypoint(h.active_difficulty(), rows[i].wp)) continue;
+        const int x = kCharPanelX + 17, y = 60 + kWpHitTop[i];
+        if (mx > x && mx < x + 280 && my > y && my < y + 30) return int(i);
+    }
+    return -1;
+}
+
+// Tab under the cursor (open acts only), or -1.
+int waypoint_tab_at(const d2d::d2s::Header& h, bool expansion, int mx, int my) {
+    const int x = mx - kCharPanelX, y = my - 60;
+    if (y > 30 || x < 0 || x > 320) return -1;
+    const int t = std::min(x / (expansion ? 64 : 80), expansion ? 4 : 3);
+    return waypoint_act_open(h, t) ? t : -1;
+}
+
+void draw_waypoints(std::vector<std::uint8_t>& fb, const Scene& s, const WaypointUI& ui,
+                    const d2d::d2s::Header& h, bool expansion, int current_level, int mx, int my) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    if (s.wp_bg.frames_per_direction() >= 4) {
+        const auto& f0 = s.wp_bg.frame(0, 0);
+        blit_sprite(fb, f0, pal, kCharPanelX, kCharPanelY);
+        blit_sprite(fb, s.wp_bg.frame(0, 1), pal, kCharPanelX + int(f0.width), kCharPanelY);
+        blit_sprite(fb, s.wp_bg.frame(0, 2), pal, kCharPanelX, kCharPanelY + int(f0.height));
+        blit_sprite(fb, s.wp_bg.frame(0, 3), pal, kCharPanelX + int(f0.width), kCharPanelY + int(f0.height));
+    }
+    static constexpr int kTabX[2][5] = { { 3, 81, 159, 237, 0 }, { 3, 67, 129, 191, 253 } };
+    const auto& tabs = s.wp_tabs[expansion ? 1 : 0];
+    for (int i = 0; i < (expansion ? 5 : 4); ++i) {
+        if (i != ui.tab && !waypoint_act_open(h, i)) continue;
+        const auto fi = std::uint32_t(i * 2 + (i == ui.tab ? 0 : 1));
+        if (fi >= tabs.frames_per_direction()) continue;
+        const auto& f = tabs.frame(0, fi);
+        blit_sprite(fb, f, pal, kCharPanelX + kTabX[expansion ? 1 : 0][i], 60 + 34 - int(f.height) + 1);
+    }
+    const int cell = s.font.sheet().frames_per_direction() > 0 ? int(s.font.sheet().frame(0, 0).height) : 16;
+    auto text = [&](int x, int baseline, const std::string& t, std::array<std::uint8_t, 3> c) {
+        s.font.draw_tinted(fb, kW, kH, pal, x, baseline - cell + 1, t, c[0], c[1], c[2]);
+    };
+    const int diff = h.active_difficulty();
+    const auto& rows = s.waypoint_levels[std::size_t(ui.tab)];
+    const int hover = waypoint_row_at(s, ui, h, mx, my);
+    bool others = false;
+    for (const auto& a : s.waypoint_levels)
+        for (const auto& r : a) others |= r.level != current_level && h.waypoint(diff, r.wp);
+    for (std::size_t i = 0; i < rows.size() && i < 9; ++i) {
+        const bool active = h.waypoint(diff, rows[i].wp), here = rows[i].level == current_level;
+        const int fi = here ? 0 : active ? 3 + (hover == int(i)) : -1;
+        if (fi >= 0 && std::uint32_t(fi) < s.wp_icons.frames_per_direction()) {
+            const auto& f = s.wp_icons.frame(0, std::uint32_t(fi));
+            blit_sprite(fb, f, pal, kCharPanelX + 17, 60 + kWpIconBottom[i] - int(f.height) + 1);
+        }
+        const auto name = lookup_string(s, std::string_view(rows[i].name));
+        text(kCharPanelX + 80, 60 + kWpTextBase[i], name ? u16_to_latin1(*name) : rows[i].name,
+             !active ? kTxtGrey : here || hover == int(i) ? kTxtBlue : kTxtWhite);
+    }
+    const auto title = string_id(s, others ? 0xf96 : 0xf97);
+    text(kCharPanelX + 160 - s.font.measure(title) / 2, 108, title, kTxtWhite);
+    if (std::uint32_t(11) < s.store_buttons.frames_per_direction()) {
+        const auto& f = s.store_buttons.frame(0, ui.cancel_down ? 11 : 10);
+        blit_sprite(fb, f, pal, kCharPanelX + 0x111, 477 - int(f.height) + 1);
+    }
+    if (mx - (kCharPanelX + 0x111) >= 0 && mx - (kCharPanelX + 0x111) < 0x24 && my - 0x183 - 60 >= 0 && my - 0x183 - 60 < 0x22) {
+        const auto c = string_id(s, 0x1022);
+        const int w = s.font.measure(c);
+        draw_hover_text(fb, s, { { c, kTxtWhite } }, kCharPanelX + 0x126 - w / 2, kCharPanelX + 0x126 + w / 2, 0x183 + 60, 0x172 + 60);
+    }
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    int class_idx,
@@ -4623,6 +4743,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
     Automap automap;                       // Tab
     Store store;                           // an open vendor store (npc < 0: none)
+    WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     std::uint32_t talk_rng = 0x2545f491u;
@@ -4787,6 +4908,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " cube=" + (cube_open ? "1" : "0")
              + " store=" + std::to_string(store.npc >= 0 ? store.vendor : -1)
              + " gold=" + std::to_string(cc.stats.get(d2d::d2s::kGold))
+             + " waypoint=" + std::to_string(waypoint.open ? int(scene->waypoint_levels[std::size_t(waypoint.tab)].size()) : 0)
              + " items=" + std::to_string(cc.items.size())
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(automap.open ? int(automap.cells.size()) : 0)
@@ -5006,7 +5128,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
                     if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
                     if (k == SDLK_ESCAPE) {
-                        if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
+                        if (waypoint.open) waypoint = {};
+                        else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
                         else if (speech.npc >= 0) speech = {};              // then speech
                         else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                         else if (inv_open || char_open || stash_open || cube_open)   // then panels
@@ -5018,7 +5141,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 const bool over_panel =
                     (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                               && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
-                    ((char_open || stash_open || cube_open || store.npc >= 0) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
+                    ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                                && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
                 // The belt: its HUD strip (row 1's boxes) toggles the popup;
                 // strip and open popup take the click instead of the world.
@@ -5136,6 +5259,19 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             }
                         }
                 }
+                // Waypoint panel: tabs switch acts, cancel (or the row of the
+                // level you're in) closes it.
+                // ponytail: no travel yet — another row closes the panel too.
+                if (waypoint.open) {
+                    const bool on_cancel = mouse.x >= kCharPanelX + 0x111 && mouse.x < kCharPanelX + 0x111 + 0x24
+                                        && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
+                    waypoint.cancel_down = on_cancel && mouse.down;
+                    if (mouse.press_this_frame) {
+                        if (const int t = waypoint_tab_at(cc.header, cc.expansion, mouse.x, mouse.y); t >= 0) waypoint.tab = t;
+                        else if (waypoint_row_at(*scene, waypoint, cc.header, mouse.x, mouse.y) >= 0) waypoint = {};
+                    }
+                    if (on_cancel && mouse.release_this_frame) waypoint = {};
+                }
                 const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
@@ -5153,7 +5289,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         if (mouse.press_this_frame && hovered_npc >= 0) {
                             const auto& o = scene->world_npcs[std::size_t(hovered_npc)];
                             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
-                            if (o.operate_fn == 32 || (o.root == "monsters" && menu)) {
+                            if (o.operate_fn == 32 || o.operate_fn == 23 || (o.root == "monsters" && menu)) {
                                 interact_npc = hovered_npc;
                                 const auto& st = npc_states[std::size_t(hovered_npc)];
                                 target_x = o.path.empty() ? o.x : st.x;
@@ -5170,6 +5306,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         if (std::hypot(ox - player_x, oy - player_y) < 2.f) {
                             if (o.operate_fn == 32) {
                                 stash_open = inv_open = true; char_open = false;
+                            } else if (o.operate_fn == 23) {
+                                // Touching it activates it (the town's: wp 0).
+                                // ponytail: town only; a wilderness waypoint would need its level.
+                                cc.header.waypoints[std::size_t(cc.header.active_difficulty())][0] |= 1;
+                                waypoint = { .open = true };
+                                inv_open = char_open = stash_open = cube_open = false;
                             } else {
                                 // The NPC's feet on screen, as render_world projects them.
                                 const float dx = ox - player_x, dy = oy - player_y;
@@ -5246,6 +5388,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
                               &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                               cube_open, &npc_menu, &speech, &automap, &store);
+                if (waypoint.open)
+                    draw_waypoints(fb, *scene, waypoint, cc.header, cc.expansion, 1, mouse.x, mouse.y);
                 break;
             }
             case Screen::CharCreate: {

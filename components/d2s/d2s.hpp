@@ -23,6 +23,9 @@
 //              bytes of quest flags: 16 bits per quest, bit 0 = done —
 //              the game's own flag block (FUN_0065c310 tests bit
 //              quest*16 + n, LSB first; 1 Den of Evil .. 6 Andariel)
+//   +0x279 "WS" + 6 bytes, then per difficulty 24 bytes: 02 01 and a
+//              bitfield of activated waypoints (Levels.txt Waypoint
+//              index, LSB first; 39 used)
 // ponytail: header only. Stats/skills/items are bit-packed sections after
 // 0x2FD; parse them when gameplay needs more than what char-select shows.
 #pragma once
@@ -58,6 +61,11 @@ struct Header {
         const int n = quest * 16 + bit;
         if (diff < 0 || diff > 2 || n < 0 || n >= 96 * 8) return false;
         return quests[std::size_t(diff)][std::size_t(n >> 3)] >> (n & 7) & 1;
+    }
+    std::array<std::array<std::uint8_t, 5>, 3> waypoints{};  // zero when the save has none
+    [[nodiscard]] bool waypoint(int diff, int wp) const noexcept {
+        if (diff < 0 || diff > 2 || wp < 0 || wp >= 40) return false;
+        return waypoints[std::size_t(diff)][std::size_t(wp >> 3)] >> (wp & 7) & 1;
     }
     // 0 normal, 1 nightmare, 2 hell — the last one played.
     [[nodiscard]] int active_difficulty() const noexcept {
@@ -100,6 +108,8 @@ inline Header parse_header(std::span<const std::byte> b) {
     std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
     if (b.size() >= 0x159 + 3 * 96 && std::memcmp(b.data() + 0x14F, "Woo!", 4) == 0)
         for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.quests[d].data(), b.data() + 0x159 + d * 96, 96);
+    if (b.size() >= 0x281 + 3 * 24 && std::memcmp(b.data() + 0x279, "WS", 2) == 0)
+        for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.waypoints[d].data(), b.data() + 0x283 + d * 24, 5);
     if (h.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(h.cls));
     return h;
 }

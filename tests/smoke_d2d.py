@@ -173,6 +173,17 @@ try:
         assert st["speech"] == "0" and st["menu"] == "0" and st["screen"] == "ingame"
         frames(2)
         assert state()["voice"] == "0", "voice kept playing after the speech closed"
+        # The town waypoint (OperateFn 23): walk to it -> the panel, Act I's
+        # 9 rows (touching it activates the town's); Esc closes it.
+        for _ in range(5):
+            x, y = npc_at("Waypoint")
+            cmd(f"move {x} {y - 20}"); frames(6)
+            cmd(f"click {x} {y - 20}"); frames(120)
+            if state()["waypoint"] != "0":
+                break
+        assert state()["waypoint"] == "9", "waypoint panel did not open"
+        cmd("key Escape"); frames()
+        assert state()["waypoint"] == "0"
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"
