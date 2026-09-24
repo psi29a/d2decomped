@@ -110,3 +110,19 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   - walk/run: take it straight.
 
   The frame advances by rate/256 each 40 ms tick.
+
+## Movement speed (in game)
+
+- CharStats record (0xc4 bytes): `WalkVelocity` at +0x40, `RunVelocity`
+  at +0x41 (field table at `0x613260`). The getter is `FUN_00620e40`.
+- Running (`FUN_00620e80`) adds `run * 100 / walk - 100` to stat 67
+  `velocitypercent`, i.e. +50% with the stock 6/9.
+- Path velocity is `(walk << 8) * velocitypercent / 100` (`FUN_00462a20`),
+  stored at path+0x7c.
+- The client's arrival estimate (`0x4c86a3`) is
+  `(dist_subtiles << 16) / ((v >> 8) << 12)` ticks, so a unit covers
+  `v / 4096` subtiles per 40 ms tick:
+  - walk 6: 0.375 subtiles/tick, 1.875 cells/s
+  - run: 2.81 cells/s
+- Monsters and NPCs use MonStats `Velocity` the same way (Akara 1,
+  Kashya 3, Charsi 4, rogues 8). Tested only against town NPCs.

@@ -35,6 +35,7 @@
 #include <CLI/CLI.hpp>
 #include <csignal>
 #include <unordered_map>
+#include <format>
 #include <unordered_set>
 #include <variant>
 
@@ -404,7 +405,11 @@ struct Scene {
         int size_x = 0, size_y = 0;          // collision footprint, subtiles
         std::string name;                    // hover label; "" = not selectable
         std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
+        float velocity = 3;                  // MonStats Velocity
     };
+    // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
+    // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
+    std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
     std::vector<Npc> world_npcs;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
@@ -728,13 +733,17 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
-constexpr int kModeNU = 1, kModeTN = 5, kModeTW = 6;
+constexpr int kModeNU = 1, kModeRN = 3, kModeTN = 5, kModeTW = 6;
 
 // ponytail: town walk speed picked by eye so the TW cycle doesn't skate
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
 // input; derive from it once movement units are RE'd.
-constexpr float kWalkCellsPerSec = 2.0f;
-constexpr float kNpcWalkCellsPerSec = 1.2f;   // town NPCs stroll
+// Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
+// MonStats Velocity): the path velocity is velocity << 8 (scaled by
+// velocitypercent, FUN_00462a20), and a unit covers path velocity / 4096
+// subtiles per 40 ms tick (arrival time (dist << 16) / ((v >> 8) << 12),
+// 0x4c86a3) — velocity / 16 subtiles a tick. Walk 6: 1.875 cells/s.
+constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 5.f; }
 
 // Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
 // cells. Directions are screen-space: project to screen, take the angle
@@ -911,6 +920,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
         n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
         n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
+        if (const auto v = ms.get(it->second, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
         // Hover name: MonStats' string key (namco); client-only critters
         // (the chicken) can't be selected.
         if (ms.get(it->second, "ClientOnly") != "1") {
@@ -1115,6 +1125,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             }
         }
         const auto cs = txt("CharStats");
+        for (std::size_t r = 0; r < std::min<std::size_t>(cs.size(), 7); ++r) {
+            if (const auto w = std::atoi(std::string(cs.get(r, "WalkVelocity")).c_str()); w > 0) scene.walk_velocity[r] = w;
+            if (const auto v = std::atoi(std::string(cs.get(r, "RunVelocity")).c_str()); v > 0) scene.run_velocity[r] = v;
+        }
         for (std::size_t r = 0; r < std::min<std::size_t>(cs.size(), 7); ++r)
             scene.class_strs[r] = { std::string(cs.get(r, "StrAllSkills")),
                                     { std::string(cs.get(r, "StrSkillTab1")), std::string(cs.get(r, "StrSkillTab2")),
@@ -3367,8 +3381,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
     float target_x = player_x, target_y = player_y;
     bool  walking = false;
+    bool  running = false;                 // R toggles, like D2's run/walk button
     bool  player_walked = false;           // `walking` as of the last frame
     std::uint32_t player_mode_ms = 0;      // when the player's walk/idle mode started
+    bool  player_ran = false;
     int   player_dir = 4;   // south, facing the viewer
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
@@ -3480,7 +3496,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " class=" + std::to_string(cc.selected)
              + " name=" + cc.input_name
              + " hardcore=" + (cc.hardcore ? "1" : "0")
-             + " cam=" + std::to_string(int(player_x)) + "," + std::to_string(int(player_y))
+             + " cam=" + std::format("{:.2f},{:.2f}", player_x, player_y)
              + " walking=" + (walking ? "1" : "0") + " dir=" + std::to_string(player_dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
              + "\nok\n";
@@ -3608,6 +3624,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // tracks the cursor while held); the camera follows.
                 for (const auto k : keys_this_frame) {
                     if (k == SDLK_I) inv_open = !inv_open;
+                    if (k == SDLK_R) running = !running;              // D2's run/walk toggle
                     if (k == SDLK_C) char_open = !char_open;
                     if (k == SDLK_ESCAPE) {
                         if (inv_open || char_open) inv_open = char_open = false;   // panels first
@@ -3633,7 +3650,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     }
                     if (walking) {
                         const float dx = target_x - player_x, dy = target_y - player_y;
-                        const float dist = std::hypot(dx, dy), step = kWalkCellsPerSec * dt;
+                        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+                        const float vel = float(running ? scene->run_velocity[sc] : scene->walk_velocity[sc]);
+                        const float dist = std::hypot(dx, dy), step = cells_per_sec(vel) * dt;
                         if (dist > 0.05f) player_dir = direction16(dx, dy);
                         const float k = dist <= step ? 1.f : step / dist;
                         const float nx = player_x + dx * k, ny = player_y + dy * k;
@@ -3660,7 +3679,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         }
                         const auto [tx, ty] = path[st.next % path.size()];
                         const float dx = tx - st.x, dy = ty - st.y;
-                        const float dist = std::hypot(dx, dy), step = kNpcWalkCellsPerSec * dt;
+                        const float dist = std::hypot(dx, dy),
+                                    step = cells_per_sec(scene->world_npcs[i].velocity) * dt;
                         if (dist > 0.05f) st.dir = direction16(dx, dy);
                         if (dist <= step) {
                             st.x = tx; st.y = ty; st.walking = false; st.mode_ms = ms;
@@ -3671,13 +3691,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         }
                     }
                 }
-                if (walking != player_walked) { player_walked = walking; player_mode_ms = ms; }
+                if (const bool m = walking && running; walking != player_walked || m != player_ran) {
+                    player_walked = walking; player_ran = m; player_mode_ms = ms;
+                }
                 const int ui_cls = std::max(cc.selected, 0);
                 render_ingame(fb, *scene, ui_cls,
                               cc.appearance ? *cc.appearance
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
-                              player_x, player_y, walking ? kModeTW : kModeTN,
+                              player_x, player_y, walking ? (running ? kModeRN : kModeTW) : kModeTN,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items);
