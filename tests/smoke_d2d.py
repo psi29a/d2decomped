@@ -132,6 +132,8 @@ try:
     # The town start is next to the stash (townE1 special tile 30/0):
     # hover the chest, click it -> stash (and inventory) open; Esc closes.
     if patch:
+        # Town music: Levels.txt 1 -> SoundEnviron 1 -> Sounds.txt 4673.
+        assert state()["music"] == "4673", "no town music"
         cmd("move 270 285"); frames(6)
         cmd("click 270 285"); frames(30)
         assert state()["stash"] == "1", "stash did not open"

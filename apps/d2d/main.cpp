@@ -54,6 +54,7 @@
 #include <map>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <optional>
 #include <span>
 #include <string>
@@ -431,8 +432,10 @@ struct Scene {
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
-    struct Sound { std::string file; int volume = 255; };
+    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; };
     std::vector<Sound> sounds;
+    int town_song = 0, town_ambience = 0;               // SoundEnviron.txt for the town level
+    fs::path data_dir;                                  // the MPQs' folder
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
@@ -1394,13 +1397,28 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
     if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
     if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
+    // Rogue Encampment (Levels.txt Id 1) -> SoundEnv -> SoundEnviron Song /
+    // Day Ambience (Sounds.txt indices).
+    {
+        const auto lv = txt("Levels"), se = txt("SoundEnviron");
+        for (std::size_t r = 0; r < lv.size(); ++r) {
+            if (lv.get(r, "Id") != "1") continue;
+            const auto env = lv.get(r, "SoundEnv");
+            for (std::size_t e = 0; e < se.size(); ++e)
+                if (se.get(e, "Index") == env) {
+                    scene.town_song = std::atoi(std::string(se.get(e, "Song")).c_str());
+                    scene.town_ambience = std::atoi(std::string(se.get(e, "Day Ambience")).c_str());
+                }
+        }
+    }
     if (const auto st = txt("Sounds"); st.size() > 0)
         for (std::size_t r = 0; r < st.size(); ++r) {
             const int i = std::atoi(std::string(st.get(r, "Index")).c_str());
             if (i < 0 || i > 20000) continue;
             if (std::size_t(i) >= scene.sounds.size()) scene.sounds.resize(std::size_t(i) + 1);
             scene.sounds[std::size_t(i)] = { std::string(st.get(r, "FileName")),
-                                             std::atoi(std::string(st.get(r, "Volume")).c_str()) };
+                                             std::atoi(std::string(st.get(r, "Volume")).c_str()),
+                                             st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1" };
         }
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
@@ -1567,7 +1585,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         // silent in load_scene and per-class loaders skip on miss.
         const auto d2char = data_dir / "d2char.mpq";
         if (fs::exists(d2char)) mpqs.push(d2char);
-        // Sounds: expansion speech, speech, effects (Sounds.txt paths).
+        // Sounds: expansion speech, speech, effects, music (Sounds.txt paths).
+        // (Music is read off the main thread from its own handles: Audio.)
         for (const char* n : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
             if (fs::exists(data_dir / n)) mpqs.push(data_dir / n);
 
@@ -1685,6 +1704,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
         scene.patched = patched;
+        scene.data_dir = data_dir;
         scene.mpqs = std::move(mpqs);
         return scene;
     } catch (const std::exception& e) {
@@ -3353,24 +3373,65 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.
 // Sound output: SDL3 audio streams on the default playback device (the
-// dummy driver when headless). One stream per voice, dropped when done.
-// ponytail: only NPC speech so far; no mixer limits, 3D falloff or music.
+// dummy driver when headless). Channels: the NPC voice, the level's song
+// and its ambience; Sounds.txt `Loop` entries are re-queued as they drain.
+// Files: music (`Music Vol` 1) under data\global\music, the rest under
+// data\global\sfx, speech under data\local\sfx.
+// ponytail: no mixer limits, 3D falloff, fades or effect sounds yet.
 struct Audio {
+    struct Channel {
+        SDL_AudioStream* stream = nullptr;
+        std::vector<Uint8> pcm;
+        int sound = 0;                           // Sounds.txt index, 0 = silent
+        bool loop = false;
+    };
     bool ok = false;
-    SDL_AudioStream* voice = nullptr;
-    int voice_sound = 0;                         // Sounds.txt index playing, 0 = none
+    Channel voice, music, ambience;
+    // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
+    // own MPQ handles (StormLib handles aren't shared across threads), the
+    // stream made here once it's ready.
+    struct Decoded { SDL_AudioSpec spec{}; std::vector<Uint8> pcm; };
+    std::future<std::optional<Decoded>> music_job;
+    int music_job_sound = 0;
+    float music_job_gain = 1.f;
+    int voice_sound() const { return voice.sound; }
 
     void init() { ok = SDL_InitSubSystem(SDL_INIT_AUDIO); if (!ok) std::fprintf(stderr, "[d2d] audio: %s\n", SDL_GetError()); }
-    void stop_voice() {
-        if (voice) SDL_DestroyAudioStream(voice);
-        voice = nullptr; voice_sound = 0;
+    static std::optional<Decoded> decode(std::span<const std::byte> wav) {
+        Decoded d;
+        Uint8* buf = nullptr;
+        Uint32 len = 0;
+        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(wav.data(), wav.size()), true, &d.spec, &buf, &len)) return std::nullopt;
+        d.pcm.assign(buf, buf + len);
+        SDL_free(buf);
+        return d;
     }
-    // Plays Sounds.txt entry `index` as the voice, replacing any other.
-    void play_voice(const Scene& s, int index) {
-        stop_voice();
+    void play_music(const Scene& s, int index) {
+        stop(music);
+        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
+        const auto& snd = s.sounds[std::size_t(index)];
+        music.sound = index;                     // pending until the job lands
+        music_job_sound = index;
+        music_job_gain = float(std::clamp(snd.volume, 0, 255)) / 255.f;
+        music_job = std::async(std::launch::async, [dir = s.data_dir, file = snd.file]() -> std::optional<Decoded> {
+            d2d::mpq::Stack st;
+            for (const char* n : { "d2xmusic.mpq", "d2music.mpq" })
+                if (fs::exists(dir / n)) st.push(dir / n);
+            const auto wav = st.try_read(std::string(R"(data\global\music\)") + file);
+            return wav ? decode(*wav) : std::nullopt;
+        });
+    }
+    static void stop(Channel& c) {
+        if (c.stream) SDL_DestroyAudioStream(c.stream);
+        c = {};
+    }
+    void stop_voice() { stop(voice); }
+    void play(Channel& c, const Scene& s, int index) {
+        stop(c);
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
         const auto& snd = s.sounds[std::size_t(index)];
         std::optional<std::vector<std::byte>> wav;
+        if (snd.music) wav = s.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
         for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
             if (!wav) wav = s.mpqs.try_read(std::string(root) + snd.file);
         if (!wav) { std::fprintf(stderr, "[d2d] sound %d: %s not found\n", index, snd.file.c_str()); return; }
@@ -3381,18 +3442,44 @@ struct Audio {
             std::fprintf(stderr, "[d2d] sound %s: %s\n", snd.file.c_str(), SDL_GetError());
             return;
         }
-        voice = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
-        if (voice) {
-            SDL_SetAudioStreamGain(voice, float(std::clamp(snd.volume, 0, 255)) / 255.f);
-            SDL_PutAudioStreamData(voice, buf, int(len));
-            SDL_FlushAudioStream(voice);
-            SDL_ResumeAudioStreamDevice(voice);
-            voice_sound = index;
-        }
+        c.pcm.assign(buf, buf + len);
         SDL_free(buf);
+        c.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+        if (!c.stream) { c.pcm.clear(); return; }
+        SDL_SetAudioStreamGain(c.stream, float(std::clamp(snd.volume, 0, 255)) / 255.f);
+        SDL_PutAudioStreamData(c.stream, c.pcm.data(), int(c.pcm.size()));
+        if (!snd.loop) SDL_FlushAudioStream(c.stream);
+        SDL_ResumeAudioStreamDevice(c.stream);
+        c.sound = index;
+        c.loop = snd.loop;
     }
-    // Drops the voice stream once it has played out.
-    void update() { if (voice && SDL_GetAudioStreamQueued(voice) <= 0) stop_voice(); }
+    void play_voice(const Scene& s, int index) { play(voice, s, index); }
+    // Re-queue loops before they drain; drop one-shots that have played out.
+    void update() {
+        if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto d = music_job.get();
+            if (!d) std::fprintf(stderr, "[d2d] music %d: not loaded\n", music_job_sound);
+            if (d && music.sound == music_job_sound) {
+                music.pcm = std::move(d->pcm);
+                music.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &d->spec, nullptr, nullptr);
+                if (!music.stream) std::fprintf(stderr, "[d2d] music: %s\n", SDL_GetError());
+                if (music.stream) {
+                    SDL_SetAudioStreamGain(music.stream, music_job_gain);
+                    SDL_PutAudioStreamData(music.stream, music.pcm.data(), int(music.pcm.size()));
+                    SDL_ResumeAudioStreamDevice(music.stream);
+                    music.loop = true;
+                }
+            }
+        }
+        for (auto* c : { &voice, &music, &ambience }) {
+            if (!c->stream) continue;
+            const int queued = SDL_GetAudioStreamQueued(c->stream);
+            if (c->loop && queued < int(c->pcm.size() / 4))
+                SDL_PutAudioStreamData(c->stream, c->pcm.data(), int(c->pcm.size()));
+            else if (!c->loop && queued <= 0)
+                stop(*c);
+        }
+    }
 };
 
 struct Window {
@@ -3930,7 +4017,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " cube=" + (cube_open ? "1" : "0")
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
-             + " voice=" + std::to_string(audio.voice_sound)
+             + " voice=" + std::to_string(audio.voice_sound())
+             + " music=" + std::to_string(audio.music.sound)
              + "\nok\n";
     });
 
@@ -3974,6 +4062,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         current_phase.store(std::uint32_t(MainPhase::Render),
                             std::memory_order_relaxed);
         const auto ms = std::uint32_t(SDL_GetTicks() - t0);
+        // Level music and ambience belong to the game screen.
+        if (screen != Screen::InGame && audio.music.sound != 0) {
+            Audio::stop(audio.music);
+            Audio::stop(audio.ambience);
+            Audio::stop(audio.voice);
+        }
+        audio.update();
         if (scene) {
             switch (screen) {
             case Screen::Title:
@@ -4105,13 +4200,20 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 bool menu_click = false;
                 // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
                 // the speech string) follows the speech box.
-                if (speech.npc < 0 && audio.voice) audio.stop_voice();
+                if (speech.npc < 0 && audio.voice.stream) audio.stop_voice();
+                // The level's SoundEnviron (Levels.txt SoundEnv -> Song, Day
+                // Ambience). ponytail: the Rogue Encampment's, env 1: song
+                // 4673 music_town_1, ambience 70; no night or events yet.
+                if (audio.music.sound == 0) {
+                    audio.play_music(*scene, scene->town_song);
+                    audio.play(audio.ambience, *scene, scene->town_ambience);
+                    if (audio.music.sound == 0) audio.music.sound = -1;   // don't retry every frame
+                }
                 if (speech.npc >= 0 && speech.voice == 0) {
                     speech.voice = -1;
                     const auto v = std::ranges::find_if(kSpeechSound, [&](const auto& e) { return e.first == speech.string; });
                     if (v != kSpeechSound.end()) { speech.voice = v->second; audio.play_voice(*scene, v->second); }
                 }
-                audio.update();
                 if (speech.npc >= 0 && (speech.done(ms) || mouse.press_this_frame)) {
                     menu_click = mouse.press_this_frame;          // a click skips the speech
                     speech = {};
