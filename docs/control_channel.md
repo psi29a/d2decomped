@@ -34,11 +34,12 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `info`                      | `w=… h=… frame=…\nok`  | Framebuffer dimensions + current frame counter.           |
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
+| `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
-| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1\nok` | Loop state for scripted asserts. |
+| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1\nok` | Loop state for scripted asserts. |
 | `items`                     | per item `[code loc=… slot=… q=…]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
 
 Future verbs (as the engine grows): `load <act>/<level>`, etc.
