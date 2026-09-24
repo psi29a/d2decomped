@@ -37,4 +37,46 @@ Cinematics menu (`CinematicsSelection[EXP]` panels).
   title.
 - The cursor is hidden while a video plays.
 - `--no-video` or `video = 0` in d2d.cfg turns the videos off.
-- Not yet: act transition videos, the Cinematics menu.
+- Not yet: act transition videos in game.
+
+## Cinematics menu (LoD: `FUN_00431600` → `FUN_004313d0`)
+
+Built from frontend records by index (`FUN_0042f430(i)` = record
+`0x708d10 + i*0x30`). Records use bottom-left y:
+
+| record | what |
+|---|---|
+| 8 | title background |
+| 0x3d | `FrontEnd\CinematicsSelectionEXP` panel: 2×2 frames, 326×427, at (237, 505) |
+| 0x3e | text box, (262, 153) 272×35: "SELECT CINEMATICS" (0x13fa, `FUN_004fd060`) |
+| 0x3f..0x45 | WideButtons at x 262, bottoms 181/224/268/310/353/396/439, strings 0x5525..0x552b |
+| 0x46 | CANCEL (0x13ef), MediumButton at (334, 488) |
+
+The seven entries, their strings (0x5525..0x552b) and handlers
+(`0x434320..0x434560`):
+
+| # | string | video |
+|---|---|---|
+| 1 | The Sister's Lament | d2intro |
+| 2 | Desert Journey | Act02start |
+| 3 | Mephisto's Jungle | Act03start |
+| 4 | Enter Hell | Act04start |
+| 5 | Terror's End | Act04end |
+| 6 | Search for Baal | D2x_Intro |
+| 7 | Destruction's End | D2x_Out |
+
+The first N entries are enabled and the rest disabled (`FUN_004f96f0`).
+N comes from the "Aux Battle.net" registry bits:
+
+| bit | N |
+|---|---|
+| 0x01 (LoD ending seen) | 7 |
+| 0x80 (LoD intro) | 6 |
+| 0x10 | 5 |
+| 0x08 | 4 |
+| 0x40 | 3 |
+| 0x04 | 2 |
+| otherwise | 1 |
+
+d2d applies the same chain to `cinematics_seen`. Choosing an entry
+plays it and returns to the menu.

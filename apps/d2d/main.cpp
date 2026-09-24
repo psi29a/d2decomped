@@ -272,6 +272,7 @@ struct Scene {
     d2d::dc6::Sprite      charcreate_bg;      // charactercreationscreenEXP.dc6
     d2d::dc6::Sprite      fire;               // fire.DC6 — campfire between the classes
     d2d::dc6::Sprite      medium_button;      // MediumButtonBlank.dc6 — char-select OK/EXIT (handle 0x77973c, Sky palette)
+    d2d::dc6::Sprite      cinematics_panel;   // FrontEnd\CinematicsSelectionEXP.dc6 (2x2, 326x427)
     d2d::dc6::Sprite      medium_sel_button;  // MediumSelButtonBlank.dc6 — char-create OK/EXIT chrome (per FUN_004326f0)
     d2d::dc6::Sprite      textbox;            // textbox.dc6 — name-entry chrome (single 169×26 frame)
     d2d::dc6::Sprite      clickbox;           // clickbox.dc6 — Hardcore checkbox chrome (2 frames × 15×16, unchecked/checked)
@@ -488,7 +489,7 @@ lookup_string(const Scene& s, std::uint16_t id) {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits, CharSelect, CharCreate, InGame, Video };
+enum class Screen { Title, Credits, CharSelect, CharCreate, InGame, Video, Cinematics };
 
 // Per-class animation state on the char-create screen. Matches D2's flow:
 // classes idle in place (nu1); on click the "just clicked" class walks
@@ -1720,6 +1721,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
         scene.patched = patched;
+        if (auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
+            scene.cinematics_panel = d2d::dc6::Sprite(*b);
         scene.data_dir = data_dir;
         scene.mpqs = std::move(mpqs);
         return scene;
@@ -3652,6 +3655,92 @@ struct TitleUI {
 // 0x709010..0x7090a0 + shared bottom row 0x708f80..0x708fe0). Labels sourced
 // from patchstring.tbl by ID (from the +0x18 field of each menu record) —
 // falls back to a plausible English string when the TBL entry is missing.
+// The LoD cinematics screen (FUN_00431600 -> FUN_004313d0): frontend
+// records 8 (title background), 0x3d (CinematicsSelectionEXP panel,
+// bottom-left (237, 505)), 0x3e (the "SELECT CINEMATICS" 0x13fa text box,
+// (262, 153) 272x35), 0x3f..0x45 (WideButtons at x 262, bottoms 181..439,
+// strings 0x5525..0x552b) and 0x46 (CANCEL 0x13ef, MediumButton at
+// (334, 488)). The first `unlocked` entries work; the rest are disabled
+// (FUN_004f96f0). Unlocking follows game.exe's "Aux Battle.net" bits.
+struct CinematicsUI {
+    std::array<Button, 7> entry{};
+    std::array<std::string, 7> labels;
+    Button cancel{};
+    std::string cancel_label, heading;
+    int unlocked = 1;
+};
+// The videos behind the seven entries, in order (handlers 0x434320..).
+constexpr std::array<const char*, 7> kCinematicVideo = {
+    R"(data\local\video\ENG\d2intro640x292.bik)",   R"(data\local\video\ENG\Act02start640x292.bik)",
+    R"(data\local\video\ENG\Act03start640x292.bik)", R"(data\local\video\ENG\Act04start640x292.bik)",
+    R"(data\local\video\ENG\Act04end640x292.bik)",   R"(data\local\video\ENG\D2x_Intro_640x292.bik)",
+    R"(data\local\video\ENG\D2x_Out_640x292.bik)" };
+
+// How many entries are unlocked, from what has been seen: game.exe's
+// chain (FUN_00431600) over its registry bits — 0x01 LoD ending: 7,
+// 0x80 LoD intro: 6, 0x10 act 4 end: 5, 0x08 act 4: 4, 0x40 act 3: 3,
+// 0x04 act 2: 2, else 1. We keep the same facts in cinematics_seen.
+int cinematics_unlocked(const std::string& seen) {
+    auto has = [&](const char* k) { return seen.find(k) != std::string::npos; };
+    if (has("d2xout")) return 7;
+    if (has("d2xintro")) return 6;
+    if (has("act4end")) return 5;
+    if (has("act4start")) return 4;
+    if (has("act3start")) return 3;
+    if (has("act2start")) return 2;
+    return 1;
+}
+
+CinematicsUI cinematics_ui(const Scene& s, int unlocked) {
+    CinematicsUI ui;
+    ui.unlocked = unlocked;
+    auto str = [&](std::uint16_t id, const char* fb) {
+        const auto v = lookup_string(s, id);
+        return v ? u16_to_latin1(*v) : std::string(fb);
+    };
+    static constexpr int kBottom[7] = { 181, 224, 268, 310, 353, 396, 439 };
+    for (int i = 0; i < 7; ++i) {
+        ui.labels[std::size_t(i)] = str(std::uint16_t(0x5525 + i), "?");
+        ui.entry[std::size_t(i)] = Button{ 262, rec_top(kBottom[i], 35), 272, 35, nullptr, &s.btn_wide };
+    }
+    ui.cancel_label = str(0x13ef, "CANCEL");
+    ui.cancel = Button{ 334, rec_top(488, 35), 128, 35, nullptr, &s.medium_button,
+                        Screen::Title, true };
+    ui.heading = str(0x13fa, "SELECT CINEMATICS");
+    return ui;
+}
+
+void render_cinematics(std::vector<std::uint8_t>& fb, const Scene& s, const CinematicsUI& ui) {
+    blit_dc6_grid(fb, s.bg, s.pal, 0, 0, s.bg_tiles_across);
+    if (s.cinematics_panel.frames_per_direction() >= 4) {
+        const auto& f0 = s.cinematics_panel.frame(0, 0);
+        const int x = 237, y = rec_top(505, 427);
+        blit_sprite(fb, f0, s.pal, x, y);
+        blit_sprite(fb, s.cinematics_panel.frame(0, 1), s.pal, x + int(f0.width), y);
+        blit_sprite(fb, s.cinematics_panel.frame(0, 2), s.pal, x, y + int(f0.height));
+        blit_sprite(fb, s.cinematics_panel.frame(0, 3), s.pal, x + int(f0.width), y + int(f0.height));
+    }
+    // ponytail: heading in font16 centred in its text box; the text
+    // control's own font/colour (FUN_004fc9b0) isn't pinned down.
+    {
+        const int w = s.font.measure(ui.heading);
+        s.font.draw(fb, kW, kH, s.pal, 262 + (272 - w) / 2, rec_top(153, 35) + (35 - s.font.line_height()) / 2, ui.heading);
+    }
+    // Labels bind here: the UI is returned by value, so pointers into its
+    // own strings can't live in the Buttons.
+    auto draw = [&](Button b, const std::string& label, bool enabled) {
+        b.label = label.c_str();
+        if (b.chrome) blit_button_chrome(fb, s.pal, *b.chrome, b.x, b.y, enabled && b.hovered && b.pressed);
+        const int lw = s.font.measure(b.label);
+        const int lx = b.x + (b.w - lw) / 2, ly = b.y + (b.h - s.font.line_height()) / 2;
+        if (!enabled)       s.font.draw_tinted(fb, kW, kH, s.pal, lx, ly, b.label, 105, 105, 105);
+        else if (b.hovered) s.font.draw_tinted(fb, kW, kH, s.pal, lx, ly, b.label, 255, 208, 80);
+        else                s.font.draw(fb, kW, kH, s.pal, lx, ly, b.label);
+    };
+    for (int i = 0; i < 7; ++i) draw(ui.entry[std::size_t(i)], ui.labels[std::size_t(i)], i < ui.unlocked);
+    draw(ui.cancel, ui.cancel_label, true);
+}
+
 TitleUI title_ui(const Scene& s) {
     struct Spec {
         int x, y, w, h;
@@ -3671,7 +3760,8 @@ TitleUI title_ui(const Scene& s) {
         {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &s.btn_wide},
         {264, 528, 135, 25, 0x13f6, "CREDITS",           &s.btn_short,
             true, Screen::Credits, false},
-        {402, 528, 135, 25, 0x13f7, "CINEMATICS",        &s.btn_short},
+        {402, 528, 135, 25, 0x13f7, "CINEMATICS",        &s.btn_short,
+            true, Screen::Cinematics, false},
         {264, 568, 272, 35, 0x13f5, "EXIT DIABLO II",    &s.btn_wide,
             false, Screen::Title, true},
     };
@@ -3780,6 +3870,7 @@ static Screen parse_screen(std::string_view s) {
     if (s == "charcreate") return Screen::CharCreate;
     if (s == "ingame")     return Screen::InGame;
     if (s == "video")      return Screen::Video;
+    if (s == "cinematics") return Screen::Cinematics;
     return Screen::Title;
 }
 
@@ -3791,6 +3882,7 @@ static const char* screen_name(Screen s) {
         case Screen::CharCreate: return "charcreate";
         case Screen::InGame:     return "ingame";
         case Screen::Video:      return "video";
+        case Screen::Cinematics: return "cinematics";
     }
     return "?";
 }
@@ -3865,6 +3957,14 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     d2d::video::Player video;
     bool video_playing = false;
     std::uint32_t video_start = 0;
+    Screen video_return = Screen::Title;        // where the video screen goes when done
+    auto read_seen = [&] {
+        std::string seen;
+        if (std::ifstream in(g_user_dir / "cinematics_seen"); in) std::getline(in, seen, '\0');
+        return seen;
+    };
+    CinematicsUI cin_ui = scene ? cinematics_ui(*scene, cinematics_unlocked(read_seen())) : CinematicsUI{};
+    Screen last_screen = screen;
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
@@ -4211,6 +4311,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         if (screen == Screen::InGame && audio.music.sound < 0) audio.stop(audio.music);
         audio.update();
+        const Screen prev_screen = last_screen;          // the screen as of the last frame
+        last_screen = screen;
         // Frontend music (FUN_00516250's music thread + FUN_00514990): on
         // the menus, whenever nothing plays, a random not-yet-played track
         // of the 8-track list (the LoD one at 0x72f8b8; classic uses
@@ -4245,7 +4347,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         audio.video_start(video.sample_rate());
                     }
                 }
-                if (!video_playing) { screen = Screen::Title; break; }
+                if (!video_playing) { screen = video_return; video_return = Screen::Title; break; }
                 if (!video.advance(double(ms - video_start) / 1000.0)) {
                     video_playing = false;
                     audio.video_stop();
@@ -4259,8 +4361,31 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     std::memcpy(&fb[(std::size_t(y0 + y) * kW) * 4], &px[std::size_t(y) * kW * 4], std::size_t(kW) * 4);
                 break;
             }
+            case Screen::Cinematics: {
+                if (prev_screen != Screen::Cinematics)             // entering: refresh what's unlocked
+                    cin_ui = cinematics_ui(*scene, cinematics_unlocked(read_seen()));
+                for (int i = 0; i < 7; ++i) {
+                    auto& b = cin_ui.entry[std::size_t(i)];
+                    if (i >= cin_ui.unlocked) { b.hovered = b.pressed = false; continue; }
+                    Screen dummy = screen;
+                    update_button(b, mouse, dummy, quit);
+                    if (b.hovered && mouse.release_this_frame && video_mpqs.contains(kCinematicVideo[std::size_t(i)])) {
+                        video_queue = { kCinematicVideo[std::size_t(i)] };
+                        video_return = Screen::Cinematics;
+                        audio.stop(audio.music);
+                        screen = Screen::Video;
+                    }
+                }
+                if (update_button(cin_ui.cancel, mouse, screen, quit)) { quit = false; screen = Screen::Title; }
+                render_cinematics(fb, *scene, cin_ui);
+                break;
+            }
             case Screen::Title:
-                if (audio.vsrc) audio.video_stop();                 // Esc skipped the videos
+                if (prev_screen == Screen::Video) {                 // Esc skipped the videos
+                    audio.video_stop();
+                    video_playing = false;
+                    video_queue.clear();
+                }
                 for (auto& b : ui.buttons) update_button(b, mouse, screen, quit);
                 render_title(fb, *scene, ui.buttons, ms);
                 break;
