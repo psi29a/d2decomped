@@ -89,8 +89,6 @@ struct Scene {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr, type; int kind = 0;  // kind: 0 misc, 1 armor, 2 weapon
-                      int belt = -1; };                  // armor.txt belt: belts.txt index
     std::unordered_map<std::string, std::array<std::string, 2>> type_equiv;   // ItemTypes Equiv1/2
     // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
     // helm/armour, shield), already resolved through Properties.txt.
@@ -112,7 +110,7 @@ struct Scene {
     std::vector<int>         skill_class;        // CharStats row, -1 none
     struct ClassStrs { std::string all_skills, tab[3], only; };
     std::array<ClassStrs, 7> class_strs;
-    std::unordered_map<std::string, ItemInfo> item_info;
+    d2d::rules::Tables rules;                    // item/vendor/price tables (components/rules)
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
     // An item's inventory graphic: the unique's/set item's own invfile,
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
@@ -203,21 +201,6 @@ struct Scene {
     // (FUN_0061fff0 picks one at random). Act 1 draws MaxiMap.dc6.
     struct AutomapRule { int level_type = 0, orientation = 0, main = -1, sub0 = -1, sub1 = -1; std::vector<int> cels; };
     std::vector<AutomapRule> automap_rules;
-    // Vendors (docs/research/re/store.md): per game.exe vendor index (0
-    // Akara, 1 Gheed, 2 Charsi, 3 Fara, 4 Lysander, 5 Drognan, 6 Hratli,
-    // 7 Alkor, 8 Ormus, 9 Elzix, 10 Asheara, 11 Cain, 12 Halbu, 13
-    // Jamella, 14 Malah, 15 Larzuk, 16 Drehya) the items FUN_00536d50
-    // lists: spawnable, <Vendor>Max or <Vendor>MagicMax > 0.
-    struct VendorItem { std::string code; int min = 0, max = 0, magic_min = 0, magic_max = 0, magic_lvl = 0; bool perm = false; };
-    std::array<std::vector<VendorItem>, 17> vendor_items;
-    struct ItemBase { int minac = 0, maxac = 0, cost = 0; bool stackable = false; };
-    // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats
-    // Id, and the (multiply, add) cost pairs of affixes (raw rows, like the
-    // names), uniques and set items.
-    struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
-    std::unordered_map<std::string, NpcPrice> npc_prices;
-    std::vector<std::pair<int, int>> prefix_cost, suffix_cost, unique_cost, set_cost;
-    std::unordered_map<std::string, ItemBase> item_base;
     d2d::dc6::Sprite store_panel, store_tabs, store_buttons;   // PANEL\buysell, buyselltabs, buysellbtn
     d2d::dc6::Sprite gold_coin;                                   // PANEL\goldcoinbtn
     // Waypoints (docs/research/re/waypoint.md): Levels.txt rows with a

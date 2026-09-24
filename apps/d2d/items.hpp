@@ -205,43 +205,6 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // for the difficulty.
 // ponytail: no charges/books/ammo branches, automagic affix, durability
 // or the reduced-prices stat.
-int item_price(const Scene& s, const d2d::d2s::Item& it, const Scene::Npc& npc, bool sell,
-               const d2d::d2s::Header& h) {
-    const auto b = s.item_base.find(it.code);
-    const int base = b != s.item_base.end() ? b->second.cost : 0;
-    auto extra = [&](const std::vector<std::pair<int, int>>& t, int i) {
-        if (i < 0 || std::size_t(i) >= t.size()) return 0;
-        const auto [mul, add] = t[std::size_t(i)];
-        return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
-    };
-    int x = 0;
-    switch (it.quality) {
-        case 1: x = -(base / 2); break;
-        case 4: x = extra(s.prefix_cost, it.prefix) + extra(s.suffix_cost, it.suffix); break;
-        case 5: x = extra(s.set_cost, it.set_id); break;
-        case 7: x = extra(s.unique_cost, it.unique_id); break;
-        case 6: case 8:
-            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? s.prefix_cost : s.suffix_cost, it.affixes[std::size_t(i)]);
-            break;
-        default: break;
-    }
-    long long price = base + x;
-    for (const auto& j : it.socketed_items)
-        if (const auto jb = s.item_base.find(j.code); jb != s.item_base.end()) price += jb->second.cost / 2;
-    if (sell && it.ethereal) price /= 4;
-    const auto p = s.npc_prices.find(npc.id);
-    const int diff = h.active_difficulty();
-    if (p != s.npc_prices.end()) {
-        const auto& np = p->second;
-        price = price * (sell ? np.sell : np.buy) / 1024;
-        for (int q = 0; q < 3; ++q)
-            if (np.qflag[std::size_t(q)] && (h.quest_flag(diff, np.qflag[std::size_t(q)], 0) || h.quest_flag(diff, np.qflag[std::size_t(q)], 1)))
-                price = price * (sell ? np.qsell[std::size_t(q)] : np.qbuy[std::size_t(q)]) / 1024;
-    }
-    if (it.quantity > 1 && !(b != s.item_base.end() && b->second.stackable)) price *= it.quantity;
-    if (sell && p != s.npc_prices.end()) price = std::min<long long>(price, p->second.max_buy[std::size_t(diff)]);
-    return int(std::max<long long>(price, 1));
-}
 
 std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int clvl) {
     auto str = [&](std::string_view key) {
@@ -253,8 +216,8 @@ std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int c
         return i >= 0 && std::size_t(i) < v.size() ? std::string_view(v[std::size_t(i)]) : std::string_view{};
     };
     const auto& nm = s.item_names;
-    const auto info = s.item_info.find(it.code);
-    const std::string base = str(info != s.item_info.end() && !info->second.namestr.empty()
+    const auto info = s.rules.item_info.find(it.code);
+    const std::string base = str(info != s.rules.item_info.end() && !info->second.namestr.empty()
                                      ? std::string_view(info->second.namestr) : std::string_view(it.code));
     std::vector<TextLine> out;
     auto two = [&](std::string name, std::array<std::uint8_t, 3> c) {

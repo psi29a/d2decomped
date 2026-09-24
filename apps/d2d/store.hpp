@@ -5,6 +5,32 @@
 
 namespace {
 
+using d2d::rules::Store;
+
+// The store for world NPC npc (stock rolled from rng).
+Store open_store(const Scene& s, int npc, std::uint32_t& rng) {
+    const auto& n = s.world_npcs[std::size_t(npc)];
+    Store st = d2d::rules::open_store(s.rules, n.hc_idx, n.id, rng);
+    st.npc = npc;
+    return st;
+}
+
+// The store item under the cursor (index into the open tab), or -1.
+int store_item_at(const Scene& s, const Store& st, int mx, int my) {
+    const auto& tab = st.tabs[std::size_t(st.tab)];
+    for (std::size_t i = 0; i < tab.size(); ++i) {
+        const auto [w, h] = d2d::rules::item_size(s.rules, tab[i].code);
+        const int x = 96 + tab[i].column * 29, y = 123 + tab[i].row * 29;
+        if (mx >= x && mx < x + w * 29 && my >= y && my < y + h * 29) return int(i);
+    }
+    return -1;
+}
+
+std::array<int, 4> store_button_frames(const Scene& s, const Store& st) {
+    const bool repair = st.npc >= 0 && d2d::rules::is_repair_vendor(s.world_npcs[std::size_t(st.npc)].hc_idx);
+    return { 2, 4, repair ? 6 : 0, repair ? 18 : 10 };
+}
+
 // The vendor store (panel 0xc). Layout from FUN_00488400: buysell.dc6
 // as the 2x2 left panel; tabs (buyselltabs, frame i active / i+4 not) at
 // x 80 + 80i, bottom 90, labels from the 18-byte records at 0x722110
@@ -14,154 +40,6 @@ namespace {
 // repair (6) and repair all (18) at repair vendors, else an empty slot
 // (0) and close (10) (FUN_00487ed0). Stock grid: inventory.txt "Monster2"
 // (10x10 at 96,123).
-// ponytail: stock = each listed item <Vendor>Min..Max times plus the
-// PermStoreItems once, packed first-fit by kind (armour tab 0, weapons
-// 1 then 2, misc 3) — the server's roll isn't located yet, no magic
-// stock.
-struct Store {
-    int npc = -1, vendor = -1, tab = 0;
-    int mode = 0;                               // 1 buy, 2 sell: the button toggled on, the next click trades
-    d2d::d2s::Header header;                    // the player's (quest flags, difficulty) for prices
-    std::array<std::vector<d2d::d2s::Item>, 4> tabs;
-    std::array<bool, 4> pressed{};
-    std::vector<std::string> perm;              // PermStoreItems: buying doesn't use them up
-};
-
-// First free w x h spot in a cols x rows grid of placed items, scanning
-// column by column (where D2 autoplaces pickups); {-1, -1} if full.
-std::pair<int, int> free_spot(const Scene& s, const std::vector<const d2d::d2s::Item*>& placed,
-                              int cols, int rows, int w, int h) {
-    std::vector<bool> used(std::size_t(cols * rows));
-    for (const auto* it : placed) {
-        const auto info = s.item_info.find(it->code);
-        const int iw = info != s.item_info.end() ? info->second.w : 1, ih = info != s.item_info.end() ? info->second.h : 1;
-        for (int y = it->row; y < std::min(it->row + ih, rows); ++y)
-            for (int x = it->column; x < std::min(it->column + iw, cols); ++x) used[std::size_t(y * cols + x)] = true;
-    }
-    for (int x = 0; x + w <= cols; ++x)
-        for (int y = 0; y + h <= rows; ++y) {
-            bool free = true;
-            for (int yy = y; yy < y + h && free; ++yy)
-                for (int xx = x; xx < x + w && free; ++xx) free = !used[std::size_t(yy * cols + xx)];
-            if (free) return { x, y };
-        }
-    return { -1, -1 };
-}
-
-std::pair<int, int> item_size(const Scene& s, const std::string& code) {
-    const auto info = s.item_info.find(code);
-    return info != s.item_info.end() ? std::pair{ info->second.w, info->second.h } : std::pair{ 1, 1 };
-}
-
-// Puts an item into the store grid from tab on (weapons spill 1 -> 2).
-bool store_place(const Scene& s, Store& st, int tab, d2d::d2s::Item it) {
-    const auto [w, h] = item_size(s, it.code);
-    for (int t = tab; t < 4; ++t) {
-        std::vector<const d2d::d2s::Item*> placed;
-        for (const auto& i : st.tabs[std::size_t(t)]) placed.push_back(&i);
-        if (const auto [x, y] = free_spot(s, placed, 10, 10, w, h); x >= 0) {
-            it.column = x; it.row = y; it.location = 0; it.panel = 1;
-            st.tabs[std::size_t(t)].push_back(std::move(it));
-            return true;
-        }
-        if (t != 1) break;
-    }
-    return false;
-}
-
-int store_tab_for(const Scene& s, const std::string& code) {
-    const auto info = s.item_info.find(code);
-    const int kind = info != s.item_info.end() ? info->second.kind : 0;
-    return kind == 1 ? 0 : kind == 2 ? 1 : 3;
-}
-
-int vendor_index(int hc_idx) {
-    switch (hc_idx) {
-        case 0x94: return 0;  case 0x93: return 1;  case 0x9a: return 2;  case 0xb2: return 3;
-        case 0xca: return 4;  case 0xb1: return 5;  case 0xfd: return 6;  case 0xfe: return 7;
-        case 0xff: return 8;  case 199:  return 9;  case 0xfc: return 10; case 0x101: return 12;
-        case 0x195: return 13; case 0x201: return 14; case 0x1ff: return 15; case 0x200: case 0x202: return 16;
-        default: return -1;
-    }
-}
-
-bool is_repair_vendor(int hc_idx) {
-    return hc_idx == 0x9a || hc_idx == 0xb2 || hc_idx == 0xfd || hc_idx == 0x101 || hc_idx == 0x1ff;
-}
-
-Store open_store(const Scene& s, int npc, std::uint32_t& rng) {
-    Store st;
-    st.npc = npc;
-    st.vendor = vendor_index(s.world_npcs[std::size_t(npc)].hc_idx);
-    if (st.vendor < 0) return st;
-    for (const auto& vi : s.vendor_items[std::size_t(st.vendor)]) {
-        if (vi.perm) st.perm.push_back(vi.code);
-        int n = vi.perm ? 1 : vi.min + (vi.max > vi.min ? int((rng = rng * 0x6ac690c5u + 1u) % std::uint32_t(vi.max - vi.min + 1)) : 0);
-        while (n-- > 0) {
-            d2d::d2s::Item it;
-            it.code = vi.code;
-            if (const auto b = s.item_base.find(vi.code); b != s.item_base.end() && store_tab_for(s, vi.code) == 0)
-                it.defense = b->second.minac;
-            store_place(s, st, store_tab_for(s, vi.code), std::move(it));
-        }
-    }
-    for (int t = 0; t < 4; ++t) if (!st.tabs[std::size_t(t)].empty()) { st.tab = t; break; }
-    return st;
-}
-
-// The store item under the cursor (index into the open tab), or -1.
-int store_item_at(const Scene& s, const Store& st, int mx, int my) {
-    const auto& tab = st.tabs[std::size_t(st.tab)];
-    for (std::size_t i = 0; i < tab.size(); ++i) {
-        const auto [w, h] = item_size(s, tab[i].code);
-        const int x = 96 + tab[i].column * 29, y = 123 + tab[i].row * 29;
-        if (mx >= x && mx < x + w * 29 && my >= y && my < y + h * 29) return int(i);
-    }
-    return -1;
-}
-
-// Buys stock item i of the open tab into the inventory (10x4): gold
-// down by the price, the item leaves the stock unless it's a perm one.
-// False if it doesn't fit or you can't afford it.
-// ponytail: no "not enough gold"/"no room" message, no stacks or quantity.
-bool store_buy(const Scene& s, Store& st, int i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    auto& tab = st.tabs[std::size_t(st.tab)];
-    const auto& it = tab[std::size_t(i)];
-    const int price = item_price(s, it, s.world_npcs[std::size_t(st.npc)], false, st.header);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
-    std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
-    const auto [w, h] = item_size(s, it.code);
-    const auto [x, y] = free_spot(s, inv, 10, 4, w, h);
-    if (x < 0) return false;
-    auto bought = it;
-    bought.column = x; bought.row = y; bought.location = 0; bought.panel = 1;
-    items.push_back(std::move(bought));
-    // Carried gold first, then the stash (the store shows it for that).
-    // ponytail: that order is a guess; the server's buy isn't RE'd.
-    const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
-    stats.v[d2d::d2s::kGold] -= from_inv;
-    stats.v[d2d::d2s::kGoldBank] -= price - from_inv;
-    if (std::ranges::find(st.perm, it.code) == st.perm.end()) tab.erase(tab.begin() + i);
-    return true;
-}
-
-// Sells inventory item i: gold up by the sell value (carried gold caps
-// at clvl x 10000), the item joins the stock.
-// ponytail: quest items aren't refused, no belt/equipped selling.
-void store_sell(const Scene& s, Store& st, std::size_t i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    const int price = item_price(s, items[i], s.world_npcs[std::size_t(st.npc)], true, st.header);
-    stats.v[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
-                                                       stats.get(d2d::d2s::kLevel) * 10000);
-    store_place(s, st, store_tab_for(s, items[i].code), items[i]);
-    items.erase(items.begin() + std::ptrdiff_t(i));
-}
-
-std::array<int, 4> store_button_frames(const Scene& s, const Store& st) {
-    const bool repair = st.npc >= 0 && is_repair_vendor(s.world_npcs[std::size_t(st.npc)].hc_idx);
-    return { 2, 4, repair ? 6 : 0, repair ? 18 : 10 };
-}
-
 void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, int mx, int my, int clvl) {
     if (st.npc < 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -211,7 +89,7 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
     if (hover) {
         auto lines = item_lines(s, *hover, clvl);
         // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0).
-        lines.push_back({ string_id(s, 0xd01) + std::to_string(item_price(s, *hover, s.world_npcs[std::size_t(st.npc)], false, st.header)),
+        lines.push_back({ string_id(s, 0xd01) + std::to_string(d2d::rules::item_price(s.rules, *hover, st.npc_id, false, st.header)),
                           kTxtWhite });
         draw_hover_text(fb, s, lines, hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
     }

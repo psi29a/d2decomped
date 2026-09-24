@@ -773,14 +773,14 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     // a left click buys the stock item / sells your item.
                     const int si = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
                     if (si >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
-                        store_buy(*scene, store, si, cc.items, cc.stats);
+                        d2d::rules::store_buy(scene->rules, store, si, cc.items, cc.stats);
                     if (store.npc >= 0 && mouse.press_this_frame && store.mode == 2)
                         for (std::size_t i = 0; i < cc.items.size(); ++i) {
                             const auto& it = cc.items[i];
                             if (it.location != 0 || it.panel != 1) continue;
                             const auto r = grid_rect(*scene, lay, it);
                             if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
-                                store_sell(*scene, store, i, cc.items, cc.stats);
+                                d2d::rules::store_sell(scene->rules, store, i, cc.items, cc.stats);
                                 break;
                             }
                         }

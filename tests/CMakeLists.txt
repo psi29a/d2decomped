@@ -25,6 +25,7 @@ d2d_add_test(test_font mpq font)
 d2d_add_test(test_d2s d2s mpq)
 d2d_add_test(test_userdir userdir)
 d2d_add_test(test_compcode mpq compcode)
+d2d_add_test(test_rules rules)
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 add_test(NAME smoke_d2d

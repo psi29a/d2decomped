@@ -76,7 +76,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             std::function<std::string(const d2d::d2s::Item&)> sell_price;
             if (store && store->npc >= 0)
                 sell_price = [&](const d2d::d2s::Item& it) {
-                    return string_id(s, 0xd03) + std::to_string(item_price(s, it, s.world_npcs[std::size_t(store->npc)], true, store->header));
+                    return string_id(s, 0xd03) + std::to_string(d2d::rules::item_price(s.rules, it, store->npc_id, true, store->header));
                 };
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);

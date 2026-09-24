@@ -34,9 +34,9 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
     for (const auto& it : items) {
         std::array<int, 4> r{};
         if (it.location == 0 && it.panel == 1) {
-            const auto info = s.item_info.find(it.code);
-            const int iw = info != s.item_info.end() ? info->second.w : 1;
-            const int ih = info != s.item_info.end() ? info->second.h : 1;
+            const auto info = s.rules.item_info.find(it.code);
+            const int iw = info != s.rules.item_info.end() ? info->second.w : 1;
+            const int ih = info != s.rules.item_info.end() ? info->second.h : 1;
             r = { L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h, iw * L.box_w, ih * L.box_h };
         } else if (it.location == 1 && it.slot >= 1 && it.slot <= 10) {
             r = L.slots[std::size_t(it.slot)];
@@ -193,10 +193,10 @@ void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Sta
 // ponytail: no gold line, no "close" button; classic stash untested.
 // Rect {x, y, w, h} of a stored item in a grid layout.
 std::array<int, 4> grid_rect(const Scene& s, const Scene::InvLayout& L, const d2d::d2s::Item& it) {
-    const auto info = s.item_info.find(it.code);
+    const auto info = s.rules.item_info.find(it.code);
     return { L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h,
-             (info != s.item_info.end() ? info->second.w : 1) * L.box_w,
-             (info != s.item_info.end() ? info->second.h : 1) * L.box_h };
+             (info != s.rules.item_info.end() ? info->second.w : 1) * L.box_w,
+             (info != s.rules.item_info.end() ? info->second.h : 1) * L.box_h };
 }
 
 // A left-side storage panel: the stash (panel 5) or the cube (panel 4).
@@ -230,7 +230,7 @@ void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vect
 int belt_index(const Scene& s, const std::vector<d2d::d2s::Item>& items) {
     for (const auto& it : items)
         if (it.location == 1 && it.slot == 8)
-            if (const auto i = s.item_info.find(it.code); i != s.item_info.end() && i->second.belt >= 0
+            if (const auto i = s.rules.item_info.find(it.code); i != s.rules.item_info.end() && i->second.belt >= 0
                 && i->second.belt < 7)
                 return i->second.belt;
     return 2;

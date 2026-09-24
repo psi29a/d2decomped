@@ -119,9 +119,8 @@ Noted while playing the dev build (2026-09-24):
 
 ## Next up (as of 2026-09-24)
 
-1. Testable game rules: move rules like prices, buy/sell and NPC patrol
-   off `Scene` into code a unit test can reach (today they only run
-   through `smoke_d2d`).
+1. Testable game rules: store/price rules are in `components/rules`
+   with `test_rules`. NPC patrol can follow once it's off `Scene`.
 2. Trade leftovers: repair, magic stock, the real stock roll.
 3. NPC menu leftovers: gamble, hire, identify.
 4. Waypoint travel and leaving town (Act 1 wilderness DRLG), once more

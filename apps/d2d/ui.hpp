@@ -160,8 +160,8 @@ std::vector<d2d::d2s::ItemProp> socket_props(const Scene& s, const d2d::d2s::Ite
                                              const d2d::d2s::Item& filled) {
     auto out = filled.props;
     const auto g = s.gem_props.find(filled.code);
-    const auto info = s.item_info.find(parent.code);
-    if (g == s.gem_props.end() || info == s.item_info.end()) return out;
+    const auto info = s.rules.item_info.find(parent.code);
+    if (g == s.gem_props.end() || info == s.rules.item_info.end()) return out;
     const int k = info->second.kind == 2 ? 0 : type_is(s, info->second.type, "shld") ? 2 : 1;
     const auto& add = g->second[std::size_t(k)];
     out.insert(out.end(), add.begin(), add.end());

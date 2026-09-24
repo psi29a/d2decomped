@@ -146,8 +146,8 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
 }
 
 const d2d::dc6::Sprite* Scene::item_sprite(const d2d::d2s::Item& item) const {
-    const auto info = item_info.find(item.code);
-    if (info == item_info.end()) return nullptr;
+    const auto info = rules.item_info.find(item.code);
+    if (info == rules.item_info.end()) return nullptr;
     auto pick = [](const std::vector<std::string>& v, int i) {
         return i >= 0 && std::size_t(i) < v.size() ? v[std::size_t(i)] : std::string{};
     };
@@ -312,7 +312,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
     for (const auto* t : { &weapons, &armor, &misc })
         for (std::size_t r = 0; r < t->size(); ++r)
-            scene.item_info[std::string(t->get(r, "code"))] = {
+            scene.rules.item_info[std::string(t->get(r, "code"))] = {
                 std::string(t->get(r, "invfile")),
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
@@ -332,14 +332,14 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             for (std::size_t r = 0; r < t->size(); ++r) {
                 const std::string code(t->get(r, "code"));
                 auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
-                scene.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
+                scene.rules.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
                                           t->get(r, "stackable") == "1" };
                 if (t->get(r, "spawnable") != "1") continue;
                 for (std::size_t v = 0; v < 17; ++v) {
                     const std::string V = kVendorCol[v];
-                    Scene::VendorItem vi{ code, n(V + "Min"), n(V + "Max"), n(V + "MagicMin"), n(V + "MagicMax"),
+                    d2d::rules::VendorItem vi{ code, n(V + "Min"), n(V + "Max"), n(V + "MagicMin"), n(V + "MagicMax"),
                                           n(V + "MagicLvl"), t->get(r, "PermStoreItem") == "1" };
-                    if (vi.max > 0 || vi.magic_max > 0) scene.vendor_items[v].push_back(std::move(vi));
+                    if (vi.max > 0 || vi.magic_max > 0) scene.rules.vendor_items[v].push_back(std::move(vi));
                 }
             }
         for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\buysell.dc6)", &scene.store_panel },
@@ -561,21 +561,21 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             }
             return v;
         };
-        scene.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
-        scene.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
-        scene.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
-        scene.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
+        scene.rules.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
+        scene.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
+        scene.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
+        scene.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
         if (auto b = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
             const d2d::txt::Table t(*b);
             for (std::size_t r = 0; r < t.size(); ++r) {
                 auto n = [&](const char* c) { return std::atoi(std::string(t.get(r, c)).c_str()); };
-                Scene::NpcPrice p{ n("buy mult"), n("sell mult"), n("rep mult"),
+                d2d::rules::NpcPrice p{ n("buy mult"), n("sell mult"), n("rep mult"),
                                    { n("questflag A"), n("questflag B"), n("questflag C") },
                                    { n("questbuymult A"), n("questbuymult B"), n("questbuymult C") },
                                    { n("questsellmult A"), n("questsellmult B"), n("questsellmult C") },
                                    { n("questrepmult A"), n("questrepmult B"), n("questrepmult C") },
                                    { n("max buy"), n("max buy (N)"), n("max buy (H)") } };
-                scene.npc_prices[std::string(t.get(r, "npc"))] = p;
+                scene.rules.npc_prices[std::string(t.get(r, "npc"))] = p;
             }
         }
     }
