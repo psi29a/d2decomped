@@ -32,6 +32,7 @@
 #include "npc_menu.hpp"
 #include "npc_talk.hpp"
 #include "speech_sound.hpp"
+#include "video.hpp"
 #include "obj_preset.hpp"
 
 #include <SDL3/SDL.h>
@@ -487,7 +488,7 @@ lookup_string(const Scene& s, std::uint16_t id) {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits, CharSelect, CharCreate, InGame };
+enum class Screen { Title, Credits, CharSelect, CharCreate, InGame, Video };
 
 // Per-class animation state on the char-create screen. Matches D2's flow:
 // classes idle in place (nu1); on click the "just clicked" class walks
@@ -3419,6 +3420,7 @@ struct Audio {
         if (!ok) std::fprintf(stderr, "[d2d] audio: no OpenAL device\n");
     }
     ~Audio() {
+        video_stop();
         for (auto* c : { &voice, &music, &ambience, &ui }) stop(*c);
         if (music_job.valid()) music_job.wait();
         alcMakeContextCurrent(nullptr);
@@ -3524,6 +3526,45 @@ struct Audio {
         }
         start(c, it->second, 1.f, false, -1);
     }
+    // Cinematic audio: a streaming source fed 4096-frame S16 stereo chunks.
+    ALuint vsrc = 0;
+    std::vector<ALuint> vfree, vall;
+    int vrate = 0;
+    void video_start(int rate) {
+        video_stop();
+        if (!ok || rate <= 0) return;
+        alGenSources(1, &vsrc);
+        alSourcei(vsrc, AL_SOURCE_RELATIVE, AL_TRUE);
+        vall.resize(8);
+        alGenBuffers(ALsizei(vall.size()), vall.data());
+        vfree = vall;
+        vrate = rate;
+    }
+    void video_feed(std::vector<std::int16_t>& pcm) {
+        if (!vsrc) { pcm.clear(); return; }
+        ALint done = 0;
+        alGetSourcei(vsrc, AL_BUFFERS_PROCESSED, &done);
+        while (done-- > 0) { ALuint b = 0; alSourceUnqueueBuffers(vsrc, 1, &b); vfree.push_back(b); }
+        constexpr std::size_t kChunk = 4096 * 2;
+        std::size_t at = 0;
+        while (!vfree.empty() && at < pcm.size()) {
+            const std::size_t n = std::min(kChunk, pcm.size() - at);
+            const ALuint b = vfree.back(); vfree.pop_back();
+            alBufferData(b, AL_FORMAT_STEREO16, pcm.data() + at, ALsizei(n * 2), vrate);
+            alSourceQueueBuffers(vsrc, 1, &b);
+            at += n;
+        }
+        pcm.erase(pcm.begin(), pcm.begin() + std::ptrdiff_t(at));
+        ALint state = 0;
+        alGetSourcei(vsrc, AL_SOURCE_STATE, &state);
+        if (state != AL_PLAYING && vfree.size() < vall.size()) alSourcePlay(vsrc);
+    }
+    void video_stop() {
+        if (vsrc) { alSourceStop(vsrc); alDeleteSources(1, &vsrc); vsrc = 0; }
+        if (!vall.empty()) alDeleteBuffers(ALsizei(vall.size()), vall.data());
+        vall.clear(); vfree.clear();
+    }
+
     // Land a finished music job; free one-shots that have played out.
     void update() {
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
@@ -3724,6 +3765,8 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
 // Set by main() before entering the loop — a lazy way to plumb --start-*
 // through without threading extra parameters everywhere.
 static std::string g_start_screen;
+static bool        g_video = true;          // startup cinematics (--no-video / cfg video = 0)
+static fs::path    g_user_dir;
 static int         g_start_class = 0;
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
@@ -3736,6 +3779,7 @@ static Screen parse_screen(std::string_view s) {
     if (s == "charselect") return Screen::CharSelect;
     if (s == "charcreate") return Screen::CharCreate;
     if (s == "ingame")     return Screen::InGame;
+    if (s == "video")      return Screen::Video;
     return Screen::Title;
 }
 
@@ -3746,6 +3790,7 @@ static const char* screen_name(Screen s) {
         case Screen::CharSelect: return "charselect";
         case Screen::CharCreate: return "charcreate";
         case Screen::InGame:     return "ingame";
+        case Screen::Video:      return "video";
     }
     return "?";
 }
@@ -3786,6 +3831,40 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
     Screen screen = g_start_screen.empty() ? Screen::Title
                                             : parse_screen(g_start_screen);
+    // Startup cinematics, as FUN_00435230 plays them: the Blizzard and
+    // Blizzard North logos, then the D2 intro if it hasn't been seen, else
+    // (LoD) the expansion intro if that hasn't. game.exe keeps "seen" in
+    // the registry; we keep it in <user dir>/cinematics_seen. The files are
+    // 640x480 (logos) and 640x292 (intros, letterboxed); shown at 800x600
+    // like D2 does in its 640x480 video mode, scaled up.
+    d2d::mpq::Stack video_mpqs;
+    std::vector<std::string> video_queue;
+    if (scene) {
+        for (const char* n : { "d2xvideo.mpq", "d2video.mpq" })
+            if (fs::exists(scene->data_dir / n)) video_mpqs.push(scene->data_dir / n);
+    }
+    if (scene && !video_mpqs.empty() && g_video && (g_start_screen.empty() || g_start_screen == "video")) {
+        video_queue = { R"(Data\Local\Video\New_BLIZ640x480.bik)", R"(Data\Local\Video\BlizNorth640x480.bik)" };
+        std::string seen;
+        if (std::ifstream in(g_user_dir / "cinematics_seen"); in) std::getline(in, seen, '\0');
+        const char* intro = R"(data\local\video\ENG\d2intro640x292.bik)";
+        const char* xintro = R"(data\local\video\ENG\D2x_Intro_640x292.bik)";
+        std::string mark;
+        if (seen.find("d2intro") == std::string::npos && video_mpqs.contains(intro)) {
+            video_queue.push_back(intro); mark = "d2intro";
+        } else if (seen.find("d2xintro") == std::string::npos && video_mpqs.contains(xintro)) {
+            video_queue.push_back(xintro); mark = "d2xintro";
+        }
+        if (!mark.empty()) {
+            std::error_code ec;
+            fs::create_directories(g_user_dir, ec);
+            std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << mark << '\n';
+        }
+        screen = Screen::Video;
+    }
+    d2d::video::Player video;
+    bool video_playing = false;
+    std::uint32_t video_start = 0;
     Mouse  mouse;
     TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
 
@@ -4137,7 +4216,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // of the 8-track list (the LoD one at 0x72f8b8; classic uses
         // 0x72f878's), each played by path at full volume; all played ->
         // start over (FUN_00514860). Entering a game stops it.
-        if (scene && screen != Screen::InGame && audio.ok && audio.music.sound == 0) {
+        if (scene && screen != Screen::InGame && screen != Screen::Video && audio.ok && audio.music.sound == 0) {
             static constexpr const char* kFrontendMusic[8] = {
                 R"(data\global\music\introedit.wav)", R"(data\global\music\act5\icecaves.wav)",
                 R"(data\global\music\act5\xtemple.wav)", R"(data\global\music\act2\desert.wav)",
@@ -4151,7 +4230,37 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         if (scene) {
             switch (screen) {
+            case Screen::Video: {
+                // Next video when none plays or the viewer skips one.
+                const bool skip = mouse.press_this_frame || !keys_this_frame.empty();
+                if (video_playing && skip) { video_playing = false; audio.video_stop(); }
+                while (!video_playing && !video_queue.empty()) {
+                    const std::string path = video_queue.front();
+                    video_queue.erase(video_queue.begin());
+                    auto f = video_mpqs.open(path);
+                    const bool letterbox = path.find("x292") != std::string::npos;
+                    if (f && video.open(std::move(*f), int(kW), letterbox ? int(kH) * 292 / 480 : int(kH))) {
+                        video_playing = true;
+                        video_start = ms;
+                        audio.video_start(video.sample_rate());
+                    }
+                }
+                if (!video_playing) { screen = Screen::Title; break; }
+                if (!video.advance(double(ms - video_start) / 1000.0)) {
+                    video_playing = false;
+                    audio.video_stop();
+                }
+                audio.video_feed(video.audio());
+                std::fill(fb.begin(), fb.end(), std::uint8_t{0});
+                for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+                const int y0 = (int(kH) - video.height()) / 2;
+                const auto& px = video.rgba();
+                for (int y = 0; y < video.height(); ++y)
+                    std::memcpy(&fb[(std::size_t(y0 + y) * kW) * 4], &px[std::size_t(y) * kW * 4], std::size_t(kW) * 4);
+                break;
+            }
             case Screen::Title:
+                if (audio.vsrc) audio.video_stop();                 // Esc skipped the videos
                 for (auto& b : ui.buttons) update_button(b, mouse, screen, quit);
                 render_title(fb, *scene, ui.buttons, ms);
                 break;
@@ -4472,7 +4581,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             // the screen underneath.
             // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
-            if (scene->cursor.frames_per_direction() >= 8) {
+            if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
@@ -4619,7 +4728,7 @@ int main(int argc, char** argv) {
                    "Run without opening a window");
     app.add_option("--start-screen", start_screen,
                    "Jump directly to a screen at startup")
-        ->check(CLI::IsMember({"title", "credits", "charselect", "charcreate", "ingame"}));
+        ->check(CLI::IsMember({"title", "credits", "charselect", "charcreate", "ingame", "video"}));
     app.add_option("--start-class", start_class,
                    "Preselect a class index (0..6)")
         ->check(CLI::Range(0, 6));
@@ -4627,6 +4736,8 @@ int main(int argc, char** argv) {
                    "Preload character name");
     app.add_flag  ("--start-hardcore", start_hardcore,
                    "Preload the Hardcore checkbox");
+    bool no_video = false;
+    app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
                    "InGame camera x (grid cell)");
@@ -4667,6 +4778,8 @@ int main(int argc, char** argv) {
     ch.listen(devctl_path);
 
     g_start_screen   = start_screen;
+    g_video          = !no_video && cfg["video"] != "0";
+    g_user_dir       = user_dir;
     g_start_class    = start_class;
     g_start_name     = start_name;
     g_start_hardcore = start_hardcore;

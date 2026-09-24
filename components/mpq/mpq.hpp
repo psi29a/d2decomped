@@ -31,6 +31,36 @@
 
 namespace d2d::mpq {
 
+// A file opened for streaming reads (videos: the D2 intro is 94 MB).
+// Only for plain archive files, not installer entries.
+class File {
+public:
+    File() = default;
+    explicit File(HANDLE f) : f_(f) {}
+    File(File&& o) noexcept : f_(std::exchange(o.f_, nullptr)) {}
+    File& operator=(File&& o) noexcept { if (this != &o) { close(); f_ = std::exchange(o.f_, nullptr); } return *this; }
+    ~File() { close(); }
+    [[nodiscard]] std::uint64_t size() const {
+        DWORD hi = 0;
+        const DWORD lo = SFileGetFileSize(f_, &hi);
+        return std::uint64_t(hi) << 32 | lo;
+    }
+    // Bytes read (0 at the end).
+    std::size_t read(void* buf, std::size_t n) {
+        DWORD got = 0;
+        SFileReadFile(f_, buf, DWORD(n), &got, nullptr);
+        return got;
+    }
+    // Absolute position; returns the new one.
+    std::uint64_t seek(std::uint64_t pos) {
+        LONG hi = LONG(pos >> 32);
+        return SFileSetFilePointer(f_, LONG(pos & 0xffffffffu), &hi, FILE_BEGIN) | std::uint64_t(DWORD(hi)) << 32;
+    }
+private:
+    void close() { if (f_) SFileCloseFile(f_); f_ = nullptr; }
+    HANDLE f_ = nullptr;
+};
+
 class Archive {
 public:
     explicit Archive(const std::filesystem::path& path) {
@@ -125,6 +155,13 @@ public:
         return read_raw(name);
     }
 
+    [[nodiscard]] std::optional<File> open(std::string_view name) const {
+        if (!remap_.empty()) return std::nullopt;
+        HANDLE f{};
+        if (!SFileOpenFileEx(h_, std::string(name).c_str(), 0, &f)) return std::nullopt;
+        return File(f);
+    }
+
 private:
     // Case/slash-insensitive lookup key, like MPQ name hashing.
     static std::string key(std::string_view name) {
@@ -192,6 +229,13 @@ public:
                     break;
                 }
         }
+        return std::nullopt;
+    }
+
+    // First plain archive that has the file, for streaming.
+    [[nodiscard]] std::optional<File> open(std::string_view name) const {
+        for (const auto& a : archives_)
+            if (auto f = a.open(name)) return f;
         return std::nullopt;
     }
 
