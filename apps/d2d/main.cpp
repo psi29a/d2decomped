@@ -3138,6 +3138,39 @@ void draw_automap(std::vector<std::uint8_t>& fb, const Scene& s, const Automap& 
         if (x < -32 || x > int(kW) + 32 || y < -64 || y > int(kH) + 64) continue;
         blit_sprite(fb, f, pal, x, y - int(f.height) + 1);
     }
+    // Your own mark (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
+    // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
+    // - 8), in the palette colour nearest FUN_004fb180(0, 0, 0xff) — the
+    // palette is BGR, so red (party green, other players blue).
+    static constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
+    std::uint8_t mr = 255, mg = 0, mb = 0;
+    {
+        int best = 1 << 30;
+        for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
+            const auto c = pal[std::uint8_t(i)];
+            const int d = (c.r - 255) * (c.r - 255) + c.g * c.g + c.b * c.b;
+            if (d < best) { best = d; mr = c.r; mg = c.g; mb = c.b; }
+        }
+    }
+    const int ux = int(std::lround((px - py) * 80 / 10)) - scroll_x + 8;
+    const int uy = int(std::lround((px + py) * 40 / 10)) - scroll_y - 8;
+    auto plot = [&](int x, int y) {
+        if (x < 0 || y < 0 || x >= int(kW) || y >= int(kH)) return;
+        auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
+        p[0] = mr; p[1] = mg; p[2] = mb;
+    };
+    for (int i = 0; i + 1 < 13; ++i) {                   // Bresenham, like a D2GFX line
+        int x0 = ux + kMark[i][0] * 2, y0 = uy + kMark[i][1] * 2;
+        const int x1 = ux + kMark[i + 1][0] * 2, y1 = uy + kMark[i + 1][1] * 2;
+        const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+        for (int err = dx + dy;;) {
+            plot(x0, y0);
+            if (x0 == x1 && y0 == y1) break;
+            const int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
 }
 
 void render_ingame(std::vector<std::uint8_t>& fb,
