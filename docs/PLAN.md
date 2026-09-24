@@ -12,40 +12,43 @@ C++26 engine. Ghidra drives decompilation; reference implementations
 
 ## Phases
 
-1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *(this commit)*
+Status as of 2026-09-24.
+
+1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
    `d2d-launcher`) that reads the 4 D2/LoD ISOs directly (single-header
-   `iso9660.hpp`) and copies files into a per-user data dir; later applies
-   the 1.14d patch. Same binary grows a launch page in phase 5. *(next)*
-3. **Asset formats** — parsers for MPQ, DC6, DCC, DS1, DT1, COF, TBL, TXT.
-   Reuse Storm/StormLib for MPQ. Write tests against real assets.
-4. **Ghidra pass** — decompile `Game.exe`, `D2Common.dll`, `D2Game.dll`,
-   `D2Client.dll`, `D2Gfx.dll`, `D2Win.dll`, `D2Sound.dll`. Version = 1.14d
-   (the Blizzard-provided static PE — no CD checks, most modding work
-   targets it). Document one DLL per doc under `docs/research/re/`.
+   `iso9660.hpp`) and copies files into a per-user data dir. *Done.* The
+   1.14d patch data is read straight from `LODPatch_114d.exe` (d2d.cfg
+   `patch = …`), so there is no separate patch step.
+3. **Asset formats** — parsers for MPQ (StormLib), DC6, DCC, DS1, DT1,
+   COF, TBL, TXT, plus D2S saves, fonts and palettes, tested against real
+   assets (`components/`, `tests/`). *Done;* extended as game code needs.
+4. **Ghidra pass** — 1.14d `game.exe`, the Blizzard-provided static PE
+   (the old D2Common/D2Game/D2Client/… DLLs are linked into it; no CD
+   checks; most modding work targets it). *Ongoing, driven by phase 5:*
+   notes per subsystem under `docs/research/re/`.
 
-   The launcher's install step drops these PEs into `<dest>/bin/` when it
+   The launcher's install step drops the PEs into `<dest>/bin/` when it
    sees them in a source (GOG install → v1.14d; disc `crack/` → v1.00), and
-   the `Add patch binaries…` / `Fetch patch…` buttons in the launcher extract
-   them on demand from a Blizzard MPQ-appended installer (StormLib handles
-   the appended-MPQ format). Any future patch drops into the same flow with
-   no code change.
+   the `Add patch binaries…` / `Fetch patch…` buttons extract them on
+   demand from a Blizzard MPQ-appended installer.
 
    **`bin/` is dev-only.** Nothing our engine ships against Blizzard's PEs;
    they exist so contributors can open them in Ghidra. Once this phase is
    done, the `bin/` import will be dropped from the launcher — redistributing
    Blizzard's binaries is not permitted, so no release will include them.
 5. **Core loop** — main menu, character select, load act 1 rogue camp,
-   render tiles. No combat yet.
+   render tiles. No combat yet. *In progress:* frontend, town, NPCs,
+   panels, trade and waypoints work (see README "Status").
 6. **Combat + AI** — actor state machine, packet-equivalent events,
-   monster AI from Game.exe.
+   monster AI from game.exe.
 7. **Cross-platform polish** — Linux/macOS/Windows CI, controller,
    high-DPI, rebindable input.
 
 ## Directory layout
 
 ```
-apps/           end-user apps: launcher (install + launch), the game itself
+apps/           end-user apps: launcher (Qt6 installer), d2d (the game)
 components/     shared libraries (one subdir per lib, own CMakeLists.txt)
 tests/          all tests. one test_*.cpp per subject, ctest-hooked
 tools/          decompilation helpers, format converters, Ghidra scripts
@@ -57,13 +60,11 @@ cmake/          shared CMake modules
 ## Toolchain
 
 - C++26 (`-std=c++2c` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
-- Libraries via `FetchContent`. First adds, when needed:
-  - SDL3 (windowing, input, audio)
-  - StormLib (MPQ) — LGPL, fine to link.
-  - fmt, spdlog, cli11 as needed.
-- No Qt for now — one dep, huge. ImGui + SDL3 covers the installer GUI.
+- System packages: SDL3 (window, input, WAV decode), OpenAL (openal-soft),
+  FFmpeg (Bink cinematics), zlib, Qt6 ≥ 6.5 (launcher only).
+- `FetchContent`: StormLib (MPQ), CLI11.
 - License: GPL-3.0-or-later (matches OpenD2). Compatible with StormLib
-  (MIT), SDL3 (Zlib), ImGui (MIT).
+  (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL).
 
 ## Reference projects (in `../`)
 
@@ -89,13 +90,14 @@ Inspiration only. We do not copy code — we read, understand, cite in
 ## Milestone: "camera pans the rogue camp"
 
 Success = launch our binary, log in with an imported save, camera moves
-around a rendered act 1 town. No NPCs interactive. That is the north star
-for phases 2–5.
+around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
+NPCs talk and trade. The next milestone is leaving town (phase 5's end).
 
 ## Open questions
 
-- Ship as one monolith or `d2d-installer` / `d2d-launcher` / `d2d` binaries?
-  Leaning three binaries so the installer stays boring.
+- Launch page: the plan was for `d2d-launcher` to grow one; today it's two
+  binaries (`d2d-launcher` installs, `d2d` runs). Keep it that way unless
+  a launch page earns its place.
 - Save format: keep 1.14d-compatible or greenfield? Compatible unless it
   hurts.
 - Networking: leave off until singleplayer runs.
@@ -117,9 +119,10 @@ Noted while playing the dev build (2026-09-24):
 
 ## Next up (as of 2026-09-24)
 
-1. Trade: done (panel, stock, prices, buy/sell with gold). Left:
-   repair, magic stock, the real stock roll.
-2. Waypoint panel: done (panel, tabs, activation). Travel waits for
-   leaving town.
-3. Leaving town (Act 1 wilderness DRLG) waits until more fundamentals
-   are in place.
+1. Testable game rules: move rules like prices, buy/sell and NPC patrol
+   off `Scene` into code a unit test can reach (today they only run
+   through `smoke_d2d`).
+2. Trade leftovers: repair, magic stock, the real stock roll.
+3. NPC menu leftovers: gamble, hire, identify.
+4. Waypoint travel and leaving town (Act 1 wilderness DRLG), once more
+   fundamentals are in place.
