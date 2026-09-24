@@ -85,5 +85,16 @@ The base y is 539 (= 60 + 255 + 224):
   - each listed item Min..Max times, plus PermStoreItems once;
   - packed first-fit: armour → tab 0, weapons → 1 (spilling into 2),
     misc → 3.
-- Not yet: magic stock, prices, buying/selling, repair, and the real
-  roll.
+- Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
+  your own items while it is open), per FUN_0062efb0:
+  1. base = the item's cost column (armor/weapons/misc.txt);
+  2. plus quality extras: low quality −base/2; magic prefix + suffix,
+     set, unique, rare/crafted affixes, each `mul·base/1024 + add`
+     from the affix/set/unique cost columns;
+  3. plus half of each socketed item's cost; ethereal sells for ¼;
+  4. × npc.txt buy or sell mult / 1024, then × the quest mult / 1024
+     for each quest flag done on the active difficulty;
+  5. × quantity for non-stackables; a sale is capped at the NPC's
+     max buy for the difficulty; the minimum is 1.
+  Checked: an Akara Scepter (cost 350, buy mult 512) = 175.
+- Not yet: magic stock, buying/selling, repair, and the real roll.

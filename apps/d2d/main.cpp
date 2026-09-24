@@ -437,6 +437,7 @@ struct Scene {
         float velocity = 3;                  // MonStats Velocity
         int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
         int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
+        std::string id;                      // MonStats Id (npc.txt key)
     };
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
@@ -455,7 +456,13 @@ struct Scene {
     // lists: spawnable, <Vendor>Max or <Vendor>MagicMax > 0.
     struct VendorItem { std::string code; int min = 0, max = 0, magic_min = 0, magic_max = 0, magic_lvl = 0; bool perm = false; };
     std::array<std::vector<VendorItem>, 17> vendor_items;
-    struct ItemBase { int minac = 0, maxac = 0; };
+    struct ItemBase { int minac = 0, maxac = 0, cost = 0; bool stackable = false; };
+    // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats
+    // Id, and the (multiply, add) cost pairs of affixes (raw rows, like the
+    // names), uniques and set items.
+    struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
+    std::unordered_map<std::string, NpcPrice> npc_prices;
+    std::vector<std::pair<int, int>> prefix_cost, suffix_cost, unique_cost, set_cost;
     std::unordered_map<std::string, ItemBase> item_base;
     d2d::dc6::Sprite store_panel, store_tabs, store_buttons;   // PANEL\buysell, buyselltabs, buysellbtn
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
@@ -1186,6 +1193,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.mode   = "NU";
         n.code   = std::string(ms.get(it->second, "Code"));
         n.hc_idx = std::atoi(std::string(ms.get(it->second, "hcIdx")).c_str());
+        n.id     = std::string(ms.get(it->second, "Id"));
         n.base_w = std::string(ms2.get(it->second, "BaseW"));
         n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
         n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
@@ -1320,7 +1328,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             for (std::size_t r = 0; r < t->size(); ++r) {
                 const std::string code(t->get(r, "code"));
                 auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
-                if (t == &armor) scene.item_base[code] = { n("minac"), n("maxac") };
+                scene.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
+                                          t->get(r, "stackable") == "1" };
                 if (t->get(r, "spawnable") != "1") continue;
                 for (std::size_t v = 0; v < 17; ++v) {
                     const std::string V = kVendorCol[v];
@@ -1524,6 +1533,34 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     scene.set_inv    = keys("SetItems", "invfile", false);
     nm.set      = keys("SetItems", "index", false);
     nm.prefix   = keys("MagicPrefix", "Name", true);
+    {
+        auto pairs = [&](const char* n, const char* mul, const char* add, bool all) {
+            std::vector<std::pair<int, int>> v;
+            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
+                const d2d::txt::Table t(*b, all);
+                for (std::size_t r = 0; r < t.size(); ++r)
+                    v.emplace_back(std::atoi(std::string(t.get(r, mul)).c_str()), std::atoi(std::string(t.get(r, add)).c_str()));
+            }
+            return v;
+        };
+        scene.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
+        scene.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
+        scene.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
+        scene.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
+        if (auto b = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
+            const d2d::txt::Table t(*b);
+            for (std::size_t r = 0; r < t.size(); ++r) {
+                auto n = [&](const char* c) { return std::atoi(std::string(t.get(r, c)).c_str()); };
+                Scene::NpcPrice p{ n("buy mult"), n("sell mult"), n("rep mult"),
+                                   { n("questflag A"), n("questflag B"), n("questflag C") },
+                                   { n("questbuymult A"), n("questbuymult B"), n("questbuymult C") },
+                                   { n("questsellmult A"), n("questsellmult B"), n("questsellmult C") },
+                                   { n("questrepmult A"), n("questrepmult B"), n("questrepmult C") },
+                                   { n("max buy"), n("max buy (N)"), n("max buy (H)") } };
+                scene.npc_prices[std::string(t.get(r, "npc"))] = p;
+            }
+        }
+    }
     nm.suffix   = keys("MagicSuffix", "Name", true);
     nm.rare_pre = keys("RarePrefix", "name", true);
     nm.rare_suf = keys("RareSuffix", "name", true);
@@ -2751,6 +2788,55 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 };
 
+// FUN_0062efb0 (D2Common's transaction cost), for buying (sell == false,
+// the vendor's price) and selling (the vendor pays). Base = the item's
+// cost (items record +0xe0), plus per quality (mult, add) extras:
+// low quality -base/2, magic prefix + suffix, rare/crafted its six
+// affixes, set/unique their cost mult/add (extra = base*mult/1024 + add);
+// + half the cost of each socketed item (FUN_006292f0); ethereal sells
+// at a quarter. Then npc.txt: * buy/sell mult / 1024 and each questflag's
+// mult when that quest is done; * quantity; selling caps at "max buy"
+// for the difficulty.
+// ponytail: no charges/books/ammo branches, automagic affix, durability
+// or the reduced-prices stat.
+int item_price(const Scene& s, const d2d::d2s::Item& it, const Scene::Npc& npc, bool sell,
+               const d2d::d2s::Header& h) {
+    const auto b = s.item_base.find(it.code);
+    const int base = b != s.item_base.end() ? b->second.cost : 0;
+    auto extra = [&](const std::vector<std::pair<int, int>>& t, int i) {
+        if (i < 0 || std::size_t(i) >= t.size()) return 0;
+        const auto [mul, add] = t[std::size_t(i)];
+        return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
+    };
+    int x = 0;
+    switch (it.quality) {
+        case 1: x = -(base / 2); break;
+        case 4: x = extra(s.prefix_cost, it.prefix) + extra(s.suffix_cost, it.suffix); break;
+        case 5: x = extra(s.set_cost, it.set_id); break;
+        case 7: x = extra(s.unique_cost, it.unique_id); break;
+        case 6: case 8:
+            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? s.prefix_cost : s.suffix_cost, it.affixes[std::size_t(i)]);
+            break;
+        default: break;
+    }
+    long long price = base + x;
+    for (const auto& j : it.socketed_items)
+        if (const auto jb = s.item_base.find(j.code); jb != s.item_base.end()) price += jb->second.cost / 2;
+    if (sell && it.ethereal) price /= 4;
+    const auto p = s.npc_prices.find(npc.id);
+    const int diff = h.active_difficulty();
+    if (p != s.npc_prices.end()) {
+        const auto& np = p->second;
+        price = price * (sell ? np.sell : np.buy) / 1024;
+        for (int q = 0; q < 3; ++q)
+            if (np.qflag[std::size_t(q)] && (h.quest_flag(diff, np.qflag[std::size_t(q)], 0) || h.quest_flag(diff, np.qflag[std::size_t(q)], 1)))
+                price = price * (sell ? np.qsell[std::size_t(q)] : np.qbuy[std::size_t(q)]) / 1024;
+    }
+    if (it.quantity > 1 && !(b != s.item_base.end() && b->second.stackable)) price *= it.quantity;
+    if (sell && p != s.npc_prices.end()) price = std::min<long long>(price, p->second.max_buy[std::size_t(diff)]);
+    return int(std::max<long long>(price, 1));
+}
+
 std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
@@ -2852,7 +2938,8 @@ void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::v
 // The item under (mx, my) gets its hover text.
 // ponytail: no colour tints (item transform colormaps), cube.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
-                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1) {
+                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1,
+                    const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -2885,9 +2972,12 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
         draw_in(it, r[0], r[1], r[2], r[3]);
         if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3]) { hover = &it; hover_box = r; }
     }
-    if (hover)
-        draw_hover_text(fb, s, item_lines(s, *hover, clvl), hover_box[0], hover_box[0] + hover_box[2],
+    if (hover) {
+        auto lines = item_lines(s, *hover, clvl);
+        if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });
+        draw_hover_text(fb, s, lines, hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
+    }
 }
 
 // Character panel (left of the inventory: 800x600 puts the left panels
@@ -3220,6 +3310,7 @@ void draw_automap(std::vector<std::uint8_t>& fb, const Scene& s, const Automap& 
 // stock, no buying/selling/prices.
 struct Store {
     int npc = -1, vendor = -1, tab = 0;
+    d2d::d2s::Header header;                    // the player's (quest flags, difficulty) for prices
     std::array<std::vector<d2d::d2s::Item>, 4> tabs;
     std::array<bool, 4> pressed{};
 };
@@ -3327,7 +3418,13 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
         }
         if (mx >= x && mx < x + w && my >= y && my < y + h) { hover = &it; hb = { x, y, w, h }; }
     }
-    if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
+    if (hover) {
+        auto lines = item_lines(s, *hover, clvl);
+        // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0).
+        lines.push_back({ string_id(s, 0xd01) + std::to_string(item_price(s, *hover, s.world_npcs[std::size_t(st.npc)], false, st.header)),
+                          kTxtWhite });
+        draw_hover_text(fb, s, lines, hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
+    }
 }
 
 void render_ingame(std::vector<std::uint8_t>& fb,
@@ -3396,8 +3493,16 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                         b[1] - s.font.line_height() - 2, nm);
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
+        {
+            // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
+            std::function<std::string(const d2d::d2s::Item&)> sell_price;
+            if (store && store->npc >= 0)
+                sell_price = [&](const d2d::d2s::Item& it) {
+                    return string_id(s, 0xd03) + std::to_string(item_price(s, it, s.world_npcs[std::size_t(store->npc)], true, store->header));
+                };
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                           mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+                           mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);
+        }
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
         if (store && store->npc >= 0)
             draw_store(fb, s, *store, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
@@ -4863,6 +4968,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     npc_menu = {};
                     if (action == NpcMenuState::kTrade) {
                         store = open_store(*scene, who, talk_rng);
+                        store.header = cc.header;
                         inv_open = true; char_open = stash_open = cube_open = false;
                     } else if (action == NpcMenuState::kTalk) {
                         npc_menu = open_talk_menu(*scene, who, sx, sy);
