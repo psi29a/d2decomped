@@ -920,11 +920,18 @@ struct CharCreateUI {
     std::string selected_name;
 };
 
+// Set by run_windowed: D2Win buttons (control type 6) play
+// sfx\cursor\button.wav when pressed (FUN_00501090).
+std::function<void()> g_on_button_press;
+
 bool update_button(Button& b, const Mouse& m, Screen& current_screen,
                    std::atomic<bool>& quit) {
     b.hovered = m.x >= b.x && m.x < b.x + b.w
              && m.y >= b.y && m.y < b.y + b.h;
-    if (b.hovered && m.press_this_frame) b.pressed = true;
+    if (b.hovered && m.press_this_frame) {
+        b.pressed = true;
+        if (g_on_button_press) g_on_button_press();
+    }
     if (!m.down)                          b.pressed = false;
     if (b.hovered && m.release_this_frame) {
         if (b.do_switch) { current_screen = b.goto_screen; return true; }
@@ -3386,7 +3393,7 @@ struct Audio {
         bool loop = false;
     };
     bool ok = false;
-    Channel voice, music, ambience;
+    Channel voice, music, ambience, ui;
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads), the
     // stream made here once it's ready.
@@ -3426,6 +3433,22 @@ struct Audio {
         c = {};
     }
     void stop_voice() { stop(voice); }
+    // Start WAV bytes on a channel (replacing what it played).
+    bool start(Channel& c, std::span<const std::byte> wav, float gain, bool loop, int index) {
+        stop(c);
+        auto d = decode(wav);
+        if (!d) { std::fprintf(stderr, "[d2d] sound %d: %s\n", index, SDL_GetError()); return false; }
+        c.pcm = std::move(d->pcm);
+        c.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &d->spec, nullptr, nullptr);
+        if (!c.stream) { c.pcm.clear(); return false; }
+        SDL_SetAudioStreamGain(c.stream, gain);
+        SDL_PutAudioStreamData(c.stream, c.pcm.data(), int(c.pcm.size()));
+        if (!loop) SDL_FlushAudioStream(c.stream);
+        SDL_ResumeAudioStreamDevice(c.stream);
+        c.sound = index;
+        c.loop = loop;
+        return true;
+    }
     void play(Channel& c, const Scene& s, int index) {
         stop(c);
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
@@ -3435,23 +3458,20 @@ struct Audio {
         for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
             if (!wav) wav = s.mpqs.try_read(std::string(root) + snd.file);
         if (!wav) { std::fprintf(stderr, "[d2d] sound %d: %s not found\n", index, snd.file.c_str()); return; }
-        SDL_AudioSpec spec{};
-        Uint8* buf = nullptr;
-        Uint32 len = 0;
-        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(wav->data(), wav->size()), true, &spec, &buf, &len)) {
-            std::fprintf(stderr, "[d2d] sound %s: %s\n", snd.file.c_str(), SDL_GetError());
-            return;
+        start(c, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
+    }
+    // A fixed-path UI sound (game.exe names these directly, not via Sounds.txt).
+    // The decoded WAV is cached; each play restarts the channel.
+    std::unordered_map<std::string, std::vector<std::byte>> file_cache;
+    void play_file(Channel& c, const Scene& s, const std::string& path) {
+        if (!ok) return;
+        auto it = file_cache.find(path);
+        if (it == file_cache.end()) {
+            auto b = s.mpqs.try_read(path);
+            if (!b) return;
+            it = file_cache.emplace(path, std::move(*b)).first;
         }
-        c.pcm.assign(buf, buf + len);
-        SDL_free(buf);
-        c.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
-        if (!c.stream) { c.pcm.clear(); return; }
-        SDL_SetAudioStreamGain(c.stream, float(std::clamp(snd.volume, 0, 255)) / 255.f);
-        SDL_PutAudioStreamData(c.stream, c.pcm.data(), int(c.pcm.size()));
-        if (!snd.loop) SDL_FlushAudioStream(c.stream);
-        SDL_ResumeAudioStreamDevice(c.stream);
-        c.sound = index;
-        c.loop = snd.loop;
+        start(c, it->second, 1.f, false, -1);
     }
     void play_voice(const Scene& s, int index) { play(voice, s, index); }
     // Re-queue loops before they drain; drop one-shots that have played out.
@@ -3471,7 +3491,7 @@ struct Audio {
                 }
             }
         }
-        for (auto* c : { &voice, &music, &ambience }) {
+        for (auto* c : { &voice, &music, &ambience, &ui }) {
             if (!c->stream) continue;
             const int queued = SDL_GetAudioStreamQueued(c->stream);
             if (c->loop && queued < int(c->pcm.size() / 4))
@@ -3722,6 +3742,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     if (!win.open(int(kW), int(kH), g_scale)) { SDL_Quit(); return 1; }
     Audio audio;
     audio.init();
+    if (scene)
+        g_on_button_press = [&] { audio.play_file(audio.ui, *scene, R"(data\global\sfx\cursor\button.wav)"); };
+    struct ClearHook { ~ClearHook() { g_on_button_press = nullptr; } } clear_hook;   // audio dies with this scope
 
     Screen screen = g_start_screen.empty() ? Screen::Title
                                             : parse_screen(g_start_screen);
