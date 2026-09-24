@@ -51,3 +51,33 @@ baseline on row 8; font16 16 px, row 14), so the cell top is
 
 The save's active difficulty is the `difficulty[3]` byte at d2s 0xA8
 with bit 0x80 set.
+
+## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
+
+Shown while stat 4 (unspent stat points) is non-zero. Table at `0x724a48`,
+4 records of 14 bytes `{u32 x, u32 y, u32 pressed, u16 stat}`, panel
+coordinates, y = the button's bottom:
+
+| x | y | stat |
+|---|---|------|
+| 117 | 105 | 0 strength |
+| 117 | 167 | 2 dexterity |
+| 117 | 253 | 3 vitality |
+| 117 | 315 | 1 energy |
+
+- **Hit box**: x in (x, x+40), y in (y-22, y). Press sets `pressed`;
+  release on the same button sends packet `0x3a` with the u16
+  `stat | (count-1) << 8` (FUN_004785b0): count 1, or with Shift held
+  every unspent point in batches of 32.
+- **Art** (FUN_004a7d00): `PANEL\levelsocket` frame 0 at (x+5, y+5), then
+  `PANEL\level` (loaded by FUN_004a6460, also the HUD's "new stats"
+  button) frame `pressed` at (x+8, y+1); DC6s anchor bottom-left.
+- **Points box**: `PANEL\skillpoints` (FUN_004967f0 loads it into
+  0x7bef20) at (3, 364); strings 0xfeb / 0xfec ("Stat Points" /
+  "Remaining") in font6 centred in 11..88 at baselines 355 / 363; the count
+  in font16 centred in 92..127 at baseline 360.
+
+What a point does is the server's: d2d adds CharStats' per-point gains
+(`LifePerVitality`, `StaminaPerVitality`, `ManaPerMagic`, in quarter
+points) to current and max — `components/rules` `spend_stat_points`. The
+0x3a handler itself isn't traced yet.

@@ -112,5 +112,51 @@ The base y is 539 (= 60 + 255 + 224):
   - selling adds the sell value to carried gold (capped at clvl × 10000)
     and puts the item into the vendor's stock.
   - All in memory; the save isn't written.
-- Not yet: magic stock, repair, quest-item refusal, messages, and the
-  real roll.
+- Not yet: magic stock, quest-item refusal, messages, and the real roll.
+
+## Repair (FUN_0062efb0 mode 3)
+
+The price function computes buy, sell and repair together. Repair:
+
+1. base = the buy base with its quality extras (no ethereal ¼);
+2. nothing for items with no durability, whole ones, ethereal ones
+   (FUN_0062ba80) or indestructible ones;
+3. × (max − current) / max, where max is the maxdurability stat (73)
+   with item_maxdurability_percent (75) — the save stores the base max;
+4. × npc.txt rep mult and the quest rep mults / 1024; minimum 1;
+5. plus the charge recharge cost (FUN_00628d30) — not in d2d yet.
+
+Buttons at repair vendors: repair (frame 6) toggles like buy/sell and a
+click repairs the worn or carried item; repair all (18) repairs every
+worn and carried item (not the stash). `components/rules`
+`repair_cost` / `store_repair` / `store_repair_all`.
+
+## Gambling (FUN_0062efb0 mode 2 → FUN_00629370)
+
+Menu entry 0xd46. Price: rings and amulets cost their "gamble cost"
+column. Everything else, with C = max(clvl, 5), qlvl the base's level:
+
+    pb  = max(0, (clvl − exceptional qlvl) × 100 / 2 + 1)    (of 10000)
+    pu  = max(0, (clvl − elite qlvl)       × 100 / 4 + 1)
+    mix = ((10000 − pu − pb) × cost × avg stack + elite cost × pu
+           + exceptional cost × pb) / 10000
+    price = ((max(qlvl − 45, 0) − qlvl/2 + C) × 250 / 3 + mix)
+            × ((2C + 1) / 3 + 20) / 15
+
+(ItemsTxt fields: +0xd4 gamble cost, +0xe0 cost, +0xe4/+0xe8 min/max
+stack, +0xfd level, +0x88/+0x8c uber/ultra codes.)
+
+d2d rolls the item with the same upgrade weights, level clvl−5..clvl+4,
+and DifficultyLevels GambleUnique / GambleSet / GambleRare per 100000,
+else magic (`gamble_item`); the server's own roll isn't traced. Stock:
+every gamble.txt base up to clvl (the game shows a random subset).
+
+## Item generation (d2d, `components/rules` `generate_item`)
+
+Affix level `ilvl − qlvl/2` below `99 − qlvl/2`, else `2·ilvl − 99`;
+MagicPrefix/MagicSuffix rows (raw rows = the save's IDs) by spawnable,
+level, maxlevel, rare, itype/etype and group, weighted by frequency;
+mods → stats through Properties.txt funcs (1/2/3/5/6/7/8/10/11/15/16/17/
+19/20/21/22). Uniques and sets by code and level, weighted by rarity,
+else rare.
+

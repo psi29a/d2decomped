@@ -1,7 +1,7 @@
 // Vendor store: stock, buy/sell, panel and gold readouts.
 #pragma once
 
-#include "panels.hpp"
+#include "skilltree.hpp"
 
 namespace {
 
@@ -89,8 +89,10 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
     if (hover) {
         auto lines = item_lines(s, *hover, clvl);
         // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0).
-        lines.push_back({ string_id(s, 0xd01) + std::to_string(d2d::rules::item_price(s.rules, *hover, st.npc_id, false, st.header)),
-                          kTxtWhite });
+        // At the gamble screen, the gamble price (FUN_00629370).
+        const int price = st.gamble ? d2d::rules::gamble_price(s.rules, hover->code, clvl)
+                                    : d2d::rules::item_price(s.rules, *hover, st.npc_id, false, st.header);
+        lines.push_back({ string_id(s, 0xd01) + std::to_string(price), kTxtWhite });
         draw_hover_text(fb, s, lines, hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
     }
 }

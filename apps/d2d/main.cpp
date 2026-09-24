@@ -250,12 +250,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     }
     // Never start inside a tent: search outward, a subtile (0.2 cell) per
     // ring, for the nearest walkable spot.
-    if (have_world && scene->blocked(player_x, player_y)) {
+    if (have_world && scene->unit_blocked(player_x, player_y)) {
         const auto [fx, fy] = [&]() -> std::pair<float, float> {
             for (int r = 1; r < 200; ++r)
                 for (int i = -r; i <= r; ++i)
                     for (auto [ox, oy] : { std::pair{i, -r}, {i, r}, {-r, i}, {r, i} })
-                        if (!scene->blocked(player_x + ox * 0.2f, player_y + oy * 0.2f))
+                        if (!scene->unit_blocked(player_x + ox * 0.2f, player_y + oy * 0.2f))
                             return { player_x + ox * 0.2f, player_y + oy * 0.2f };
             return { player_x, player_y };
         }();
@@ -266,6 +266,16 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  walking = false;
     bool  running = false;                 // R toggles, like D2's run/walk button
     bool  stash_open = false;
+    std::optional<d2d::d2s::Item> held;   // the item on the cursor
+    int   stat_pressed = -1;               // char panel stat button held down
+    bool  tree_open = false;               // skill tree ('T')
+    int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
+    int   skill_pressed = -1;              // skill icon held down
+    std::optional<NpcState> merc;          // the save's mercenary, following
+    std::vector<std::pair<float, float>> merc_path, player_path;   // walk_path routes
+    float planned_x = 0, planned_y = 0;    // the target player_path was planned for
+    const Scene::Npc* merc_npc = nullptr;
+    std::string merc_label;
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
@@ -374,7 +384,22 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 for (int x = 0; x < int(m.width()); x += 12) automap_reveal(*scene, automap, float(x), float(y));
             return "ok " + std::to_string(automap.cells.size()) + "\n";
         }
-        if (args.size() < 2 || args[1] != "collision") return std::string("err debug collision|automap\n");
+        if (args.size() >= 4 && args[1] == "warp") {       // put the player at cell (x, y)
+            player_x = target_x = std::strtof(args[2].c_str(), nullptr);
+            player_y = target_y = std::strtof(args[3].c_str(), nullptr);
+            walking = false;
+            return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
+            for (auto& it : cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
+            return std::string("ok\n");
+        }
+        if (args.size() >= 3 && (args[1] == "statpts" || args[1] == "skillpts")) {   // grant unspent points
+            cc.stats.v[args[1] == "statpts" ? d2d::d2s::kStatPts : d2d::d2s::kSkillPts] = std::atoi(args[2].c_str());
+            return std::string("ok\n");
+        }
+        if (args.size() < 2 || args[1] != "collision")
+            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|warp <x> <y>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
@@ -385,7 +410,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         std::string out;
         for (const auto& it : cc.items) {
             out += "[" + it.code + " loc=" + std::to_string(it.location) + " slot=" + std::to_string(it.slot)
-                 + " q=" + std::to_string(it.quality) + "]\n";
+                 + " q=" + std::to_string(it.quality) + " panel=" + std::to_string(it.panel)
+                 + " at=" + std::to_string(it.column) + "," + std::to_string(it.row) + "]\n";
             for (const auto& l : item_lines(*scene, it, int(cc.stats.get(d2d::d2s::kLevel))))
                 out += "  " + l.text + "\n";
         }
@@ -434,8 +460,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " cube=" + (cube_open ? "1" : "0")
              + " store=" + std::to_string(store.npc >= 0 ? store.vendor : -1)
              + " gold=" + std::to_string(cc.stats.get(d2d::d2s::kGold))
+             + " statpts=" + std::to_string(cc.stats.get(d2d::d2s::kStatPts))
+             + " str=" + std::to_string(cc.stats.get(d2d::d2s::kStr))
+             + " life=" + std::to_string(cc.stats.fixed(d2d::d2s::kLife)) + "/" + std::to_string(cc.stats.fixed(d2d::d2s::kMaxLife))
+             + " skillpts=" + std::to_string(cc.stats.get(d2d::d2s::kSkillPts))
+             + " tree=" + (tree_open ? std::to_string(tree_tab) : "0")
              + " waypoint=" + std::to_string(waypoint.open ? int(scene->waypoint_levels[std::size_t(waypoint.tab)].size()) : 0)
              + " items=" + std::to_string(cc.items.size())
+             + " held=" + (held ? held->code : "-")
+             + " merc=" + (merc ? std::format("{:.1f},{:.1f}", merc->x, merc->y) + ":" + merc_npc->code : std::string("-"))
              + " menu=" + std::to_string(npc_menu.npc >= 0 ? int(npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(automap.open ? int(automap.cells.size()) : 0)
              + " speech=" + std::to_string(speech.npc >= 0 ? int(speech.lines.size()) : 0)
@@ -638,6 +671,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
                     cc.header = h;
+                    merc.reset();
+                    if (const auto m = scene->mercs.find(h.merc_type); h.merc_seed && !h.merc_dead && m != scene->mercs.end()) {
+                        merc = NpcState{ player_x + 1, player_y + 1 };
+                        merc_npc = &m->second.npc;
+                        merc_label = merc_name(*scene, m->second, h.merc_name);
+                    }
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -648,7 +687,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // and the character walks toward that point (the target
                 // tracks the cursor while held); the camera follows.
                 for (const auto k : keys_this_frame) {
-                    if (k == SDLK_I) inv_open = !inv_open;
+                    if (k == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
+                    if (k == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
                     if (k == SDLK_R) running = !running;              // D2's run/walk toggle
                     if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
                     if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
@@ -658,13 +698,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
                         else if (speech.npc >= 0) speech = {};              // then speech
                         else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
-                        else if (inv_open || char_open || stash_open || cube_open)   // then panels
-                            inv_open = char_open = stash_open = cube_open = false;
-                        else screen = Screen::CharSelect;
+                        else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
+                            inv_open = char_open = stash_open = cube_open = tree_open = false;
+                        else { stow_held(*scene, cc.items, held); screen = Screen::CharSelect; }
                     }
                 }
+                if (inv_open) tree_open = false;       // the stash / a store opened the inventory
                 const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
                 const bool over_panel =
+                    (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
                     (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                               && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
                     ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
@@ -679,7 +721,57 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     && ((mouse.y >= b0[2] && mouse.y <= b0[3])
                         || (belt_open && mouse.y >= belt.box[std::size_t(std::max(belt.boxes - 1, 0))][2]
                                       && mouse.y <= b0[3]));
-                if (mouse.press_this_frame && over_belt && mouse.y >= b0[2]) belt_open = !belt_open;
+                // The item cursor (not with a trade button toggled on, or a
+                // menu or speech up). Held over the store's stock, a click
+                // sells the item.
+                bool item_click = false;
+                if (mouse.press_this_frame && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
+                    if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
+                        && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
+                        cc.items.push_back(std::move(*held));
+                        held.reset();
+                        d2d::rules::store_sell(scene->rules, store, cc.items.size() - 1, cc.items, cc.stats);
+                        item_click = true;
+                    } else {
+                        item_click = item_cursor_click(*scene, cc.items, held, cc.stats,
+                                                       int(kUiToSaveClass[std::max(cc.selected, 0)]),
+                                                       { inv_open, stash_open, cube_open, belt_open, cc.expansion },
+                                                       mouse.x, mouse.y);
+                    }
+                }
+                if (mouse.press_this_frame && over_belt && mouse.y >= b0[2] && !item_click) belt_open = !belt_open;
+                // Skill tree: tabs switch on press; a skill icon pressed and
+                // released spends a point (FUN_004ab7e0 / FUN_004abc30).
+                if (tree_open) {
+                    const int cls = int(kUiToSaveClass[std::max(cc.selected, 0)]);
+                    const int sk = skill_at(*scene, cls, tree_tab, mouse.x, mouse.y);
+                    if (mouse.press_this_frame) {
+                        if (const int t = skill_tab_at(mouse.x, mouse.y); t > 0) tree_tab = t;
+                        skill_pressed = cc.stats.get(d2d::d2s::kSkillPts) > 0
+                            && d2d::rules::can_learn(scene->rules, cls, sk, cc.stats.skills, int(cc.stats.get(d2d::d2s::kLevel))) ? sk : -1;
+                    }
+                    if (mouse.release_this_frame) {
+                        if (skill_pressed >= 0 && sk == skill_pressed)
+                            d2d::rules::learn_skill(scene->rules, cls, sk, cc.stats.skills, cc.stats);
+                        skill_pressed = -1;
+                    }
+                }
+                // Char panel stat buttons: press, then release on the same
+                // button spends a point (Shift: all of them), FUN_004a78c0.
+                if (char_open && cc.stats.get(d2d::d2s::kStatPts) > 0) {
+                    const int sb = stat_button_at(mouse.x, mouse.y);
+                    if (mouse.press_this_frame && sb >= 0) stat_pressed = sb;
+                    if (mouse.release_this_frame) {
+                        if (stat_pressed >= 0 && sb == stat_pressed) {
+                            const int n = (SDL_GetModState() & SDL_KMOD_SHIFT) ? int(cc.stats.get(d2d::d2s::kStatPts)) : 1;
+                            d2d::rules::spend_stat_points(cc.stats, kStatButtons[std::size_t(sb)].stat, n,
+                                scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])]);
+                        }
+                        stat_pressed = -1;
+                    }
+                } else {
+                    stat_pressed = -1;
+                }
                 // Right-clicking the Horadric Cube ("box") in the inventory
                 // or the stash opens it in the left panel, as D2 does.
                 if (mouse.rpress_this_frame)
@@ -726,7 +818,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
                     const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
                     npc_menu = {};
-                    if (action == NpcMenuState::kTrade) {
+                    if (action == NpcMenuState::kGamble) {
+                        store = d2d::rules::open_gamble(scene->rules, n.id, int(cc.stats.get(d2d::d2s::kLevel)));
+                        store.npc = who;
+                        store.header = cc.header;
+                        inv_open = true; char_open = stash_open = cube_open = false;
+                    } else if (action == NpcMenuState::kTrade) {
                         store = open_store(*scene, who, talk_rng);
                         store.header = cc.header;
                         inv_open = true; char_open = stash_open = cube_open = false;
@@ -761,6 +858,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         const bool on = mouse.x >= bx && mouse.x < bx + 32 && mouse.y >= by && mouse.y < by + 32;
                         if (on && mouse.down) store.pressed[std::size_t(i)] = true;
                         if (on && mouse.release_this_frame && i < 2) store.mode = store.mode == i + 1 ? 0 : i + 1;
+                        // Repair vendors: repair (6) toggles like buy/sell,
+                        // repair all (18) fixes everything worn and carried.
+                        const bool repairer = store_button_frames(*scene, store)[2] == 6;
+                        if (on && mouse.release_this_frame && i == 2 && repairer) store.mode = store.mode == 3 ? 0 : 3;
+                        if (on && mouse.release_this_frame && i == 3 && repairer)
+                            d2d::rules::store_repair_all(scene->rules, store, cc.items, cc.stats);
                         if (on && mouse.release_this_frame && i == 3 && store_button_frames(*scene, store)[3] == 10) {
                             store = {}; inv_open = false;
                             break;
@@ -773,14 +876,25 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     // a left click buys the stock item / sells your item.
                     const int si = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
                     if (si >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
-                        d2d::rules::store_buy(scene->rules, store, si, cc.items, cc.stats);
-                    if (store.npc >= 0 && mouse.press_this_frame && store.mode == 2)
+                    {
+                        if (store.gamble) {
+                            d2d::rules::Rng r{ talk_rng };
+                            d2d::rules::store_gamble(scene->rules, store, si, cc.items, cc.stats, r);
+                            talk_rng = r.s;
+                        } else {
+                            d2d::rules::store_buy(scene->rules, store, si, cc.items, cc.stats);
+                        }
+                    }
+                    // Sell: an inventory item; repair: that or a worn one.
+                    if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
                         for (std::size_t i = 0; i < cc.items.size(); ++i) {
                             const auto& it = cc.items[i];
-                            if (it.location != 0 || it.panel != 1) continue;
-                            const auto r = grid_rect(*scene, lay, it);
+                            const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
+                            if (!(it.location == 0 && it.panel == 1) && !(worn && store.mode == 3)) continue;
+                            const auto r = worn ? lay.slots[std::size_t(it.slot)] : grid_rect(*scene, lay, it);
                             if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
-                                d2d::rules::store_sell(scene->rules, store, i, cc.items, cc.stats);
+                                if (store.mode == 2) d2d::rules::store_sell(scene->rules, store, i, cc.items, cc.stats);
+                                else d2d::rules::store_repair(scene->rules, store, cc.items[i], cc.stats);
                                 break;
                             }
                         }
@@ -798,7 +912,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     }
                     if (on_cancel && mouse.release_this_frame) waypoint = {};
                 }
-                const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0;
+                // Holding an item, the world doesn't take clicks.
+                // ponytail: D2 drops it on the ground; no ground items yet.
+                const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
                     if ((mouse.down || mouse.press_this_frame) && !over_ui) {
@@ -841,6 +957,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             } else {
                                 // The NPC's feet on screen, as render_world projects them.
                                 const float dx = ox - player_x, dy = oy - player_y;
+                                if (d2d::rules::is_healer(o.hc_idx)) d2d::rules::heal(cc.stats);
                                 npc_menu = open_npc_menu(*scene, interact_npc,
                                     int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
                                     int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))));
@@ -853,23 +970,23 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         }
                     }
                     if (walking) {
-                        const float dx = target_x - player_x, dy = target_y - player_y;
+                        // A route to the target, re-planned when the target
+                        // moves off its end (dragging, a walking NPC).
+                        if (player_path.empty() || std::hypot(planned_x - target_x, planned_y - target_y) > 0.3f) {
+                            player_path = walk_path(*scene, player_x, player_y, target_x, target_y);
+                            planned_x = target_x; planned_y = target_y;
+                        }
                         const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
                         const float vel = float(running ? scene->run_velocity[sc] : scene->walk_velocity[sc]);
-                        const float dist = std::hypot(dx, dy), step = cells_per_sec(vel) * dt;
-                        if (dist > 0.05f) player_dir = direction16(dx, dy);
-                        const float k = dist <= step ? 1.f : step / dist;
-                        const float nx = player_x + dx * k, ny = player_y + dy * k;
-                        // Blocked subtile ahead: slide along one axis, else
-                        // stop. ponytail: D2 paths around obstacles; this
-                        // only slides along walls.
-                        if      (!scene->blocked(nx, ny))       { player_x = nx; player_y = ny; }
-                        else if (!scene->blocked(nx, player_y)) { player_x = nx; }
-                        else if (!scene->blocked(player_x, ny)) { player_y = ny; }
-                        else walking = false;
-                        if (dist <= step) walking = false;
+                        walking = follow_path(*scene, player_path, player_x, player_y, player_dir, cells_per_sec(vel) * dt);
+                        if (!walking) player_path.clear();
                     }
                     npc_patrol(*scene, npc_states, { npc_menu.npc, speech.npc, store.npc }, ms, dt);
+                    if (merc) {
+                        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+                        merc_follow(*scene, *merc, merc_path, player_x, player_y,
+                                    cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt);
+                    }
                 }
                 if (const bool m = walking && running; walking != player_walked || m != player_ran) {
                     player_walked = walking; player_ran = m; player_mode_ms = ms;
@@ -880,11 +997,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                             : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                               cc.input_name, cc.hardcore,
                               player_x, player_y, walking ? (running ? kModeRN : kModeTW) : kModeTN,
-                              player_dir, ms, mouse.x, mouse.y, npc_states,
+                              player_dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
                               &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
-                              cube_open, &npc_menu, &speech, &automap, &store);
+                              cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
+                              merc_npc, merc ? &*merc : nullptr, &merc_label);
+                if (tree_open)
+                    draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
+                                    skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
                 if (waypoint.open)
                     draw_waypoints(fb, *scene, waypoint, cc.header, cc.expansion, 1, mouse.x, mouse.y);
                 break;
@@ -921,7 +1042,9 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             // the screen underneath.
             // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
-            if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
+            if (screen == Screen::InGame && held) {
+                draw_held(fb, *scene, *held, mouse.x, mouse.y);
+            } else if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;

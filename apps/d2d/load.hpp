@@ -187,43 +187,66 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         "HDv", "TRv", "LGv", "RAv", "LAv", "RHv", "LHv", "SHv",
         "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
     };
+    // A monster unit from its MonStats / MonStats2 row (same Id order).
+    auto monster = [&](std::size_t row) {
+        Scene::Npc n;
+        n.root   = "monsters";
+        n.mode   = "NU";
+        n.code   = std::string(ms.get(row, "Code"));
+        n.hc_idx = std::atoi(std::string(ms.get(row, "hcIdx")).c_str());
+        n.id     = std::string(ms.get(row, "Id"));
+        n.base_w = std::string(ms2.get(row, "BaseW"));
+        n.size_x = std::atoi(std::string(ms2.get(row, "SizeX")).c_str());
+        n.size_y = std::atoi(std::string(ms2.get(row, "SizeY")).c_str());
+        if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
+        // Hover name: MonStats' string key, only for units MonStats2 marks
+        // selectable (isSel) — not the chicken or the camp's guard rogues,
+        // whose name key "Dummy" reads "an evil force".
+        if (ms2.get(row, "isSel") == "1") {
+            std::string key(ms.get(row, "NameStr"));        // 1.14d; "namco" on the CD
+            if (key.empty()) key = std::string(ms.get(row, "namco"));
+            auto v = lookup_string(scene, key);
+            n.name = v ? u16_to_latin1(*v) : key;
+        }
+        if (n.code.empty()) return n;
+        if (n.base_w.empty()) n.base_w = "hth";
+        for (std::size_t l = 0; l < 16; ++l) {
+            if (ms2.get(row, kLayerCode[l]) != "1") continue;
+            auto v = ms2.get(row, kVariant[l]);                // "lit,med": quoted lists
+            if (v.starts_with('"')) v.remove_prefix(1);
+            const auto first = v.substr(0, std::min(v.find(','), v.find('"')));
+            n.comp[l] = first.empty() ? "lit" : std::string(first);
+        }
+        return n;
+    };
     for (const auto& o : scene.world_ds1.objects()) {
         if (o.type != 1 || o.id < 0 || std::size_t(o.id) >= act1.size()) continue;
         const std::string place(preset.get(act1[std::size_t(o.id)], "Place"));
         const auto it = ms2_row.find(place);
         if (it == ms2_row.end()) continue;           // place_* markers etc.
-        Scene::Npc n;
-        n.root   = "monsters";
-        n.mode   = "NU";
-        n.code   = std::string(ms.get(it->second, "Code"));
-        n.hc_idx = std::atoi(std::string(ms.get(it->second, "hcIdx")).c_str());
-        n.id     = std::string(ms.get(it->second, "Id"));
-        n.base_w = std::string(ms2.get(it->second, "BaseW"));
-        n.size_x = std::atoi(std::string(ms2.get(it->second, "SizeX")).c_str());
-        n.size_y = std::atoi(std::string(ms2.get(it->second, "SizeY")).c_str());
-        if (const auto v = ms.get(it->second, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
-        // Hover name: MonStats' string key, only for units MonStats2 marks
-        // selectable (isSel) — not the chicken or the camp's guard rogues,
-        // whose name key "Dummy" reads "an evil force".
-        if (ms2.get(it->second, "isSel") == "1") {
-            std::string key(ms.get(it->second, "NameStr"));        // 1.14d; "namco" on the CD
-            if (key.empty()) key = std::string(ms.get(it->second, "namco"));
-            auto v = lookup_string(scene, key);
-            n.name = v ? u16_to_latin1(*v) : key;
-        }
+        auto n = monster(it->second);
         if (n.code.empty()) continue;
-        if (n.base_w.empty()) n.base_w = "hth";
-        for (std::size_t l = 0; l < 16; ++l) {
-            if (ms2.get(it->second, kLayerCode[l]) != "1") continue;
-            const auto v = ms2.get(it->second, kVariant[l]);
-            const auto first = v.substr(0, v.find(','));
-            n.comp[l] = first.empty() ? "lit" : std::string(first);
-        }
         n.x = (float(o.x) + 0.5f) / 5;
         n.y = (float(o.y) + 0.5f) / 5;
         for (const auto& pt : o.path)
             n.path.emplace_back((float(pt.x) + 0.5f) / 5, (float(pt.y) + 0.5f) / 5);
         scene.world_npcs.push_back(std::move(n));
+    }
+
+    // Mercenaries: hireling.txt (LoD rows, Version 100) by Id -> the MonStats
+    // row whose hcIdx is its Class; name keys run from NameFirst.
+    if (const auto hire = txt("hireling"); hire.size() > 0) {
+        std::unordered_map<int, std::size_t> by_hc;
+        for (std::size_t r = 0; r < ms.size(); ++r) by_hc.emplace(std::atoi(std::string(ms.get(r, "hcIdx")).c_str()), r);
+        for (std::size_t r = 0; r < hire.size(); ++r) {
+            if (hire.get(r, "Version") != "100") continue;
+            const int id = std::atoi(std::string(hire.get(r, "Id")).c_str());
+            const auto m = by_hc.find(std::atoi(std::string(hire.get(r, "Class")).c_str()));
+            if (m == by_hc.end() || scene.mercs.contains(id)) continue;
+            auto n = monster(m->second);
+            if (n.code.empty()) continue;
+            scene.mercs.emplace(id, Scene::Merc{ std::move(n), std::string(hire.get(r, "NameFirst")) });
+        }
     }
 
     // Type-2 objects: id -> objects.txt Id through game.exe's own preset
@@ -318,10 +341,16 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
                 std::string(t->get(r, "namestr")), std::string(t->get(r, "type")),
                 t == &armor ? 1 : t == &weapons ? 2 : 0,
-                t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1 };
+                t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1,
+                t == &weapons && t->get(r, "2handed") == "1", t == &weapons && t->get(r, "1or2handed") == "1",
+                std::atoi(std::string(t->get(r, "reqstr")).c_str()), std::atoi(std::string(t->get(r, "reqdex")).c_str()),
+                std::atoi(std::string(t->get(r, "levelreq")).c_str()) };
     for (std::size_t r = 0; r < types.size(); ++r) {
         const std::string code(types.get(r, "Code"));
-        scene.type_equiv[code] = { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) };
+        scene.rules.types[code] = {
+            { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) },
+            { d2d::rules::body_slot(types.get(r, "BodyLoc1")), d2d::rules::body_slot(types.get(r, "BodyLoc2")) },
+            std::string(types.get(r, "Class")), types.get(r, "Beltable") == "1" };
         auto& g = scene.type_invgfx[code];
         for (int i = 0; i < 6; ++i) g[std::size_t(i)] = std::string(types.get(r, "InvGfx" + std::to_string(i + 1)));
     }
@@ -333,7 +362,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 const std::string code(t->get(r, "code"));
                 auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
                 scene.rules.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
-                                          t->get(r, "stackable") == "1" };
+                                          t->get(r, "stackable") == "1", n("level"),
+                                          t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),
+                                          std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
+                                          std::string(t->get(r, "ultracode")) };
                 if (t->get(r, "spawnable") != "1") continue;
                 for (std::size_t v = 0; v < 17; ++v) {
                     const std::string V = kVendorCol[v];
@@ -388,6 +420,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 if (!f) continue;
                 const auto st = stat_id.find(std::string(pt.get(r, "stat" + std::to_string(i))));
                 prop[std::string(pt.get(r, "code"))].emplace_back(f, st == stat_id.end() ? -1 : st->second);
+                scene.rules.properties[std::string(pt.get(r, "code"))].push_back(
+                    { f, st == stat_id.end() ? -1 : st->second,
+                      std::atoi(std::string(pt.get(r, "val" + std::to_string(i))).c_str()) });
             }
         const auto gt = txt("gems");
         static constexpr const char* kSlot[3] = { "weaponMod", "helmMod", "shieldMod" };
@@ -428,6 +463,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 const auto id = std::size_t(std::atoi(std::string(t.get(r, "Id")).c_str()));
                 if (id >= scene.skill_name.size()) { scene.skill_name.resize(id + 1); scene.skill_class.resize(id + 1, -1); }
                 scene.skill_name[id] = desc_name[std::string(t.get(r, "skilldesc"))];
+                scene.rules.skill_id[std::string(t.get(r, "skill"))] = int(id);
                 const auto cc = t.get(r, "charclass");
                 for (int c = 0; c < 7; ++c) if (cc == kCls[c]) scene.skill_class[id] = c;
             }
@@ -565,6 +601,60 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
         scene.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         scene.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
+        // Item generation (components/rules generate_item / gamble_item).
+        auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+        auto affixes = [&](const char* n) {
+            std::vector<d2d::rules::Affix> v;
+            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
+                const d2d::txt::Table t(*b, true);                 // raw rows = the save's affix IDs
+                for (std::size_t r = 0; r < t.size(); ++r) {
+                    d2d::rules::Affix a{ std::string(t.get(r, "Name")), num(t.get(r, "level")), num(t.get(r, "maxlevel")),
+                                         num(t.get(r, "group")), num(t.get(r, "frequency")),
+                                         t.get(r, "spawnable") == "1", t.get(r, "rare") == "1", {}, {}, {} };
+                    for (int i = 1; i <= 7; ++i)
+                        if (const auto c = t.get(r, "itype" + std::to_string(i)); !c.empty()) a.itypes.emplace_back(c);
+                    for (int i = 1; i <= 5; ++i)
+                        if (const auto c = t.get(r, "etype" + std::to_string(i)); !c.empty()) a.etypes.emplace_back(c);
+                    for (int i = 1; i <= 3; ++i) {
+                        const auto k = "mod" + std::to_string(i);
+                        if (const auto c = t.get(r, k + "code"); !c.empty())
+                            a.mods.push_back({ std::string(c), std::string(t.get(r, k + "param")),
+                                               num(t.get(r, k + "min")), num(t.get(r, k + "max")) });
+                    }
+                    v.push_back(std::move(a));
+                }
+            }
+            return v;
+        };
+        scene.rules.prefixes = affixes("MagicPrefix");
+        scene.rules.suffixes = affixes("MagicSuffix");
+        auto specials = [&](const char* n, const char* code_col, int props) {
+            std::vector<d2d::rules::Special> v;
+            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
+                const d2d::txt::Table t(*b);
+                for (std::size_t r = 0; r < t.size(); ++r) {
+                    d2d::rules::Special sp{ std::string(t.get(r, code_col)), num(t.get(r, "lvl")), num(t.get(r, "rarity")),
+                                            code_col[0] == 'c' ? t.get(r, "enabled") == "1" : true, {} };
+                    for (int i = 1; i <= props; ++i) {
+                        const auto k = std::to_string(i);
+                        if (const auto c = t.get(r, "prop" + k); !c.empty())
+                            sp.mods.push_back({ std::string(c), std::string(t.get(r, "par" + k)),
+                                                num(t.get(r, "min" + k)), num(t.get(r, "max" + k)) });
+                    }
+                    v.push_back(std::move(sp));
+                }
+            }
+            return v;
+        };
+        scene.rules.uniques = specials("UniqueItems", "code", 12);
+        scene.rules.sets = specials("SetItems", "item", 9);
+        scene.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
+        scene.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
+        scene.rules.gamble = keys("gamble", "code", false);
+        if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
+            for (std::size_t r = 0; r < 3; ++r)
+                scene.rules.gamble_rates[r] = { num(dl.get(r, "GambleRare")), num(dl.get(r, "GambleSet")),
+                                                num(dl.get(r, "GambleUnique")) };
         if (auto b = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
             const d2d::txt::Table t(*b);
             for (std::size_t r = 0; r < t.size(); ++r) {
@@ -601,6 +691,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     if (auto p = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
         scene.inv_panel = d2d::dc6::Sprite(*p);
+    for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\level.dc6)", &scene.level_button },
+                               { R"(data\global\ui\PANEL\levelsocket.dc6)", &scene.level_socket },
+                               { R"(data\global\ui\PANEL\skillpoints.dc6)", &scene.points_box } })
+        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
     const auto inv = txt("inventory");
     for (std::size_t r = 0; r < inv.size(); ++r) {
@@ -611,6 +705,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         auto num = [&](const char* col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
         auto& L = e == 2 ? scene.cube_layout : scene.stash_layout[std::size_t(e)];
         L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
+        L.cols = num("gridX"); L.rows = num("gridY");
         L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
     }
     for (auto [path, e] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
@@ -629,6 +724,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             auto& L = scene.inv_layout[c];
             L.panel_x = num("invLeft"); L.panel_y = num("invTop");
             L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
+            L.cols = num("gridX"); L.rows = num("gridY");
             L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
             for (std::size_t sl = 1; sl < 11; ++sl) {
                 const std::string k = kSlotCol[sl];
@@ -640,7 +736,55 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (scene.comp[i].code == code) return std::uint8_t(i);
         return std::uint8_t(0xff);
     };
+    // Class skills: Skills.txt rows by charclass, in file order (the save's
+    // 30 "if" bytes), joined with SkillDesc.txt for the tree.
+    {
+        const auto skills = txt("skills"), desc = txt("skilldesc");
+        std::unordered_map<std::string, std::size_t> desc_row;
+        for (std::size_t r = 0; r < desc.size(); ++r) desc_row[std::string(desc.get(r, "skilldesc"))] = r;
+        auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+        for (std::size_t c = 0; c < 7; ++c) {
+            auto& list = scene.rules.class_skills[c];
+            std::vector<std::string> names;
+            for (std::size_t r = 0; r < skills.size(); ++r) {
+                if (skills.get(r, "charclass") != d2d::rules::kClassCode[c]) continue;
+                d2d::rules::ClassSkill sk;
+                sk.req_level = std::max(1, num(skills.get(r, "reqlevel")));
+                if (const int m = num(skills.get(r, "maxlvl")); m > 0) sk.max_level = m;
+                if (const auto d = desc_row.find(std::string(skills.get(r, "skilldesc"))); d != desc_row.end()) {
+                    sk.page = num(desc.get(d->second, "SkillPage"));
+                    sk.row = num(desc.get(d->second, "SkillRow"));
+                    sk.col = num(desc.get(d->second, "SkillColumn"));
+                    sk.icon = num(desc.get(d->second, "IconCel"));
+                    sk.name = std::string(desc.get(d->second, "str name"));
+                }
+                names.emplace_back(skills.get(r, "skill"));
+                list.push_back(std::move(sk));
+            }
+            // reqskill1..3 name skills of the same class.
+            std::size_t i = 0;
+            for (std::size_t r = 0; r < skills.size(); ++r) {
+                if (skills.get(r, "charclass") != d2d::rules::kClassCode[c]) continue;
+                for (int q = 0; q < 3; ++q) {
+                    const auto want = skills.get(r, "reqskill" + std::to_string(q + 1));
+                    if (const auto it = std::ranges::find(names, want); !want.empty() && it != names.end())
+                        list[i].req[std::size_t(q)] = int(it - names.begin());
+                }
+                ++i;
+            }
+        }
+        static constexpr const char* kTree[7] = { "a", "s", "n", "p", "b", "d", "i" };
+        static constexpr const char* kIcons[7] = { "Am", "So", "Ne", "Pa", "Ba", "Dr", "As" };
+        for (std::size_t c = 0; c < 7; ++c) {
+            if (auto b = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\skltree_)") + kTree[c] + "_back.dc6"))
+                scene.skill_tree_bg[c] = d2d::dc6::Sprite(*b);
+            if (auto b = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\)") + kIcons[c] + "Skillicon.dc6"))
+                scene.skill_icons[c] = d2d::dc6::Sprite(*b);
+        }
+    }
     for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
+        auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };
+        scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic") };
         auto& g = scene.starting_gear[c];
         g.fill(0xff);
         for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit
@@ -946,8 +1090,10 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     }
     // Collision grid from the same tiles the renderer draws: floors
     // (type 0) and walls/objects, but not shadows (13) or roofs (15).
-    // ponytail: subtile flag k taken as (x, y) = (k % 5, k / 5); objects
-    // and NPCs (DS1 object list) don't block yet.
+    // A tile's 25 DT1 subtile flags OR straight into the grid, rows stored
+    // bottom-up: subtile (x, y) takes flag (4 - y) * 5 + x (FUN_0064c4c0,
+    // building the room grid in FUN_0064c900). Units stamp their own
+    // footprints (load_npcs).
     const auto& m = scene.world_ds1;
     const int ww = m.width() * 5;
     scene.world_walk.assign(std::size_t(ww) * std::size_t(m.height()) * 5, 0);
@@ -955,7 +1101,7 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
         const auto it = scene.world_tile_lookup.find(tile_key(style, seq, type));
         if (it == scene.world_tile_lookup.end()) return;
         for (int k = 0; k < 25; ++k)
-            scene.world_walk[std::size_t(gy * 5 + k / 5) * std::size_t(ww) + std::size_t(gx * 5 + k % 5)]
+            scene.world_walk[std::size_t(gy * 5 + 4 - k / 5) * std::size_t(ww) + std::size_t(gx * 5 + k % 5)]
                 |= it->second->subtile_flags[std::size_t(k)];
     };
     for (int gy = 0; gy < m.height(); ++gy)

@@ -125,10 +125,11 @@ fs::path default_data_dir(std::string_view cfg_data) {
 // Palette-lookup blit: index 0 is transparent (skip), all other indices map
 // through the supplied palette to real RGBA. Signed dest so negative offsets
 // clip cleanly (logo frames have ox down to -180).
+// `shade` scales the colour, 256 = as is (skill tree: greyed-out icons).
 void blit_sprite(std::vector<std::uint8_t>& fb,
                  const d2d::dc6::Frame& f,
                  const d2d::palette::Palette& pal,
-                 int dst_x, int dst_y) {
+                 int dst_x, int dst_y, int shade = 256) {
     for (std::uint32_t y = 0; y < f.height; ++y) {
         const int dy = dst_y + int(y);
         if (dy < 0 || dy >= int(kH)) continue;
@@ -139,7 +140,13 @@ void blit_sprite(std::vector<std::uint8_t>& fb,
             if (idx == 0) continue;
             const auto c = pal[idx];
             auto* p = &fb[(std::size_t(dy) * kW + std::size_t(dx)) * 4];
-            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = c.a;
+            if (shade == 256) { p[0] = c.r; p[1] = c.g; p[2] = c.b; }
+            else {
+                p[0] = std::uint8_t(std::min(255, c.r * shade / 256));
+                p[1] = std::uint8_t(std::min(255, c.g * shade / 256));
+                p[2] = std::uint8_t(std::min(255, c.b * shade / 256));
+            }
+            p[3] = c.a;
         }
     }
 }

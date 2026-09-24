@@ -17,6 +17,8 @@
 //              SH S1..S8), an index into D2's component table (see
 //              components/compcode), 0xff = empty
 //   +0x98 u8   tints[16]: per-layer item colormap, 0xff = none
+//   +0xB1 u16  mercenary dead, +0xB3 u32 its seed (0 = no merc), +0xB7 u16
+//              name index, +0xB9 u16 type (hireling.txt Id), +0xBB u32 exp
 //   +0xA8 u8   difficulty[3]: normal/nightmare/hell; 0x80 = the one the
 //              character was last played on, low 3 bits = act
 //   +0x14F "Woo!" u32 version (6) u16 size (298), then per difficulty 96
@@ -57,6 +59,10 @@ struct Header {
     std::array<std::uint8_t, 16> tints{};
     std::array<std::uint8_t, 3>  difficulty{};
     std::array<std::array<std::uint8_t, 96>, 3> quests{};   // zero when the save has none
+    // The mercenary: seed 0 = none hired.
+    bool merc_dead = false;
+    std::uint32_t merc_seed = 0, merc_exp = 0;
+    std::uint16_t merc_name = 0, merc_type = 0;
     [[nodiscard]] bool quest_flag(int diff, int quest, int bit) const noexcept {
         const int n = quest * 16 + bit;
         if (diff < 0 || diff > 2 || n < 0 || n >= 96 * 8) return false;
@@ -81,7 +87,7 @@ struct Header {
 // Throws std::runtime_error on anything that isn't a 1.09–1.14d save.
 // Saves are user-supplied files: validate before trusting any field.
 inline Header parse_header(std::span<const std::byte> b) {
-    constexpr std::size_t kHeaderEnd = 0xAB;   // through difficulty[]
+    constexpr std::size_t kHeaderEnd = 0xBF;   // through the merc fields
     if (b.size() < kHeaderEnd) throw std::runtime_error("d2s: truncated header");
     auto rd32 = [&](std::size_t off) {
         std::uint32_t v; std::memcpy(&v, b.data() + off, 4); return v;
@@ -106,6 +112,12 @@ inline Header parse_header(std::span<const std::byte> b) {
     std::memcpy(h.appearance.data(), b.data() + 0x88, 16);
     std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
     std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
+    auto rd16 = [&](std::size_t off) { std::uint16_t v; std::memcpy(&v, b.data() + off, 2); return v; };
+    h.merc_dead = rd16(0xB1) != 0;
+    h.merc_seed = rd32(0xB3);
+    h.merc_name = rd16(0xB7);
+    h.merc_type = rd16(0xB9);
+    h.merc_exp  = rd32(0xBB);
     if (b.size() >= 0x159 + 3 * 96 && std::memcmp(b.data() + 0x14F, "Woo!", 4) == 0)
         for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.quests[d].data(), b.data() + 0x159 + d * 96, 96);
     if (b.size() >= 0x281 + 3 * 24 && std::memcmp(b.data() + 0x279, "WS", 2) == 0)

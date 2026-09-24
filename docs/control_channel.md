@@ -38,11 +38,15 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
+| `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
+| `debug statpts <n>` / `debug skillpts <n>` | `ok`    | Set the in-game character's unspent stat / skill points. |
+| `debug wear`                | `ok`                   | Halve the durability of everything worn (repair tests). |
+| `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y). |
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
-| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 menu=<lines> automap=<cells when open> speech=<lines> voice=<Sounds.txt index> music=<index>\nok` | Loop state for scripted asserts. |
-| `items`                     | per item `[code loc=… slot=… q=…]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
+| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 store=<vendor> gold=… statpts=… str=… life=cur/max skillpts=… tree=<tab, 0 closed> waypoint=… items=<count> held=<code or -> merc=<x,y:code or -> menu=<lines> automap=<cells when open> speech=<lines> voice=<Sounds.txt index> music=<index>\nok` | Loop state for scripted asserts. |
+| `items`                     | per item `[code loc=… slot=… q=… panel=… at=col,row]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
 
 Future verbs (as the engine grows): `load <act>/<level>`, etc.
 

@@ -145,12 +145,8 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
 // Is item type `t` (or an Equiv ancestor) `want`?
-bool type_is(const Scene& s, const std::string& t, std::string_view want, int depth = 0) {
-    if (t.empty() || depth > 8) return false;
-    if (t == want) return true;
-    const auto e = s.type_equiv.find(t);
-    return e != s.type_equiv.end()
-        && (type_is(s, e->second[0], want, depth + 1) || type_is(s, e->second[1], want, depth + 1));
+bool type_is(const Scene& s, const std::string& t, std::string_view want) {
+    return d2d::rules::type_is(s.rules, t, want);
 }
 
 // What a filled socket adds to `parent`: a jewel's own properties, or the
@@ -224,7 +220,7 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
 struct NpcMenuState {
     int npc = -1;                            // world_npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; };
     std::vector<Line> lines;
     int x = 0, y = 0, w = 0, h = 0;
@@ -257,7 +253,8 @@ NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y) 
     for (const auto id : it->entries)
         if (id) m.lines.push_back({ string_id(s, id), 15, 0, 0, false,
                                     id == 0xd35 ? NpcMenuState::kTalk
-                                    : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade : NpcMenuState::kClose });
+                                    : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade
+                                    : id == 0xd46 ? NpcMenuState::kGamble : NpcMenuState::kClose });
     m.lines.push_back({ string_id(s, 0x102e), 15 });
     layout_npc_menu(s, m, screen_x, screen_y);
     return m;

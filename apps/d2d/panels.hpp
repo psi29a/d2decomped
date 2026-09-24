@@ -76,9 +76,26 @@ constexpr PanelText kCharValues[] = {
     { 273, 372, 307, 43 }, { 273, 396, 307, 41 }, { 273, 420, 307, 45 },
 };
 
+// Stat point buttons, from game.exe's table at 0x724a48 (14-byte records
+// {u32 x, u32 y, u32 pressed, u16 stat}): the button's bottom-left in panel
+// coordinates, and the stat a click spends on. Hit box x in (x, x+40),
+// y in (y-22, y) (FUN_004a7720 / FUN_004a78c0).
+struct StatButton { int x, y, stat; };
+constexpr StatButton kStatButtons[4] = { { 117, 105, 0 }, { 117, 167, 2 }, { 117, 253, 3 }, { 117, 315, 1 } };
+
+// The stat button under (mx, my) (screen), or -1.
+int stat_button_at(int mx, int my) {
+    for (int i = 0; i < 4; ++i) {
+        const auto& b = kStatButtons[i];
+        const int x = mx - kCharPanelX, y = my - kCharPanelY;
+        if (x > b.x && x < b.x + 40 && y > b.y - 22 && y < b.y) return i;
+    }
+    return -1;
+}
+
 void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st,
                      const PanelStats& ps,
-                     std::string_view name, int class_idx) {
+                     std::string_view name, int class_idx, int pressed_button = -1) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int px = kCharPanelX, py = kCharPanelY;
     if (s.inv_panel.frames_per_direction() >= 8) {
@@ -141,6 +158,27 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
     const auto& fname = name.size() + 1 <= 11 ? f16 : name.size() + 1 < 14 ? f8 : f6;
     text(fname, 13, 13 + 0xa1 - 0xd - 1, 25, std::string(name));
     text(f16, 0xc1, 0x137 - 1, 25, cls);
+    // Unspent stat points (FUN_004a7d00): the skillpoints box at (3, 364)
+    // with "Stat Points" / "Remaining" (0xfeb, 0xfec) in font6 centred in
+    // 11..88 at baselines 355 / 363 and the count in font16 in 92..127 at
+    // 360; each stat's button, levelsocket at (x+5, y+5) under level
+    // (frame 1 while pressed) at (x+8, y+1). DC6s anchor bottom-left.
+    if (const auto pts = st.get(d2d::d2s::kStatPts); pts > 0) {
+        auto dc6 = [&](const d2d::dc6::Sprite& spr, int frame, int x, int y) {
+            if (spr.frames_per_direction() <= frame) return;
+            const auto& f = spr.frame(0, std::uint32_t(frame));
+            blit_sprite(fb, f, pal, px + x, py + y - int(f.height) + 1);
+        };
+        dc6(s.points_box, 0, 3, 364);
+        for (auto [id, y] : { std::pair{ 0xfeb, 355 }, { 0xfec, 363 } })
+            if (auto v = lookup_string(s, std::uint16_t(id))) text(f6, 11, 0x59 - 1, y, u16_to_latin1(*v));
+        text(f16, 0x5c, 0x80 - 1, 360, std::to_string(pts));
+        for (int i = 0; i < 4; ++i) {
+            const auto& b = kStatButtons[i];
+            dc6(s.level_socket, 0, b.x + 5, b.y + 5);
+            dc6(s.level_button, i == pressed_button ? 1 : 0, b.x + 8, b.y + 1);
+        }
+    }
 }
 
 // The bottom HUD, as game.exe's 800x600 path draws it (FUN_004983d0 for

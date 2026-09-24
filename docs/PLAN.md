@@ -106,22 +106,28 @@ NPCs talk and trade. The next milestone is leaving town (phase 5's end).
 
 Noted while playing the dev build (2026-09-24):
 
-- **Walking through objects.** The player sometimes passes through
-  objects. d2d's collision is our own approximation: DS1 wall-tile
-  flags plus MonStats2/objects.txt footprints, sliding along one axis
-  when blocked. RE the real collision (the D2Common COLLISION_* checks
-  and the room collision grid, mask 0x1c09 as seen in FUN_0064e7b0) and
-  the pathing, then port them.
+- **Collision.** Now built like game.exe's room grid (DT1 subtile rows
+  were read upside down) with the plus-shaped unit test, and click-to-walk
+  paths round obstacles (docs/research/re/collision.md). Left: the tile
+  entry flag bits, units blocking each other, doors, and D2's own
+  pathing in place of our A*.
 - **NPC menu entries.** Not every menu item does something yet:
-  - gamble, hire and identify are missing (trade works);
+  - trade/repair, gamble and healing work; hire and identify are
+    missing (see Next up);
   - quest topics and the extra entries (Kashya's hire, Warriv's "go
     east") come from the game server (docs/research/re/npc-talk.md).
 
 ## Next up (as of 2026-09-24)
 
-1. Testable game rules: store/price rules are in `components/rules`
-   with `test_rules`. NPC patrol can follow once it's off `Scene`.
-2. Trade leftovers: repair, magic stock, the real stock roll.
-3. NPC menu leftovers: gamble, hire, identify.
+1. Testable game rules: store, prices, item cursor, stat/skill points,
+   repair, item generation, gambling and pathing are in
+   `components/rules` with `test_rules`. NPC patrol can follow once it's
+   off `Scene`.
+2. Trade leftovers: magic stock, the real stock roll, charge recharging.
+3. NPC menu leftovers:
+   - hire: Kashya's list is a 490x350 dialog on game.exe's list widget
+     (FUN_004b5c60, FUN_004bf8f0) fed by the server's merc offers — RE
+     both; the save's own merc already shows and follows;
+   - identify: Cain only stands in camp after his rescue quest.
 4. Waypoint travel and leaving town (Act 1 wilderness DRLG), once more
    fundamentals are in place.

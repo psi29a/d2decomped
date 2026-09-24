@@ -1,7 +1,7 @@
 // render_ingame: world + every in-game panel composed per frame.
 #pragma once
 
-#include "store.hpp"
+#include "cursor.hpp"
 
 namespace {
 
@@ -28,7 +28,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
                    bool belt_popup = false, bool cube_open = false,
                    const NpcMenuState* npc_menu = nullptr, const Speech* speech = nullptr,
-                   const Automap* automap = nullptr, const Store* store = nullptr) {
+                   const Automap* automap = nullptr, const Store* store = nullptr,
+                   int stat_pressed = -1,
+                   const Scene::Npc* merc = nullptr, const NpcState* merc_state = nullptr,
+                   const std::string* merc_label = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -58,6 +61,10 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));
             units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name, st ? st->mode_ms : 0, int(i) });
         }
+        if (merc && merc_state)                    // npc -2: not an NPC-menu unit
+            units.push_back({ merc_state->x, merc_state->y,
+                              &s.npc_anim(*merc, merc_state->walking ? std::string_view("WL") : std::string_view("NU")),
+                              merc_state->dir, merc_label, merc_state->mode_ms, -2 });
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
@@ -82,7 +89,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);
             if (hud_stats) draw_gold(fb, s, *hud_stats, false);
         }
-        if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
+        if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         if (store && store->npc >= 0)
         {
             draw_store(fb, s, *store, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);

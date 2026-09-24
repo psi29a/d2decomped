@@ -43,6 +43,7 @@ struct Item {
          personalized = false, runeword = false, simple = false;
     int  quality = 2;                  // 1 low .. 8 crafted; 2 = normal
     int  ilvl = 0, defense = -1, quantity = -1, sockets = 0;
+    int  durability = 0, max_durability = 0;   // max 0: indestructible / none
     int  set_id = -1, unique_id = -1;
     int  qsub = 0;                     // low (0 crude..3) / superior subtype
     int  picture = -1;                 // ItemTypes InvGfx index (rings, charms, jewels ...)
@@ -166,7 +167,10 @@ inline Item item(Bits& bs, const ItemTables& t) {
             bs.read(1);
             if (t.armor.contains(it.code)) it.defense = int(bs.read(11)) - 10;
             if (t.armor.contains(it.code) || t.weapons.contains(it.code))
-                if (bs.read(8)) bs.read(9);        // max / current durability
+                if ((it.max_durability = int(bs.read(8)))) {   // max, then current (8 bits + 1 unused)
+                    it.durability = int(bs.read(8));
+                    bs.read(1);
+                }
             if (t.stackable.contains(it.code)) it.quantity = int(bs.read(9));
             if (it.socketed) it.sockets = int(bs.read(4));
             int lists = 0;
@@ -188,6 +192,7 @@ inline Item item(Bits& bs, const ItemTables& t) {
 struct Stats {
     std::array<std::int64_t, 16> v{};   // by stat id 0..15 (strength .. goldbank)
     std::size_t items_at = 0;           // byte offset of the item list's "JM"
+    std::array<std::uint8_t, 30> skills{};   // "if": the class's 30 skills in Skills.txt order, base levels
     [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? v[std::size_t(id)] : 0; }
     [[nodiscard]] std::int64_t fixed(int id) const { return get(id) >> 8; }   // life/mana/stamina
 };
@@ -212,6 +217,7 @@ inline Stats parse_stats(std::span<const std::byte> save, const ItemTables& t) {
     const std::size_t at = (bs.pos + 7) / 8;              // "if" + 30 bytes follow
     if (at + 32 > save.size() || save[at] != std::byte{'i'} || save[at + 1] != std::byte{'f'})
         throw std::runtime_error("d2s: skills section not after stats");
+    for (std::size_t i = 0; i < 30; ++i) st.skills[i] = std::uint8_t(save[at + 2 + i]);
     st.items_at = at + 32;
     return st;
 }

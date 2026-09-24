@@ -16,11 +16,19 @@ Phase 5 (core loop) is in progress. You can:
   character select with your real `.d2s` saves, character create.
 - **Rogue Encampment**: rendered town with objects and patrolling NPCs,
   walk/run animations, town music and ambience, automap (Tab).
-- **Panels**: inventory, character stats, belt, stash, Horadric Cube,
-  with item tooltips (names, affixes, sets, uniques, runewords).
+- **Panels**: inventory, character stats (spend stat points), skill
+  tree (spend skill points), belt, stash, Horadric Cube, with item
+  tooltips (names, affixes, sets, uniques, runewords, durability).
+- **Items**: pick up, move, swap and equip across inventory, stash,
+  cube, belt and body slots (class, two-hander and requirement checks).
 - **NPCs**: hover names, menus, talk/introduction/gossip speech with
   voice.
-- **Trade**: vendor stock, prices, buying and selling with gold.
+- **Trade**: vendor stock, prices, buying and selling with gold;
+  repair at Charsi; gambling at Gheed (real magic/rare/set/unique rolls);
+  Akara heals.
+- **Mercenary**: your save's merc follows you round town.
+- **Movement**: collision as game.exe builds it; clicks path round
+  obstacles.
 - **Waypoint**: the panel, act tabs and activation (no travel yet).
 
 It's all single-player and in memory: saves are read, never written.
@@ -81,6 +89,7 @@ Keys in town:
 |-----|--------|
 | I | inventory |
 | C | character stats |
+| T | skill tree |
 | Tab | automap |
 | ` | belt |
 | R | run toggle |

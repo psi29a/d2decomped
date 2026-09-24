@@ -263,7 +263,10 @@ std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int c
         const auto def = std::int64_t(it.defense) * (100 + ed) / 100 + flat;
         out.push_back({ str("ItemStats1h") + " " + std::to_string(def), def != it.defense ? kTxtBlue : kTxtWhite });
     }
-    if (it.quantity >= 0) out.push_back({ "Quantity: " + std::to_string(it.quantity), kTxtWhite });
+    if (it.max_durability > 0 && !d2d::rules::indestructible(it))
+        out.push_back({ str("ItemStats1d") + " " + std::to_string(it.durability) + " " + str("ItemStats1j") + " "
+                        + std::to_string(d2d::rules::max_durability(it)), kTxtWhite });
+    if (it.quantity >= 0) out.push_back({ str("ItemStats1i") + " " + std::to_string(it.quantity), kTxtWhite });
     auto props = it.props;
     for (const auto& j : it.socketed_items) {
         const auto sp = socket_props(s, it, j);

@@ -31,6 +31,7 @@ public class Disasm extends GhidraScript {
         try (PrintWriter w = new PrintWriter(new BufferedWriter(new FileWriter(out)))) {
             w.printf("// disasm %s..%s%n%n", start, end);
             Instruction i = listing.getInstructionAt(start);
+            if (i == null) i = listing.getInstructionAfter(start);   // start fell mid-instruction
             while (i != null && i.getAddress().compareTo(end) < 0) {
                 w.printf("%s  %-30s ; %s%n",
                          i.getAddress(),

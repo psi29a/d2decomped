@@ -89,7 +89,6 @@ struct Scene {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    std::unordered_map<std::string, std::array<std::string, 2>> type_equiv;   // ItemTypes Equiv1/2
     // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
     // helm/armour, shield), already resolved through Properties.txt.
     std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
@@ -126,6 +125,7 @@ struct Scene {
     struct InvLayout {
         int panel_x = 400, panel_y = 60;
         int grid_x = 0, grid_y = 0, box_w = 29, box_h = 29;
+        int cols = 0, rows = 0;                     // gridX, gridY
         std::array<std::array<int, 4>, 11> slots{};   // by body slot 1..10: x, y, w, h
     };
     std::array<InvLayout, 7> inv_layout{};            // by d2s class
@@ -141,6 +141,13 @@ struct Scene {
     InvLayout cube_layout{};
     d2d::dc6::Sprite cube_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
+    // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level
+    // (frame 1 pressed) on PANEL\levelsocket, the PANEL\skillpoints box.
+    d2d::dc6::Sprite level_button, level_socket, points_box;
+    std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
+    // Skill tree (docs/research/re/skill-tree.md): SPELLS\skltree_<c>_back
+    // (frames 0..3 the panel, 4t..4t+3 tab t on top) and <Cl>Skillicon.
+    std::array<d2d::dc6::Sprite, 7> skill_tree_bg, skill_icons;   // by d2s class
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
@@ -191,6 +198,10 @@ struct Scene {
         int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
         std::string id;                      // MonStats Id (npc.txt key)
     };
+    // Mercenary units by hireling.txt Id (the save's merc type): the
+    // monster, and the first name key (merc01, merca201, MercX101, ...).
+    struct Merc { Npc npc; std::string name_first; };
+    std::unordered_map<int, Merc> mercs;
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
@@ -228,6 +239,17 @@ struct Scene {
         const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
         if (sx < 0 || sy < 0 || sx >= w || sy >= h || world_walk.empty()) return true;
         return world_walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & 0x09;
+    }
+    // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
+    // collision pattern is a plus: the subtile and its four neighbours,
+    // any of them walls (0x09) blocks — FUN_0064d100, collision pattern
+    // 1 (FUN_0064d870). Off the map counts as blocked, like the game's
+    // 0x27 outside a room.
+    // ponytail: units don't stamp themselves into the grid, so they walk
+    // through each other; mask 0x1c09's door/monster/player bits unused.
+    [[nodiscard]] bool unit_blocked(float x, float y) const {
+        return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
+            || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
     }
 };
 
