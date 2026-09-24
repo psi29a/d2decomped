@@ -321,7 +321,8 @@ struct Scene {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr, type; int kind = 0; };  // kind: 0 misc, 1 armor, 2 weapon
+    struct ItemInfo { std::string invfile; int w = 1, h = 1; std::string namestr, type; int kind = 0;  // kind: 0 misc, 1 armor, 2 weapon
+                      int belt = -1; };                  // armor.txt belt: belts.txt index
     std::unordered_map<std::string, std::array<std::string, 2>> type_equiv;   // ItemTypes Equiv1/2
     // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
     // helm/armour, shield), already resolved through Properties.txt.
@@ -349,9 +350,12 @@ struct Scene {
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
     const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;
     std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
-    // belts.txt "default2" (800x600) boxes 1..4, {left, right, top, bottom}:
-    // the belt's first row, the one the HUD shows.
-    std::array<std::array<int, 4>, 4> belt_boxes{};
+    // belts.txt 800x600 rows ("belt2" .. "uber belt", after the Expansion
+    // separator) by armor.txt `belt` index: box count and boxes 1..16
+    // {left, right, top, bottom}. Index 2 ("default") when no belt is worn.
+    struct Belt { int boxes = 4; std::array<std::array<int, 4>, 16> box{}; };
+    std::array<Belt, 7> belts{};
+    d2d::dc6::Sprite popbelt;                          // PANEL\ctrlpnl_popbelt
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     struct InvLayout {
         int panel_x = 400, panel_y = 60;
@@ -1042,7 +1046,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
                 std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
                 std::string(t->get(r, "namestr")), std::string(t->get(r, "type")),
-                t == &armor ? 1 : t == &weapons ? 2 : 0 };
+                t == &armor ? 1 : t == &weapons ? 2 : 0,
+                t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1 };
     for (std::size_t r = 0; r < types.size(); ++r) {
         const std::string code(types.get(r, "Code"));
         scene.type_equiv[code] = { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) };
@@ -1157,16 +1162,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 scene.anim_speed.emplace(std::move(name), spd);
             }
         }
-    if (const auto bt = txt("belts"); bt.size() > 0)
-        for (std::size_t r = 0; r < bt.size(); ++r) {
-            if (bt.get(r, "name") != "default2") continue;
-            for (int i = 0; i < 4; ++i)
+    if (const auto bt = txt("belts"); bt.size() >= 14)
+        for (std::size_t b = 0; b < 7; ++b) {
+            const std::size_t r = 7 + b;                 // the 800x600 half
+            auto& B = scene.belts[b];
+            B.boxes = std::clamp(std::atoi(std::string(bt.get(r, "numboxes")).c_str()), 0, 16);
+            for (int i = 0; i < B.boxes; ++i)
                 for (int k = 0; k < 4; ++k) {
                     static constexpr const char* kSide[4] = { "left", "right", "top", "bottom" };
-                    scene.belt_boxes[std::size_t(i)][std::size_t(k)] = std::atoi(std::string(
+                    B.box[std::size_t(i)][std::size_t(k)] = std::atoi(std::string(
                         bt.get(r, "box" + std::to_string(i + 1) + kSide[k])).c_str());
                 }
         }
+    if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
@@ -2696,19 +2704,38 @@ void draw_stash(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector
     if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
 }
 
-// The belt's first row in the HUD's belt strip: items in location 2 keep
-// their belt slot (0..15, 4 per row) in the column field; slots 0..3 sit
-// in belts.txt default2 boxes 1..4, the item centred. Hovering one shows
-// its hover text above the box.
-// ponytail: no belt popup (rows 2..4), no slot hotkey numbers.
+// The equipped belt's belts.txt index (armor.txt `belt`), 2 ("default":
+// one row) without one — as the popup code picks it (0x49906b).
+int belt_index(const Scene& s, const std::vector<d2d::d2s::Item>& items) {
+    for (const auto& it : items)
+        if (it.location == 1 && it.slot == 8)
+            if (const auto i = s.item_info.find(it.code); i != s.item_info.end() && i->second.belt >= 0
+                && i->second.belt < 7)
+                return i->second.belt;
+    return 2;
+}
+
+// The belt: items in location 2 keep their slot (0..15, 4 per row) in the
+// column field and sit centred in the belt's belts.txt boxes. Row 1 is the
+// HUD strip; with the popup open (0x499136) each further row gets a
+// ctrlpnl_popbelt frame 0, bottom-anchored at x W/2+21, bottom H-41-32i,
+// and its items. Hovering an item shows its hover text.
+// ponytail: no slot hotkey numbers.
 void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
-               int mx, int my, int clvl) {
+               int mx, int my, int clvl, bool popup) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const auto& B = s.belts[std::size_t(belt_index(s, items))];
+    const int rows = B.boxes / 4;
+    if (popup && s.popbelt.frames_per_direction() > 0) {
+        const auto& f = s.popbelt.frame(0, 0);
+        for (int i = 0; i + 1 < rows; ++i)
+            blit_sprite(fb, f, pal, int(kW) / 2 + 21, int(kH) - 41 - 32 * i - int(f.height) + 1);
+    }
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hb{};
     for (const auto& it : items) {
-        if (it.location != 2 || it.column < 0 || it.column > 3) continue;
-        const auto& b = s.belt_boxes[std::size_t(it.column)];
+        if (it.location != 2 || it.column < 0 || it.column >= B.boxes || (!popup && it.column > 3)) continue;
+        const auto& b = B.box[std::size_t(it.column)];
         if (b[1] <= b[0]) continue;
         if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
             const auto& f = spr->frame(0, 0);
@@ -2740,7 +2767,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    std::uint32_t player_mode_ms = 0,
                    const std::vector<d2d::d2s::Item>* belt = nullptr,
                    int* hovered_npc = nullptr,
-                   const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true) {
+                   const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
+                   bool belt_popup = false) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2789,7 +2817,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (stash) draw_stash(fb, s, *stash, stash_expansion, mouse_x, mouse_y,
                               hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (hud_stats) draw_hud(fb, s, *hud_stats);
-        if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+        if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
+                            belt_popup);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int cx = int(cam_x * 5), cy = int(cam_y * 5);
@@ -2838,7 +2867,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         (void)tw;
     }
 
-    if (inventory || char_stats) return;                  // the hint would run under a panel
+    if (inventory || char_stats || stash || belt_popup) return;   // the hint would run under a panel
     constexpr const char* hint =
         "d2d dev build — click to walk around the Rogue camp";
     const int hw = s.font.measure(hint);
@@ -3442,6 +3471,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  walking = false;
     bool  running = false;                 // R toggles, like D2's run/walk button
     bool  stash_open = false;
+    bool  belt_open = false;               // belt popup (` key or a click on the belt)
     int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -3689,6 +3719,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 for (const auto k : keys_this_frame) {
                     if (k == SDLK_I) inv_open = !inv_open;
                     if (k == SDLK_R) running = !running;              // D2's run/walk toggle
+                    if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
                     if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = false; }
                     if (k == SDLK_ESCAPE) {
                         if (inv_open || char_open || stash_open)             // panels first
@@ -3702,9 +3733,21 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
                     ((char_open || stash_open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                                && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
+                // The belt: its HUD strip (row 1's boxes) toggles the popup;
+                // strip and open popup take the click instead of the world.
+                const auto& belt = scene->belts[std::size_t(belt_index(*scene, cc.items))];
+                const auto& b0 = belt.box[0];
+                const auto& b3 = belt.box[3];
+                const bool over_belt =
+                    mouse.x >= b0[0] && mouse.x <= b3[1]
+                    && ((mouse.y >= b0[2] && mouse.y <= b0[3])
+                        || (belt_open && mouse.y >= belt.box[std::size_t(std::max(belt.boxes - 1, 0))][2]
+                                      && mouse.y <= b0[3]));
+                if (mouse.press_this_frame && over_belt && mouse.y >= b0[2]) belt_open = !belt_open;
+                const bool over_ui = over_panel || over_belt;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
-                    if ((mouse.down || mouse.press_this_frame) && !over_panel) {
+                    if ((mouse.down || mouse.press_this_frame) && !over_ui) {
                         // Screen -> world: invert the iso projection around
                         // the player, who sits at (kW/2, kH/2 + kIsoH/2).
                         const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
@@ -3788,7 +3831,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
-                              &hovered_npc, stash_open ? &cc.items : nullptr, cc.expansion);
+                              &hovered_npc, stash_open ? &cc.items : nullptr, cc.expansion, belt_open);
                 break;
             }
             case Screen::CharCreate: {
