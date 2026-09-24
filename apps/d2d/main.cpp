@@ -369,6 +369,11 @@ struct Scene {
     // the left-panel spot like the char panel (0x48f1a4).
     std::array<InvLayout, 2> stash_layout{};          // [expansion]
     std::array<d2d::dc6::Sprite, 2> stash_panel;
+    // Horadric Cube: inventory.txt "Transmogrify Box2" (3x4), art
+    // PANEL\supertransmogrifier (FUN_0048a4b0), same left-panel spot
+    // (panel 0xe, 0x48eeca).
+    InvLayout cube_layout{};
+    d2d::dc6::Sprite cube_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     // D2's three-tier string tables. Lookup order per D2's own convention:
@@ -558,6 +563,7 @@ struct Mouse {
     bool down = false;                 // current button state
     bool press_this_frame = false;     // rising edge
     bool release_this_frame = false;   // falling edge
+    bool rpress_this_frame = false;    // right button, rising edge
     int  wheel = 0;                    // wheel notches this frame, +up
 };
 
@@ -1207,16 +1213,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     const auto inv = txt("inventory");
     for (std::size_t r = 0; r < inv.size(); ++r) {
         const auto cls = inv.get(r, "class");
-        const int e = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0 : -1;
+        const int e = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0
+                    : cls == "Transmogrify Box2" ? 2 : -1;
         if (e < 0) continue;
         auto num = [&](const char* col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
-        auto& L = scene.stash_layout[std::size_t(e)];
+        auto& L = e == 2 ? scene.cube_layout : scene.stash_layout[std::size_t(e)];
         L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
         L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
     }
     for (auto [path, e] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
                             { R"(data\global\ui\PANEL\TradeStash.dc6)", 1 } })
         if (auto b = mpqs.try_read(path)) scene.stash_panel[std::size_t(e)] = d2d::dc6::Sprite(*b);
+    if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\supertransmogrifier.dc6)"))
+        scene.cube_panel = d2d::dc6::Sprite(*b);
     static constexpr const char* kInvClass[7] = {
         "Amazon2", "Sorceress2", "Necromancer2", "Paladin2", "Barbarian2", "Druid2", "Assassin2" };
     static constexpr const char* kSlotCol[11] = {
@@ -2675,11 +2684,19 @@ void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Sta
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
 // ponytail: no gold line, no "close" button; classic stash untested.
-void draw_stash(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
-                bool expansion, int mx, int my, int clvl) {
+// Rect {x, y, w, h} of a stored item in a grid layout.
+std::array<int, 4> grid_rect(const Scene& s, const Scene::InvLayout& L, const d2d::d2s::Item& it) {
+    const auto info = s.item_info.find(it.code);
+    return { L.grid_x + it.column * L.box_w, L.grid_y + it.row * L.box_h,
+             (info != s.item_info.end() ? info->second.w : 1) * L.box_w,
+             (info != s.item_info.end() ? info->second.h : 1) * L.box_h };
+}
+
+// A left-side storage panel: the stash (panel 5) or the cube (panel 4).
+void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
+                  const d2d::dc6::Sprite& art, const Scene::InvLayout& L, int panel,
+                  int mx, int my, int clvl) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-    const auto& art = s.stash_panel[expansion ? 1 : 0];
-    const auto& L = s.stash_layout[expansion ? 1 : 0];
     if (art.frames_per_direction() >= 4) {
         const auto& f0 = art.frame(0, 0);
         blit_sprite(fb, f0, pal, kCharPanelX, kCharPanelY);
@@ -2690,11 +2707,8 @@ void draw_stash(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hb{};
     for (const auto& it : items) {
-        if (it.location != 0 || it.panel != 5) continue;
-        const auto info = s.item_info.find(it.code);
-        const int w = (info != s.item_info.end() ? info->second.w : 1) * L.box_w;
-        const int h = (info != s.item_info.end() ? info->second.h : 1) * L.box_h;
-        const int x = L.grid_x + it.column * L.box_w, y = L.grid_y + it.row * L.box_h;
+        if (it.location != 0 || it.panel != panel) continue;
+        const auto [x, y, w, h] = grid_rect(s, L, it);
         if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
             const auto& f = spr->frame(0, 0);
             blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
@@ -2768,7 +2782,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const std::vector<d2d::d2s::Item>* belt = nullptr,
                    int* hovered_npc = nullptr,
                    const std::vector<d2d::d2s::Item>* stash = nullptr, bool stash_expansion = true,
-                   bool belt_popup = false) {
+                   bool belt_popup = false, bool cube_open = false) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -2814,8 +2828,15 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             draw_inventory(fb, s, s.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
                            mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
         if (char_stats) draw_char_panel(fb, s, *char_stats, panel ? *panel : PanelStats{}, name, class_idx);
-        if (stash) draw_stash(fb, s, *stash, stash_expansion, mouse_x, mouse_y,
-                              hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+        if (stash) {
+            const int e = stash_expansion ? 1 : 0;
+            if (cube_open)
+                draw_storage(fb, s, *stash, s.cube_panel, s.cube_layout, 4, mouse_x, mouse_y,
+                             hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+            else
+                draw_storage(fb, s, *stash, s.stash_panel[std::size_t(e)], s.stash_layout[std::size_t(e)], 5,
+                             mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+        }
         if (hud_stats) draw_hud(fb, s, *hud_stats);
         if (belt) draw_belt(fb, s, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
                             belt_popup);
@@ -3266,6 +3287,8 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
         if (ev.button.button == SDL_BUTTON_LEFT) {
             m.down = true;
             m.press_this_frame = true;
+        } else if (ev.button.button == SDL_BUTTON_RIGHT) {
+            m.rpress_this_frame = true;
         }
     } else if (ev.type == SDL_EVENT_MOUSE_WHEEL) {
         m.wheel += ev.wheel.integer_y;
@@ -3472,6 +3495,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     bool  running = false;                 // R toggles, like D2's run/walk button
     bool  stash_open = false;
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
+    bool  cube_open = false;               // right-click the Horadric Cube item
     int   hovered_npc = -1;                // world_npcs index under the cursor (last frame)
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -3510,7 +3534,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // Input + state verbs for scripted tests. Registered here because they
     // touch loop locals; the channel is only pumped inside this loop, so
     // the captures never outlive it.
-    ch.on("click", [&](const std::vector<std::string>& args) {
+    auto click_verb = [&](const std::vector<std::string>& args, std::uint8_t button) {
         if (args.size() < 3) return std::string("err click <x> <y>\n");
         // Args are game pixels; queued events carry window coords and get
         // converted back by SDL_ConvertEventToRenderCoordinates on poll.
@@ -3525,13 +3549,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         for (auto type : { SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP }) {
             ev = {};
             ev.button = { .type = type, .windowID = SDL_GetWindowID(win.w),
-                          .button = SDL_BUTTON_LEFT,
+                          .button = button,
                           .down = type == SDL_EVENT_MOUSE_BUTTON_DOWN,
                           .clicks = 1, .x = x, .y = y };
             SDL_PushEvent(&ev);
         }
         return std::string("ok\n");
-    });
+    };
+    ch.on("click", [&](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_LEFT); });
+    ch.on("rclick", [&](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_RIGHT); });
     ch.on("key", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err key <name>\n");
         const SDL_Keycode k = SDL_GetKeyFromName(args[1].c_str());
@@ -3592,6 +3618,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " walking=" + (walking ? "1" : "0") + " dir=" + std::to_string(player_dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
              + " stash=" + (stash_open ? "1" : "0")
+             + " cube=" + (cube_open ? "1" : "0")
              + "\nok\n";
     });
 
@@ -3612,6 +3639,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
 
         mouse.press_this_frame = false;
         mouse.release_this_frame = false;
+        mouse.rpress_this_frame = false;
         mouse.wheel = 0;
         std::string text_this_frame;
         bool        backspace_this_frame = false;
@@ -3720,10 +3748,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     if (k == SDLK_I) inv_open = !inv_open;
                     if (k == SDLK_R) running = !running;              // D2's run/walk toggle
                     if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
-                    if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = false; }
+                    if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
                     if (k == SDLK_ESCAPE) {
-                        if (inv_open || char_open || stash_open)             // panels first
-                            inv_open = char_open = stash_open = false;
+                        if (inv_open || char_open || stash_open || cube_open)   // panels first
+                            inv_open = char_open = stash_open = cube_open = false;
                         else screen = Screen::CharSelect;
                     }
                 }
@@ -3731,7 +3759,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 const bool over_panel =
                     (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                               && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
-                    ((char_open || stash_open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
+                    ((char_open || stash_open || cube_open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                                && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
                 // The belt: its HUD strip (row 1's boxes) toggles the popup;
                 // strip and open popup take the click instead of the world.
@@ -3744,6 +3772,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         || (belt_open && mouse.y >= belt.box[std::size_t(std::max(belt.boxes - 1, 0))][2]
                                       && mouse.y <= b0[3]));
                 if (mouse.press_this_frame && over_belt && mouse.y >= b0[2]) belt_open = !belt_open;
+                // Right-clicking the Horadric Cube ("box") in the inventory
+                // or the stash opens it in the left panel, as D2 does.
+                if (mouse.rpress_this_frame)
+                    for (const auto& it : cc.items) {
+                        if (it.code != "box" || it.location != 0) continue;
+                        const bool in_inv = inv_open && it.panel == 1, in_stash = stash_open && it.panel == 5;
+                        if (!in_inv && !in_stash) continue;
+                        const auto r = grid_rect(*scene, in_inv ? lay : scene->stash_layout[cc.expansion ? 1 : 0], it);
+                        if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
+                            cube_open = true; stash_open = char_open = false;
+                        }
+                    }
                 const bool over_ui = over_panel || over_belt;
                 if (have_world) {
                     const float dt = float(ms - last_ms) / 1000.f;
@@ -3831,7 +3871,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                               player_dir, ms, mouse.x, mouse.y, npc_states,
                               inv_open ? &cc.items : nullptr,
                               char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player_mode_ms, &cc.items,
-                              &hovered_npc, stash_open ? &cc.items : nullptr, cc.expansion, belt_open);
+                              &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
+                              cube_open);
                 break;
             }
             case Screen::CharCreate: {
