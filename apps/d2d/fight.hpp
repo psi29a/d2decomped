@@ -39,12 +39,18 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // (25 / 46), Frenzy (- / 9), Double Swing (- / 70) and Impale (7 / 2);
 // Fend (9 / 13) as Zeal, a hit per enemy in reach.
 // Every other skill swings a plain attack for now.
+// Skills that move the player: Whirlwind (38 / 76), Charge (31 / 67),
+// Leap Attack (41 / 78).
+inline bool moving_skill(const d2d::rules::Skill& s) {
+    return (s.srvstfunc == 38 && s.srvdofunc == 76) || (s.srvstfunc == 31 && s.srvdofunc == 67) || (s.srvstfunc == 41 && s.srvdofunc == 78);
+}
 inline bool skill_built(const d2d::rules::Skill& s) {
     return (s.srvdofunc == 2 && (s.srvstfunc == 32 || s.srvstfunc == 6 || s.srvstfunc == 39 || s.srvstfunc == 35)) || (s.srvstfunc == 24 && s.srvdofunc == 42)
         || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50)
         || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
         || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70
-        || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2);
+        || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2)
+        || moving_skill(s);
 }
 // Self casts (right click, no target): Holy Shield (36 / 18).
 inline bool self_cast(const d2d::rules::Skill& s) { return s.srvstfunc == 36 && s.srvdofunc == 18; }
@@ -85,13 +91,21 @@ struct Fight {
     // this swing uses (Attack when it's not built or can't be paid for),
     // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
     int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
-    std::int64_t self_hurt = 0;
+    std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
     // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
     // class): its frames, each seq_frame_ms long, and the hits (event 1)
     // already struck.
     std::span<const d2d::rules::SeqFrame> seq{};
     std::uint32_t seq_frame_ms = 40;
-    int seq_struck = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
+    int seq_struck = 0;
+    bool seq_loop = false;                 // Whirlwind's plays over until it arrives
+    // A skill that moves the player (Whirlwind, Charge, Leap Attack):
+    // toward (tx, ty) at `speed` cells/s while `on`; `fly` ignores walls
+    // (a leap); whirl_next is Whirlwind's next hit time (FUN_005d9320).
+    struct SkillMove { float tx = 0, ty = 0, speed = 0; bool on = false, fly = false; };
+    SkillMove smove;
+    float move_x = 0, move_y = 0;          // where the click sent a moving skill
+    std::uint32_t whirl_next = 0;
     std::vector<int> told;                 // skills logged as not built yet
     // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
     // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
@@ -372,15 +386,53 @@ struct Fight {
         for (auto& c : wc) c = char(std::tolower((unsigned char)c));
         seq = d2d::rules::sequence(s->seqnum, wc);
         if (seq.empty()) return;
+        start_move(*s, ms);
         const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(a1.speed ? a1.speed : 256), pf.ias, pf.wsm);
         pmode_until = ms + std::uint32_t(ticks) * 40;
         seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(seq.size()), 1);
         prate = 1.f;
     }
+    // The movement a moving skill starts with (its srvstfunc):
+    // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
+    // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;
+    // Charge (FUN_005cf6b0) at the monster at run velocity × (max(velocity
+    // percent, 50) + par1) / 100; Leap Attack (FUN_005da540) waits for its
+    // takeoff event.
+    // ponytail: velocitypercent taken as its base 100; Whirlwind's path is
+    // a straight line (FUN_0064ea90's pathing isn't traced).
+    void start_move(const d2d::rules::Skill& s, std::uint32_t ms) {
+        smove = {};
+        seq_loop = false;
+        const auto cls = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        if (s.srvdofunc == 76) {
+            smove = { move_x, move_y, cells_per_sec(float(scene->walk_velocity[cls])), true, false };
+            seq_loop = true;
+            pmode_until = ~0u;
+            whirl_next = ms;
+        } else if (s.srvdofunc == 67) {
+            smove = { move_x, move_y, cells_per_sec(float(scene->run_velocity[cls])) * float(std::max(100, 50) + s.par[0]) / 100.f, true, false };
+            seq_loop = true;                                 // the run starts over until it reaches (FUN_005cf900)
+            pmode_until = ~0u;
+        }
+    }
+    // Where the frames stand: the frame index (looping or held on the
+    // last) and how many event-1 frames have passed since the start.
+    [[nodiscard]] std::size_t seq_at(std::uint32_t ms) const {
+        const auto i = std::size_t((ms - player.mode_ms) / seq_frame_ms);
+        return seq_loop ? i % seq.size() : std::min(i, seq.size() - 1);
+    }
+    [[nodiscard]] int seq_events(std::uint32_t ms) const {
+        const auto i = std::size_t((ms - player.mode_ms) / seq_frame_ms);
+        const auto per = std::ranges::count(seq, 1, &d2d::rules::SeqFrame::event);
+        const auto last = seq_loop ? i : std::min(i, seq.size() - 1);
+        int n = seq_loop ? int(last / seq.size() * std::size_t(per)) : 0;
+        for (std::size_t k = 0; k <= last % (seq_loop ? seq.size() : ~std::size_t{ 0 }) && k < seq.size(); ++k) n += seq[k].event == 1;
+        return n;
+    }
     // What the player shows in a sequence: its frame's mode, and a start
     // time that lands the renderer (frame = elapsed / ms_per_frame) on it.
     [[nodiscard]] std::pair<int, std::uint32_t> seq_view(std::uint32_t ms) const {
-        const auto& f = seq[std::min<std::size_t>((ms - player.mode_ms) / seq_frame_ms, seq.size() - 1)];
+        const auto& f = seq[seq_at(ms)];
         const auto mpf = player_anim(f.mode).ms_per_frame();
         return { f.mode, ms - mpf * f.frame - mpf / 2 };
     }
@@ -455,7 +507,7 @@ struct Fight {
             sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
             if (s->srvstfunc == 32 || s->srvdofunc == 70) sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
             sw.srcdam = s->srcdam;
-            sw.knockback = s->srvstfunc != 6 && (s->result_flags & 8) != 0;
+            sw.knockback = (s->srvstfunc != 6 && (s->result_flags & 8) != 0) || s->srvdofunc == 67 || s->srvdofunc == 78;
             // FUN_005d7ea0 on a hit: EType stun stands the target for the
             // skill's elemental length (FUN_0056e0c0 -> FUN_0056c8e0 case
             // 9); another element with calc4 > 0 takes calc4 % of the
@@ -526,9 +578,7 @@ struct Fight {
     // one on the attack's event frame.
     void strike(std::uint32_t ms) {
         if (!seq.empty()) {
-            const auto at = std::min<std::size_t>((ms - player.mode_ms) / seq_frame_ms, seq.size() - 1);
-            int due = 0;
-            for (std::size_t i = 0; i <= at; ++i) due += seq[i].event == 1;
+            const int due = seq_events(ms);
             while (seq_struck < due) {
                 ++seq_struck;
                 // Frenzy's and Double Swing's second hand looks for another
@@ -536,7 +586,8 @@ struct Fight {
                 // FUN_005d8470).
                 if (const auto* s = scene->skills.get(swing_skill); s && seq_struck % 2 == 0 && (s->srvdofunc == 9 || s->srvdofunc == 70))
                     other_target();
-                hit(ms);
+                if (const auto* s = scene->skills.get(swing_skill); s && moving_skill(*s)) move_event(*s, ms);
+                else hit(ms);
             }
             return;
         }
@@ -545,17 +596,17 @@ struct Fight {
         pstruck = true;
         hit(ms);
     }
-    void hit(std::uint32_t ms) {
+    void hit(std::uint32_t ms, float reach = kMeleeReach + 0.5f) {
         if (attack_mon < 0) return;
         auto& m = monsters[std::size_t(attack_mon)];
-        if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
+        if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > reach) return;
         auto sw = swing();
         auto f = sw.kick ? pf_kick : pf;
         const auto* s = scene->skills.get(swing_skill);
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
-        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70 }, s->srvdofunc)) skill_element(f, *s);
+        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78 }, s->srvdofunc)) skill_element(f, *s);
         const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
@@ -760,13 +811,14 @@ struct Fight {
     // The player's combat modes this frame: dead, the death plays out (a
     // click respawns: true asks Town for it); a swing strikes, and ends —
     // held on the monster, the next follows; a flinch or block ends.
-    bool player_modes(const Mouse& mouse, std::uint32_t ms) {
+    bool player_modes(const Mouse& mouse, std::uint32_t ms, float dt) {
         if (dead()) {
             if (pmode == kModeDT && ms >= pmode_until) set_pmode(kModeDD, ms);
             return pmode == kModeDD && mouse.press_this_frame;
         }
         if (attack_mode(pmode)) {
             strike(ms);
+            if (smove.on) skill_step(ms, dt);
             if (ms >= pmode_until) {
                 if (kicks_left > 0 && next_target()) {
                     --kicks_left;                            // Talon's next kick (FUN_005d5a30), Zeal's next hit (FUN_005dbc60)
@@ -776,6 +828,8 @@ struct Fight {
                 }
                 kicks_left = 0;
                 seq = {};
+                smove = {};
+                seq_loop = false;
                 pmode = -1; player.mode_ms = ms;
                 if (!mouse.down) attack_mon = -1;
             }
@@ -794,6 +848,85 @@ struct Fight {
             pmode = -1; player.mode_ms = ms;
         }
         return false;
+    }
+    // A step of a moving skill. Whirlwind ends where it was sent (or at a
+    // wall); Charge follows its monster; a leap flies over whatever's
+    // below and lands on its landing event.
+    void skill_step(std::uint32_t ms, float dt) {
+        const auto* s = scene->skills.get(swing_skill);
+        if (s && s->srvdofunc == 67 && attack_mon >= 0) {
+            smove.tx = monsters[std::size_t(attack_mon)].u.x; smove.ty = monsters[std::size_t(attack_mon)].u.y;
+        }
+        const float dx = smove.tx - player.x, dy = smove.ty - player.y, d = std::hypot(dx, dy);
+        const bool whirl = s && s->srvdofunc == 76;
+        if (d < 0.05f || (!whirl && !smove.fly && d <= kMeleeReach)) { if (whirl) pmode_until = ms; return; }
+        player.dir = direction16(dx, dy);
+        const float step = std::min(smove.speed * dt, d), nx = player.x + dx / d * step, ny = player.y + dy / d * step;
+        if (!smove.fly && level->unit_blocked(nx, ny)) { if (whirl) pmode_until = ms; return; }
+        player.x = nx; player.y = ny;
+    }
+    // A moving skill's event frame (its srvdofunc):
+    // Whirlwind (FUN_005d9580): when its hit timer allows (FUN_005d9320:
+    // every 4..16 frames by the attack's speed), one hit (two with two
+    // weapons) on the next enemy within 5 (round by id);
+    // Charge (FUN_005cf900): running, the monster in reach jumps the
+    // sequence to its attack; the attack's event hits (knockback);
+    // Leap Attack (FUN_005da7e0): takeoff, landing beside the monster, the
+    // strike (FUN_005da660: knockback, a stun on it ends).
+    // ponytail: FUN_0062a710's attack frames taken as attack_ticks of the
+    // class's A1; FUN_005d92d0 (two weapons) as a weapon in each hand.
+    void move_event(const d2d::rules::Skill& s, std::uint32_t ms) {
+        if (s.srvdofunc == 76) {
+            if (ms < whirl_next) return;
+            const auto& a1 = player_anim(kModeA1);
+            const int f = d2d::rules::attack_ticks(int(a1.frames ? a1.frames : 16), int(a1.speed ? a1.speed : 256), pf.ias, pf.wsm);
+            whirl_next = ms + std::uint32_t(d2d::rules::whirlwind_gap(f)) * 40;
+            const int hands = std::ranges::count_if(cc.items, [&](const d2d::d2s::Item& it) {
+                return it.location == 1 && (it.slot == 4 || it.slot == 5) && scene->rules.item_info.contains(it.code)
+                    && scene->rules.item_info.at(it.code).kind == 2; });
+            for (int h = 0; h < (hands >= 2 ? 2 : 1); ++h) {
+                std::vector<int> near;
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) <= 5.f) near.push_back(int(i));
+                if (near.empty()) return;
+                const auto nx = std::ranges::upper_bound(near, attack_mon);
+                attack_mon = nx != near.end() ? *nx : near.front();
+                hit(ms, 5.f);
+            }
+            return;
+        }
+        if (s.srvdofunc == 67) {
+            const auto i = seq_at(ms);
+            const auto run_end = std::size_t(std::ranges::find_if(seq, [](const auto& f) { return f.mode != kModeRN; }) - seq.begin());
+            if (i < run_end) {                               // running: in reach, on to the attack frames
+                if (attack_mon >= 0 && std::hypot(monsters[std::size_t(attack_mon)].u.x - player.x,
+                                                  monsters[std::size_t(attack_mon)].u.y - player.y) <= kMeleeReach + 0.3f) {
+                    seq_loop = false;
+                    smove.on = false;
+                    player.mode_ms = ms - std::uint32_t(run_end) * seq_frame_ms;
+                    seq_struck = seq_events(ms);
+                    pmode_until = ms + std::uint32_t(seq.size() - run_end) * seq_frame_ms;
+                }
+                return;
+            }
+            hit(ms);
+            return;
+        }
+        // Leap Attack: the first event takes off, the second lands, the third strikes.
+        if (seq_struck == 1 && attack_mon >= 0) {
+            const auto& m = monsters[std::size_t(attack_mon)].u;
+            const float dx = m.x - player.x, dy = m.y - player.y, d = std::max(std::hypot(dx, dy), 0.01f);
+            const float land = std::max(d - kMeleeReach * 0.8f, 0.f);
+            std::uint32_t air = seq_frame_ms;
+            for (std::size_t k = seq_at(ms) + 1; k < seq.size() && seq[k].event != 1; ++k) air += seq_frame_ms;
+            smove = { player.x + dx / d * land, player.y + dy / d * land, land / (float(air) / 1000.f), land > 0.f, true };
+            player.dir = direction16(dx, dy);
+        } else if (seq_struck == 2) {
+            if (smove.on) { player.x = smove.tx; player.y = smove.ty; }
+            smove = {};
+        } else if (seq_struck >= 3) {
+            hit(ms);
+        }
     }
     // FUN_0056bd10 handed the last target: the enemy in reach with the next
     // higher unit id, else the lowest (round the ring; the same one when
@@ -882,6 +1015,13 @@ struct Fight {
         if (attack_mon < 0 || pmode >= 0) return std::nullopt;
         const auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive()) { attack_mon = -1; return std::nullopt; }
+        const auto* s = scene->skills.get(attack_skill);
+        if (s && moving_skill(*s) && (s->srvdofunc != 67 || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach)) {
+            player.dir = direction16(m.u.x - player.x, m.u.y - player.y);
+            move_x = m.u.x; move_y = m.u.y;                  // Whirlwind to it, Charge and Leap Attack at it
+            start_swing(ms);
+            return std::nullopt;
+        }
         if (std::hypot(m.u.x - player.x, m.u.y - player.y) <= kMeleeReach) {
             player.dir = direction16(m.u.x - player.x, m.u.y - player.y);
             start_swing(ms);

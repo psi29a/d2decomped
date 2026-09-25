@@ -458,7 +458,7 @@ struct Town {
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then a click (or Esc) respawns in camp;
         // a swing or a flinch holds the player in place until it ends.
-        if (fight.player_modes(mouse, ms)) respawn(ms);
+        if (fight.player_modes(mouse, ms, dt)) respawn(ms);
         if (fight.dead()) return;
         const bool busy = fight.pmode >= 0;
         if (!busy && (mouse.down || mouse.press_this_frame) && !over_ui) {
@@ -534,6 +534,20 @@ struct Town {
         const auto* rs = scene->skills.get(skillbar.right);
         const bool rcast = rs && self_cast(*rs);
         if (!busy && mouse.rpress_this_frame && !over_ui && rcast && fight.cast(skillbar.right, ms)) player.walking = false;
+        // Whirlwind on the right button, clicked on open ground: whirl to
+        // that point (FUN_005d8f50 paths to the clicked spot).
+        if (!busy && mouse.rpress_this_frame && !over_ui && hovered_monster() < 0 && rs && rs->srvdofunc == 76) {
+            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
+            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
+            fight.move_x = player.x + (u + v) / 2;
+            fight.move_y = player.y + (v - u) / 2;
+            fight.attack_mon = -1;
+            fight.attack_skill = skillbar.right;
+            interact_npc = pick_item = -1;
+            player.walking = false;
+            player.dir = direction16(fight.move_x - player.x, fight.move_y - player.y);
+            fight.start_swing(ms);
+        }
         // A right click on a monster: the right skill.
         if (!busy && !rcast && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
             && fight.monsters[std::size_t(hovered_monster())].alive()) {

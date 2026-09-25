@@ -386,6 +386,16 @@ inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, in
     return st.empty() ? 0 : st.back();
 }
 
+// ---- Whirlwind
+
+// Frames between Whirlwind's hits (FUN_005d9320) by the weapon's attack
+// length in frames (FUN_0062a710): under 12 → 4, 15 → 6, 18 → 8, 20 → 10,
+// 23 → 12, then 14, and 16 past 25; 10 bare-handed.
+inline int whirlwind_gap(int attack_frames) {
+    const int f = attack_frames;
+    return f < 12 ? 4 : f < 15 ? 6 : f < 18 ? 8 : f < 20 ? 10 : f < 23 ? 12 : f > 25 ? 16 : 14;
+}
+
 // ---- charge-ups (Assassin martial arts)
 
 // What `n` charges of charge-up `s` (at level `lvl`) add to the hit that

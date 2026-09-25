@@ -115,5 +115,7 @@ int main() {
     const auto claws = sequence(16, "ht2");
     assert(claws.size() == 16 && claws[6].event == 1 && claws[6].mode == 8 && claws[10].event == 1 && claws[10].mode == 16);
     assert(sequence(1, "bow").empty() && sequence(23, "hth").size() == 19);
+    // Whirlwind's hit gap (FUN_005d9320's brackets).
+    assert(whirlwind_gap(11) == 4 && whirlwind_gap(12) == 6 && whirlwind_gap(19) == 10 && whirlwind_gap(25) == 14 && whirlwind_gap(26) == 16);
     std::puts("ok");
 }

@@ -312,6 +312,33 @@ operand and function lists.
   stats 0x15e / 0x15f, its aura events (+0x84, up to 3, FUN_0056e740).
   Smite adds its MinDam..MaxDam while it's up.
 
+### Skills that move: Whirlwind, Leap Attack, Charge
+- **Whirlwind**, start 38 (FUN_005d8f50): a path to the clicked point
+  (FUN_0064ea90) at velocity FUN_0056e5b0 = the class's **walk velocity**
+  (CharStats +0x40 << 8; monsters MonStats +0x32), sequence mode (0x12),
+  the whirlwind state. Do 76 (FUN_005d9580) on each event frame: if the
+  hit timer allows (FUN_005d9320: players every 4 / 6 / 8 / 10 / 12 / 14 /
+  16 frames as FUN_0062a710's attack frames are < 12 / 15 / 18 / 20 / 23 /
+  ≤ 25 / more; 10 without a weapon; monsters every other event), one hit,
+  **two with two weapons** (FUN_005d92d0), each on FUN_0056bd10's next
+  target within **5** (round by id): toht, ResultFlags, ED calc1, the
+  element. It ends at the point.
+- **Leap Attack**, start 41 (FUN_005da540): the leap's path to the target
+  (FUN_00645ca0 finds the landing spot), flags 0x1080. Do 78 (FUN_005da7e0)
+  per event, by flags: take off (0x100: FUN_005da120 / 005da490), land,
+  strike (0x200: FUN_005da660: toht, **knockback** (flags | 8), flags 0x20,
+  ED calc1 (ln34 + Leap's level × par8), the element; a stun on the target
+  ends). Sequence 14: S1 frames (events at takeoff and landing), then A1
+  (the strike).
+- **Charge**, start 31 (FUN_005cf6b0): velocity = **run velocity**
+  (CharStats +0x41 << 8) × (max(velocitypercent (67), 50) + **par1** (150))
+  / 100; players at a distance only (in reach it's a plain attack,
+  FUN_0056e230). Do 67 (FUN_005cf900) on each event (every run frame of
+  sequence 4 is one): the target in reach jumps the sequence to its attack
+  frames (FUN_00553dc0); the attack's event hits (toht, **knockback**,
+  ED calc1, the element, hit class 0x70); run frames out, the run starts
+  over.
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -385,7 +412,10 @@ operand and function lists.
    calc compiler/VM, level brackets, mana cost); `load.hpp` (Skills.txt,
    skillcalc.txt); `apps/d2d/skillbar.hpp` (buttons, picker, hotkeys, from
    the save's +0x38..0x87); `fight.hpp` (casting through `Fight`).
-2. ~~**Weapon skills**~~ — started: the Bash family (32 / 2: Bash, Stun,
+2. ~~**Weapon skills**~~ — **done 2026-09-26**: every melee skill game.exe
+   resolves with a hit is built, except Double Throw (a missile, phase 4)
+   and the Druid's shape-shifted ones (Fire Claws, ...: shapeshifting).
+   History: the Bash family (32 / 2: Bash, Stun,
    Concentrate) and Dragon Talon (24 / 42) are built (`fight.hpp`
    `start_swing` / `swing`, `combat.hpp` `Swing`); mana is paid per swing,
    AttackNoMana skills fall back to a plain attack. The charge-ups (23 /
@@ -415,8 +445,11 @@ operand and function lists.
    Zeal and the second hands now go round by unit id (FUN_0056bd10).
    Not in them: a broken weapon, cast rate, Holy Shield's aura events and
    passive part, the shield requirement. Not yet: Whirlwind, Leap Attack,
-   Charge (they move), Double Throw (missiles), the other start
-   functions (Fend, Charge, Holy Shield, Leap Attack, ...). Was:
+   Charge (they move), Double Throw (missiles). Then Whirlwind, Leap
+   Attack and Charge (moving the player through their sequences); not in
+   them: Whirlwind's pathing (a straight line), velocitypercent (its base
+   100), Leap Attack's range and its leap's height, Charge's knockback
+   distance, Leap (not an attack). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2
    post-damage add, toht, ResultFlags (knockback, stun), SrcDam,
