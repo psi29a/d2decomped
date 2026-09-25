@@ -408,6 +408,86 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     }());
 }
 
+// Skills (components/rules/skills.hpp): skillcalc.txt's operand names,
+// ItemStatCost's stat names and Skills.txt's rows with their calcs
+// compiled, SkillDesc's tab, icon and name. A calc that doesn't compile is
+// logged and reads 0.
+void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
+    auto txt = [&](const char* n) {
+        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
+        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    };
+    const auto sc = txt("skillcalc"), isc = txt("ItemStatCost"), sk = txt("Skills"), sd = txt("SkillDesc");
+    if (sk.size() == 0) return;
+    auto& T = scene.skills;
+    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+    for (std::size_t r = 0; r < sc.size(); ++r) T.names.operands.emplace_back(sc.get(r, "code"));
+    for (std::size_t r = 0; r < isc.size(); ++r) T.names.stats.emplace(std::string(isc.get(r, "Stat")), num(isc.get(r, "ID")));
+    for (std::size_t r = 0; r < sk.size(); ++r) {
+        const int id = num(sk.get(r, "Id"));
+        if (id < 0 || sk.get(r, "Id").empty()) continue;
+        T.names.skills.emplace(std::string(sk.get(r, "skill")), id);
+        T.by_name.emplace(std::string(sk.get(r, "skill")), id);
+    }
+    std::unordered_map<std::string, std::size_t> desc_row;
+    for (std::size_t r = 0; r < sd.size(); ++r) desc_row.emplace(std::string(sd.get(r, "skilldesc")), r);
+    int calcs = 0;
+    std::vector<std::string> bad;
+    for (std::size_t r = 0; r < sk.size(); ++r) {
+        const int id = num(sk.get(r, "Id"));
+        if (id < 0 || sk.get(r, "Id").empty()) continue;
+        if (std::size_t(id) >= T.rows.size()) T.rows.resize(std::size_t(id) + 1);
+        auto& S = T.rows[std::size_t(id)];
+        auto g = [&](const std::string& c) { return sk.get(r, c); };
+        auto n = [&](const std::string& c) { return num(g(c)); };
+        auto calc = [&](const std::string& c) {
+            d2d::rules::Calc out;
+            if (const auto e = g(c); !e.empty()) {
+                std::string err;
+                out = d2d::rules::compile_calc(e, T.names, &err);
+                ++calcs;
+                if (!err.empty()) bad.push_back(std::string(g("skill")) + " " + c + ": " + err);
+            }
+            return out;
+        };
+        S.id = id;
+        S.name = g("skill"); S.cls = g("charclass"); S.desc = g("skilldesc");
+        S.srvstfunc = n("srvstfunc"); S.srvdofunc = n("srvdofunc");
+        S.anim = g("anim"); S.range = g("range");
+        S.leftskill = g("leftskill") == "1"; S.passive = g("passive") == "1"; S.aura = g("aura") == "1";
+        S.use_attack_rate = g("UseAttackRate") == "1"; S.in_town = g("InTown") == "1"; S.attack_no_mana = g("AttackNoMana") == "1";
+        S.reqlevel = std::max(n("reqlevel"), 1); if (n("maxlvl") > 0) S.maxlvl = n("maxlvl");
+        S.mana = n("mana"); S.lvlmana = n("lvlmana"); S.manashift = n("manashift"); S.minmana = n("minmana");
+        S.tohit = n("ToHit"); S.levtohit = n("LevToHit"); S.tohit_calc = calc("ToHitCalc");
+        for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
+        for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
+        S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam");
+        static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
+        const auto et = std::ranges::find(kEl, g("EType"));
+        S.etype = et == kEl.end() ? -1 : int(et - kEl.begin());
+        S.emin = n("EMin"); S.emax = n("EMax"); S.elen = n("ELen");
+        S.mindam = n("MinDam"); S.maxdam = n("MaxDam");
+        for (int i = 0; i < 5; ++i) {
+            const auto k = std::to_string(i + 1);
+            S.emin_lev[std::size_t(i)] = n("EMinLev" + k); S.emax_lev[std::size_t(i)] = n("EMaxLev" + k);
+            S.mindam_lev[std::size_t(i)] = n("MinLevDam" + k); S.maxdam_lev[std::size_t(i)] = n("MaxLevDam" + k);
+            if (const auto ps = T.names.stats.find(std::string(g("passivestat" + k))); ps != T.names.stats.end())
+                S.passive_stat[std::size_t(i)] = ps->second;
+            S.passive_calc[std::size_t(i)] = calc("passivecalc" + k);
+        }
+        for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
+        for (int i = 0; i < 6; ++i) S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
+        S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
+        if (const auto d = desc_row.find(S.desc); d != desc_row.end()) {
+            S.page = num(sd.get(d->second, "SkillPage"));
+            S.icon = num(sd.get(d->second, "IconCel"));
+            S.str_name = sd.get(d->second, "str name");
+        }
+    }
+    d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", T.rows.size(), calcs, bad.size());
+    for (const auto& b : bad) d2d::log::info("  not implemented: calc {}", b);
+}
+
 // Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
 // (Act 1 rows) Place -> MonStats row (by Id) -> its MonStatsEx's MonStats2
 // row (monster_npc).
@@ -1324,6 +1404,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
         load_monsters(scene, mpqs);
+        load_skills(scene, mpqs);
         d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - t0);
         d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
                        scene.item_tables ? "tables loaded" : "no item tables",

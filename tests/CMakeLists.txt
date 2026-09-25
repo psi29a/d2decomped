@@ -29,6 +29,7 @@ d2d_add_test(test_rules rules)
 d2d_add_test(test_monsters rules)
 d2d_add_test(test_combat rules)
 d2d_add_test(test_drops rules)
+d2d_add_test(test_skills rules)
 d2d_add_test(test_drlg drlg)
 d2d_add_test(test_outdoor drlg mpq)
 

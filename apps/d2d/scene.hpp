@@ -320,6 +320,7 @@ struct Scene {
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
     d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
+    d2d::rules::SkillTables skills;                     // Skills.txt, compiled calcs (skills.hpp)
     std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
     // Missiles.txt rows monsters fire: velocity (units like MonStats
     // Velocity), range in ticks, SrcDamage (128 = all the attack's damage),
