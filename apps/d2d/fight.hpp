@@ -30,12 +30,13 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
 // the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
-// it: Bash, Stun, Concentrate), Dragon Talon (24 / 42: calc1 kicks), the
+// it: Bash, Stun, Concentrate; 6 Power Strike, 39 Berserk, 35 Vengeance
+// resolve the same way), Dragon Talon (24 / 42: calc1 kicks), the
 // charge-ups (23 / 34, 35: Tiger Strike .. Royal Strike) and Dragon Tail
 // (27 / 50: a kick, then fire around the target).
 // Every other skill swings a plain attack for now.
 inline bool skill_built(const d2d::rules::Skill& s) {
-    return (s.srvstfunc == 32 && s.srvdofunc == 2) || (s.srvstfunc == 24 && s.srvdofunc == 42)
+    return (s.srvdofunc == 2 && (s.srvstfunc == 32 || s.srvstfunc == 6 || s.srvstfunc == 39 || s.srvstfunc == 35)) || (s.srvstfunc == 24 && s.srvdofunc == 42)
         || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50);
 }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
@@ -77,6 +78,11 @@ struct Fight {
     // until auralencalc ticks after the last one.
     struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };
     std::vector<Charge> charges;
+    // Self states from a swing (aurastate): Concentrate's lasts while its
+    // swing does (made with no length; its removal isn't traced), Berserk's
+    // calc2 ticks (FUN_005d97f0, 10 when that's 0).
+    struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
+    std::vector<SelfState> self_states;
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
@@ -98,6 +104,7 @@ struct Fight {
         missiles.clear();
         regen.clear();
         charges.clear();
+        self_states.clear();
         attack_mon = -1;
         pmode = -1;
     }
@@ -114,6 +121,7 @@ struct Fight {
         cc.stats.v[kLife] = cc.stats.v[kMaxLife];
         regen.clear();
         charges.clear();
+        self_states.clear();
         pmode = -1; player.mode_ms = ms; attack_mon = -1;
         if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); merc_mode = "NU"; merc_target = -1; }
     }
@@ -253,22 +261,30 @@ struct Fight {
         }
         return f;
     }
-    // A swing's self state (aurastate, FUN_005d7ea0 / FUN_0056f1f0) is made
-    // with no length; its aurastats hold while the swing does. Concentrate:
-    // skill_armor_percent (ln34) more defense.
-    // ponytail: the state taken to end with the swing (its removal isn't
-    // traced); only skill_armor_percent is read, as % of the panel defense.
-    void update_fighters() {
+    // The player's fighter this frame, with the self states' aurastats
+    // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
+    // of the panel defense (the override after), damageresist to DR %.
+    // ponytail: other aurastats aren't read.
+    void update_fighters(std::uint32_t ms) {
         pf = player_fighter(&pf_kick);
-        const auto* s = scene->skills.get(swing_skill);
-        if (!s || swing_skill == 0 || (pmode != kModeA1 && pmode != kModeKK)) return;
-        const auto armor = scene->skills.names.stats.find("skill_armor_percent");
-        if (armor == scene->skills.names.stats.end()) return;
-        const int lvl = skill_level ? skill_level(swing_skill) : 1;
+        std::erase_if(self_states, [&](const SelfState& st) { return ms >= st.until; });
+        const auto& N = scene->skills.names.stats;
+        const auto id = [&](const char* n) { const auto i = N.find(n); return i == N.end() ? -2 : i->second; };
+        const int armor = id("skill_armor_percent"), over = id("armor_override_percent"), dr = id("damageresist");
         const auto env = calc_env();
-        for (std::size_t i = 0; i < s->aurastat.size(); ++i)
-            if (s->aurastat[i] == armor->second)
-                pf.defense += pf.defense * d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, lvl) / 100;
+        int armor_pct = 0, over_pct = 0;
+        for (const auto& st : self_states) {
+            const auto* s = scene->skills.get(st.skill);
+            for (std::size_t i = 0; s && i < s->aurastat.size(); ++i) {
+                if (s->aurastat[i] < 0) continue;
+                const int v = d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
+                if (s->aurastat[i] == armor) armor_pct += v;
+                else if (s->aurastat[i] == over) over_pct += v;
+                else if (s->aurastat[i] == dr) pf.dr_pct += v;
+            }
+        }
+        pf.defense += pf.defense * armor_pct / 100;
+        pf.defense = std::max(pf.defense + pf.defense * over_pct / 100, 0);
     }
 
     // What calcs ask of the player (skills.hpp).
@@ -312,6 +328,7 @@ struct Fight {
         }
         const auto* used = scene->skills.get(swing_skill);
         set_pmode(used && swing_skill != 0 && used->anim == "KK" ? kModeKK : kModeA1, ms);
+        if (used && swing_skill != 0 && used->srvdofunc == 2 && used->aurastat[0] >= 0) self_state(*used, ms);
         pstruck = false;
         return true;
     }
@@ -342,11 +359,20 @@ struct Fight {
             sw.skill_lo = d2d::rules::skill_phys(T, *s, env, lvl, false);
             sw.skill_hi = d2d::rules::skill_phys(T, *s, env, lvl, true);
             sw.knockback = kicks_left == 0;
-        } else {
+        } else if (s->srvstfunc == 35) {                     // Vengeance (FUN_005cfe10)
+            sw.fire_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
+            sw.cold_pct = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            sw.ltng_pct = d2d::rules::eval_calc(T, s->calc[2], env, s->id, lvl);
+            sw.cold_len = d2d::rules::elem_length(T, *s, env, lvl);
+        } else {                                             // Bash's family (32), Power Strike (6), Berserk (39)
+            // Power Strike's start (FUN_005da940) passes no to-hit bonus and
+            // no ResultFlags; only Bash's adds calc2 after the damage
+            // (Berserk's calc2 is its state's length).
+            if (s->srvstfunc == 6) sw.ar_pct = 0;
             sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
-            sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            if (s->srvstfunc == 32) sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
             sw.srcdam = s->srcdam;
-            sw.knockback = (s->result_flags & 8) != 0;
+            sw.knockback = s->srvstfunc != 6 && (s->result_flags & 8) != 0;
             // FUN_005d7ea0 on a hit: EType stun stands the target for the
             // skill's elemental length (FUN_0056e0c0 -> FUN_0056c8e0 case
             // 9); another element with calc4 > 0 takes calc4 % of the
@@ -425,6 +451,7 @@ struct Fight {
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
+        if (s && s->srvdofunc == 2 && s->srvstfunc != 35) skill_element(f, *s);
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
         land(target, b, true, ms);
@@ -432,6 +459,29 @@ struct Fight {
         if (b.hit && finishing) release();
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
         if (!monsters[target].alive()) attack_mon = -1;
+    }
+
+    // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
+    // brackets and synergy; Power Strike's lightning). Stun is elsewhere.
+    void skill_element(d2d::rules::Fighter& f, const d2d::rules::Skill& s) {
+        if (s.etype < 0 || s.etype >= 5) return;
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const auto env = calc_env();
+        auto& [lo, hi] = f.elem[std::size_t(s.etype)];
+        lo += d2d::rules::elem_damage(scene->skills, s, env, lvl, false) >> 8;
+        hi += d2d::rules::elem_damage(scene->skills, s, env, lvl, true) >> 8;
+        if (s.etype == 2) f.cold_len = std::max(f.cold_len, d2d::rules::elem_length(scene->skills, s, env, lvl));
+    }
+    void self_state(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        std::uint32_t until = pmode_until;
+        if (s.srvstfunc == 39) {
+            const auto env = calc_env();
+            const int ticks = d2d::rules::eval_calc(scene->skills, s.calc[1], env, s.id, lvl);
+            until = ms + std::uint32_t(ticks > 0 ? ticks : 10) * 40;
+        }
+        std::erase_if(self_states, [&](const SelfState& st) { return st.skill == s.id; });
+        self_states.push_back({ s.id, lvl, until });
     }
 
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc

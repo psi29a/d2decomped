@@ -291,9 +291,12 @@ try:
     lv = cmd("debug level").split()
     assert lv[1] == "1", lv
     cmd("debug warp 44.5 16.5"); frames(6)
-    for _ in range(14):
+    # Until it crosses (a camp NPC patrolling the bridge can hold it up).
+    for _ in range(40):
         cmd("move 700 490"); cmd("click 700 490"); frames(30)
-    lv = cmd("debug level").split()
+        lv = cmd("debug level").split()
+        if lv[1] == "2":
+            break
     assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
     # The Blood Moor's monsters (seed 3: 155), alive and at full life.
     mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]

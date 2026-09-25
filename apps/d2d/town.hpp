@@ -448,7 +448,7 @@ struct Town {
     // an object to operate on arrival; the player follows a walk_path; NPCs
     // patrol; the merc follows.
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, float dt) {
-        fight.update_fighters();
+        fight.update_fighters(ms);
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&*merc);

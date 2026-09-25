@@ -204,6 +204,26 @@ operand and function lists.
 - Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
   ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
 
+### Other starts resolved by srvdofunc 2 (srvstfunc table 0x732140)
+- **6 Power Strike** (FUN_005da940): hit check FUN_0057ec10 with **0** to-hit
+  bonus (the column's ToHit / LevToHit don't reach it); on a hit ED =
+  calc1, calc4 conversion when EType, the element (lightning, EMin..EMax
+  + synergy) via FUN_0056e0c0; no ResultFlags, no calc2 add; SrcDam
+  passed as is.
+- **39 Berserk** (FUN_005d97f0): Bash's build (toht, ResultFlags, hit
+  class, ED calc1, calc4 = 100 → all magic, the element) without calc2's
+  add; then, hit or not, the self state `aurastate` for **calc2** ticks
+  (10 when that's ≤ 0), refreshed if present: aurastat1 damageresist
+  (par5 = 0), aurastat2 armor_override_percent −100 (defense 0).
+- **35 Vengeance** (FUN_005cfe10): toht; the physical from FUN_0057b420
+  (the weapon's, one additive %), ResultFlags, flags | 1; then fire (+0x10)
+  = physical × (calc1 [+ stat 329 fire mastery]) / 100, cold (+0x24) ×
+  calc2 [+ 331], lightning (+0x1c) × calc3 [+ 330], cold length (+0x30)
+  += ELen; an overlay cycling fire / cold / lightning (FUN_006444a0 /
+  FUN_00644560); SrcDam 128.
+- **58 Fire Claws** (FUN_005c7e00): the shape-shifted Druid's
+  (FUN_0056e680 builds the hit); waits for shapeshifting.
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -289,9 +309,11 @@ operand and function lists.
    Blades (they swing A1). Stun (stands the monster, `Monster::stun_until`)
    and Concentrate (defense while swinging, calc4 conversion) too; not in
    them: the stun guards (special monsters, immunity, the boss cap), gear
-   stun length, when the self state really ends. Not yet: SQ
+   stun length, when the self state really ends. Power Strike, Berserk
+   (all-magic, defense 0 for calc2 ticks) and Vengeance (elements as % of
+   the physical) too; not in them: the masteries on Vengeance. Not yet: SQ
    sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
-   functions (Power Strike, Berserk, Vengeance, Zeal, ...). Was:
+   functions (Zeal, Sacrifice, Smite, Frenzy, Leap Attack, ...). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2
    post-damage add, toht, ResultFlags (knockback, stun), SrcDam,

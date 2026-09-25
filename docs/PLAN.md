@@ -211,7 +211,8 @@ Combat
   the Assassin charge-ups (Tiger / Cobra Strike, Fists of Fire, Claws of
   Thunder, Blades of Ice, Royal Strike) charge and release through Attack,
   Talon and Dragon Tail (a kick with a fire splash). Stun stands monsters,
-  Concentrate raises defense while swinging and converts to magic. Their release
+  Concentrate raises defense while swinging and converts to magic.
+  Power Strike, Berserk and Vengeance swing as game.exe's starts do. Their release
   missiles (srvprgfunc) wait for the missile phase.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,

@@ -190,6 +190,9 @@ struct Swing {
     int skill_lo = 0, skill_hi = 0;
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)
+    // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
+    // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
+    int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;
 };
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
@@ -214,6 +217,7 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
         hi = f.phys_hi + f.phys_hi * p / 100;
     }
     std::int64_t d = hi > lo ? lo + rng(int(hi - lo)) : lo;
+    const int rolled = int(d >> 8);                       // before crit: what Vengeance's elements are a share of
     // Critical strike and deadly strike are separate rolls; either doubles
     // (FUN_0057b7d0; the mastery crit joins them with skills). Not kicks.
     if (!sw.kick && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
@@ -230,12 +234,14 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     b.mana = phys * f.mana_steal * t.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     int elem = conv > 0 && sw.conv_type != 3 ? resisted(int(conv >> 8), t.res[std::size_t(kRes[sw.conv_type])]) : 0;
+    elem += resisted(rolled * sw.fire_pct / 100, t.res[2]) + resisted(rolled * sw.ltng_pct / 100, t.res[3]);
+    if (const int c = resisted(rolled * sw.cold_pct / 100, t.res[4]); c > 0) { elem += c; b.chill_ticks = std::max(sw.cold_len, 1); }
     for (int e = 0; e < 5; ++e) {
         const auto [lo, hi] = f.elem[std::size_t(e)];
         if (hi <= 0) continue;
         const int d = resisted(rng.range(lo, hi), t.res[std::size_t(kRes[e])]);
         if (e == 3) { b.poison = d; b.poison_ticks = std::max(f.poison_len, 1); continue; }
-        if (e == 2 && d > 0) b.chill_ticks = f.cold_len;
+        if (e == 2 && d > 0) b.chill_ticks = std::max(b.chill_ticks, f.cold_len);
         elem += d;
     }
     int cb = 0;

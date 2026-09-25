@@ -115,6 +115,12 @@ int main() {
     assert(conv({ .conv_type = 4, .conv_pct = 25 }).damage == 90 + 30 / 2);          // 120: 90 physical, 30 magic at 50 %
     assert(conv({ .flat = 5, .conv_type = 4, .conv_pct = 100 }).damage == 5 + 60);    // all magic, the flat add physical
     assert(conv({ .stun_ticks = 300 }).stun_ticks == 250);
+    // Vengeance: elements as % of the physical rolled (before crit), each
+    // less its resistance; the cold chills.
+    Target vres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 0, 50, 0, 0, 0 } };   // fire 50 %
+    auto v = player_blow(critter, vres, 99, br, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
+    for (int i = 0; i < 20 && !v.hit; ++i) v = player_blow(critter, vres, 99, br, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
+    assert(v.hit && v.damage == 240 + 60 + 60 + 12 && v.chill_ticks == 40);   // crit 240 phys; 120 x (100 % at 50, 50 %, 10 %)
     // Boots make the kick: their kick damage, StrBonus on strength, + stat 137.
     t.item_base["lbt"] = { .mindam = 3, .maxdam = 8, .str_bonus = 120 };
     d2d::d2s::Item lbt; lbt.code = "lbt";
