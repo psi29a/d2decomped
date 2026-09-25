@@ -141,10 +141,24 @@ struct Scene {
         std::array<d2d::dcc::Sprite, 16>  layers;
         std::string                       name;       // COF base name, e.g. "AITW1HS"
         std::uint32_t                     speed = 0;  // animdata.d2 rate (256 = a frame per tick)
+        std::uint32_t                     frames = 0; // animdata.d2 frames per direction
+        int                               action = -1; // animdata.d2: first frame with an event (the hit)
+        // One frame's length: 25 ticks/s, speed/256 frames a tick.
+        [[nodiscard]] std::uint32_t ms_per_frame() const {
+            return 40u * 256u / std::max<std::uint32_t>(speed ? speed : cof.speed(), 1);
+        }
+        [[nodiscard]] std::uint32_t length_ms() const {
+            return ms_per_frame() * std::max<std::uint32_t>(frames ? frames : cof.frames_per_direction(), 1);
+        }
+        // When the attack lands: its event frame, else halfway.
+        [[nodiscard]] std::uint32_t action_ms() const {
+            return action >= 0 ? ms_per_frame() * std::uint32_t(action) : length_ms() / 2;
+        }
     };
-    // data\global\animdata.d2: COF name -> animation speed. The game's
-    // rate source; COFs of walk/run modes store 0.
-    std::unordered_map<std::string, std::uint32_t> anim_speed;
+    // data\global\animdata.d2 by COF name: the game's rate source (COFs of
+    // walk/run modes store 0), frames per direction and the event frame.
+    struct AnimInfo { std::uint32_t speed = 0, frames = 0; int action = -1; };
+    std::unordered_map<std::string, AnimInfo> anim_data;
     using Appearance = std::array<std::uint8_t, 16>;
     std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
     std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt

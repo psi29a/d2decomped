@@ -69,5 +69,29 @@ int main() {
         assert(s.level == 1 && s.hp >= 7 && s.hp <= 12);
         assert(s.ac == 5 && s.th == 8 && s.a1_min == 1 && s.a1_max == 3 && s.exp == 33);
     }
+    // Combat.
+    assert(hit_chance(100, 100, 1, 1) == 50);
+    assert(hit_chance(1000, 1, 5, 1) == 95 && hit_chance(10, 1000, 1, 1) == 5);
+    assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 24 && kill_exp(100, 20, 1) == 5);
+    assert(kill_exp(100, 1, 10) == 10);
+    Tables t;
+    t.item_base["hax"] = { .mindam = 3, .maxdam = 6, .str_bonus = 100 };
+    d2d::d2s::Item hax; hax.code = "hax"; hax.location = 1; hax.slot = 4;
+    d2d::d2s::Stats st;
+    st.v[d2d::d2s::kStr] = 20; st.v[d2d::d2s::kDex] = 20; st.v[d2d::d2s::kLevel] = 1;
+    auto at = player_attack(t, { hax }, st, 15);
+    assert(at.min == 3 && at.max == 7 && at.ar == 80);                // x1.2 from strength; 20 dex = 65 + 15
+    hax.props.push_back({ .stat = 17, .value = 100 });               // +100% enhanced damage
+    at = player_attack(t, { hax }, st, 15);
+    assert(at.min == 7 && at.max == 14);
+    at = player_attack(t, {}, st, 15);                                 // fists: 1-2, strength x1.2
+    assert(at.min == 1 && at.max == 2);
+    ClassGains g{ .life_per_level = 8, .stamina_per_level = 4, .mana_per_level = 6, .stat_per_level = 5 };
+    st.v[d2d::d2s::kMaxLife] = st.v[d2d::d2s::kLife] = 50 << 8;
+    const std::vector<std::int64_t> next{ 0, 500, 1500, 3750 };
+    assert(gain_exp(st, 400, next, g) == 0 && st.get(d2d::d2s::kLevel) == 1);
+    assert(gain_exp(st, 1200, next, g) == 2);                          // 1600: past 500 and 1500
+    assert(st.get(d2d::d2s::kLevel) == 3 && st.get(d2d::d2s::kStatPts) == 10 && st.get(d2d::d2s::kSkillPts) == 2);
+    assert(st.fixed(d2d::d2s::kMaxLife) == 54 && st.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
     std::puts("ok");
 }

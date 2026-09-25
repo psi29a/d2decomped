@@ -168,8 +168,24 @@ struct Monster {
     int leader = -1;                          // index of its group's leader
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
     std::string_view mode = "NU";             // animation mode token
+    std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
+    std::uint32_t next_act = 0;               // ms: may attack again (aidel)
+    std::uint32_t flee_until = 0;             // ms: running from the player
+    bool struck = false;                      // this attack's hit is resolved
+    bool aware = false;                       // has noticed the player
     [[nodiscard]] bool alive() const { return hp > 0; }
 };
+
+// Whoever the monsters are after (the player), and what they did to it
+// this frame.
+struct Foe {
+    float x = 0, y = 0;
+    int defense = 0, level = 1;
+    bool alive = true;
+    int damage = 0;                           // life lost this frame, whole points
+};
+
+constexpr float kMeleeReach = 1.1f;           // cells between centres
 
 // The level's spawns as monsters: each rolls its components (one of
 // MonStats2's HDv..S8v per layer) and its stats.
@@ -197,33 +213,122 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
     return out;
 }
 
-// Idle monsters wander (Levels.txt MonWndr): stand 2-5 s, then walk
-// straight to a random spot within 3 cells of home at their Velocity,
-// stopping short when something's in the way.
-// ponytail: not game.exe's idle AI (each AI type has its own think
-// function, table not traced); timings by eye.
-void monster_wander(const Scene& s, const Level& L, Monster& m, d2d::rules::Rng& rng,
+void set_mode(const Scene& s, Monster& m, std::string_view mode, std::uint32_t ms) {
+    m.mode = mode;
+    m.u.mode_ms = ms;
+    m.u.walking = mode == "WL";
+    m.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0 : ms + s.npc_anim(m.npc, mode).length_ms();
+}
+
+// Damage to a monster: it dies (DT, then its corpse, DD) or recoils (GH)
+// and, the first time, notices. True when this killed it.
+// ponytail: D2 plays get-hit only past a share of max life; always here.
+bool hurt(const Scene& s, Monster& m, int damage, std::uint32_t ms) {
+    if (!m.alive()) return false;
+    m.hp -= damage;
+    m.aware = true;
+    set_mode(s, m, m.alive() ? "GH" : "DT", ms);
+    return !m.alive();
+}
+
+// One step toward (tx, ty) at `speed` cells/s, straight on; false when
+// something's in the way.
+bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, const Crowd& crowd) {
+    auto& u = m.u;
+    const float dx = tx - u.x, dy = ty - u.y, dist = std::hypot(dx, dy);
+    if (dist < 0.01f) return true;
+    u.dir = direction16(dx, dy);
+    const float k = std::min(step, dist) / dist, nx = u.x + dx * k, ny = u.y + dy * k;
+    if (L.unit_blocked(nx, ny)) return false;
+    for (const auto* o : crowd.units)                   // into someone: blocked; out of an overlap: fine
+        if (o != &u && std::abs(o->x - nx) < 0.3f && std::abs(o->y - ny) < 0.3f
+            && std::hypot(o->x - nx, o->y - ny) < std::hypot(o->x - u.x, o->y - u.y)) return false;
+    u.x = nx; u.y = ny;
+    return true;
+}
+
+// A monster's frame: finish an attack / get-hit / death; flee; notice the
+// player within 8 cells (then keep after them within 16), walk up and
+// attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs
+// the foe's defense, A1MinD..MaxD), wait aidel ticks between attacks;
+// otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
+// random spot within 3 cells.
+// ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
+// game.exe's per-AI think functions not traced); distances and timings
+// by eye; chasing goes straight at the player, sliding to a stop at walls.
+void monster_update(const Scene& s, const Level& L, Monster& m, Foe& foe, d2d::rules::Rng& rng,
                     std::uint32_t ms, float dt, const Crowd& crowd) {
     auto& u = m.u;
+    const auto& t = s.monsters.types[std::size_t(m.type)];
+    if (!m.alive()) {
+        if (m.mode == "DT" && ms >= m.mode_until) set_mode(s, m, "DD", ms);
+        return;
+    }
+    if (m.mode == "GH") {
+        if (ms < m.mode_until) return;
+        set_mode(s, m, "NU", ms);
+    }
+    const float dx = foe.x - u.x, dy = foe.y - u.y, dist = std::hypot(dx, dy);
+    if (m.mode == "A1") {
+        if (!m.struck && ms >= u.mode_ms + s.npc_anim(m.npc, "A1").action_ms()) {
+            m.struck = true;
+            if (foe.alive && dist <= kMeleeReach + 0.3f
+                && rng(100) < d2d::rules::hit_chance(m.st.th, foe.defense, m.st.level, foe.level))
+                foe.damage += rng.range(m.st.a1_min, m.st.a1_max);
+        }
+        if (ms < m.mode_until) return;
+        set_mode(s, m, "NU", ms);
+        m.next_act = ms + std::uint32_t(t.diff[0].aidel) * 40;
+    }
+    const float walk = cells_per_sec(float(t.velocity)) * dt;
+    if (ms < m.flee_until) {
+        if (m.mode != "WL") set_mode(s, m, "WL", ms);
+        if (!monster_step(L, m, u.x - dx, u.y - dy, cells_per_sec(float(t.run)) * dt, crowd)) m.flee_until = 0;
+        return;
+    }
+    if (foe.alive && (dist < 8 || (m.aware && dist < 16))) {
+        m.aware = true;
+        if (dist <= kMeleeReach) {
+            u.dir = direction16(dx, dy);
+            if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; }
+            else if (m.mode != "NU") set_mode(s, m, "NU", ms);
+            return;
+        }
+        // Straight at the player, else sidestep round whoever's in the way.
+        bool moved = false;
+        for (const float turn : { 0.f, 0.785f, -0.785f, 1.571f, -1.571f }) {
+            const float c = std::cos(turn), sn = std::sin(turn);
+            if ((moved = monster_step(L, m, u.x + dx * c - dy * sn, u.y + dx * sn + dy * c, walk, crowd))) break;
+        }
+        if (moved != (m.mode == "WL")) set_mode(s, m, moved ? "WL" : "NU", ms);
+        return;
+    }
+    m.aware = false;
     if (!u.walking) {
         if (ms < u.wait_until || !L.mon.wander) return;
         const float a = float(rng(360)) * 3.14159265f / 180, r = float(rng(300)) / 100;
         u.goal_x = m.home_x + std::cos(a) * r;
         u.goal_y = m.home_y + std::sin(a) * r;
-        u.walking = true; u.mode_ms = ms; m.mode = "WL";
+        set_mode(s, m, "WL", ms);
         return;
     }
-    const float dx = u.goal_x - u.x, dy = u.goal_y - u.y, dist = std::hypot(dx, dy);
-    const float step = cells_per_sec(float(s.monsters.types[std::size_t(m.type)].velocity)) * dt;
-    const float nx = u.x + dx / std::max(dist, 0.001f) * std::min(step, dist), ny = u.y + dy / std::max(dist, 0.001f) * std::min(step, dist);
-    if (dist > 0.05f) u.dir = direction16(dx, dy);
-    if (dist <= step || L.unit_blocked(nx, ny) || crowd.at(nx, ny, &u)) {
-        if (dist <= step) { u.x = nx; u.y = ny; }
-        u.walking = false; u.mode_ms = ms; m.mode = "NU";
+    if (std::hypot(u.goal_x - u.x, u.goal_y - u.y) <= walk || !monster_step(L, m, u.goal_x, u.goal_y, walk, crowd)) {
+        if (std::hypot(u.goal_x - u.x, u.goal_y - u.y) <= walk) { u.x = u.goal_x; u.y = u.goal_y; }
+        set_mode(s, m, "NU", ms);
         u.wait_until = ms + 2000 + std::uint32_t(rng(3000));
-        return;
     }
-    u.x = nx; u.y = ny;
+}
+
+// Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
+// the others of its group within 10 cells run for 2-3 s.
+// ponytail: the Fallen think function isn't traced; group = spawn group.
+void fallen_scatter(const Scene& s, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t ms) {
+    const auto& d = ms_[dead];
+    if (s.monsters.types[std::size_t(d.type)].ai != "Fallen") return;
+    for (auto& m : ms_)
+        if (&m != &d && m.alive() && m.leader == d.leader && std::hypot(m.u.x - d.u.x, m.u.y - d.u.y) < 10
+            && s.monsters.types[std::size_t(m.type)].ai == "Fallen")
+            m.flee_until = ms + 2000 + std::uint32_t(rng(1000));
 }
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,

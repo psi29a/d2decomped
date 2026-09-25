@@ -40,6 +40,7 @@ struct ItemType {
 };
 struct ItemBase {
     int minac = 0, maxac = 0, cost = 0;
+    int mindam = 0, maxdam = 0, str_bonus = 0, dex_bonus = 0;   // weapons.txt (2handmindam for two-handers)
     bool stackable = false;
     int level = 0, durability = 0, gamble_cost = 0, min_stack = 0, max_stack = 0;
     std::string normcode, ubercode, ultracode;         // normal / exceptional / elite versions
@@ -541,7 +542,12 @@ inline bool put_in_belt(const Tables& t, std::vector<d2d::d2s::Item>& items, std
 
 // Per stat point, in quarter points (CharStats LifePerVitality,
 // StaminaPerVitality, ManaPerMagic): Amazon 12 = 3 life per vitality.
-struct ClassGains { int life_per_vit = 0, stamina_per_vit = 0, mana_per_energy = 0; };
+// CharStats per class: gains per stat point and per level (quarter
+// points), stat points per level, and ToHitFactor.
+struct ClassGains {
+    int life_per_vit = 0, stamina_per_vit = 0, mana_per_energy = 0;
+    int life_per_level = 0, stamina_per_level = 0, mana_per_level = 0, stat_per_level = 5, to_hit = 0;
+};
 
 // Spends up to n unspent stat points (stat 4) on stat (0 strength, 1
 // energy, 2 dexterity, 3 vitality), as the char panel's buttons ask with

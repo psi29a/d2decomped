@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstdint>
+#include <tuple>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -218,6 +219,100 @@ inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& 
     s.a2_max = std::max(pct(L.dm[std::size_t(d)], p.a2_max), s.a2_min);
     s.exp = pct(L.xp[std::size_t(d)], p.exp);
     return s;
+}
+
+// ---- combat
+
+// Chance to hit in percent: 200 * AR / (AR + defense) * alvl / (alvl + dlvl),
+// clamped to 5..95.
+// ponytail: the documented formula; game.exe's isn't traced.
+inline int hit_chance(int ar, int def, int alvl, int dlvl) {
+    if (ar <= 0) return 5;
+    const std::int64_t num = 200LL * ar * alvl, den = std::int64_t(ar + std::max(def, 0)) * std::max(alvl + dlvl, 1);
+    return int(std::clamp<std::int64_t>(num / den, 5, 95));
+}
+
+// The worn weapon (right hand, else left) and the sums of the carried
+// item stats that matter to an attack. Stats by ItemStatCost id: 17/18
+// enhanced max/min damage %, 19 attack rating, 21/22 min/max damage,
+// 119 attack rating %.
+struct Attack { int min = 1, max = 2, ar = 0; };
+inline Attack player_attack(const Tables& t, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st,
+                            int to_hit_factor) {
+    using namespace d2d::d2s;
+    std::array<std::int64_t, 128> sum{};
+    const Item* weapon = nullptr;
+    for (const auto& it : items) {
+        const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
+        const bool charm = it.location == 0 && it.panel == 1 && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
+        if (!worn && !charm) continue;
+        if (worn && (it.slot == 4 || it.slot == 5)) {
+            const auto b = t.item_base.find(it.code);
+            if (b != t.item_base.end() && b->second.maxdam > 0 && (!weapon || it.slot == 4)) weapon = &it;
+        }
+        for (const auto& pr : it.props) if (pr.stat >= 0 && pr.stat < 128) sum[std::size_t(pr.stat)] += pr.value;
+    }
+    Attack a;
+    const auto str = st.get(kStr), dex = st.get(kDex);
+    std::int64_t lo = 1, hi = 2, bonus = 0;
+    if (weapon) {
+        const auto& b = t.item_base.at(weapon->code);
+        std::int64_t ed = 0;
+        for (const auto& pr : weapon->props) if (pr.stat == 17) ed += pr.value;   // on the weapon: its base
+        lo = b.mindam * (100 + ed) / 100;
+        hi = b.maxdam * (100 + ed) / 100;
+        bonus = str * b.str_bonus + dex * b.dex_bonus;
+    } else {
+        bonus = str * 100;                    // no weapon: strength counts fully (hand-to-hand)
+    }
+    lo += sum[21]; hi += sum[22];
+    lo = lo * (10000 + bonus) / 10000;
+    hi = std::max(hi * (10000 + bonus) / 10000, lo);
+    a.min = int(std::max<std::int64_t>(lo, 1));
+    a.max = int(std::max<std::int64_t>(hi, a.min));
+    // Attack rating: 5 per dexterity point from 7 (-35 base) + ToHitFactor, items.
+    std::int64_t ar = dex * 5 - 35 + to_hit_factor + sum[19];
+    ar = ar * (100 + sum[119]) / 100;
+    a.ar = int(std::max<std::int64_t>(ar, 1));
+    return a;
+}
+
+// Experience for a kill: the monster's, less when the character outlevels
+// it by more than 5 (81 / 62 / 43 / 24 % at 6..9 levels, 5 % from 10), or
+// scaled by clvl / mlvl when the monster is more than 5 levels higher.
+// ponytail: single player, no party share, no experience.txt ExpRatio
+// past level 69.
+inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
+    static constexpr int kPenalty[5] = { 81, 62, 43, 24, 5 };
+    if (clvl > mlvl + 5) return std::int64_t(exp) * kPenalty[std::min(clvl - mlvl - 6, 4)] / 100;
+    if (mlvl > clvl + 5) return std::int64_t(exp) * clvl / mlvl;
+    return exp;
+}
+
+// Adds experience; every level reached (exp_next[level] = experience for
+// level + 1) gives StatPerLevel stat points, a skill point and the class's
+// life/stamina/mana per level (quarter points, 8.8 fixed stats). Returns the
+// levels gained.
+inline int gain_exp(d2d::d2s::Stats& st, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& g) {
+    using namespace d2d::d2s;
+    st.v[kExp] += exp;
+    int gained = 0;
+    for (;;) {
+        const auto lvl = st.get(kLevel);
+        if (lvl < 1 || std::size_t(lvl) >= exp_next.size() || exp_next[std::size_t(lvl)] <= 0
+            || st.v[kExp] < exp_next[std::size_t(lvl)] || lvl >= 99) break;
+        ++st.v[kLevel];
+        ++gained;
+        st.v[kStatPts] += g.stat_per_level;
+        st.v[kSkillPts] += 1;
+        for (auto [cur, max, q] : { std::tuple{ kLife, kMaxLife, g.life_per_level },
+                                    std::tuple{ kStamina, kMaxStamina, g.stamina_per_level },
+                                    std::tuple{ kMana, kMaxMana, g.mana_per_level } }) {
+            st.v[std::size_t(max)] += std::int64_t(q) * 64;
+            st.v[std::size_t(cur)] += std::int64_t(q) * 64;
+        }
+    }
+    return gained;
 }
 
 }  // namespace d2d::rules

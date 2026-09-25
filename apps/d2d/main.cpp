@@ -433,6 +433,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " statpts=" + std::to_string(cc.stats.get(d2d::d2s::kStatPts))
              + " str=" + std::to_string(cc.stats.get(d2d::d2s::kStr))
              + " life=" + std::to_string(cc.stats.fixed(d2d::d2s::kLife)) + "/" + std::to_string(cc.stats.fixed(d2d::d2s::kMaxLife))
+             + " level=" + std::to_string(cc.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(cc.stats.get(d2d::d2s::kExp))
+             + " pmode=" + (t.pmode >= 0 ? kModeCode[t.pmode] : "-")
              + " skillpts=" + std::to_string(cc.stats.get(d2d::d2s::kSkillPts))
              + " tree=" + (t.tree_open ? std::to_string(t.tree_tab) : "0")
              + " waypoint=" + std::to_string(t.waypoint.open ? int(scene->waypoint_levels[std::size_t(t.waypoint.tab)].size()) : 0)

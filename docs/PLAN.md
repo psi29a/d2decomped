@@ -143,7 +143,12 @@ D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
 E. **Monsters** — spawning done: game.exe's monster region and room
    population (docs/research/re/monsters.md, `components/rules/monsters.hpp`,
    `test_monsters`); the Blood Moor's monsters draw with rolled components
-   and wander (MonWndr). Next: AI, combat, death, experience, drops.
+   and wander (MonWndr). Combat: click a monster to walk up and swing
+   (the hit on AnimData's event frame, hit chance and damage from
+   `components/rules`), monsters notice, chase, surround and hit back,
+   get-hit / death / corpses, Fallen scatter, experience and level-ups,
+   the player's death and respawn in camp. Next: drops, quill rat spikes,
+   the merc fighting, sounds.
 
 ## Next up (as of 2026-09-24)
 

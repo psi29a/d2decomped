@@ -14,7 +14,8 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
-constexpr int kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeTN = 5, kModeTW = 6;
+constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
+              kModeA1 = 7, kModeDD = 17;
 
 // ponytail: town walk speed picked by eye so the TW cycle doesn't skate
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
@@ -48,7 +49,8 @@ inline std::uint8_t cof_direction(int dir16, int dirs) {
     const int d = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
     return std::uint8_t(std::clamp(d, 0, std::max(dirs - 1, 0)));
 }
-constexpr const char* kModeCode[7] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW" };
+constexpr const char* kModeCode[18] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW", "A1", "A2", "BL", "SC",
+                                        "TH", "KK", "S1", "S2", "S3", "S4", "DD" };
 constexpr const char* kLayerCode[16] = {
     "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
     "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
@@ -109,7 +111,8 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
     auto it = composites.find(key);
     if (it == composites.end()) {
         it = composites.emplace(key, load_composite(mpqs, comp, d2s_class, mode, gfx)).first;
-        if (const auto a = anim_speed.find(it->second.name); a != anim_speed.end()) it->second.speed = a->second;
+        if (const auto a = anim_data.find(it->second.name); a != anim_data.end())
+            std::tie(it->second.speed, it->second.frames, it->second.action) = std::tuple{ a->second.speed, a->second.frames, a->second.action };
     }
     return it->second;
 }
@@ -153,7 +156,8 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
     auto it = npc_anims.find(key);
     if (it == npc_anims.end()) {
         it = npc_anims.emplace(key, load_npc_composite(mpqs, n, m)).first;
-        if (const auto a = anim_speed.find(it->second.name); a != anim_speed.end()) it->second.speed = a->second;
+        if (const auto a = anim_data.find(it->second.name); a != anim_data.end())
+            std::tie(it->second.speed, it->second.frames, it->second.action) = std::tuple{ a->second.speed, a->second.frames, a->second.action };
     }
     return it->second;
 }
@@ -329,7 +333,12 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         return dx * dx + dy * dy < 2025;
     };
     for (const auto& rm : moor.rooms) {
-        auto fits = [&](int x, int y) { return !moor.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5); };
+        // Clear ground, and no monster already within its 2-subtile
+        // footprint (game.exe stamps each placed monster into collision, 0x800).
+        auto fits = [&](int x, int y) {
+            for (const auto& o : moor.spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
+            return !moor.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+        };
         d2d::rules::populate_room(M, region, moor.mon.density[0],
             { rm.x * 5, rm.y * 5, 40, 40, d2d::rules::Rng{ rm.seed } }, game, fits, near_camp, moor.spawns);
     }
@@ -521,7 +530,11 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             for (std::size_t r = 0; r < t->size(); ++r) {
                 const std::string code(t->get(r, "code"));
                 auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
+                const bool two = t == &weapons && t->get(r, "2handed") == "1" && t->get(r, "1or2handed") != "1";
                 scene.rules.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
+                                          t == &weapons ? n(two ? "2handmindam" : "mindam") : 0,
+                                          t == &weapons ? n(two ? "2handmaxdam" : "maxdam") : 0,
+                                          t == &weapons ? n("StrBonus") : 0, t == &weapons ? n("DexBonus") : 0,
                                           t->get(r, "stackable") == "1", n("level"),
                                           t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),
                                           std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
@@ -648,8 +661,12 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 std::string name(reinterpret_cast<const char*>(b->data() + p), 8);
                 name.resize(std::strlen(name.c_str()));
                 for (auto& ch : name) ch = char(std::toupper(ch));
-                std::uint32_t spd; std::memcpy(&spd, b->data() + p + 12, 4);
-                scene.anim_speed.emplace(std::move(name), spd);
+                Scene::AnimInfo a;
+                std::memcpy(&a.frames, b->data() + p + 8, 4);
+                std::memcpy(&a.speed, b->data() + p + 12, 4);
+                for (std::uint32_t f = 0; f < a.frames && f < 144 && a.action < 0; ++f)
+                    if (std::to_integer<int>(b->data()[p + 16 + f]) != 0) a.action = int(f);
+                scene.anim_data.emplace(std::move(name), a);
             }
         }
     if (const auto bt = txt("belts"); bt.size() >= 14)
@@ -958,7 +975,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     }
     for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
         auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };
-        scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic") };
+        scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
+                                 per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
+                                 per("StatPerLevel"), per("ToHitFactor") };
         auto& g = scene.starting_gear[c];
         g.fill(0xff);
         for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit

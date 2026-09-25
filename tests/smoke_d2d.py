@@ -286,6 +286,10 @@ try:
         cmd("move 700 490"); cmd("click 700 490"); frames(30)
     lv = cmd("debug level").split()
     assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
+    # The Blood Moor's monsters (seed 3: 155), alive and at full life.
+    mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
+    assert len(mons) > 50 and {m[0] for m in mons} == {"zombie1", "fallen1", "quillrat1"}, mons[:3]
+    assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
     cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
     assert cmd("debug level").split()[1] == "1"
 

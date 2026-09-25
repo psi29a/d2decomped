@@ -59,6 +59,13 @@ struct Town {
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     d2d::rules::Rng rng{ 0x2545f491u };    // rolls: stock, talk topics, gambles, merc offers
     std::vector<Monster> monsters;         // the Blood Moor's (Level::spawns), kept while the game runs
+    // Fighting: the monster being attacked (walked up to, then struck),
+    // the player's non-walking mode (A1 attack, GH get-hit, DT dying, DD
+    // dead; -1 none) and when it ends.
+    int   attack_mon = -1;
+    int   pmode = -1;
+    std::uint32_t pmode_until = 0;
+    bool  pstruck = false;                 // this swing's hit is resolved
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -110,6 +117,7 @@ struct Town {
             if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
+            if (k == SDLK_ESCAPE && dead()) { respawn(ms); continue; }
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
@@ -367,6 +375,67 @@ struct Town {
         draw(fb, mouse, ms);
     }
 
+    // What the character wears (the save's appearance, else the class's starting gear).
+    [[nodiscard]] const Scene::Appearance& gfx() const {
+        return cc.appearance ? *cc.appearance : scene->starting_gear[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+    }
+    [[nodiscard]] const Scene::PlayerAnim& player_anim(int mode) const {
+        return scene->composite(kUiToSaveClass[std::max(cc.selected, 0)], mode, gfx());
+    }
+    void set_pmode(int mode, std::uint32_t ms) {
+        pmode = mode;
+        player.mode_ms = ms;
+        player.walking = false;
+        player.path.clear();
+        pmode_until = mode == kModeDD ? 0 : ms + player_anim(mode).length_ms();
+    }
+    [[nodiscard]] bool dead() const { return pmode == kModeDT || pmode == kModeDD; }
+
+    // Back in camp after dying: at the town start with full life. Monsters
+    // stay as they are.
+    // ponytail: D2 leaves a corpse holding the gear and takes gold; not yet.
+    void respawn(std::uint32_t ms) {
+        using namespace d2d::d2s;
+        if (level != &scene->town) {
+            if (scene->town.layer != level->layer) {
+                other_automaps[level->layer] = std::move(automap);
+                automap = std::move(other_automaps[scene->town.layer]);
+            }
+            level = &scene->town;
+            npc_states = npc_start(*level);
+            level_ms = ms;
+        }
+        std::tie(player.x, player.y) = level->start.first >= 0 ? level->start : std::pair{ player.x, player.y };
+        std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
+        target_x = player.x; target_y = player.y;
+        cc.stats.v[kLife] = cc.stats.v[kMaxLife];
+        pmode = -1; player.mode_ms = ms; attack_mon = -1;
+        if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); }
+        d2d::log::info("respawned in the Rogue Encampment");
+    }
+
+    // The player's swing: the hit lands on the attack's event frame (MonStats
+    // defense, attack rating from dexterity, ToHitFactor and items); a kill
+    // gives experience (and maybe levels) and scatters a Fallen pack.
+    // ponytail: no weapon speed (WSM/IAS) on the swing's length.
+    void strike(std::uint32_t ms) {
+        if (pstruck || attack_mon < 0 || ms < player.mode_ms + player_anim(kModeA1).action_ms()) return;
+        pstruck = true;
+        auto& m = monsters[std::size_t(attack_mon)];
+        if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
+        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto a = d2d::rules::player_attack(scene->rules, cc.items, cc.stats, scene->class_gains[sc].to_hit);
+        const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
+        if (rng(100) >= d2d::rules::hit_chance(a.ar, m.st.ac, clvl, m.st.level)) return;
+        if (!hurt(*scene, m, rng.range(a.min, a.max), ms)) return;
+        const auto exp = d2d::rules::kill_exp(m.st.exp, clvl, m.st.level);
+        const int up = d2d::rules::gain_exp(cc.stats, exp, scene->exp_next, scene->class_gains[sc]);
+        d2d::log::info("killed {} (+{} exp){}", m.npc.name, exp, up ? std::format(", level {}", cc.stats.get(d2d::d2s::kLevel)) : "");
+        if (up) cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
+        fallen_scatter(*scene, monsters, std::size_t(attack_mon), rng, ms);
+        attack_mon = -1;
+    }
+
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::near), so the player
     // walks straight on; once they stand outside this map they belong to
@@ -424,7 +493,25 @@ struct Town {
         if (in_moor)                           // the monsters around the player
             for (auto& m : monsters)
                 if (m.alive() && std::abs(m.u.x - player.x) < 12 && std::abs(m.u.y - player.y) < 12) crowd.units.push_back(&m.u);
-        if ((mouse.down || mouse.press_this_frame) && !over_ui) {
+        // Dead: the death plays out, then a click (or Esc) respawns in camp.
+        if (dead()) {
+            if (pmode == kModeDT && ms >= pmode_until) set_pmode(kModeDD, ms);
+            if (pmode == kModeDD && mouse.press_this_frame) respawn(ms);
+            return;
+        }
+        // A swing or a flinch holds the player in place until it ends; held
+        // down on the same monster, the next swing follows.
+        if (pmode == kModeA1) {
+            strike(ms);
+            if (ms >= pmode_until) {
+                pmode = -1; player.mode_ms = ms;
+                if (!mouse.down) attack_mon = -1;
+            }
+        } else if (pmode == kModeGH && ms >= pmode_until) {
+            pmode = -1; player.mode_ms = ms;
+        }
+        const bool busy = pmode >= 0;
+        if (!busy && (mouse.down || mouse.press_this_frame) && !over_ui) {
             // Screen -> world: invert the iso projection around
             // the player, who sits at (kW/2, kH/2 + kIsoH/2).
             const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
@@ -435,6 +522,10 @@ struct Town {
             // Clicking an object you can operate walks to it
             // first (D2 operates on arrival).
             interact_npc = -1;
+            if (mouse.press_this_frame) attack_mon = -1;
+            if (mouse.press_this_frame && hovered_npc <= -10 && std::size_t(-10 - hovered_npc) < monsters.size()
+                && monsters[std::size_t(-10 - hovered_npc)].alive())
+                attack_mon = -10 - hovered_npc;       // walk up to it, then attack
             if (mouse.press_this_frame && hovered_npc >= 0) {
                 const auto& o = level->npcs[std::size_t(hovered_npc)];
                 const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
@@ -477,7 +568,18 @@ struct Town {
                 target_x = ox; target_y = oy;              // follow a walking NPC
             }
         }
-        if (player.walking) {
+        if (attack_mon >= 0 && !busy) {
+            const auto& m = monsters[std::size_t(attack_mon)];
+            if (!m.alive()) attack_mon = -1;
+            else if (std::hypot(m.u.x - player.x, m.u.y - player.y) <= kMeleeReach) {
+                player.dir = direction16(m.u.x - player.x, m.u.y - player.y);
+                set_pmode(kModeA1, ms);
+                pstruck = false;
+            } else {
+                target_x = m.u.x; target_y = m.u.y; player.walking = true;
+            }
+        }
+        if (player.walking && pmode < 0) {
             // A route to the target, re-planned when the target
             // moves off its end (dragging, a walking NPC).
             if (player.path.empty() || std::hypot(player.goal_x - target_x, player.goal_y - target_y) > 0.3f) {
@@ -491,11 +593,26 @@ struct Town {
         }
         npc_patrol(*level, npc_states, { npc_menu.npc, speech.npc, store.npc }, ms, dt, crowd);
         // Monsters think while the player is near (D2 runs the rooms
-        // around each player).
-        if (in_moor)
+        // around each player); what they hit comes off the player's life,
+        // and a hit of a twelfth of max life or more makes them flinch (GH).
+        if (in_moor) {
+            Foe foe{ player.x, player.y, int(cc.panel.defense), int(cc.stats.get(d2d::d2s::kLevel)), true };
             for (auto& m : monsters)
-                if (m.alive() && std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30)
-                    monster_wander(*scene, *level, m, rng, ms, dt, crowd);
+                if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30)
+                    monster_update(*scene, *level, m, foe, rng, ms, dt, crowd);
+            if (foe.damage > 0) {
+                using namespace d2d::d2s;
+                cc.stats.v[kLife] -= std::int64_t(foe.damage) << 8;
+                if (cc.stats.v[kLife] <= 0) {
+                    cc.stats.v[kLife] = 0;
+                    set_pmode(kModeDT, ms);
+                    attack_mon = -1;
+                    d2d::log::info("the player died");
+                } else if (std::int64_t(foe.damage) * 12 >= cc.stats.fixed(kMaxLife) && pmode != kModeA1) {
+                    set_pmode(kModeGH, ms);
+                }
+            }
+        }
         if (merc) {
             const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
             merc_follow(*level, *merc, player.x, player.y,
@@ -506,7 +623,7 @@ struct Town {
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.
     void draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t ms) {
-        if (const bool m = player.walking && running; player.walking != player_walked || m != player_ran) {
+        if (const bool m = player.walking && running; pmode < 0 && (player.walking != player_walked || m != player_ran)) {
             player_walked = player.walking; player_ran = m; player.mode_ms = ms;
         }
         const int ui_cls = std::max(cc.selected, 0);
@@ -520,12 +637,13 @@ struct Town {
                                   m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
             }
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
-        const int pmode = player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        // A dead player has no DD composite: DT held on its last frame.
+        if (pmode == kModeDD) player.mode_ms = ms - (player_anim(kModeDT).length_ms() - 1);
+        const int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         render_ingame(fb, *scene, *level, ui_cls,
-                      cc.appearance ? *cc.appearance
-                                    : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
+                      gfx(),
                       cc.input_name, cc.hardcore,
-                      player.x, player.y, pmode,
+                      player.x, player.y, mode,
                       player.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
                       inv_open ? &cc.items : nullptr,
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player.mode_ms, &cc.items,
@@ -534,6 +652,13 @@ struct Town {
                       merc_npc, merc ? &*merc : nullptr, &merc_label, extra);
         if (hovered_npc <= -10 && std::size_t(-10 - hovered_npc) < monsters.size())
             draw_monster_bar(fb, *scene, monsters[std::size_t(-10 - hovered_npc)]);
+        else if (attack_mon >= 0)
+            draw_monster_bar(fb, *scene, monsters[std::size_t(attack_mon)]);
+        if (pmode == kModeDD) {                    // ponytail: D2's death screen text isn't traced
+            const std::string msg = "You have died.  Click or press Esc to continue.";
+            const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
+            scene->font.draw_tinted(fb, kW, kH, pal, int(kW) / 2 - scene->font.measure(msg) / 2, int(kH) / 2 - 60, msg, 220, 60, 60);
+        }
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);

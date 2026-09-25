@@ -65,7 +65,7 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
     if (dirs == 0 || fpd == 0) return r;
     const auto dir = cof_direction(dir_want, dirs);
     // 25 ticks/s; each tick advances speed/256 frames.
-    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
+    const auto ms_per_frame = p.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (const auto& spr : p.layers) {
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
@@ -294,7 +294,7 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     if (dirs == 0 || fpd == 0) return;
     const auto dir = cof_direction(dir_want, dirs);
     // 25 ticks/s; each tick advances speed/256 frames.
-    const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
+    const auto ms_per_frame = p.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (const auto type : p.cof.priority(dir, frame)) {
         if (type >= p.layers.size()) continue;
