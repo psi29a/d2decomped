@@ -83,22 +83,34 @@ int main() {
     d2d::d2s::Item buc; buc.code = "buc";
     d2d::d2s::Stats st;
     st.v[d2d::d2s::kStr] = 20; st.v[d2d::d2s::kDex] = 20; st.v[d2d::d2s::kLevel] = 1;
-    StatSum sum{};
-    auto f = make_fighter(t, &hax, nullptr, sum, st, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
+    StatSum sum{}, wsum{};
+    auto f = make_fighter(t, &hax, nullptr, sum, wsum, st, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(f.min == 3 && f.max == 7 && f.ar == 80 && f.block == 0 && f.wsm == -10 && f.defense == 50 && f.res[3] == 4);
-    sum[17] = sum[18] = 100;                                          // +100% enhanced damage
+    sum[17] = sum[18] = 100;                                          // enhanced damage off the weapon: no effect (op 13)
+    assert(make_fighter(t, &hax, nullptr, sum, wsum, st, {}, 0, {}).max == 7);
+    sum[17] = sum[18] = 0;
+    wsum[17] = wsum[18] = 100;                                        // +100% on the weapon
     sum[20] = 10; sum[136] = 40; sum[36] = 80; sum[34] = 3; sum[60] = 10; sum[54] = 3; sum[55] = 14; sum[56] = 50;
     sum[57] = 256; sum[58] = 512; sum[59] = 75;                         // poison: 1-2 a tick for 75 ticks
-    f = make_fighter(t, &hax, &buc, sum, st, { .to_hit = 15, .block = 25 }, 50, {});
-    assert(f.min == 7 && f.max == 14);
+    f = make_fighter(t, &hax, &buc, sum, wsum, st, { .to_hit = 15, .block = 25 }, 50, {});
+    assert(f.min == 7 && f.max == 14);                                // 6-12, +20% from strength
     assert(f.block == 75);                                            // 60 x 5 / 2 = 150: capped
     st.v[d2d::d2s::kLevel] = 10;
-    assert(make_fighter(t, &hax, &buc, sum, st, { .block = 25 }, 0, {}).block == 60 * 5 / 20);   // (block) x (dex - 15) / (clvl x 2)
+    assert(make_fighter(t, &hax, &buc, sum, wsum, st, { .block = 25 }, 0, {}).block == 60 * 5 / 20);   // (block) x (dex - 15) / (clvl x 2)
     st.v[d2d::d2s::kLevel] = 1;
     assert(f.crushing == 40 && f.dr_pct == 50 && f.dr_flat == 3 && f.life_steal == 10);   // DR% caps at 50
     assert(f.elem[2] == std::pair(3, 14) && f.cold_len == 50 && f.elem[3] == std::pair(75, 150));
-    f = make_fighter(t, nullptr, nullptr, StatSum{}, st, {}, 0, {});
-    assert(f.min == 1 && f.max == 2);                                 // fists
+    StatSum s25{};
+    s25[25] = 50;                                                     // damagepercent joins the strength bonus: +70%
+    f = make_fighter(t, &hax, nullptr, s25, StatSum{}, st, {}, 0, {});
+    assert(f.min == 5 && f.max == 10);
+    s25[25] = 0; s25[111] = 2;                                        // "+2 damage": both ends, before the bonus
+    f = make_fighter(t, &hax, nullptr, s25, StatSum{}, st, {}, 0, {});
+    assert(f.min == 6 && f.max == 9);
+    f = make_fighter(t, nullptr, nullptr, StatSum{}, StatSum{}, st, {}, 0, {});
+    assert(f.min == 1 && f.max == 2);                                 // fists, no strength bonus
+    // Hit chance rounds the percent first (FUN_0057d9b0); negative defense helps.
+    assert(hit_chance(1, 2, 3, 1) == 49 && hit_chance(10, -10, 1, 1) == 95);
 
     // Speed breakpoints: 1.10's attack frames.
     assert(effective_speed(20) == 17 && effective_speed(0) == 0 && effective_speed(30, 150) == 25);
@@ -118,6 +130,13 @@ int main() {
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, tg, 99, br);   // 95 % to hit
     assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400/4 at 50%
     assert(blow.life == 50 * 10 * 50 / 10000);
+    // Critical strike doubles like deadly strike.
+    Fighter crit;
+    crit.min = crit.max = 10; crit.ar = 1000000; crit.critical = 100;
+    Target plain{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1 };
+    auto cb = player_blow(crit, plain, 99, br);
+    for (int i = 0; i < 20 && !cb.hit; ++i) cb = player_blow(crit, plain, 99, br);
+    assert(cb.hit && cb.deadly && cb.damage == 20);
     tg.block = 100;
     int blocked = 0;
     for (int i = 0; i < 20; ++i) blocked += player_blow(hit, tg, 99, br).blocked;
@@ -131,6 +150,19 @@ int main() {
     auto k = monster_blow(me, 1, false, mon, false, br);
     for (int i = 0; i < 20 && !k.hit; ++i) k = monster_blow(me, 1, false, mon, false, br);
     assert(k.hit && k.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
+    // Dodge a swing standing, avoid a missile, evade on the move.
+    Fighter agile;
+    agile.dodge = 100;
+    int dodged = 0, evaded = 0;
+    for (int i = 0; i < 100; ++i) {
+        dodged += monster_blow(agile, 1, false, mon, false, br).dodged;
+        evaded += monster_blow(agile, 1, true, mon, false, br).dodged;
+    }
+    assert(dodged > 85 && evaded == 0);
+    agile.def_missile = 1000000000;                                    // vs missiles only
+    int spikes = 0;
+    for (int i = 0; i < 100; ++i) spikes += monster_blow(agile, 99, false, mon, true, br).hit;
+    assert(spikes < 15);
     me.block = 75;
     int blocks = 0, moving_blocks = 0;
     for (int i = 0; i < 1000; ++i) { blocks += monster_blow(me, 1, false, mon, false, br).blocked; moving_blocks += monster_blow(me, 1, true, mon, false, br).blocked; }

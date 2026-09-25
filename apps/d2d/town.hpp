@@ -554,25 +554,29 @@ struct Town {
     // the panel's defense and resistances.
     // ponytail: set bonuses and the weapon swap aren't counted.
     [[nodiscard]] d2d::rules::Fighter player_fighter() const {
-        d2d::rules::StatSum sum{};
+        d2d::rules::StatSum sum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
-        auto add = [&](const std::vector<d2d::d2s::ItemProp>& props) {
-            for (const auto& p : props) if (p.stat >= 0 && std::size_t(p.stat) < sum.size()) sum[std::size_t(p.stat)] += p.value;
+        auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
+            for (const auto& p : props) if (p.stat >= 0 && std::size_t(p.stat) < into.size()) into[std::size_t(p.stat)] += p.value;
         };
         for (const auto& it : cc.items) {
             const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
             const bool charm = it.location == 0 && it.panel == 1 && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
             if (!worn && !charm) continue;
-            add(it.props);
-            for (const auto& j : it.socketed_items) add(socket_props(*scene, it, j));
+            add(sum, it.props);
+            for (const auto& j : it.socketed_items) add(sum, socket_props(*scene, it, j));
             if (!worn || (it.slot != 4 && it.slot != 5)) continue;
             const auto b = scene->rules.item_base.find(it.code);
             if (b == scene->rules.item_base.end()) continue;
             if (b->second.maxdam > 0 && (!weapon || it.slot == 4)) weapon = &it;
             if (b->second.block > 0) shield = &it;
         }
+        if (weapon) {                                        // its own enhanced damage (op 13), sockets included
+            add(weapon_sum, weapon->props);
+            for (const auto& j : weapon->socketed_items) add(weapon_sum, socket_props(*scene, *weapon, j));
+        }
         const auto& r = cc.panel.res;                        // panel: fire, cold, lightning, poison
-        return d2d::rules::make_fighter(scene->rules, weapon, shield, sum, cc.stats,
+        return d2d::rules::make_fighter(scene->rules, weapon, shield, sum, weapon_sum, cc.stats,
             scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])], int(cc.panel.defense),
             { int(r[0]), int(r[2]), int(r[1]), int(r[3]) });
     }

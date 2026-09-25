@@ -96,20 +96,19 @@ d2d matches both, and the one-poison-at-a-time rule.
   (Fists of Fire and friends); cold / poison conversions give at least 50
   ticks.
 
-## Corrections for d2d (from this pass)
+## Corrections applied (phase 0)
 
-The port already matches block, the attack-rating formula, the damage
-formula's order (flat damage inside the stat bonus), the level-penalty on
-hit chance, poison. To fix:
-1. **Hit chance rounding**: percent first, then × 2 × alvl / (alvl + dlvl)
-   (d2d does one combined division).
-2. **Deadly strike + critical strike + mastery crit**: three rolls, any
-   doubles (d2d rolls deadly strike only).
-3. **Enhanced damage from non-weapon items** shouldn't count (op 13: it
-   applies to that item's own damage); stats 25 and 111 should.
-4. **Defense vs melee / missiles** (stats 33 / 32) and monster AR's
-   `dex × 5`.
-5. **Dodge / avoid / evade** once passives exist (skills phase 3).
+1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
+   (alvl + dlvl); negative defense adds to the attack rating.
+2. Critical strike (337) and deadly strike (141) are separate rolls, either
+   doubling; the mastery crit joins them with skills.
+3. Enhanced damage counts only from the weapon and what's socketed in it
+   (op 13); stat 25 joins the strength/dexterity bonus, stat 111 adds to
+   both ends; barehanded gets no stat bonus.
+4. Defense vs melee / missiles (33 / 32) apply to swings / spikes.
+5. Dodge (standing, swings), avoid (missiles) and evade (moving) roll after
+   block; they're 0 until passive skills give them.
+Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 
 ## Approximations still in the port (marked `ponytail:` in code)
 

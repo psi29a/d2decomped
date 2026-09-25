@@ -242,7 +242,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
         if (m.friendly) return hits_monster(m);
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
-            foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng));
+            foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng, true));
             return true;
         }
         return false;
