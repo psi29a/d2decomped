@@ -13,6 +13,8 @@
 //   +0x28 u8   class   (0 AM, 1 SO, 2 NE, 3 PA, 4 BA, 5 DZ, 6 AS)
 //   +0x2B u8   level
 //   +0x30 u32  last-played time (unix seconds) — char-select sort key
+//   +0x38 u32  hotkeys[16]: Skills.txt id, 0xffff none, | 0x8000 = to the left button
+//   +0x78 u32  left skill, +0x7C right skill, +0x80 / +0x84 the weapon-swap pair
 //   +0x88 u8   appearance[16]: per composite layer (HD TR LG RA LA RH LH
 //              SH S1..S8), an index into D2's component table (see
 //              components/compcode), 0xff = empty
@@ -55,6 +57,8 @@ struct Header {
     std::uint8_t  cls = 0;      // .d2s class id, see table above
     std::uint8_t  level = 0;
     std::uint32_t last_played = 0;
+    std::array<std::uint32_t, 16> hotkeys{};
+    std::uint32_t left_skill = 0, right_skill = 0, left_swap = 0, right_swap = 0;
     std::array<std::uint8_t, 16> appearance{};
     std::array<std::uint8_t, 16> tints{};
     std::array<std::uint8_t, 3>  difficulty{};
@@ -109,6 +113,8 @@ inline Header parse_header(std::span<const std::byte> b) {
     h.cls         = std::uint8_t(b[0x28]);
     h.level       = std::uint8_t(b[0x2B]);
     h.last_played = rd32(0x30);
+    for (std::size_t i = 0; i < 16; ++i) h.hotkeys[i] = rd32(0x38 + i * 4);
+    h.left_skill = rd32(0x78); h.right_skill = rd32(0x7C); h.left_swap = rd32(0x80); h.right_swap = rd32(0x84);
     std::memcpy(h.appearance.data(), b.data() + 0x88, 16);
     std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
     std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);

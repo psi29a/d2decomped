@@ -256,6 +256,7 @@ struct Scene {
     // Skill tree (docs/research/re/skill-tree.md): SPELLS\skltree_<c>_back
     // (frames 0..3 the panel, 4t..4t+3 tab t on top) and <Cl>Skillicon.
     std::array<d2d::dc6::Sprite, 7> skill_tree_bg, skill_icons;   // by d2s class
+    d2d::dc6::Sprite generic_skill_icons;              // SPELLS\Skillicon: Attack and the other non-class skills
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     // D2's three-tier string tables. Lookup order per D2's own convention:
     //   patchstring.tbl (826 entries) — patch-shipped overrides, wins

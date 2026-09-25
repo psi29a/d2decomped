@@ -1,7 +1,7 @@
 # Skills — research notes and plan (1.14d)
 
-Status: research only; the machinery below is traced, the per-skill
-functions aren't. d2d already has the skill tree (spending points,
+Status: the machinery is traced and phase 1 is built (skills.hpp,
+skillbar.hpp); the per-skill functions aren't traced yet. d2d already has the skill tree (spending points,
 `docs/research/re/skill-tree.md`); no skill can be used yet. The combat these
 skills plug into is in `combat.md`.
 
@@ -182,7 +182,13 @@ operand and function lists.
 ## Plan (phases, each shippable)
 
 0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
-1. **Skill data + selection + calcs**: Skills.txt records; a calc compiler
+1. ~~**Skill data + selection + calcs**~~ — done: `skills.hpp` + `test_skills`
+   (565 of 566 calcs compile; Bone Wall's `par34` is a data typo),
+   `skillbar.hpp` (buttons at game.exe's positions, picker, F1–F8, the
+   save's skills), skill levels with item bonuses. Using any skill but
+   Attack still swings a plain attack (logged once). Not done here: mana
+   is spent by skills from phase 2 on; the picker's layout isn't traced.
+   Was: Skills.txt records; a calc compiler
    (Skills.txt text → the same ops) and evaluator over skillcalc.txt's
    operands; the save's left/right skills and hotkeys (F1–F8); the HUD
    buttons and picker; mana cost. Attack (srvdofunc 1) as today's swing.

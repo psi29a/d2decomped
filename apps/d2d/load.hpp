@@ -478,6 +478,8 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
         for (int i = 0; i < 6; ++i) S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
         S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
+        for (std::size_t c = 0; c < 7; ++c)
+            if (S.cls == d2d::rules::kClassCode[c]) T.class_ids[c].push_back(id);
         if (const auto d = desc_row.find(S.desc); d != desc_row.end()) {
             S.page = num(sd.get(d->second, "SkillPage"));
             S.icon = num(sd.get(d->second, "IconCel"));
@@ -1152,6 +1154,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (auto b = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\)") + kIcons[c] + "Skillicon.dc6"))
                 scene.skill_icons[c] = d2d::dc6::Sprite(*b);
         }
+        if (auto b = mpqs.try_read(R"(data\global\ui\SPELLS\Skillicon.dc6)")) scene.generic_skill_icons = d2d::dc6::Sprite(*b);
     }
     for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
         auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };

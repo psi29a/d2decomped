@@ -3,7 +3,7 @@
 // movement, NPCs, then the render.
 #pragma once
 
-#include "fight.hpp"
+#include "skillbar.hpp"
 
 namespace {
 
@@ -41,6 +41,7 @@ struct Town {
     Cues  cues{ scene };                   // world sounds due later
     Loot  loot{ scene, level, cc, player, rng, cues };                       // on the ground (loot.hpp)
     Fight fight{ scene, level, cc, player, merc, merc_npc, rng, loot, cues };  // the fight (fight.hpp)
+    SkillBar skillbar{ scene, cc };        // the skill buttons, picker and hotkeys (skillbar.hpp)
     int   pick_item = -1;
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
@@ -70,6 +71,7 @@ struct Town {
     // difficulty, no loot about.
     void new_game() {
         fight.new_game(cc.header.active_difficulty());
+        skillbar.new_game();
         loot.ground.clear();
         cues.due.clear();
         pick_item = -1;
@@ -100,11 +102,13 @@ struct Town {
             if (k == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (k == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
             if (k == SDLK_R) running = !running;              // D2's run/walk toggle
+            skillbar.key(k, mouse.x, mouse.y);                // F1-F8
             if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
             if (k == SDLK_ESCAPE && fight.dead()) { respawn(ms); continue; }
             if (k >= SDLK_1 && k <= SDLK_4) fight.drink(int(k - SDLK_1), ms);
+            if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
@@ -356,7 +360,8 @@ struct Town {
         }
         // Holding an item, the world doesn't take clicks.
         // ponytail: D2 drops it on the ground; no ground items yet.
-        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held;
+        const bool bar_click = skillbar.click(mouse);
+        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
         if (have_world) walk(mouse, over_ui, ms, float(ms - last_ms) / 1000.f);
         if (have_world) cross_level(ms);
         if (!fight.dead()) fight.apply_regen(ms, last_ms);
@@ -466,8 +471,10 @@ struct Town {
             // first (D2 operates on arrival).
             interact_npc = -1;
             if (mouse.press_this_frame) fight.attack_mon = pick_item = -1;
-            if (mouse.press_this_frame && hovered_monster() >= 0 && fight.monsters[std::size_t(hovered_monster())].alive())
-                fight.attack_mon = hovered_monster(); // walk up to it, then attack
+            if (mouse.press_this_frame && hovered_monster() >= 0 && fight.monsters[std::size_t(hovered_monster())].alive()) {
+                fight.attack_mon = hovered_monster(); // walk up to it, then attack with the left skill
+                skillbar.use(skillbar.left);
+            }
             if (mouse.press_this_frame && hovered_ground() >= 0) pick_item = hovered_ground();   // walk to it, pick it up
             if (mouse.press_this_frame && hovered_npc >= 0) {
                 const auto& o = level->npcs[std::size_t(hovered_npc)];
@@ -520,6 +527,14 @@ struct Town {
                 target_x = g.x; target_y = g.y; player.walking = true;
             }
         }
+        // A right click on a monster: the right skill (a plain attack until
+        // skills do more).
+        if (!busy && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
+            && fight.monsters[std::size_t(hovered_monster())].alive()) {
+            fight.attack_mon = hovered_monster();
+            interact_npc = pick_item = -1;
+            skillbar.use(skillbar.right);
+        }
         if (const auto to = fight.engage(ms)) { std::tie(target_x, target_y) = *to; player.walking = true; }
         if (player.walking && fight.pmode < 0) {
             // A route to the target, re-planned when the target
@@ -566,6 +581,7 @@ struct Town {
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, pmode >= 0 && pmode != kModeDD ? fight.prate : 1.f);
         fight.overlays(fb, hovered_monster());
+        skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);

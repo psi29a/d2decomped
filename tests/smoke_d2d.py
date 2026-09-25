@@ -276,6 +276,15 @@ try:
     cmd("screenshot ingame.png")      # relative -> <user>/screenshots/
     assert os.path.getsize(os.path.join(user, "screenshots", "ingame.png")) > 0
 
+    # The skill bar: a click on the right button opens its picker, Esc
+    # closes it (the synthetic save's skills are Attack).
+    st = state()
+    assert st["lskill"] == "0" and st["rskill"] == "0" and st["picker"] == "0", st
+    cmd("click 659 580"); frames()
+    assert state()["picker"] == "2"
+    cmd("key Escape"); frames()
+    assert state()["picker"] == "0" and state()["screen"] == "ingame"
+
     # Leaving camp (default map seed 3: the Blood Moor east of the town,
     # townE1): from the west end of the town's bridge (row 16), walk east
     # across it into the Blood Moor; its west edge leads back.

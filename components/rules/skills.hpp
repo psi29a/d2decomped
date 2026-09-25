@@ -216,6 +216,9 @@ struct SkillTables {
     std::vector<Skill> rows;               // by Id
     std::unordered_map<std::string, int> by_name;
     CalcNames names;
+    // Each class's skill ids in Skills.txt order: how a save's 30 skill
+    // bytes (Stats::skills) are indexed.
+    std::array<std::vector<int>, 7> class_ids;
     [[nodiscard]] const Skill* get(int id) const {
         return id >= 0 && std::size_t(id) < rows.size() && rows[std::size_t(id)].id == id ? &rows[std::size_t(id)] : nullptr;
     }

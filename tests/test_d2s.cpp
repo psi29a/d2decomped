@@ -29,6 +29,9 @@ std::vector<std::byte> make_save(std::uint32_t version, const char* name,
     b[0x25] = std::byte{15};
     wr32(0x30, 1625730359u);
     for (int i = 0; i < 16; ++i) { b[0x88 + i] = std::byte(i); b[0x98 + i] = std::byte{0xff}; }
+    for (int i = 0; i < 16; ++i) wr32(0x38 + std::size_t(i) * 4, 0xffff);
+    wr32(0x38, 0x8000 | 254);                          // F1: Tiger Strike, to the left button
+    wr32(0x78, 251); wr32(0x7C, 261); wr32(0x80, 0); wr32(0x84, 264);
     return b;
 }
 
@@ -50,6 +53,8 @@ int main() {
     assert(h.appearance[0] == 0 && h.appearance[5] == 5 && h.tints[3] == 0xff);
     assert(!h.quest_flag(0, 1, 0));                  // no "Woo!" block: no quests done
     assert(!h.waypoint(0, 0));                       // no "WS" block
+    assert(h.hotkeys[0] == (0x8000u | 254) && h.hotkeys[1] == 0xffff);
+    assert(h.left_skill == 251 && h.right_skill == 261 && h.left_swap == 0 && h.right_swap == 264);
 
     // Full 16 bytes with no NUL must not read past the field.
     auto full = make_save(96, "ABCDEFGHIJKLMNOP", 0, 0, 1);

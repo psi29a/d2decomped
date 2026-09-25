@@ -243,6 +243,8 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " level=" + std::to_string(cc.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(cc.stats.get(d2d::d2s::kExp))
              + " pmode=" + (t.fight.pmode >= 0 ? kModeCode[t.fight.pmode] : "-")
              + " missiles=" + std::to_string(t.fight.missiles.size())
+             + " lskill=" + std::to_string(t.skillbar.left) + " rskill=" + std::to_string(t.skillbar.right)
+             + " picker=" + std::to_string(t.skillbar.picking)
              + " skillpts=" + std::to_string(cc.stats.get(d2d::d2s::kSkillPts))
              + " tree=" + (t.tree_open ? std::to_string(t.tree_tab) : "0")
              + " waypoint=" + std::to_string(t.waypoint.open ? int(scene->waypoint_levels[std::size_t(t.waypoint.tab)].size()) : 0)

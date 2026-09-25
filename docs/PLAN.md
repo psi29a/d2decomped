@@ -68,7 +68,7 @@ them to input, units and drawing.
 | Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `load.hpp` (`load_monsters`), `ai.hpp` (units, AI, missiles) |
 | Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) |
 | Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) |
-| Skills (next): records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | `skillbar.hpp` (HUD buttons, picker, hotkeys); skill use in `fight.hpp` |
+| Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | `skillbar.hpp` (HUD buttons, picker, hotkeys); skill use in `fight.hpp` |
 | Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `load.hpp` (`load_wilderness`) |
 | Town: input, panels, NPCs, walking, levels | — | `town.hpp` (`Town`) |
 | Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
@@ -193,8 +193,9 @@ Combat
 - Skills: none usable yet. skills.md has the traced machinery (records,
   level brackets, mana cost, the calc VM and its operands, how a melee
   skill builds its damage, where the save keeps the chosen skills) and a
-  phased plan. Phase 0 (the combat corrections the trace found) is
-  done; next is phase 1, skill selection and the calc interpreter.
+  phased plan. Phase 0 (combat corrections) and phase 1 (skill rows, the
+  calc language, levels with item bonuses, the skill bar, picker and
+  hotkeys from the save) are done; next is phase 2, weapon skills.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.
