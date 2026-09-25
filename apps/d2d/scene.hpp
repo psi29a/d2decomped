@@ -58,17 +58,20 @@ struct Level {
     [[nodiscard]] bool inside(float x, float y) const {
         return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
     }
-    [[nodiscard]] bool blocked(float x, float y) const {
+    // `mask` 0x09 walls for walkers; 0x04 the missile barrier (the DT1
+    // subtile bit missiles stop on; walk-only 0x01 cells, like the Fallen
+    // camp's, let them by).
+    [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
         if (!inside(x, y))
             for (const auto& n : near)
-                if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy));
-        return blocked_here(x, y);
+                if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy), mask);
+        return blocked_here(x, y, mask);
     }
-    [[nodiscard]] bool blocked_here(float x, float y) const {
+    [[nodiscard]] bool blocked_here(float x, float y, std::uint8_t mask = 0x09) const {
         const int w = ds1.width() * 5, h = ds1.height() * 5;
         const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
         if (sx < 0 || sy < 0 || sx >= w || sy >= h || walk.empty()) return true;
-        return walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & 0x09;
+        return walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & mask;
     }
     // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
     // collision pattern is a plus: the subtile and its four neighbours,
@@ -323,12 +326,18 @@ struct Scene {
     d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
     d2d::rules::SkillTables skills;                     // Skills.txt, compiled calcs (skills.hpp)
     std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
-    // Missiles.txt rows monsters fire: velocity (units like MonStats
-    // Velocity), range in ticks, SrcDamage (128 = all the attack's damage),
-    // its own damage, animation (AnimSpeed/16 frames a tick over AnimLen),
-    // and its CelFile DCC (32 directions).
+    // Missiles.txt rows monsters and skills fire: velocity (units like
+    // MonStats Velocity), range in ticks (+ LevRange a skill level),
+    // SrcDamage (128 = all the attack's damage), its own damage, animation
+    // (AnimSpeed/16 frames a tick over AnimLen), and its CelFile DCC (32
+    // directions); for a skill's: the Skill whose damage it carries
+    // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
+    // its first hit; else flies through), Pierce (may fly on, stat 328 %),
+    // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
     struct MissileInfo { int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
-                         std::optional<d2d::dcc::Sprite> dcc; };
+                         std::optional<d2d::dcc::Sprite> dcc;
+                         std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
+                         bool to_hit = false, collide_kill = true, pierce = false; };
     std::unordered_map<std::string, MissileInfo> missiles;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;

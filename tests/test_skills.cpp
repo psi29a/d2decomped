@@ -117,6 +117,13 @@ int main() {
     assert(sequence(1, "bow").empty() && sequence(23, "hth").size() == 19);
     // Whirlwind's hit gap (FUN_005d9320's brackets).
     assert(whirlwind_gap(11) == 4 && whirlwind_gap(12) == 6 && whirlwind_gap(19) == 10 && whirlwind_gap(25) == 14 && whirlwind_gap(26) == 16);
+    // A missile's elemental damage with the mastery (FUN_00644c90): % of
+    // the damage after the synergy. Fire Bolt, stat 329 = 40.
+    {
+        Skill fire = t.rows[2];
+        fire.etype = 0;
+        assert(elem_damage(t, fire, env, 1, false, 0, true) == elem_damage(t, fire, env, 1, false) * 140 / 100);
+    }
     // Passives (FUN_00646d60): each passivestat at the skill's level, on its
     // passiveitype's layer; skills with no level give nothing.
     {

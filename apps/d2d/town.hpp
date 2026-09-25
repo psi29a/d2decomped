@@ -548,6 +548,15 @@ struct Town {
             player.dir = direction16(fight.move_x - player.x, fight.move_y - player.y);
             fight.start_swing(ms);
         }
+        // A missile skill on the right button, clicked on open ground: cast
+        // at that point from here.
+        if (!busy && mouse.rpress_this_frame && !over_ui && hovered_monster() < 0 && rs && fight.missile_skill(*rs)
+            && (in_moor || rs->in_town)) {
+            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
+            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
+            interact_npc = pick_item = -1;
+            if (fight.cast_missile(skillbar.right, player.x + (u + v) / 2, player.y + (v - u) / 2, ms)) player.walking = false;
+        }
         // A right click on a monster: the right skill.
         if (!busy && !rcast && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
             && fight.monsters[std::size_t(hovered_monster())].alive()) {

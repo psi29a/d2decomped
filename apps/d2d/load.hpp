@@ -361,16 +361,20 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                            n("HitDelay"), n("DeaDelay") };
         scene.mon_sounds.emplace(std::string(snd.get(r, "Id")), m);
     }
-    // Missiles.txt, the rows monsters fire.
-    const auto mt = txt("Missiles");
+    // Missiles.txt, the rows monsters and skills fire.
+    const auto mt = txt("Missiles"), sk = txt("Skills");
+    std::unordered_set<std::string> skill_missiles;
+    for (std::size_t r = 0; r < sk.size(); ++r) skill_missiles.emplace(sk.get(r, "srvmissile"));
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
-        bool used = name == "arrow";                          // the rogue merc's
+        bool used = name == "arrow" || skill_missiles.contains(name);   // the rogue merc's, skills'
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
         Scene::MissileInfo mi{ g("Vel"), g("Range"), g("SrcDamage"), g("MinDamage"), g("MaxDamage"),
                                std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {} };
+        mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
+        mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
         if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) {
             try { mi.dcc = d2d::dcc::Sprite(*b); } catch (const std::exception& e) { d2d::log::warn("missile {}: {}", name, e.what()); }
         }
@@ -461,7 +465,8 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         S.tohit = n("ToHit"); S.levtohit = n("LevToHit"); S.tohit_calc = calc("ToHitCalc");
         for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
-        S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam");
+        S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam"); S.srcdam_raw = n("SrcDam");
+        S.srvmissile = g("srvmissile");
         S.result_flags = n("ResultFlags");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
         const auto et = std::ranges::find(kEl, g("EType"));

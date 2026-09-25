@@ -166,6 +166,20 @@ int main() {
         evaded += monster_blow(agile, 1, true, mon, false, br).dodged;
     }
     assert(dodged > 85 && evaded == 0);
+    {                                                                  // a skill's missile (FUN_0064b860's record)
+        Target mt;
+        mt.res = { 0, 0, 50, 100, 20, 0 };
+        MissileDamage md{ .etype = 0, .elo = 100 << 8, .ehi = 100 << 8, .elen = 25 };
+        assert(missile_blow(md, mt, { 30, 0, 0, 0 }, br).damage == 80);      // fire 50 % less 30 pierce
+        md.etype = 1;
+        assert(missile_blow(md, mt, { 0, 90, 0, 0 }, br).damage == 0);       // immune: pierce doesn't reach
+        md.etype = 2;
+        const auto cb = missile_blow(md, mt, { 0, 0, 500, 0 }, br);
+        assert(cb.damage == 200 && cb.chill_ticks == 25);                    // -100 % at the least
+        md.etype = 3;
+        const auto pb = missile_blow(md, mt, {}, br);
+        assert(pb.damage == 0 && pb.poison == 100 * 25 && pb.poison_ticks == 25);
+    }
     Fighter claws;                                                     // Weapon Block: standing only
     claws.weapon_block = 100;
     int wblocked = 0, wmoving = 0;

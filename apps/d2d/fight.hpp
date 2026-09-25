@@ -87,6 +87,8 @@ struct Fight {
     float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
     d2d::rules::Fighter pf;                // the player in a fight, as of this frame
     d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
+    d2d::rules::StatSum psum{};            // the player's stats (gear, passives) as of this frame
+    float cast_x = 0, cast_y = 0;          // where a missile skill was sent
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
     // this swing uses (Attack when it's not built or can't be paid for),
     // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
@@ -233,7 +235,8 @@ struct Fight {
     // A swing takes attack_ticks for the item attack speed and weapon
     // speed; get-hit and block recover faster with FHR / FBR (their
     // effective % on the animation rate).
-    // ponytail: FHR / FBR as rate bonuses, not the class breakpoint tables.
+    // ponytail: FHR / FBR / FCR as rate bonuses, not the class breakpoint
+    // tables.
     void set_pmode(int mode, std::uint32_t ms) {
         pmode = mode;
         player.mode_ms = ms;
@@ -244,8 +247,9 @@ struct Fight {
         if (attack_mode(mode) && a.frames) {
             const auto ticks = d2d::rules::attack_ticks(int(a.frames), int(a.speed ? a.speed : 256), pf.ias, pf.wsm);
             len = std::uint32_t(ticks) * 40;
-        } else if (mode == kModeGH || mode == kModeBL) {
-            len = len * 100 / std::uint32_t(100 + d2d::rules::effective_speed(mode == kModeGH ? pf.fhr : pf.fbr));
+        } else if (mode == kModeGH || mode == kModeBL || mode == kModeSC) {
+            const int v = mode == kModeGH ? pf.fhr : mode == kModeBL ? pf.fbr : pf.fcr;
+            len = len * 100 / std::uint32_t(100 + d2d::rules::effective_speed(v));
         }
         prate = len ? float(a.length_ms()) / float(len) : 1.f;
         pmode_until = mode == kModeDD ? 0 : ms + len;
@@ -262,7 +266,8 @@ struct Fight {
     // masteries (345..347) wait for thrown weapons.
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
-                                                     const std::vector<d2d::rules::PassiveStat>* passives = nullptr) const {
+                                                     const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
+                                                     d2d::rules::StatSum* sum_out = nullptr) const {
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
@@ -309,6 +314,7 @@ struct Fight {
             add(weapon_sum, weapon->props);
             for (const auto& j : weapon->socketed_items) add(weapon_sum, socket_props(*scene, *weapon, j));
         }
+        if (sum_out) *sum_out = sum;
         const auto& r = cc.panel.res;                        // panel: fire, cold, lightning, poison
         const auto& gains = scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
         const std::array<int, 4> res{ int(r[0]), int(r[2]), int(r[1]), int(r[3]) };
@@ -346,7 +352,7 @@ struct Fight {
                 if (const int id = s->aurastat[i]; id >= 0 && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
-        pf = player_fighter(&pf_kick, &st_sum, &passives);
+        pf = player_fighter(&pf_kick, &st_sum, &passives, &psum);
         pf.ias += int(st_sum[68]);
         pf.frw += int(st_sum[67]);
         for (const auto& p : passives) if (p.stat == 67 && p.itype.empty()) pf.frw += p.value;   // Increased Speed
@@ -356,7 +362,8 @@ struct Fight {
 
     // What calcs ask of the player (skills.hpp).
     [[nodiscard]] d2d::rules::CalcEnv calc_env() {
-        return { skill_base, skill_level, nullptr, int(cc.stats.get(d2d::d2s::kLevel)), &rng };
+        return { skill_base, skill_level, [this](int id) { return id >= 0 && std::size_t(id) < psum.size() ? int(psum[std::size_t(id)]) : 0; },
+                 int(cc.stats.get(d2d::d2s::kLevel)), &rng };
     }
     // A swing starts: the skill in use when it's built, paid for from mana
     // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana swings
@@ -608,6 +615,10 @@ struct Fight {
     // The swing's hits: a sequence's on each of its event-1 frames, else
     // one on the attack's event frame.
     void strike(std::uint32_t ms) {
+        if (const auto* s = scene->skills.get(swing_skill); s && missile_skill(*s)) {   // Magic Arrow: the bow's action frame
+            if (!pstruck && ms >= player.mode_ms + std::uint32_t(float(player_anim(pmode).action_ms()) / prate)) { pstruck = true; fire(*s, ms); }
+            return;
+        }
         if (!seq.empty()) {
             const int due = seq_events(ms);
             while (seq_struck < due) {
@@ -867,14 +878,16 @@ struct Fight {
         } else if (pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!pstruck && ms >= player.mode_ms + player_anim(kModeSC).action_ms()) {
                 pstruck = true;
-                if (const auto* s = scene->skills.get(swing_skill)) {
+                if (const auto* s = scene->skills.get(swing_skill); s && missile_skill(*s)) {
+                    fire(*s, ms);
+                } else if (s) {
                     const int lvl = skill_level ? skill_level(s->id) : 1;
                     const auto env = calc_env();
                     std::erase_if(self_states, [&](const SelfState& st) { return st.skill == s->id; });
                     self_states.push_back({ s->id, lvl, ms + std::uint32_t(std::max(d2d::rules::eval_calc(scene->skills, s->auralen, env, s->id, lvl), 1)) * 40 });
                 }
             }
-            if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; }
+            if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; if (!mouse.down) attack_mon = -1; }
         } else if ((pmode == kModeGH || pmode == kModeBL) && ms >= pmode_until) {
             pmode = -1; player.mode_ms = ms;
         }
@@ -988,6 +1001,92 @@ struct Fight {
                 return;
             }
     }
+    // A skill whose do fires its srvmissile (FUN_0056f7f0 with no srvdofunc:
+    // FUN_0056ecb0 / FUN_0056ee90 -> FUN_0059fa30, from the caster toward
+    // the target) and whose missile carries the skill's damage (Missiles.txt
+    // Skill; no pSrvHitFunc, or 1, the explosion): Magic Arrow, Fire Bolt,
+    // Ice Bolt, Ice Blast, Lightning, Bone Spear, Fire Ball.
+    [[nodiscard]] bool missile_skill(const d2d::rules::Skill& s) const {
+        if (s.srvstfunc != 0 || s.srvdofunc != 0 || s.srvmissile.empty()) return false;
+        const auto m = scene->missiles.find(s.srvmissile);
+        return m != scene->missiles.end() && m->second.skill == s.name && (m->second.hit_func == 0 || m->second.hit_func == 1);
+    }
+    // Casting one at (tx, ty): its mana, then its animation (A1 at the
+    // attack's speed for the bow skills, else SC with FCR); the missile
+    // leaves on the action frame (fire).
+    // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
+    // (+400) isn't kept; FCR as a rate bonus, not the breakpoint table.
+    bool cast_missile(int skill, float tx, float ty, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        const auto* s = scene->skills.get(skill);
+        if (!s || dead() || pmode >= 0 || !missile_skill(*s)) return false;
+        const int lvl = skill_level ? skill_level(skill) : 0;
+        const int cost = d2d::rules::mana_cost(*s, lvl);
+        if (lvl <= 0 || cc.stats.v[kMana] < cost) { attack_mon = -1; return false; }
+        cc.stats.v[kMana] -= cost;
+        swing_skill = skill;
+        cast_x = tx; cast_y = ty;
+        player.dir = direction16(tx - player.x, ty - player.y);
+        set_pmode(s->anim == "A1" ? kModeA1 : kModeSC, ms);
+        pstruck = false;
+        return true;
+    }
+    // The missile leaves the caster toward the cast point at its velocity,
+    // for Range + LevRange x level ticks.
+    void fire(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const auto& mi = scene->missiles.at(s.srvmissile);
+        const float dx = cast_x - player.x, dy = cast_y - player.y, d = std::max(std::hypot(dx, dy), 0.01f);
+        const float v = cells_per_sec(float(mi.vel));
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        Missile a{ &mi, player.x, player.y, dx / d * v, dy / d * v, direction32(dx, dy), ms,
+                   ms + std::uint32_t(std::max(mi.range + mi.lev_range * lvl, 1)) * 40 };
+        a.friendly = true; a.skill = s.id; a.level = lvl;
+        missiles.push_back(a);
+    }
+    // A skill's missile reaching monster i (FUN_0064b860's record): with a
+    // weapon share (SrcDam) the weapon's blow at that share, attack rating
+    // rolled; else a sure hit (ToHit missiles roll the attack rating);
+    // then the skill's damage (missile_blow). True: it's spent — a
+    // CollideKill missile is, unless it may pierce (Missiles.txt Pierce)
+    // and stat 328's chance lets it fly on.
+    // Hit function 1 (FUN_005a9a70) explodes instead: every monster within
+    // sHitPar1 subtiles (else the skill's calc1) of the missile takes the
+    // skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
+    // distance against the radius squared).
+    // ponytail: a wall or the end of its range doesn't set it off.
+    bool skill_missile_hits(Missile& a, std::size_t i, std::uint32_t ms) {
+        const auto* s = scene->skills.get(a.skill);
+        if (!s) return true;
+        if (a.info->hit_func == 1 && a.skill >= 0 && std::ranges::find(a.struck, -1) == a.struck.end()) {
+            a.struck.push_back(-1);                          // exploding: the hits below are its
+            const int r = a.info->hit_par1 > 0 ? a.info->hit_par1
+                        : d2d::rules::eval_calc(scene->skills, s->calc[0], calc_env(), s->id, a.level);
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (monsters[j].alive() && std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y) * 5 <= float(std::max(r, 1)))
+                    skill_missile_hits(a, j, ms);
+            if (!std::ranges::contains(a.struck, int(i))) skill_missile_hits(a, i, ms);
+            return true;
+        }
+        auto& m = monsters[i];
+        const auto target = m.target(*scene);
+        const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
+        const auto md = d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level);
+        d2d::rules::Blow b{ .hit = true };
+        if (md.srcdam > 0) {
+            d2d::rules::Swing sw;
+            sw.srcdam = md.srcdam;
+            b = d2d::rules::player_blow(pf, target, clvl, rng, sw);
+        } else if (a.info->to_hit) {
+            b.hit = int(rng(100)) < d2d::rules::hit_chance(pf.ar, target.ac, clvl, target.level);
+        }
+        if (b.hit) {
+            const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+            b = d2d::rules::missile_blow(md, target, pierce, rng, b);
+        }
+        land(i, b, true, ms);
+        a.struck.push_back(int(i));
+        return a.info->collide_kill && !(a.info->pierce && int(rng(100)) < int(psum[328]));
+    }
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part
@@ -1047,6 +1146,10 @@ struct Fight {
         const auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive()) { attack_mon = -1; return std::nullopt; }
         const auto* s = scene->skills.get(attack_skill);
+        if (s && missile_skill(*s)) {                        // from here, at it
+            cast_missile(attack_skill, m.u.x, m.u.y, ms);
+            return std::nullopt;
+        }
         if (s && moving_skill(*s) && (s->srvdofunc != 67 || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach)) {
             player.dir = direction16(m.u.x - player.x, m.u.y - player.y);
             move_x = m.u.x; move_y = m.u.y;                  // Whirlwind to it, Charge and Leap Attack at it
@@ -1083,10 +1186,15 @@ struct Fight {
             }
             monster_dots(ms, dt);
             // The merc's arrows strike the first live monster they reach.
-            missiles_update(*level, missiles, foes, rng, ms, dt, [&](const Missile& a) {
+            missiles_update(*level, missiles, foes, rng, ms, dt, [&](Missile& a) {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& m = monsters[i];
                     if (!m.alive() || std::hypot(m.u.x - a.x, m.u.y - a.y) > 0.5f) continue;
+                    if (a.skill >= 0) {
+                        if (std::ranges::contains(a.struck, int(i))) continue;
+                        if (skill_missile_hits(a, i, ms)) return true;
+                        continue;
+                    }
                     land(i, d2d::rules::player_blow(d2d::rules::simple_fighter(a.min, a.max, a.ar), m.target(*scene), a.level, rng),
                          false, ms);
                     return true;

@@ -5,6 +5,7 @@
 // skill (points + item bonuses). docs/research/re/skills.md.
 #pragma once
 
+#include "combat.hpp"
 #include "rules.hpp"
 
 #include <array>
@@ -195,6 +196,8 @@ struct Skill {
     std::array<Calc, 4> calc;              // calc1..4
     std::array<int, 8> par{};              // Param1..8
     int hitshift = 8, srcdam = 128;
+    int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
+    std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;
@@ -269,12 +272,15 @@ struct CalcEnv {
 inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, int skill, int lvl, int depth = 0);
 
 // Elemental damage in 256ths (FUN_00644d50 / FUN_00644e40): (EMin + brackets)
-// << HitShift, plus EDmgSymPerCalc percent of that.
-// ponytail: the elemental masteries (stats 329..331) aren't added yet.
-inline int elem_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, bool max, int depth = 0) {
+// << HitShift, plus EDmgSymPerCalc percent of that; with `mastery` (the
+// flag), plus the element's mastery % of the sum (FUN_00644c90: fire 329,
+// lightning 330, cold 331, poison 332; env.stat).
+inline int elem_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, bool max, int depth = 0,
+                       bool mastery = false) {
     if (lvl < 1) return 0;
     int d = ((max ? s.emax : s.emin) + level_bonus(max ? s.emax_lev : s.emin_lev, lvl)) << (s.hitshift & 31);
     if (!s.edmg_sym.empty()) d += d * eval_calc(t, s.edmg_sym, env, s.id, lvl, depth + 1) / 100;
+    if (mastery && env.stat && s.etype >= 0 && s.etype <= 3) d += int(std::int64_t(d) * env.stat(329 + s.etype) / 100);
     return d;
 }
 // Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels
@@ -295,6 +301,22 @@ inline int skill_phys(const SkillTables& t, const Skill& s, const CalcEnv& env, 
     int d = (max ? s.maxdam : s.mindam) + level_bonus(max ? s.maxdam_lev : s.mindam_lev, lvl);
     if (!s.dmg_sym.empty()) d += d * eval_calc(t, s.dmg_sym, env, s.id, lvl, depth + 1) / 100;
     return d << (s.hitshift & 31);
+}
+
+// What a skill's missile carries (FUN_0064b860, the missile's Skill set):
+// combat.hpp's MissileDamage.
+inline MissileDamage missile_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl) {
+    MissileDamage m;
+    m.phys_lo = skill_phys(t, s, env, lvl, false);
+    m.phys_hi = std::max(skill_phys(t, s, env, lvl, true), m.phys_lo);
+    m.etype = s.etype;
+    if (s.etype >= 0) {
+        m.elo = elem_damage(t, s, env, lvl, false, 0, true);
+        m.ehi = std::max(elem_damage(t, s, env, lvl, true, 0, true), m.elo);
+        m.elen = elem_length(t, s, env, lvl);
+    }
+    m.srcdam = s.srcdam_raw;
+    return m;
 }
 // Attack rating bonus % (FUN_006449f0): ToHitCalc, else ToHit + LevToHit x (lvl - 1).
 inline int skill_tohit(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int depth = 0) {

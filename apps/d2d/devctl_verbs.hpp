@@ -248,7 +248,8 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " save=" + std::to_string(csu.selected)
              + " scroll=" + std::to_string(csu.scroll)
              + " class=" + std::to_string(cc.selected)
-             + " name=" + cc.input_name
+             + " name=" + (screen == Screen::CharSelect && scene && csu.selected >= 0 && std::size_t(csu.selected) < scene->saves.size()
+                           ? std::string(scene->saves[std::size_t(csu.selected)].name) : cc.input_name)
              + " hardcore=" + (cc.hardcore ? "1" : "0")
              + " cam=" + std::format("{:.2f},{:.2f}", t.player.x, t.player.y)
              + " walking=" + (t.player.walking ? "1" : "0") + " dir=" + std::to_string(t.player.dir)

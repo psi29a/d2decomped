@@ -419,6 +419,45 @@ operand and function lists.
   the throw masteries for thrown weapons, Summon Resist for summons,
   Increased Stamina (no stamina yet), the +0x80 state check.
 
+### Missile skills (phase 4)
+- **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
+  skill has a **srvmissile** (+0x46), launches it — FUN_0056ecb0 (flags
+  0x21) or FUN_0056ee90 (0x420), by a +0x04 flag — through
+  **FUN_0059fa30** (missile create) from the caster toward FUN_0056d2c0's
+  target point; then pays the mana (FUN_0056bfe0) unless srvstfunc did,
+  and sets the delay (+400, FUN_0056ef90).
+- The missile's damage is built when it's made (FUN_0059fa30 →
+  FUN_0059f900 → **FUN_0064b860**): with the row's **Skill** (+0x194) set,
+  the skill's physical (FUN_00647bc0 / 00647d00) and elemental damage
+  (FUN_00644d50 / 00644e40 with flag 1) and length (FUN_00644f20); the
+  weapon's damage only when the skill's SrcDam (+0x1a5, as written) is
+  non-zero, × SrcDam / 128, with its mastery, strength / dexterity bonus
+  and stat 25 (arrows). Without Skill, the row's own damage columns.
+- Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
+  of the damage after the synergy: fire 329, lightning 330, cold (and
+  freeze) 331, poison 332; none for magic.
+- Missile record: +0x0c pSrvDoFunc (table 0x73c768), **+0x0e pSrvHitFunc
+  (table 0x73c840)**, +0x10 pSrvDmgFunc (0x73c960); +0x38.. Param1..5,
+  +0x4c.. sHitPar1..3 (FUN_0064b340's operand order).
+- Hit function 1 (**FUN_005a9a70**, Fire Ball): radius = sHitPar1, else
+  the skill's calc1; FUN_0056bad0 → FUN_0056b7e0 hits every unit whose
+  squared subtile distance is within radius².
+- Built: `missile_skill` / `cast_missile` / `fire` / `skill_missile_hits`
+  in fight.hpp, `rules::missile_damage` (skills.hpp),
+  `rules::missile_blow` (combat.hpp). Magic Arrow, Fire Bolt, Ice Bolt,
+  Ice Blast, Lightning, Bone Spear, Fire Ball: cast on a monster (left or
+  right) or on open ground (right); SC with FCR as a rate bonus, A1 for the
+  bow skills; missiles stop on the 0x04 subtile bit (the missile barrier)
+  rather than walk collision; CollideKill 0 flies through (Lightning, Bone
+  Spear), Pierce rows fly on at stat 328 %; ToHit rows and weapon-share
+  skills roll the attack rating. Pierce stats (333..336, Cold Mastery)
+  cut the monster's resistance unless it's immune, to −100 at the least
+  (the published rule; not traced). Not yet: srvdofunc missile skills
+  (Charged Bolt 17, Teeth 8, Multiple Shot, Guided Arrow, ...), srvstfunc 4
+  arrows (Fire / Cold Arrow), the other hit functions (Glacial Spike 13,
+  Holy Bolt 7, Frozen Orb), explosions on walls, the delay, FCR
+  breakpoints, SQ casting (Lightning casts as SC), the missile's light.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

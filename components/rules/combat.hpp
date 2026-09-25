@@ -50,7 +50,7 @@ struct Fighter {
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
     int life_steal = 0, mana_steal = 0;             // %
-    int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0;
+    int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
     int defense = 0, block = 0;                     // block %, standing still
     int def_melee = 0, def_missile = 0;             // stats 33 / 32: extra defense vs each
     int dodge = 0, avoid = 0, evade = 0;            // stats 338 / 339 / 340, %
@@ -133,7 +133,7 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
     f.open_wounds = int(S(135));
     f.knockback = S(81) > 0;
     f.life_steal = int(S(60)); f.mana_steal = int(S(62));
-    f.ias = int(S(93)); f.wsm = wb ? wb->speed : 0; f.frw = int(S(96)); f.fhr = int(S(99)); f.fbr = int(S(102));
+    f.ias = int(S(93)); f.wsm = wb ? wb->speed : 0; f.frw = int(S(96)); f.fhr = int(S(99)); f.fbr = int(S(102)); f.fcr = int(S(105));
     f.defense = defense;
     f.def_melee = int(S(33)); f.def_missile = int(S(32));
     f.dodge = int(S(338)); f.avoid = int(S(339)); f.evade = int(S(340));
@@ -192,6 +192,46 @@ struct Blow {
     int stun_ticks = 0;
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
+
+// What a skill's missile carries (FUN_0064b860, the missile's Skill set):
+// the skill's physical and elemental damage (with synergies and the
+// element's mastery) in 256ths, the element (Skill::etype order: fire,
+// lightning, cold, poison, magic, stun) and its length in ticks, and the
+// weapon's share (SrcDam as written, 128ths; 0 for spells).
+struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0; };
+
+// A skill's missile striking `t` (on top of `b`, the weapon's share when
+// it has one): the physical and the element, each rolled between its min
+// and max and less the monster's resistance; the element's resistance
+// less the attacker's pierce (333 fire, 334 lightning, 335 cold, 336
+// poison) unless the monster is immune (100 or more), to -100 at the
+// least. Cold chills for the
+// length, poison runs its per-tick damage over it, stun stands it.
+// ponytail: pierce against immunity is the published rule; its code in
+// game.exe isn't traced.
+inline Blow missile_blow(const MissileDamage& md, const Target& t, const std::array<int, 4>& pierce, Rng& rng,
+                         Blow b = { .hit = true }) {
+    if (md.phys_hi > 0) {
+        const int p = rng.range(md.phys_lo, md.phys_hi) >> 8;
+        b.phys += p;
+        b.damage += resisted(p, t.res[0]);
+    }
+    if (md.etype < 0 || md.etype > 5 || md.ehi <= 0) return b;
+    static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
+    const int roll = rng.range(md.elo, md.ehi);
+    if (md.etype == 5) { b.stun_ticks = std::max(b.stun_ticks, std::min(md.elen, 250)); return b; }
+    int res = t.res[std::size_t(kRes[md.etype])];
+    if (md.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(md.etype)], -100);
+    if (md.etype == 3) {
+        b.poison += resisted(int(std::int64_t(roll) * std::max(md.elen, 1) >> 8), res);
+        b.poison_ticks = std::max(b.poison_ticks, std::max(md.elen, 1));
+        return b;
+    }
+    const int d = resisted(roll >> 8, res);
+    b.damage += d;
+    if (md.etype == 2 && d > 0) b.chill_ticks = std::max(b.chill_ticks, md.elen);
+    return b;
+}
 
 // What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
 // its attack-rating bonus % (toht) and enhanced damage % (calc1) joining

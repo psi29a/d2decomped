@@ -215,8 +215,10 @@ struct Missile {
     int dir = 0;                              // 0..31, DCC order
     std::uint32_t born = 0, dies = 0;
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
-    int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level
-    bool friendly = false;                    // the merc's: hits monsters, not the player
+    int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
+    bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
+    int skill = -1;                           // the player's: the skill whose damage it carries
+    std::vector<int> struck;                  // monsters a flying-on missile already hit
 };
 
 // Direction 0..31 in D2's DCC order for a world step, like direction16:
@@ -230,7 +232,10 @@ inline int direction32(float dx, float dy) {
 }
 
 // Missiles fly; one reaching the foe rolls its to-hit and is spent
-// either way (CollideKill), as is one hitting a wall or out of range.
+// either way (CollideKill), as is one hitting the missile barrier (0x04)
+// or out of range.
+// ponytail: the barrier bit is read off the Blood Moor's DT1 flags (0x05
+// cliffs vs 0x01 camp clutter); the missile collision code isn't traced.
 // ponytail: flat on the ground (no missile height); SrcDamage taken as
 // 128ths of the attack's damage.
 // A friendly one asks `hits_monster` (true: it struck one, spent).
@@ -239,7 +244,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
                      std::uint32_t ms, float dt, HitsMonster&& hits_monster) {
     std::erase_if(ms_, [&](Missile& m) {
         m.x += m.vx * dt; m.y += m.vy * dt;
-        if (ms >= m.dies || L.blocked(m.x, m.y)) return true;
+        if (ms >= m.dies || L.blocked(m.x, m.y, 0x04)) return true;
         if (m.friendly) return hits_monster(m);
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;

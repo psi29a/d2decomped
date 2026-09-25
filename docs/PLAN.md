@@ -224,6 +224,10 @@ Combat
   the player (masteries by weapon type, Weapon Block with two claws, Iron
   Skin, Natural Resistance, Increased Speed, Critical Strike, Dodge /
   Avoid / Evade, Penetrate, Warmth, the elemental masteries on gear).
+  Phase 4 has started: missile skills whose missile carries the skill's
+  damage cast and fly (Magic Arrow, Fire Bolt, Ice Bolt, Ice Blast,
+  Lightning, Bone Spear, Fire Ball's explosion), with synergies,
+  masteries, pierce and FCR.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.
