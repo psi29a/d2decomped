@@ -187,6 +187,17 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    poisoner), one poison at a time. Skills researched
    (docs/research/re/skills.md), not built.
 
+## Later research (noted, not scheduled)
+
+- **Networking**: game.exe's client/server packet tables and handlers
+  (single player runs both in one process). Routes and the codebase impact
+  in `docs/design/multiplayer.md`.
+- **The simulation loop**: the server's 25 Hz tick, the client's frame and
+  interpolation, event timers.
+- **Render paths**: the DirectDraw, Direct3D, Glide and OpenGL back ends
+  (lighting, blends, shadows, perspective). What d2d could do with them in
+  `docs/design/rendering.md`.
+
 ## Checkpoint 2026-09-25: what's still open
 
 Combat
