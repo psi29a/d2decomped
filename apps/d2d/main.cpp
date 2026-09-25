@@ -333,7 +333,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "attack") {      // the player's attack as combat sees it
-            const auto f = t.player_fighter();
+            const auto f = t.fight.player_fighter();
             return std::format("ok dmg={}-{} ar={} def={} block={} dr={}%+{} mdr={} res={}/{}/{}/{} cb={} ds={} ow={} "
                                "ll={} ml={} ias={} wsm={} frw={} fhr={} fbr={} thorns={}+{}l cold={}-{} fire={}-{} light={}-{} "
                                "crit={} def_melee={} def_missile={} dodge={} avoid={} evade={}\n",
@@ -413,7 +413,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     ch.on("monsters", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
-        for (const auto& m : t.monsters) {
+        for (const auto& m : t.fight.monsters) {
             const float dx = m.u.x - t.player.x, dy = m.u.y - t.player.y;
             const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
@@ -425,7 +425,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // Loot on the ground: "<code>\t<label>\t<sx>\t<sy>" (feet on screen, game pixels).
     ch.on("ground", [&](const std::vector<std::string>&) {
         std::string out;
-        for (const auto& g : t.ground) {
+        for (const auto& g : t.loot.ground) {
             const float dx = g.x - t.player.x, dy = g.y - t.player.y;
             out += std::format("{}\t{}\t{}\t{}\n", g.item.code, g.label,
                                int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
@@ -463,8 +463,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
              + " str=" + std::to_string(cc.stats.get(d2d::d2s::kStr))
              + " life=" + std::to_string(cc.stats.fixed(d2d::d2s::kLife)) + "/" + std::to_string(cc.stats.fixed(d2d::d2s::kMaxLife))
              + " level=" + std::to_string(cc.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(cc.stats.get(d2d::d2s::kExp))
-             + " pmode=" + (t.pmode >= 0 ? kModeCode[t.pmode] : "-")
-             + " missiles=" + std::to_string(t.missiles.size())
+             + " pmode=" + (t.fight.pmode >= 0 ? kModeCode[t.fight.pmode] : "-")
+             + " missiles=" + std::to_string(t.fight.missiles.size())
              + " skillpts=" + std::to_string(cc.stats.get(d2d::d2s::kSkillPts))
              + " tree=" + (t.tree_open ? std::to_string(t.tree_tab) : "0")
              + " waypoint=" + std::to_string(t.waypoint.open ? int(scene->waypoint_levels[std::size_t(t.waypoint.tab)].size()) : 0)

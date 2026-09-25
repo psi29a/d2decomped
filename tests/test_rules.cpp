@@ -368,5 +368,13 @@ int main() {
     Rng p3{ 5 }, q3{ 5 };
     assert(p3(10) == int(q3.next() % 10) && Rng{}(0) == 0);                 // else modulo; < 1 -> 0
 
+    // Belt potions: the bottom one goes, the column drops a row.
+    Tables pt;
+    pt.potions["hp1"] = { .life = 30, .ticks = 192 };
+    auto in_belt = [](const char* code, int box) { d2d::d2s::Item i; i.code = code; i.location = 2; i.column = box; return i; };
+    std::vector<d2d::d2s::Item> bi{ in_belt("hp1", 1), in_belt("hp1", 5), in_belt("isc", 2) };
+    assert(drink_belt(pt, bi, 1) == "hp1" && bi.size() == 2 && bi[0].column == 1);
+    assert(drink_belt(pt, bi, 2).empty() && drink_belt(pt, bi, 0).empty() && bi.size() == 2);   // a scroll, nothing
+
     std::puts("test_rules: ok");
 }

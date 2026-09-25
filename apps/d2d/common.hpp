@@ -20,6 +20,8 @@
 #include <txt.hpp>
 #include <rules.hpp>
 #include <monsters.hpp>
+#include <combat.hpp>
+#include <drops.hpp>
 #include <userdir.hpp>
 
 #include "log.hpp"
