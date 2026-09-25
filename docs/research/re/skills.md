@@ -288,6 +288,30 @@ operand and function lists.
   element. **Double Swing** do 70 (FUN_005d8470): the odd frame retargets,
   then Bash's build (FUN_005d7ea0).
 
+### Target search, Fend, Impale, Holy Shield
+- **FUN_0056b7e0** walks the units in the rooms around the caster within
+  a radius (FUN_0056e510, the skill's range) that pass a filter (flags |
+  0xa783; skills pass 0x20003), calling a callback. **FUN_0056bc80** counts
+  them (callback 0x56bc70). **FUN_0056bd10** picks one (callback 0x56bcd0),
+  handed the last target's unit id: the unit with the **next higher id**,
+  else the **lowest id** (round the ring). So Zeal's and Fend's hits (do
+  13) and Frenzy's / Double Swing's second hand go round the enemies in
+  reach in id order.
+- **Fend**, start 9 (FUN_005dae30): the hit count = min(enemies in reach
+  (FUN_0056bc80), **calc1** = 12), the first target the clicked one (or the
+  search's); then do 13 as Zeal: ED calc2 (ln34).
+- **Impale**, start 7 (FUN_005dab40; sequence 8, one hit): toht; the
+  physical (FUN_0057b420) with ED calc1, the element, flags 1; on a hit
+  FUN_005daa40: **calc2** % (par6 − dm34) of the time the weapon loses
+  **calc3** durability (stat 72; at 0 FUN_0055f850 breaks it), or, for a
+  throwing weapon (FUN_006289f0), one of its quantity (stat 70,
+  FUN_0056c3f0).
+- **Holy Shield**, start 36, do 18 (FUN_005c9480; anim SC): the holyshield
+  state (0x65) for auralencalc (ln12) ticks, its aurastats (toblock =
+  dm56) via FUN_005c6cc0, FUN_005c6dc0's part, the skill and level in
+  stats 0x15e / 0x15f, its aura events (+0x84, up to 3, FUN_0056e740).
+  Smite adds its MinDam..MaxDam while it's up.
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -384,8 +408,14 @@ operand and function lists.
    and the claws' charge-ups; not in them: the sequence's own rate (taken
    as the class's A1 through attack_ticks), seqinput / seqtrans, a skill
    refused for a weapon with no sequence (it swings once), attackrate
-   taken as IAS. Not yet: Impale, Whirlwind, Leap Attack, Charge, Double
-   Throw, Fend, the other start
+   taken as IAS. Fend (round the enemies in reach), Impale (its wear on
+   the weapon) and Holy Shield (a right-click self cast: SC, mana, its
+   state; block; Smite's extra damage) too; self states' aurastats join
+   the player's stats (make_fighter reads toblock, damageresist, ...).
+   Zeal and the second hands now go round by unit id (FUN_0056bd10).
+   Not in them: a broken weapon, cast rate, Holy Shield's aura events and
+   passive part, the shield requirement. Not yet: Whirlwind, Leap Attack,
+   Charge (they move), Double Throw (missiles), the other start
    functions (Fend, Charge, Holy Shield, Leap Attack, ...). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2

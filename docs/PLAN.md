@@ -215,7 +215,8 @@ Combat
   Power Strike, Berserk and Vengeance swing as game.exe's starts do;
   Zeal chains its hits, Sacrifice costs life, Smite bashes with the shield.
   SQ skills play game.exe's sequence table (Jab, Frenzy, Double Swing,
-  Dragon Claw, the claw charge-ups). Their release
+  Dragon Claw, the claw charge-ups); Fend, Impale, Holy Shield (a
+  right-click self cast) too. Their release
   missiles (srvprgfunc) wait for the missile phase.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,

@@ -220,8 +220,8 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     std::int64_t lo, hi;                                  // 256ths
     if (sw.smite) {
         const std::int64_t sp = std::max<std::int64_t>(f.smite_pct + sw.ed_pct, -90);
-        lo = (std::int64_t(f.smite_lo) << 8) * (100 + sp) / 100;
-        hi = (std::int64_t(f.smite_hi) << 8) * (100 + sp) / 100;
+        lo = ((std::int64_t(f.smite_lo) << 8) + sw.skill_lo) * (100 + sp) / 100;
+        hi = ((std::int64_t(f.smite_hi) << 8) + sw.skill_hi) * (100 + sp) / 100;
     } else if (sw.kick) {
         const std::int64_t kp = f.kick_pct + sw.ed_pct;
         lo = sw.skill_lo + std::int64_t(sw.skill_lo) * sw.ed_pct / 100 + (std::int64_t(f.kick_lo) << 8) * (100 + kp) / 100;

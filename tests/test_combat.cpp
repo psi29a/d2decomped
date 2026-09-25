@@ -122,6 +122,9 @@ int main() {
     const Target wall{ .hp = 400, .max_hp = 400, .ac = 1000000, .level = 99 };
     const auto sm = player_blow(smiter, wall, 1, br, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
     assert(sm.hit && !sm.deadly && sm.damage == 15 && sm.life == 0 && sm.stun_ticks == 20);
+    // With Holy Shield up its damage joins the shield's before the %.
+    const auto hs = player_blow(smiter, wall, 1, br, { .ed_pct = 30, .skill_lo = 4 << 8, .skill_hi = 4 << 8, .smite = true });
+    assert(hs.hit && hs.damage == (10 + 4) * 150 / 100);
     // Vengeance: elements as % of the physical rolled (before crit), each
     // less its resistance; the cold chills.
     Target vres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 0, 50, 0, 0, 0 } };   // fire 50 %

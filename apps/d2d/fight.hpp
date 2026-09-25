@@ -36,14 +36,18 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // (27 / 50: a kick, then fire around the target), Zeal (37 / 13: calc1
 // hits), Sacrifice (29 / 64: a hit that costs life) and Smite (- / 150:
 // the shield); and on their sequences' hits Jab (5 / 7), Dragon Claw
-// (25 / 46), Frenzy (- / 9) and Double Swing (- / 70).
+// (25 / 46), Frenzy (- / 9), Double Swing (- / 70) and Impale (7 / 2);
+// Fend (9 / 13) as Zeal, a hit per enemy in reach.
 // Every other skill swings a plain attack for now.
 inline bool skill_built(const d2d::rules::Skill& s) {
     return (s.srvdofunc == 2 && (s.srvstfunc == 32 || s.srvstfunc == 6 || s.srvstfunc == 39 || s.srvstfunc == 35)) || (s.srvstfunc == 24 && s.srvdofunc == 42)
         || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50)
         || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
-        || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70;
+        || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70
+        || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2);
 }
+// Self casts (right click, no target): Holy Shield (36 / 18).
+inline bool self_cast(const d2d::rules::Skill& s) { return s.srvstfunc == 36 && s.srvdofunc == 18; }
 inline bool attack_mode(int m) { return m == kModeA1 || m == kModeKK || m == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
@@ -238,8 +242,9 @@ struct Fight {
     // panel's (worn, charms, what's socketed), the weapon and shield worn,
     // the panel's defense and resistances.
     // ponytail: set bonuses and the weapon swap aren't counted.
-    [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr) const {
-        d2d::rules::StatSum sum{}, weapon_sum{};
+    [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
+                                                     const d2d::rules::StatSum* states = nullptr) const {
+        d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
             for (const auto& p : props) if (p.stat >= 0 && std::size_t(p.stat) < into.size()) into[std::size_t(p.stat)] += p.value;
@@ -281,29 +286,27 @@ struct Fight {
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
     // of the panel defense (the override after), damageresist to DR %.
     // ponytail: other aurastats aren't read.
+    // The self states' aurastats are stats on the player (FUN_005c6cc0):
+    // they join the item stats, so toblock (20), damageresist (36) and
+    // the rest go through make_fighter; defense % (171 skill_armor_percent,
+    // 182 armor_override_percent after it) applies to the panel defense.
+    // ponytail: attackrate (68) is taken as IAS and velocitypercent (67) as
+    // FRW; other stats make_fighter doesn't read do nothing.
     void update_fighters(std::uint32_t ms) {
-        pf = player_fighter(&pf_kick);
         std::erase_if(self_states, [&](const SelfState& st) { return ms >= st.until; });
-        const auto& N = scene->skills.names.stats;
-        const auto id = [&](const char* n) { const auto i = N.find(n); return i == N.end() ? -2 : i->second; };
-        const int armor = id("skill_armor_percent"), over = id("armor_override_percent"), dr = id("damageresist");
-        const int rate = id("attackrate"), vel = id("velocitypercent");
+        d2d::rules::StatSum st_sum{};
         const auto env = calc_env();
-        int armor_pct = 0, over_pct = 0;
         for (const auto& st : self_states) {
             const auto* s = scene->skills.get(st.skill);
-            for (std::size_t i = 0; s && i < s->aurastat.size(); ++i) {
-                if (s->aurastat[i] < 0) continue;
-                const int v = d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
-                if (s->aurastat[i] == armor) armor_pct += v;
-                else if (s->aurastat[i] == over) over_pct += v;
-                else if (s->aurastat[i] == dr) pf.dr_pct += v;
-                else if (s->aurastat[i] == rate) pf.ias += v;       // ponytail: attackrate taken as IAS
-                else if (s->aurastat[i] == vel) pf.frw += v;
-            }
+            for (std::size_t i = 0; s && i < s->aurastat.size(); ++i)
+                if (const int id = s->aurastat[i]; id >= 0 && std::size_t(id) < st_sum.size())
+                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
-        pf.defense += pf.defense * armor_pct / 100;
-        pf.defense = std::max(pf.defense + pf.defense * over_pct / 100, 0);
+        pf = player_fighter(&pf_kick, &st_sum);
+        pf.ias += int(st_sum[68]);
+        pf.frw += int(st_sum[67]);
+        pf.defense += int(pf.defense * st_sum[171] / 100);
+        pf.defense = std::max(int(pf.defense + pf.defense * st_sum[182] / 100), 0);
     }
 
     // What calcs ask of the player (skills.hpp).
@@ -335,9 +338,11 @@ struct Fight {
                 if (lvl > 0 && cc.stats.v[kMana] >= cost) {
                     cc.stats.v[kMana] -= cost;
                     swing_skill = attack_skill;
-                    if (s->srvstfunc == 24 || s->srvstfunc == 37) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
+                    if (s->srvstfunc == 24 || s->srvstfunc == 37 || s->srvstfunc == 9) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
                         const auto env = calc_env();
-                        kicks_left = std::max(d2d::rules::eval_calc(scene->skills, s->calc[0], env, s->id, lvl), 1) - 1;
+                        int n = d2d::rules::eval_calc(scene->skills, s->calc[0], env, s->id, lvl);
+                        if (s->srvstfunc == 9) n = std::min(n, int(in_reach().size()));   // Fend (FUN_005dae30): one per enemy in reach (FUN_0056bc80), at most calc1
+                        kicks_left = std::max(n, 1) - 1;
                     }
                 } else if (!s->attack_no_mana) {
                     attack_mon = -1;                         // can't pay, won't swing
@@ -416,6 +421,13 @@ struct Fight {
         } else if (s->srvdofunc == 150) {                    // Smite (FUN_005ce9f0): calc1 ED, calc2 stun
             sw.ar_pct = 0;
             sw.smite = true;
+            // With Holy Shield up (state 0x65), its damage (MinDam..MaxDam
+            // by level) joins the shield's.
+            for (const auto& st : self_states)
+                if (const auto* h = T.get(st.skill); h && self_cast(*h)) {
+                    sw.skill_lo = d2d::rules::skill_phys(T, *h, env, st.level, false);
+                    sw.skill_hi = d2d::rules::skill_phys(T, *h, env, st.level, true);
+                }
             sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
             sw.stun_ticks = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
             sw.knockback = (s->result_flags & 8) != 0;
@@ -522,8 +534,6 @@ struct Fight {
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
-                // ponytail: FUN_0056bd10's pick isn't traced: the nearest
-                // other monster in reach, else the same one.
                 if (const auto* s = scene->skills.get(swing_skill); s && seq_struck % 2 == 0 && (s->srvdofunc == 9 || s->srvdofunc == 70))
                     other_target();
                 hit(ms);
@@ -554,6 +564,7 @@ struct Fight {
         if (b.hit && finishing) release();
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
         if (b.hit && s && s->srvdofunc == 9) frenzy(*s, ms);
+        if (b.hit && s && s->srvstfunc == 7) impale_wear(*s);
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
         if (b.hit && s && s->srvdofunc == 64) {
@@ -768,19 +779,69 @@ struct Fight {
                 pmode = -1; player.mode_ms = ms;
                 if (!mouse.down) attack_mon = -1;
             }
+        } else if (pmode == kModeSC) {                       // a self cast: its state on the action frame
+            if (!pstruck && ms >= player.mode_ms + player_anim(kModeSC).action_ms()) {
+                pstruck = true;
+                if (const auto* s = scene->skills.get(swing_skill)) {
+                    const int lvl = skill_level ? skill_level(s->id) : 1;
+                    const auto env = calc_env();
+                    std::erase_if(self_states, [&](const SelfState& st) { return st.skill == s->id; });
+                    self_states.push_back({ s->id, lvl, ms + std::uint32_t(std::max(d2d::rules::eval_calc(scene->skills, s->auralen, env, s->id, lvl), 1)) * 40 });
+                }
+            }
+            if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; }
         } else if ((pmode == kModeGH || pmode == kModeBL) && ms >= pmode_until) {
             pmode = -1; player.mode_ms = ms;
         }
         return false;
     }
+    // FUN_0056bd10 handed the last target: the enemy in reach with the next
+    // higher unit id, else the lowest (round the ring; the same one when
+    // it's alone).
     void other_target() {
-        float best = kMeleeReach + 0.5f;
-        for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const float d = std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y);
-                int(i) != attack_mon && monsters[i].alive() && d <= best) {
-                best = d; attack_mon = int(i);
+        const auto r = in_reach();
+        if (r.empty()) { attack_mon = -1; return; }
+        const auto next = std::ranges::upper_bound(r, attack_mon);
+        attack_mon = next != r.end() ? *next : r.front();
+        player.dir = direction16(monsters[std::size_t(attack_mon)].u.x - player.x, monsters[std::size_t(attack_mon)].u.y - player.y);
+    }
+    // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
+    // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
+    // its quantity (stat 70, FUN_0056c3f0) instead.
+    // ponytail: at 0 durability it should break (FUN_0055f850); it just
+    // stays at 0.
+    void impale_wear(const d2d::rules::Skill& s) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const auto env = calc_env();
+        if (int(rng(100)) >= d2d::rules::eval_calc(scene->skills, s.calc[1], env, s.id, lvl)) return;
+        for (auto& it : cc.items)
+            if (it.location == 1 && (it.slot == 4 || it.slot == 5) && scene->rules.item_info.contains(it.code)
+                && scene->rules.item_info.at(it.code).kind == 2) {
+                const auto b = scene->rules.item_base.find(it.code);
+                if (b != scene->rules.item_base.end() && b->second.stackable) it.quantity = std::max(int(it.quantity) - 1, 0);
+                else if (it.max_durability > 0 && !d2d::rules::indestructible(it))
+                    it.durability = std::max(int(it.durability) - d2d::rules::eval_calc(scene->skills, s.calc[2], env, s.id, lvl), 0);
+                return;
             }
-        if (attack_mon >= 0) player.dir = direction16(monsters[std::size_t(attack_mon)].u.x - player.x, monsters[std::size_t(attack_mon)].u.y - player.y);
+    }
+    // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
+    // ticks, its aurastats (toblock dm56) on the player.
+    // ponytail: the aura events (+0x84) and the passive part
+    // (FUN_005c6dc0) aren't read; cast rate (FCR) isn't applied; a shield
+    // is assumed (itypea1 shie isn't checked).
+    bool cast(int skill, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        const auto* s = scene->skills.get(skill);
+        if (!s || dead() || pmode >= 0 || !self_cast(*s)) return false;
+        const int lvl = skill_level ? skill_level(skill) : 0;
+        const int cost = d2d::rules::mana_cost(*s, lvl);
+        if (lvl <= 0 || cc.stats.v[kMana] < cost) return false;
+        cc.stats.v[kMana] -= cost;
+        swing_skill = skill;
+        attack_mon = -1;
+        set_pmode(kModeSC, ms);
+        pstruck = false;
+        return true;
     }
     // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
@@ -798,18 +859,22 @@ struct Fight {
     // lives; Zeal, else the nearest one in reach (FUN_0056bd10's search).
     // ponytail: FUN_0056bd10's pick (it's handed the last target's id) isn't
     // traced: nearest is assumed; Zeal doesn't change targets while one lives.
+    // Zeal's and Fend's next hit (do 13) goes round the enemies in reach;
+    // Talon's next kick stays on its monster while it lives.
     bool next_target() {
-        if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) return true;
         const auto* s = scene->skills.get(swing_skill);
-        if (!s || s->srvdofunc != 13) return false;
-        float best = kMeleeReach + 0.5f;
-        attack_mon = -1;
+        if (s && s->srvdofunc == 13) { other_target(); return attack_mon >= 0; }
+        return attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive();
+    }
+    // The monsters in reach, alive, by unit id (d2d's index), as
+    // FUN_0056b7e0 walks the rooms around the player.
+    // ponytail: the reach taken as melee reach (FUN_0056e510's range isn't read).
+    [[nodiscard]] std::vector<int> in_reach() const {
+        std::vector<int> out;
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const float d = std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y); monsters[i].alive() && d <= best) {
-                best = d; attack_mon = int(i);
-            }
-        if (attack_mon >= 0) player.dir = direction16(monsters[std::size_t(attack_mon)].u.x - player.x, monsters[std::size_t(attack_mon)].u.y - player.y);
-        return attack_mon >= 0;
+            if (monsters[i].alive() && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) <= kMeleeReach + 0.5f)
+                out.push_back(int(i));
+        return out;
     }
     // Closing in on the monster being attacked: in reach, swing; else the
     // point to walk to (nullopt: nothing to do).

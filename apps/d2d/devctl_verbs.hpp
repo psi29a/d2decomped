@@ -111,7 +111,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "attack") {      // the player's attack as combat sees it
-            const auto f = t.fight.player_fighter();
+            const auto& f = t.fight.pf;                         // as combat sees it this frame (self states included)
             return std::format("ok dmg={}-{} ar={} def={} block={} dr={}%+{} mdr={} res={}/{}/{}/{} cb={} ds={} ow={} "
                                "ll={} ml={} ias={} wsm={} frw={} fhr={} fbr={} thorns={}+{}l cold={}-{} fire={}-{} light={}-{} "
                                "crit={} def_melee={} def_missile={} dodge={} avoid={} evade={}\n",
@@ -145,6 +145,13 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             for (auto& it : cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
             return std::string("ok\n");
         }
+        if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)
+            const auto& ids = scene->skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+            const auto it = std::ranges::find(ids, std::atoi(args[2].c_str()));
+            if (it == ids.end()) return std::string("err not a class skill\n");
+            cc.stats.skills[std::size_t(it - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
+            return std::string("ok\n");
+        }
         if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable
             const int id = std::atoi(args[3].c_str());
             const bool left = args[2] == "left";
@@ -157,7 +164,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>\n");
+            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });

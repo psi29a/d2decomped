@@ -529,9 +529,13 @@ struct Town {
                 target_x = g.x; target_y = g.y; player.walking = true;
             }
         }
-        // A right click on a monster: the right skill (a plain attack until
-        // skills do more).
-        if (!busy && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
+        // A right click with a self cast on the right button (Holy Shield):
+        // cast where the player stands, whatever's under the cursor.
+        const auto* rs = scene->skills.get(skillbar.right);
+        const bool rcast = rs && self_cast(*rs);
+        if (!busy && mouse.rpress_this_frame && !over_ui && rcast && fight.cast(skillbar.right, ms)) player.walking = false;
+        // A right click on a monster: the right skill.
+        if (!busy && !rcast && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
             && fight.monsters[std::size_t(hovered_monster())].alive()) {
             fight.attack_mon = hovered_monster();
             interact_npc = pick_item = -1;
