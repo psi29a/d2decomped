@@ -61,6 +61,7 @@ struct Unit {
     // A missile: its DCC in direction `dir` (0..31), looping AnimLen frames
     // at AnimSpeed/16 a tick from mode_ms.
     const Scene::MissileInfo* missile = nullptr;
+    float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
 };
 
 void blit_dcc_frame(std::vector<std::uint8_t>& fb, const d2d::dcc::Frame& f,
@@ -239,8 +240,9 @@ void render_world(std::vector<std::uint8_t>& fb,
                 b = { ax + f->offset_x, ay + f->offset_y - int(f->height) + 1,
                       ax + f->offset_x + int(f->width), ay + f->offset_y + 1 };
             } else {
-                draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms - u.mode_ms, ax, ay);
-                if (hovered && u.name && !u.name->empty()) b = composite_bounds(*u.anim, u.dir, elapsed_ms - u.mode_ms, ax, ay);
+                const auto el = std::uint32_t(float(elapsed_ms - u.mode_ms) * u.rate);
+                draw_composite(fb, *u.anim, upal, u.dir, el, ax, ay);
+                if (hovered && u.name && !u.name->empty()) b = composite_bounds(*u.anim, u.dir, el, ax, ay);
             }
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && u.name && !u.name->empty()) {

@@ -15,7 +15,7 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
 constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
-              kModeA1 = 7, kModeDD = 17;
+              kModeA1 = 7, kModeBL = 9, kModeDD = 17;
 
 // ponytail: town walk speed picked by eye so the TW cycle doesn't skate
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
@@ -284,6 +284,14 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         t.velocity = num(g("Velocity")); t.run = num(g("Run"));
         t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
         t.miss_a2 = g("MissA2");
+        for (int e = 0; e < 3; ++e) {
+            static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
+            const std::string E = "El" + std::to_string(e + 1);
+            t.el_mode[std::size_t(e)] = g(E + "Mode");
+            const auto type = g(E + "Type");                  // frze counts as cold; life/mana/stam/stun/rand aren't damage here
+            const auto ty = std::ranges::find(kEl, type == "frze" ? std::string_view("cold") : type);
+            t.el_type[std::size_t(e)] = ty == kEl.end() ? -1 : int(ty - kEl.begin());
+        }
         t.sound = g("MonSound");
         for (int d = 0; d < 3; ++d) {
             const std::string x = kSfx[d];
@@ -294,12 +302,22 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                   num(g("A2MinD" + x)), num(g("A2MaxD" + x)), num(g("A2TH" + x)),
                   num(g("aidel" + x)), num(g("aidist" + x)), {}, std::string(g("TreasureClass1" + x)) };
             for (int i = 0; i < 8; ++i) p.aip[std::size_t(i)] = num(g("aip" + std::to_string(i + 1) + x));
+            static constexpr const char* kRes[6] = { "ResDm", "ResMa", "ResFi", "ResLi", "ResCo", "ResPo" };
+            for (int i = 0; i < 6; ++i) p.res[std::size_t(i)] = num(g(kRes[i] + x));
+            p.to_block = num(g("ToBlock" + x));
+            p.drain = g("Drain" + x).empty() ? 100 : num(g("Drain" + x));
+            p.cold_effect = num(g("coldeffect" + x));
+            for (int e = 0; e < 3; ++e) {
+                const std::string E = "El" + std::to_string(e + 1);
+                p.el[std::size_t(e)] = { num(g(E + "Pct" + x)), num(g(E + "MinD" + x)), num(g(E + "MaxD" + x)), num(g(E + "Dur" + x)) };
+            }
         }
         const auto ex = ms2_rows.find(std::string(g("MonStatsEx")));
         if (ex != ms2_rows.end()) {
             const auto r2 = ex->second;
             t.size = std::max(num(ms2.get(r2, "SizeX")), 1);
             t.base_w = ms2.get(r2, "BaseW");
+            t.can_block = ms2.get(r2, "mBL") == "1";
             for (std::size_t l = 0; l < 16; ++l)
                 if (ms2.get(r2, kLayerCode[l]) == "1") t.parts[l] = split_variants(ms2.get(r2, kVariant[l]));
         }
@@ -575,6 +593,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                           t == &weapons ? n(two ? "2handmindam" : "mindam") : 0,
                                           t == &weapons ? n(two ? "2handmaxdam" : "maxdam") : 0,
                                           t == &weapons ? n("StrBonus") : 0, t == &weapons ? n("DexBonus") : 0,
+                                          t == &weapons ? n("speed") : 0, t == &armor ? n("block") : 0,
                                           t->get(r, "stackable") == "1", n("level"),
                                           t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),
                                           std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
@@ -1058,7 +1077,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };
         scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
-                                 per("StatPerLevel"), per("ToHitFactor") };
+                                 per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };
         auto& g = scene.starting_gear[c];
         g.fill(0xff);
         for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit

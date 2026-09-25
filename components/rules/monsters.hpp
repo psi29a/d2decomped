@@ -25,6 +25,10 @@ struct MonType {
     bool enabled = false, killable = false, melee = false;
     std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
     std::string sound;                          // MonSound: its MonSounds.txt row
+    // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
+    std::array<std::string, 3> el_mode;
+    std::array<int, 3> el_type{ -1, -1, -1 };
+    bool can_block = false;                     // MonStats2 mBL
     // Percentages of the MonLvl row (1.10+ style), per difficulty.
     struct Diff {
         int min_hp = 0, max_hp = 0, ac = 0, exp = 0;
@@ -32,6 +36,10 @@ struct MonType {
         int aidel = 0, aidist = 0;
         std::array<int, 8> aip{};
         std::string tc;                          // TreasureClass1
+        std::array<int, 6> res{};                // ResDm, ResMa, ResFi, ResLi, ResCo, ResPo (%)
+        int to_block = 0, drain = 100, cold_effect = 0;   // ToBlock, Drain (leech %), coldeffect (speed % while chilled)
+        struct El { int pct = 0, min = 0, max = 0, dur = 0; };
+        std::array<El, 3> el{};                  // El1..3 Pct / MinD / MaxD (MonLvl %) / Dur (ticks)
     };
     std::array<Diff, 3> diff{};
     // MonStats2.
@@ -200,7 +208,12 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
 // (1.10+ tables; normal uses the monster's own Level). HP is rolled.
 // ponytail: the stat init (MONSTER_InitStats in 1.10) isn't traced in
 // game.exe — this is the documented txt contract.
-struct MonStats { int level = 1, hp = 1, ac = 0, th = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0; };
+// Elemental attacks come as MonLvl damage percentages too (El1..3 MinD/MaxD).
+struct MonStats {
+    int level = 1, hp = 1, ac = 0, th = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
+    struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
+    std::array<El, 3> el{};
+};
 inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& rng) {
     MonStats s;
     if (type < 0 || std::size_t(type) >= m.types.size()) return s;
@@ -220,6 +233,12 @@ inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& 
     s.a2_min = pct(L.dm[std::size_t(d)], p.a2_min);
     s.a2_max = std::max(pct(L.dm[std::size_t(d)], p.a2_max), s.a2_min);
     s.exp = pct(L.xp[std::size_t(d)], p.exp);
+    for (std::size_t e = 0; e < 3; ++e) {
+        const auto& E = p.el[e];
+        if (t.el_type[e] < 0 || E.max <= 0) continue;
+        s.el[e] = { t.el_type[e], E.pct ? E.pct : 100, pct(L.dm[std::size_t(d)], E.min),
+                    std::max(pct(L.dm[std::size_t(d)], E.max), pct(L.dm[std::size_t(d)], E.min)), E.dur, t.el_mode[e] };
+    }
     return s;
 }
 
@@ -234,49 +253,174 @@ inline int hit_chance(int ar, int def, int alvl, int dlvl) {
     return int(std::clamp<std::int64_t>(num / den, 5, 95));
 }
 
-// The worn weapon (right hand, else left) and the sums of the carried
-// item stats that matter to an attack. Stats by ItemStatCost id: 17/18
-// enhanced max/min damage %, 19 attack rating, 21/22 min/max damage,
-// 119 attack rating %.
-struct Attack { int min = 1, max = 2, ar = 0; };
-inline Attack player_attack(const Tables& t, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st,
-                            int to_hit_factor) {
+// Item stats summed by ItemStatCost id: what's worn, charms carried, and
+// what's socketed in them (the caller resolves sockets).
+using StatSum = std::array<std::int64_t, 512>;
+
+// The player in a fight: what an attack does and what protects them.
+// Elements index 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic.
+struct Fighter {
+    int min = 1, max = 2, ar = 1;                   // physical damage, attack rating
+    std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
+    int cold_len = 0, poison_len = 0;               // ticks
+    int crushing = 0, deadly = 0, open_wounds = 0;  // chances, %
+    bool knockback = false;
+    int life_steal = 0, mana_steal = 0;             // %
+    int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0;
+    int defense = 0, block = 0;                     // block %, standing still
+    int dr_pct = 0, dr_flat = 0, mdr = 0;
+    std::array<int, 4> res{};                       // fire, lightning, cold, poison, %
+    int thorns = 0, thorns_light = 0;               // attackers take (melee)
+    int life_regen = 0, mana_regen = 0;             // hpregen; manarecoverybonus %
+};
+
+// Builds the Fighter from the worn weapon / shield, the summed item stats
+// (ids below), the character's stats and class; defense and resistances
+// come from the char panel's sums.
+//   damage: weapon min/max (fists 1-2) + 18 / 17 (+219 per level) enhanced %,
+//     + 21 / 22 (+218 per level) flat, then x (1 + (str x StrBonus + dex x
+//     DexBonus) / 10000) — fists count strength fully
+//   attack rating: (dex - 7) x 5 + ToHitFactor + 19 (+224 per level), x (1 + 119 %)
+//   block (a shield only): (shield block + BlockFactor + 20) x (dex - 15) / (clvl x 2),
+//     at most 75
+//   elements: 48/49 fire, 50/51 lightning, 54/55 cold (56 ticks), 57/58
+//     poison per tick in 256ths (59 ticks), 52/53 magic
+//   136 crushing blow, 141 (+250 per level) deadly strike, 135 open wounds,
+//   81 knockback, 60/62 life/mana steal, 93 IAS (weapon speed WSM), 96 FRW,
+//   99 FHR, 102 FBR, 36 damage reduced % (at most 50), 34 flat, 35 magic,
+//   78 / 128 attacker takes damage / lightning, 74 replenish life,
+//   27 mana regeneration %.
+// ponytail: the Arreat Summit formulas, not traced in game.exe; flat damage
+// is added before the stat bonus; no skills (passives, auras).
+inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
+                            const StatSum& sum, const d2d::d2s::Stats& st, const ClassGains& g,
+                            int defense, const std::array<int, 4>& res) {
     using namespace d2d::d2s;
-    std::array<std::int64_t, 128> sum{};
-    const Item* weapon = nullptr;
-    for (const auto& it : items) {
-        const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
-        const bool charm = it.location == 0 && it.panel == 1 && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
-        if (!worn && !charm) continue;
-        if (worn && (it.slot == 4 || it.slot == 5)) {
-            const auto b = t.item_base.find(it.code);
-            if (b != t.item_base.end() && b->second.maxdam > 0 && (!weapon || it.slot == 4)) weapon = &it;
+    Fighter f;
+    const auto S = [&](int id) { return sum[std::size_t(id)]; };
+    const std::int64_t clvl = std::max<std::int64_t>(st.get(kLevel), 1), str = st.get(kStr), dex = st.get(kDex);
+    const ItemBase* wb = nullptr;
+    if (weapon) if (const auto b = t.item_base.find(weapon->code); b != t.item_base.end()) wb = &b->second;
+    std::int64_t lo = wb ? wb->mindam : 1, hi = wb ? wb->maxdam : 2;
+    lo = lo * (100 + S(18)) / 100 + S(21);
+    hi = hi * (100 + S(17) + S(219) * clvl / 8) / 100 + S(22) + S(218) * clvl / 8;
+    const std::int64_t bonus = wb ? str * wb->str_bonus + dex * wb->dex_bonus : str * 100;
+    f.min = int(std::max<std::int64_t>(lo * (10000 + bonus) / 10000, 1));
+    f.max = int(std::max<std::int64_t>(hi * (10000 + bonus) / 10000, f.min));
+    f.ar = int(std::max<std::int64_t>((dex * 5 - 35 + g.to_hit + S(19) + S(224) * clvl / 8) * (100 + S(119)) / 100, 1));
+    if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end() && b->second.block > 0)
+        f.block = int(std::clamp<std::int64_t>((b->second.block + g.block + S(20)) * (dex - 15) / (clvl * 2), 0, 75));
+    f.elem = { { { int(S(48)), int(S(49)) }, { int(S(50)), int(S(51)) }, { int(S(54)), int(S(55)) },
+                 { int(S(57) * S(59) / 256), int(S(58) * S(59) / 256) }, { int(S(52)), int(S(53)) } } };
+    f.cold_len = int(S(56)); f.poison_len = int(S(59));
+    f.crushing = int(S(136)); f.deadly = int(S(141) + S(250) * clvl / 8); f.open_wounds = int(S(135));
+    f.knockback = S(81) > 0;
+    f.life_steal = int(S(60)); f.mana_steal = int(S(62));
+    f.ias = int(S(93)); f.wsm = wb ? wb->speed : 0; f.frw = int(S(96)); f.fhr = int(S(99)); f.fbr = int(S(102));
+    f.defense = defense;
+    f.dr_pct = int(std::min<std::int64_t>(S(36), 50)); f.dr_flat = int(S(34)); f.mdr = int(S(35));
+    f.res = res;
+    f.thorns = int(S(78)); f.thorns_light = int(S(128));
+    f.life_regen = int(S(74)); f.mana_regen = int(S(27));
+    return f;
+}
+
+// Diminishing returns on the speed stats: IAS / FHR / FBR count
+// 120 x v / (120 + v), FRW 150 x v / (150 + v).
+inline int effective_speed(int v, int k = 120) { return v > 0 ? k * v / (k + v) : v; }
+
+// Ticks an attack animation of `frames` frames at AnimData `rate` takes with
+// `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
+// to -85..75; ticks = ceil(256 x frames / (rate x (100 + EIAS) / 100)).
+inline int attack_ticks(int frames, int rate, int ias, int wsm) {
+    const int eias = std::clamp(effective_speed(ias) - wsm, -85, 75);
+    const int speed = std::max(rate * (100 + eias) / 100, 1);
+    return (256 * frames + speed - 1) / speed;
+}
+
+// Open wounds: bleeding per second for a character level (1.10's table in
+// 256ths a tick, times 25 ticks), for 8 seconds.
+inline int open_wounds_per_sec(int clvl) {
+    const int v = clvl < 15 ? 9 * clvl + 31 : clvl < 31 ? 18 * clvl - 104 : clvl < 46 ? 27 * clvl - 374
+                : clvl < 61 ? 36 * clvl - 779 : 45 * clvl - 1319;
+    return std::max(v, 0) * 25 / 256;
+}
+
+// A monster being struck: its life now and max, defense, level, block
+// chance (0 unless it can block), resistances (physical, magic, fire,
+// lightning, cold, poison %), Drain (the % of leech that works on it).
+struct Target {
+    int hp = 1, max_hp = 1, ac = 0, level = 1, block = 0;
+    std::array<int, 6> res{};
+    int drain = 100;
+};
+// What one player hit does: the instant damage (physical after resistance,
+// fire / lightning / cold / magic, crushing blow), leeched life and mana,
+// poison (total and ticks), chill ticks, and whether it bled, knocked back.
+struct Blow {
+    bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
+    int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
+};
+inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
+
+// The player's melee hit on `t` (hit chance, then the monster's block):
+// deadly strike doubles the physical damage; physical resistance cuts it;
+// leech is the physical damage dealt x steal % x Drain %; crushing blow
+// takes a quarter of its current life (less physical resistance).
+// ponytail: crushing blow's boss / difficulty divisors aren't applied.
+inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng) {
+    Blow b;
+    if (rng(100) >= hit_chance(f.ar, t.ac, clvl, t.level)) return b;
+    if (t.block > 0 && rng(100) < t.block) { b.blocked = true; return b; }
+    b.hit = true;
+    int phys = rng.range(f.min, f.max);
+    if (f.deadly > 0 && rng(100) < f.deadly) { phys *= 2; b.deadly = true; }
+    phys = resisted(phys, t.res[0]);
+    b.life = phys * f.life_steal * t.drain / 10000;
+    b.mana = phys * f.mana_steal * t.drain / 10000;
+    static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
+    int elem = 0;
+    for (int e = 0; e < 5; ++e) {
+        const auto [lo, hi] = f.elem[std::size_t(e)];
+        if (hi <= 0) continue;
+        const int d = resisted(rng.range(lo, hi), t.res[std::size_t(kRes[e])]);
+        if (e == 3) { b.poison = d; b.poison_ticks = std::max(f.poison_len, 1); continue; }
+        if (e == 2 && d > 0) b.chill_ticks = f.cold_len;
+        elem += d;
+    }
+    int cb = 0;
+    if (f.crushing > 0 && rng(100) < f.crushing) { b.crushing = true; cb = resisted(t.hp / 4, t.res[0]); }
+    b.bleed = f.open_wounds > 0 && rng(100) < f.open_wounds;
+    b.knockback = f.knockback;
+    b.damage = phys + elem + cb;
+    return b;
+}
+
+// A monster's attack on the player (`moving`: walking or running, when
+// block falls to a third): hit chance, block, then physical damage less
+// damage-reduced % then flat (it can reach 0), and each elemental attack
+// (at its chance) less resistance, fire / lightning / cold less magic
+// damage reduction; poison lands as a total over its ticks.
+// ponytail: poison isn't cut by resistance length; cold doesn't slow the player.
+struct Taken { bool hit = false, blocked = false; int damage = 0, poison = 0, poison_ticks = 0; };
+inline Taken monster_blow(const Fighter& d, int dlvl, bool moving, const MonStats& m, bool a2, Rng& rng) {
+    Taken k;
+    if (rng(100) >= hit_chance(m.th, d.defense, m.level, dlvl)) return k;
+    if (d.block > 0 && rng(100) < (moving ? d.block / 3 : d.block)) { k.blocked = true; return k; }
+    k.hit = true;
+    int phys = a2 ? rng.range(m.a2_min, m.a2_max) : rng.range(m.a1_min, m.a1_max);
+    phys = std::max(phys * (100 - d.dr_pct) / 100 - d.dr_flat, 0);
+    k.damage = phys;
+    for (const auto& e : m.el) {
+        if (e.type < 0 || e.mode != (a2 ? "A2" : "A1") || rng(100) >= e.pct) continue;
+        const int roll = rng.range(e.min, e.max);
+        switch (e.type) {
+            case 3: k.poison += resisted(roll, d.res[3]); k.poison_ticks = std::max(e.dur, 25); break;
+            case 4: k.damage += std::max(roll - d.mdr, 0); break;
+            default: k.damage += std::max(resisted(roll, d.res[std::size_t(e.type)]) - d.mdr, 0); break;
         }
-        for (const auto& pr : it.props) if (pr.stat >= 0 && pr.stat < 128) sum[std::size_t(pr.stat)] += pr.value;
     }
-    Attack a;
-    const auto str = st.get(kStr), dex = st.get(kDex);
-    std::int64_t lo = 1, hi = 2, bonus = 0;
-    if (weapon) {
-        const auto& b = t.item_base.at(weapon->code);
-        std::int64_t ed = 0;
-        for (const auto& pr : weapon->props) if (pr.stat == 17) ed += pr.value;   // on the weapon: its base
-        lo = b.mindam * (100 + ed) / 100;
-        hi = b.maxdam * (100 + ed) / 100;
-        bonus = str * b.str_bonus + dex * b.dex_bonus;
-    } else {
-        bonus = str * 100;                    // no weapon: strength counts fully (hand-to-hand)
-    }
-    lo += sum[21]; hi += sum[22];
-    lo = lo * (10000 + bonus) / 10000;
-    hi = std::max(hi * (10000 + bonus) / 10000, lo);
-    a.min = int(std::max<std::int64_t>(lo, 1));
-    a.max = int(std::max<std::int64_t>(hi, a.min));
-    // Attack rating: 5 per dexterity point from 7 (-35 base) + ToHitFactor, items.
-    std::int64_t ar = dex * 5 - 35 + to_hit_factor + sum[19];
-    ar = ar * (100 + sum[119]) / 100;
-    a.ar = int(std::max<std::int64_t>(ar, 1));
-    return a;
+    return k;
 }
 
 // Experience for a kill: the monster's, less when the character outlevels

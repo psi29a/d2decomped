@@ -332,6 +332,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             cc.stats.v[std::size_t(id)] = std::atoll(args[3].c_str());
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "attack") {      // the player's attack as combat sees it
+            const auto f = t.player_fighter();
+            return std::format("ok dmg={}-{} ar={} def={} block={} dr={}%+{} mdr={} res={}/{}/{}/{} cb={} ds={} ow={} "
+                               "ll={} ml={} ias={} wsm={} frw={} fhr={} fbr={} thorns={}+{}l cold={}-{} fire={}-{} light={}-{}\n",
+                               f.min, f.max, f.ar, f.defense, f.block, f.dr_pct, f.dr_flat, f.mdr, f.res[0], f.res[1], f.res[2],
+                               f.res[3], f.crushing, f.deadly, f.open_wounds, f.life_steal, f.mana_steal, f.ias, f.wsm, f.frw,
+                               f.fhr, f.fbr, f.thorns, f.thorns_light, f.elem[2].first, f.elem[2].second, f.elem[0].first,
+                               f.elem[0].second, f.elem[1].first, f.elem[1].second);
+        }
         if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
             const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
             for (int i = 0; i < 3; ++i) cc.header.difficulty[std::size_t(i)] &= 0x7f;

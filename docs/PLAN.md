@@ -155,8 +155,14 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    at its level; rogues shoot arrows) and monsters go for whichever of
    player and merc is nearer; a dead merc stays dead. MonSounds.txt
    attack/weapon/hit/death sounds, drop and pickup sounds (fading with
-   distance); keys 1-4 drink belt potions. Next: champions/uniques
-   (NM/Hell), merc resurrection, class get-hit sounds, Alt item labels.
+   distance); keys 1-4 drink belt potions. The fight uses the gear:
+   block (and monster block), damage reduced % / flat / magic,
+   resistances, crushing blow, deadly strike, open wounds, elemental and
+   poison damage both ways, chill, knockback, life/mana leech (MonStats
+   Drain), thorns, IAS/WSM swing speed, FHR/FBR/FRW, replenish life and
+   mana regeneration (components/rules Fighter, player_blow,
+   monster_blow). Next: skills, champions/uniques (NM/Hell), merc
+   resurrection, monster life regeneration, class get-hit sounds.
 
 ## Next up (as of 2026-09-24)
 

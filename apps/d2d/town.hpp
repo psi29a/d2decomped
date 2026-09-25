@@ -66,6 +66,8 @@ struct Town {
     int   pmode = -1;
     std::uint32_t pmode_until = 0;
     bool  pstruck = false;                 // this swing's hit is resolved
+    float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
+    d2d::rules::Fighter pf;                // the player in a fight, as of this frame
     // Loot on the Blood Moor's floor (gold: code "gld", `gold` coins), and
     // the one being walked to for picking up.
     struct GroundItem {
@@ -104,14 +106,30 @@ struct Town {
         }
         cue("item_potion_drink", ms, player.x, player.y);
     }
+    // Potions and poison, then the steady regeneration: replenish life
+    // (hpregen, N/256 a tick) and mana (all of it in 120 s, faster by the
+    // manarecoverybonus %). Poison leaves at least 1 life.
+    // ponytail: poison not killing and the 120 s mana base are the commonly
+    // given rules, not traced.
+    double regen_acc_life = 0, regen_acc_mana = 0;
     void apply_regen(std::uint32_t ms, std::uint32_t last_ms) {
         using namespace d2d::d2s;
+        double life = 0, mana = 0;
         for (const auto& r : regen) {
             const double t = double(std::min(ms, r.until) - std::min(last_ms, r.until));
-            cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + std::int64_t(r.life * t));
-            cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + std::int64_t(r.mana * t));
+            life += r.life * t; mana += r.mana * t;
         }
         std::erase_if(regen, [&](const Regen& r) { return ms >= r.until; });
+        const double dt = double(ms - last_ms);
+        life += pf.life_regen * 256.0 / 256.0 * dt / 40.0;
+        mana += double(cc.stats.v[kMaxMana]) / 120000.0 * (100 + pf.mana_regen) / 100.0 * dt;
+        regen_acc_life += life; regen_acc_mana += mana;
+        const auto dl = std::int64_t(regen_acc_life), dm = std::int64_t(regen_acc_mana);
+        regen_acc_life -= double(dl); regen_acc_mana -= double(dm);
+        auto& L = cc.stats.v[kLife];
+        if (dl < 0) L = std::max<std::int64_t>(std::min<std::int64_t>(L, 256), L + dl);
+        else L = std::max(L, std::min(cc.stats.v[kMaxLife], L + dl));
+        cc.stats.v[kMana] = std::max(cc.stats.v[kMana], std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + dm));
     }
     void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) cues.push_back({ at, sound, x, y }); }
     void cue(std::string_view name, std::uint32_t at, float x, float y) {
@@ -484,12 +502,25 @@ struct Town {
     [[nodiscard]] const Scene::PlayerAnim& player_anim(int mode) const {
         return scene->composite(kUiToSaveClass[std::max(cc.selected, 0)], mode, gfx());
     }
+    // A swing takes attack_ticks for the item attack speed and weapon
+    // speed; get-hit and block recover faster with FHR / FBR (their
+    // effective % on the animation rate).
+    // ponytail: FHR / FBR as rate bonuses, not the class breakpoint tables.
     void set_pmode(int mode, std::uint32_t ms) {
         pmode = mode;
         player.mode_ms = ms;
         player.walking = false;
         player.path.clear();
-        pmode_until = mode == kModeDD ? 0 : ms + player_anim(mode).length_ms();
+        const auto& a = player_anim(mode);
+        std::uint32_t len = a.length_ms();
+        if (mode == kModeA1 && a.frames) {
+            const auto ticks = d2d::rules::attack_ticks(int(a.frames), int(a.speed ? a.speed : 256), pf.ias, pf.wsm);
+            len = std::uint32_t(ticks) * 40;
+        } else if (mode == kModeGH || mode == kModeBL) {
+            len = len * 100 / std::uint32_t(100 + d2d::rules::effective_speed(mode == kModeGH ? pf.fhr : pf.fbr));
+        }
+        prate = len ? float(a.length_ms()) / float(len) : 1.f;
+        pmode_until = mode == kModeDD ? 0 : ms + len;
     }
     [[nodiscard]] bool dead() const { return pmode == kModeDT || pmode == kModeDD; }
 
@@ -517,22 +548,85 @@ struct Town {
         d2d::log::info("respawned in the Rogue Encampment");
     }
 
-    // The player's swing: the hit lands on the attack's event frame (MonStats
-    // defense, attack rating from dexterity, ToHitFactor and items); a kill
-    // gives experience (and maybe levels) and scatters a Fallen pack.
-    // ponytail: no weapon speed (WSM/IAS) on the swing's length.
+    // The player as combat sees them: item stats summed like the char
+    // panel's (worn, charms, what's socketed), the weapon and shield worn,
+    // the panel's defense and resistances.
+    // ponytail: set bonuses and the weapon swap aren't counted.
+    [[nodiscard]] d2d::rules::Fighter player_fighter() const {
+        d2d::rules::StatSum sum{};
+        const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
+        auto add = [&](const std::vector<d2d::d2s::ItemProp>& props) {
+            for (const auto& p : props) if (p.stat >= 0 && std::size_t(p.stat) < sum.size()) sum[std::size_t(p.stat)] += p.value;
+        };
+        for (const auto& it : cc.items) {
+            const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
+            const bool charm = it.location == 0 && it.panel == 1 && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
+            if (!worn && !charm) continue;
+            add(it.props);
+            for (const auto& j : it.socketed_items) add(socket_props(*scene, it, j));
+            if (!worn || (it.slot != 4 && it.slot != 5)) continue;
+            const auto b = scene->rules.item_base.find(it.code);
+            if (b == scene->rules.item_base.end()) continue;
+            if (b->second.maxdam > 0 && (!weapon || it.slot == 4)) weapon = &it;
+            if (b->second.block > 0) shield = &it;
+        }
+        const auto& r = cc.panel.res;                        // panel: fire, cold, lightning, poison
+        return d2d::rules::make_fighter(scene->rules, weapon, shield, sum, cc.stats,
+            scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])], int(cc.panel.defense),
+            { int(r[0]), int(r[2]), int(r[1]), int(r[3]) });
+    }
+
+    // A hit on monster i (the player's or the merc's): blocked, it blocks;
+    // otherwise the damage, life/mana leech (the player's), poison and
+    // bleeding over time, a chill, a knockback. A kill counts.
+    void land(std::size_t i, const d2d::rules::Blow& b, bool by_player, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        auto& m = monsters[i];
+        if (b.blocked) { block_anim(*scene, m, ms); return; }
+        if (!b.hit) return;
+        if (by_player) {
+            cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + (std::int64_t(b.life) << 8));
+            cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + (std::int64_t(b.mana) << 8));
+        }
+        if (b.poison > 0) { m.poison_rate = double(b.poison) / (b.poison_ticks * 40.0); m.poison_until = ms + std::uint32_t(b.poison_ticks) * 40; }
+        if (b.chill_ticks > 0) m.chill_until = ms + std::uint32_t(b.chill_ticks) * 40;
+        if (b.bleed) {
+            m.bleed_rate = d2d::rules::open_wounds_per_sec(int(cc.stats.get(kLevel))) / 1000.0;
+            m.bleed_until = ms + 8000;
+        }
+        if (hurt(*scene, m, b.damage, ms)) { killed(i, ms); return; }
+        if (b.knockback) {                                   // a step straight back, if there's room
+            const float dx = m.u.x - player.x, dy = m.u.y - player.y, d = std::max(std::hypot(dx, dy), 0.01f);
+            const float nx = m.u.x + dx / d * 0.6f, ny = m.u.y + dy / d * 0.6f;
+            if (!level->unit_blocked(nx, ny)) { m.u.x = nx; m.u.y = ny; }
+        }
+    }
+
+    // Poison and bleeding tick on the monsters near the player.
+    void monster_dots(std::uint32_t ms, float dt) {
+        for (std::size_t i = 0; i < monsters.size(); ++i) {
+            auto& m = monsters[i];
+            if (!m.alive() || (ms >= m.poison_until && ms >= m.bleed_until)) continue;
+            m.dot_acc += ((ms < m.poison_until ? m.poison_rate : 0) + (ms < m.bleed_until ? m.bleed_rate : 0)) * dt * 1000;
+            const int whole = int(m.dot_acc);
+            if (whole <= 0) continue;
+            m.dot_acc -= whole;
+            m.hp -= whole;
+            if (!m.alive()) { set_mode(*scene, m, "DT", ms); killed(i, ms); }
+        }
+    }
+
+    // The player's swing: the hit lands on the attack's event frame (at the
+    // swing's own speed) — player_blow: hit chance, the monster's block,
+    // deadly strike, resistances, elemental damage, crushing blow, leech.
     void strike(std::uint32_t ms) {
-        if (pstruck || attack_mon < 0 || ms < player.mode_ms + player_anim(kModeA1).action_ms()) return;
+        if (pstruck || attack_mon < 0
+            || ms < player.mode_ms + std::uint32_t(float(player_anim(kModeA1).action_ms()) / prate)) return;
         pstruck = true;
         auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
-        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
-        const auto a = d2d::rules::player_attack(scene->rules, cc.items, cc.stats, scene->class_gains[sc].to_hit);
-        const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
-        if (rng(100) >= d2d::rules::hit_chance(a.ar, m.st.ac, clvl, m.st.level)) return;
-        if (!hurt(*scene, m, rng.range(a.min, a.max), ms)) return;
-        killed(std::size_t(attack_mon), ms);
-        attack_mon = -1;
+        land(std::size_t(attack_mon), d2d::rules::player_blow(pf, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng), true, ms);
+        if (!m.alive()) attack_mon = -1;
     }
 
     // Monster i died (the player's or the merc's doing): the player gets the
@@ -547,6 +641,13 @@ struct Town {
         if (up) cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
         fallen_scatter(*scene, monsters, i, rng, ms);
         drop_loot(m, ms);
+    }
+
+    // The merc as a fighter: its hireling damage, attack rating, defense.
+    [[nodiscard]] d2d::rules::Fighter merc_fighter() const {
+        d2d::rules::Fighter f;
+        f.min = merc_st.dmg_min; f.max = merc_st.dmg_max; f.ar = merc_st.ar; f.defense = merc_st.def;
+        return f;
     }
 
     // The merc's turn: it goes for the nearest monster within 6 cells of the
@@ -579,13 +680,11 @@ struct Town {
                 if (archer && scene->missiles.contains("arrow")) {
                     const auto& mi = scene->missiles.at("arrow");
                     const float v = cells_per_sec(float(mi.vel));
-                    missiles.push_back({ &mi, u.x, u.y, dx / d * v, dy / d * v, direction32(dx, dy), ms,
-                                         ms + std::uint32_t(mi.range) * 40, merc_st.dmg_min, merc_st.dmg_max,
-                                         merc_st.ar, merc_st.level, true });
-                } else if (m.alive() && d <= kMeleeReach + 0.3f
-                           && rng(100) < d2d::rules::hit_chance(merc_st.ar, m.st.ac, merc_st.level, m.st.level)
-                           && hurt(*scene, m, rng.range(merc_st.dmg_min, merc_st.dmg_max), ms)) {
-                    killed(std::size_t(merc_target), ms);
+                    Missile a{ &mi, u.x, u.y, dx / d * v, dy / d * v, direction32(dx, dy), ms, ms + std::uint32_t(mi.range) * 40 };
+                    a.min = merc_st.dmg_min; a.max = merc_st.dmg_max; a.ar = merc_st.ar; a.level = merc_st.level; a.friendly = true;
+                    missiles.push_back(a);
+                } else if (m.alive() && d <= kMeleeReach + 0.3f) {
+                    land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), m.target(*scene), merc_st.level, rng), false, ms);
                 }
             }
             if (ms < merc_until) return;
@@ -740,6 +839,7 @@ struct Town {
     // an object to operate on arrival; the player follows a walk_path; NPCs
     // patrol; the merc follows.
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, float dt) {
+        pf = player_fighter();
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&*merc);
@@ -763,7 +863,7 @@ struct Town {
                 pmode = -1; player.mode_ms = ms;
                 if (!mouse.down) attack_mon = -1;
             }
-        } else if (pmode == kModeGH && ms >= pmode_until) {
+        } else if ((pmode == kModeGH || pmode == kModeBL) && ms >= pmode_until) {
             pmode = -1; player.mode_ms = ms;
         }
         const bool busy = pmode >= 0;
@@ -852,7 +952,9 @@ struct Town {
                 player.goal_x = target_x; player.goal_y = target_y;
             }
             const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
-            const float vel = float(running ? scene->run_velocity[sc] : scene->walk_velocity[sc]);
+            // Faster run/walk: its effective % (150 x v / (150 + v)) on velocity.
+            const float vel = float(running ? scene->run_velocity[sc] : scene->walk_velocity[sc])
+                            * float(100 + d2d::rules::effective_speed(pf.frw, 150)) / 100.f;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * dt, crowd);
             if (!player.walking) player.path.clear();
         }
@@ -861,20 +963,24 @@ struct Town {
         // around each player); what they hit comes off the player's life,
         // and a hit of a twelfth of max life or more makes them flinch (GH).
         if (in_moor) {
-            std::array<Foe, 2> foes{ Foe{ player.x, player.y, int(cc.panel.defense), int(cc.stats.get(d2d::d2s::kLevel)), true },
-                                     Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.def, merc_st.level,
-                                          merc && merc_mode != "DT" } };
-            for (auto& m : monsters)
-                if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30)
-                    monster_update(*scene, *level, m, foes, rng, ms, dt, crowd, missiles);
+            std::array<Foe, 2> foes{ Foe{ player.x, player.y, int(cc.stats.get(d2d::d2s::kLevel)), true, player.walking, pf },
+                                     Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
+                                          merc && merc->walking, merc_fighter() } };
+            for (std::size_t i = 0; i < monsters.size(); ++i) {
+                auto& m = monsters[i];
+                if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30
+                    && monster_update(*scene, *level, m, foes, rng, ms, dt, crowd, missiles))
+                    killed(i, ms);                           // on the player's thorns
+            }
+            monster_dots(ms, dt);
             // The merc's arrows strike the first live monster they reach.
             missiles_update(*level, missiles, foes, rng, ms, dt, [&](const Missile& a) {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& m = monsters[i];
                     if (!m.alive() || std::hypot(m.u.x - a.x, m.u.y - a.y) > 0.5f) continue;
-                    if (rng(100) < d2d::rules::hit_chance(a.th, m.st.ac, a.level, m.st.level)
-                        && hurt(*scene, m, rng.range(a.min, a.max), ms))
-                        killed(i, ms);
+                    d2d::rules::Fighter f;
+                    f.min = a.min; f.max = a.max; f.ar = a.ar;
+                    land(i, d2d::rules::player_blow(f, m.target(*scene), a.level, rng), false, ms);
                     return true;
                 }
                 return false;
@@ -891,6 +997,10 @@ struct Town {
             for (auto& m : monsters)
                 if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30) monster_sounds(m, ms);
             auto& foe = foes[0];
+            // Poison works on the player over its ticks (a negative potion).
+            if (foe.poison > 0)
+                regen.push_back({ -foe.poison * 256.0 / (foe.poison_ticks * 40.0), 0, ms + std::uint32_t(foe.poison_ticks) * 40 });
+            if (foe.blocked && pmode < 0) set_pmode(kModeBL, ms);   // a block plays out (FBR)
             if (foe.damage > 0) {
                 using namespace d2d::d2s;
                 cc.stats.v[kLife] -= std::int64_t(foe.damage) << 8;
@@ -899,7 +1009,7 @@ struct Town {
                     set_pmode(kModeDT, ms);
                     attack_mon = -1;
                     d2d::log::info("the player died");
-                } else if (std::int64_t(foe.damage) * 12 >= cc.stats.fixed(kMaxLife) && pmode != kModeA1) {
+                } else if (std::int64_t(foe.damage) * 12 >= cc.stats.fixed(kMaxLife) && pmode != kModeA1 && pmode != kModeBL) {
                     set_pmode(kModeGH, ms);
                 }
             }
@@ -962,7 +1072,7 @@ struct Town {
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player.mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra);
+                      nullptr, nullptr, nullptr, extra, pmode >= 0 && pmode != kModeDD ? prate : 1.f);
         if (hovered_monster() >= 0)
             draw_monster_bar(fb, *scene, monsters[std::size_t(hovered_monster())]);
         else if (attack_mon >= 0)

@@ -175,16 +175,33 @@ struct Monster {
     std::uint32_t flee_until = 0;             // ms: running from the player
     bool struck = false;                      // this attack's hit is resolved
     bool aware = false;                       // has noticed the player
+    // Damage over time (life a millisecond, until when) and a chill.
+    double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
+    std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     [[nodiscard]] bool alive() const { return hp > 0; }
+    // As a target for the player's (or the merc's) hits.
+    [[nodiscard]] d2d::rules::Target target(const Scene& s) const {
+        const auto& t = s.monsters.types[std::size_t(type)];
+        const auto& p = t.diff[std::size_t(difficulty)];
+        return { hp, st.hp, st.ac, st.level, t.can_block ? p.to_block : 0, p.res, p.drain };
+    }
 };
 
 // Whoever the monsters are after (the player, the merc), and what they
 // did to it this frame.
 struct Foe {
     float x = 0, y = 0;
-    int defense = 0, level = 1;
-    bool alive = true;
+    int level = 1;
+    bool alive = true, moving = false;        // moving: block falls to a third
+    d2d::rules::Fighter f;                    // defense, block, reductions, resistances, thorns
     int damage = 0;                           // life lost this frame, whole points
+    int poison = 0, poison_ticks = 0;         // poison taken this frame: total, over ticks
+    bool blocked = false;                     // blocked a hit this frame
+    void take(const d2d::rules::Taken& k) {
+        blocked = blocked || k.blocked;
+        damage += k.damage;
+        if (k.poison > 0) { poison += k.poison; poison_ticks = std::max(poison_ticks, k.poison_ticks); }
+    }
 };
 
 constexpr float kMeleeReach = 1.1f;           // cells between centres
@@ -196,7 +213,8 @@ struct Missile {
     float x = 0, y = 0, vx = 0, vy = 0;       // cells, cells/s
     int dir = 0;                              // 0..31, DCC order
     std::uint32_t born = 0, dies = 0;
-    int min = 0, max = 0, th = 0, level = 1;  // damage (the source's share + the missile's), to-hit
+    d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
+    int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level
     bool friendly = false;                    // the merc's: hits monsters, not the player
 };
 
@@ -224,7 +242,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
         if (m.friendly) return hits_monster(m);
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
-            if (rng(100) < d2d::rules::hit_chance(m.th, foe.defense, m.level, foe.level)) foe.damage += rng.range(m.min, m.max);
+            foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng));
             return true;
         }
         return false;
@@ -265,15 +283,22 @@ void set_mode(const Scene& s, Monster& m, std::string_view mode, std::uint32_t m
     m.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0 : ms + s.npc_anim(m.npc, mode).length_ms();
 }
 
-// Damage to a monster: it dies (DT, then its corpse, DD) or recoils (GH)
-// and, the first time, notices. True when this killed it.
-// ponytail: D2 plays get-hit only past a share of max life; always here.
+// Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
+// when the hit takes an eighth of its life or more; either way it notices.
+// True when this killed it.
+// ponytail: the eighth is the commonly given threshold, not traced.
 bool hurt(const Scene& s, Monster& m, int damage, std::uint32_t ms) {
-    if (!m.alive()) return false;
+    if (!m.alive() || damage <= 0) return false;
     m.hp -= damage;
     m.aware = true;
-    set_mode(s, m, m.alive() ? "GH" : "DT", ms);
+    if (!m.alive()) set_mode(s, m, "DT", ms);
+    else if (damage * 8 >= m.st.hp) set_mode(s, m, "GH", ms);
     return !m.alive();
+}
+
+// A monster that blocked plays its block (BL), when it has one.
+void block_anim(const Scene& s, Monster& m, std::uint32_t ms) {
+    if (m.alive() && m.mode != "A1" && m.mode != "A2" && s.npc_anim(m.npc, "BL").cof.directions()) set_mode(s, m, "BL", ms);
 }
 
 // One step toward (tx, ty) at `speed` cells/s, straight on; false when
@@ -295,13 +320,15 @@ bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, co
 // A monster's frame: finish an attack / get-hit / death; flee; notice the
 // player within 8 cells (then keep after them within 16), walk up and
 // attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs
-// the foe's defense, A1MinD..MaxD), wait aidel ticks between attacks;
+// the foe's defense, then block, damage reduction, resistances), wait
+// aidel ticks between attacks;
 // otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
 // random spot within 3 cells.
 // ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
 // game.exe's per-AI think functions not traced); distances and timings
 // by eye; chasing goes straight at the player, sliding to a stop at walls.
-void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
+// Returns true when the foe's thorns killed it.
+bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t ms, float dt, const Crowd& crowd, std::vector<Missile>& missiles) {
     auto& u = m.u;
     // After the nearest one alive (the player or the merc).
@@ -312,10 +339,10 @@ void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
     const auto& t = s.monsters.types[std::size_t(m.type)];
     if (!m.alive()) {
         if (m.mode == "DT" && ms >= m.mode_until) set_mode(s, m, "DD", ms);
-        return;
+        return false;
     }
-    if (m.mode == "GH") {
-        if (ms < m.mode_until) return;
+    if (m.mode == "GH" || m.mode == "BL") {
+        if (ms < m.mode_until) return false;
         set_mode(s, m, "NU", ms);
     }
     const float dx = foe.x - u.x, dy = foe.y - u.y, dist = std::hypot(dx, dy);
@@ -326,24 +353,32 @@ void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
             if (m.mode == "A2" && miss != s.missiles.end()) {         // fire: at the foe, from here
                 const auto& mi = miss->second;
                 const float speed = cells_per_sec(float(mi.vel)), d = std::max(dist, 0.01f);
-                missiles.push_back({ &mi, u.x, u.y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms,
-                                     ms + std::uint32_t(mi.range) * 40,
-                                     m.st.a2_min * mi.src_damage / 128 + mi.min, m.st.a2_max * mi.src_damage / 128 + mi.max,
-                                     m.st.th, m.st.level });
-            } else if (foe.alive && dist <= kMeleeReach + 0.3f
-                && rng(100) < d2d::rules::hit_chance(m.st.th, foe.defense, m.st.level, foe.level)) {
-                foe.damage += rng.range(m.st.a1_min, m.st.a1_max);
+                Missile x{ &mi, u.x, u.y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms,
+                           ms + std::uint32_t(mi.range) * 40, m.st };
+                x.src.a2_min = m.st.a2_min * mi.src_damage / 128 + mi.min;
+                x.src.a2_max = m.st.a2_max * mi.src_damage / 128 + mi.max;
+                missiles.push_back(x);
+            } else if (foe.alive && dist <= kMeleeReach + 0.3f) {
+                // Melee: block, reductions, resistances; a hit that lands
+                // pays the foe's thorns (lightning ones less its resistance).
+                const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.st, false, rng);
+                foe.take(k);
+                const auto& res = t.diff[std::size_t(m.difficulty)].res;
+                const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]);
+                if (k.hit && thorns > 0 && hurt(s, m, thorns, ms)) return true;
             }
         }
-        if (ms < m.mode_until) return;
+        if (ms < m.mode_until) return false;
         set_mode(s, m, "NU", ms);
         m.next_act = ms + std::uint32_t(t.diff[std::size_t(m.difficulty)].aidel) * 40;
     }
-    const float walk = cells_per_sec(float(t.velocity)) * dt;
+    // Chilled, it moves at coldeffect % slower.
+    const float chill = ms < m.chill_until ? float(100 + t.diff[std::size_t(m.difficulty)].cold_effect) / 100.f : 1.f;
+    const float walk = cells_per_sec(float(t.velocity)) * dt * chill;
     if (ms < m.flee_until) {
         if (m.mode != "WL") set_mode(s, m, "WL", ms);
-        if (!monster_step(L, m, u.x - dx, u.y - dy, cells_per_sec(float(t.run)) * dt, crowd)) m.flee_until = 0;
-        return;
+        if (!monster_step(L, m, u.x - dx, u.y - dy, cells_per_sec(float(t.run)) * dt * chill, crowd)) m.flee_until = 0;
+        return false;
     }
     if (foe.alive && (dist < 8 || (m.aware && dist < 16))) {
         m.aware = true;
@@ -351,7 +386,7 @@ void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
             u.dir = direction16(dx, dy);
             if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; }
             else if (m.mode != "NU") set_mode(s, m, "NU", ms);
-            return;
+            return false;
         }
         // Shooters (MissA2) shoot from up to 7 cells: each think (aidel)
         // the aip2 chance to fire, else close in.
@@ -362,7 +397,7 @@ void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
                 u.dir = direction16(dx, dy);
                 set_mode(s, m, "A2", ms);
                 m.struck = false;
-                return;
+                return false;
             }
         }
         // Straight at the player, else sidestep round whoever's in the way.
@@ -372,22 +407,23 @@ void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
             if ((moved = monster_step(L, m, u.x + dx * c - dy * sn, u.y + dx * sn + dy * c, walk, crowd))) break;
         }
         if (moved != (m.mode == "WL")) set_mode(s, m, moved ? "WL" : "NU", ms);
-        return;
+        return false;
     }
     m.aware = false;
     if (!u.walking) {
-        if (ms < u.wait_until || !L.mon.wander) return;
+        if (ms < u.wait_until || !L.mon.wander) return false;
         const float a = float(rng(360)) * 3.14159265f / 180, r = float(rng(300)) / 100;
         u.goal_x = m.home_x + std::cos(a) * r;
         u.goal_y = m.home_y + std::sin(a) * r;
         set_mode(s, m, "WL", ms);
-        return;
+        return false;
     }
     if (std::hypot(u.goal_x - u.x, u.goal_y - u.y) <= walk || !monster_step(L, m, u.goal_x, u.goal_y, walk, crowd)) {
         if (std::hypot(u.goal_x - u.x, u.goal_y - u.y) <= walk) { u.x = u.goal_x; u.y = u.goal_y; }
         set_mode(s, m, "NU", ms);
         u.wait_until = ms + 2000 + std::uint32_t(rng(3000));
     }
+    return false;
 }
 
 // Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
