@@ -61,8 +61,8 @@ int main() {
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
     // quarter of what's left, resistances cut, leech per Drain.
-    Fighter hit;
-    hit.min = hit.max = 100; hit.ar = 1000000; hit.crushing = 100; hit.life_steal = 10;
+    Fighter hit = simple_fighter(100, 100, 1000000);
+    hit.crushing = 100; hit.life_steal = 10;
     hit.elem[0] = { 10, 10 };
     Target tg{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 50, 0, 100, 0, 0, 0 }, .drain = 50 };
     Rng br{ 5 };
@@ -71,12 +71,45 @@ int main() {
     assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400/4 at 50%
     assert(blow.life == 50 * 10 * 50 / 10000);
     // Critical strike doubles like deadly strike.
-    Fighter crit;
-    crit.min = crit.max = 10; crit.ar = 1000000; crit.critical = 100;
+    Fighter crit = simple_fighter(10, 10, 1000000);
+    crit.critical = 100;
     Target plain{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1 };
     auto cb = player_blow(crit, plain, 99, br);
     for (int i = 0; i < 20 && !cb.hit; ++i) cb = player_blow(crit, plain, 99, br);
     assert(cb.hit && cb.deadly && cb.damage == 20);
+    // A skill's swing: its enhanced damage joins the gear's %, its flat
+    // damage comes after (and isn't doubled), SrcDam scales the weapon part.
+    Fighter sk = simple_fighter(100, 100, 1000000);
+    sk.phys_pct = 20;
+    auto swing = [&](const Fighter& ff, const Swing& sw) {
+        auto x = player_blow(ff, plain, 99, br, sw);
+        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(ff, plain, 99, br, sw);
+        assert(x.hit);
+        return x.damage;
+    };
+    assert(swing(sk, {}) == 120);
+    assert(swing(sk, { .ed_pct = 50 }) == 170);                     // (20 + 50)%
+    assert(swing(sk, { .ed_pct = 50, .flat = 7 }) == 177);
+    assert(swing(sk, { .srcdam = 64 }) == 60);
+    assert(swing(sk, { .ed_pct = -500 }) == 10);                    // the % floors at -90
+    Fighter critter = sk;
+    critter.critical = 100;
+    assert(swing(critter, { .flat = 5 }) == 245);                   // doubled before the flat add
+    // A kick: the boots' damage with its own %, the skill's damage with the
+    // skill's %; no doubling.
+    Fighter kicker = critter;
+    kicker.kick_lo = kicker.kick_hi = 10; kicker.kick_pct = 100;
+    assert(swing(kicker, { .ed_pct = 50, .kick = true, .skill_lo = 4 << 8, .skill_hi = 4 << 8 }) == 10 * 250 / 100 + 4 * 150 / 100);
+    auto kb = player_blow(kicker, plain, 99, br, { .knockback = true });
+    for (int i = 0; i < 20 && !kb.hit; ++i) kb = player_blow(kicker, plain, 99, br, { .knockback = true });
+    assert(kb.hit && kb.knockback);
+    // Boots make the kick: their kick damage, StrBonus on strength, + stat 137.
+    t.item_base["lbt"] = { .mindam = 3, .maxdam = 8, .str_bonus = 120 };
+    d2d::d2s::Item lbt; lbt.code = "lbt";
+    StatSum ks{};
+    ks[137] = 2;
+    const auto kf = make_fighter(t, &hax, nullptr, ks, StatSum{}, st, {}, 0, {}, &lbt);
+    assert(kf.kick_lo == 5 && kf.kick_hi == 10 && kf.kick_pct == 20 * 120 / 100);
     tg.block = 100;
     int blocked = 0;
     for (int i = 0; i < 20; ++i) blocked += player_blow(hit, tg, 99, br).blocked;

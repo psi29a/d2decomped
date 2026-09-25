@@ -15,7 +15,6 @@ struct SkillBar {
     CharCreateUI& cc;
     int left = 0, right = 0;               // Skills.txt ids (0: Attack)
     int picking = 0;                       // the picker open: 1 left, 2 right, 0 none
-    std::vector<int> told;                 // skills logged as not implemented yet
 
     static constexpr int kLeftX = 117, kRightX = int(kW) - 165, kIcon = 48;
 
@@ -132,15 +131,6 @@ struct SkillBar {
         const int id = int(h & 0x7fff);
         const bool on_left = h & 0x8000;
         if (usable(id, on_left)) (on_left ? left : right) = id;
-    }
-
-    // The skill a button uses on a monster this phase: Attack; any other
-    // skill attacks too, logged once as not implemented (skills phase 2+).
-    void use(int id) {
-        if (id == 0 || std::ranges::find(told, id) != told.end()) return;
-        told.push_back(id);
-        const auto* s = scene->skills.get(id);
-        d2d::log::info("not implemented: skill {} (srvdofunc {}) - a plain attack for now", s ? s->name : "?", s ? s->srvdofunc : 0);
     }
 
     // The buttons, the open picker (hotkey labels on its icons) and the

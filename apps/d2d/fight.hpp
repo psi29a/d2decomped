@@ -28,6 +28,14 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
     s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
 }
 
+// The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
+// the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
+// it: Bash, Stun, Concentrate) and Dragon Talon (24 / 42: calc1 kicks).
+// Every other skill swings a plain attack for now.
+inline bool skill_built(const d2d::rules::Skill& s) {
+    return (s.srvstfunc == 32 && s.srvdofunc == 2) || (s.srvstfunc == 24 && s.srvdofunc == 42);
+}
+
 struct Fight {
     const Scene* scene;
     const Level* const& level;             // Town's: where the player is
@@ -50,6 +58,15 @@ struct Fight {
     bool  pstruck = false;                 // this swing's hit is resolved
     float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
     d2d::rules::Fighter pf;                // the player in a fight, as of this frame
+    d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
+    // The skill the player attacks with (Skills.txt id; 0 Attack), the one
+    // this swing uses (Attack when it's not built or can't be paid for),
+    // and the kicks still to come in a Dragon Talon.
+    int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
+    std::vector<int> told;                 // skills logged as not built yet
+    // The player's level in a skill: points, and with item bonuses (Town
+    // points these at its SkillBar).
+    std::function<int(int)> skill_base, skill_level;
     // The merc in a fight: its stats (hireling.txt at its level), life,
     // mode (NU/WL follow, A1 attack, GH, DT) and the monster it's after.
     d2d::rules::MercStats merc_st;
@@ -167,7 +184,7 @@ struct Fight {
         player.path.clear();
         const auto& a = player_anim(mode);
         std::uint32_t len = a.length_ms();
-        if (mode == kModeA1 && a.frames) {
+        if ((mode == kModeA1 || mode == kModeKK) && a.frames) {
             const auto ticks = d2d::rules::attack_ticks(int(a.frames), int(a.speed ? a.speed : 256), pf.ias, pf.wsm);
             len = std::uint32_t(ticks) * 40;
         } else if (mode == kModeGH || mode == kModeBL) {
@@ -182,9 +199,9 @@ struct Fight {
     // panel's (worn, charms, what's socketed), the weapon and shield worn,
     // the panel's defense and resistances.
     // ponytail: set bonuses and the weapon swap aren't counted.
-    [[nodiscard]] d2d::rules::Fighter player_fighter() const {
+    [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr) const {
         d2d::rules::StatSum sum{}, weapon_sum{};
-        const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
+        const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
             for (const auto& p : props) if (p.stat >= 0 && std::size_t(p.stat) < into.size()) into[std::size_t(p.stat)] += p.value;
         };
@@ -194,20 +211,108 @@ struct Fight {
             if (!worn && !charm) continue;
             add(sum, it.props);
             for (const auto& j : it.socketed_items) add(sum, socket_props(*scene, it, j));
+            if (worn && it.slot == 9) boots = &it;
             if (!worn || (it.slot != 4 && it.slot != 5)) continue;
             const auto b = scene->rules.item_base.find(it.code);
-            if (b == scene->rules.item_base.end()) continue;
-            if (b->second.maxdam > 0 && (!weapon || it.slot == 4)) weapon = &it;
-            if (b->second.block > 0) shield = &it;
+            const auto info = scene->rules.item_info.find(it.code);
+            if (b == scene->rules.item_base.end() || info == scene->rules.item_info.end()) continue;
+            if (info->second.kind == 2 && (!weapon || it.slot == 4)) weapon = &it;
+            if (info->second.kind == 1 && b->second.block > 0) shield = &it;
         }
         if (weapon) {                                        // its own enhanced damage (op 13), sockets included
             add(weapon_sum, weapon->props);
             for (const auto& j : weapon->socketed_items) add(weapon_sum, socket_props(*scene, *weapon, j));
         }
         const auto& r = cc.panel.res;                        // panel: fire, cold, lightning, poison
-        return d2d::rules::make_fighter(scene->rules, weapon, shield, sum, weapon_sum, cc.stats,
-            scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])], int(cc.panel.defense),
-            { int(r[0]), int(r[2]), int(r[1]), int(r[3]) });
+        const auto& gains = scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+        const std::array<int, 4> res{ int(r[0]), int(r[2]), int(r[1]), int(r[3]) };
+        auto f = d2d::rules::make_fighter(scene->rules, weapon, shield, sum, weapon_sum, cc.stats, gains,
+                                          int(cc.panel.defense), res, boots);
+        if (kick) {                                          // the weapon's stats off, its attack rating kept
+            auto bare = sum;
+            for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
+            *kick = d2d::rules::make_fighter(scene->rules, nullptr, shield, bare, {}, cc.stats, gains,
+                                             int(cc.panel.defense), res, boots);
+            kick->ar_base = f.ar_base; kick->ar_pct = f.ar_pct; kick->ar = f.ar;
+            kick->kick_pct = f.kick_pct;
+        }
+        return f;
+    }
+    void update_fighters() { pf = player_fighter(&pf_kick); }
+
+    // What calcs ask of the player (skills.hpp).
+    [[nodiscard]] d2d::rules::CalcEnv calc_env() {
+        return { skill_base, skill_level, nullptr, int(cc.stats.get(d2d::d2s::kLevel)), &rng };
+    }
+    // A swing starts: the skill in use when it's built, paid for from mana
+    // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana swings
+    // a plain attack instead, any other doesn't swing. Its animation (A1,
+    // KK for the kicks) at the swing's speed; Dragon Talon's kick count is
+    // calc1 (FUN_005d5970).
+    // ponytail: SQ sequence skills (Jab, Fists of Fire) aren't built; no
+    // "not enough mana" voice.
+    bool start_swing(std::uint32_t ms) {
+        using namespace d2d::d2s;
+        swing_skill = 0;
+        kicks_left = 0;
+        const auto* s = scene->skills.get(attack_skill);
+        if (s && attack_skill != 0) {
+            if (!skill_built(*s)) {
+                if (std::ranges::find(told, attack_skill) == told.end()) {
+                    told.push_back(attack_skill);
+                    d2d::log::info("not implemented: skill {} (srvstfunc {}, srvdofunc {}) - a plain attack for now",
+                                   s->name, s->srvstfunc, s->srvdofunc);
+                }
+            } else {
+                const int lvl = skill_level ? skill_level(attack_skill) : 0;
+                const int cost = d2d::rules::mana_cost(*s, lvl);
+                if (lvl > 0 && cc.stats.v[kMana] >= cost) {
+                    cc.stats.v[kMana] -= cost;
+                    swing_skill = attack_skill;
+                    if (s->srvstfunc == 24) {
+                        const auto env = calc_env();
+                        kicks_left = std::max(d2d::rules::eval_calc(scene->skills, s->calc[0], env, s->id, lvl), 1) - 1;
+                    }
+                } else if (!s->attack_no_mana) {
+                    attack_mon = -1;                         // can't pay, won't swing
+                    return false;
+                }
+            }
+        }
+        const auto* used = scene->skills.get(swing_skill);
+        set_pmode(used && swing_skill != 0 && used->anim == "KK" ? kModeKK : kModeA1, ms);
+        pstruck = false;
+        return true;
+    }
+    // What the swing's skill adds to the blow: the Bash family's toht,
+    // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
+    // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
+    // physical damage, the last kick knocking back (100% on normal
+    // monsters, FUN_005d5a30).
+    // ponytail: the skills' states (Stun's stun, Concentrate's defense) and
+    // calc4's element conversion aren't applied; stat 325's to-hit on kicks
+    // isn't added.
+    [[nodiscard]] d2d::rules::Swing swing() {
+        d2d::rules::Swing sw;
+        const auto* s = scene->skills.get(swing_skill);
+        if (!s || swing_skill == 0) return sw;
+        const int lvl = skill_level ? skill_level(swing_skill) : 1;
+        const auto env = calc_env();
+        const auto& T = scene->skills;
+        sw.ar_pct = d2d::rules::skill_tohit(T, *s, env, lvl);
+        if (s->srvstfunc == 24) {
+            sw.kick = true;
+            sw.ed_pct = d2d::rules::calc_ln(s->par[0], s->par[1], lvl);
+            sw.skill_lo = d2d::rules::skill_phys(T, *s, env, lvl, false);
+            sw.skill_hi = d2d::rules::skill_phys(T, *s, env, lvl, true);
+            sw.knockback = kicks_left == 0;
+        } else {
+            sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
+            sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            sw.srcdam = s->srcdam;
+            sw.knockback = (s->result_flags & 8) != 0;
+        }
+        return sw;
     }
 
     // A hit on monster i (the player's or the merc's): blocked, it blocks;
@@ -261,11 +366,13 @@ struct Fight {
     // deadly strike, resistances, elemental damage, crushing blow, leech.
     void strike(std::uint32_t ms) {
         if (pstruck || attack_mon < 0
-            || ms < player.mode_ms + std::uint32_t(float(player_anim(kModeA1).action_ms()) / prate)) return;
+            || ms < player.mode_ms + std::uint32_t(float(player_anim(pmode).action_ms()) / prate)) return;
         pstruck = true;
         auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
-        land(std::size_t(attack_mon), d2d::rules::player_blow(pf, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng), true, ms);
+        const auto sw = swing();
+        land(std::size_t(attack_mon), d2d::rules::player_blow(sw.kick ? pf_kick : pf, m.target(*scene),
+                                                              int(cc.stats.get(d2d::d2s::kLevel)), rng, sw), true, ms);
         if (!m.alive()) attack_mon = -1;
     }
 
@@ -285,9 +392,7 @@ struct Fight {
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const {
-        d2d::rules::Fighter f;
-        f.min = merc_st.dmg_min; f.max = merc_st.dmg_max; f.ar = merc_st.ar; f.defense = merc_st.def;
-        return f;
+        return d2d::rules::simple_fighter(merc_st.dmg_min, merc_st.dmg_max, merc_st.ar, merc_st.def);
     }
 
     // The merc's turn: it goes for the nearest monster within 6 cells of the
@@ -373,9 +478,16 @@ struct Fight {
             if (pmode == kModeDT && ms >= pmode_until) set_pmode(kModeDD, ms);
             return pmode == kModeDD && mouse.press_this_frame;
         }
-        if (pmode == kModeA1) {
+        if (pmode == kModeA1 || pmode == kModeKK) {
             strike(ms);
             if (ms >= pmode_until) {
+                if (kicks_left > 0 && attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
+                    --kicks_left;                            // Dragon Talon: the next kick (FUN_005d5a30)
+                    set_pmode(kModeKK, ms);
+                    pstruck = false;
+                    return false;
+                }
+                kicks_left = 0;
                 pmode = -1; player.mode_ms = ms;
                 if (!mouse.down) attack_mon = -1;
             }
@@ -392,8 +504,7 @@ struct Fight {
         if (!m.alive()) { attack_mon = -1; return std::nullopt; }
         if (std::hypot(m.u.x - player.x, m.u.y - player.y) <= kMeleeReach) {
             player.dir = direction16(m.u.x - player.x, m.u.y - player.y);
-            set_pmode(kModeA1, ms);
-            pstruck = false;
+            start_swing(ms);
             return std::nullopt;
         }
         return std::pair{ m.u.x, m.u.y };
@@ -425,9 +536,8 @@ struct Fight {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& m = monsters[i];
                     if (!m.alive() || std::hypot(m.u.x - a.x, m.u.y - a.y) > 0.5f) continue;
-                    d2d::rules::Fighter f;
-                    f.min = a.min; f.max = a.max; f.ar = a.ar;
-                    land(i, d2d::rules::player_blow(f, m.target(*scene), a.level, rng), false, ms);
+                    land(i, d2d::rules::player_blow(d2d::rules::simple_fighter(a.min, a.max, a.ar), m.target(*scene), a.level, rng),
+                         false, ms);
                     return true;
                 }
                 return false;

@@ -65,6 +65,8 @@ struct Town {
         if (scene) fight.new_game(0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
+        fight.skill_base = [this](int id) { return skillbar.base_level(id); };
+        fight.skill_level = [this](int id) { return skillbar.level(id); };
     }
 
     // A fresh game for the character: the Blood Moor's monsters at its
@@ -446,7 +448,7 @@ struct Town {
     // an object to operate on arrival; the player follows a walk_path; NPCs
     // patrol; the merc follows.
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, float dt) {
-        fight.pf = fight.player_fighter();
+        fight.update_fighters();
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&*merc);
@@ -473,7 +475,7 @@ struct Town {
             if (mouse.press_this_frame) fight.attack_mon = pick_item = -1;
             if (mouse.press_this_frame && hovered_monster() >= 0 && fight.monsters[std::size_t(hovered_monster())].alive()) {
                 fight.attack_mon = hovered_monster(); // walk up to it, then attack with the left skill
-                skillbar.use(skillbar.left);
+                fight.attack_skill = skillbar.left;
             }
             if (mouse.press_this_frame && hovered_ground() >= 0) pick_item = hovered_ground();   // walk to it, pick it up
             if (mouse.press_this_frame && hovered_npc >= 0) {
@@ -533,7 +535,7 @@ struct Town {
             && fight.monsters[std::size_t(hovered_monster())].alive()) {
             fight.attack_mon = hovered_monster();
             interact_npc = pick_item = -1;
-            skillbar.use(skillbar.right);
+            fight.attack_skill = skillbar.right;
         }
         if (const auto to = fight.engage(ms)) { std::tie(target_x, target_y) = *to; player.walking = true; }
         if (player.walking && fight.pmode < 0) {

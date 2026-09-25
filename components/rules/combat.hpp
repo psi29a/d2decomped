@@ -33,7 +33,15 @@ using StatSum = std::array<std::int64_t, 512>;
 // The player in a fight: what an attack does and what protects them.
 // Elements index 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic.
 struct Fighter {
-    int min = 1, max = 2, ar = 1;                   // physical damage, attack rating
+    int min = 1, max = 2, ar = 1;                   // physical damage, attack rating (as the panel shows them)
+    // Before their percentages, so a skill's % joins the same sum as in
+    // game.exe: the weapon damage in 256ths and its % (FUN_0057b420), the
+    // attack rating and its % (FUN_0057d9b0).
+    int phys_lo = 256, phys_hi = 512, phys_pct = 0;
+    int ar_base = 1, ar_pct = 0;
+    // Kicks (FUN_00646280): stat 137 + the boots' kick damage, and its % —
+    // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.
+    int kick_lo = 0, kick_hi = 0, kick_pct = 0;
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
@@ -73,7 +81,8 @@ struct Fighter {
 // ponytail: no skills (masteries, skill damage %) yet.
 inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
                             const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& st,
-                            const ClassGains& g, int defense, const std::array<int, 4>& res) {
+                            const ClassGains& g, int defense, const std::array<int, 4>& res,
+                            const d2d::d2s::Item* boots = nullptr) {
     using namespace d2d::d2s;
     Fighter f;
     const auto S = [&](int id) { return sum[std::size_t(id)]; };
@@ -87,9 +96,19 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
     lo = std::max<std::int64_t>(lo, 1) << 8;
     hi = std::max<std::int64_t>(hi << 8, lo + 256);
     const std::int64_t pct = std::max<std::int64_t>(S(25) + (wb ? str * wb->str_bonus / 100 + dex * wb->dex_bonus / 100 : 0), -90);
+    f.phys_lo = int(lo); f.phys_hi = int(hi); f.phys_pct = int(pct);
     f.min = int(std::max<std::int64_t>((lo + lo * pct / 100) >> 8, 1));
     f.max = int(std::max<std::int64_t>((hi + hi * pct / 100) >> 8, f.min));
-    f.ar = int(std::max<std::int64_t>((dex * 5 - 35 + g.to_hit + S(19) + S(224) * clvl / 8) * (100 + S(119)) / 100, 1));
+    f.ar_base = int(dex * 5 - 35 + g.to_hit + S(19) + S(224) * clvl / 8);
+    f.ar_pct = int(S(119));
+    f.ar = int(std::max<std::int64_t>(std::int64_t(f.ar_base) * (100 + f.ar_pct) / 100, 1));
+    f.kick_lo = f.kick_hi = int(S(137));
+    if (boots) if (const auto b = t.item_base.find(boots->code); b != t.item_base.end()) {
+        f.kick_lo += b->second.mindam;
+        f.kick_hi = std::max(f.kick_hi + b->second.maxdam, f.kick_lo);
+        f.kick_pct = int(std::max<std::int64_t>(str * b->second.str_bonus / 100 + dex * b->second.dex_bonus / 100 + S(25), -90)
+                         + S(17) - W(17));
+    }
     if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end() && b->second.block > 0)
         f.block = int(std::clamp<std::int64_t>((b->second.block + g.block + S(20)) * (dex - 15) / (clvl * 2), 0, 75));
     f.elem = { { { int(S(48)), int(S(49)) }, { int(S(50)), int(S(51)) }, { int(S(54)), int(S(55)) },
@@ -107,6 +126,15 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
     f.res = res;
     f.thorns = int(S(78)); f.thorns_light = int(S(128));
     f.life_regen = int(S(74)); f.mana_regen = int(S(27));
+    return f;
+}
+
+// A fighter with just damage, attack rating and defense (the merc, its
+// arrows, tests).
+inline Fighter simple_fighter(int min, int max, int ar, int defense = 0) {
+    Fighter f;
+    f.min = min; f.max = std::max(max, min); f.ar = f.ar_base = ar; f.defense = defense;
+    f.phys_lo = min << 8; f.phys_hi = f.max << 8;
     return f;
 }
 
@@ -148,20 +176,45 @@ struct Blow {
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 
+// What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
+// its attack-rating bonus % (toht) and enhanced damage % (calc1) joining
+// the gear's percentages, damage added after the build (calc2), the share
+// of weapon damage (SrcDam, 128ths), knockback; a kick's damage comes from
+// the boots and the skill's own physical damage (in 256ths) instead of the
+// weapon, and isn't doubled by critical / deadly strike (FUN_005d54b0).
+struct Swing {
+    int ar_pct = 0, ed_pct = 0, flat = 0, srcdam = 128;
+    bool kick = false, knockback = false;
+    int skill_lo = 0, skill_hi = 0;
+};
+
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
 // takes a quarter of its current life (less physical resistance).
 // ponytail: crushing blow's boss / difficulty divisors aren't applied.
-inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng) {
+inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, const Swing& sw = {}) {
     Blow b;
-    if (rng(100) >= hit_chance(f.ar, t.ac, clvl, t.level)) return b;
+    const int ar = std::max(int(std::int64_t(f.ar_base) * (100 + f.ar_pct + sw.ar_pct) / 100), 1);
+    if (rng(100) >= hit_chance(ar, t.ac, clvl, t.level)) return b;
     if (t.block > 0 && rng(100) < t.block) { b.blocked = true; return b; }
     b.hit = true;
-    int phys = rng.range(f.min, f.max);
+    std::int64_t lo, hi;                                  // 256ths
+    if (sw.kick) {
+        const std::int64_t kp = f.kick_pct + sw.ed_pct;
+        lo = sw.skill_lo + std::int64_t(sw.skill_lo) * sw.ed_pct / 100 + (std::int64_t(f.kick_lo) << 8) * (100 + kp) / 100;
+        hi = sw.skill_hi + std::int64_t(sw.skill_hi) * sw.ed_pct / 100 + (std::int64_t(f.kick_hi) << 8) * (100 + kp) / 100;
+    } else {
+        const std::int64_t p = std::max<std::int64_t>(f.phys_pct + sw.ed_pct, -90);
+        lo = f.phys_lo + f.phys_lo * p / 100;
+        hi = f.phys_hi + f.phys_hi * p / 100;
+    }
+    std::int64_t d = hi > lo ? lo + rng(int(hi - lo)) : lo;
     // Critical strike and deadly strike are separate rolls; either doubles
-    // (FUN_0057b7d0; the mastery crit joins them with skills).
-    if ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly)) { phys *= 2; b.deadly = true; }
+    // (FUN_0057b7d0; the mastery crit joins them with skills). Not kicks.
+    if (!sw.kick && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
+    d = d * sw.srcdam / 128;
+    int phys = int(std::max<std::int64_t>(d >> 8, sw.kick ? 0 : 1)) + sw.flat;
     phys = resisted(phys, t.res[0]);
     b.life = phys * f.life_steal * t.drain / 10000;
     b.mana = phys * f.mana_steal * t.drain / 10000;
@@ -178,7 +231,7 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng) {
     int cb = 0;
     if (f.crushing > 0 && rng(100) < f.crushing) { b.crushing = true; cb = resisted(t.hp / 4, t.res[0]); }
     b.bleed = f.open_wounds > 0 && rng(100) < f.open_wounds;
-    b.knockback = f.knockback;
+    b.knockback = f.knockback || sw.knockback;
     b.damage = phys + elem + cb;
     return b;
 }

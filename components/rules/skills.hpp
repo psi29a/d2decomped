@@ -195,6 +195,7 @@ struct Skill {
     std::array<Calc, 4> calc;              // calc1..4
     std::array<int, 8> par{};              // Param1..8
     int hitshift = 8, srcdam = 128;
+    int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic
     int emin = 0, emax = 0;
     std::array<int, 5> emin_lev{}, emax_lev{};
@@ -280,6 +281,14 @@ inline int elem_length(const SkillTables& t, const Skill& s, const CalcEnv& env,
     int n = s.elen + bonus;
     if (!s.elen_sym.empty()) n += n * eval_calc(t, s.elen_sym, env, s.id, lvl, depth + 1) / 100;
     return n;
+}
+// The skill's own physical damage in 256ths (FUN_00647bc0 without the
+// weapon share): (MinDam + brackets) plus DmgSymPerCalc percent, << HitShift.
+inline int skill_phys(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, bool max, int depth = 0) {
+    if (lvl < 1) return 0;
+    int d = (max ? s.maxdam : s.mindam) + level_bonus(max ? s.maxdam_lev : s.mindam_lev, lvl);
+    if (!s.dmg_sym.empty()) d += d * eval_calc(t, s.dmg_sym, env, s.id, lvl, depth + 1) / 100;
+    return d << (s.hitshift & 31);
 }
 // Attack rating bonus % (FUN_006449f0): ToHitCalc, else ToHit + LevToHit x (lvl - 1).
 inline int skill_tohit(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int depth = 0) {

@@ -15,7 +15,7 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
 constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
-              kModeA1 = 7, kModeBL = 9, kModeDD = 17;
+              kModeA1 = 7, kModeBL = 9, kModeKK = 12, kModeDD = 17;
 
 // ponytail: town walk speed picked by eye so the TW cycle doesn't skate
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
@@ -462,6 +462,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
         S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam");
+        S.result_flags = n("ResultFlags");
         static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
         const auto et = std::ranges::find(kEl, g("EType"));
         S.etype = et == kEl.end() ? -1 : int(et - kEl.begin());
@@ -672,9 +673,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
                 const bool two = t == &weapons && t->get(r, "2handed") == "1" && t->get(r, "1or2handed") != "1";
                 scene.rules.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
-                                          t == &weapons ? n(two ? "2handmindam" : "mindam") : 0,
-                                          t == &weapons ? n(two ? "2handmaxdam" : "maxdam") : 0,
-                                          t == &weapons ? n("StrBonus") : 0, t == &weapons ? n("DexBonus") : 0,
+                                          // armor.txt's first mindam/maxdam: a shield's smite, boots' kick damage
+                                          t == &misc ? 0 : n(two ? "2handmindam" : "mindam"),
+                                          t == &misc ? 0 : n(two ? "2handmaxdam" : "maxdam"),
+                                          t == &misc ? 0 : n("StrBonus"), t == &misc ? 0 : n("DexBonus"),
                                           t == &weapons ? n("speed") : 0, t == &armor ? n("block") : 0,
                                           t->get(r, "stackable") == "1", n("level"),
                                           t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),

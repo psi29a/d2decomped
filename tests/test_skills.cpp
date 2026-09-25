@@ -72,6 +72,9 @@ int main() {
     assert(elem_damage(t, fb, CalcEnv{}, 1, false) == 3 * 256);
     assert(elem_damage(t, fb, env, 3, true) == (6 + 2) * 256 * 164 / 100);
     assert(E("edmn", 2, 1) == 3 * 256 * 164 / 100 >> 8);
+    // Physical: (MinDam + brackets + DmgSymPerCalc %) << HitShift.
+    t.rows[0].mindam = 2; t.rows[0].mindam_lev = { 1, 1, 1, 1, 1 }; t.rows[0].dmg_sym = C("par8*10");
+    assert(skill_phys(t, t.rows[0], env, 3, false) == (4 + 4 * 50 / 100) << 8);
     // Mana cost: (mana + lvlmana x (lvl - 1)) << manashift, at least minmana.
     assert(mana_cost(fb, 1) == 5 << 7 && mana_cost(fb, 5) == 9 << 7);
     assert(mana_cost(t.rows[0], 1) == 512 && mana_cost(t.rows[0], 0) == 0);

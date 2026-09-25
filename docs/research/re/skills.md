@@ -160,6 +160,26 @@ operand and function lists.
   143, 38, 39). The table at 0x7325b0 is not the progressive table (likely
   aura / passive events).
 
+### Kicks — Dragon Talon (srvstfunc 24 / srvdofunc 42)
+- Start (FUN_005d5970): in reach, the kick count = **calc1**
+  (`lvl/6+1`); the first kick lands now, the rest on the following action
+  frames (FUN_005d5a30).
+- Each kick (FUN_005d5880): to hit with toht + stat 325; the record's
+  enhanced damage = `ln12`; the last kick adds flags 0x0c.
+- Damage (FUN_005d54b0): the skill's own physical damage (FUN_00647bc0:
+  (MinDam + brackets + DmgSymPerCalc %) << HitShift) × (1 + ED %), plus
+  the kick base (FUN_00646280): stat 137 + the boots' armor.txt
+  mindam/maxdam (the file's first pair; a shield's is its smite damage) ×
+  (1 + ED % + boots StrBonus × str / 100 + DexBonus × dex / 100 + stat 25
+  (at least −90) + stat 17), rolled between. The weapons' stats are taken
+  off the unit meanwhile, and the record is marked built (flags | 3), so
+  FUN_0057b7d0 skips the weapon damage and the crit / deadly doubling but
+  still adds the rest of the gear's elemental damage and leech.
+- The last kick's knockback (FUN_005d5a30): 100 % on normal monsters,
+  calc2 / calc3 on special ones, calc4 on players.
+- The generic `Kick` skill (FUN_00647bc0's flagged branch): players
+  (str + dex − 20) / 4, monsters clvl × 3 / 4.
+
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,
   0xffff = none, 0x8000 = assigned to the left button), +0x78 left skill,
@@ -196,7 +216,14 @@ operand and function lists.
    calc compiler/VM, level brackets, mana cost); `load.hpp` (Skills.txt,
    skillcalc.txt); `apps/d2d/skillbar.hpp` (buttons, picker, hotkeys, from
    the save's +0x38..0x87); `fight.hpp` (casting through `Fight`).
-2. **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
+2. ~~**Weapon skills**~~ — started: the Bash family (32 / 2: Bash, Stun,
+   Concentrate) and Dragon Talon (24 / 42) are built (`fight.hpp`
+   `start_swing` / `swing`, `combat.hpp` `Swing`); mana is paid per swing,
+   AttackNoMana skills fall back to a plain attack. Not yet: the skills'
+   states (Stun's stun, Concentrate's defense), calc4's conversion, SQ
+   sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
+   functions (Power Strike, Berserk, Vengeance, Zeal, ...). Was:
+   **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2
    post-damage add, toht, ResultFlags (knockback, stun), SrcDam,
    `UseAttackRate` timing, all through `rules::player_blow`. Files: the
