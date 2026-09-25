@@ -165,7 +165,7 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
     // (frame 1 while pressed) at (x+8, y+1). DC6s anchor bottom-left.
     if (const auto pts = st.get(d2d::d2s::kStatPts); pts > 0) {
         auto dc6 = [&](const d2d::dc6::Sprite& spr, int frame, int x, int y) {
-            if (spr.frames_per_direction() <= frame) return;
+            if (frame < 0 || spr.frames_per_direction() <= std::uint32_t(frame)) return;
             const auto& f = spr.frame(0, std::uint32_t(frame));
             blit_sprite(fb, f, pal, px + x, py + y - int(f.height) + 1);
         };
@@ -315,16 +315,19 @@ void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<
 // ponytail: reveals tiles within 12 of the player (D2 reveals by room),
 // cel picked by a tile hash rather than the game's RNG, no fade near the
 // centre, no player/NPC marks.
+// One automap per Levels.txt Layer: the town and the act 1 wilderness
+// share layer 0, so the map shows them together; cells sit in act
+// coordinates.
 struct Automap {
     struct Cell { int cel, x, y; };
     std::vector<Cell> cells;
-    std::vector<std::uint8_t> revealed;       // per DS1 tile
+    std::unordered_map<int, std::vector<std::uint8_t>> revealed;   // per level, per DS1 tile
     bool open = false;
 };
 
-int automap_cel(const Scene& s, int orientation, int main, int sub, std::uint32_t hash) {
+int automap_cel(const Scene& s, const Level& L, int orientation, int main, int sub, std::uint32_t hash) {
     for (const auto& r : s.automap_rules) {
-        if (r.level_type != s.town_level_type || r.orientation != orientation) continue;
+        if (r.level_type != L.type || r.orientation != orientation) continue;
         if (r.main >= 0 && r.main != main) continue;
         if (r.sub0 >= 0 && (sub < r.sub0 || sub > r.sub1)) continue;
         return r.cels[hash % r.cels.size()];
@@ -332,28 +335,30 @@ int automap_cel(const Scene& s, int orientation, int main, int sub, std::uint32_
     return -1;
 }
 
-void automap_reveal(const Scene& s, Automap& am, float px, float py) {
-    const auto& m = s.world_ds1;
+void automap_reveal(const Scene& s, const Level& level, Automap& am, float px, float py) {
+    const auto& m = level.ds1;
     const int w = int(m.width()), h = int(m.height());
     if (w == 0) return;
-    if (am.revealed.size() != std::size_t(w * h)) am.revealed.assign(std::size_t(w * h), 0);
-    const int cx = int(px), cy = int(py), R = 12;
+    auto& seen = am.revealed[level.id];
+    if (seen.size() != std::size_t(w * h)) seen.assign(std::size_t(w * h), 0);
+    const int cx = int(std::floor(px)), cy = int(std::floor(py)), R = 12;
     for (int ty = std::max(0, cy - R); ty < std::min(h, cy + R); ++ty)
         for (int tx = std::max(0, cx - R); tx < std::min(w, cx + R); ++tx) {
-            auto& done = am.revealed[std::size_t(ty * w + tx)];
+            auto& done = seen[std::size_t(ty * w + tx)];
             if (done) continue;
             done = 1;
-            const std::uint32_t hash = std::uint32_t(tx * 73856093) ^ std::uint32_t(ty * 19349663);
-            const int ax = (tx - ty) * 80 / 10, ay = (tx + ty) * 40 / 10;
+            const int wx = tx + level.world_x, wy = ty + level.world_y;     // act tiles
+            const std::uint32_t hash = std::uint32_t(wx * 73856093) ^ std::uint32_t(wy * 19349663);
+            const int ax = (wx - wy) * 80 / 10, ay = (wx + wy) * 40 / 10;
             for (const auto& L : m.floors()) {
                 const auto& t = L.cells[std::size_t(ty * w + tx)];
-                if (t.hidden || (t.style == 0 && t.sequence == 0 && t.prop1 == 0)) continue;
-                if (const int c = automap_cel(s, 0, t.style, t.sequence, hash); c >= 0) am.cells.push_back({ c, ax, ay });
+                if (t.hidden || !(t.prop1 & 2)) continue;
+                if (const int c = automap_cel(s, level, 0, t.style, t.sequence, hash); c >= 0) am.cells.push_back({ c, ax, ay });
             }
             for (const auto& L : m.walls()) {
                 const auto& t = L.cells[std::size_t(ty * w + tx)];
                 if (t.hidden || t.wall_type == 0) continue;
-                if (const int c = automap_cel(s, t.wall_type, t.style, t.sequence, hash); c >= 0)
+                if (const int c = automap_cel(s, level, t.wall_type, t.style, t.sequence, hash); c >= 0)
                     am.cells.push_back({ c, ax, ay + (t.wall_type > 15 ? 24 : 0) });
             }
         }

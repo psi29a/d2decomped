@@ -71,7 +71,7 @@ int main() {
     // Stock: Charsi (hcIdx 0x9a) is vendor 2; perm items stay after a buy.
     assert(vendor_index(0x9a) == 2 && vendor_index(1) == -1);
     t.vendor_items[2] = { { .code = "hax", .min = 2, .max = 2 }, { .code = "key", .perm = true } };
-    std::uint32_t rng = 1;
+    Rng rng{ 1 };
     Store shop = open_store(t, 0x9a, "Charsi", rng);
     assert(shop.vendor == 2 && shop.npc_id == "Charsi");
     assert(shop.tabs[1].size() == 2 && shop.tabs[3].size() == 1 && shop.tab == 1);
@@ -359,6 +359,14 @@ int main() {
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };
     unid[2].location = 1;
     assert(unidentified(unid) == 2 && identify_all(unid) == 2 && unidentified(unid) == 0 && !unid[1].identified);
+
+    // D2's seed: low * 0x6AC690C5 + high, high starting at 666.
+    Rng d2{ 1 };
+    assert(d2.next() == 0x6AC6935Fu && d2.high == 0);
+    Rng p2{ 5 }, q2{ 5 };
+    assert(p2(8) == int(q2.next() & 7));                                    // power of two: mask
+    Rng p3{ 5 }, q3{ 5 };
+    assert(p3(10) == int(q3.next() % 10) && Rng{}(0) == 0);                 // else modulo; < 1 -> 0
 
     std::puts("test_rules: ok");
 }

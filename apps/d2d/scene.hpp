@@ -8,6 +8,93 @@ namespace {
 // All assets the frontend needs. Loaded once at startup; renderers paint
 // from these each tick without touching the MPQ again. Sourced from
 // FUN_0042e6d0 (main-menu loader) — see docs/research/re/frontend-menu-table.md.
+// Things the DS1 places (its object list): NPCs (type 1, from
+// data\global\monsters) and objects (type 2 — torches, fires, the
+// waypoint..., from data\global\objects). Both are composites.
+struct Npc {
+    std::string root;                    // "monsters" or "objects"
+    std::string code;                    // <root>\<code>\ ...
+    std::string mode;                    // animation mode token (NU, ON...)
+    std::string base_w;                  // weapon class ("hth" for objects)
+    std::array<std::string, 16> comp;    // per layer, "" = not present
+    float x = 0, y = 0;
+    int size_x = 0, size_y = 0;          // collision footprint, subtiles
+    std::string name;                    // hover label; "" = not selectable
+    std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
+    float velocity = 3;                  // MonStats Velocity
+    int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
+    std::string id;                      // MonStats Id (npc.txt key)
+    int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
+};
+
+// One level (Levels.txt row): its DS1, the DT1s it references and a
+// (style, seq, type) -> tile lookup for the compositor, the walk grid, the
+// units the DS1 places, where players arrive, and its sound environment.
+// Empty when the assets aren't found (headless / bad data dir).
+struct Level {
+    int id = 0;                                        // Levels.txt Id (1: the Rogue Encampment)
+    int type = 1;                                      // its LevelType (AutoMap.txt rules)
+    int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
+    int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
+    int song = 0, ambience = 0;                        // SoundEnviron Song / Day Ambience (Sounds.txt)
+    d2d::ds1::Map ds1;
+    std::vector<d2d::dt1::Archive> dt1s;
+    // Keyed by (style, seq, type) — one map covers floors, walls, trees,
+    // shadows, roofs; the DT1's `type` field disambiguates orientations
+    // that share (style, seq). First matching tile wins across DT1s.
+    std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> tile_lookup;
+    // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
+    // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
+    // 0x08 blocks player walking (DT1 subtile flag bits).
+    std::vector<std::uint8_t> walk;
+    std::vector<Npc> npcs;                             // what its DS1 places (and Cain)
+    // The levels next to it in the act, (dx, dy) = their origin minus
+    // ours, in cells (link_levels). Past this map's edge, collision and
+    // the renderer use theirs — the way D2 walks and draws across rooms
+    // of neighbouring levels.
+    struct Near { const Level* level; int dx, dy; };
+    std::vector<Near> near;
+    [[nodiscard]] bool inside(float x, float y) const {
+        return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
+    }
+    [[nodiscard]] bool blocked(float x, float y) const {
+        if (!inside(x, y))
+            for (const auto& n : near)
+                if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy));
+        return blocked_here(x, y);
+    }
+    [[nodiscard]] bool blocked_here(float x, float y) const {
+        const int w = ds1.width() * 5, h = ds1.height() * 5;
+        const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
+        if (sx < 0 || sy < 0 || sx >= w || sy >= h || walk.empty()) return true;
+        return walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & 0x09;
+    }
+    // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
+    // collision pattern is a plus: the subtile and its four neighbours,
+    // any of them walls (0x09) blocks — FUN_0064d100, collision pattern
+    // 1 (FUN_0064d870). Off the map counts as blocked, like the game's
+    // 0x27 outside a room.
+    // Units don't stamp themselves in; moving ones block each other through
+    // the Crowd (ai.hpp).
+    [[nodiscard]] bool unit_blocked(float x, float y) const {
+        return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
+            || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
+    }
+    // The nearest spot a unit can stand, searching outward a subtile per
+    // ring (FUN_0064dea0 does it per room for spawns).
+    [[nodiscard]] std::pair<float, float> nearest_free(float x, float y) const {
+        if (!unit_blocked(x, y)) return { x, y };
+        for (int r = 1; r < 200; ++r)
+            for (int i = -r; i <= r; ++i)
+                for (auto [ox, oy] : { std::pair{ i, -r }, { i, r }, { -r, i }, { r, i } })
+                    if (!unit_blocked(x + float(ox) * 0.2f, y + float(oy) * 0.2f))
+                        return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
+        return { x, y };
+    }
+    std::pair<float, float> start{ -1, -1 };            // cells: where a player joining arrives; see load_world
+};
+
 struct Scene {
     d2d::palette::Palette pal;                // Sky — title/credits palette
     d2d::palette::Palette charselect_pal;     // fechar — char-select/create palette
@@ -164,41 +251,12 @@ struct Scene {
     d2d::tbl::Table       exp_strings;     // expansionstring.tbl
     int                   bg_tiles_across{4};
 
-    // Rogue-camp world data — one DS1 + the DT1s it references, plus a
-    // (style, sequence)->tile lookup pre-built for floor rendering. See
-    // render_ingame_world() for the compositor. Empty when the assets
-    // aren't found (headless / bad data dir).
-    d2d::ds1::Map                            world_ds1;
-    std::vector<d2d::dt1::Archive>           world_dt1s;
-    // Keyed by (style, seq, type) — one map covers floors, walls, trees,
-    // shadows, roofs; the DT1's `type` field disambiguates orientations
-    // that share (style, seq). First matching tile wins across DT1s.
-    std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> world_tile_lookup;
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
-    // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
-    // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
-    // 0x08 blocks player walking (DT1 subtile flag bits).
-    std::vector<std::uint8_t> world_walk;
-    // Things the DS1 places (its object list): NPCs (type 1, from
-    // data\global\monsters) and objects (type 2 — torches, fires, the
-    // waypoint..., from data\global\objects). Both are composites.
-    struct Npc {
-        std::string root;                    // "monsters" or "objects"
-        std::string code;                    // <root>\<code>\ ...
-        std::string mode;                    // animation mode token (NU, ON...)
-        std::string base_w;                  // weapon class ("hth" for objects)
-        std::array<std::string, 16> comp;    // per layer, "" = not present
-        float x = 0, y = 0;
-        int size_x = 0, size_y = 0;          // collision footprint, subtiles
-        std::string name;                    // hover label; "" = not selectable
-        std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
-        float velocity = 3;                  // MonStats Velocity
-        int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
-        int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
-        std::string id;                      // MonStats Id (npc.txt key)
-        int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
-    };
+    Level town;                                        // the Rogue Encampment
+    Level moor;                                        // the Blood Moor, generated from map_seed
+    std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
+    std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the
     // monster, and the first name key (merc01, merca201, MercX101, ...).
     struct Merc { Npc npc; std::string name_first; };
@@ -222,48 +280,16 @@ struct Scene {
     d2d::dc6::Sprite wp_bg, wp_icons;
     std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
-    int town_level_type = 1;                           // Levels.txt Id 1's LevelType
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
-    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; };
+    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0; };
     std::vector<Sound> sounds;
-    int town_song = 0, town_ambience = 0;               // SoundEnviron.txt for the town level
     fs::path data_dir;                                  // the MPQs' folder
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
-    std::vector<Npc> world_npcs;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
-    [[nodiscard]] bool blocked(float x, float y) const {
-        const int w = world_ds1.width() * 5, h = world_ds1.height() * 5;
-        const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
-        if (sx < 0 || sy < 0 || sx >= w || sy >= h || world_walk.empty()) return true;
-        return world_walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & 0x09;
-    }
-    // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
-    // collision pattern is a plus: the subtile and its four neighbours,
-    // any of them walls (0x09) blocks — FUN_0064d100, collision pattern
-    // 1 (FUN_0064d870). Off the map counts as blocked, like the game's
-    // 0x27 outside a room.
-    // ponytail: units don't stamp themselves into the grid, so they walk
-    // through each other; mask 0x1c09's door/monster/player bits unused.
-    [[nodiscard]] bool unit_blocked(float x, float y) const {
-        return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
-            || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
-    }
-    // The nearest spot a unit can stand, searching outward a subtile per
-    // ring (FUN_0064dea0 does it per room for spawns).
-    [[nodiscard]] std::pair<float, float> nearest_free(float x, float y) const {
-        if (!unit_blocked(x, y)) return { x, y };
-        for (int r = 1; r < 200; ++r)
-            for (int i = -r; i <= r; ++i)
-                for (auto [ox, oy] : { std::pair{ i, -r }, { i, r }, { -r, i }, { r, i } })
-                    if (!unit_blocked(x + float(ox) * 0.2f, y + float(oy) * 0.2f))
-                        return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
-        return { x, y };
-    }
-    std::pair<float, float> town_start{ -1, -1 };       // cells; see load_world
 };
 
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.

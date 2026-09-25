@@ -218,7 +218,7 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
 // (cx, cy) is the NPC's feet on screen raised 150 px (FUN_004b1c80), then
 // kept inside the screen.
 struct NpcMenuState {
-    int npc = -1;                            // world_npcs index, -1 = closed
+    int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
     enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
@@ -247,9 +247,9 @@ void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y
 // Kashya gains "hire" above level 7 (FUN_004b66b0 -> FUN_004b6410
 // patches her record to talk, hire); "identify items" only shows when
 // something needs it (FUN_004b4830).
-NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0) {
+NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0) {
     NpcMenuState m;
-    const auto& n = s.world_npcs[std::size_t(npc)];
+    const auto& n = L.npcs[std::size_t(npc)];
     const auto it = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
     if (it == kNpcMenus.end()) return m;
     m.npc = npc;
@@ -272,9 +272,9 @@ NpcMenuState open_npc_menu(const Scene& s, int npc, int screen_x, int screen_y, 
 // The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"
 // unless the NPC's talk record says no_intro, "gossip", then "cancel"
 // (0xd48). ponytail: no quest topics (FUN_0049f900) or Greiz/Cain extras.
-NpcMenuState open_talk_menu(const Scene& s, int npc, int screen_x, int screen_y) {
+NpcMenuState open_talk_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y) {
     NpcMenuState m;
-    const auto& n = s.world_npcs[std::size_t(npc)];
+    const auto& n = L.npcs[std::size_t(npc)];
     const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
     m.npc = npc;
     m.lines.push_back({ string_id(s, 0xd35), 21, 0, 0, true });
@@ -308,13 +308,12 @@ void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y
 // player's and, if quest-gated, whose quest state matches — up to 10
 // tries, else topic 2. game.exe picks it once per game per NPC; so do we.
 // Quest states are the save's flags for the difficulty it was played on.
-int talk_topic(const NpcTalk& t, bool intro, int cls, std::uint32_t& rng,
+int talk_topic(const NpcTalk& t, bool intro, int cls, d2d::rules::Rng& rng,
                const std::function<bool(int quest)>& quest_done) {
     if (intro) return t.topics.size() > 1 && int(t.topics[1].cls) == cls ? 1 : 0;
     const int n = int(t.topics.size());
     for (int tries = 10; tries > 0 && n > 0; --tries) {
-        rng = rng * 0x6ac690c5u + 1u;
-        const int i = int(rng % std::uint32_t(n));
+        const int i = rng(n);
         if (i < 2) continue;
         const auto& tp = t.topics[std::size_t(i)];
         if (tp.cls != 7 && int(tp.cls) != cls) continue;

@@ -76,6 +76,28 @@ struct PropFunc { int func = 0, stat = -1, val = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
 struct GambleRates { int rare = 10000, set = 100, unique = 50; };
 
+// D2's seed (FUN_0045c370 / FUN_0045c3e0): 64 bits as {low, high}; a
+// step is low * 0x6AC690C5 + high, split back into low and high. A roll
+// below n takes the new low & (n - 1) when n is a power of two, else
+// low % n; n < 1 rolls 0. A fresh seed's high is 666 (0x29a).
+struct Rng {
+    std::uint32_t low = 0, high = 666;
+    Rng() = default;
+    explicit Rng(std::uint32_t seed) : low(seed) {}
+    std::uint32_t next() {
+        const std::uint64_t v = std::uint64_t(low) * 0x6AC690C5u + high;
+        low = std::uint32_t(v);
+        high = std::uint32_t(v >> 32);
+        return low;
+    }
+    int operator()(int n) {
+        if (n < 1) return 0;
+        next();
+        return (n & (n - 1)) == 0 ? int(low & std::uint32_t(n - 1)) : int(low % std::uint32_t(n));
+    }
+    int range(int lo, int hi) { return hi > lo ? lo + (*this)(hi - lo + 1) : lo; }
+};
+
 // hireling.txt row (the stat and cost columns FUN_006637f0 reads).
 struct Hireling {
     int version = 0, id = 0, cls = 0, act = 0, difficulty = 0, level = 0, gold = 0, exp_per_level = 0;
@@ -116,6 +138,7 @@ struct Tables {
 // stock.
 struct Store {
     int npc = -1, vendor = -1, tab = 0;        // npc: the caller's NPC index
+    int hc_idx = -1;                            // the vendor's MonStats hcIdx
     std::string npc_id;                         // MonStats Id, for prices
     int mode = 0;                               // 1 buy, 2 sell: the button toggled on, the next click trades
     d2d::d2s::Header header;                    // the player's (quest flags, difficulty) for prices
@@ -187,14 +210,15 @@ inline bool is_repair_vendor(int hc_idx) {
     return hc_idx == 0x9a || hc_idx == 0xb2 || hc_idx == 0xfd || hc_idx == 0x101 || hc_idx == 0x1ff;
 }
 
-inline Store open_store(const Tables& t, int hc_idx, std::string npc_id, std::uint32_t& rng) {
+inline Store open_store(const Tables& t, int hc_idx, std::string npc_id, Rng& rng) {
     Store st;
     st.npc_id = std::move(npc_id);
+    st.hc_idx = hc_idx;
     st.vendor = vendor_index(hc_idx);
     if (st.vendor < 0) return st;
     for (const auto& vi : t.vendor_items[std::size_t(st.vendor)]) {
         if (vi.perm) st.perm.push_back(vi.code);
-        int n = vi.perm ? 1 : vi.min + (vi.max > vi.min ? int((rng = rng * 0x6ac690c5u + 1u) % std::uint32_t(vi.max - vi.min + 1)) : 0);
+        int n = vi.perm ? 1 : rng.range(vi.min, vi.max);
         while (n-- > 0) {
             d2d::d2s::Item it;
             it.code = vi.code;
@@ -582,13 +606,6 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
     items.erase(items.begin() + std::ptrdiff_t(i));
     return true;
 }
-
-// A small LCG for rolls (D2's own seed RNG isn't ported).
-struct Rng {
-    std::uint32_t s = 1;
-    int operator()(int n) { s = s * 0x6ac690c5u + 1u; return n > 0 ? int((s >> 8) % std::uint32_t(n)) : 0; }
-    int range(int lo, int hi) { return hi > lo ? lo + (*this)(hi - lo + 1) : lo; }
-};
 
 // A mod's stats, per Properties.txt funcs, in the save's (stat, param,
 // value) form: 1/2/8 value, 3 the previous value again, 5/6/7 min/max/%

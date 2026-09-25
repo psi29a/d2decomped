@@ -53,7 +53,7 @@ struct Unit {
     // of each mode, like game.exe's mode start (FUN_005533d0 zeroes the
     // 8.8 frame counter at unit+0x30).
     std::uint32_t mode_ms = 0;
-    int npc = -1;                        // Scene::world_npcs index, -1 = the player
+    int npc = -1;                        // Level::npcs index, -1 = the player
 };
 
 // Screen rectangle a composite's current frame covers with its feet at
@@ -63,7 +63,7 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
     std::array<int, 4> r{ INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN };
     const auto dirs = p.cof.directions(), fpd = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return r;
-    const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
+    const auto dir = cof_direction(dir_want, dirs);
     // 25 ticks/s; each tick advances speed/256 frames.
     const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
@@ -78,12 +78,13 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
 
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
+                  const Level& L,
                   float cam_x, float cam_y,
                   std::uint32_t elapsed_ms = 0,
                   std::span<const Unit> units = {},
                   int mouse_x = -1, int mouse_y = -1,
                   std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr) {
-    const auto& m = s.world_ds1;
+    const auto& m = L.ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int cx0 = int(kW) / 2;
@@ -122,10 +123,22 @@ void render_world(std::vector<std::uint8_t>& fb,
         blit_dt1_tile(fb, t, pal, sx, sy);
     };
 
-    auto find_tile = [&](int style, int seq, int type)
+    auto find_tile = [&](const Level& lv, int style, int seq, int type)
         -> const d2d::dt1::Tile* {
-        const auto it = s.world_tile_lookup.find(tile_key(style, seq, type));
-        return it == s.world_tile_lookup.end() ? nullptr : it->second;
+        const auto it = lv.tile_lookup.find(tile_key(style, seq, type));
+        return it == lv.tile_lookup.end() ? nullptr : it->second;
+    };
+    // Cell (gx, gy) of this level or, past its edge, of the level next to
+    // it in the act (Level::near): D2 draws the neighbour's rooms too.
+    auto at = [&](int gx, int gy) -> std::pair<const Level*, std::size_t> {
+        auto on = [](const Level& lv, int x, int y) {
+            return x >= 0 && y >= 0 && x < lv.ds1.width() && y < lv.ds1.height();
+        };
+        if (on(L, gx, gy)) return { &L, std::size_t(gy) * std::size_t(mw) + std::size_t(gx) };
+        for (const auto& n : L.near)
+            if (on(*n.level, gx - n.dx, gy - n.dy))
+                return { n.level, std::size_t(gy - n.dy) * std::size_t(n.level->ds1.width()) + std::size_t(gx - n.dx) };
+        return { nullptr, 0 };
     };
 
     // Row-major sweep so back rows render first. dy increases downward
@@ -134,32 +147,30 @@ void render_world(std::vector<std::uint8_t>& fb,
         for (int dx = -kR; dx <= kR; ++dx) {
             const int gx = base_x + dx;
             const int gy = base_y + dy;
-            if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
-            const std::size_t off = std::size_t(gy) * mw + gx;
+            const auto [lv, off] = at(gx, gy);
+            if (!lv) continue;
+            const auto& cm = lv->ds1;
 
             // Floor (single layer typical). Type 0 in the floor stream
             // is the "no floor here" marker (dropped by the game); we
             // still need to look up type=0 for actual floors from DT1s.
-            for (const auto& fl : m.floors()) {
+            for (const auto& fl : cm.floors()) {
                 const auto& c = fl.cells[off];
-                if (c.hidden) continue;
-                if (c.style == 0 && c.sequence == 0 && c.wall_type == 0) {
-                    // Rogue-camp floors often have (0, 0, 0) as literal
-                    // grass tile — draw it. Only skip cells the DS1
-                    // marks hidden.
-                }
-                if (auto* t = find_tile(c.style, c.sequence, /*type=*/0))
+                // A floor is there when prop1 bit 2 says so (FUN_0066e9b0);
+                // (0, 0, 0) with it is the grass tile, without it nothing.
+                if (c.hidden || !(c.prop1 & 2)) continue;
+                if (auto* t = find_tile(*lv, c.style, c.sequence, /*type=*/0))
                     blit_cell(gx, gy, *t);
             }
 
             // Shadow layer — 50% alpha decals under characters/objects.
             // For MVP we blit them as regular tiles (index-0 transparent);
             // proper Pl2 blend50 compositing is a follow-up.
-            for (const auto& sh : m.shadows()) {
+            for (const auto& sh : cm.shadows()) {
                 const auto& c = sh.cells[off];
                 if (c.hidden) continue;
                 if (c.style == 0 && c.sequence == 0 && c.wall_type == 0) continue;
-                if (auto* t = find_tile(c.style, c.sequence, /*type=*/13))
+                if (auto* t = find_tile(*lv, c.style, c.sequence, /*type=*/13))
                     blit_cell(gx, gy, *t);
             }
         }
@@ -210,15 +221,16 @@ void render_world(std::vector<std::uint8_t>& fb,
             const int dy = diag - dx;
             const int gx = base_x + dx;
             const int gy = base_y + dy;
-            if (gx < 0 || gy < 0 || gx >= mw || gy >= m.height()) continue;
-            const std::size_t off = std::size_t(gy) * mw + gx;
-            for (const auto& wl : m.walls()) {
+            const auto [lv, off] = at(gx, gy);
+            if (!lv) continue;
+            const auto& cm = lv->ds1;
+            for (const auto& wl : cm.walls()) {
                 const auto& c = wl.cells[off];
                 if (c.hidden) continue;
                 const int type = c.wall_type;
                 if (type == 0) continue;         // floor marker in wall stream
                 if (type == 13) continue;        // shadow (drawn above)
-                if (auto* t = find_tile(c.style, c.sequence, type)) {
+                if (auto* t = find_tile(*lv, c.style, c.sequence, type)) {
                     if (type == 15) {
                         // Roof — hoist by the DT1's own roof_height plus
                         // any DS1-encoded offset in wall_zero's upper bits.
@@ -280,7 +292,7 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     const auto dirs = p.cof.directions();
     const auto fpd  = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return;
-    const auto dir = std::uint8_t(std::min(dir_want, dirs - 1));
+    const auto dir = cof_direction(dir_want, dirs);
     // 25 ticks/s; each tick advances speed/256 frames.
     const auto ms_per_frame = 40u * 256u / std::max<std::uint32_t>(p.speed ? p.speed : p.cof.speed(), 1);
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);

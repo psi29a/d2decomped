@@ -8,6 +8,8 @@ namespace {
 // Forward decl — full body lives after Scene{} construction so it can use
 // the same members without repeating field types.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
+void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::OutdoorAssets& a,
+                     const std::vector<d2d::drlg::Placed>& layout);
 
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
@@ -35,6 +37,16 @@ inline int direction16(float dx, float dy) {
     const float a = std::atan2(-sx, sy);                    // 0 = down, + = clockwise
     const int sector = int(std::lround(a / (2 * 3.14159265f / 16)));
     return kFromSector[std::size_t((sector % 16 + 16) % 16)];
+}
+// A composite's direction for a 16-direction facing: 0..7 are the eight
+// compass points, 8..15 the ones between; an 8-direction composite (town
+// NPCs, mercs) takes the neighbouring point for those — clamping them
+// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
+// game.exe maps its 64 unit directions per direction count, not RE'd.
+inline std::uint8_t cof_direction(int dir16, int dirs) {
+    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
+    const int d = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
+    return std::uint8_t(std::clamp(d, 0, std::max(dirs - 1, 0)));
 }
 constexpr const char* kModeCode[7] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW" };
 constexpr const char* kLayerCode[16] = {
@@ -105,7 +117,7 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
 // Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><BaseW>,
 // then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
 // with the recipe's component for that layer ("lit" when blank).
-Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Scene::Npc& n,
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
                                      const std::string& mode) {
     Scene::PlayerAnim out;
     char path[256];
@@ -189,7 +201,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     };
     // A monster unit from its MonStats / MonStats2 row (same Id order).
     auto monster = [&](std::size_t row) {
-        Scene::Npc n;
+        Npc n;
         n.root   = "monsters";
         n.mode   = "NU";
         n.code   = std::string(ms.get(row, "Code"));
@@ -219,7 +231,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         return n;
     };
-    for (const auto& o : scene.world_ds1.objects()) {
+    for (const auto& o : scene.town.ds1.objects()) {
         if (o.type != 1 || o.id < 0 || std::size_t(o.id) >= act1.size()) continue;
         const std::string place(preset.get(act1[std::size_t(o.id)], "Place"));
         const auto it = ms2_row.find(place);
@@ -230,7 +242,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.y = (float(o.y) + 0.5f) / 5;
         for (const auto& pt : o.path)
             n.path.emplace_back((float(pt.x) + 0.5f) / 5, (float(pt.y) + 0.5f) / 5);
-        scene.world_npcs.push_back(std::move(n));
+        scene.town.npcs.push_back(std::move(n));
     }
 
     // Mercenaries: hireling.txt (LoD rows, Version 100) by Id -> the MonStats
@@ -256,13 +268,13 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     const auto objects = txt("objects");
     std::unordered_map<std::string, std::size_t> obj_row;
     for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
-    for (const auto& o : scene.world_ds1.objects()) {
+    for (const auto& o : scene.town.ds1.objects()) {
         if (o.type != 2 || o.id < 0 || o.id >= 150) continue;
         const int oid = kObjPreset[0][std::size_t(o.id)];    // act 1
         const auto it = obj_row.find(std::to_string(oid));
         if (oid == 0 || it == obj_row.end()) continue;
         const auto r = it->second;
-        Scene::Npc n;
+        Npc n;
         n.root   = "objects";
         n.code   = std::string(objects.get(r, "Token"));
         n.operate_fn = std::atoi(std::string(objects.get(r, "OperateFn")).c_str());
@@ -287,21 +299,21 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         if (n.code.empty()) continue;
         n.x = (float(o.x) + 0.5f) / 5;
         n.y = (float(o.y) + 0.5f) / 5;
-        scene.world_npcs.push_back(std::move(n));
+        scene.town.npcs.push_back(std::move(n));
     }
 
     // Footprints into the walk grid, centred on each unit's subtile.
     // (Quest-gated units like Cain stay out of it: they're not always there.)
     // ponytail: static — fine while NPCs only idle; moving units need a
     // separate occupancy layer.
-    const int ww = scene.world_ds1.width() * 5, wh = scene.world_ds1.height() * 5;
-    for (const auto& n : scene.world_npcs) {
+    const int ww = scene.town.ds1.width() * 5, wh = scene.town.ds1.height() * 5;
+    for (const auto& n : scene.town.npcs) {
         if (!n.path.empty() || n.quest) continue;   // walkers don't hold a spot
         const int cx = int(n.x * 5), cy = int(n.y * 5);
         for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
             for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
                 if (x >= 0 && y >= 0 && x < ww && y < wh)
-                    scene.world_walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
+                    scene.town.walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
     }
 
     // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify
@@ -311,13 +323,13 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     // ponytail: where a game with the quest already done places him isn't
     // located; he stands 3 subtiles off the town start, like the
     // Tristram spawn's offset (FUN_00593290).
-    for (std::size_t r = 0; r < ms.size() && scene.town_start.first >= 0; ++r) {
+    for (std::size_t r = 0; r < ms.size() && scene.town.start.first >= 0; ++r) {
         if (ms.get(r, "hcIdx") != "265") continue;
         auto n = monster(r);
         if (n.code.empty()) break;
         n.quest = 4;
-        std::tie(n.x, n.y) = scene.nearest_free(scene.town_start.first + 0.6f, scene.town_start.second + 0.6f);
-        scene.world_npcs.push_back(std::move(n));
+        std::tie(n.x, n.y) = scene.town.nearest_free(scene.town.start.first + 0.6f, scene.town.start.second + 0.6f);
+        scene.town.npcs.push_back(std::move(n));
         break;
     }
 }
@@ -558,7 +570,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         if (auto b = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*b);
         const auto lv = txt("Levels");
         for (std::size_t r = 0; r < lv.size(); ++r)
-            if (lv.get(r, "Id") == "1") scene.town_level_type = std::atoi(std::string(lv.get(r, "LevelType")).c_str());
+            if (lv.get(r, "Id") == "1") scene.town.type = std::atoi(std::string(lv.get(r, "LevelType")).c_str());
         for (std::size_t r = 0; r < lv.size(); ++r) {
             const auto wp = lv.get(r, "Waypoint");
             const int act = std::atoi(std::string(lv.get(r, "Act")).c_str());
@@ -573,17 +585,19 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                    { R"(data\global\ui\menu\expwaygatetabs.dc6)", &scene.wp_tabs[1] } })
             if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     }
-    // Rogue Encampment (Levels.txt Id 1) -> SoundEnv -> SoundEnviron Song /
-    // Day Ambience (Sounds.txt indices).
+    // Rogue Encampment / Blood Moor (Levels.txt Id 1 / 2): automap Layer,
+    // and SoundEnv -> SoundEnviron Song / Day Ambience (Sounds.txt indices).
     {
         const auto lv = txt("Levels"), se = txt("SoundEnviron");
         for (std::size_t r = 0; r < lv.size(); ++r) {
-            if (lv.get(r, "Id") != "1") continue;
+            Level* into = lv.get(r, "Id") == "1" ? &scene.town : lv.get(r, "Id") == "2" ? &scene.moor : nullptr;
+            if (!into) continue;
+            into->layer = std::atoi(std::string(lv.get(r, "Layer")).c_str());
             const auto env = lv.get(r, "SoundEnv");
             for (std::size_t e = 0; e < se.size(); ++e)
                 if (se.get(e, "Index") == env) {
-                    scene.town_song = std::atoi(std::string(se.get(e, "Song")).c_str());
-                    scene.town_ambience = std::atoi(std::string(se.get(e, "Day Ambience")).c_str());
+                    into->song = std::atoi(std::string(se.get(e, "Song")).c_str());
+                    into->ambience = std::atoi(std::string(se.get(e, "Day Ambience")).c_str());
                 }
         }
     }
@@ -594,7 +608,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (std::size_t(i) >= scene.sounds.size()) scene.sounds.resize(std::size_t(i) + 1);
             scene.sounds[std::size_t(i)] = { std::string(st.get(r, "FileName")),
                                              std::atoi(std::string(st.get(r, "Volume")).c_str()),
-                                             st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1" };
+                                             st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1",
+                                             std::atoi(std::string(st.get(r, "Fade In")).c_str()),
+                                             std::atoi(std::string(st.get(r, "Fade Out")).c_str()) };
         }
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
@@ -877,7 +893,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
     d2d::log::info("Characters: {} in {}", scene.saves.size(), dir.string());
 }
 
-std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer) {
+std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed) {
     const auto d2data = data_dir / "d2data.mpq";
     if (!fs::exists(d2data)) {
         d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
@@ -1040,14 +1056,28 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         d2d::log::info("  Strings: {} base, {} patch, {} expansion; {} credit lines",
                        scene.strings.size(), scene.patch_strings.size(), scene.exp_strings.size(),
                        scene.credits.size());
-        load_world(scene, mpqs,
-                   R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
+        // Act 1's layout from the map seed picks the town's DS1 (the side
+        // the Blood Moor went) and where both sit.
+        scene.map_seed = map_seed;
+        d2d::drlg::OutdoorAssets act1;
+        d2d::drlg::load_outdoor_assets(act1, [&](const std::string& p) { return mpqs.try_read(p); });
+        const auto layout = d2d::drlg::act1_from_map_seed(d2d::drlg::level_defs(act1.levels), map_seed);
+        static constexpr std::array<const char*, 4> kTown = { R"(data\global\tiles\ACT1\TOWN\townN1.ds1)",
+                                                               R"(data\global\tiles\ACT1\TOWN\townE1.ds1)",
+                                                               R"(data\global\tiles\ACT1\TOWN\townS1.ds1)",
+                                                               R"(data\global\tiles\ACT1\TOWN\townW1.ds1)" };
+        const int tf = std::max(0, d2d::drlg::town_file(layout));
+        load_world(scene, mpqs, kTown[std::size_t(tf)]);
+        for (const auto& p : layout)
+            if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
+        scene.act1_layout = layout;
+        load_wilderness(scene, mpqs, act1, layout);
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
         d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - t0);
         d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
                        scene.item_tables ? "tables loaded" : "no item tables",
-                       scene.sounds.size(), scene.world_npcs.size());
+                       scene.sounds.size(), scene.town.npcs.size());
         scene.patched = patched;
         if (auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
             scene.cinematics_panel = d2d::dc6::Sprite(*b);
@@ -1084,9 +1114,92 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
          |  std::uint64_t(std::uint16_t(type ));
 }
 
+// A level's tile lookup and collision grid, once its ds1 and dt1s are in.
+void finish_level(Level& L) {
+    // Populate the (style, seq, type) lookup across all DT1s. First DT1
+    // to define a tuple wins — matches how D2's renderer resolves tile
+    // priority against its Stack-ordered tileset list. Covers floors,
+    // walls, trees, roofs, shadows in one map.
+    // ponytail: first match, not game.exe's rarity pick (FUN_0066d820).
+    for (const auto& dt1 : L.dt1s)
+        for (const auto& t : dt1.tiles()) L.tile_lookup.try_emplace(tile_key(t.style, t.sequence, t.type), &t);
+    // Collision grid from the same tiles the renderer draws: floors
+    // (type 0) and walls/objects, but not shadows (13) or roofs (15).
+    // A tile's 25 DT1 subtile flags OR straight into the grid, rows stored
+    // bottom-up: subtile (x, y) takes flag (4 - y) * 5 + x (FUN_0064c4c0,
+    // building the room grid in FUN_0064c900). Units stamp their own
+    // footprints (load_npcs).
+    const auto& m = L.ds1;
+    const int ww = m.width() * 5;
+    L.walk.assign(std::size_t(ww) * std::size_t(m.height()) * 5, 0);
+    auto stamp = [&](int gx, int gy, int style, int seq, int type) {
+        const auto it = L.tile_lookup.find(tile_key(style, seq, type));
+        if (it == L.tile_lookup.end()) return;
+        for (int k = 0; k < 25; ++k)
+            L.walk[std::size_t(gy * 5 + 4 - k / 5) * std::size_t(ww) + std::size_t(gx * 5 + k % 5)]
+                |= it->second->subtile_flags[std::size_t(k)];
+    };
+    for (int gy = 0; gy < m.height(); ++gy)
+        for (int gx = 0; gx < m.width(); ++gx) {
+            const std::size_t off = std::size_t(gy) * std::size_t(m.width()) + std::size_t(gx);
+            for (const auto& fl : m.floors())
+                if (!fl.cells[off].hidden && (fl.cells[off].prop1 & 2)) stamp(gx, gy, fl.cells[off].style, fl.cells[off].sequence, 0);
+            for (const auto& wl : m.walls()) {
+                const auto& c = wl.cells[off];
+                if (c.hidden || c.wall_type == 0 || c.wall_type == 13 || c.wall_type == 15) continue;
+                stamp(gx, gy, c.style, c.sequence, c.wall_type);
+            }
+        }
+}
+
+// The Blood Moor from the map seed (components/drlg): act 1's layout
+// places it against the town, the generator fills it, its tiles come from
+// the Act 1 wilderness DT1s (LvlTypes).
+void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::OutdoorAssets& a,
+                     const std::vector<d2d::drlg::Placed>& layout) {
+    const auto t0 = d2d::log::ms();
+    const auto L = d2d::drlg::outdoor_level(a.levels, layout, 2);
+    if (L.rect.w == 0) { d2d::log::warn("wilderness: the layout placed no Blood Moor"); return; }
+    auto o = d2d::drlg::generate_outdoor(a.data, L, d2d::drlg::level_seed(scene.map_seed, 2));
+    for (const auto& n : o.notes) d2d::log::info("  not implemented: {}", n);
+    auto& lv = scene.moor;
+    lv.id = 2;
+    lv.type = 2;
+    lv.ds1 = std::move(o.tiles);
+    lv.world_x = L.rect.x;
+    lv.world_y = L.rect.y;
+    if (auto b = mpqs.try_read(R"(data\global\excel\LvlTypes.txt)")) {
+        const d2d::txt::Table lt(*b);
+        for (std::size_t r = 0; r < lt.size(); ++r) {
+            if (d2d::drlg::to_int(lt.get(r, "Id"), -1) != 2) continue;
+            for (int i = 1; i <= 32; ++i) {
+                const auto f = lt.get(r, "File " + std::to_string(i));
+                if (f.empty() || f == "0") continue;
+                auto db = mpqs.try_read(R"(data\global\tiles\)" + ds1_path_to_mpq(f));
+                if (!db) continue;
+                try { lv.dt1s.emplace_back(*db); } catch (const std::exception& e) { d2d::log::warn("wilderness: {}: {}", f, e.what()); }
+            }
+        }
+    }
+    finish_level(lv);
+    d2d::log::info("  Blood Moor: {}x{} tiles at ({}, {}), {} roads, {} tilesets, map seed {} ({} ms)",
+                   lv.ds1.width(), lv.ds1.height(), lv.world_x, lv.world_y, o.roads.size(), lv.dt1s.size(),
+                   scene.map_seed, d2d::log::ms() - t0);
+}
+
+// The town and the Blood Moor as neighbours in the act (Level::near).
+// Pointers into the scene: call once it's where it will stay.
+void link_levels(Scene& s) {
+    s.town.near.clear();
+    s.moor.near.clear();
+    if (s.moor.ds1.width() == 0 || s.town.ds1.width() == 0) return;
+    s.town.near.push_back({ &s.moor, s.moor.world_x - s.town.world_x, s.moor.world_y - s.town.world_y });
+    s.moor.near.push_back({ &s.town, s.town.world_x - s.moor.world_x, s.town.world_y - s.moor.world_y });
+}
+
 // Load one DS1 + every DT1 it references (silently skips missing ones —
 // some rogue-camp DS1s reference .tg1 tile-group files, which aren't
-// present in 1.14d). Populates world_ds1, world_dt1s, world_floor_lookup
+// present in 1.14d). Populates the level's ds1, dt1s, tile_lookup, walk
 // and act1_pal on the scene. Idempotent, called once during load_scene.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     auto b = mpqs.try_read(ds1_path);
@@ -1094,55 +1207,21 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
         d2d::log::warn("world: {} not found — placeholder mode", ds1_path);
         return;
     }
-    scene.world_ds1 = d2d::ds1::Map(*b);
-    scene.world_dt1s.reserve(scene.world_ds1.files().size());
-    for (const auto& f : scene.world_ds1.files()) {
+    scene.town.id = 1;                                  // ponytail: the only level loaded so far
+    scene.town.ds1 = d2d::ds1::Map(*b);
+    scene.town.dt1s.reserve(scene.town.ds1.files().size());
+    for (const auto& f : scene.town.ds1.files()) {
         const auto mpq_path = ds1_path_to_mpq(f);
         auto db = mpqs.try_read(mpq_path);
         if (!db) continue;   // .tg1 or otherwise-missing — silent skip
         try {
-            scene.world_dt1s.emplace_back(*db);
+            scene.town.dt1s.emplace_back(*db);
         } catch (const std::exception& e) {
             d2d::log::warn("world: {}: {}", mpq_path, e.what());
         }
     }
-    // Populate the (style, seq, type) lookup across all DT1s. First DT1
-    // to define a tuple wins — matches how D2's renderer resolves tile
-    // priority against its Stack-ordered tileset list. Covers floors,
-    // walls, trees, roofs, shadows in one map.
-    for (const auto& dt1 : scene.world_dt1s) {
-        for (const auto& t : dt1.tiles()) {
-            const auto k = tile_key(t.style, t.sequence, t.type);
-            scene.world_tile_lookup.try_emplace(k, &t);
-        }
-    }
-    // Collision grid from the same tiles the renderer draws: floors
-    // (type 0) and walls/objects, but not shadows (13) or roofs (15).
-    // A tile's 25 DT1 subtile flags OR straight into the grid, rows stored
-    // bottom-up: subtile (x, y) takes flag (4 - y) * 5 + x (FUN_0064c4c0,
-    // building the room grid in FUN_0064c900). Units stamp their own
-    // footprints (load_npcs).
-    const auto& m = scene.world_ds1;
-    const int ww = m.width() * 5;
-    scene.world_walk.assign(std::size_t(ww) * std::size_t(m.height()) * 5, 0);
-    auto stamp = [&](int gx, int gy, int style, int seq, int type) {
-        const auto it = scene.world_tile_lookup.find(tile_key(style, seq, type));
-        if (it == scene.world_tile_lookup.end()) return;
-        for (int k = 0; k < 25; ++k)
-            scene.world_walk[std::size_t(gy * 5 + 4 - k / 5) * std::size_t(ww) + std::size_t(gx * 5 + k % 5)]
-                |= it->second->subtile_flags[std::size_t(k)];
-    };
-    for (int gy = 0; gy < m.height(); ++gy)
-        for (int gx = 0; gx < m.width(); ++gx) {
-            const std::size_t off = std::size_t(gy) * std::size_t(m.width()) + std::size_t(gx);
-            for (const auto& fl : m.floors())
-                if (!fl.cells[off].hidden) stamp(gx, gy, fl.cells[off].style, fl.cells[off].sequence, 0);
-            for (const auto& wl : m.walls()) {
-                const auto& c = wl.cells[off];
-                if (c.hidden || c.wall_type == 0 || c.wall_type == 13 || c.wall_type == 15) continue;
-                stamp(gx, gy, c.style, c.sequence, c.wall_type);
-            }
-        }
+    finish_level(scene.town);
+    const auto& m = scene.town.ds1;
     // The town start, as game.exe picks it on joining: DS1 special walls
     // (orientation 10/11) with main index 30..33 become the level's spawn
     // list (code at 0x667d09: main 30 sub n -> index n, 31 -> n+5,
@@ -1152,16 +1231,16 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     // free spot. ponytail: first match instead of a random one — each
     // Act 1 town DS1 has exactly one.
     for (const auto& L : m.walls())
-        for (std::size_t i = 0; i < L.cells.size() && scene.town_start.first < 0; ++i) {
+        for (std::size_t i = 0; i < L.cells.size() && scene.town.start.first < 0; ++i) {
             const auto& t = L.cells[i];
             if ((t.wall_type == 10 || t.wall_type == 11) && t.style == 30 && t.sequence <= 4)
-                scene.town_start = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
+                scene.town.start = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
                                      (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
         }
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);
     d2d::log::info("  World: {} {}x{}, {} of {} tilesets, {} tiles", ds1_path, m.width(), m.height(),
-                   scene.world_dt1s.size(), m.files().size(), scene.world_tile_lookup.size());
+                   scene.town.dt1s.size(), m.files().size(), scene.town.tile_lookup.size());
 }
 
 }  // namespace

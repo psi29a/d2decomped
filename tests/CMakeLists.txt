@@ -26,7 +26,25 @@ d2d_add_test(test_d2s d2s mpq)
 d2d_add_test(test_userdir userdir)
 d2d_add_test(test_compcode mpq compcode)
 d2d_add_test(test_rules rules)
+d2d_add_test(test_drlg drlg)
+d2d_add_test(test_outdoor drlg mpq)
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 add_test(NAME smoke_d2d
          COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/smoke_d2d.py $<TARGET_FILE:d2d>)
+
+# Optional game-data inputs, handed to the tests that use them (they skip
+# those parts when unset): -DD2_PATCH_INSTALLER=.../LODPatch_114d.exe,
+# -DD2_SAVES_DIR=<dir of real .d2s saves>.
+set(D2_PATCH_INSTALLER "$ENV{D2_PATCH_INSTALLER}" CACHE FILEPATH "LODPatch_114d.exe for the 1.14d tables")
+set(D2_SAVES_DIR "$ENV{D2_SAVES_DIR}" CACHE PATH "Real .d2s saves for parser checks")
+set(d2d_test_env "")
+if (D2_PATCH_INSTALLER)
+    list(APPEND d2d_test_env "D2_PATCH_INSTALLER=${D2_PATCH_INSTALLER}")
+endif()
+if (D2_SAVES_DIR)
+    list(APPEND d2d_test_env "D2_SAVES_DIR=${D2_SAVES_DIR}")
+endif()
+if (d2d_test_env)
+    set_tests_properties(smoke_d2d test_d2s test_outdoor PROPERTIES ENVIRONMENT "${d2d_test_env}")
+endif()

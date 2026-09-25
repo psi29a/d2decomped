@@ -11,6 +11,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>
+#include <outdoor_data.hpp>
 #include <dt1.hpp>
 #include <font.hpp>
 #include <palette.hpp>

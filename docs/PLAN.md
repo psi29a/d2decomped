@@ -117,6 +117,32 @@ Noted while playing the dev build (2026-09-24):
   - quest topics and the extra entries (Kashya's hire, Warriv's "go
     east") come from the game server (docs/research/re/npc-talk.md).
 
+## Wilderness plan (from 2026-09-25)
+
+Goal: walk out of the Rogue Encampment into a Blood Moor laid out the way
+game.exe lays it out, then fill it with monsters.
+
+A. **Act layout** — done: `components/drlg` `act1_layout`, `test_drlg`;
+   the town DS1 comes from it (`--seed`, default 3 = townE1).
+B. **Outdoor DRLG** — done for the Blood Moor: `components/drlg/outdoor.hpp`
+   (borders, border substitution, river/bridge, Den of Evil, roads,
+   shrines markers, fills, plain rooms with LvlSub stamps, preset rooms),
+   `test_outdoor` over 60 seeds. Gaps, logged as "not implemented" at
+   load: preset units (FUN_00667620, so later room seeds drift from
+   game.exe), stamp objects (shrines, waypoints), CheckAll stamps, cliff
+   caves / cliff styles / waypoints (other act 1 levels), rarity tile
+   picks (first DT1 match instead of FUN_0066d820).
+C. **Levels from stamps** — done: the generator builds one `ds1::Map`
+   for the level; `finish_level` gives it the town's lookup + collision.
+D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
+   so collision, pathing and drawing carry on across the edge; walk over
+   the town's bridge and `Town::cross_level` hands the player (path,
+   merc, automap, music) to the Blood Moor. Walking toward a level that
+   isn't built (Cold Plains) logs "not implemented". ponytail: the
+   neighbour's NPCs aren't drawn across the edge.
+E. **Monsters**: Levels.txt mon1..mon10 / MonStats spawning, idle and
+   wandering units on the unit model — the start of phase 6 (combat).
+
 ## Next up (as of 2026-09-24)
 
 1. Testable game rules: store, prices, item cursor, stat/skill points,

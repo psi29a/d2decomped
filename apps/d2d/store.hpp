@@ -8,8 +8,8 @@ namespace {
 using d2d::rules::Store;
 
 // The store for world NPC npc (stock rolled from rng).
-Store open_store(const Scene& s, int npc, std::uint32_t& rng) {
-    const auto& n = s.world_npcs[std::size_t(npc)];
+Store open_store(const Scene& s, const Level& L, int npc, d2d::rules::Rng& rng) {
+    const auto& n = L.npcs[std::size_t(npc)];
     Store st = d2d::rules::open_store(s.rules, n.hc_idx, n.id, rng);
     st.npc = npc;
     return st;
@@ -61,8 +61,8 @@ int store_item_at(const Scene& s, const Store& st, int mx, int my) {
     return -1;
 }
 
-std::array<int, 4> store_button_frames(const Scene& s, const Store& st) {
-    const bool repair = st.npc >= 0 && d2d::rules::is_repair_vendor(s.world_npcs[std::size_t(st.npc)].hc_idx);
+std::array<int, 4> store_button_frames(const Store& st) {
+    const bool repair = st.npc >= 0 && d2d::rules::is_repair_vendor(st.hc_idx);
     return { 2, 4, repair ? 6 : 0, repair ? 18 : 10 };
 }
 
@@ -100,7 +100,7 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
         if (active) s.font.draw_tinted(fb, kW, kH, pal, x, y, label, 199, 179, 119);
         else        s.font.draw(fb, kW, kH, pal, x, y, label);
     }
-    const auto frames = store_button_frames(s, st);
+    const auto frames = store_button_frames(st);
     static constexpr int kBtnX[4] = { 116, 169, 221, 273 };
     for (int i = 0; i < 4; ++i)
         if (std::uint32_t(frames[std::size_t(i)] + 1) < s.store_buttons.frames_per_direction()) {

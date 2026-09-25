@@ -11,17 +11,27 @@ namespace {
 // with SDL (PCM/ADPCM) to 8/16-bit PCM. Files: music (`Music Vol` 1)
 // under data\global\music, the rest under data\global\sfx, speech under
 // data\local\sfx. Headless runs use openal-soft's null backend.
-// ponytail: channels are head-relative (no 3D positions yet), no fades.
+// Changing songs cross-fades like game.exe: the old one fades out over its
+// Sounds.txt Fade Out, the new one in over its Fade In (FUN_004b9ef0 /
+// FUN_004ba020 ramp the volume linearly), in sound ticks — 25 a second.
+// ponytail: channels are head-relative (no 3D positions yet); ambience
+// changes don't fade; songs restart instead of resuming at their Block
+// cue points (FUN_004dcaa0 keeps a position per song).
 struct Audio {
     struct Decoded { ALenum format = 0; ALsizei freq = 0; std::vector<Uint8> pcm; };
     struct Channel {
         ALuint src = 0, buf = 0;
         int sound = 0;                           // Sounds.txt index, 0 = silent, -1 = a fixed file
+        float gain = 1.f, fade_from = 0.f, fade_to = 0.f;
+        std::uint64_t fade_t0 = 0, fade_t1 = 0;  // SDL ms; t1 = 0: not fading
     };
+    static constexpr std::uint64_t kTickMs = 40;   // a sound tick (FUN_00482c20, 25 Hz)
     bool ok = false;
     ALCdevice* dev = nullptr;
     ALCcontext* ctx = nullptr;
     Channel voice, music, ambience, ui;
+    Channel music_old;                           // the previous song, fading out under `music`
+    std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
     int voice_sound() const { return voice.sound; }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads).
@@ -41,7 +51,7 @@ struct Audio {
     }
     ~Audio() {
         video_stop();
-        for (auto* c : { &voice, &music, &ambience, &ui }) stop(*c);
+        for (auto* c : { &voice, &music, &music_old, &ambience, &ui }) stop(*c);
         if (music_job.valid()) music_job.wait();
         alcMakeContextCurrent(nullptr);
         if (ctx) alcDestroyContext(ctx);
@@ -86,6 +96,8 @@ struct Audio {
         alGenSources(1, &c.src);
         alSourcei(c.src, AL_BUFFER, ALint(c.buf));
         alSourcef(c.src, AL_GAIN, gain);
+        c.gain = gain;
+        c.fade_t1 = 0;
         alSourcei(c.src, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
         alSourcei(c.src, AL_SOURCE_RELATIVE, AL_TRUE);
         alSourcePlay(c.src);
@@ -127,6 +139,33 @@ struct Audio {
             const auto wav = st.try_read(path);
             return wav ? decode(*wav) : std::nullopt;
         });
+    }
+    void set_gain(Channel& c, float g) {
+        c.gain = g;
+        if (c.src) alSourcef(c.src, AL_GAIN, g);
+    }
+    void fade(Channel& c, float to, std::uint64_t ms) {
+        c.fade_from = c.gain;
+        c.fade_to = to;
+        c.fade_t0 = SDL_GetTicks();
+        c.fade_t1 = c.fade_t0 + std::max<std::uint64_t>(ms, 1);
+    }
+    // A new level's song (FUN_004dcaa0): the playing one fades out while
+    // this one, once decoded, fades in.
+    void crossfade_music(const Scene& s, int index) {
+        auto fade_of = [&](int i, bool in) {
+            if (i <= 0 || std::size_t(i) >= s.sounds.size()) return std::uint64_t(0);
+            return std::uint64_t(in ? s.sounds[std::size_t(i)].fade_in : s.sounds[std::size_t(i)].fade_out) * kTickMs;
+        };
+        stop(music_old);
+        if (music.src) {
+            const auto out = fade_of(music.sound, false);
+            music_old = music;
+            music = {};
+            fade(music_old, 0.f, out);
+        }
+        music_fade_in_ms = fade_of(index, true);
+        play_music(s, index);
     }
     void play_music(const Scene& s, int index) {
         if (index <= 0 || std::size_t(index) >= s.sounds.size()) { stop(music); return; }
@@ -190,9 +229,23 @@ struct Audio {
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto d = music_job.get();
             if (!d) d2d::log::warn("music {}: not loaded", music_job_sound);
-            else if (music.sound == music_job_sound) start(music, *d, music_job_gain, music_job_loop, music_job_sound);
+            else if (music.sound == music_job_sound && start(music, *d, music_job_gain, music_job_loop, music_job_sound)
+                     && music_fade_in_ms) {
+                set_gain(music, 0.f);
+                fade(music, music_job_gain, music_fade_in_ms);
+            }
+            music_fade_in_ms = 0;
         }
-        for (auto* c : { &voice, &ui, &ambience, &music }) {
+        const auto now = SDL_GetTicks();
+        for (auto* c : { &music, &music_old }) {
+            if (!c->fade_t1) continue;
+            const float t = std::min(1.f, float(now - c->fade_t0) / float(c->fade_t1 - c->fade_t0));
+            set_gain(*c, c->fade_from + (c->fade_to - c->fade_from) * t);
+            if (t < 1.f) continue;
+            c->fade_t1 = 0;
+            if (c == &music_old) stop(music_old);
+        }
+        for (auto* c : { &voice, &ui, &ambience, &music, &music_old }) {
             if (!c->src) continue;
             ALint state = 0;
             alGetSourcei(c->src, AL_SOURCE_STATE, &state);

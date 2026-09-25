@@ -13,9 +13,9 @@
 //   • per-cell tile references (packed dwords, one per layer per cell)
 //   • object placements (type / id / x / y / flags)
 //
+//   • substitution groups: rectangles LvlSub stamps copy from (DRLG)
+//
 // What we skip (add when needed):
-//   • substitution groups (used for dynamic tile swap — quest state)
-//   • NPCs + NPC action paths (version > 14)
 //   • orientation dword decoding beyond the type byte (the rest is
 //     "zero" padding — kept as `wall_zero` if the caller cares)
 //
@@ -70,6 +70,10 @@ struct PathPoint {
     std::int32_t action{};      // v15+: what the NPC does on arrival
 };
 
+// A substitution group (DS1 substitution type 1 / 2): a rectangle of
+// tiles; `variants` (v13+) counts the alternatives laid out to its right.
+struct Group { std::int32_t x{}, y{}, w{}, h{}, variants{}; };
+
 struct Object {
     std::int32_t type{};
     std::int32_t id{};
@@ -83,6 +87,20 @@ class Map {
 public:
     Map() = default;
     explicit Map(std::span<const std::byte> bytes) { parse(bytes); }
+    // An empty map to build into (the DRLG's generated levels).
+    Map(int width, int height, int walls, int floors) : version_(18), width_(width), height_(height), act_(1) {
+        const auto cells = std::size_t(width) * std::size_t(height);
+        walls_.assign(std::size_t(walls), Layer{ std::vector<Tile>(cells) });
+        floors_.assign(std::size_t(floors), Layer{ std::vector<Tile>(cells) });
+        shadows_.assign(1, Layer{ std::vector<Tile>(cells) });
+    }
+
+    // A tile dword and back (lossless; walls keep their orientation apart).
+    [[nodiscard]] static Tile tile(std::uint32_t dw) { Tile t; decode_tile_dword(dw, t); return t; }
+    [[nodiscard]] static std::uint32_t word(const Tile& t) {
+        return std::uint32_t(t.prop1) | std::uint32_t(t.sequence) << 8 | std::uint32_t(t.unknown1) << 14
+             | std::uint32_t(t.style) << 20 | std::uint32_t(t.unknown2) << 26 | (t.hidden ? 0x80000000u : 0u);
+    }
 
     [[nodiscard]] int version()          const noexcept { return version_; }
     [[nodiscard]] int width()            const noexcept { return width_; }
@@ -93,6 +111,11 @@ public:
     [[nodiscard]] const std::vector<Layer>& floors()        const noexcept { return floors_; }
     [[nodiscard]] const std::vector<Layer>& shadows()       const noexcept { return shadows_; }
     [[nodiscard]] const std::vector<Object>& objects()      const noexcept { return objects_; }
+    [[nodiscard]] int sub_type()                              const noexcept { return sub_type_; }
+    [[nodiscard]] const std::vector<Group>& groups()        const noexcept { return groups_; }
+    std::vector<Layer>& walls()   noexcept { return walls_; }
+    std::vector<Layer>& floors()  noexcept { return floors_; }
+    std::vector<Layer>& shadows() noexcept { return shadows_; }
 
 private:
     struct Cursor {
@@ -141,6 +164,7 @@ private:
         if (version_ >= 8) act_ = c.rd_i32() + 1;
         std::int32_t sub_type = 0;
         if (version_ >= 10) sub_type = c.rd_i32();
+        sub_type_ = sub_type;
 
         // File list (v3+).
         if (version_ >= 3) {
@@ -236,13 +260,16 @@ private:
             }
         }
 
-        // Substitution groups (v12+, sub_type 1/2): tile-swap rectangles
-        // for quest state. Skipped — only their size matters here.
+        // Substitution groups (v12+, sub_type 1/2).
         if (version_ >= 12 && (sub_type == 1 || sub_type == 2) && c.p < c.end) {
             if (version_ >= 18) c.skip(4);
             const auto n = c.rd_i32();
             if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus group count");
-            for (std::int32_t g = 0; g < n; ++g) c.skip(version_ >= 13 ? 20 : 16);
+            groups_.resize(std::size_t(n));
+            for (auto& g : groups_) {
+                g.x = c.rd_i32(); g.y = c.rd_i32(); g.w = c.rd_i32(); g.h = c.rd_i32();
+                if (version_ >= 13) g.variants = c.rd_i32();
+            }
         }
 
         // NPC paths (v14+): {count, x, y} then `count` points. The path
@@ -275,6 +302,8 @@ private:
     std::vector<Layer>         floors_;
     std::vector<Layer>         shadows_;
     std::vector<Object>        objects_;
+    int                        sub_type_{};
+    std::vector<Group>         groups_;
 };
 
 }  // namespace d2d::ds1

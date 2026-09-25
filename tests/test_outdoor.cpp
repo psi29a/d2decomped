@@ -1,0 +1,80 @@
+// The Blood Moor from real game data over many map seeds: a closed
+// border, one Den of Evil, roads, grass everywhere else, and the same
+// level from the same seed. Prints one level's cells.
+#include <outdoor_data.hpp>
+#include <mpq.hpp>
+
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+
+namespace fs = std::filesystem;
+using namespace d2d::drlg;
+
+int main() {
+    const char* env = std::getenv("D2_MPQ_DIR");
+    const fs::path dir = env ? fs::path(env) : fs::path(std::getenv("HOME") ? std::getenv("HOME") : "") / "Workspace/private/diablo2";
+    if (!fs::exists(dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", dir.string().c_str()); return 0; }
+    d2d::mpq::Stack mpqs;
+    if (const char* p = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(p);
+    for (const char* n : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / n)) mpqs.push(dir / n);
+
+    OutdoorAssets a;
+    load_outdoor_assets(a, [&](const std::string& p) { return mpqs.try_read(p); });
+    assert(a.levels.size() > 100 && a.data.presets.count(52) && a.data.subs.size() > 10);
+    const auto defs = level_defs(a.levels);
+
+    std::vector<std::string> notes;
+    std::array<std::uint32_t, 4> first{};                       // first map seed per town file
+    for (std::uint32_t seed = 1; seed < 200; ++seed)
+        if (const int f = town_file(act1_from_map_seed(defs, seed)); f >= 0 && !first[std::size_t(f)]) first[std::size_t(f)] = seed;
+    std::printf("first seeds for townN1/E1/S1/W1: %u %u %u %u\n", first[0], first[1], first[2], first[3]);
+    for (std::uint32_t seed = 1; seed <= 60; ++seed) {
+        const auto layout = act1_from_map_seed(defs, seed);
+        const auto L = outdoor_level(a.levels, layout, 2);
+        assert(L.rect.level == 2 && L.rect.w + L.rect.h == 152);
+        assert(L.neighbours.size() == 2);                       // Cold Plains and the town
+        const auto o = generate_outdoor(a.data, L, level_seed(seed, 2));
+        for (const auto& n : o.notes) if (std::ranges::find(notes, n) == notes.end()) notes.push_back(n);
+        auto cell = [&](const std::vector<std::uint32_t>& g, int x, int y) { return g[std::size_t(y * o.cw + x)]; };
+        auto print = [&] {
+            std::printf("seed %u: Blood Moor %dx%d at (%d,%d), flags 0x%x, town at (%d,%d)\n", seed, L.rect.w, L.rect.h,
+                        L.rect.x, L.rect.y, L.rect.flags, L.town.x, L.town.y);
+            for (int y = 0; y < o.ch; ++y) {
+                for (int x = 0; x < o.cw; ++x) {
+                    const auto def = cell(o.g04, x, y), f = cell(o.g2c, x, y);
+                    if (def) std::printf("%3u", def);
+                    else std::printf("  %c", f & 0x200 ? '+' : f & 0x100 ? ' ' : f & 0x80 ? '=' : '.');
+                }
+                std::puts("");
+            }
+        };
+        if (seed == 1 || seed == 3) {
+            print();
+            int road = 0;
+            for (const auto& t : o.tiles.floors()[0].cells) road += (t.prop1 & 0x80) && t.style == 0 && t.sequence;
+            std::printf("road tiles %d; roads:", road);
+            for (const auto& r : o.roads) { std::printf(" ["); for (auto [x, y] : r) std::printf(" %d,%d", x - L.rect.x, y - L.rect.y); std::printf(" ]"); }
+            std::puts("");
+        }
+        int dens = 0;
+        for (int y = 0; y < o.ch; ++y)
+            for (int x = 0; x < o.cw; ++x) {
+                const auto f = cell(o.g2c, x, y);
+                if (x == 0 || y == 0 || x == o.cw - 1 || y == o.ch - 1) { if (!(f & 0x301)) { std::printf("seed %u open at (%d,%d)\n", seed, x, y); print(); } assert(f & 0x301); }   // closed but for the town side
+                dens += cell(o.g04, x, y) == 52;
+            }
+        assert(dens == 1);
+        assert(!o.roads.empty());
+        // Every tile has a floor or a preset's.
+        int bare = 0;
+        for (const auto& t : o.tiles.floors()[0].cells) bare += (t.prop1 == 0);
+        assert(bare < o.tiles.width() * o.tiles.height() / 4);
+        const auto again = generate_outdoor(a.data, L, level_seed(seed, 2));
+        assert(again.g04 == o.g04 && again.g2c == o.g2c && again.roads == o.roads);
+    }
+    for (const auto& n : notes) std::printf("not implemented: %s\n", n.c_str());
+    std::puts("test_outdoor: ok");
+}

@@ -184,6 +184,79 @@ try:
         assert state()["waypoint"] == "9", "waypoint panel did not open"
         cmd("key Escape"); frames()
         assert state()["waypoint"] == "0"
+
+        # --- Town services and panels (synthetic saves: set the stage). ---
+        def near(name):
+            """Warp next to a town NPC, click it, wait for its menu."""
+            cx, cy = (float(v) for v in state()["cam"].split(","))
+            x, y = npc_at(name)
+            u, v = (x - 400) / 80, (y - 340) / 40
+            cmd(f"debug warp {cx + (u + v) / 2 + 1.2:.2f} {cy + (v - u) / 2 + 0.2:.2f}"); frames(6)
+            for _ in range(3):
+                x, y = npc_at(name)
+                cmd(f"move {x} {y - 40}"); frames(2); cmd(f"click {x} {y - 40}"); frames(60)
+                if state()["menu"] != "0":
+                    return
+            raise AssertionError(f"{name}'s menu did not open")
+        def pick(text):
+            x, y = menu_line(text)
+            cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
+        cmd("debug stat 12 30")                  # level 30: Kashya hires
+        cmd("debug stat 15 1000000")             # a stash full of gold
+
+        # Pathing: from the start to Charsi on foot, round the camp.
+        for _ in range(3):
+            x, y = npc_at("Charsi")
+            x, y = max(10, min(790, x)), max(10, min(590, y - 40))
+            cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(240)
+            if state()["menu"] != "0":
+                break
+        assert menu_line("trade/repair"), "didn't walk to Charsi"
+        cmd("key Escape"); frames()
+
+        # Gamble at Gheed: a rolled item lands in the inventory.
+        near("Gheed")
+        pick("gamble")
+        n0 = int(state()["items"])
+        cmd("move 110 137"); cmd("rclick 110 137"); frames(4)   # first stock cell
+        assert int(state()["items"]) == n0 + 1, "gamble bought nothing"
+        # The item cursor: pick it up, put it down elsewhere.
+        at = [l for l in cmd("items").splitlines() if l.startswith("[") and "panel=1 " in l][-1]
+        col, row = (int(v) for v in at.split("at=")[1].rstrip("]").split(","))
+        gx, gy = 419 + 29 * col + 14, 315 + 29 * row + 14
+        cmd("key Escape"); frames()                             # closes the store and the inventory
+        cmd("key i"); frames()
+        cmd(f"move {gx} {gy}"); cmd(f"click {gx} {gy}"); frames(4)
+        assert state()["held"] != "-", "didn't pick the item up"
+        cmd("move 564 373"); cmd("click 564 373"); frames(4)    # mid-grid: fits up to 2x4
+        assert state()["held"] == "-", "didn't put the item down"
+        cmd("key i"); frames()
+
+        # Hire at Kashya: the list, then a rogue follows.
+        near("Kashya")
+        pick("hire")
+        rows = [l.split("\t") for l in cmd("menu").splitlines() if " - " in l]
+        assert len(rows) == 5, "no hire offers"
+        cmd(f"move {rows[0][1]} {rows[0][2]}"); frames(2); cmd(f"click {rows[0][1]} {rows[0][2]}"); frames(6)
+        assert state()["merc"].endswith(":RG"), "hired rogue missing"
+
+        # Cain once rescued: identify items.
+        cmd("debug quest 4")
+        cmd("debug unid")
+        assert state()["unid"] != "0"
+        near("Deckard Cain")
+        pick("identify items")
+        assert state()["unid"] == "0", "Cain didn't identify"
+
+        # Stat and skill points.
+        cmd("debug statpts 2"); cmd("key c"); frames()
+        s0 = int(state()["str"])
+        cmd("move 217 155"); cmd("click 217 155"); frames(4)
+        assert int(state()["str"]) == s0 + 1 and state()["statpts"] == "1", "stat point not spent"
+        cmd("key c"); frames()
+        cmd("debug skillpts 1"); cmd("key t"); frames()
+        assert state()["tree"] != "0"
+        cmd("key t"); frames()
     cmd("key Escape")                 # back to the roster
     frames()
     assert state()["screen"] == "charselect"
@@ -202,6 +275,19 @@ try:
 
     cmd("screenshot ingame.png")      # relative -> <user>/screenshots/
     assert os.path.getsize(os.path.join(user, "screenshots", "ingame.png")) > 0
+
+    # Leaving camp (default map seed 3: the Blood Moor east of the town,
+    # townE1): from the west end of the town's bridge (row 16), walk east
+    # across it into the Blood Moor; its west edge leads back.
+    lv = cmd("debug level").split()
+    assert lv[1] == "1", lv
+    cmd("debug warp 44.5 16.5"); frames(6)
+    for _ in range(14):
+        cmd("move 700 490"); cmd("click 700 490"); frames(30)
+    lv = cmd("debug level").split()
+    assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
+    cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
+    assert cmd("debug level").split()[1] == "1"
 
     cmd("quit")
     assert proc.wait(timeout=10) == 0
