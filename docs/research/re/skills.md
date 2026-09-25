@@ -254,6 +254,40 @@ operand and function lists.
   the weapon), 2 = don't run FUN_0057b7d0 at all, 0x1000 = self damage;
   FUN_0057b7d0 marks 0x20.
 
+### Sequences (anim SQ)
+- `seqnum` is record byte **+0x13** (the loader's field table at 0x616300:
+  monanim +0x11, seqnum +0x13, seqinput after). FUN_00643d00 returns it
+  for players (monsters: MonStats' own). FUN_00663310 finds the frames:
+  players `[0x7483b8 + seqnum × 4]` (23 sequences) + weapon index × 12;
+  monsters FUN_00659e30.
+- Weapon index (FUN_006632c0 → FUN_0064f380's weapon class, through the
+  pairs at 0x748418): hth, 1ht, 2ht, 1hs, 2hs, bow, xbw, stf, 1js, 1jt,
+  1ss, 1st, ht1, ht2. An entry is `{frames, count, count}`; null: the
+  skill has no sequence with that weapon.
+- A frame is 6 bytes `{u16 0, mode, frame, direction 0, event}`: the player
+  shows `frame` of `mode`'s animation; event **1 is a hit** (the skill's
+  srvdofunc runs), 3 comes before some of Jab's and Charge's hits.
+- Generated into `components/rules/sequences.hpp` by
+  `tools/ghidra/gen/sequences.py` (3450 frames, 207 entries). Which skills
+  use them: 1 Jab, 2 Sacrifice, 4 Charge, 5 Conviction, 6 Inferno, 8
+  Impale, 9 Fend, 10 Whirlwind, 11 Double Swing / Frenzy, 12 Lightning /
+  Chain Lightning, 13 Leap, 14 Leap Attack, 15 Double Throw, 16 Fists of
+  Fire / Dragon Claw / Claws of Thunder / Blades of Ice, 18 Arctic Blast,
+  19 Dragon Talon, 21 Dragon Flight, 22 Werewolf / Werebear, 23 Blade
+  Fury. E.g. Jab with a spear: 21 frames, three hits; the claws with two
+  claws: A2 hit then S4 hit; Frenzy: A1 hit then S3 hit.
+- Per hit: **Jab** do 7 (FUN_005db2d0): toht, ED calc1, the element.
+  **Dragon Claw** do 46 (FUN_005d6340 → FUN_005d6200): toht + stat 325,
+  the charges' damage (FUN_005d3ac0 / 005d3ba0), ED calc1, the element,
+  FUN_0057b7d0, then **release** (FUN_005d5220): each claw hit finishes.
+  **Frenzy** do 9 (FUN_005d8e00): the odd (second-hand) frame looks for
+  another target (FUN_0056bd10); FUN_005d8c70: when the last hit landed,
+  the frenzy state's counter (stat 0xa9) + 1 up to the skill level, for
+  auralencalc ticks, its aurastats (velocitypercent dm34, attackrate
+  dm56) at that counter; FUN_005d8b10: toht, ResultFlags, ED calc1, the
+  element. **Double Swing** do 70 (FUN_005d8470): the odd frame retargets,
+  then Bash's build (FUN_005d7ea0).
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -344,8 +378,14 @@ operand and function lists.
    the physical) too; not in them: the masteries on Vengeance. Zeal
    (chained hits, the next target the nearest), Sacrifice (the life
    price) and Smite (S1, the shield, sure hit, stun) too; not in them:
-   FUN_0056bd10's target pick, Holy Shield's damage on Smite. Not yet: SQ
-   sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
+   FUN_0056bd10's target pick, Holy Shield's damage on Smite. SQ
+   sequences play from the traced table (`sequences.hpp`), a hit on each
+   event frame: Jab, Dragon Claw, Frenzy (its speed state), Double Swing,
+   and the claws' charge-ups; not in them: the sequence's own rate (taken
+   as the class's A1 through attack_ticks), seqinput / seqtrans, a skill
+   refused for a weapon with no sequence (it swings once), attackrate
+   taken as IAS. Not yet: Impale, Whirlwind, Leap Attack, Charge, Double
+   Throw, Fend, the other start
    functions (Fend, Charge, Holy Shield, Leap Attack, ...). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2

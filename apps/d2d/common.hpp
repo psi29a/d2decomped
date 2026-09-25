@@ -23,6 +23,7 @@
 #include <combat.hpp>
 #include <drops.hpp>
 #include <skills.hpp>
+#include <sequences.hpp>
 #include <userdir.hpp>
 
 #include "log.hpp"

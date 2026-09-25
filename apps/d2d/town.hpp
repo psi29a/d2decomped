@@ -571,17 +571,20 @@ struct Town {
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         if (pmode == kModeDD) player.mode_ms = ms - (fight.player_anim(kModeDT).length_ms() - 1);
-        const int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        std::uint32_t mode_ms = player.mode_ms;
+        float rate = pmode >= 0 && pmode != kModeDD ? fight.prate : 1.f;
+        if (!fight.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = fight.seq_view(ms); rate = 1.f; }   // an SQ skill's frame
         render_ingame(fb, *scene, *level, ui_cls,
                       fight.gfx(),
                       cc.input_name, cc.hardcore,
                       player.x, player.y, mode,
                       player.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
                       inv_open ? &cc.items : nullptr,
-                      char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player.mode_ms, &cc.items,
+                      char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra, pmode >= 0 && pmode != kModeDD ? fight.prate : 1.f);
+                      nullptr, nullptr, nullptr, extra, rate);
         fight.overlays(fb, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (tree_open)

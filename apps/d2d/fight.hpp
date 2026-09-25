@@ -35,19 +35,24 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // charge-ups (23 / 34, 35: Tiger Strike .. Royal Strike) and Dragon Tail
 // (27 / 50: a kick, then fire around the target), Zeal (37 / 13: calc1
 // hits), Sacrifice (29 / 64: a hit that costs life) and Smite (- / 150:
-// the shield).
+// the shield); and on their sequences' hits Jab (5 / 7), Dragon Claw
+// (25 / 46), Frenzy (- / 9) and Double Swing (- / 70).
 // Every other skill swings a plain attack for now.
 inline bool skill_built(const d2d::rules::Skill& s) {
     return (s.srvdofunc == 2 && (s.srvstfunc == 32 || s.srvstfunc == 6 || s.srvstfunc == 39 || s.srvstfunc == 35)) || (s.srvstfunc == 24 && s.srvdofunc == 42)
         || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50)
-        || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150;
+        || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
+        || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70;
 }
 inline bool attack_mode(int m) { return m == kModeA1 || m == kModeKK || m == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
-// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail.
-// ponytail: Dragon Claw (46) and Dragon Flight aren't built, so they swing
-// as Attack and release that way.
-inline bool finisher(const d2d::rules::Skill* s) { return !s || s->id == 0 || s->srvdofunc == 42 || s->srvdofunc == 50; }
+// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
+// each Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's).
+// ponytail: Dragon Flight isn't built, so it swings as Attack and
+// releases that way.
+inline bool finisher(const d2d::rules::Skill* s) {
+    return !s || s->id == 0 || s->srvdofunc == 42 || s->srvdofunc == 50 || s->srvdofunc == 46;
+}
 
 struct Fight {
     const Scene* scene;
@@ -76,7 +81,13 @@ struct Fight {
     // this swing uses (Attack when it's not built or can't be paid for),
     // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
     int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
-    std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
+    std::int64_t self_hurt = 0;
+    // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
+    // class): its frames, each seq_frame_ms long, and the hits (event 1)
+    // already struck.
+    std::span<const d2d::rules::SeqFrame> seq{};
+    std::uint32_t seq_frame_ms = 40;
+    int seq_struck = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
     std::vector<int> told;                 // skills logged as not built yet
     // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
     // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
@@ -276,6 +287,7 @@ struct Fight {
         const auto& N = scene->skills.names.stats;
         const auto id = [&](const char* n) { const auto i = N.find(n); return i == N.end() ? -2 : i->second; };
         const int armor = id("skill_armor_percent"), over = id("armor_override_percent"), dr = id("damageresist");
+        const int rate = id("attackrate"), vel = id("velocitypercent");
         const auto env = calc_env();
         int armor_pct = 0, over_pct = 0;
         for (const auto& st : self_states) {
@@ -286,6 +298,8 @@ struct Fight {
                 if (s->aurastat[i] == armor) armor_pct += v;
                 else if (s->aurastat[i] == over) over_pct += v;
                 else if (s->aurastat[i] == dr) pf.dr_pct += v;
+                else if (s->aurastat[i] == rate) pf.ias += v;       // ponytail: attackrate taken as IAS
+                else if (s->aurastat[i] == vel) pf.frw += v;
             }
         }
         pf.defense += pf.defense * armor_pct / 100;
@@ -333,9 +347,37 @@ struct Fight {
         }
         const auto* used = scene->skills.get(swing_skill);
         set_pmode(swing_mode(), ms);
+        start_sequence(ms);
         if (used && swing_skill != 0 && used->srvdofunc == 2 && used->aurastat[0] >= 0) self_state(*used, ms);
         pstruck = false;
         return true;
+    }
+    // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
+    // the weapon class) at the attack's speed; with no frames for the
+    // weapon it swings once.
+    // ponytail: the sequence's rate taken as the class's A1 (animdata)
+    // through attack_ticks; seqinput / seqtrans aren't read.
+    void start_sequence(std::uint32_t ms) {
+        seq = {};
+        seq_struck = 0;
+        const auto* s = scene->skills.get(swing_skill);
+        if (!s || swing_skill == 0 || s->anim != "SQ" || s->seqnum <= 0) return;
+        const auto& a1 = player_anim(kModeA1);
+        std::string wc = a1.name.size() >= 7 ? a1.name.substr(4) : "hth";
+        for (auto& c : wc) c = char(std::tolower((unsigned char)c));
+        seq = d2d::rules::sequence(s->seqnum, wc);
+        if (seq.empty()) return;
+        const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(a1.speed ? a1.speed : 256), pf.ias, pf.wsm);
+        pmode_until = ms + std::uint32_t(ticks) * 40;
+        seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(seq.size()), 1);
+        prate = 1.f;
+    }
+    // What the player shows in a sequence: its frame's mode, and a start
+    // time that lands the renderer (frame = elapsed / ms_per_frame) on it.
+    [[nodiscard]] std::pair<int, std::uint32_t> seq_view(std::uint32_t ms) const {
+        const auto& f = seq[std::min<std::size_t>((ms - player.mode_ms) / seq_frame_ms, seq.size() - 1)];
+        const auto mpf = player_anim(f.mode).ms_per_frame();
+        return { f.mode, ms - mpf * f.frame - mpf / 2 };
     }
     // The swing's animation: KK for kicks, S1 for Smite, else A1.
     // ponytail: SQ sequences play A1.
@@ -391,12 +433,15 @@ struct Fight {
             sw.ltng_pct = d2d::rules::eval_calc(T, s->calc[2], env, s->id, lvl);
             sw.cold_len = d2d::rules::elem_length(T, *s, env, lvl);
         } else {                                             // Bash's family (32), Power Strike (6), Berserk (39)
+            // Jab (FUN_005db2d0), Dragon Claw (FUN_005d6200), Frenzy
+            // (FUN_005d8b10) and Double Swing (Bash's FUN_005d7ea0) build
+            // the same way on each hit.
             // Power Strike's start (FUN_005da940) passes no to-hit bonus and
             // no ResultFlags; only Bash's adds calc2 after the damage
             // (Berserk's calc2 is its state's length).
             if (s->srvstfunc == 6) sw.ar_pct = 0;
             sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
-            if (s->srvstfunc == 32) sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            if (s->srvstfunc == 32 || s->srvdofunc == 70) sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
             sw.srcdam = s->srcdam;
             sw.knockback = s->srvstfunc != 6 && (s->result_flags & 8) != 0;
             // FUN_005d7ea0 on a hit: EType stun stands the target for the
@@ -465,10 +510,33 @@ struct Fight {
     // The player's swing: the hit lands on the attack's event frame (at the
     // swing's own speed) — player_blow: hit chance, the monster's block,
     // deadly strike, resistances, elemental damage, crushing blow, leech.
+    // The swing's hits: a sequence's on each of its event-1 frames, else
+    // one on the attack's event frame.
     void strike(std::uint32_t ms) {
+        if (!seq.empty()) {
+            const auto at = std::min<std::size_t>((ms - player.mode_ms) / seq_frame_ms, seq.size() - 1);
+            int due = 0;
+            for (std::size_t i = 0; i <= at; ++i) due += seq[i].event == 1;
+            while (seq_struck < due) {
+                ++seq_struck;
+                // Frenzy's and Double Swing's second hand looks for another
+                // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
+                // FUN_005d8470).
+                // ponytail: FUN_0056bd10's pick isn't traced: the nearest
+                // other monster in reach, else the same one.
+                if (const auto* s = scene->skills.get(swing_skill); s && seq_struck % 2 == 0 && (s->srvdofunc == 9 || s->srvdofunc == 70))
+                    other_target();
+                hit(ms);
+            }
+            return;
+        }
         if (pstruck || attack_mon < 0
             || ms < player.mode_ms + std::uint32_t(float(player_anim(pmode).action_ms()) / prate)) return;
         pstruck = true;
+        hit(ms);
+    }
+    void hit(std::uint32_t ms) {
+        if (attack_mon < 0) return;
         auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
         auto sw = swing();
@@ -477,7 +545,7 @@ struct Fight {
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
-        if (s && (s->srvdofunc == 2 || s->srvdofunc == 13 || s->srvdofunc == 64) && s->srvstfunc != 35) skill_element(f, *s);
+        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70 }, s->srvdofunc)) skill_element(f, *s);
         const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
@@ -485,6 +553,7 @@ struct Fight {
         if (b.hit && charging) charge(*s, ms);
         if (b.hit && finishing) release();
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
+        if (b.hit && s && s->srvdofunc == 9) frenzy(*s, ms);
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
         if (b.hit && s && s->srvdofunc == 64) {
@@ -695,6 +764,7 @@ struct Fight {
                     return false;
                 }
                 kicks_left = 0;
+                seq = {};
                 pmode = -1; player.mode_ms = ms;
                 if (!mouse.down) attack_mon = -1;
             }
@@ -702,6 +772,27 @@ struct Fight {
             pmode = -1; player.mode_ms = ms;
         }
         return false;
+    }
+    void other_target() {
+        float best = kMeleeReach + 0.5f;
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (const float d = std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y);
+                int(i) != attack_mon && monsters[i].alive() && d <= best) {
+                best = d; attack_mon = int(i);
+            }
+        if (attack_mon >= 0) player.dir = direction16(monsters[std::size_t(attack_mon)].u.x - player.x, monsters[std::size_t(attack_mon)].u.y - player.y);
+    }
+    // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
+    // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
+    // dm34, attackrate dm56) are taken at that level.
+    void frenzy(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const auto env = calc_env();
+        const auto it = std::ranges::find(self_states, s.id, &SelfState::skill);
+        const int n = std::min(it == self_states.end() ? 1 : it->level + 1, lvl);
+        const auto until = ms + std::uint32_t(std::max(d2d::rules::eval_calc(scene->skills, s.auralen, env, s.id, lvl), 1)) * 40;
+        if (it == self_states.end()) self_states.push_back({ s.id, n, until });
+        else *it = { s.id, n, until };
     }
     // Who the next strike of a chain goes for: the same monster while it
     // lives; Zeal, else the nearest one in reach (FUN_0056bd10's search).

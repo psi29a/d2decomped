@@ -1,0 +1,42 @@
+// Player skill sequences (Skills.txt anim SQ, seqnum 1..23): game.exe's
+// table at 0x7483b8 (FUN_00663310), a 12-byte entry {frames, count,
+// count} per weapon class in the table's order (FUN_006632c0 maps
+// WeaponClass.txt rows through the pairs at 0x748418: hth, 1ht, 2ht, 1hs,
+// 2hs, bow, xbw, stf, 1js, 1jt, 1ss, 1st, ht1, ht2), each frame 6 bytes
+// {u16 0, mode, frame, direction 0, event}. Event 1 is the hit; 3 comes
+// before some of Jab's and Charge's hits (its use isn't traced). Higher
+// seqnums are monsters' (MonStats, FUN_00659e30).
+// Generated from the 1.14d dump (docs/research/re/skills.md, "Sequences").
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+namespace d2d::rules {
+
+struct SeqFrame { std::uint8_t mode, frame, event; };   // mode: the player mode id (A1 7, S3 15, RN 3, SC 10, ...)
+
+inline constexpr std::array<std::string_view, 14> kSeqWClass = { "hth", "1ht", "2ht", "1hs", "2hs", "bow", "xbw",
+                                                                 "stf", "1js", "1jt", "1ss", "1st", "ht1", "ht2" };
+
+inline constexpr SeqFrame kSeqFrames[] = {
+@FRAMES@
+};
+struct SeqEntry { std::uint8_t seq, wclass; std::uint16_t first, count; };
+inline constexpr SeqEntry kSeqEntries[] = {
+@ENTRIES@
+};
+
+// Sequence `seq`'s frames for weapon class `wclass` (a WeaponClass.txt
+// code); empty when the table has none for it.
+inline std::span<const SeqFrame> sequence(int seq, std::string_view wclass) {
+    for (std::size_t w = 0; w < kSeqWClass.size(); ++w)
+        if (kSeqWClass[w] == wclass)
+            for (const auto& e : kSeqEntries)
+                if (e.seq == seq && e.wclass == w) return { kSeqFrames + e.first, e.count };
+    return {};
+}
+
+}  // namespace d2d::rules

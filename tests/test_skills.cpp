@@ -1,8 +1,10 @@
 // Skills over hand-made rows: the calc compiler on expressions from
 // Skills.txt, ln / dm, the level brackets, elemental damage with a synergy,
 // mana cost, item skill bonuses.
+#include <sequences.hpp>
 #include <skills.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 
@@ -105,5 +107,13 @@ int main() {
     fists.prgdam = 4;
     const auto cf = charge_bonus(t, fists, CalcEnv{}, 1, 1);
     assert(cf.etype == bolt.etype && cf.elem_lo == 3 && charge_bonus(t, fists, CalcEnv{}, 1, 0).etype == -1);
+
+    // Sequences (0x7483b8): Jab with a spear, 21 frames, three hits; the
+    // claws' seq 16 with two claws hits in A2 then S4; none for a bow.
+    const auto jab = sequence(1, "2ht");
+    assert(jab.size() == 21 && std::ranges::count(jab, 1, &SeqFrame::event) == 3 && jab[0].mode == 7 && jab[0].frame == 2);
+    const auto claws = sequence(16, "ht2");
+    assert(claws.size() == 16 && claws[6].event == 1 && claws[6].mode == 8 && claws[10].event == 1 && claws[10].mode == 16);
+    assert(sequence(1, "bow").empty() && sequence(23, "hth").size() == 19);
     std::puts("ok");
 }

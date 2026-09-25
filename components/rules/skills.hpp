@@ -210,7 +210,8 @@ struct Skill {
     std::array<Calc, 6> aura_calc;         // aurastatcalc1..6
     std::array<int, 6> aurastat{ -1, -1, -1, -1, -1, -1 };   // aurastat1..6 (ItemStatCost ids)
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
-    int prgdam = 0;                        // +0x44: what a charge-up's charges add to the releasing hit
+    int prgdam = 0;
+    int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<int, 3> prgfunc{};          // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     int page = 0;                          // SkillDesc SkillPage: 1..3 its class's tabs
     int icon = 0;                          // SkillDesc IconCel
