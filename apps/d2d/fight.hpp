@@ -33,12 +33,16 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // it: Bash, Stun, Concentrate; 6 Power Strike, 39 Berserk, 35 Vengeance
 // resolve the same way), Dragon Talon (24 / 42: calc1 kicks), the
 // charge-ups (23 / 34, 35: Tiger Strike .. Royal Strike) and Dragon Tail
-// (27 / 50: a kick, then fire around the target).
+// (27 / 50: a kick, then fire around the target), Zeal (37 / 13: calc1
+// hits), Sacrifice (29 / 64: a hit that costs life) and Smite (- / 150:
+// the shield).
 // Every other skill swings a plain attack for now.
 inline bool skill_built(const d2d::rules::Skill& s) {
     return (s.srvdofunc == 2 && (s.srvstfunc == 32 || s.srvstfunc == 6 || s.srvstfunc == 39 || s.srvstfunc == 35)) || (s.srvstfunc == 24 && s.srvdofunc == 42)
-        || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50);
+        || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50)
+        || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150;
 }
+inline bool attack_mode(int m) { return m == kModeA1 || m == kModeKK || m == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail.
 // ponytail: Dragon Claw (46) and Dragon Flight aren't built, so they swing
@@ -70,8 +74,9 @@ struct Fight {
     d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
     // this swing uses (Attack when it's not built or can't be paid for),
-    // and the kicks still to come in a Dragon Talon.
+    // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
     int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
+    std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
     std::vector<int> told;                 // skills logged as not built yet
     // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
     // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
@@ -207,7 +212,7 @@ struct Fight {
         player.path.clear();
         const auto& a = player_anim(mode);
         std::uint32_t len = a.length_ms();
-        if ((mode == kModeA1 || mode == kModeKK) && a.frames) {
+        if (attack_mode(mode) && a.frames) {
             const auto ticks = d2d::rules::attack_ticks(int(a.frames), int(a.speed ? a.speed : 256), pf.ias, pf.wsm);
             len = std::uint32_t(ticks) * 40;
         } else if (mode == kModeGH || mode == kModeBL) {
@@ -316,7 +321,7 @@ struct Fight {
                 if (lvl > 0 && cc.stats.v[kMana] >= cost) {
                     cc.stats.v[kMana] -= cost;
                     swing_skill = attack_skill;
-                    if (s->srvstfunc == 24) {
+                    if (s->srvstfunc == 24 || s->srvstfunc == 37) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
                         const auto env = calc_env();
                         kicks_left = std::max(d2d::rules::eval_calc(scene->skills, s->calc[0], env, s->id, lvl), 1) - 1;
                     }
@@ -327,10 +332,17 @@ struct Fight {
             }
         }
         const auto* used = scene->skills.get(swing_skill);
-        set_pmode(used && swing_skill != 0 && used->anim == "KK" ? kModeKK : kModeA1, ms);
+        set_pmode(swing_mode(), ms);
         if (used && swing_skill != 0 && used->srvdofunc == 2 && used->aurastat[0] >= 0) self_state(*used, ms);
         pstruck = false;
         return true;
+    }
+    // The swing's animation: KK for kicks, S1 for Smite, else A1.
+    // ponytail: SQ sequences play A1.
+    [[nodiscard]] int swing_mode() const {
+        const auto* s = scene->skills.get(swing_skill);
+        if (!s || swing_skill == 0) return kModeA1;
+        return s->anim == "KK" ? kModeKK : s->anim == "S1" ? kModeS1 : kModeA1;
     }
     // What the swing's skill adds to the blow: the Bash family's toht,
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
@@ -359,6 +371,20 @@ struct Fight {
             sw.skill_lo = d2d::rules::skill_phys(T, *s, env, lvl, false);
             sw.skill_hi = d2d::rules::skill_phys(T, *s, env, lvl, true);
             sw.knockback = kicks_left == 0;
+        } else if (s->srvdofunc == 150) {                    // Smite (FUN_005ce9f0): calc1 ED, calc2 stun
+            sw.ar_pct = 0;
+            sw.smite = true;
+            sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
+            sw.stun_ticks = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            sw.knockback = (s->result_flags & 8) != 0;
+        } else if (s->srvdofunc == 13) {                     // Zeal's hit (FUN_005dbc60): calc2 ED, no ResultFlags
+            sw.ed_pct = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
+            if (s->etype >= 0 && s->etype < 5)
+                if (const int c = d2d::rules::eval_calc(T, s->calc[3], env, s->id, lvl); c > 0) { sw.conv_type = s->etype; sw.conv_pct = c; }
+        } else if (s->srvstfunc == 29) {                     // Sacrifice (FUN_005ce790): calc1 ED on the weapon's physical
+            sw.ed_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
+            sw.srcdam = s->srcdam;
+            sw.knockback = (s->result_flags & 8) != 0;
         } else if (s->srvstfunc == 35) {                     // Vengeance (FUN_005cfe10)
             sw.fire_pct = d2d::rules::eval_calc(T, s->calc[0], env, s->id, lvl);
             sw.cold_pct = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
@@ -451,13 +477,22 @@ struct Fight {
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
-        if (s && s->srvdofunc == 2 && s->srvstfunc != 35) skill_element(f, *s);
+        if (s && (s->srvdofunc == 2 || s->srvdofunc == 13 || s->srvdofunc == 64) && s->srvstfunc != 35) skill_element(f, *s);
+        const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
         land(target, b, true, ms);
         if (b.hit && charging) charge(*s, ms);
         if (b.hit && finishing) release();
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
+        // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
+        // no more than the target had left, off the player's life.
+        if (b.hit && s && s->srvdofunc == 64) {
+            const int dealt = std::min(d2d::rules::resisted(b.phys, m.target(*scene).res[0]), std::max(hp_before, 0));
+            const auto env = calc_env();
+            self_hurt += (std::int64_t(dealt) << 8) * d2d::rules::eval_calc(scene->skills, s->calc[1], env, s->id,
+                                                                            skill_level ? skill_level(s->id) : 1) / 100;
+        }
         if (!monsters[target].alive()) attack_mon = -1;
     }
 
@@ -650,12 +685,12 @@ struct Fight {
             if (pmode == kModeDT && ms >= pmode_until) set_pmode(kModeDD, ms);
             return pmode == kModeDD && mouse.press_this_frame;
         }
-        if (pmode == kModeA1 || pmode == kModeKK) {
+        if (attack_mode(pmode)) {
             strike(ms);
             if (ms >= pmode_until) {
-                if (kicks_left > 0 && attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
-                    --kicks_left;                            // Dragon Talon: the next kick (FUN_005d5a30)
-                    set_pmode(kModeKK, ms);
+                if (kicks_left > 0 && next_target()) {
+                    --kicks_left;                            // Talon's next kick (FUN_005d5a30), Zeal's next hit (FUN_005dbc60)
+                    set_pmode(swing_mode(), ms);
                     pstruck = false;
                     return false;
                 }
@@ -667,6 +702,23 @@ struct Fight {
             pmode = -1; player.mode_ms = ms;
         }
         return false;
+    }
+    // Who the next strike of a chain goes for: the same monster while it
+    // lives; Zeal, else the nearest one in reach (FUN_0056bd10's search).
+    // ponytail: FUN_0056bd10's pick (it's handed the last target's id) isn't
+    // traced: nearest is assumed; Zeal doesn't change targets while one lives.
+    bool next_target() {
+        if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) return true;
+        const auto* s = scene->skills.get(swing_skill);
+        if (!s || s->srvdofunc != 13) return false;
+        float best = kMeleeReach + 0.5f;
+        attack_mon = -1;
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (const float d = std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y); monsters[i].alive() && d <= best) {
+                best = d; attack_mon = int(i);
+            }
+        if (attack_mon >= 0) player.dir = direction16(monsters[std::size_t(attack_mon)].u.x - player.x, monsters[std::size_t(attack_mon)].u.y - player.y);
+        return attack_mon >= 0;
     }
     // Closing in on the monster being attacked: in reach, swing; else the
     // point to walk to (nullopt: nothing to do).
@@ -736,6 +788,8 @@ struct Fight {
                 else if (p.life <= old->life) *old = p;
             }
             if (foe.blocked && pmode < 0) set_pmode(kModeBL, ms);   // a block plays out (FBR)
+            foe.damage += int(self_hurt >> 8);
+            self_hurt &= 255;
             if (foe.damage > 0) {
                 using namespace d2d::d2s;
                 cc.stats.v[kLife] -= std::int64_t(foe.damage) << 8;
@@ -744,7 +798,7 @@ struct Fight {
                     set_pmode(kModeDT, ms);
                     attack_mon = -1;
                     d2d::log::info("the player died");
-                } else if (std::int64_t(foe.damage) * 12 >= cc.stats.fixed(kMaxLife) && pmode != kModeA1 && pmode != kModeBL) {
+                } else if (std::int64_t(foe.damage) * 12 >= cc.stats.fixed(kMaxLife) && !attack_mode(pmode) && pmode != kModeBL) {
                     set_pmode(kModeGH, ms);
                 }
             }

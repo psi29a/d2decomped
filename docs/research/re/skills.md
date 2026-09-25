@@ -224,6 +224,36 @@ operand and function lists.
 - **58 Fire Claws** (FUN_005c7e00): the shape-shifted Druid's
   (FUN_0056e680 builds the hit); waits for shapeshifting.
 
+### Zeal, Sacrifice, Smite (srvdofunc table 0x7322b0)
+- **Zeal**, start 37 (FUN_005daf40): the unit's skill data
+  (FUN_00620250) gets the hit count = **calc1** (`min(par5 + lvl − 1,
+  par6)`), the target (or one found by FUN_0056bd10, flags 0x20003).
+  Do 13 (FUN_005dbc60, shared with Fend), each action frame: the stored
+  target (or a new search), hit check with toht; on a hit ED = **calc2**,
+  calc4 conversion, the element; SrcDam; FUN_0057dbf0; count − 1, and
+  with hits left a new target from FUN_0056bd10 (handed the last one's id)
+  and the next hit (FUN_0056e210). No ResultFlags.
+- **Sacrifice**, start 29 (FUN_005ce790): hit check with toht; on a hit
+  the physical from FUN_0057b420 with ED = **calc1**, calc4, the element,
+  ResultFlags, flags | 1 (the physical is built: FUN_0057b7d0 skips its
+  weapon roll but still does crit, gear elements, leech). Do 64
+  (FUN_005ce8e0): the hit's physical (record +8, after the hit), capped at
+  the target's life (stat 6), × **calc2** (par3 = 8) / 100 as damage to the
+  player (record flags 0x1000, FUN_0057c6c0).
+- **Smite**, no start, do 150 (FUN_005ce9f0), players: the shield's damage
+  (the item record's +0xfe / +0xff: armor.txt mindam / maxdam, << 8), plus
+  Holy Shield's own damage (FUN_00647bc0 / 00647d00) while state 0x65
+  (holyshield) is on, into FUN_0057b420 on the shield with ED = **calc1**,
+  SrcDam 128; stun = **calc2** (`min(250, ln12)`, record +0x44), the
+  element; hit check FUN_0057ec10 with no bonus, then flags | 1: **always
+  hits** (a block still stops it: FUN_0057dbf0 needs flags & 0x8380 clear);
+  record flags 2, so FUN_0057dbf0 **skips FUN_0057b7d0** (no crit, gear
+  elements, leech, conversion); hit class 0x65. Monsters' Smite
+  (FUN_005a4f50) differs.
+- Record flags seen: 1 = the physical is built (FUN_0057b7d0 doesn't roll
+  the weapon), 2 = don't run FUN_0057b7d0 at all, 0x1000 = self damage;
+  FUN_0057b7d0 marks 0x20.
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -311,9 +341,12 @@ operand and function lists.
    them: the stun guards (special monsters, immunity, the boss cap), gear
    stun length, when the self state really ends. Power Strike, Berserk
    (all-magic, defense 0 for calc2 ticks) and Vengeance (elements as % of
-   the physical) too; not in them: the masteries on Vengeance. Not yet: SQ
+   the physical) too; not in them: the masteries on Vengeance. Zeal
+   (chained hits, the next target the nearest), Sacrifice (the life
+   price) and Smite (S1, the shield, sure hit, stun) too; not in them:
+   FUN_0056bd10's target pick, Holy Shield's damage on Smite. Not yet: SQ
    sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
-   functions (Zeal, Sacrifice, Smite, Frenzy, Leap Attack, ...). Was:
+   functions (Fend, Charge, Holy Shield, Leap Attack, ...). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2
    post-damage add, toht, ResultFlags (knockback, stun), SrcDam,

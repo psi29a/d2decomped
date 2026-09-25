@@ -42,6 +42,7 @@ struct Fighter {
     // Kicks (FUN_00646280): stat 137 + the boots' kick damage, and its % —
     // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;
+    int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
@@ -108,6 +109,12 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
         f.kick_hi = std::max(f.kick_hi + b->second.maxdam, f.kick_lo);
         f.kick_pct = int(std::max<std::int64_t>(str * b->second.str_bonus / 100 + dex * b->second.dex_bonus / 100 + S(25), -90)
                          + S(17) - W(17));
+    }
+    if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end()) {
+        f.smite_lo = b->second.mindam;
+        f.smite_hi = std::max(b->second.maxdam, f.smite_lo);
+        f.smite_pct = int(std::max<std::int64_t>(str * b->second.str_bonus / 100 + dex * b->second.dex_bonus / 100 + S(25), -90)
+                          + S(17) - W(17));
     }
     if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end() && b->second.block > 0)
         f.block = int(std::clamp<std::int64_t>((b->second.block + g.block + S(20)) * (dex - 15) / (clvl * 2), 0, 75));
@@ -193,6 +200,10 @@ struct Swing {
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
     int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;
+    // Smite (FUN_005ce9f0): the shield's damage, sure to hit, and the record
+    // marked built (flags 2), so FUN_0057dbf0 skips FUN_0057b7d0: no crit,
+    // gear elements, leech, crushing blow or open wounds.
+    bool smite = false;
 };
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
@@ -203,11 +214,15 @@ struct Swing {
 inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, const Swing& sw = {}) {
     Blow b;
     const int ar = std::max(int(std::int64_t(f.ar_base) * (100 + f.ar_pct + sw.ar_pct) / 100), 1);
-    if (rng(100) >= hit_chance(ar, t.ac, clvl, t.level)) return b;
+    if (!sw.smite && rng(100) >= hit_chance(ar, t.ac, clvl, t.level)) return b;
     if (t.block > 0 && rng(100) < t.block) { b.blocked = true; return b; }
     b.hit = true;
     std::int64_t lo, hi;                                  // 256ths
-    if (sw.kick) {
+    if (sw.smite) {
+        const std::int64_t sp = std::max<std::int64_t>(f.smite_pct + sw.ed_pct, -90);
+        lo = (std::int64_t(f.smite_lo) << 8) * (100 + sp) / 100;
+        hi = (std::int64_t(f.smite_hi) << 8) * (100 + sp) / 100;
+    } else if (sw.kick) {
         const std::int64_t kp = f.kick_pct + sw.ed_pct;
         lo = sw.skill_lo + std::int64_t(sw.skill_lo) * sw.ed_pct / 100 + (std::int64_t(f.kick_lo) << 8) * (100 + kp) / 100;
         hi = sw.skill_hi + std::int64_t(sw.skill_hi) * sw.ed_pct / 100 + (std::int64_t(f.kick_hi) << 8) * (100 + kp) / 100;
@@ -220,7 +235,7 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     const int rolled = int(d >> 8);                       // before crit: what Vengeance's elements are a share of
     // Critical strike and deadly strike are separate rolls; either doubles
     // (FUN_0057b7d0; the mastery crit joins them with skills). Not kicks.
-    if (!sw.kick && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
+    if (!sw.kick && !sw.smite && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
     d = d * sw.srcdam / 128;
     // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
     // pct % of the physical moves to the element, calc2's add comes after.
@@ -230,6 +245,12 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     int phys = int(std::max<std::int64_t>(d >> 8, sw.kick || conv ? 0 : 1)) + sw.flat;
     b.phys = phys;
     phys = resisted(phys, t.res[0]);
+    if (sw.smite) {
+        b.damage = phys;
+        b.knockback = sw.knockback;
+        b.stun_ticks = std::min(sw.stun_ticks, 250);
+        return b;
+    }
     b.life = phys * f.life_steal * t.drain / 10000;
     b.mana = phys * f.mana_steal * t.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index

@@ -115,6 +115,13 @@ int main() {
     assert(conv({ .conv_type = 4, .conv_pct = 25 }).damage == 90 + 30 / 2);          // 120: 90 physical, 30 magic at 50 %
     assert(conv({ .flat = 5, .conv_type = 4, .conv_pct = 100 }).damage == 5 + 60);    // all magic, the flat add physical
     assert(conv({ .stun_ticks = 300 }).stun_ticks == 250);
+    // Smite: the shield's damage with its %, sure to hit (defense 10^6),
+    // no crit, no gear elements or leech; the stun.
+    Fighter smiter = critter;
+    smiter.smite_lo = smiter.smite_hi = 10; smiter.smite_pct = 20; smiter.life_steal = 50; smiter.elem[0] = { 30, 30 };
+    const Target wall{ .hp = 400, .max_hp = 400, .ac = 1000000, .level = 99 };
+    const auto sm = player_blow(smiter, wall, 1, br, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
+    assert(sm.hit && !sm.deadly && sm.damage == 15 && sm.life == 0 && sm.stun_ticks == 20);
     // Vengeance: elements as % of the physical rolled (before crit), each
     // less its resistance; the cold chills.
     Target vres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 0, 50, 0, 0, 0 } };   // fire 50 %
