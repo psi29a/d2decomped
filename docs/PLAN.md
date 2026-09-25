@@ -169,7 +169,12 @@ E. **Monsters** — spawning done: game.exe's monster region and room
 ## Checkpoint 2026-09-25: what's still open
 
 Combat
-- Skills: none usable yet; plan and game.exe anchors in skills.md.
+- Skills: none usable yet. skills.md has the traced machinery (records,
+  level brackets, mana cost, the calc VM and its operands, how a melee
+  skill builds its damage, where the save keeps the chosen skills) and a
+  phased plan; combat.md lists the combat corrections the trace found
+  (hit-chance rounding, three crit rolls, ED only from the weapon, stats
+  25 / 111 / 32 / 33, monster AR's dex × 5).
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.

@@ -55,17 +55,69 @@ potion and poison add up in the same regen tick.
 So poison kills monsters and credits the poisoner, but never kills a player.
 d2d matches both, and the one-poison-at-a-time rule.
 
+## To hit — FUN_0057ec10 → FUN_0057d9b0
+
+- Defense: FUN_006223f0 + stat 33 (vs melee) or 32 (vs missiles).
+- Player attack rating (FUN_00622560): stat 19 + (dex − 7) × 5 + CharStats
+  ToHitFactor; then × (100 + mastery to-hit + stat 119 + the skill's
+  bonus) / 100 (plus vs-monster-type bonuses, stat 0xb3).
+- Monster attack rating: stat 19 + dex × 5 + the skill's bonus, × (100 +
+  stat 119) / 100.
+- `c = AR × 100 / (AR + DEF)`; `c = c × 2 × alvl / (alvl + dlvl)`, clamped
+  5..95; hit when the attacker's seed % 100 < c.
+- Then the defender's rolls (FUN_0057dfb0 → FUN_0057dd60), each cancelling
+  the hit: **block** (the defender's seed % 100 < chance, the chance a third
+  while the player moves), then Weapon Block (claws), **dodge** (stat 338,
+  melee, standing), **avoid** (339, missiles), **evade** (340, walking or
+  running).
+- Block chance (FUN_00622720): players need a shield; `(stat 20 +
+  CharStats BlockFactor) × (dex − 15) / (clvl × 2)`, clvl at least 1;
+  monsters stat 20 when MonStats allows it (or with a shield); at most 75.
+
+## Damage — FUN_0057b7d0, FUN_0057b420
+
+- Physical (FUN_0057b420): `min` / `max` = stats 21 / 22 (23 / 24 for a
+  second weapon; 1 / 2 barehanded) + stat 111, in 256ths. The weapon's own
+  enhanced damage is already in them (ItemStatCost op 13 applies stats
+  17 / 18 to the item's own damage). One percentage `p` = the skill's
+  enhanced damage + stat 25 (`damagepercent`) + str × StrBonus / 100 +
+  dex × DexBonus / 100 + mastery damage (`madm`), at least −90. Then
+  `min' = min + min × (stat 18 + p) / 100`, `max' = max + max × (stat 17 + p)
+  / 100`, a roll between them, times SrcDam / 128.
+- Deadly strike (stat 141), critical strike (stat 337) and mastery crit
+  (`macr`) are **separate** rolls against rand(100); any one doubles the
+  physical damage.
+- Item elemental damage: fire 48/49, lightning 50/51, cold 54/55, magic
+  52/53, each with its mastery (329 / 330 / 331 / 357), × SrcDam / 128.
+  Poison (57/58 over 59, with poison mastery 332) is split by stat 326.
+  Cold length += stat 56, stun += stat 66.
+- Leech: life stat 60, mana 62, stamina 64 (a monster's scaled by SrcDam).
+- Conversion (record byte +0x65): a % of physical moved to an element
+  (Fists of Fire and friends); cold / poison conversions give at least 50
+  ticks.
+
+## Corrections for d2d (from this pass)
+
+The port already matches block, the attack-rating formula, the damage
+formula's order (flat damage inside the stat bonus), the level-penalty on
+hit chance, poison. To fix:
+1. **Hit chance rounding**: percent first, then × 2 × alvl / (alvl + dlvl)
+   (d2d does one combined division).
+2. **Deadly strike + critical strike + mastery crit**: three rolls, any
+   doubles (d2d rolls deadly strike only).
+3. **Enhanced damage from non-weapon items** shouldn't count (op 13: it
+   applies to that item's own damage); stats 25 and 111 should.
+4. **Defense vs melee / missiles** (stats 33 / 32) and monster AR's
+   `dex × 5`.
+5. **Dodge / avoid / evade** once passives exist (skills phase 3).
+
 ## Approximations still in the port (marked `ponytail:` in code)
 
-- Hit chance: 200·AR/(AR+DR)·alvl/(alvl+dlvl), clamped 5..95. Not traced.
-- Player damage: flat damage added before the strength/dexterity bonus.
-  Not traced.
 - Crushing blow: a quarter of current life less physical resistance, with
   no boss or difficulty divisors.
 - Monster hit recovery: at an eighth of max life. Player: a twelfth.
-- Block: (shield + BlockFactor + item) × (dex − 15) / (clvl × 2), at most
-  75, a third while moving. FHR and FBR act as animation-rate bonuses, not
-  the per-class breakpoint tables.
+- FHR and FBR act as animation-rate bonuses, not the per-class breakpoint
+  tables.
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
 - Monster elemental damage: El1..3 MinD/MaxD taken as MonLvl DM
