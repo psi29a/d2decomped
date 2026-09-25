@@ -57,6 +57,27 @@ docs/research/  file format specs, RE notes, references
 cmake/          shared CMake modules
 ```
 
+## Where code goes
+
+Game rules stay testable and free of assets and screens; the app wires
+them to input, units and drawing.
+
+| Area | Rules (`components/rules`, tested) | App (`apps/d2d`) |
+|---|---|---|
+| Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
+| Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `load.hpp` (`load_monsters`), `ai.hpp` (units, AI, missiles) |
+| Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) |
+| Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) |
+| Skills (next): records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | `skillbar.hpp` (HUD buttons, picker, hotkeys); skill use in `fight.hpp` |
+| Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `load.hpp` (`load_wilderness`) |
+| Town: input, panels, NPCs, walking, levels | — | `town.hpp` (`Town`) |
+| Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
+| World sounds | — | `audio.hpp` (`Cues`) |
+
+`Town` owns the shared state (scene, level, character, player, merc, rng)
+and hands references to its subsystems (`Fight`, `Loot`); a new system
+follows the same pattern rather than growing `town.hpp` or `main.cpp`.
+
 ## Toolchain
 
 - C++26 (`-std=c++2c` / `/std:c++latest`), CMake ≥ 3.28, Ninja.

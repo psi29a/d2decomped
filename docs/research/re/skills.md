@@ -181,20 +181,27 @@ operand and function lists.
 
 ## Plan (phases, each shippable)
 
-0. **Combat corrections found in this pass** (combat.md, "Corrections").
+0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
 1. **Skill data + selection + calcs**: Skills.txt records; a calc compiler
    (Skills.txt text → the same ops) and evaluator over skillcalc.txt's
    operands; the save's left/right skills and hotkeys (F1–F8); the HUD
    buttons and picker; mana cost. Attack (srvdofunc 1) as today's swing.
+   Files: `components/rules/skills.hpp` + `tests/test_skills.cpp` (records,
+   calc compiler/VM, level brackets, mana cost); `load.hpp` (Skills.txt,
+   skillcalc.txt); `apps/d2d/skillbar.hpp` (buttons, picker, hotkeys, from
+   the save's +0x38..0x87); `fight.hpp` (casting through `Fight`).
 2. **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:
    Bash, Jab, Sacrifice, the Assassin kicks): calc1 damage %, calc2
    post-damage add, toht, ResultFlags (knockback, stun), SrcDam,
-   `UseAttackRate` timing, all through `rules::player_blow`.
+   `UseAttackRate` timing, all through `rules::player_blow`. Files: the
+   skill's damage % / flat / to-hit into `Fighter` in `combat.hpp`; the
+   srvstfunc/srvdofunc dispatch as a table in `fight.hpp`.
 3. **Passives and masteries** (`passivestat*`): Claw Mastery, Weapon Block,
-   Critical Strike, Dodge / Avoid / Evade: they feed `Fighter`.
+   Critical Strike, Dodge / Avoid / Evade: they feed `Fighter`
+   (`skills.hpp` computes the stats, `make_fighter` adds them).
 4. **Missile spells** (Fire Bolt, Magic Arrow, Poison Dagger): EMin/EMax by
    level, synergies, cast rate (FCR), the missile system that already flies
-   quill spikes.
+   quill spikes (`ai.hpp` Missile; friendly missiles like the merc's).
 5. **Auras, summons, charge-ups, sentries**: auras as states on units in
    range, summons as monsters on the player's side (the merc code), the
    Assassin charges (srvprgfunc through srvdofunc), traps.
