@@ -125,6 +125,15 @@ int main() {
         assert(out.size() == 2);
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
     }
+    // The merc: level from experience, stats from its band.
+    Tables mt;
+    mt.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hp = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
+                       .dmg_min = 2, .dmg_max = 5, .dmg_per_level = 8, .ar = 20, .ar_per_level = 5 },
+                     { .id = 1, .level = 20, .exp_per_level = 100, .hp = 500, .dmg_min = 10, .dmg_max = 20 } };
+    auto ms = merc_stats(mt, 1, 5 * 100 * 4 * 4);                    // level 4: 1600; level 5 needs 3000
+    assert(ms.level == 4 && ms.life == 110 && ms.def == 12 && ms.dmg_min == 3 && ms.dmg_max == 6 && ms.ar == 25);
+    ms = merc_stats(mt, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
+    assert(ms.level == 20 && ms.life == 500 && ms.dmg_min == 10);
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     assert(dropped > 400 && dropped < 600 && magic > 0 && magic < dropped / 2);
     std::puts("ok");

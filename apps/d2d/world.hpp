@@ -58,7 +58,13 @@ struct Unit {
     // once from mode_ms (a frame a tick), then held on the last frame.
     const d2d::dc6::Sprite* sprite = nullptr;
     std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };   // hover label colour
+    // A missile: its DCC in direction `dir` (0..31), looping AnimLen frames
+    // at AnimSpeed/16 a tick from mode_ms.
+    const Scene::MissileInfo* missile = nullptr;
 };
+
+void blit_dcc_frame(std::vector<std::uint8_t>& fb, const d2d::dcc::Frame& f,
+                    const d2d::palette::Palette& pal, int anchor_x, int anchor_y);
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
 const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& s, std::uint32_t elapsed) {
@@ -204,7 +210,7 @@ void render_world(std::vector<std::uint8_t>& fb,
     // wall orientation, which matters once units stand inside a cell's
     // wall line.
     std::vector<const Unit*> order;
-    for (const auto& u : units) if (u.anim || u.sprite) order.push_back(&u);
+    for (const auto& u : units) if (u.anim || u.sprite || u.missile) order.push_back(&u);
     auto diag_of = [&](const Unit* u) {
         return (int(std::floor(u->x)) - base_x) + (int(std::floor(u->y)) - base_y);
     };
@@ -217,6 +223,15 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [ax, ay] = iso_point(u.x, u.y);
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
             std::array<int, 4> b{};
+            if (u.missile) {
+                const auto& spr = *u.missile->dcc;
+                const std::uint32_t dirs = spr.directions(), fpd = std::uint32_t(spr.frames_per_direction());
+                if (dirs == 0 || fpd == 0) continue;
+                const auto frame = (elapsed_ms - u.mode_ms) * std::uint32_t(u.missile->anim_speed) / (40u * 16u)
+                                   % std::min<std::uint32_t>(std::uint32_t(u.missile->anim_len), fpd);
+                blit_dcc_frame(fb, spr.frame(std::uint8_t(std::uint32_t(u.dir) % dirs), std::uint8_t(frame)), upal, ax, ay);
+                continue;
+            }
             if (u.sprite) {
                 const auto* f = flippy_frame(*u.sprite, elapsed_ms - u.mode_ms);
                 if (!f) continue;

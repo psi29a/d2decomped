@@ -118,6 +118,7 @@ struct Hireling {
     int hp = 0, hp_per_level = 0, def = 0, def_per_level = 0, str = 0, str_per_level = 0, dex = 0, dex_per_level = 0;
     int dmg_min = 0, dmg_max = 0, dmg_per_level = 0;
     int names = 1;                                      // NameFirst..NameLast
+    int ar = 0, ar_per_level = 0;
 };
 
 struct Tables {
@@ -909,6 +910,33 @@ inline std::optional<MercOffer> merc_offer(const Tables& t, bool expansion, int 
     o.dmg_max = std::max(1, h.dmg_max + (h.dmg_per_level * d >> 3));
     o.name = rng(std::max(1, h.names));
     return o;
+}
+
+// The save's mercenary (hireling Id, experience) as it fights: its level
+// is the highest whose experience ((level + 1) * Exp/Lvl * level^2, as
+// hiring sets it) it has, its row the band of that Id at or below that
+// level, and life / defence / damage / strength / dexterity grow from the
+// row like a hire offer's; attack rating is AR + AR/Lvl per level.
+// ponytail: items the merc wears aren't counted.
+struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, ar = 0; };
+inline MercStats merc_stats(const Tables& t, int id, std::uint32_t exp) {
+    MercStats m;
+    const Hireling* row = nullptr;
+    for (const auto& h : t.hirelings)
+        if (h.id == id && (!row || h.level < row->level)) row = &h;
+    if (!row) return m;
+    for (int l = 1; l < 99; ++l)
+        if ((long long)(l + 1) * row->exp_per_level * l * l <= (long long)exp) m.level = l;
+    for (const auto& h : t.hirelings)
+        if (h.id == id && h.level <= m.level && h.level > row->level) row = &h;
+    const auto& h = *row;
+    const int d = m.level - h.level;
+    m.life = std::max(40, h.hp + h.hp_per_level * d);
+    m.def = std::max(0, h.def + h.def_per_level * d);
+    m.dmg_min = std::max(0, h.dmg_min + (h.dmg_per_level * d >> 3));
+    m.dmg_max = std::max(m.dmg_min + 1, h.dmg_max + (h.dmg_per_level * d >> 3));
+    m.ar = std::max(1, h.ar + h.ar_per_level * d);
+    return m;
 }
 
 // Hires `o`: pays its cost (carried gold, then the stash) and makes it

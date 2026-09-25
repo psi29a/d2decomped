@@ -77,6 +77,15 @@ struct Town {
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
     };
     std::vector<GroundItem> ground;
+    std::vector<Missile> missiles;         // in flight in the Blood Moor
+    // The merc in a fight: its stats (hireling.txt at its level), life,
+    // mode (NU/WL follow, A1 attack, GH, DT) and the monster it's after.
+    d2d::rules::MercStats merc_st;
+    int   merc_life = 0;
+    std::string_view merc_mode = "NU";
+    std::uint32_t merc_until = 0;
+    bool  merc_struck = false;
+    int   merc_target = -1;
     int   pick_item = -1;
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
@@ -107,6 +116,7 @@ struct Town {
     void new_game() {
         monsters = spawn_monsters(*scene, scene->moor, rng, cc.header.active_difficulty());
         ground.clear();
+        missiles.clear();
         attack_mon = pick_item = -1;
         pmode = -1;
     }
@@ -120,6 +130,9 @@ struct Town {
             std::tie(merc->x, merc->y) = level->nearest_free(merc->x, merc->y);
             merc_npc = &m->second.npc;
             merc_label = merc_name(*scene, m->second, h.merc_name);
+            merc_st = d2d::rules::merc_stats(scene->rules, h.merc_type, h.merc_exp);
+            merc_life = merc_st.life;
+            merc_mode = "NU"; merc_target = -1;
         }
     }
 
@@ -431,7 +444,7 @@ struct Town {
         target_x = player.x; target_y = player.y;
         cc.stats.v[kLife] = cc.stats.v[kMaxLife];
         pmode = -1; player.mode_ms = ms; attack_mon = -1;
-        if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); }
+        if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); merc_mode = "NU"; merc_target = -1; }
         d2d::log::info("respawned in the Rogue Encampment");
     }
 
@@ -449,13 +462,99 @@ struct Town {
         const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
         if (rng(100) >= d2d::rules::hit_chance(a.ar, m.st.ac, clvl, m.st.level)) return;
         if (!hurt(*scene, m, rng.range(a.min, a.max), ms)) return;
-        const auto exp = d2d::rules::kill_exp(m.st.exp, clvl, m.st.level);
+        killed(std::size_t(attack_mon), ms);
+        attack_mon = -1;
+    }
+
+    // Monster i died (the player's or the merc's doing): the player gets the
+    // experience, its pack may scatter, it drops its loot.
+    // ponytail: the merc's own experience share isn't kept.
+    void killed(std::size_t i, std::uint32_t ms) {
+        const auto& m = monsters[i];
+        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto exp = d2d::rules::kill_exp(m.st.exp, int(cc.stats.get(d2d::d2s::kLevel)), m.st.level);
         const int up = d2d::rules::gain_exp(cc.stats, exp, scene->exp_next, scene->class_gains[sc]);
         d2d::log::info("killed {} (+{} exp){}", m.npc.name, exp, up ? std::format(", level {}", cc.stats.get(d2d::d2s::kLevel)) : "");
         if (up) cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
-        fallen_scatter(*scene, monsters, std::size_t(attack_mon), rng, ms);
+        fallen_scatter(*scene, monsters, i, rng, ms);
         drop_loot(m, ms);
-        attack_mon = -1;
+    }
+
+    // The merc's turn: it goes for the nearest monster within 6 cells of the
+    // player that has noticed them (or is within 3 of the merc), strikes in
+    // melee — an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to
+    // 6 cells — and otherwise follows. Hits use its attack rating against
+    // the monster's defense and its damage. Killed, it plays its death and
+    // is gone (the save's merc is dead until resurrected).
+    // ponytail: mercs' skills and the Hireable AI aren't traced; the rogue's
+    // bow is assumed, other mercs fight in melee.
+    void merc_turn(std::uint32_t ms, float dt, const Crowd& crowd) {
+        auto& u = *merc;
+        const auto set = [&](std::string_view mode) {
+            merc_mode = mode; u.mode_ms = ms; u.walking = mode == "WL";
+            u.path.clear();
+            merc_until = mode == "NU" || mode == "WL" ? 0 : ms + scene->npc_anim(*merc_npc, mode).length_ms();
+        };
+        if (merc_mode == "DT") {
+            if (ms >= merc_until) { merc.reset(); cc.header.merc_dead = true; d2d::log::info("the merc died"); }
+            return;
+        }
+        if (merc_mode == "GH") { if (ms < merc_until) return; set("NU"); }
+        const bool archer = merc_npc && merc_npc->id == "roguehire";
+        const float reach = archer ? 6.f : kMeleeReach;
+        if (merc_mode == "A1") {
+            if (!merc_struck && merc_target >= 0 && ms >= u.mode_ms + scene->npc_anim(*merc_npc, "A1").action_ms()) {
+                merc_struck = true;
+                auto& m = monsters[std::size_t(merc_target)];
+                const float dx = m.u.x - u.x, dy = m.u.y - u.y, d = std::max(std::hypot(dx, dy), 0.01f);
+                if (archer && scene->missiles.contains("arrow")) {
+                    const auto& mi = scene->missiles.at("arrow");
+                    const float v = cells_per_sec(float(mi.vel));
+                    missiles.push_back({ &mi, u.x, u.y, dx / d * v, dy / d * v, direction32(dx, dy), ms,
+                                         ms + std::uint32_t(mi.range) * 40, merc_st.dmg_min, merc_st.dmg_max,
+                                         merc_st.ar, merc_st.level, true });
+                } else if (m.alive() && d <= kMeleeReach + 0.3f
+                           && rng(100) < d2d::rules::hit_chance(merc_st.ar, m.st.ac, merc_st.level, m.st.level)
+                           && hurt(*scene, m, rng.range(merc_st.dmg_min, merc_st.dmg_max), ms)) {
+                    killed(std::size_t(merc_target), ms);
+                }
+            }
+            if (ms < merc_until) return;
+            set("NU");
+        }
+        // Pick a target.
+        if (merc_target >= 0 && !monsters[std::size_t(merc_target)].alive()) merc_target = -1;
+        if (merc_target < 0) {
+            float best = 1e9f;
+            for (std::size_t i = 0; i < monsters.size(); ++i) {
+                const auto& m = monsters[i];
+                if (!m.alive()) continue;
+                const float dp = std::hypot(m.u.x - player.x, m.u.y - player.y), dm = std::hypot(m.u.x - u.x, m.u.y - u.y);
+                if (((m.aware && dp < 6) || dm < 3) && dm < best) { best = dm; merc_target = int(i); }
+            }
+        }
+        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const float speed = cells_per_sec(float(scene->run_velocity[sc])) * 1.1f;
+        if (merc_target >= 0 && std::hypot(u.x - player.x, u.y - player.y) < 10) {
+            const auto& m = monsters[std::size_t(merc_target)];
+            const float dx = m.u.x - u.x, dy = m.u.y - u.y, d = std::hypot(dx, dy);
+            if (d <= reach) {
+                u.dir = direction16(dx, dy);
+                set("A1");
+                merc_struck = false;
+                return;
+            }
+            if (merc_mode != "WL") set("WL");
+            if (u.path.empty() || std::hypot(u.goal_x - m.u.x, u.goal_y - m.u.y) > 1.f) {
+                u.path = walk_path(*level, u.x, u.y, m.u.x, m.u.y, crowd, &u);
+                u.goal_x = m.u.x; u.goal_y = m.u.y;
+            }
+            if (!follow_path(*level, u, speed * dt, crowd)) merc_target = -1;
+            return;
+        }
+        merc_target = -1;
+        merc_follow(*level, u, player.x, player.y, speed, ms, dt, crowd);
+        merc_mode = u.walking ? "WL" : "NU";
     }
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
@@ -688,10 +787,34 @@ struct Town {
         // around each player); what they hit comes off the player's life,
         // and a hit of a twelfth of max life or more makes them flinch (GH).
         if (in_moor) {
-            Foe foe{ player.x, player.y, int(cc.panel.defense), int(cc.stats.get(d2d::d2s::kLevel)), true };
+            std::array<Foe, 2> foes{ Foe{ player.x, player.y, int(cc.panel.defense), int(cc.stats.get(d2d::d2s::kLevel)), true },
+                                     Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.def, merc_st.level,
+                                          merc && merc_mode != "DT" } };
             for (auto& m : monsters)
                 if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30)
-                    monster_update(*scene, *level, m, foe, rng, ms, dt, crowd);
+                    monster_update(*scene, *level, m, foes, rng, ms, dt, crowd, missiles);
+            // The merc's arrows strike the first live monster they reach.
+            missiles_update(*level, missiles, foes, rng, ms, dt, [&](const Missile& a) {
+                for (std::size_t i = 0; i < monsters.size(); ++i) {
+                    auto& m = monsters[i];
+                    if (!m.alive() || std::hypot(m.u.x - a.x, m.u.y - a.y) > 0.5f) continue;
+                    if (rng(100) < d2d::rules::hit_chance(a.th, m.st.ac, a.level, m.st.level)
+                        && hurt(*scene, m, rng.range(a.min, a.max), ms))
+                        killed(i, ms);
+                    return true;
+                }
+                return false;
+            });
+            if (merc && foes[1].damage > 0 && merc_mode != "DT") {
+                merc_life -= foes[1].damage;
+                auto& u = *merc;
+                const auto mode = merc_life <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_st.life ? std::string_view("GH") : merc_mode;
+                if (mode != merc_mode) {
+                    merc_mode = mode; u.mode_ms = ms; u.walking = false; u.path.clear();
+                    merc_until = ms + scene->npc_anim(*merc_npc, mode).length_ms();
+                }
+            }
+            auto& foe = foes[0];
             if (foe.damage > 0) {
                 using namespace d2d::d2s;
                 cc.stats.v[kLife] -= std::int64_t(foe.damage) << 8;
@@ -705,10 +828,13 @@ struct Town {
                 }
             }
         }
-        if (merc) {
-            const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
-            merc_follow(*level, *merc, player.x, player.y,
-                        cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
+        if (merc && merc_npc) {
+            if (in_moor) merc_turn(ms, dt, crowd);
+            else {
+                const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+                merc_follow(*level, *merc, player.x, player.y, cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
+                merc_mode = merc->walking ? "WL" : "NU";
+            }
         }
     }
 
@@ -730,6 +856,16 @@ struct Town {
                 u.rgb = g.rgb;
                 extra.push_back(u);
             }
+        if (merc && merc_npc)                          // npc -2: the merc, hoverable, no NPC menu
+            extra.push_back({ merc->x, merc->y, &scene->npc_anim(*merc_npc, merc_mode), merc->dir,
+                              merc_mode == "DT" ? nullptr : &merc_label, merc->mode_ms, -2 });
+        if (level == &scene->moor)
+            for (const auto& mi : missiles)
+                if (mi.info->dcc) {
+                    Unit u{ mi.x, mi.y, nullptr, mi.dir, nullptr, mi.born, -1 };
+                    u.missile = mi.info;
+                    extra.push_back(u);
+                }
         if (level == &scene->moor)
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 const auto& m = monsters[i];
@@ -750,7 +886,7 @@ struct Town {
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player.mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      merc_npc, merc ? &*merc : nullptr, &merc_label, extra);
+                      nullptr, nullptr, nullptr, extra);
         if (hovered_monster() >= 0)
             draw_monster_bar(fb, *scene, monsters[std::size_t(hovered_monster())]);
         else if (attack_mon >= 0)

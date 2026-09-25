@@ -311,6 +311,13 @@ struct Scene {
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
     d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
     std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
+    // Missiles.txt rows monsters fire: velocity (units like MonStats
+    // Velocity), range in ticks, SrcDamage (128 = all the attack's damage),
+    // its own damage, animation (AnimSpeed/16 frames a tick over AnimLen),
+    // and its CelFile DCC (32 directions).
+    struct MissileInfo { int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+                         std::optional<d2d::dcc::Sprite> dcc; };
+    std::unordered_map<std::string, MissileInfo> missiles;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
 };

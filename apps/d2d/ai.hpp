@@ -177,8 +177,8 @@ struct Monster {
     [[nodiscard]] bool alive() const { return hp > 0; }
 };
 
-// Whoever the monsters are after (the player), and what they did to it
-// this frame.
+// Whoever the monsters are after (the player, the merc), and what they
+// did to it this frame.
 struct Foe {
     float x = 0, y = 0;
     int defense = 0, level = 1;
@@ -187,6 +187,48 @@ struct Foe {
 };
 
 constexpr float kMeleeReach = 1.1f;           // cells between centres
+
+// A missile in flight (a quill rat's spike): straight on at its Missiles.txt
+// velocity until it hits the foe, a wall, or runs out of range.
+struct Missile {
+    const Scene::MissileInfo* info = nullptr;
+    float x = 0, y = 0, vx = 0, vy = 0;       // cells, cells/s
+    int dir = 0;                              // 0..31, DCC order
+    std::uint32_t born = 0, dies = 0;
+    int min = 0, max = 0, th = 0, level = 1;  // damage (the source's share + the missile's), to-hit
+    bool friendly = false;                    // the merc's: hits monsters, not the player
+};
+
+// Direction 0..31 in D2's DCC order for a world step, like direction16:
+// screen sector clockwise from straight down through D2's ordering.
+inline int direction32(float dx, float dy) {
+    constexpr int kFromSector[32] = { 4, 16, 8, 17, 0, 18, 9, 19, 5, 20, 10, 21, 1, 22, 11, 23,
+                                      6, 24, 12, 25, 2, 26, 13, 27, 7, 28, 14, 29, 3, 30, 15, 31 };
+    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
+    const int sector = int(std::lround(std::atan2(-sx, sy) / (2 * 3.14159265f / 32)));
+    return kFromSector[std::size_t((sector % 32 + 32) % 32)];
+}
+
+// Missiles fly; one reaching the foe rolls its to-hit and is spent
+// either way (CollideKill), as is one hitting a wall or out of range.
+// ponytail: flat on the ground (no missile height); SrcDamage taken as
+// 128ths of the attack's damage.
+// A friendly one asks `hits_monster` (true: it struck one, spent).
+template <class HitsMonster>
+void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
+                     std::uint32_t ms, float dt, HitsMonster&& hits_monster) {
+    std::erase_if(ms_, [&](Missile& m) {
+        m.x += m.vx * dt; m.y += m.vy * dt;
+        if (ms >= m.dies || L.blocked(m.x, m.y)) return true;
+        if (m.friendly) return hits_monster(m);
+        for (auto& foe : foes) {
+            if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
+            if (rng(100) < d2d::rules::hit_chance(m.th, foe.defense, m.level, foe.level)) foe.damage += rng.range(m.min, m.max);
+            return true;
+        }
+        return false;
+    });
+}
 
 // The level's spawns as monsters: each rolls its components (one of
 // MonStats2's HDv..S8v per layer) and its stats at the difficulty.
@@ -258,9 +300,14 @@ bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, co
 // ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
 // game.exe's per-AI think functions not traced); distances and timings
 // by eye; chasing goes straight at the player, sliding to a stop at walls.
-void monster_update(const Scene& s, const Level& L, Monster& m, Foe& foe, d2d::rules::Rng& rng,
-                    std::uint32_t ms, float dt, const Crowd& crowd) {
+void monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
+                    std::uint32_t ms, float dt, const Crowd& crowd, std::vector<Missile>& missiles) {
     auto& u = m.u;
+    // After the nearest one alive (the player or the merc).
+    Foe* pick = &foes[0];
+    for (auto& f : foes)
+        if (f.alive && (!pick->alive || std::hypot(f.x - u.x, f.y - u.y) < std::hypot(pick->x - u.x, pick->y - u.y))) pick = &f;
+    Foe& foe = *pick;
     const auto& t = s.monsters.types[std::size_t(m.type)];
     if (!m.alive()) {
         if (m.mode == "DT" && ms >= m.mode_until) set_mode(s, m, "DD", ms);
@@ -271,12 +318,21 @@ void monster_update(const Scene& s, const Level& L, Monster& m, Foe& foe, d2d::r
         set_mode(s, m, "NU", ms);
     }
     const float dx = foe.x - u.x, dy = foe.y - u.y, dist = std::hypot(dx, dy);
-    if (m.mode == "A1") {
-        if (!m.struck && ms >= u.mode_ms + s.npc_anim(m.npc, "A1").action_ms()) {
+    const auto miss = t.miss_a2.empty() ? s.missiles.end() : s.missiles.find(t.miss_a2);
+    if (m.mode == "A1" || m.mode == "A2") {
+        if (!m.struck && ms >= u.mode_ms + s.npc_anim(m.npc, m.mode).action_ms()) {
             m.struck = true;
-            if (foe.alive && dist <= kMeleeReach + 0.3f
-                && rng(100) < d2d::rules::hit_chance(m.st.th, foe.defense, m.st.level, foe.level))
+            if (m.mode == "A2" && miss != s.missiles.end()) {         // fire: at the foe, from here
+                const auto& mi = miss->second;
+                const float speed = cells_per_sec(float(mi.vel)), d = std::max(dist, 0.01f);
+                missiles.push_back({ &mi, u.x, u.y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms,
+                                     ms + std::uint32_t(mi.range) * 40,
+                                     m.st.a2_min * mi.src_damage / 128 + mi.min, m.st.a2_max * mi.src_damage / 128 + mi.max,
+                                     m.st.th, m.st.level });
+            } else if (foe.alive && dist <= kMeleeReach + 0.3f
+                && rng(100) < d2d::rules::hit_chance(m.st.th, foe.defense, m.st.level, foe.level)) {
                 foe.damage += rng.range(m.st.a1_min, m.st.a1_max);
+            }
         }
         if (ms < m.mode_until) return;
         set_mode(s, m, "NU", ms);
@@ -295,6 +351,18 @@ void monster_update(const Scene& s, const Level& L, Monster& m, Foe& foe, d2d::r
             if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; }
             else if (m.mode != "NU") set_mode(s, m, "NU", ms);
             return;
+        }
+        // Shooters (MissA2) shoot from up to 7 cells: each think (aidel)
+        // the aip2 chance to fire, else close in.
+        // ponytail: aip2 read as the shoot chance; QuillRat's think isn't traced.
+        if (miss != s.missiles.end() && dist < 7 && ms >= m.next_act) {
+            m.next_act = ms + std::uint32_t(t.diff[std::size_t(m.difficulty)].aidel) * 40;
+            if (rng(100) < std::max(t.diff[std::size_t(m.difficulty)].aip[1], 1)) {
+                u.dir = direction16(dx, dy);
+                set_mode(s, m, "A2", ms);
+                m.struck = false;
+                return;
+            }
         }
         // Straight at the player, else sidestep round whoever's in the way.
         bool moved = false;

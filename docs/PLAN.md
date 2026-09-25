@@ -150,8 +150,11 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    the player's death and respawn in camp. Drops: TreasureClassEx (with
    the auto weapN/armoN classes) and ItemRatio quality rolls, gold and
    items on the ground (flippy DC6s, labels), click to pick up; monsters
-   follow the character's difficulty. Next: quill rat spikes, the merc
-   fighting, sounds.
+   follow the character's difficulty. Quill rats shoot spikes
+   (Missiles.txt, 32-direction DCCs); the merc fights (hireling.txt stats
+   at its level; rogues shoot arrows) and monsters go for whichever of
+   player and merc is nearer; a dead merc stays dead. Next: sounds,
+   belt potions, champions/uniques (NM/Hell), merc resurrection.
 
 ## Next up (as of 2026-09-24)
 

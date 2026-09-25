@@ -283,6 +283,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         t.minion = { row(g("minion1")), row(g("minion2")) };
         t.velocity = num(g("Velocity")); t.run = num(g("Run"));
         t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
+        t.miss_a2 = g("MissA2");
         for (int d = 0; d < 3; ++d) {
             const std::string x = kSfx[d];
             auto& p = t.diff[std::size_t(d)];
@@ -330,6 +331,21 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (const int k = row(g("mon" + std::to_string(i))); k >= 0) L.mon.push_back(k);
             if (const int k = row(g("nmon" + std::to_string(i))); k >= 0) L.nmon.push_back(k);
         }
+    }
+    // Missiles.txt, the rows monsters fire.
+    const auto mt = txt("Missiles");
+    for (std::size_t r = 0; r < mt.size(); ++r) {
+        auto g = [&](std::string c) { return num(mt.get(r, c)); };
+        const std::string name(mt.get(r, "Missile"));
+        bool used = name == "arrow";                          // the rogue merc's
+        for (const auto& t : M.types) used = used || t.miss_a2 == name;
+        if (!used) continue;
+        Scene::MissileInfo mi{ g("Vel"), g("Range"), g("SrcDamage"), g("MinDamage"), g("MaxDamage"),
+                               std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {} };
+        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) {
+            try { mi.dcc = d2d::dcc::Sprite(*b); } catch (const std::exception& e) { d2d::log::warn("missile {}: {}", name, e.what()); }
+        }
+        scene.missiles.emplace(name, std::move(mi));
     }
     if (moor.rooms.empty() || moor.walk.empty()) return;
     d2d::rules::Rng game{ scene.map_seed };
@@ -879,7 +895,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                     ? std::atoi(last.substr(last.size() - 2).c_str()) - std::atoi(first.substr(first.size() - 2).c_str()) + 1 : 1;
                 scene.rules.hirelings.push_back({ n("Version"), n("Id"), n("Class"), n("Act"), n("Difficulty"), n("Level"),
                     n("Gold"), n("Exp/Lvl"), n("HP"), n("HP/Lvl"), n("Defense"), n("Def/Lvl"), n("Str"), n("Str/Lvl"),
-                    n("Dex"), n("Dex/Lvl"), n("Dmg-Min"), n("Dmg-Max"), n("Dmg/Lvl"), std::max(1, names) });
+                    n("Dex"), n("Dex/Lvl"), n("Dmg-Min"), n("Dmg-Max"), n("Dmg/Lvl"), std::max(1, names),
+                    n("AR"), n("AR/Lvl") });
             }
         if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
             for (std::size_t r = 0; r < 3; ++r)
