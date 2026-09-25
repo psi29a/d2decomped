@@ -173,6 +173,7 @@ struct Target {
 struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
+    int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 
@@ -215,6 +216,7 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     if (!sw.kick && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
     d = d * sw.srcdam / 128;
     int phys = int(std::max<std::int64_t>(d >> 8, sw.kick ? 0 : 1)) + sw.flat;
+    b.phys = phys;
     phys = resisted(phys, t.res[0]);
     b.life = phys * f.life_steal * t.drain / 10000;
     b.mana = phys * f.mana_steal * t.drain / 10000;

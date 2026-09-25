@@ -30,11 +30,19 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
 // the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
-// it: Bash, Stun, Concentrate) and Dragon Talon (24 / 42: calc1 kicks).
+// it: Bash, Stun, Concentrate), Dragon Talon (24 / 42: calc1 kicks), the
+// charge-ups (23 / 34, 35: Tiger Strike .. Royal Strike) and Dragon Tail
+// (27 / 50: a kick, then fire around the target).
 // Every other skill swings a plain attack for now.
 inline bool skill_built(const d2d::rules::Skill& s) {
-    return (s.srvstfunc == 32 && s.srvdofunc == 2) || (s.srvstfunc == 24 && s.srvdofunc == 42);
+    return (s.srvstfunc == 32 && s.srvdofunc == 2) || (s.srvstfunc == 24 && s.srvdofunc == 42)
+        || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50);
 }
+// A finishing move releases charges (FUN_005d5220 runs after Attack's
+// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail.
+// ponytail: Dragon Claw (46) and Dragon Flight aren't built, so they swing
+// as Attack and release that way.
+inline bool finisher(const d2d::rules::Skill* s) { return !s || s->id == 0 || s->srvdofunc == 42 || s->srvdofunc == 50; }
 
 struct Fight {
     const Scene* scene;
@@ -64,6 +72,11 @@ struct Fight {
     // and the kicks still to come in a Dragon Talon.
     int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
     std::vector<int> told;                 // skills logged as not built yet
+    // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
+    // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
+    // until auralencalc ticks after the last one.
+    struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };
+    std::vector<Charge> charges;
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
@@ -84,6 +97,7 @@ struct Fight {
         monsters = spawn_monsters(*scene, scene->moor, rng, difficulty);
         missiles.clear();
         regen.clear();
+        charges.clear();
         attack_mon = -1;
         pmode = -1;
     }
@@ -99,6 +113,7 @@ struct Fight {
         using namespace d2d::d2s;
         cc.stats.v[kLife] = cc.stats.v[kMaxLife];
         regen.clear();
+        charges.clear();
         pmode = -1; player.mode_ms = ms; attack_mon = -1;
         if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); merc_mode = "NU"; merc_target = -1; }
     }
@@ -300,6 +315,11 @@ struct Fight {
         const auto env = calc_env();
         const auto& T = scene->skills;
         sw.ar_pct = d2d::rules::skill_tohit(T, *s, env, lvl);
+        if (s->srvstfunc == 23) return sw;                   // a charge-up: a plain hit at its to-hit (FUN_005d3490)
+        if (s->srvstfunc == 27) {                            // Dragon Tail: a kick (FUN_005d7090 -> FUN_005d54b0)
+            sw.kick = true;
+            return sw;
+        }
         if (s->srvstfunc == 24) {
             sw.kick = true;
             sw.ed_pct = d2d::rules::calc_ln(s->par[0], s->par[1], lvl);
@@ -370,10 +390,83 @@ struct Fight {
         pstruck = true;
         auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive() || std::hypot(m.u.x - player.x, m.u.y - player.y) > kMeleeReach + 0.5f) return;
-        const auto sw = swing();
-        land(std::size_t(attack_mon), d2d::rules::player_blow(sw.kick ? pf_kick : pf, m.target(*scene),
-                                                              int(cc.stats.get(d2d::d2s::kLevel)), rng, sw), true, ms);
-        if (!m.alive()) attack_mon = -1;
+        auto sw = swing();
+        auto f = sw.kick ? pf_kick : pf;
+        const auto* s = scene->skills.get(swing_skill);
+        const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
+        std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
+        if (finishing) add_charges(f, sw);
+        const auto target = std::size_t(attack_mon);
+        const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
+        land(target, b, true, ms);
+        if (b.hit && charging) charge(*s, ms);
+        if (b.hit && finishing) release();
+        if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
+        if (!monsters[target].alive()) attack_mon = -1;
+    }
+
+    // A charge-up's hit lands: one more charge (up to 3), for auralencalc
+    // ticks more (FUN_005d3320).
+    void charge(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        auto it = std::ranges::find(charges, s.id, &Charge::skill);
+        if (it == charges.end()) it = charges.insert(charges.end(), Charge{ s.id });
+        it->level = std::max(it->level, lvl);
+        it->count = std::min(it->count + 1, 3);
+        const auto env = calc_env();
+        it->until = ms + std::uint32_t(std::max(d2d::rules::eval_calc(scene->skills, s.auralen, env, s.id, lvl), 1)) * 40;
+    }
+    // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
+    // at the higher of the stored level and today's).
+    // ponytail: aurastat2's progressive_tohit (par4) isn't given.
+    void add_charges(d2d::rules::Fighter& f, d2d::rules::Swing& sw) {
+        const auto env = calc_env();
+        for (const auto& c : charges) {
+            const auto* s = scene->skills.get(c.skill);
+            if (!s) continue;
+            const int lvl = std::max(c.level, skill_level ? skill_level(c.skill) : 0);
+            const auto cb = d2d::rules::charge_bonus(scene->skills, *s, env, lvl, c.count);
+            sw.ed_pct += cb.ed_pct;
+            f.life_steal += cb.life_steal;
+            f.mana_steal += cb.mana_steal;
+            if (cb.etype >= 0 && cb.etype < 5) {
+                auto& [lo, hi] = f.elem[std::size_t(cb.etype)];
+                lo += cb.elem_lo; hi += cb.elem_hi;
+                if (cb.etype == 2) f.cold_len = std::max(f.cold_len, cb.elem_len);
+            }
+        }
+    }
+    // A finishing hit releases every charge (FUN_005d5220): each skill's
+    // srvprgfunc per charge (Fists of Fire's fire bursts, Claws of
+    // Thunder's novas, Blades of Ice's, Royal Strike's meteor, chain
+    // lightning and ice), then the charges are gone.
+    // ponytail: those srvprgfunc missiles aren't built; logged once.
+    void release() {
+        for (const auto& c : charges) {
+            const auto* s = scene->skills.get(c.skill);
+            if (!s || std::ranges::all_of(s->prgfunc, [](int p) { return p <= 0; })
+                || std::ranges::find(told, -c.skill) != told.end()) continue;
+            told.push_back(-c.skill);
+            d2d::log::info("not implemented: {}'s release (srvprgfunc {} {} {})", s->name, s->prgfunc[0], s->prgfunc[1], s->prgfunc[2]);
+        }
+        charges.clear();
+    }
+    // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
+    // physical damage, on every monster within aurarangecalc subtiles of
+    // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0).
+    // ponytail: fire mastery (stat 329) isn't summed into the fighter; the
+    // target is taken to be in the blast.
+    void dragon_tail(const d2d::rules::Skill& s, std::size_t target, int phys, std::uint32_t ms) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const auto env = calc_env();
+        const int fire = phys * d2d::rules::eval_calc(scene->skills, s.calc[0], env, s.id, lvl) / 100;
+        const float r = float(d2d::rules::eval_calc(scene->skills, s.aurarange, env, s.id, lvl));
+        const float cx = monsters[target].u.x, cy = monsters[target].u.y;
+        for (std::size_t i = 0; i < monsters.size() && fire > 0; ++i) {
+            auto& m = monsters[i];
+            if (!m.alive() || std::hypot(m.u.x - cx, m.u.y - cy) > r) continue;
+            if (hurt(*scene, m, d2d::rules::resisted(fire, m.target(*scene).res[2]), ms)) killed(i, ms);
+        }
     }
 
     // Monster i died (the player's or the merc's doing): the player gets the

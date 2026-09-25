@@ -207,7 +207,11 @@ Combat
   phased plan. Phase 0 (combat corrections) and phase 1 (skill rows, the
   calc language, levels with item bonuses, the skill bar, picker and
   hotkeys from the save) are done; phase 2 has started: the Bash family
-  and Dragon Talon's kicks work (mana, animation, damage, knockback).
+  and Dragon Talon's kicks work (mana, animation, damage, knockback), and
+  the Assassin charge-ups (Tiger / Cobra Strike, Fists of Fire, Claws of
+  Thunder, Blades of Ice, Royal Strike) charge and release through Attack,
+  Talon and Dragon Tail (a kick with a fire splash). Their release
+  missiles (srvprgfunc) wait for the missile phase.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.

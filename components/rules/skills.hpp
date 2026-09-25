@@ -208,6 +208,9 @@ struct Skill {
     std::array<int, 5> passive_stat{ -1, -1, -1, -1, -1 };
     std::array<Calc, 5> passive_calc;
     std::array<Calc, 6> aura_calc;         // aurastatcalc1..6
+    Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
+    int prgdam = 0;                        // +0x44: what a charge-up's charges add to the releasing hit
+    std::array<int, 3> prgfunc{};          // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     int page = 0;                          // SkillDesc SkillPage: 1..3 its class's tabs
     int icon = 0;                          // SkillDesc IconCel
     std::string str_name;                  // SkillDesc "str name"
@@ -379,6 +382,42 @@ inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, in
         }
     }
     return st.empty() ? 0 : st.back();
+}
+
+// ---- charge-ups (Assassin martial arts)
+
+// What `n` charges of charge-up `s` (at level `lvl`) add to the hit that
+// releases them (FUN_005d3ba0, by prgdam):
+// 1 (Tiger Strike, FUN_005d3680): calc1 x n enhanced damage;
+// 2 (Cobra Strike, FUN_005d3790): ln12 % steal: life at 1 charge, life and
+//   mana at 2, both doubled at 3;
+// 4 (Fists of Fire, Claws of Thunder, Blades of Ice, FUN_005d3970): the
+//   skill's elemental damage (FUN_0056e0c0).
+// ponytail: FUN_004e6ca0 (Cobra's steal) is read as ln12 from its args
+// not being shown; prgdam 4's third-charge freeze (cold length / an
+// untraced divisor) and its calc1 physical-to-element share aren't applied.
+struct ChargeBonus { int ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
+inline ChargeBonus charge_bonus(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int n) {
+    ChargeBonus b;
+    if (lvl < 1 || n < 1) return b;
+    n = std::min(n, 3);
+    switch (s.prgdam) {
+        case 1: b.ed_pct = eval_calc(t, s.calc[0], env, s.id, lvl) * n; break;
+        case 2: {
+            const int steal = calc_ln(s.par[0], s.par[1], lvl) * (n == 3 ? 2 : 1);
+            b.life_steal = steal;
+            b.mana_steal = n >= 2 ? steal : 0;
+            break;
+        }
+        case 4:
+            b.etype = s.etype;
+            b.elem_lo = elem_damage(t, s, env, lvl, false) >> 8;
+            b.elem_hi = elem_damage(t, s, env, lvl, true) >> 8;
+            b.elem_len = elem_length(t, s, env, lvl);
+            break;
+        default: break;
+    }
+    return b;
 }
 
 // ---- a character's skill levels

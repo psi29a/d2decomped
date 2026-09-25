@@ -47,6 +47,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug stat <id> <v>`       | `ok`                   | Set character stat 0..15 (12 level, 14 gold, 15 stash gold, ...). |
 | `debug attack`              | `ok dmg=<min>-<max> ar=… def=… block=… dr=…%+… mdr=… res=f/l/c/p cb=… ds=… ow=… ll=… ml=… ias=… wsm=… frw=… fhr=… fbr=… thorns=…+…l cold=… fire=… light=… crit=… def_melee=… def_missile=… dodge=… avoid=… evade=…` | The player as combat sees them (components/rules Fighter). |
 | `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's Blood Moor monsters. |
+| `debug skill left\|right <id>` | `ok` / `err not usable` | Put Skills.txt skill id on that button (the picker's rules). |
 | `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
@@ -54,7 +55,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |
 | `wheel <dy>`                | `ok`                   | Pushes an SDL wheel event (+up / -down); handled next frame. |
-| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 store=<vendor> gold=… statpts=… str=… life=cur/max mana=cur/max level=… exp=… pmode=<A1/GH/DT/DD or -> missiles=<in flight> lskill=<Skills.txt id> rskill=<id> picker=<0 closed, 1 left, 2 right> skillpts=… tree=<tab, 0 closed> waypoint=… items=<count> held=<code or -> unid=<unidentified carried> merc=<x,y:code or -> menu=<lines> automap=<cells when open> speech=<lines> voice=<Sounds.txt index> music=<index> music_old=<the song fading out, 0 none>\nok` | Loop state for scripted asserts. |
+| `state`                     | `screen=… save=… scroll=… class=… name=… hardcore=… cam=x.xx,y.yy walking=… dir=… saves=… stash=0/1 cube=0/1 store=<vendor> gold=… statpts=… str=… life=cur/max mana=cur/max level=… exp=… pmode=<A1/GH/DT/DD or -> missiles=<in flight> lskill=<Skills.txt id> rskill=<id> picker=<0 closed, 1 left, 2 right> charges=<skill:count,… or -> skillpts=… tree=<tab, 0 closed> waypoint=… items=<count> held=<code or -> unid=<unidentified carried> merc=<x,y:code or -> menu=<lines> automap=<cells when open> speech=<lines> voice=<Sounds.txt index> music=<index> music_old=<the song fading out, 0 none>\nok` | Loop state for scripted asserts. |
 | `items`                     | per item `[code loc=… slot=… q=… panel=… at=col,row]` then its hover-text lines, indented; `ok` | The in-game character's items as the tooltip shows them. |
 
 Future verbs (as the engine grows): `load <act>/<level>`, etc.

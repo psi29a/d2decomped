@@ -89,5 +89,21 @@ int main() {
                                 { .stat = 83, .param = 1, .value = 5 }, { .stat = 97, .param = 2, .value = 2 } };
     assert(item_skill_bonus(t.rows[0], 4, props) == 1 + 2 + 3 + 1);   // Bash, barbarian, page 2 = tab 1
     assert(item_skill_bonus(t.rows[2], 4, props) == 2);                // Fire Bolt for a barbarian: the oskill only
+
+    // Charge-ups: Tiger Strike's calc1 x charges ED, Cobra Strike's ln12
+    // steal (life, then mana too, then both doubled), prgdam 4's element.
+    Skill tiger;
+    tiger.id = 3; tiger.prgdam = 1; tiger.par = { 100, 20 }; tiger.calc[0] = C("ln12");
+    t.rows.push_back(tiger);                                // calcs read their params by skill id
+    assert(charge_bonus(t, tiger, env, 3, 2).ed_pct == 140 * 2);
+    assert(charge_bonus(t, tiger, env, 3, 5).ed_pct == 140 * 3);        // at most 3
+    Skill cobra;
+    cobra.prgdam = 2; cobra.par = { 40, 5 };
+    const auto c1 = charge_bonus(t, cobra, env, 1, 1), c2 = charge_bonus(t, cobra, env, 1, 2), c3 = charge_bonus(t, cobra, env, 1, 3);
+    assert(c1.life_steal == 40 && c1.mana_steal == 0 && c2.mana_steal == 40 && c3.life_steal == 80 && c3.mana_steal == 80);
+    Skill fists = bolt;
+    fists.prgdam = 4;
+    const auto cf = charge_bonus(t, fists, CalcEnv{}, 1, 1);
+    assert(cf.etype == bolt.etype && cf.elem_lo == 3 && charge_bonus(t, fists, CalcEnv{}, 1, 0).etype == -1);
     std::puts("ok");
 }

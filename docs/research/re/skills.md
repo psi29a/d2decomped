@@ -180,6 +180,43 @@ operand and function lists.
 - The generic `Kick` skill (FUN_00647bc0's flagged branch): players
   (str + dex − 20) / 4, monsters clvl × 3 / 4.
 
+### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
+- The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
+  check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
+  adds a charge: the state `aurastate` (Tiger: progressive_damage, Cobra:
+  progressive_steal, Fists / Claws / Blades: progressive_fire / _lightning
+  / _cold) for `auralencalc` ticks (par3 = 375, 15 s); stats 0x15e / 0x15f
+  hold the skill id and level, `aurastat1` the count (capped at 3),
+  `aurastat2` (progressive_tohit) = `aurastatcalc2` (par4 = 50).
+- A finishing hit's damage (FUN_005d3ba0 / FUN_005d3ac0, per progressive
+  state, level = max(stored, current)), by `prgdam` (+0x44):
+  - 1 Tiger Strike (FUN_005d3680): record ED += calc1 × charges.
+  - 2 Cobra Strike (FUN_005d3790): FUN_004e6ca0 (ln12, par1 40 + par2 5 per
+    level) added to life leech (damage +0x38) at 1 charge, life and mana
+    leech (+0x3c) at 2, both doubled at 3.
+  - 3 (FUN_005d3880): elemental damage (FUN_0056e0c0), cold freezing with
+    2–3 charges; no 1.14d skill uses it.
+  - 4 Fists of Fire, Claws of Thunder, Blades of Ice (FUN_005d3970): the
+    skill's elemental damage (FUN_0056e0c0); cold with 3 charges adds
+    freeze length = cold length / FUN_004e6c70; if calc1 > 0 (Fists of
+    Fire: `lvl*3`) part of the physical moves to the element
+    (FUN_00483360 / FUN_0056c8e0), not fully read.
+- The release (FUN_005d5220), after Attack's srvdofunc and the finishers',
+  on a hit (damage flags & 1): for each progressive state, with n = its
+  count (1..3), `srvprgfunc1..n-1` for the earlier charges and
+  `srvprgfunc{n}` last (indices into srvdofunc: Fists of Fire's fire
+  bursts, Claws of Thunder's novas, Blades of Ice's, Royal Strike's meteor
+  / chain lightning / ice), the release overlay (FUN_00571aa0), then the
+  state is removed.
+
+### Dragon Tail (srvstfunc 27 / srvdofunc 50)
+- Start (FUN_005d7090): a kick at toht + stat 325 (FUN_0057ec10); on a
+  hit, the kick damage (FUN_005d54b0) with SrcDam, stored.
+- Action (FUN_005d7180): release the charges (FUN_005d5220), then fire =
+  the kick's physical × (**calc1** + stat 329 fire mastery) / 100
+  (`ln12`: 50 + 10 per level), result flags 9, over an area of
+  `aurarangecalc` (par3 = 6 subtiles) around the target (FUN_0056bad0).
+
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,
   0xffff = none, 0x8000 = assigned to the left button), +0x78 left skill,
@@ -219,7 +256,13 @@ operand and function lists.
 2. ~~**Weapon skills**~~ — started: the Bash family (32 / 2: Bash, Stun,
    Concentrate) and Dragon Talon (24 / 42) are built (`fight.hpp`
    `start_swing` / `swing`, `combat.hpp` `Swing`); mana is paid per swing,
-   AttackNoMana skills fall back to a plain attack. Not yet: the skills'
+   AttackNoMana skills fall back to a plain attack. The charge-ups (23 /
+   34, 35) and Dragon Tail (27 / 50) too: charges on the player
+   (`Fight::charges`, `rules::charge_bonus`), released by Attack, Talon or
+   Tail; Tail's fire splash. Not in them yet: the srvprgfunc release
+   missiles (logged), progressive_tohit, prgdam 4's freeze and calc1
+   share, fire mastery on Tail, the SQ animation of Fists / Claws /
+   Blades (they swing A1). Not yet: the skills'
    states (Stun's stun, Concentrate's defense), calc4's conversion, SQ
    sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
    functions (Power Strike, Berserk, Vengeance, Zeal, ...). Was:

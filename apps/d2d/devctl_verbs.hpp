@@ -145,12 +145,19 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             for (auto& it : cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
             return std::string("ok\n");
         }
+        if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable
+            const int id = std::atoi(args[3].c_str());
+            const bool left = args[2] == "left";
+            if (!t.skillbar.usable(id, left)) return std::string("err not usable\n");
+            (left ? t.skillbar.left : t.skillbar.right) = id;
+            return std::string("ok\n");
+        }
         if (args.size() >= 3 && (args[1] == "statpts" || args[1] == "skillpts")) {   // grant unspent points
             cc.stats.v[args[1] == "statpts" ? d2d::d2s::kStatPts : d2d::d2s::kSkillPts] = std::atoi(args[2].c_str());
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>\n");
+            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
@@ -246,6 +253,11 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " missiles=" + std::to_string(t.fight.missiles.size())
              + " lskill=" + std::to_string(t.skillbar.left) + " rskill=" + std::to_string(t.skillbar.right)
              + " picker=" + std::to_string(t.skillbar.picking)
+             + " charges=" + [&] {
+                   std::string c;
+                   for (const auto& g : t.fight.charges) c += std::format("{}{}:{}", c.empty() ? "" : ",", g.skill, g.count);
+                   return c.empty() ? std::string("-") : c;
+               }()
              + " skillpts=" + std::to_string(cc.stats.get(d2d::d2s::kSkillPts))
              + " tree=" + (t.tree_open ? std::to_string(t.tree_tab) : "0")
              + " waypoint=" + std::to_string(t.waypoint.open ? int(scene->waypoint_levels[std::size_t(t.waypoint.tab)].size()) : 0)

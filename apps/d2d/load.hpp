@@ -478,6 +478,8 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
         for (int i = 0; i < 6; ++i) S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
+        S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc"); S.prgdam = n("prgdam");
+        for (int i = 0; i < 3; ++i) S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
         S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
         for (std::size_t c = 0; c < 7; ++c)
             if (S.cls == d2d::rules::kClassCode[c]) T.class_ids[c].push_back(id);
