@@ -91,6 +91,8 @@ struct Fight {
     d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
     d2d::rules::StatSum psum{};            // the player's stats (gear, passives) as of this frame
     float cast_x = 0, cast_y = 0;          // where a missile skill was sent
+    int aura = 0;                          // the aura on (Town: the right skill when it's one)
+    std::uint32_t aura_next = 0;           // its next pulse
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
     // this swing uses (Attack when it's not built or can't be paid for),
     // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
@@ -336,6 +338,11 @@ struct Fight {
     // (FUN_005c6cc0): skill_armor_percent and armor_override_percent as %
     // of the panel defense (the override after), damageresist to DR %.
     // ponytail: other aurastats aren't read.
+    // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
+    // aurastats on the player (and allies within aurarangecalc subtiles)
+    // the same way; its hitpoints (Prayer) heal on each pulse instead.
+    // ponytail: resist auras cap at 95, not the panel's max resist; the
+    // merc doesn't get them.
     // The self states' aurastats are stats on the player (FUN_005c6cc0):
     // they join the item stats, so toblock (20), damageresist (36) and
     // the rest go through make_fighter; defense % (171 skill_armor_percent,
@@ -348,13 +355,18 @@ struct Fight {
         const auto env = calc_env();
         const auto passives = d2d::rules::passive_stats(scene->skills, env);
         cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats, &passives);
-        for (const auto& st : self_states) {
+        auto states = self_states;
+        if (const auto* a = scene->skills.get(aura); a && a->srvdofunc == 65) states.push_back({ aura, skill_level ? skill_level(aura) : 1, ~0u });
+        for (const auto& st : states) {
             const auto* s = scene->skills.get(st.skill);
             for (std::size_t i = 0; s && i < s->aurastat.size(); ++i)
-                if (const int id = s->aurastat[i]; id >= 0 && std::size_t(id) < st_sum.size())
+                if (const int id = s->aurastat[i]; id >= 0 && id != 6 && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
         pf = player_fighter(&pf_kick, &st_sum, &passives, &psum);
+        constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison
+        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's on top of the panel's (Salvation, Resist Fire, ...)
+            if (const auto v = st_sum[std::size_t(kRes[k])]; v != 0) pf.res[k] = int(std::min<std::int64_t>(pf.res[k] + v, 95));
         pf.ias += int(st_sum[68]);
         pf.frw += int(st_sum[67]);
         for (const auto& p : passives) if (p.stat == 67 && p.itype.empty()) pf.frw += p.value;   // Increased Speed
@@ -653,7 +665,7 @@ struct Fight {
         if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78, 32 }, s->srvdofunc)) skill_element(f, *s);
         const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
-        const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
+        const auto b = d2d::rules::player_blow(f, target_of(target), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
         land(target, b, true, ms);
         if (b.hit && charging) charge(*s, ms);
         if (b.hit && finishing) release();
@@ -663,7 +675,7 @@ struct Fight {
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
         if (b.hit && s && s->srvdofunc == 64) {
-            const int dealt = std::min(d2d::rules::resisted(b.phys, m.target(*scene).res[0]), std::max(hp_before, 0));
+            const int dealt = std::min(d2d::rules::resisted(b.phys, target_of(target).res[0]), std::max(hp_before, 0));
             const auto env = calc_env();
             self_hurt += (std::int64_t(dealt) << 8) * d2d::rules::eval_calc(scene->skills, s->calc[1], env, s->id,
                                                                             skill_level ? skill_level(s->id) : 1) / 100;
@@ -762,7 +774,7 @@ struct Fight {
         for (std::size_t i = 0; i < monsters.size() && fire > 0; ++i) {
             auto& m = monsters[i];
             if (!m.alive() || std::hypot(m.u.x - cx, m.u.y - cy) > r) continue;
-            if (hurt(*scene, m, d2d::rules::resisted(fire, m.target(*scene).res[2]), ms)) killed(i, ms);
+            if (hurt(*scene, m, d2d::rules::resisted(fire, target_of(i).res[2]), ms)) killed(i, ms);
         }
     }
 
@@ -819,7 +831,7 @@ struct Fight {
                     a.min = merc_st.dmg_min; a.max = merc_st.dmg_max; a.ar = merc_st.ar; a.level = merc_st.level; a.friendly = true;
                     missiles.push_back(a);
                 } else if (m.alive() && d <= kMeleeReach + 0.3f) {
-                    land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), m.target(*scene), merc_st.level, rng), false, ms);
+                    land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), target_of(std::size_t(merc_target)), merc_st.level, rng), false, ms);
                 }
             }
             if (ms < merc_until) return;
@@ -1129,7 +1141,7 @@ struct Fight {
             return true;
         }
         auto& m = monsters[i];
-        const auto target = m.target(*scene);
+        const auto target = target_of(i);
         const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
         auto md = a.info->skill.empty() ? d2d::rules::MissileDamage{ .srcdam = a.info->src_damage }
                                         : d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level);
@@ -1148,6 +1160,74 @@ struct Fight {
         land(i, b, true, ms);
         struck.push_back(int(i));
         return a.info->collide_kill && !(a.info->pierce && int(rng(100)) < int(psum[328]));
+    }
+    // The aura's pulse, every perdelay ticks while it's on: a friendly one's
+    // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
+    // (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster
+    // within aurarangecalc subtiles (FUN_0056b7e0 with aurafilter) with the
+    // skill's element (FUN_0056e0c0, the mastery in; Holy Fire, Holy Shock,
+    // Holy Freeze's cold) — its aurastats ride the target state (+0x82)
+    // and target_of applies them while the monster is in range.
+    // ponytail: perdelay taken as ticks (its reader isn't traced); the
+    // aurafilter bits aren't read (every monster counts); Sanctuary and
+    // Redemption's own callbacks aren't built; no mana is drawn
+    // (FUN_00644b10).
+    void aura_pulse(std::uint32_t ms) {
+        const auto* s = scene->skills.get(aura);
+        if (!s || !s->aura || ms < aura_next || dead()) return;
+        const int lvl = skill_level ? skill_level(aura) : 1;
+        if (lvl < 1) return;
+        const auto env = calc_env();
+        aura_next = ms + std::uint32_t(std::max(s->perdelay, 25)) * 40;
+        if (s->srvdofunc == 65) {
+            for (std::size_t i = 0; i < s->aurastat.size(); ++i)
+                if (s->aurastat[i] == 6) {
+                    using namespace d2d::d2s;
+                    const auto heal = d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, lvl);
+                    cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + heal);
+                }
+            return;
+        }
+        if ((s->srvdofunc != 66 && s->srvdofunc != 81) || s->etype < 0 || s->etype > 4) return;
+        const auto md = d2d::rules::MissileDamage{ .etype = s->etype,
+                                                   .elo = d2d::rules::elem_damage(scene->skills, *s, env, lvl, false, 0, true),
+                                                   .ehi = d2d::rules::elem_damage(scene->skills, *s, env, lvl, true, 0, true),
+                                                   .elen = d2d::rules::elem_length(scene->skills, *s, env, lvl) };
+        const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (monsters[i].alive() && in_aura(monsters[i]))
+                land(i, d2d::rules::missile_blow(md, target_of(i), pierce, rng), true, ms);
+    }
+    [[nodiscard]] bool in_aura(const Monster& m) {
+        const auto* s = scene->skills.get(aura);
+        if (!s || !s->aura) return false;
+        const int r = d2d::rules::eval_calc(scene->skills, s->aurarange, calc_env(), s->id, skill_level ? skill_level(aura) : 1);
+        return std::hypot(m.u.x - player.x, m.u.y - player.y) * 5 <= float(r);
+    }
+    // Monster i as the player's blows see it: an enemy aura's aurastats
+    // while it's in range (Conviction: resistances and defense down;
+    // resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
+    // 45 poison, 171 defense %).
+    // ponytail: the published rule for immune monsters (a fifth of the
+    // cut) isn't applied, nor the other target stats (Holy Freeze's
+    // slow: its cold chills instead).
+    [[nodiscard]] d2d::rules::Target target_of(std::size_t i) {
+        auto t = monsters[i].target(*scene);
+        const auto* s = scene->skills.get(aura);
+        if (!s || (s->srvdofunc != 66 && s->srvdofunc != 81) || !in_aura(monsters[i])) return t;
+        const auto env = calc_env();
+        const int lvl = skill_level ? skill_level(aura) : 1;
+        for (std::size_t k = 0; k < s->aurastat.size(); ++k) {
+            const int v = d2d::rules::eval_calc(scene->skills, s->aura_calc[k], env, s->id, lvl);
+            switch (s->aurastat[k]) {
+                case 36: t.res[0] += v; break;  case 37: t.res[1] += v; break;
+                case 39: t.res[2] += v; break;  case 41: t.res[3] += v; break;
+                case 43: t.res[4] += v; break;  case 45: t.res[5] += v; break;
+                case 171: t.ac += t.ac * v / 100; break;
+                default: break;
+            }
+        }
+        return t;
     }
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
@@ -1247,6 +1327,7 @@ struct Fight {
                     killed(i, ms);                           // on the player's thorns
             }
             monster_dots(ms, dt);
+            aura_pulse(ms);
             // The merc's arrows strike the first live monster they reach.
             missiles_update(*level, missiles, foes, rng, ms, dt, [&](Missile& a) {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
@@ -1257,7 +1338,7 @@ struct Fight {
                         if (skill_missile_hits(a, i, ms)) return true;
                         continue;
                     }
-                    land(i, d2d::rules::player_blow(d2d::rules::simple_fighter(a.min, a.max, a.ar), m.target(*scene), a.level, rng),
+                    land(i, d2d::rules::player_blow(d2d::rules::simple_fighter(a.min, a.max, a.ar), target_of(i), a.level, rng),
                          false, ms);
                     return true;
                 }

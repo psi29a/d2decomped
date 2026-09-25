@@ -140,6 +140,23 @@ int main() {
         const auto ps = passive_stats(pt, pe);
         assert(ps.size() == 2 && ps[0].stat == 342 && ps[0].value == 28 + 14 && ps[0].itype == "swor");
         assert(ps[1].stat == 343 && ps[1].value == 30 + 10);
+        // An aura's passive stats count too (Holy Fire's weapon fire), on
+        // or off (FUN_00646d60 while off, FUN_005cf3a0's state while on).
+        Skill fire_aura = idle;
+        fire_aura.id = int(pt.rows.size()); fire_aura.passive = false; fire_aura.aura = true;
+        pt.rows.push_back(fire_aura);
+        CalcEnv ae{ .level = [&](int s) { return s == fire_aura.id ? 2 : 0; } };
+        assert(passive_stats(pt, ae).size() == 2);
+    }
+    // enms / exms (52 / 53): the elemental damage with the mastery, 256ths.
+    {
+        SkillTables et = t;
+        et.names.operands[52] = "enms";
+        Skill fire = et.rows[2];
+        fire.etype = 0;
+        fire.passive_calc[0] = compile_calc("enms*6/256", et.names);
+        et.rows[2] = fire;
+        assert(eval_calc(et, fire.passive_calc[0], env, 2, 1) == elem_damage(et, fire, env, 1, false, 0, true) * 6 / 256);
     }
     std::puts("ok");
 }

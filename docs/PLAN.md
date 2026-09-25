@@ -231,6 +231,9 @@ Combat
   novas, with synergies, masteries, pierce and FCR; Poison Dagger. Phase
   4 is done; the do-function missiles (Guided Arrow, Strafe, Chain
   Lightning, Meteor, Blizzard, walls) are listed in skills.md.
+  Phase 5 has started: the Paladin's auras (on the right button: the
+  friendly ones' stats, Prayer's healing, Holy Fire / Shock / Freeze
+  pulses, Conviction on monsters in range).
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.

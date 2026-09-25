@@ -478,6 +478,33 @@ operand and function lists.
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
 
+### Auras (phase 5, part 1)
+- An aura skill's do runs on its pulse: **65** (FUN_005cf010, friendly:
+  Might, Prayer, the resists, Thorns, Defiance, Blessed Aim, Cleansing,
+  Concentration, Vigor, Meditation, Fanaticism, Salvation) puts aurastate
+  (+0x80) with aurastats (+0x54 ids, +0x68 calcs) on the caster
+  (FUN_0056b740 → FUN_005cedc0) and, with auratargetstate (+0x82), on
+  every ally within aurarangecalc (+0x64) subtiles by aurafilter (+0x50)
+  (FUN_0056b7e0). **66** (FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary,
+  Conviction) and **81** (FUN_005d0920, Holy Freeze): the caster's
+  aurastate gets the skill's **passive** stats (+0x98 / +0xa4) — Holy
+  Fire's weapon fire — and every enemy in range gets the target state
+  with the aurastats (Conviction's resistances and defense) and a hit of
+  the skill's element (FUN_0056e0c0 with the mastery; flags 0xd,
+  HitClass +0x134, ResultFlags / HitFlags). **82** Redemption.
+- FUN_00646d60 holds an aura's passive state off while the aura's state
+  (+0x80) is on, so the passive stats hold either way.
+- Operands 49..53 (enma, exma, edma, enms, exms) are the elemental damage
+  / length with the mastery flag (FUN_00646460 cases 0x31..0x35).
+- Built: `Fight::aura` (the right skill when it's an aura), its
+  aurastats in `update_fighters` (resists added over the panel, to 95),
+  `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
+  range), `target_of` (the target state's resistances / defense while in
+  range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
+  (taken as ticks), aurafilter, the merc in the aura, Sanctuary /
+  Redemption's callbacks, Holy Freeze's slow (its cold chills), mana
+  (FUN_00644b10), the aura overlays.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

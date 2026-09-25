@@ -376,7 +376,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
                 const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.st, false, rng);
                 foe.take(k);
                 const auto& res = t.diff[std::size_t(m.difficulty)].res;
-                const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]);
+                const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]) + k.damage * foe.f.thorns_pct / 100;
                 if (k.hit && thorns > 0 && hurt(s, m, thorns, ms)) return true;
             }
         }

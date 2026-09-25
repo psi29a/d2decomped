@@ -199,6 +199,7 @@ struct Skill {
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)
+    int perdelay = 0;                      // an aura's pulse, ticks
     int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;
@@ -327,8 +328,8 @@ inline int skill_tohit(const SkillTables& t, const Skill& s, const CalcEnv& env,
 }
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
-// ponytail: the missile operands (m1en.., 26..37, 43..48), enma..exms
-// (49..53, the masteries), len, rng, pets, skpt read 0 until their phase.
+// ponytail: the missile operands (m1en.., 26..37, 43..48), len, rng,
+// pets, skpt read 0 until their phase.
 inline int calc_operand(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int code, int depth) {
     const auto& p = s.par;
     switch (code) {
@@ -351,6 +352,11 @@ inline int calc_operand(const SkillTables& t, const Skill& s, const CalcEnv& env
             }
             return 0;
         }
+        case 49: return elem_damage(t, s, env, lvl, false, depth, true) >> 8;    // enma (FUN_00644d50 flag 1)
+        case 50: return elem_damage(t, s, env, lvl, true, depth, true) >> 8;     // exma
+        case 51: return elem_length(t, s, env, lvl, depth);                      // edma (FUN_00644f20 flag 1)
+        case 52: return elem_damage(t, s, env, lvl, false, depth, true);         // enms
+        case 53: return elem_damage(t, s, env, lvl, true, depth, true);          // exms
         case 38: return elem_damage(t, s, env, lvl, false, depth);               // edns
         case 39: return elem_damage(t, s, env, lvl, true, depth);                // edxs
         case 40: return env.clvl;                                                // ulvl
@@ -373,13 +379,15 @@ inline int calc_operand(const SkillTables& t, const Skill& s, const CalcEnv& env
 // changes (FUN_00646f20 walks every skill that has a passivestate).
 struct PassiveStat { int stat = -1, value = 0; std::string itype; };
 
-// Every passive the player has a level in (env.level > 0), its stats up to
-// the first empty passivestat.
-// ponytail: the state at +0x80 that holds a passive off isn't checked.
+// Every skill with passive stats the player has a level in (env.level >
+// 0), its stats up to the first empty passivestat: the passives, and the
+// Paladin's auras — theirs sit in the passivestate while the aura is off
+// (the state at +0x80 holds FUN_00646d60 off) and in the aura's own state
+// while it's on (FUN_005cf3a0 fills it from +0x98), so they're always on.
 inline std::vector<PassiveStat> passive_stats(const SkillTables& t, const CalcEnv& env) {
     std::vector<PassiveStat> out;
     for (const auto& s : t.rows) {
-        if (!s.passive || s.id < 0 || s.passive_stat[0] < 0 || !env.level) continue;
+        if (s.id < 0 || s.passive_stat[0] < 0 || !env.level) continue;
         const int lvl = env.level(s.id);
         if (lvl < 1) continue;
         for (std::size_t k = 0; k < 5 && s.passive_stat[k] >= 0; ++k)

@@ -469,7 +469,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
         S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam"); S.srcdam_raw = n("SrcDam");
-        S.srvmissile = g("srvmissile"); S.srvmissilea = g("srvmissilea");
+        S.srvmissile = g("srvmissile"); S.srvmissilea = g("srvmissilea"); S.perdelay = n("perdelay");
         S.result_flags = n("ResultFlags");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
         const auto et = std::ranges::find(kEl, g("EType"));

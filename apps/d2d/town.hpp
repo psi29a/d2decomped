@@ -448,6 +448,9 @@ struct Town {
     // an object to operate on arrival; the player follows a walk_path; NPCs
     // patrol; the merc follows.
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, float dt) {
+        // An aura on the right button is on (a Paladin's; D2 runs the right
+        // skill's aura).
+        if (const auto* ra = scene->skills.get(skillbar.right)) fight.aura = ra->aura ? skillbar.right : 0;
         fight.update_fighters(ms);
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);

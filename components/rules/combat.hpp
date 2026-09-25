@@ -57,6 +57,7 @@ struct Fighter {
     int dr_pct = 0, dr_flat = 0, mdr = 0;
     std::array<int, 4> res{};                       // fire, lightning, cold, poison, %
     int thorns = 0, thorns_light = 0;               // attackers take (melee)
+    int thorns_pct = 0;                             // stat 131: % of a melee hit's damage back (Thorns)
     int life_regen = 0, mana_regen = 0;             // hpregen; manarecoverybonus %
 };
 
@@ -139,7 +140,7 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
     f.dodge = int(S(338)); f.avoid = int(S(339)); f.evade = int(S(340));
     f.dr_pct = int(std::min<std::int64_t>(S(36), 50)); f.dr_flat = int(S(34)); f.mdr = int(S(35));
     f.res = res;
-    f.thorns = int(S(78)); f.thorns_light = int(S(128));
+    f.thorns = int(S(78)); f.thorns_light = int(S(128)); f.thorns_pct = int(S(131));
     f.life_regen = int(S(74)); f.mana_regen = int(S(27));
     return f;
 }
