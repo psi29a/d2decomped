@@ -219,6 +219,9 @@ struct Skill {
     int prgdam = 0;
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<int, 3> prgfunc{};          // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
+    std::array<Calc, 3> prgcalc;           // prgcalc1..3 (+0x38..): by the charges held (FUN_005d3da0)
+    bool prgstack = false;                 // a release runs srvprgfunc 1..n, not just n (FUN_005d5220)
+    std::string srvmissileb, srvmissilec;  // +0x4a / +0x4c: 2 / 3 charges' missile (FUN_005d3cf0)
     int page = 0;                          // SkillDesc SkillPage: 1..3 its class's tabs
     int icon = 0;                          // SkillDesc IconCel
     std::string str_name;                  // SkillDesc "str name"
@@ -287,12 +290,13 @@ inline int elem_damage(const SkillTables& t, const Skill& s, const CalcEnv& env,
 }
 // Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels
 // 2..8, 9..16, 17 up, plus ELenSymPerCalc percent.
+inline int length_bonus(const std::array<int, 3>& l, int lvl) {
+    return lvl < 2 ? 0 : lvl < 9 ? (lvl - 1) * l[0] : lvl < 17 ? (lvl - 8) * l[1] + l[0] * 7
+                      : (lvl - 16) * l[2] + l[1] * 8 + l[0] * 7;
+}
 inline int elem_length(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int depth = 0) {
     if (lvl < 1) return 0;
-    const auto& l = s.elen_lev;
-    const int bonus = lvl < 9 ? (lvl - 1) * l[0] : lvl < 17 ? (lvl - 8) * l[1] + l[0] * 7
-                    : (lvl - 16) * l[2] + l[1] * 8 + l[0] * 7;
-    int n = s.elen + bonus;
+    int n = s.elen + length_bonus(s.elen_lev, lvl);
     if (!s.elen_sym.empty()) n += n * eval_calc(t, s.elen_sym, env, s.id, lvl, depth + 1) / 100;
     return n;
 }
@@ -307,6 +311,20 @@ inline int skill_phys(const SkillTables& t, const Skill& s, const CalcEnv& env, 
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // combat.hpp's MissileDamage.
+// A row with no Skill carries its own element at the missile's level
+// (FUN_0064b100 / 0064b1d0 / 0064b2a0): (EMin + MinELev brackets) <<
+// HitShift, the same for the max, ELen + ELevLen brackets.
+inline MissileDamage row_damage(int etype, int emin, int emax, const std::array<int, 5>& emin_lev,
+                                const std::array<int, 5>& emax_lev, int hitshift, int elen,
+                                const std::array<int, 3>& elen_lev, int lvl) {
+    MissileDamage m;
+    if (etype < 0 || lvl < 1) return m;
+    m.etype = etype;
+    m.elo = (emin + level_bonus(emin_lev, lvl)) << (hitshift & 31);
+    m.ehi = std::max((emax + level_bonus(emax_lev, lvl)) << (hitshift & 31), m.elo);
+    m.elen = elen + length_bonus(elen_lev, lvl);
+    return m;
+}
 inline MissileDamage missile_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl) {
     MissileDamage m;
     m.phys_lo = skill_phys(t, s, env, lvl, false);

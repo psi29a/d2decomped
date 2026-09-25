@@ -337,7 +337,11 @@ struct Scene {
     struct MissileInfo { int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          std::optional<d2d::dcc::Sprite> dcc;
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
-                         bool to_hit = false, collide_kill = true, pierce = false; };
+                         bool to_hit = false, collide_kill = true, pierce = false;
+                         // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
+                         // 0064b2a0 by level): Skill::etype order, frze as cold.
+                         int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
+                         std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{}; };
     std::unordered_map<std::string, MissileInfo> missiles;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;

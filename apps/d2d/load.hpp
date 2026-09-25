@@ -366,7 +366,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     std::unordered_set<std::string> skill_missiles;
     for (std::size_t r = 0; r < sk.size(); ++r) {
         skill_missiles.emplace(sk.get(r, "srvmissile"));
-        skill_missiles.emplace(sk.get(r, "srvmissilea"));
+        for (const char* c : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(sk.get(r, c));
     }
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
@@ -378,6 +378,14 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {} };
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
         mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
+        static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
+        if (const auto e = std::ranges::find(kEl, mt.get(r, "EType")); e != kEl.end()) mi.etype = *e == "frze" ? 2 : int(e - kEl.begin());
+        mi.emin = g("EMin"); mi.emax = g("Emax"); mi.hitshift = g("HitShift"); mi.elen = g("ELen");
+        for (int i = 0; i < 5; ++i) {
+            mi.emin_lev[std::size_t(i)] = g("MinELev" + std::to_string(i + 1));
+            mi.emax_lev[std::size_t(i)] = g("MaxELev" + std::to_string(i + 1));
+        }
+        for (int i = 0; i < 3; ++i) mi.elen_lev[std::size_t(i)] = g("ELevLen" + std::to_string(i + 1));
         if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) {
             try { mi.dcc = d2d::dcc::Sprite(*b); } catch (const std::exception& e) { d2d::log::warn("missile {}: {}", name, e.what()); }
         }
@@ -492,7 +500,12 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 S.aurastat[std::size_t(i)] = a->second;
         }
         S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc"); S.prgdam = n("prgdam"); S.seqnum = n("seqnum");
-        for (int i = 0; i < 3; ++i) S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
+        for (int i = 0; i < 3; ++i) {
+            S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
+            S.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));
+        }
+        S.prgstack = g("prgstack") == "1";
+        S.srvmissileb = g("srvmissileb"); S.srvmissilec = g("srvmissilec");
         S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
         for (std::size_t c = 0; c < 7; ++c)
             if (S.cls == d2d::rules::kClassCode[c]) T.class_ids[c].push_back(id);

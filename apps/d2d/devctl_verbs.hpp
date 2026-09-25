@@ -121,6 +121,22 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
                                f.elem[0].second, f.elem[1].first, f.elem[1].second, f.critical, f.def_melee, f.def_missile,
                                f.dodge, f.avoid, f.evade, f.ar_pct, f.mastery_crit, f.weapon_block);
         }
+        if (args.size() >= 4 && args[1] == "charges") {    // hold n charges of charge-up skill id (tests)
+            auto& f = t.fight;
+            const int id = std::atoi(args[2].c_str());
+            std::erase_if(f.charges, [&](const auto& c) { return c.skill == id; });
+            f.charges.push_back({ id, f.skill_level ? f.skill_level(id) : 1, std::clamp(std::atoi(args[3].c_str()), 1, 3), ~0u });
+            return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "release") {     // release the charges on the nearest live monster
+            auto& f = t.fight;
+            int best = -1; float bd = 1e9f;
+            for (std::size_t i = 0; i < f.monsters.size(); ++i)
+                if (const float d = std::hypot(f.monsters[i].u.x - t.player.x, f.monsters[i].u.y - t.player.y); f.monsters[i].alive() && d < bd) { bd = d; best = int(i); }
+            if (best < 0) return std::string("err no monster\n");
+            f.release(std::size_t(best), std::uint32_t(SDL_GetTicks()));
+            return std::string("ok ") + std::to_string(f.missiles.size()) + "\n";
+        }
         if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
             const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
             for (int i = 0; i < 3; ++i) cc.header.difficulty[std::size_t(i)] &= 0x7f;

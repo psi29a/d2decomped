@@ -505,6 +505,30 @@ operand and function lists.
   Redemption's callbacks, Holy Freeze's slow (its cold chills), mana
   (FUN_00644b10), the aura overlays.
 
+### Charge-up releases (phase 5, part 2)
+- **FUN_005d5220** (a finisher's hit): per charge state held, n = its
+  count (1..3), level = max(the state's 0x15f, the skill's now); runs
+  srvdofunc[srvprgfunc n] — with **prgstack** (Fists of Fire, Claws of
+  Thunder, Blades of Ice) srvprgfunc 1..n−1 first, the count set to each
+  in turn; then the state goes.
+- The count picks the calc (**FUN_005d3da0**: prgcalc n, +0x34 + n×4;
+  prgcalc1 without a charge state) and the missile (**FUN_005d3cf0**: 1
+  srvmissilea, 2 srvmissileb, 3 srvmissilec).
+- **38** (FUN_005d3e80): the skill's physical (FUN_0056e170) and element
+  (FUN_0056e0c0) on everything within prgcalc n subtiles of the target
+  (FUN_0056b7e0, aurafilter). **36** (FUN_005d4db0): a nova of the
+  count's missile round the target (FUN_0056d400), range FUN_00663270 +
+  calc1. **39** (FUN_005d3f90): prgcalc n² tries at random points within
+  prgcalc n subtiles of the target, a missile at each that lands on the
+  map. **37** (FUN_005d4e70 → FUN_005d4150), **143** (FUN_005d4f40 →
+  FUN_005d4870), **40** (FUN_005d5010 → FUN_0056ede0), **41**
+  (FUN_005d5080: random offsets ±20) aren't built.
+- A missile row with no Skill carries its own element by level
+  (FUN_0064b100 / 0064b1d0 / 0064b2a0: EMin + MinELev brackets <<
+  HitShift, ELen + ELevLen brackets): `rules::row_damage`.
+- Built: `Fight::release` / `prg`; devctl `debug charges`, `debug
+  release`.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

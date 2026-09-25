@@ -668,7 +668,7 @@ struct Fight {
         const auto b = d2d::rules::player_blow(f, target_of(target), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
         land(target, b, true, ms);
         if (b.hit && charging) charge(*s, ms);
-        if (b.hit && finishing) release();
+        if (b.hit && finishing) release(target, ms);
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
         if (b.hit && s && s->srvdofunc == 9) frenzy(*s, ms);
         if (b.hit && s && s->srvstfunc == 7) impale_wear(*s);
@@ -745,20 +745,85 @@ struct Fight {
             }
         }
     }
-    // A finishing hit releases every charge (FUN_005d5220): each skill's
-    // srvprgfunc per charge (Fists of Fire's fire bursts, Claws of
-    // Thunder's novas, Blades of Ice's, Royal Strike's meteor, chain
-    // lightning and ice), then the charges are gone.
-    // ponytail: those srvprgfunc missiles aren't built; logged once.
-    void release() {
-        for (const auto& c : charges) {
-            const auto* s = scene->skills.get(c.skill);
-            if (!s || std::ranges::all_of(s->prgfunc, [](int p) { return p <= 0; })
-                || std::ranges::find(told, -c.skill) != told.end()) continue;
-            told.push_back(-c.skill);
-            d2d::log::info("not implemented: {}'s release (srvprgfunc {} {} {})", s->name, s->prgfunc[0], s->prgfunc[1], s->prgfunc[2]);
-        }
+    // A row with no Skill: its own element at level lvl, the weapon at its
+    // SrcDamage.
+    [[nodiscard]] static d2d::rules::MissileDamage row_damage(const Scene::MissileInfo& mi, int lvl) {
+        auto md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
+        md.srcdam = mi.src_damage;
+        return md;
+    }
+    // A finishing hit on monster `on` releases every charge (FUN_005d5220):
+    // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
+    // (Fists of Fire, Claws of Thunder, Blades of Ice) run 1..n, each with
+    // the count set to its own — at the charges' level or the skill's now,
+    // whichever is higher; then the charges are gone. d2d runs:
+    //   38 (FUN_005d3e80): the skill's physical and element (FUN_0056e170,
+    //      FUN_0056e0c0) on every monster within prgcalc n subtiles of it;
+    //   36 (FUN_005d4db0): a nova of the count's missile round it
+    //      (FUN_0056d400), its range + calc1;
+    //   39 (FUN_005d3f90): prgcalc n squared tries at points within that
+    //      many subtiles, each a missile of the count's (fire, ice cubes).
+    // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
+    // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
+    // (Royal Strike, Fists of Fire's first) are logged once; 39's points
+    // come from d2d's rng.
+    void release(std::size_t on, std::uint32_t ms) {
+        const float tx = monsters[on].u.x, ty = monsters[on].u.y;
+        const auto held = charges;
         charges.clear();
+        for (const auto& c : held) {
+            const auto* s = scene->skills.get(c.skill);
+            if (!s) continue;
+            const int lvl = std::max(c.level, skill_level ? skill_level(s->id) : 0);
+            const int n = std::clamp(c.count, 1, 3);
+            for (int k = s->prgstack ? 1 : n; k <= n; ++k) prg(*s, s->prgfunc[std::size_t(k - 1)], k, lvl, tx, ty, ms);
+        }
+    }
+    void prg(const d2d::rules::Skill& s, int func, int count, int lvl, float tx, float ty, std::uint32_t ms) {
+        if (func <= 0) return;
+        const auto env = calc_env();
+        const auto& mname = count <= 1 ? s.srvmissilea : count == 2 ? s.srvmissileb : s.srvmissilec;
+        const auto mit = scene->missiles.find(mname);
+        const Scene::MissileInfo* mi = mit == scene->missiles.end() ? nullptr : &mit->second;
+        int r = d2d::rules::eval_calc(scene->skills, s.prgcalc[std::size_t(count - 1)], env, s.id, lvl);
+        if (r == 0) r = d2d::rules::eval_calc(scene->skills, s.prgcalc[0], env, s.id, lvl);
+        if (func == 38) {
+            d2d::rules::MissileDamage md = d2d::rules::missile_damage(scene->skills, s, env, lvl);
+            md.srcdam = 0;
+            const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+            for (std::size_t i = 0; i < monsters.size(); ++i)
+                if (monsters[i].alive() && std::hypot(monsters[i].u.x - tx, monsters[i].u.y - ty) * 5 <= float(std::max(r, 1)))
+                    land(i, d2d::rules::missile_blow(md, target_of(i), pierce, rng), true, ms);
+            return;
+        }
+        if ((func == 36 || func == 39) && mi) {
+            auto put = [&](float x, float y, float vx, float vy, int range) {
+                Missile a{ mi, x, y, vx, vy, direction32(vx, vy), ms, ms + std::uint32_t(std::max(range, 1)) * 40 };
+                a.friendly = true; a.skill = s.id; a.level = lvl;
+                missiles.push_back(a);
+                return missiles.size() - 1;
+            };
+            if (func == 36) {
+                const auto shared = std::make_shared<std::vector<int>>();
+                const float v = cells_per_sec(float(mi->vel));
+                const int range = mi->range + mi->lev_range * lvl + d2d::rules::eval_calc(scene->skills, s.calc[0], env, s.id, lvl);
+                for (int k = 0; k < 64; ++k) {
+                    const float a = float(k) * 2 * 3.14159265f / 64;
+                    missiles[put(tx, ty, std::cos(a) * v, std::sin(a) * v, range)].struck = shared;
+                }
+            } else {
+                for (int k = 0; k < r * r; ++k) {
+                    const int ox = r - int(rng(2 * r + 1)), oy = r - int(rng(2 * r + 1));
+                    if (ox * ox + oy * oy > r * r) continue;
+                    const float x = tx + float(ox) / 5, y = ty + float(oy) / 5;
+                    if (!level->blocked(x, y, 0x04)) put(x, y, 0, 0, mi->range + mi->lev_range * lvl);
+                }
+            }
+            return;
+        }
+        if (std::ranges::find(told, -1000 - func) != told.end()) return;
+        told.push_back(-1000 - func);
+        d2d::log::info("not implemented: {}'s release srvprgfunc {} ({} charges)", s.name, func, count);
     }
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
@@ -1125,7 +1190,7 @@ struct Fight {
     // skill's damage (FUN_0056bad0 -> FUN_0056b7e0: squared subtile
     // distance against the radius squared).
     // ponytail: a wall or the end of its range doesn't set it off; a row
-    // with no Skill uses none of its own damage columns.
+    // with no Skill uses no physical columns (MinDamage..) or synergy.
     bool skill_missile_hits(Missile& a, std::size_t i, std::uint32_t ms) {
         const auto* s = scene->skills.get(a.skill);
         if (!s) return true;
@@ -1143,7 +1208,7 @@ struct Fight {
         auto& m = monsters[i];
         const auto target = target_of(i);
         const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
-        auto md = a.info->skill.empty() ? d2d::rules::MissileDamage{ .srcdam = a.info->src_damage }
+        auto md = a.info->skill.empty() ? row_damage(*a.info, a.level)
                                         : d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level);
         d2d::rules::Blow b{ .hit = true };
         if (md.srcdam > 0) {
