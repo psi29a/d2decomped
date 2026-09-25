@@ -103,6 +103,18 @@ int main() {
     auto kb = player_blow(kicker, plain, 99, br, { .knockback = true });
     for (int i = 0; i < 20 && !kb.hit; ++i) kb = player_blow(kicker, plain, 99, br, { .knockback = true });
     assert(kb.hit && kb.knockback);
+    // Conversion: calc4 % of the physical to the element, less its
+    // resistance; calc2's flat add stays physical. A stun's length, capped.
+    Target mres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 50, 0, 0, 0, 0 } };
+    auto conv = [&](const Swing& sw) {
+        auto x = player_blow(sk, mres, 99, br, sw);
+        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(sk, mres, 99, br, sw);
+        assert(x.hit);
+        return x;
+    };
+    assert(conv({ .conv_type = 4, .conv_pct = 25 }).damage == 90 + 30 / 2);          // 120: 90 physical, 30 magic at 50 %
+    assert(conv({ .flat = 5, .conv_type = 4, .conv_pct = 100 }).damage == 5 + 60);    // all magic, the flat add physical
+    assert(conv({ .stun_ticks = 300 }).stun_ticks == 250);
     // Boots make the kick: their kick damage, StrBonus on strength, + stat 137.
     t.item_base["lbt"] = { .mindam = 3, .maxdam = 8, .str_bonus = 120 };
     d2d::d2s::Item lbt; lbt.code = "lbt";

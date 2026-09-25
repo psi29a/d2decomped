@@ -196,7 +196,7 @@ struct Skill {
     std::array<int, 8> par{};              // Param1..8
     int hitshift = 8, srcdam = 128;
     int result_flags = 0;                  // ResultFlags (8: knockback)
-    int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic
+    int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;
     std::array<int, 5> emin_lev{}, emax_lev{};
     int elen = 0;
@@ -208,6 +208,7 @@ struct Skill {
     std::array<int, 5> passive_stat{ -1, -1, -1, -1, -1 };
     std::array<Calc, 5> passive_calc;
     std::array<Calc, 6> aura_calc;         // aurastatcalc1..6
+    std::array<int, 6> aurastat{ -1, -1, -1, -1, -1, -1 };   // aurastat1..6 (ItemStatCost ids)
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
     int prgdam = 0;                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<int, 3> prgfunc{};          // srvprgfunc1..3 (+0x30): srvdofunc slots run on release

@@ -178,6 +178,7 @@ struct Monster {
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
+    std::uint32_t stun_until = 0;             // ms: stunned, it stands
     [[nodiscard]] bool alive() const { return hp > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const Scene& s) const {
@@ -339,6 +340,10 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
     const auto& t = s.monsters.types[std::size_t(m.type)];
     if (!m.alive()) {
         if (m.mode == "DT" && ms >= m.mode_until) set_mode(s, m, "DD", ms);
+        return false;
+    }
+    if (ms < m.stun_until && m.mode != "GH" && m.mode != "BL") {   // stunned: stands (a get-hit plays out first)
+        if (m.mode != "NU") set_mode(s, m, "NU", ms);
         return false;
     }
     if (m.mode == "GH" || m.mode == "BL") {

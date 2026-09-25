@@ -253,7 +253,23 @@ struct Fight {
         }
         return f;
     }
-    void update_fighters() { pf = player_fighter(&pf_kick); }
+    // A swing's self state (aurastate, FUN_005d7ea0 / FUN_0056f1f0) is made
+    // with no length; its aurastats hold while the swing does. Concentrate:
+    // skill_armor_percent (ln34) more defense.
+    // ponytail: the state taken to end with the swing (its removal isn't
+    // traced); only skill_armor_percent is read, as % of the panel defense.
+    void update_fighters() {
+        pf = player_fighter(&pf_kick);
+        const auto* s = scene->skills.get(swing_skill);
+        if (!s || swing_skill == 0 || (pmode != kModeA1 && pmode != kModeKK)) return;
+        const auto armor = scene->skills.names.stats.find("skill_armor_percent");
+        if (armor == scene->skills.names.stats.end()) return;
+        const int lvl = skill_level ? skill_level(swing_skill) : 1;
+        const auto env = calc_env();
+        for (std::size_t i = 0; i < s->aurastat.size(); ++i)
+            if (s->aurastat[i] == armor->second)
+                pf.defense += pf.defense * d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, lvl) / 100;
+    }
 
     // What calcs ask of the player (skills.hpp).
     [[nodiscard]] d2d::rules::CalcEnv calc_env() {
@@ -331,6 +347,13 @@ struct Fight {
             sw.flat = d2d::rules::eval_calc(T, s->calc[1], env, s->id, lvl);
             sw.srcdam = s->srcdam;
             sw.knockback = (s->result_flags & 8) != 0;
+            // FUN_005d7ea0 on a hit: EType stun stands the target for the
+            // skill's elemental length (FUN_0056e0c0 -> FUN_0056c8e0 case
+            // 9); another element with calc4 > 0 takes calc4 % of the
+            // physical (Concentrate: Berserk's level to magic).
+            if (s->etype == 5) sw.stun_ticks = d2d::rules::elem_length(T, *s, env, lvl);
+            else if (s->etype >= 0)
+                if (const int c = d2d::rules::eval_calc(T, s->calc[3], env, s->id, lvl); c > 0) { sw.conv_type = s->etype; sw.conv_pct = c; }
         }
         return sw;
     }
@@ -355,6 +378,12 @@ struct Fight {
             m.poison_until = ms + std::uint32_t(b.poison_ticks) * 40;
         }
         if (b.chill_ticks > 0) m.chill_until = ms + std::uint32_t(b.chill_ticks) * 40;
+        // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
+        // new stun resetting the length.
+        // ponytail: its guards aren't applied: special monsters' 90 % to
+        // shrug it off (FUN_005a0180), the MonStats flag immunity and the
+        // act bosses' 13-frame cap; the item stun length (stat 66) isn't added.
+        if (b.stun_ticks > 0) m.stun_until = ms + std::uint32_t(b.stun_ticks) * 40;
         if (b.bleed) {
             m.bleed_rate = d2d::rules::open_wounds_per_sec(int(cc.stats.get(kLevel))) / 1000.0;
             m.bleed_until = ms + 8000;

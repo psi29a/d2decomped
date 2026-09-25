@@ -174,6 +174,7 @@ struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
+    int stun_ticks = 0;
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 
@@ -187,6 +188,8 @@ struct Swing {
     int ar_pct = 0, ed_pct = 0, flat = 0, srcdam = 128;
     bool kick = false, knockback = false;
     int skill_lo = 0, skill_hi = 0;
+    int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
+    int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)
 };
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
@@ -215,13 +218,18 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     // (FUN_0057b7d0; the mastery crit joins them with skills). Not kicks.
     if (!sw.kick && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
     d = d * sw.srcdam / 128;
-    int phys = int(std::max<std::int64_t>(d >> 8, sw.kick ? 0 : 1)) + sw.flat;
+    // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
+    // pct % of the physical moves to the element, calc2's add comes after.
+    // ponytail: poison conversion (an eighth, 50-tick length) isn't done.
+    const std::int64_t conv = sw.conv_type >= 0 && sw.conv_type < 5 ? d * std::clamp(sw.conv_pct, 0, 100) / 100 : 0;
+    d -= conv;
+    int phys = int(std::max<std::int64_t>(d >> 8, sw.kick || conv ? 0 : 1)) + sw.flat;
     b.phys = phys;
     phys = resisted(phys, t.res[0]);
     b.life = phys * f.life_steal * t.drain / 10000;
     b.mana = phys * f.mana_steal * t.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    int elem = 0;
+    int elem = conv > 0 && sw.conv_type != 3 ? resisted(int(conv >> 8), t.res[std::size_t(kRes[sw.conv_type])]) : 0;
     for (int e = 0; e < 5; ++e) {
         const auto [lo, hi] = f.elem[std::size_t(e)];
         if (hi <= 0) continue;
@@ -234,6 +242,7 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     if (f.crushing > 0 && rng(100) < f.crushing) { b.crushing = true; cb = resisted(t.hp / 4, t.res[0]); }
     b.bleed = f.open_wounds > 0 && rng(100) < f.open_wounds;
     b.knockback = f.knockback || sw.knockback;
+    b.stun_ticks = std::min(sw.stun_ticks, 250);
     b.damage = phys + elem + cb;
     return b;
 }

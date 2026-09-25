@@ -180,6 +180,30 @@ operand and function lists.
 - The generic `Kick` skill (FUN_00647bc0's flagged branch): players
   (str + dex − 20) / 4, monsters clvl × 3 / 4.
 
+### Stun and Concentrate (the Bash family's states)
+- Bash's start (FUN_005d7ea0) on a hit: the record's flags |= the skill's
+  +0x12e / +0x130, hit class +0x134, ED = calc1; if EType (+0x1dc) is set
+  and **calc4** > 0, the record's conversion type (+0x65) = EType and % (+0x68)
+  = calc4; then FUN_0056e0c0 adds the skill's element: length
+  (FUN_00644f20), damage (FUN_00644d50 / 00644e40) into FUN_0056c8e0, the
+  record filler by element (1 fire +0x10, 2 lightning +0x1c, 3 magic
+  +0x20, 4 cold +0x24 / length +0x30, 5 poison +0x28 / +0x2c, 6..8 life /
+  mana / stamina leech, **9 stun +0x44 = damage + length**, 11 burn, 12
+  freeze, 10 random of four). After the damage, physical += calc2 × 256;
+  then the self state `aurastate` (+0x80), made with no length
+  (FUN_006251f0 kind 4), its aurastats set by FUN_005c6cc0.
+- Conversion (FUN_0057b7d0, last in the build): pct % of the physical
+  (FUN_00483360) leaves it and joins the element (poison: an eighth, 50
+  ticks at least; cold: 50 ticks at least).
+- Stun (FUN_0057c6c0 → FUN_0057aae0): record +0x44 (or, when 0, gear stat 66
+  × SrcDam / 128). Monsters flagged special (FUN_005a0180) shrug it off 90 %
+  of the time; a MonStats +0x0c flag (mask 0x6ce280) or MonStats +0x32 = 0
+  makes them immune; ids 0x10f / 0x152 / 0x167 / 0x230–0x231 cap it at 13
+  frames; others at 250. State 21 (stunned) for that many frames, refreshed
+  by a new stun.
+- Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
+  ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
+
 ### Charge-ups (srvstfunc 23 / srvdofunc 34, 35)
 - The hit (FUN_005d3490; [35] FUN_005d35d0 is the same after a dual-claw
   check): a plain melee hit at the skill's to-hit. On a hit, FUN_005d3320
@@ -262,8 +286,10 @@ operand and function lists.
    Tail; Tail's fire splash. Not in them yet: the srvprgfunc release
    missiles (logged), progressive_tohit, prgdam 4's freeze and calc1
    share, fire mastery on Tail, the SQ animation of Fists / Claws /
-   Blades (they swing A1). Not yet: the skills'
-   states (Stun's stun, Concentrate's defense), calc4's conversion, SQ
+   Blades (they swing A1). Stun (stands the monster, `Monster::stun_until`)
+   and Concentrate (defense while swinging, calc4 conversion) too; not in
+   them: the stun guards (special monsters, immunity, the boss cap), gear
+   stun length, when the self state really ends. Not yet: SQ
    sequences (Jab, Impale, Fists of Fire, Dragon Claw), the other start
    functions (Power Strike, Berserk, Vengeance, Zeal, ...). Was:
    **Weapon skills** (srvstfunc builds the record, srvdofunc[2] resolves it:

@@ -463,7 +463,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
         S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam");
         S.result_flags = n("ResultFlags");
-        static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
+        static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
         const auto et = std::ranges::find(kEl, g("EType"));
         S.etype = et == kEl.end() ? -1 : int(et - kEl.begin());
         S.emin = n("EMin"); S.emax = n("EMax"); S.elen = n("ELen");
@@ -477,7 +477,11 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
             S.passive_calc[std::size_t(i)] = calc("passivecalc" + k);
         }
         for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
-        for (int i = 0; i < 6; ++i) S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
+        for (int i = 0; i < 6; ++i) {
+            S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
+            if (const auto a = T.names.stats.find(std::string(g("aurastat" + std::to_string(i + 1)))); a != T.names.stats.end())
+                S.aurastat[std::size_t(i)] = a->second;
+        }
         S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc"); S.prgdam = n("prgdam");
         for (int i = 0; i < 3; ++i) S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
         S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
