@@ -148,6 +148,12 @@ int main() {
         CalcEnv ae{ .level = [&](int s) { return s == fire_aura.id ? 2 : 0; } };
         assert(passive_stats(pt, ae).size() == 2);
     }
+    // A skill-less missile row's own element (FUN_0064b100 ..): brackets,
+    // HitShift, length brackets. Claws of Thunder's nova at level 9.
+    {
+        const auto md = row_damage(1, 1, 30, { 0, 0, 0, 0, 0 }, { 15, 25, 0, 0, 0 }, 8, 10, { 2, 1, 0 }, 9);
+        assert(md.etype == 1 && md.elo == 1 << 8 && md.ehi == (30 + 15 * 7 + 25) << 8 && md.elen == 10 + 14 + 1);
+    }
     // enms / exms (52 / 53): the elemental damage with the mastery, 256ths.
     {
         SkillTables et = t;
