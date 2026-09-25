@@ -49,6 +49,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's Blood Moor monsters. |
 | `debug skill left\|right <id>` | `ok` / `err not usable` | Put Skills.txt skill id on that button (the picker's rules). |
 | `debug points <id> <n>`    | `ok` / `err not a class skill` | Give the character's class skill `id` n points (for testing a skill a save lacks). |
+| `debug passives`          | `ok <stat>=<value>[/<itype>] ...` | The passive skills' stats on the character (FUN_00646d60), with the weapon type a mastery needs. |
 | `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |

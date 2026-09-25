@@ -114,12 +114,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             const auto& f = t.fight.pf;                         // as combat sees it this frame (self states included)
             return std::format("ok dmg={}-{} ar={} def={} block={} dr={}%+{} mdr={} res={}/{}/{}/{} cb={} ds={} ow={} "
                                "ll={} ml={} ias={} wsm={} frw={} fhr={} fbr={} thorns={}+{}l cold={}-{} fire={}-{} light={}-{} "
-                               "crit={} def_melee={} def_missile={} dodge={} avoid={} evade={}\n",
+                               "crit={} def_melee={} def_missile={} dodge={} avoid={} evade={} ar%={} mcrit={} wblock={}\n",
                                f.min, f.max, f.ar, f.defense, f.block, f.dr_pct, f.dr_flat, f.mdr, f.res[0], f.res[1], f.res[2],
                                f.res[3], f.crushing, f.deadly, f.open_wounds, f.life_steal, f.mana_steal, f.ias, f.wsm, f.frw,
                                f.fhr, f.fbr, f.thorns, f.thorns_light, f.elem[2].first, f.elem[2].second, f.elem[0].first,
                                f.elem[0].second, f.elem[1].first, f.elem[1].second, f.critical, f.def_melee, f.def_missile,
-                               f.dodge, f.avoid, f.evade);
+                               f.dodge, f.avoid, f.evade, f.ar_pct, f.mastery_crit, f.weapon_block);
         }
         if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
             const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
@@ -151,6 +151,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             if (it == ids.end()) return std::string("err not a class skill\n");
             cc.stats.skills[std::size_t(it - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
             return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "passives" && scene) {   // the passives' stats: stat=value[/itype]
+            std::string out = "ok";
+            for (const auto& p : d2d::rules::passive_stats(scene->skills, t.fight.calc_env()))
+                out += std::format(" {}={}{}{}", p.stat, p.value, p.itype.empty() ? "" : "/", p.itype);
+            return out + "\n";
         }
         if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable
             const int id = std::atoi(args[3].c_str());

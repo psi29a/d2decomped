@@ -254,10 +254,15 @@ struct Fight {
 
     // The player as combat sees them: item stats summed like the char
     // panel's (worn, charms, what's socketed), the weapon and shield worn,
-    // the panel's defense and resistances.
-    // ponytail: set bonuses and the weapon swap aren't counted.
+    // the panel's defense and resistances; the passives' stats (`passives`):
+    // those with no passiveitype join the sum, a mastery (342..344) only
+    // when the weapon is its type, the best one (FUN_00645830), Weapon Block
+    // (348) with two claws when either hand is (FUN_0057dca0, class HT2).
+    // ponytail: set bonuses and the weapon swap aren't counted; the throw
+    // masteries (345..347) wait for thrown weapons.
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
-                                                     const d2d::rules::StatSum* states = nullptr) const {
+                                                     const d2d::rules::StatSum* states = nullptr,
+                                                     const std::vector<d2d::rules::PassiveStat>* passives = nullptr) const {
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
@@ -276,6 +281,29 @@ struct Fight {
             if (b == scene->rules.item_base.end() || info == scene->rules.item_info.end()) continue;
             if (info->second.kind == 2 && (!weapon || it.slot == 4)) weapon = &it;
             if (info->second.kind == 1 && b->second.block > 0) shield = &it;
+        }
+        if (passives) {
+            const auto type_of = [&](const d2d::d2s::Item& it) {
+                const auto i = scene->rules.item_info.find(it.code);
+                return i == scene->rules.item_info.end() ? std::string{} : i->second.type;
+            };
+            std::vector<std::string> hands;                  // the types in slots 4 / 5
+            for (const auto& it : cc.items)
+                if (it.location == 1 && (it.slot == 4 || it.slot == 5)) hands.push_back(type_of(it));
+            const auto is = [&](const std::string& t, const std::string& want) { return d2d::rules::type_is(scene->rules, t, want); };
+            const bool claws2 = hands.size() == 2 && is(hands[0], "h2h") && is(hands[1], "h2h");
+            std::array<std::int64_t, 4> best{};              // 342, 343, 344, 348
+            for (const auto& p : *passives) {
+                if (p.stat < 0 || std::size_t(p.stat) >= sum.size()) continue;
+                if (p.itype.empty()) { sum[std::size_t(p.stat)] += p.value; continue; }
+                const std::size_t k = p.stat >= 342 && p.stat <= 344 ? std::size_t(p.stat - 342) : p.stat == 348 ? 3 : 4;
+                if (k == 4) continue;
+                const bool fits = k < 3 ? weapon && is(type_of(*weapon), p.itype)
+                                        : claws2 && std::ranges::any_of(hands, [&](const auto& t) { return is(t, p.itype); });
+                if (fits) best[k] = std::max<std::int64_t>(best[k], p.value);
+            }
+            for (std::size_t k = 0; k < 3; ++k) sum[342 + k] += best[k];
+            sum[348] += best[3];
         }
         if (weapon) {                                        // its own enhanced damage (op 13), sockets included
             add(weapon_sum, weapon->props);
@@ -310,15 +338,18 @@ struct Fight {
         std::erase_if(self_states, [&](const SelfState& st) { return ms >= st.until; });
         d2d::rules::StatSum st_sum{};
         const auto env = calc_env();
+        const auto passives = d2d::rules::passive_stats(scene->skills, env);
+        cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats, &passives);
         for (const auto& st : self_states) {
             const auto* s = scene->skills.get(st.skill);
             for (std::size_t i = 0; s && i < s->aurastat.size(); ++i)
                 if (const int id = s->aurastat[i]; id >= 0 && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
-        pf = player_fighter(&pf_kick, &st_sum);
+        pf = player_fighter(&pf_kick, &st_sum, &passives);
         pf.ias += int(st_sum[68]);
         pf.frw += int(st_sum[67]);
+        for (const auto& p : passives) if (p.stat == 67 && p.itype.empty()) pf.frw += p.value;   // Increased Speed
         pf.defense += int(pf.defense * st_sum[171] / 100);
         pf.defense = std::max(int(pf.defense + pf.defense * st_sum[182] / 100), 0);
     }

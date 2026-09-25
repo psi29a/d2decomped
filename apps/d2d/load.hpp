@@ -476,6 +476,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 S.passive_stat[std::size_t(i)] = ps->second;
             S.passive_calc[std::size_t(i)] = calc("passivecalc" + k);
         }
+        S.passive_itype = std::string(g("passiveitype"));
         for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
         for (int i = 0; i < 6; ++i) {
             S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));

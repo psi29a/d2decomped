@@ -117,5 +117,22 @@ int main() {
     assert(sequence(1, "bow").empty() && sequence(23, "hth").size() == 19);
     // Whirlwind's hit gap (FUN_005d9320's brackets).
     assert(whirlwind_gap(11) == 4 && whirlwind_gap(12) == 6 && whirlwind_gap(19) == 10 && whirlwind_gap(25) == 14 && whirlwind_gap(26) == 16);
+    // Passives (FUN_00646d60): each passivestat at the skill's level, on its
+    // passiveitype's layer; skills with no level give nothing.
+    {
+        SkillTables pt = t;
+        Skill mastery;
+        mastery.id = int(pt.rows.size()); mastery.name = "Sword Mastery"; mastery.passive = true; mastery.passive_itype = "swor";
+        mastery.par = { 28, 7, 30, 5, 1, 1, 0, 0 };
+        mastery.passive_stat = { 342, 343, -1, 344, -1 };             // stops at the first empty one
+        mastery.passive_calc[0] = compile_calc("ln12", pt.names); mastery.passive_calc[1] = compile_calc("ln34", pt.names);
+        Skill idle = mastery;
+        idle.id = mastery.id + 1; idle.passive_itype.clear();
+        pt.rows.push_back(mastery); pt.rows.push_back(idle);
+        CalcEnv pe{ .level = [&](int s) { return s == mastery.id ? 3 : 0; } };
+        const auto ps = passive_stats(pt, pe);
+        assert(ps.size() == 2 && ps[0].stat == 342 && ps[0].value == 28 + 14 && ps[0].itype == "swor");
+        assert(ps[1].stat == 343 && ps[1].value == 30 + 10);
+    }
     std::puts("ok");
 }

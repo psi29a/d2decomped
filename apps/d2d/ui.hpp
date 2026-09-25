@@ -168,14 +168,16 @@ std::vector<d2d::d2s::ItemProp> socket_props(const Scene& s, const d2d::d2s::Ite
 // resistances 39/43/41/45), as FUN_004a7d00 shows them. From the save's
 // base stats and gear.
 // ponytail: equipped slots 1..10 (the primary weapon set), socket
-// bonuses and charms; no set bonuses, skills or auras.
+// bonuses and charms, the passives with no weapon type (Iron Skin's
+// defense %, Natural Resistance); no set bonuses or auras.
 struct PanelStats {
     std::int64_t next = -1, defense = 0;
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
 };
 
 PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
-                       const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st) {
+                       const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st,
+                       const std::vector<d2d::rules::PassiveStat>* passives = nullptr) {
     PanelStats p;
     const auto lvl = st.get(d2d::d2s::kLevel);
     if (lvl >= 0 && std::size_t(lvl) + 1 < s.exp_next.size()) p.next = s.exp_next[std::size_t(lvl)];
@@ -198,7 +200,14 @@ PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
         }
         if (it.defense > 0) item_def += it.defense * (100 + ed) / 100;
     }
+    std::int64_t skill_def = 0;                           // 171 skill_armor_percent
+    if (passives) for (const auto& ps : *passives) {
+        if (!ps.itype.empty()) continue;
+        if (ps.stat >= 0 && ps.stat < 64) sum[std::size_t(ps.stat)] += ps.value;
+        if (ps.stat == 171) skill_def += ps.value;
+    }
     p.defense = item_def + sum[31] + per_level * lvl / 8 + st.get(d2d::d2s::kDex) / 4;
+    p.defense += p.defense * skill_def / 100;
     const int diff = h.active_difficulty();
     const std::int64_t penalty = h.expansion() ? s.resist_penalty[std::size_t(diff)]
                                                : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];

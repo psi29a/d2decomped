@@ -46,6 +46,8 @@ struct Fighter {
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
+    int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
+    int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0;
@@ -79,7 +81,9 @@ struct Fighter {
 //   missiles, 338 / 339 / 340 dodge / avoid / evade, 36 damage reduced %
 //   (at most 50), 34 flat, 35 magic, 78 / 128 attacker takes damage /
 //   lightning, 74 replenish life, 27 mana regeneration %.
-// ponytail: no skills (masteries, skill damage %) yet.
+//   masteries (FUN_00645830), in `sum` only when the weapon is their
+//     passiveitype (the caller checks): 342 to-hit joins 119, 343 damage
+//     joins 25, 344 crit rolls first; 348 weapon block (two claws).
 inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
                             const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& st,
                             const ClassGains& g, int defense, const std::array<int, 4>& res,
@@ -96,12 +100,12 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
                  hi = (wb ? wb->maxdam * (100 + W(17) + W(219) * clvl / 8) / 100 : 2) + S(22) + S(218) * clvl / 8 + S(111);
     lo = std::max<std::int64_t>(lo, 1) << 8;
     hi = std::max<std::int64_t>(hi << 8, lo + 256);
-    const std::int64_t pct = std::max<std::int64_t>(S(25) + (wb ? str * wb->str_bonus / 100 + dex * wb->dex_bonus / 100 : 0), -90);
+    const std::int64_t pct = std::max<std::int64_t>(S(25) + S(343) + (wb ? str * wb->str_bonus / 100 + dex * wb->dex_bonus / 100 : 0), -90);
     f.phys_lo = int(lo); f.phys_hi = int(hi); f.phys_pct = int(pct);
     f.min = int(std::max<std::int64_t>((lo + lo * pct / 100) >> 8, 1));
     f.max = int(std::max<std::int64_t>((hi + hi * pct / 100) >> 8, f.min));
     f.ar_base = int(dex * 5 - 35 + g.to_hit + S(19) + S(224) * clvl / 8);
-    f.ar_pct = int(S(119));
+    f.ar_pct = int(S(119) + S(342));
     f.ar = int(std::max<std::int64_t>(std::int64_t(f.ar_base) * (100 + f.ar_pct) / 100, 1));
     f.kick_lo = f.kick_hi = int(S(137));
     if (boots) if (const auto b = t.item_base.find(boots->code); b != t.item_base.end()) {
@@ -118,10 +122,14 @@ inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const
     }
     if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end() && b->second.block > 0)
         f.block = int(std::clamp<std::int64_t>((b->second.block + g.block + S(20)) * (dex - 15) / (clvl * 2), 0, 75));
-    f.elem = { { { int(S(48)), int(S(49)) }, { int(S(50)), int(S(51)) }, { int(S(54)), int(S(55)) },
-                 { int(S(57) * S(59) / 256), int(S(58) * S(59) / 256) }, { int(S(52)), int(S(53)) } } };
+    // Each element's mastery % (FUN_0057b7d0 -> FUN_0057a8e0): fire 329,
+    // lightning 330, cold 331, poison 332, magic 357.
+    const auto M = [&](std::int64_t v, int m) { return int(v * (100 + S(m)) / 100); };
+    f.elem = { { { M(S(48), 329), M(S(49), 329) }, { M(S(50), 330), M(S(51), 330) }, { M(S(54), 331), M(S(55), 331) },
+                 { M(S(57) * S(59) / 256, 332), M(S(58) * S(59) / 256, 332) }, { M(S(52), 357), M(S(53), 357) } } };
     f.cold_len = int(S(56)); f.poison_len = int(S(59));
     f.crushing = int(S(136)); f.deadly = int(S(141) + S(250) * clvl / 8); f.critical = int(S(337));
+    f.mastery_crit = int(S(344)); f.weapon_block = int(S(348));
     f.open_wounds = int(S(135));
     f.knockback = S(81) > 0;
     f.life_steal = int(S(60)); f.mana_steal = int(S(62));
@@ -233,9 +241,10 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     }
     std::int64_t d = hi > lo ? lo + rng(int(hi - lo)) : lo;
     const int rolled = int(d >> 8);                       // before crit: what Vengeance's elements are a share of
-    // Critical strike and deadly strike are separate rolls; either doubles
-    // (FUN_0057b7d0; the mastery crit joins them with skills). Not kicks.
-    if (!sw.kick && !sw.smite && ((f.critical > 0 && rng(100) < f.critical) || (f.deadly > 0 && rng(100) < f.deadly))) { d *= 2; b.deadly = true; }
+    // The mastery crit, critical strike and deadly strike are separate
+    // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
+    const auto roll = [&](int c) { return c > 0 && rng(100) < c; };
+    if (!sw.kick && !sw.smite && (roll(f.mastery_crit) || roll(f.critical) || roll(f.deadly))) { d *= 2; b.deadly = true; }
     d = d * sw.srcdam / 128;
     // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
     // pct % of the physical moves to the element, calc2's add comes after.
@@ -277,7 +286,8 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
 // A monster's attack on the player (`moving`: walking or running;
 // `missile`: a spike rather than a swing): hit chance against defense plus
 // the vs-melee / vs-missile bonus; then the defender's rolls
-// (FUN_0057dfb0 / FUN_0057dd60): block (a third while moving), then evade
+// (FUN_0057dfb0 / FUN_0057dd60): block (a third while moving), Weapon
+// Block standing (two claws: weapon class HT2), then evade
 // while moving, else dodge a swing / avoid a missile; then physical damage
 // less damage-reduced % then flat (it can reach 0), and each elemental
 // attack (at its chance) less resistance, fire / lightning / cold less
@@ -289,6 +299,7 @@ inline Taken monster_blow(const Fighter& d, int dlvl, bool moving, const MonStat
     Taken k;
     if (rng(100) >= hit_chance(m.th, d.defense + (missile ? d.def_missile : d.def_melee), m.level, dlvl)) return k;
     if (d.block > 0 && rng(100) < (moving ? d.block / 3 : d.block)) { k.blocked = true; return k; }
+    if (!moving && d.weapon_block > 0 && rng(100) < d.weapon_block) { k.blocked = true; return k; }
     const int dodge = moving ? d.evade : missile ? d.avoid : d.dodge;
     if (dodge > 0 && rng(100) < dodge) { k.dodged = true; return k; }
     k.hit = true;

@@ -205,8 +205,9 @@ struct Skill {
     int mindam = 0, maxdam = 0;
     std::array<int, 5> mindam_lev{}, maxdam_lev{};
     Calc dmg_sym;                          // DmgSymPerCalc
-    std::array<int, 5> passive_stat{ -1, -1, -1, -1, -1 };
-    std::array<Calc, 5> passive_calc;
+    std::array<int, 5> passive_stat{ -1, -1, -1, -1, -1 };   // +0x98
+    std::array<Calc, 5> passive_calc;      // +0xa4
+    std::string passive_itype;             // +0x96: the stats' layer, the weapon type they need ("" any)
     std::array<Calc, 6> aura_calc;         // aurastatcalc1..6
     std::array<int, 6> aurastat{ -1, -1, -1, -1, -1, -1 };   // aurastat1..6 (ItemStatCost ids)
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
@@ -339,6 +340,29 @@ inline int calc_operand(const SkillTables& t, const Skill& s, const CalcEnv& env
             return eval_calc(t, s.passive_calc[std::size_t(code - 66)], env, s.id, lvl, depth + 1);
         default: return 0;
     }
+}
+
+// ---- passives
+
+// A passive skill's stat on the player (FUN_00646d60): passivestat k =
+// passivecalc k at the skill's level with item bonuses, in the skill's
+// passivestate, on the layer passiveitype. Refreshed when the level
+// changes (FUN_00646f20 walks every skill that has a passivestate).
+struct PassiveStat { int stat = -1, value = 0; std::string itype; };
+
+// Every passive the player has a level in (env.level > 0), its stats up to
+// the first empty passivestat.
+// ponytail: the state at +0x80 that holds a passive off isn't checked.
+inline std::vector<PassiveStat> passive_stats(const SkillTables& t, const CalcEnv& env) {
+    std::vector<PassiveStat> out;
+    for (const auto& s : t.rows) {
+        if (!s.passive || s.id < 0 || s.passive_stat[0] < 0 || !env.level) continue;
+        const int lvl = env.level(s.id);
+        if (lvl < 1) continue;
+        for (std::size_t k = 0; k < 5 && s.passive_stat[k] >= 0; ++k)
+            out.push_back({ s.passive_stat[k], eval_calc(t, s.passive_calc[k], env, s.id, lvl, 0), s.passive_itype });
+    }
+    return out;
 }
 
 // Runs a calc for `skill` at `lvl` (the stack machine; divide by zero

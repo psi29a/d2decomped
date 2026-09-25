@@ -49,6 +49,12 @@ int main() {
     assert(f.min == 6 && f.max == 9);
     f = make_fighter(t, nullptr, nullptr, StatSum{}, StatSum{}, st, {}, 0, {});
     assert(f.min == 1 && f.max == 2);                                 // fists, no strength bonus
+    StatSum mst{};                                                    // a mastery: +20 % to hit, +50 % damage
+    mst[342] = 20; mst[343] = 50; mst[344] = 7; mst[348] = 30;
+    f = make_fighter(t, &hax, nullptr, mst, StatSum{}, st, {}, 0, {});
+    assert(f.min == 5 && f.max == 10 && f.ar_pct == 20 && f.mastery_crit == 7 && f.weapon_block == 30);
+    mst[48] = 10; mst[49] = 20; mst[329] = 50;                        // Fire Mastery on the gear's fire
+    assert(make_fighter(t, &hax, nullptr, mst, StatSum{}, st, {}, 0, {}).elem[0] == std::pair(15, 30));
     // Hit chance rounds the percent first (FUN_0057d9b0); negative defense helps.
     assert(hit_chance(1, 2, 3, 1) == 49 && hit_chance(10, -10, 1, 1) == 95);
 
@@ -160,6 +166,14 @@ int main() {
         evaded += monster_blow(agile, 1, true, mon, false, br).dodged;
     }
     assert(dodged > 85 && evaded == 0);
+    Fighter claws;                                                     // Weapon Block: standing only
+    claws.weapon_block = 100;
+    int wblocked = 0, wmoving = 0;
+    for (int i = 0; i < 100; ++i) {
+        wblocked += monster_blow(claws, 1, false, mon, false, br).blocked;
+        wmoving += monster_blow(claws, 1, true, mon, false, br).blocked;
+    }
+    assert(wblocked > 85 && wmoving == 0);
     agile.def_missile = 1000000000;                                    // vs missiles only
     int spikes = 0;
     for (int i = 0; i < 100; ++i) spikes += monster_blow(agile, 99, false, mon, true, br).hit;

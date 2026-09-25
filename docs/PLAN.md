@@ -220,6 +220,10 @@ Combat
   player. Phase 2 is done (skills.md); Double Throw waits for missiles,
   the Druid's shape-shifted skills for shapeshifting. Their release
   missiles (srvprgfunc) wait for the missile phase.
+  Phase 3 (passives and masteries) is done: the passives' stats are on
+  the player (masteries by weapon type, Weapon Block with two claws, Iron
+  Skin, Natural Resistance, Increased Speed, Critical Strike, Dodge /
+  Avoid / Evade, Penetrate, Warmth, the elemental masteries on gear).
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.

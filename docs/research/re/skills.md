@@ -385,6 +385,40 @@ operand and function lists.
   FUN_004c9280), the skill picker by SkillsPal.cpp (FUN_004c9b40); icons
   are `Spells\<Cl>Skillicon` (already loaded for the tree).
 
+### Passives and masteries (phase 3)
+- Record: +0x94 `passivestate`, +0x96 `passiveitype`, +0x98 passivestat1..5
+  (shorts), +0xa4 passivecalc1..5.
+- **FUN_00646d60**(unit, skill): the skill's level with item bonuses
+  (FUN_006442a0); unless the state at +0x80 is on the unit, it (re)fills
+  the passivestate's stat list: each passivestat (up to the first empty
+  one) = its passivecalc, **on the layer passiveitype** (0 when none); the
+  skill and level go in 0x15e / 0x15f (the refresh is skipped while 0x15f
+  equals the level). **FUN_00646f20** runs it for every skill that has a
+  passivestate.
+- Masteries, **FUN_00645830**(unit, weapon, skill data, 0 to-hit / 1
+  damage / 2 crit): the **best** value of stat 342 / 343 / 344 over the
+  layers whose item type the weapon is (FUN_00629bb0); a thrown weapon
+  (FUN_00645720) reads 345 / 346 / 347 instead. Used by the attack rating
+  (FUN_0057da4c: joins stat 119), the damage % (FUN_0057b591: joins
+  stat 25) and FUN_0057b7d0, where the mastery crit rolls **first**, then
+  critical strike (337), then deadly strike (141); any doubles.
+- Weapon Block, **FUN_0057dca0**: the best stat 348 over the layers either
+  hand's item is (layer 0 any); FUN_0057dd60 rolls it when the player
+  stands (walking / running rolls evade, 340, instead) and the weapon class
+  is 0xd (HT2, two claws), before dodge (338, swings) / avoid (339,
+  missiles).
+- Item elemental damage takes its mastery as a % (FUN_0057b7d0 →
+  FUN_0057a8e0): fire 48/49 + 329, lightning 50/51 + 330, cold 54/55 +
+  331, magic 52/53 + 357, poison 57/58 + 332.
+- Built: `rules::passive_stats` (skills.hpp), `Fight::player_fighter`
+  (the layer check, best value), `make_fighter` (342..344, 348, the
+  elemental masteries), `monster_blow` (Weapon Block), `panel_stats` (Iron
+  Skin's 171 % of defense, Natural Resistance). Increased Speed's
+  velocitypercent (67) is taken as FRW. Not yet: the pierces (333..336,
+  Cold Mastery) and Pierce (328) wait for spells and missiles (phase 4),
+  the throw masteries for thrown weapons, Summon Resist for summons,
+  Increased Stamina (no stamina yet), the +0x80 state check.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
@@ -456,7 +490,8 @@ operand and function lists.
    `UseAttackRate` timing, all through `rules::player_blow`. Files: the
    skill's damage % / flat / to-hit into `Fighter` in `combat.hpp`; the
    srvstfunc/srvdofunc dispatch as a table in `fight.hpp`.
-3. **Passives and masteries** (`passivestat*`): Claw Mastery, Weapon Block,
+3. ~~**Passives and masteries**~~ — **done 2026-09-26** (see "Passives and
+   masteries" above). Was: (`passivestat*`): Claw Mastery, Weapon Block,
    Critical Strike, Dodge / Avoid / Evade: they feed `Fighter`
    (`skills.hpp` computes the stats, `make_fighter` adds them).
 4. **Missile spells** (Fire Bolt, Magic Arrow, Poison Dagger): EMin/EMax by
