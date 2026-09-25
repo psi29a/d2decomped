@@ -36,6 +36,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
+| `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>` per Blood Moor monster, then `ok` | Cells in the moor, feet on screen (while there), life, animation mode. |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |

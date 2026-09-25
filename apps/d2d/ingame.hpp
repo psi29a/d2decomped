@@ -32,7 +32,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Automap* automap = nullptr, const Store* store = nullptr,
                    int stat_pressed = -1,
                    const Npc* merc = nullptr, const UnitState* merc_state = nullptr,
-                   const std::string* merc_label = nullptr) {
+                   const std::string* merc_label = nullptr,
+                   std::span<const Unit> extra_units = {}) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -67,12 +68,13 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             units.push_back({ merc_state->x, merc_state->y,
                               &s.npc_anim(*merc, merc_state->walking ? std::string_view("WL") : std::string_view("NU")),
                               merc_state->dir, merc_label, merc_state->mode_ms, -2 });
+        units.insert(units.end(), extra_units.begin(), extra_units.end());
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
         // ponytail: no highlight tint yet (D2 brightens the unit too).
-        if (hovered.first) {
+        if (hovered.first && hovered.first->npc > -10) {   // monsters: their bar at the top
             const auto& nm = *hovered.first->name;
             const auto& b  = hovered.second;
             const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -138,6 +140,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
     }
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     if (speech && speech->npc >= 0) return;               // the dev overlay would cover the speech box
+    if (L.id != 1 && !L.dt1s.empty()) return;             // outside camp the top is the monster bar's
 
     std::string cls = kClassKey[class_idx];
     if (auto v = lookup_string(s, kClassKey[class_idx])) cls = u16_to_latin1(*v);

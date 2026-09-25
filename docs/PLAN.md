@@ -140,8 +140,10 @@ D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
    merc, automap, music) to the Blood Moor. Walking toward a level that
    isn't built (Cold Plains) logs "not implemented". ponytail: the
    neighbour's NPCs aren't drawn across the edge.
-E. **Monsters**: Levels.txt mon1..mon10 / MonStats spawning, idle and
-   wandering units on the unit model — the start of phase 6 (combat).
+E. **Monsters** — spawning done: game.exe's monster region and room
+   population (docs/research/re/monsters.md, `components/rules/monsters.hpp`,
+   `test_monsters`); the Blood Moor's monsters draw with rolled components
+   and wander (MonWndr). Next: AI, combat, death, experience, drops.
 
 ## Next up (as of 2026-09-24)
 

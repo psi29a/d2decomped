@@ -19,6 +19,7 @@
 #include <tbl.hpp>
 #include <txt.hpp>
 #include <rules.hpp>
+#include <monsters.hpp>
 #include <userdir.hpp>
 
 #include "log.hpp"

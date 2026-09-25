@@ -14,7 +14,7 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
-constexpr int kModeNU = 1, kModeRN = 3, kModeTN = 5, kModeTW = 6;
+constexpr int kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeTN = 5, kModeTW = 6;
 
 // ponytail: town walk speed picked by eye so the TW cycle doesn't skate
 // (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
@@ -148,7 +148,8 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
 
 const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) const {
     const std::string m(mode);
-    const auto key = n.root + "/" + n.code + "/" + m;
+    auto key = n.root + "/" + n.code + "/" + m + "/" + n.base_w;
+    for (const auto& c : n.comp) key += "/" + c;
     auto it = npc_anims.find(key);
     if (it == npc_anims.end()) {
         it = npc_anims.emplace(key, load_npc_composite(mpqs, n, m)).first;
@@ -177,10 +178,175 @@ const d2d::dc6::Sprite* Scene::item_sprite(const d2d::d2s::Item& item) const {
     return it->second ? &*it->second : nullptr;
 }
 
+// MonStats2 layer variants ("lit,med": quoted lists), HDv..S8v.
+constexpr const char* kVariant[16] = {
+    "HDv", "TRv", "LGv", "RAv", "LAv", "RHv", "LHv", "SHv",
+    "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
+};
+std::vector<std::string> split_variants(std::string_view v) {
+    std::vector<std::string> out;
+    while (!v.empty() && (v.front() == '"' || v.back() == '"')) v = v.front() == '"' ? v.substr(1) : v.substr(0, v.size() - 1);
+    while (!v.empty()) {
+        const auto c = v.find(',');
+        out.emplace_back(v.substr(0, c));
+        if (c == std::string_view::npos) break;
+        v.remove_prefix(c + 1);
+    }
+    return out;
+}
+
+// MonStats2 row by Id.
+std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& t) {
+    std::unordered_map<std::string, std::size_t> out;
+    for (std::size_t r = 0; r < t.size(); ++r) out.emplace(std::string(t.get(r, "Id")), r);
+    return out;
+}
+
+// A monster unit from its MonStats row and the MonStats2 row its
+// MonStatsEx names (the tables aren't row-aligned: 734 vs 609 rows).
+Npc monster_npc(const Scene& scene, const d2d::txt::Table& ms, const d2d::txt::Table& ms2,
+                const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row) {
+    const auto ex = ms2_rows.find(std::string(ms.get(row, "MonStatsEx")));
+    const std::size_t row2 = ex == ms2_rows.end() ? row : ex->second;
+    Npc n;
+    n.root   = "monsters";
+    n.mode   = "NU";
+    n.code   = std::string(ms.get(row, "Code"));
+    n.hc_idx = std::atoi(std::string(ms.get(row, "hcIdx")).c_str());
+    n.id     = std::string(ms.get(row, "Id"));
+    n.base_w = std::string(ms2.get(row2, "BaseW"));
+    n.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
+    n.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
+    if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
+    // Hover name: MonStats' string key, only for units MonStats2 marks
+    // selectable (isSel) — not the chicken or the camp's guard rogues,
+    // whose name key "Dummy" reads "an evil force".
+    if (ms2.get(row2, "isSel") == "1") {
+        std::string key(ms.get(row, "NameStr"));        // 1.14d; "namco" on the CD
+        if (key.empty()) key = std::string(ms.get(row, "namco"));
+        auto v = lookup_string(scene, key);
+        n.name = v ? u16_to_latin1(*v) : key;
+    }
+    if (n.code.empty()) return n;
+    if (n.base_w.empty()) n.base_w = "hth";
+    for (std::size_t l = 0; l < 16; ++l) {
+        if (ms2.get(row2, kLayerCode[l]) != "1") continue;
+        const auto v = split_variants(ms2.get(row2, kVariant[l]));
+        n.comp[l] = v.empty() || v[0].empty() ? "lit" : v[0];
+    }
+    return n;
+}
+
+// Monster tables (MonStats, MonStats2, MonLvl), the Blood Moor's Levels.txt
+// monster columns, and its rooms populated (components/rules/monsters.hpp).
+// ponytail: every room at load, in cell order, normal difficulty — game.exe
+// populates a room when it first activates (so the game seed's order
+// follows the player) and knows the game's difficulty; the game seed is
+// the map seed here.
+void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
+    auto txt = [&](const char* n) {
+        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
+        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    };
+    const auto ms = txt("MonStats"), ms2 = txt("MonStats2"), ml = txt("MonLvl"), lv = txt("Levels");
+    if (ms.size() == 0 || ms2.size() == 0) return;
+    const auto ms2_rows = id_rows(ms2);
+    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+    auto& M = scene.monsters;
+    for (std::size_t r = 0; r < ms.size(); ++r) M.by_id.emplace(std::string(ms.get(r, "Id")), int(r));
+    auto row = [&](std::string_view id) { return id.empty() ? -1 : M.row(std::string(id)); };
+    static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
+    M.types.resize(ms.size());
+    scene.mon_npc.resize(ms.size());
+    for (std::size_t r = 0; r < ms.size(); ++r) {
+        auto& t = M.types[r];
+        auto g = [&](std::string c) { return ms.get(r, c); };
+        t.id = g("Id"); t.code = g("Code"); t.name_key = g("NameStr"); t.ai = g("AI");
+        t.base = row(g("BaseId"));
+        t.min_grp = num(g("MinGrp")); t.max_grp = num(g("MaxGrp"));
+        t.party_min = num(g("PartyMin")); t.party_max = num(g("PartyMax"));
+        t.sparse = num(g("sparsePopulate")); t.rarity = num(g("Rarity"));
+        t.minion = { row(g("minion1")), row(g("minion2")) };
+        t.velocity = num(g("Velocity")); t.run = num(g("Run"));
+        t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
+        for (int d = 0; d < 3; ++d) {
+            const std::string x = kSfx[d];
+            auto& p = t.diff[std::size_t(d)];
+            t.level[std::size_t(d)] = num(g("Level" + x));
+            p = { num(g("MinHP" + x)), num(g("MaxHP" + x)), num(g("AC" + x)), num(g("Exp" + x)),
+                  num(g("A1MinD" + x)), num(g("A1MaxD" + x)), num(g("A1TH" + x)),
+                  num(g("A2MinD" + x)), num(g("A2MaxD" + x)), num(g("A2TH" + x)),
+                  num(g("aidel" + x)), num(g("aidist" + x)), {}, std::string(g("TreasureClass1" + x)) };
+            for (int i = 0; i < 8; ++i) p.aip[std::size_t(i)] = num(g("aip" + std::to_string(i + 1) + x));
+        }
+        const auto ex = ms2_rows.find(std::string(g("MonStatsEx")));
+        if (ex != ms2_rows.end()) {
+            const auto r2 = ex->second;
+            t.size = std::max(num(ms2.get(r2, "SizeX")), 1);
+            t.base_w = ms2.get(r2, "BaseW");
+            for (std::size_t l = 0; l < 16; ++l)
+                if (ms2.get(r2, kLayerCode[l]) == "1") t.parts[l] = split_variants(ms2.get(r2, kVariant[l]));
+        }
+        scene.mon_npc[r] = monster_npc(scene, ms, ms2, ms2_rows, r);
+    }
+    // MonLvl: the LoD columns (L-*); normal matches the classic ones.
+    for (std::size_t r = 0; r < ml.size(); ++r) {
+        const int level = num(ml.get(r, "Level"));
+        if (level < 0 || level > 200) continue;
+        if (std::size_t(level) >= M.lvl.size()) M.lvl.resize(std::size_t(level) + 1);
+        auto& L = M.lvl[std::size_t(level)];
+        for (int d = 0; d < 3; ++d) {
+            const std::string x = kSfx[d];
+            L.ac[std::size_t(d)] = num(ml.get(r, "L-AC" + x)); L.th[std::size_t(d)] = num(ml.get(r, "L-TH" + x));
+            L.hp[std::size_t(d)] = num(ml.get(r, "L-HP" + x)); L.dm[std::size_t(d)] = num(ml.get(r, "L-DM" + x));
+            L.xp[std::size_t(d)] = num(ml.get(r, "L-XP" + x));
+        }
+    }
+    auto& moor = scene.moor;
+    for (std::size_t r = 0; r < lv.size(); ++r) {
+        if (num(lv.get(r, "Id")) != moor.id || moor.id == 0) continue;
+        auto g = [&](std::string c) { return lv.get(r, c); };
+        auto& L = moor.mon;
+        L.density = { num(g("MonDen")), num(g("MonDen(N)")), num(g("MonDen(H)")) };
+        L.umin = { num(g("MonUMin")), num(g("MonUMin(N)")), num(g("MonUMin(H)")) };
+        L.umax = { num(g("MonUMax")), num(g("MonUMax(N)")), num(g("MonUMax(H)")) };
+        L.wander = g("MonWndr") == "1";
+        L.num_mon = num(g("NumMon"));
+        for (int i = 1; i <= 25; ++i) {
+            if (const int k = row(g("mon" + std::to_string(i))); k >= 0) L.mon.push_back(k);
+            if (const int k = row(g("nmon" + std::to_string(i))); k >= 0) L.nmon.push_back(k);
+        }
+    }
+    if (moor.rooms.empty() || moor.walk.empty()) return;
+    d2d::rules::Rng game{ scene.map_seed };
+    d2d::rules::Rng region_seed{ game.next() };
+    const auto region = d2d::rules::monster_region(M, moor.mon, 0, region_seed);
+    // Not within WarpDist (2025 = 45^2 subtiles) of the camp, where players come in.
+    const int tx0 = (scene.town.world_x - moor.world_x) * 5, ty0 = (scene.town.world_y - moor.world_y) * 5;
+    const int tx1 = tx0 + scene.town.ds1.width() * 5, ty1 = ty0 + scene.town.ds1.height() * 5;
+    auto near_camp = [&](int x, int y) {
+        const int dx = std::max({ tx0 - x, 0, x - tx1 }), dy = std::max({ ty0 - y, 0, y - ty1 });
+        return dx * dx + dy * dy < 2025;
+    };
+    for (const auto& rm : moor.rooms) {
+        auto fits = [&](int x, int y) { return !moor.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5); };
+        d2d::rules::populate_room(M, region, moor.mon.density[0],
+            { rm.x * 5, rm.y * 5, 40, 40, d2d::rules::Rng{ rm.seed } }, game, fits, near_camp, moor.spawns);
+    }
+    std::array<int, 3> by{};
+    for (const auto& sp : moor.spawns)
+        for (std::size_t i = 0; i < region.types.size() && i < 3; ++i) by[i] += sp.type == region.types[i].first;
+    d2d::log::info("  Monsters: {} in the Blood Moor ({})", moor.spawns.size(), [&] {
+        std::string s;
+        for (std::size_t i = 0; i < region.types.size() && i < 3; ++i)
+            s += (i ? ", " : "") + std::to_string(by[i]) + " " + M.types[std::size_t(region.types[i].first)].id;
+        return s;
+    }());
+}
+
 // Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
-// (Act 1 rows) Place -> MonStats2 row (by Id) -> MonStats row at the same
-// index for the monster token (both are indexed by hcIdx; our MonStats is
-// the CD's, whose names differ, 1.14d's being a compressed patch entry).
+// (Act 1 rows) Place -> MonStats row (by Id) -> its MonStatsEx's MonStats2
+// row (monster_npc).
 // Positions are in subtiles; a unit stands at its subtile's centre.
 // ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
 void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
@@ -193,49 +359,13 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     std::vector<std::size_t> act1;
     for (std::size_t r = 0; r < preset.size(); ++r)
         if (preset.get(r, "Act") == "1") act1.push_back(r);
-    std::unordered_map<std::string, std::size_t> ms2_row;
-    for (std::size_t r = 0; r < ms2.size(); ++r) ms2_row.emplace(std::string(ms2.get(r, "Id")), r);
-    static constexpr const char* kVariant[16] = {
-        "HDv", "TRv", "LGv", "RAv", "LAv", "RHv", "LHv", "SHv",
-        "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
-    };
-    // A monster unit from its MonStats / MonStats2 row (same Id order).
-    auto monster = [&](std::size_t row) {
-        Npc n;
-        n.root   = "monsters";
-        n.mode   = "NU";
-        n.code   = std::string(ms.get(row, "Code"));
-        n.hc_idx = std::atoi(std::string(ms.get(row, "hcIdx")).c_str());
-        n.id     = std::string(ms.get(row, "Id"));
-        n.base_w = std::string(ms2.get(row, "BaseW"));
-        n.size_x = std::atoi(std::string(ms2.get(row, "SizeX")).c_str());
-        n.size_y = std::atoi(std::string(ms2.get(row, "SizeY")).c_str());
-        if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
-        // Hover name: MonStats' string key, only for units MonStats2 marks
-        // selectable (isSel) — not the chicken or the camp's guard rogues,
-        // whose name key "Dummy" reads "an evil force".
-        if (ms2.get(row, "isSel") == "1") {
-            std::string key(ms.get(row, "NameStr"));        // 1.14d; "namco" on the CD
-            if (key.empty()) key = std::string(ms.get(row, "namco"));
-            auto v = lookup_string(scene, key);
-            n.name = v ? u16_to_latin1(*v) : key;
-        }
-        if (n.code.empty()) return n;
-        if (n.base_w.empty()) n.base_w = "hth";
-        for (std::size_t l = 0; l < 16; ++l) {
-            if (ms2.get(row, kLayerCode[l]) != "1") continue;
-            auto v = ms2.get(row, kVariant[l]);                // "lit,med": quoted lists
-            if (v.starts_with('"')) v.remove_prefix(1);
-            const auto first = v.substr(0, std::min(v.find(','), v.find('"')));
-            n.comp[l] = first.empty() ? "lit" : std::string(first);
-        }
-        return n;
-    };
+    const auto ms2_row = id_rows(ms2), ms_row = id_rows(ms);
+    auto monster = [&](std::size_t row) { return monster_npc(scene, ms, ms2, ms2_row, row); };
     for (const auto& o : scene.town.ds1.objects()) {
         if (o.type != 1 || o.id < 0 || std::size_t(o.id) >= act1.size()) continue;
         const std::string place(preset.get(act1[std::size_t(o.id)], "Place"));
-        const auto it = ms2_row.find(place);
-        if (it == ms2_row.end()) continue;           // place_* markers etc.
+        const auto it = ms_row.find(place);
+        if (it == ms_row.end()) continue;            // place_* markers etc.
         auto n = monster(it->second);
         if (n.code.empty()) continue;
         n.x = (float(o.x) + 0.5f) / 5;
@@ -1074,6 +1204,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         load_wilderness(scene, mpqs, act1, layout);
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
+        load_monsters(scene, mpqs);
         d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - t0);
         d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
                        scene.item_tables ? "tables loaded" : "no item tables",
@@ -1166,6 +1297,7 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
     lv.id = 2;
     lv.type = 2;
     lv.ds1 = std::move(o.tiles);
+    lv.rooms = std::move(o.rooms);
     lv.world_x = L.rect.x;
     lv.world_y = L.rect.y;
     if (auto b = mpqs.try_read(R"(data\global\excel\LvlTypes.txt)")) {

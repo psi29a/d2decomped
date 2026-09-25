@@ -93,6 +93,11 @@ struct Level {
         return { x, y };
     }
     std::pair<float, float> start{ -1, -1 };            // cells: where a player joining arrives; see load_world
+    // Monsters: its Levels.txt columns, the rooms the generator made and
+    // what populating them spawned (subtiles, level-relative).
+    d2d::rules::LevelMon mon;
+    std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
+    std::vector<d2d::rules::Spawn> spawns;
 };
 
 struct Scene {
@@ -288,7 +293,9 @@ struct Scene {
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
-    mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode
+    d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
+    std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
+    mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
 };
 

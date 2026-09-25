@@ -7,6 +7,26 @@
 
 namespace {
 
+// The hovered monster's name on its life bar, top centre: a dark red bar
+// as wide as the name plus a margin, filled by its share of life left.
+// ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
+// font and per-type colours) isn't traced; this is its look by eye.
+void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m) {
+    const auto& name = m.npc.name;
+    if (name.empty() || !m.alive()) return;
+    const int w = std::max(s.font.measure(name) + 20, 120), h = s.font.line_height() + 4;
+    const int x0 = int(kW) / 2 - w / 2, y0 = 10;
+    const int filled = w * std::clamp(m.hp, 0, m.st.hp) / std::max(m.st.hp, 1);
+    for (int y = y0; y < y0 + h; ++y)
+        for (int x = x0; x < x0 + w; ++x) {
+            auto* p = fb.data() + (std::size_t(y) * kW + std::size_t(x)) * 4;
+            const bool on = x - x0 < filled;
+            p[0] = on ? 0x88 : 0x20; p[1] = on ? 0x08 : 0x10; p[2] = on ? 0x08 : 0x10;
+        }
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
+}
+
 struct Town {
     const Scene* scene = nullptr;
     const Level* level = nullptr;          // where the character is: the town or the Blood Moor
@@ -38,7 +58,8 @@ struct Town {
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     d2d::rules::Rng rng{ 0x2545f491u };    // rolls: stock, talk topics, gambles, merc offers
-    int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame)
+    std::vector<Monster> monsters;         // the Blood Moor's (Level::spawns), kept while the game runs
+    int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
     bool  player_ran = false;
@@ -57,6 +78,7 @@ struct Town {
             std::tie(player.x, player.y) = level->start;
         if (have_world) std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
         if (scene) npc_states = npc_start(*level);
+        if (scene) monsters = spawn_monsters(*scene, scene->moor, rng);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
     }
@@ -398,6 +420,10 @@ struct Town {
         if (merc) crowd.units.push_back(&*merc);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             if (!level->npcs[i].path.empty() && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
+        const bool in_moor = level == &scene->moor;
+        if (in_moor)                           // the monsters around the player
+            for (auto& m : monsters)
+                if (m.alive() && std::abs(m.u.x - player.x) < 12 && std::abs(m.u.y - player.y) < 12) crowd.units.push_back(&m.u);
         if ((mouse.down || mouse.press_this_frame) && !over_ui) {
             // Screen -> world: invert the iso projection around
             // the player, who sits at (kW/2, kH/2 + kIsoH/2).
@@ -464,6 +490,12 @@ struct Town {
             if (!player.walking) player.path.clear();
         }
         npc_patrol(*level, npc_states, { npc_menu.npc, speech.npc, store.npc }, ms, dt, crowd);
+        // Monsters think while the player is near (D2 runs the rooms
+        // around each player).
+        if (in_moor)
+            for (auto& m : monsters)
+                if (m.alive() && std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30)
+                    monster_wander(*scene, *level, m, rng, ms, dt, crowd);
         if (merc) {
             const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
             merc_follow(*level, *merc, player.x, player.y,
@@ -478,17 +510,30 @@ struct Town {
             player_walked = player.walking; player_ran = m; player.mode_ms = ms;
         }
         const int ui_cls = std::max(cc.selected, 0);
+        // Monsters in view, as units the world draws by depth.
+        std::vector<Unit> extra;
+        if (level == &scene->moor)
+            for (std::size_t i = 0; i < monsters.size(); ++i) {
+                const auto& m = monsters[i];
+                if (std::abs(m.u.x - player.x) >= 14 || std::abs(m.u.y - player.y) >= 14) continue;
+                extra.push_back({ m.u.x, m.u.y, &scene->npc_anim(m.npc, m.mode), m.u.dir,
+                                  m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
+            }
+        const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
+        const int pmode = player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         render_ingame(fb, *scene, *level, ui_cls,
                       cc.appearance ? *cc.appearance
                                     : scene->starting_gear[std::size_t(kUiToSaveClass[ui_cls])],
                       cc.input_name, cc.hardcore,
-                      player.x, player.y, player.walking ? (running ? kModeRN : kModeTW) : kModeTN,
+                      player.x, player.y, pmode,
                       player.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
                       inv_open ? &cc.items : nullptr,
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, player.mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      merc_npc, merc ? &*merc : nullptr, &merc_label);
+                      merc_npc, merc ? &*merc : nullptr, &merc_label, extra);
+        if (hovered_npc <= -10 && std::size_t(-10 - hovered_npc) < monsters.size())
+            draw_monster_bar(fb, *scene, monsters[std::size_t(-10 - hovered_npc)]);
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);

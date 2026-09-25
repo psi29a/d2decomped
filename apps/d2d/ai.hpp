@@ -157,6 +157,75 @@ void merc_follow(const Level& L, UnitState& m, float px, float py, float speed, 
     else if (ms - m.stuck_since > 1500) { m.x = px + 1; m.y = py + 1; m.walking = false; m.stuck_since = 0; path.clear(); }
 }
 
+// A monster in the level: its type (MonStats row), composite recipe with
+// the components it rolled, where it is, its stats and what it's doing.
+struct Monster {
+    int type = -1;
+    Npc npc;
+    UnitState u;
+    d2d::rules::MonStats st;
+    int hp = 1;
+    int leader = -1;                          // index of its group's leader
+    float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
+    std::string_view mode = "NU";             // animation mode token
+    [[nodiscard]] bool alive() const { return hp > 0; }
+};
+
+// The level's spawns as monsters: each rolls its components (one of
+// MonStats2's HDv..S8v per layer) and its stats.
+// ponytail: components from our own roll, not game.exe's
+// (the monster's seed at spawn isn't traced).
+std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng) {
+    std::vector<Monster> out;
+    for (const auto& sp : L.spawns) {
+        if (sp.type < 0 || std::size_t(sp.type) >= s.mon_npc.size()) continue;
+        const auto& t = s.monsters.types[std::size_t(sp.type)];
+        Monster m;
+        m.type = sp.type;
+        m.npc = s.mon_npc[std::size_t(sp.type)];
+        for (std::size_t l = 0; l < 16; ++l)
+            if (!t.parts[l].empty()) m.npc.comp[l] = t.parts[l][std::size_t(rng(int(t.parts[l].size())))];
+        m.u.x = m.home_x = (float(sp.x) + 0.5f) / 5;
+        m.u.y = m.home_y = (float(sp.y) + 0.5f) / 5;
+        m.u.dir = rng(16);
+        m.u.wait_until = std::uint32_t(rng(4000));
+        m.st = d2d::rules::monster_stats(s.monsters, sp.type, 0, rng);
+        m.hp = m.st.hp;
+        m.leader = sp.leader;
+        out.push_back(std::move(m));
+    }
+    return out;
+}
+
+// Idle monsters wander (Levels.txt MonWndr): stand 2-5 s, then walk
+// straight to a random spot within 3 cells of home at their Velocity,
+// stopping short when something's in the way.
+// ponytail: not game.exe's idle AI (each AI type has its own think
+// function, table not traced); timings by eye.
+void monster_wander(const Scene& s, const Level& L, Monster& m, d2d::rules::Rng& rng,
+                    std::uint32_t ms, float dt, const Crowd& crowd) {
+    auto& u = m.u;
+    if (!u.walking) {
+        if (ms < u.wait_until || !L.mon.wander) return;
+        const float a = float(rng(360)) * 3.14159265f / 180, r = float(rng(300)) / 100;
+        u.goal_x = m.home_x + std::cos(a) * r;
+        u.goal_y = m.home_y + std::sin(a) * r;
+        u.walking = true; u.mode_ms = ms; m.mode = "WL";
+        return;
+    }
+    const float dx = u.goal_x - u.x, dy = u.goal_y - u.y, dist = std::hypot(dx, dy);
+    const float step = cells_per_sec(float(s.monsters.types[std::size_t(m.type)].velocity)) * dt;
+    const float nx = u.x + dx / std::max(dist, 0.001f) * std::min(step, dist), ny = u.y + dy / std::max(dist, 0.001f) * std::min(step, dist);
+    if (dist > 0.05f) u.dir = direction16(dx, dy);
+    if (dist <= step || L.unit_blocked(nx, ny) || crowd.at(nx, ny, &u)) {
+        if (dist <= step) { u.x = nx; u.y = ny; }
+        u.walking = false; u.mode_ms = ms; m.mode = "NU";
+        u.wait_until = ms + 2000 + std::uint32_t(rng(3000));
+        return;
+    }
+    u.x = nx; u.y = ny;
+}
+
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.
 std::string merc_name(const Scene& s, const Scene::Merc& m, int index) {

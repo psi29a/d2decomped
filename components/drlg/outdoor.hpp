@@ -46,6 +46,10 @@ struct Outdoor {
     std::vector<std::uint32_t> g04, g18, g2c;           // preset def, values, flags
     std::vector<std::vector<std::pair<int, int>>> roads; // polylines, act tiles
     d2d::ds1::Map tiles;                                // the level, level-relative
+    // Every room the finish allocated (8x8 tiles, presets split the same
+    // way), level-relative tiles, with its seed: monsters populate these.
+    struct RoomSeed { int x = 0, y = 0; std::uint32_t seed = 0; };
+    std::vector<RoomSeed> rooms;
     std::vector<std::string> notes;                     // what isn't wired up yet
 };
 
@@ -937,7 +941,7 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
                 const int file = int((f >> 16) & 0xf);
                 if (p->scan || p->pops) g.note("drlg: preset units (FUN_00667620) not rolled — later room seeds drift");
                 for (int ty = 0; ty < p->h; ty += 8)
-                    for (int tx = 0; tx < p->w; tx += 8) (void)alloc();
+                    for (int tx = 0; tx < p->w; tx += 8) out.rooms.push_back({ cx * 8 + tx, cy * 8 + ty, alloc().low });
                 const auto* m = file < 6 ? p->maps[std::size_t(file)] : nullptr;
                 if (!m) { g.note("drlg: preset " + std::to_string(def) + " file " + std::to_string(file) + " not loaded"); continue; }
                 const int ox = cx * 8, oy = cy * 8;
@@ -954,6 +958,7 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
                     }
             } else if (!(f & 0x100)) {                    // FUN_0067d540
                 auto r = alloc();
+                out.rooms.push_back({ cx * 8, cy * 8, r.low });
                 Room room{ cx * 8, cy * 8, g.g18.get(cx, cy), r.low, 0, {}, {}, {}, {} };
                 if (L.sub_type != -1 && L.sub_theme != -1) {                     // FUN_006706a0
                     std::uint32_t bit = 0;

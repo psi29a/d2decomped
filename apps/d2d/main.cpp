@@ -389,6 +389,21 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         }
         return out + "ok\n";
     });
+    // The Blood Moor's monsters (kept while in town too):
+    // "<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>" — cells in the moor,
+    // feet on screen (game pixels, meaningful while in the moor).
+    ch.on("monsters", [&](const std::vector<std::string>&) {
+        if (!scene) return std::string("err no scene\n");
+        std::string out;
+        for (const auto& m : t.monsters) {
+            const float dx = m.u.x - t.player.x, dy = m.u.y - t.player.y;
+            const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
+            const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
+            out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\n", scene->monsters.types[std::size_t(m.type)].id,
+                               m.u.x, m.u.y, sx, sy, m.hp, m.st.hp, m.mode);
+        }
+        return out + "ok\n";
+    });
     // The open NPC menu's lines: "<text>\t<x>\t<y>" with a point inside
     // each (game pixels), header first.
     ch.on("menu", [&](const std::vector<std::string>&) {
