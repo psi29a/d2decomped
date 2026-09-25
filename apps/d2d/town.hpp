@@ -84,7 +84,7 @@ struct Town {
     struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
     std::vector<Cue> cues;
     // Potions working: life / mana (8.8 fixed) a millisecond, until when.
-    struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; };
+    struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
     std::vector<Regen> regen;
 
     // Keys 1-4 drink the belt's bottom-row potion in that column: healing
@@ -108,9 +108,10 @@ struct Town {
     }
     // Potions and poison, then the steady regeneration: replenish life
     // (hpregen, N/256 a tick) and mana (all of it in 120 s, faster by the
-    // manarecoverybonus %). Poison leaves at least 1 life.
-    // ponytail: poison not killing and the 120 s mana base are the commonly
-    // given rules, not traced.
+    // manarecoverybonus %). Poison is negative hpregen, and the player's
+    // regen tick (FUN_00580610) never takes life below 1: poison can't kill
+    // a player (docs/research/re/combat.md).
+    // ponytail: the 120 s mana base is the commonly given rule, not traced.
     double regen_acc_life = 0, regen_acc_mana = 0;
     void apply_regen(std::uint32_t ms, std::uint32_t last_ms) {
         using namespace d2d::d2s;
@@ -588,7 +589,13 @@ struct Town {
             cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + (std::int64_t(b.life) << 8));
             cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + (std::int64_t(b.mana) << 8));
         }
-        if (b.poison > 0) { m.poison_rate = double(b.poison) / (b.poison_ticks * 40.0); m.poison_until = ms + std::uint32_t(b.poison_ticks) * 40; }
+        // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
+        // the monster dies to it, the kill the poisoner's (FUN_005a6920).
+        if (const double rate = double(b.poison) / (std::max(b.poison_ticks, 1) * 40.0);
+            b.poison > 0 && (ms >= m.poison_until || rate >= m.poison_rate)) {
+            m.poison_rate = rate;
+            m.poison_until = ms + std::uint32_t(b.poison_ticks) * 40;
+        }
         if (b.chill_ticks > 0) m.chill_until = ms + std::uint32_t(b.chill_ticks) * 40;
         if (b.bleed) {
             m.bleed_rate = d2d::rules::open_wounds_per_sec(int(cc.stats.get(kLevel))) / 1000.0;
@@ -998,8 +1005,14 @@ struct Town {
                 if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30) monster_sounds(m, ms);
             auto& foe = foes[0];
             // Poison works on the player over its ticks (a negative potion).
-            if (foe.poison > 0)
-                regen.push_back({ -foe.poison * 256.0 / (foe.poison_ticks * 40.0), 0, ms + std::uint32_t(foe.poison_ticks) * 40 });
+            // One poison at a time: a new one at least as strong replaces it
+            // (and its length), a weaker one is ignored (FUN_0057ac50).
+            if (foe.poison > 0) {
+                const Regen p{ -foe.poison * 256.0 / (foe.poison_ticks * 40.0), 0, ms + std::uint32_t(foe.poison_ticks) * 40, true };
+                const auto old = std::ranges::find_if(regen, [](const Regen& r) { return r.poison; });
+                if (old == regen.end()) regen.push_back(p);
+                else if (p.life <= old->life) *old = p;
+            }
             if (foe.blocked && pmode < 0) set_pmode(kModeBL, ms);   // a block plays out (FBR)
             if (foe.damage > 0) {
                 using namespace d2d::d2s;

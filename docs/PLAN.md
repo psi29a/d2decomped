@@ -161,8 +161,50 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    poison damage both ways, chill, knockback, life/mana leech (MonStats
    Drain), thorns, IAS/WSM swing speed, FHR/FBR/FRW, replenish life and
    mana regeneration (components/rules Fighter, player_blow,
-   monster_blow). Next: skills, champions/uniques (NM/Hell), merc
-   resurrection, monster life regeneration, class get-hit sounds.
+   monster_blow; docs/research/re/combat.md). Poison traced: it can't
+   take a player below 1 life, it kills monsters (credited to the
+   poisoner), one poison at a time. Skills researched
+   (docs/research/re/skills.md), not built.
+
+## Checkpoint 2026-09-25: what's still open
+
+Combat
+- Skills: none usable yet; plan and game.exe anchors in skills.md.
+- Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
+  FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
+  names.
+- Formulas taken from the published rules, not traced (combat.md): hit
+  chance, the damage order, crushing blow divisors, block, hit recovery
+  thresholds, FHR/FBR breakpoint tables, mana regen base.
+- Monster life regeneration (MonStats DamageRegen), cold slowing the
+  player, poison length reduction, set bonuses and the weapon swap in the
+  stat sums.
+- Mercs: resurrection at Kashya, their skills and gear, their share of
+  experience.
+- Monster AI: one melee/shooter think for every AI type; the per-type think
+  functions (aip1..8) aren't traced.
+- Class get-hit and attack sounds; Alt to show all ground item labels; the
+  potion drink visuals.
+
+Spawning
+- Rooms populate at load in cell order (game.exe: on first activation);
+  the game seed is the map seed; the +0x20 seed for group counts.
+
+Act 1 levels and rendering
+- Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
+  Dark Wood, Black Marsh, Tamoe Highland, Den of Evil and the other
+  caves/crypts (maze generator, DrlgType 1, FUN_00673b30), Tristram,
+  Monastery through the Catacombs.
+- In the Blood Moor: preset units (FUN_00667620, so room seeds drift),
+  shrines and stamp objects, rarity tile picks (FUN_0066d820).
+- Rendering: shadows not blended, no unit shadows, no lighting / day-night
+  / rain, cell-granular wall sorting, no item colour tints on composites,
+  the neighbour level's NPCs not drawn across the edge.
+
+Town
+- Warriv's "go east", waypoint travel, the hire list's widget and offer
+  count, Cain's spot in an already-rescued game, trade leftovers (magic
+  stock, the real stock roll), saving .d2s.
 
 ## Next up (as of 2026-09-24)
 
