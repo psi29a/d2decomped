@@ -553,7 +553,10 @@ operand and function lists.
    masteries" above). Was: (`passivestat*`): Claw Mastery, Weapon Block,
    Critical Strike, Dodge / Avoid / Evade: they feed `Fighter`
    (`skills.hpp` computes the stats, `make_fighter` adds them).
-4. **Missile spells** (Fire Bolt, Magic Arrow, Poison Dagger): EMin/EMax by
+4. ~~**Missile spells**~~ — **done 2026-09-26** (see "Missile skills"
+   above; Poison Dagger: st 16 FUN_005c30a0 builds Bash's way with its
+   poison, do 32 FUN_005c4cd0 resolves; melee skill elements take the
+   mastery too, FUN_0056e0c0 passes flag 1). Was: (Fire Bolt, Magic Arrow, Poison Dagger): EMin/EMax by
    level, synergies, cast rate (FCR), the missile system that already flies
    quill spikes (`ai.hpp` Missile; friendly missiles like the merc's).
 5. **Auras, summons, charge-ups, sentries**: auras as states on units in

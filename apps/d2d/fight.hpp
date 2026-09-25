@@ -37,7 +37,9 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // hits), Sacrifice (29 / 64: a hit that costs life) and Smite (- / 150:
 // the shield); and on their sequences' hits Jab (5 / 7), Dragon Claw
 // (25 / 46), Frenzy (- / 9), Double Swing (- / 70) and Impale (7 / 2);
-// Fend (9 / 13) as Zeal, a hit per enemy in reach.
+// Fend (9 / 13) as Zeal, a hit per enemy in reach; Poison Dagger (16 /
+// 32: FUN_005c30a0 builds Bash's way with its poison, FUN_005c4cd0
+// resolves).
 // Every other skill swings a plain attack for now.
 // Skills that move the player: Whirlwind (38 / 76), Charge (31 / 67),
 // Leap Attack (41 / 78).
@@ -49,7 +51,7 @@ inline bool skill_built(const d2d::rules::Skill& s) {
         || (s.srvstfunc == 23 && (s.srvdofunc == 34 || s.srvdofunc == 35)) || (s.srvstfunc == 27 && s.srvdofunc == 50)
         || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
         || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70
-        || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2)
+        || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2) || (s.srvstfunc == 16 && s.srvdofunc == 32)
         || moving_skill(s);
 }
 // Self casts (right click, no target): Holy Shield (36 / 18).
@@ -648,7 +650,7 @@ struct Fight {
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
-        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78 }, s->srvdofunc)) skill_element(f, *s);
+        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78, 32 }, s->srvdofunc)) skill_element(f, *s);
         const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, m.target(*scene), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
@@ -670,15 +672,23 @@ struct Fight {
     }
 
     // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
-    // brackets and synergy; Power Strike's lightning). Stun is elsewhere.
+    // brackets, synergy and the element's mastery (flag 1); Power Strike's
+    // lightning, Poison Dagger's poison). Stun is elsewhere.
     void skill_element(d2d::rules::Fighter& f, const d2d::rules::Skill& s) {
         if (s.etype < 0 || s.etype >= 5) return;
         const int lvl = skill_level ? skill_level(s.id) : 1;
         const auto env = calc_env();
         auto& [lo, hi] = f.elem[std::size_t(s.etype)];
-        lo += d2d::rules::elem_damage(scene->skills, s, env, lvl, false) >> 8;
-        hi += d2d::rules::elem_damage(scene->skills, s, env, lvl, true) >> 8;
-        if (s.etype == 2) f.cold_len = std::max(f.cold_len, d2d::rules::elem_length(scene->skills, s, env, lvl));
+        const int len = d2d::rules::elem_length(scene->skills, s, env, lvl);
+        const std::int64_t elo = d2d::rules::elem_damage(scene->skills, s, env, lvl, false, 0, true),
+                           ehi = d2d::rules::elem_damage(scene->skills, s, env, lvl, true, 0, true);
+        if (s.etype == 3) {                                  // poison: 256ths a tick over its length
+            lo += int(elo * std::max(len, 1) >> 8); hi += int(ehi * std::max(len, 1) >> 8);
+            f.poison_len = std::max(f.poison_len, len);
+            return;
+        }
+        lo += int(elo >> 8); hi += int(ehi >> 8);
+        if (s.etype == 2) f.cold_len = std::max(f.cold_len, len);
     }
     void self_state(const d2d::rules::Skill& s, std::uint32_t ms) {
         const int lvl = skill_level ? skill_level(s.id) : 1;
