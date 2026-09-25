@@ -29,6 +29,8 @@ struct ItemInfo {
     bool one_or_two = false;           // 1or2handed: a Barbarian wields it in one hand
     int req_str = 0, req_dex = 0, req_lvl = 0;
     std::string flippy;                // flippyfile: the on-the-ground animation
+    std::string drop_sound;            // dropsound, played at flippy frame dropsfxframe
+    int drop_frame = 0;
 };
 // ItemTypes.txt by Code: the Equiv parents, the BodyLocs.txt slots the
 // type can be worn in (BodyLoc1/2, not inherited), its class (ama, sor,
@@ -150,6 +152,10 @@ struct Tables {
     std::unordered_map<std::string, TreasureClass> treasure;
     std::array<std::array<QualityRatio, 6>, 2> quality_ratio{};
     std::unordered_map<std::string, int> item_rarity;
+    // misc.txt potions: life / mana restored (hpregen / manarecovery: that
+    // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once).
+    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false; };
+    std::unordered_map<std::string, Potion> potions;
 };
 
 // ponytail: stock = each listed item <Vendor>Min..Max times plus the
@@ -953,6 +959,19 @@ inline bool hire(const MercOffer& o, d2d::d2s::Header& h, d2d::d2s::Stats& st) {
     h.merc_name = std::uint16_t(o.name);
     h.merc_exp = o.exp;
     return true;
+}
+
+// Drinks the potion at the bottom of belt column `col` (box col, 0..3):
+// the item goes, those stacked above it (boxes col + 4, + 8, + 12) drop
+// a row. Returns its code, "" when there's no potion there.
+inline std::string drink_belt(const Tables& t, std::vector<d2d::d2s::Item>& items, int col) {
+    const auto it = std::ranges::find_if(items, [&](const d2d::d2s::Item& i) { return i.location == 2 && i.column == col; });
+    if (it == items.end() || !t.potions.contains(it->code)) return {};
+    std::string code = it->code;
+    items.erase(it);
+    for (int box = col + 4; box < 16; box += 4)
+        for (auto& i : items) if (i.location == 2 && i.column == box) i.column = box - 4;
+    return code;
 }
 
 // Cain's "Identify Items": the carried and worn ones. Returns how many.

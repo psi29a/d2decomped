@@ -284,6 +284,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         t.velocity = num(g("Velocity")); t.run = num(g("Run"));
         t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
         t.miss_a2 = g("MissA2");
+        t.sound = g("MonSound");
         for (int d = 0; d < 3; ++d) {
             const std::string x = kSfx[d];
             auto& p = t.diff[std::size_t(d)];
@@ -331,6 +332,16 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (const int k = row(g("mon" + std::to_string(i))); k >= 0) L.mon.push_back(k);
             if (const int k = row(g("nmon" + std::to_string(i))); k >= 0) L.nmon.push_back(k);
         }
+    }
+    // MonSounds.txt.
+    const auto snd = txt("MonSounds");
+    for (std::size_t r = 0; r < snd.size(); ++r) {
+        auto id = [&](const char* c) { const auto it = scene.sound_index.find(std::string(snd.get(r, c))); return it == scene.sound_index.end() ? 0 : it->second; };
+        auto n = [&](const char* c) { return num(snd.get(r, c)); };
+        Scene::MonSound m{ { id("Attack1"), id("Attack2") }, { id("Weapon1"), id("Weapon2") }, { n("Att1Del"), n("Att2Del") },
+                           { n("Wea1Del"), n("Wea2Del") }, { n("Att1Prb"), n("Att2Prb") }, id("HitSound"), id("DeathSound"),
+                           n("HitDelay"), n("DeaDelay") };
+        scene.mon_sounds.emplace(std::string(snd.get(r, "Id")), m);
     }
     // Missiles.txt, the rows monsters fire.
     const auto mt = txt("Missiles");
@@ -539,7 +550,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1,
                 t == &weapons && t->get(r, "2handed") == "1", t == &weapons && t->get(r, "1or2handed") == "1",
                 std::atoi(std::string(t->get(r, "reqstr")).c_str()), std::atoi(std::string(t->get(r, "reqdex")).c_str()),
-                std::atoi(std::string(t->get(r, "levelreq")).c_str()), std::string(t->get(r, "flippyfile")) };
+                std::atoi(std::string(t->get(r, "levelreq")).c_str()), std::string(t->get(r, "flippyfile")),
+                std::string(t->get(r, "dropsound")), std::atoi(std::string(t->get(r, "dropsfxframe")).c_str()) };
     for (std::size_t r = 0; r < types.size(); ++r) {
         const std::string code(types.get(r, "Code"));
         scene.rules.types[code] = {
@@ -577,6 +589,17 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                     if (vi.max > 0 || vi.magic_max > 0) scene.rules.vendor_items[v].push_back(std::move(vi));
                 }
             }
+        // Potions (misc.txt stat1/calc1, stat2/calc2, len).
+        for (std::size_t r = 0; r < misc.size(); ++r) {
+            auto n = [&](std::string c) { return std::atoi(std::string(misc.get(r, c)).c_str()); };
+            const auto s1 = misc.get(r, "stat1"), s2 = misc.get(r, "stat2");
+            d2d::rules::Tables::Potion p{ 0, 0, n("len") };
+            if (s1 == "hpregen") p.life = n("calc1");
+            else if (s1 == "manarecovery") p.mana = n("calc1");
+            else if (s1 == "hitpoints" && s2 == "mana") { p.life = n("calc1"); p.mana = n("calc2"); p.percent = true; }
+            else continue;
+            scene.rules.potions.emplace(std::string(misc.get(r, "code")), p);
+        }
         // Drops: TreasureClassEx, ItemRatio (the LoD, non-class rows), auto classes.
         const auto tcx = txt("TreasureClassEx");
         for (std::size_t r = 0; r < tcx.size(); ++r) {
@@ -812,7 +835,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                              std::atoi(std::string(st.get(r, "Volume")).c_str()),
                                              st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1",
                                              std::atoi(std::string(st.get(r, "Fade In")).c_str()),
-                                             std::atoi(std::string(st.get(r, "Fade Out")).c_str()) };
+                                             std::atoi(std::string(st.get(r, "Fade Out")).c_str()),
+                                             std::atoi(std::string(st.get(r, "Group Size")).c_str()) };
+            scene.sound_index.emplace(std::string(st.get(r, "Sound")), i);
         }
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))

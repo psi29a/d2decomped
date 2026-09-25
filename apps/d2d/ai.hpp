@@ -169,6 +169,7 @@ struct Monster {
     int difficulty = 0;
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
     std::string_view mode = "NU";             // animation mode token
+    std::string_view last_mode = "NU";        // as of the last sound check
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
     std::uint32_t next_act = 0;               // ms: may attack again (aidel)
     std::uint32_t flee_until = 0;             // ms: running from the player

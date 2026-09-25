@@ -153,8 +153,10 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    follow the character's difficulty. Quill rats shoot spikes
    (Missiles.txt, 32-direction DCCs); the merc fights (hireling.txt stats
    at its level; rogues shoot arrows) and monsters go for whichever of
-   player and merc is nearer; a dead merc stays dead. Next: sounds,
-   belt potions, champions/uniques (NM/Hell), merc resurrection.
+   player and merc is nearer; a dead merc stays dead. MonSounds.txt
+   attack/weapon/hit/death sounds, drop and pickup sounds (fading with
+   distance); keys 1-4 drink belt potions. Next: champions/uniques
+   (NM/Hell), merc resurrection, class get-hit sounds, Alt item labels.
 
 ## Next up (as of 2026-09-24)
 

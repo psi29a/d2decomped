@@ -24,6 +24,7 @@ struct MonType {
     int velocity = 0, run = 0;
     bool enabled = false, killable = false, melee = false;
     std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
+    std::string sound;                          // MonSound: its MonSounds.txt row
     // Percentages of the MonLvl row (1.10+ style), per difficulty.
     struct Diff {
         int min_hp = 0, max_hp = 0, ac = 0, exp = 0;

@@ -134,6 +134,13 @@ int main() {
     assert(ms.level == 4 && ms.life == 110 && ms.def == 12 && ms.dmg_min == 3 && ms.dmg_max == 6 && ms.ar == 25);
     ms = merc_stats(mt, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
     assert(ms.level == 20 && ms.life == 500 && ms.dmg_min == 10);
+    // Belt potions: the bottom one goes, the column drops a row.
+    Tables pt;
+    pt.potions["hp1"] = { .life = 30, .ticks = 192 };
+    auto belt = [](const char* code, int box) { d2d::d2s::Item i; i.code = code; i.location = 2; i.column = box; return i; };
+    std::vector<d2d::d2s::Item> bi{ belt("hp1", 1), belt("hp1", 5), belt("isc", 2) };
+    assert(drink_belt(pt, bi, 1) == "hp1" && bi.size() == 2 && bi[0].column == 1);
+    assert(drink_belt(pt, bi, 2).empty() && drink_belt(pt, bi, 0).empty() && bi.size() == 2);   // a scroll, nothing
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     assert(dropped > 400 && dropped < 600 && magic > 0 && magic < dropped / 2);
     std::puts("ok");

@@ -78,6 +78,63 @@ struct Town {
     };
     std::vector<GroundItem> ground;
     std::vector<Missile> missiles;         // in flight in the Blood Moor
+    // World sounds due at `at` ms from (x, y) (Sounds.txt index).
+    struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
+    std::vector<Cue> cues;
+    // Potions working: life / mana (8.8 fixed) a millisecond, until when.
+    struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; };
+    std::vector<Regen> regen;
+
+    // Keys 1-4 drink the belt's bottom-row potion in that column: healing
+    // and mana potions restore their amount over their length, a
+    // rejuvenation its percentages at once.
+    // ponytail: no class potion bonus (CharStats HealthPotionPercent).
+    void drink(int col, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        if (dead()) return;
+        const auto code = d2d::rules::drink_belt(scene->rules, cc.items, col);
+        if (code.empty()) return;
+        const auto& p = scene->rules.potions.at(code);
+        if (p.percent) {
+            cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + cc.stats.v[kMaxLife] * p.life / 100);
+            cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + cc.stats.v[kMaxMana] * p.mana / 100);
+        } else {
+            const double len = std::max(p.ticks, 1) * 40.0;
+            regen.push_back({ p.life * 256.0 / len, p.mana * 256.0 / len, ms + std::uint32_t(len) });
+        }
+        cue("item_potion_drink", ms, player.x, player.y);
+    }
+    void apply_regen(std::uint32_t ms, std::uint32_t last_ms) {
+        using namespace d2d::d2s;
+        for (const auto& r : regen) {
+            const double t = double(std::min(ms, r.until) - std::min(last_ms, r.until));
+            cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + std::int64_t(r.life * t));
+            cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + std::int64_t(r.mana * t));
+        }
+        std::erase_if(regen, [&](const Regen& r) { return ms >= r.until; });
+    }
+    void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) cues.push_back({ at, sound, x, y }); }
+    void cue(std::string_view name, std::uint32_t at, float x, float y) {
+        if (const auto it = scene->sound_index.find(std::string(name)); it != scene->sound_index.end()) cue(it->second, at, x, y);
+    }
+    // A monster's new mode sounds off (MonSounds.txt): an attack's cry (at
+    // its chance) and weapon, get-hit, death, each after its delay in ticks.
+    void monster_sounds(Monster& m, std::uint32_t ms) {
+        if (m.mode == m.last_mode) return;
+        m.last_mode = m.mode;
+        const auto it = scene->mon_sounds.find(scene->monsters.types[std::size_t(m.type)].sound);
+        if (it == scene->mon_sounds.end()) return;
+        const auto& S = it->second;
+        if (m.mode == "A1" || m.mode == "A2") {
+            const std::size_t k = m.mode == "A2";
+            if (rng(100) < S.att_prb[k]) cue(S.attack[k], ms + std::uint32_t(S.att_del[k]) * 40, m.u.x, m.u.y);
+            cue(S.weapon[k], ms + std::uint32_t(S.wea_del[k]) * 40, m.u.x, m.u.y);
+        } else if (m.mode == "GH") {
+            cue(S.hit, ms + std::uint32_t(S.hit_del) * 40, m.u.x, m.u.y);
+        } else if (m.mode == "DT") {
+            cue(S.death, ms + std::uint32_t(S.death_del) * 40, m.u.x, m.u.y);
+        }
+    }
     // The merc in a fight: its stats (hireling.txt at its level), life,
     // mode (NU/WL follow, A1 attack, GH, DT) and the monster it's after.
     d2d::rules::MercStats merc_st;
@@ -117,6 +174,8 @@ struct Town {
         monsters = spawn_monsters(*scene, scene->moor, rng, cc.header.active_difficulty());
         ground.clear();
         missiles.clear();
+        cues.clear();
+        regen.clear();
         attack_mon = pick_item = -1;
         pmode = -1;
     }
@@ -152,6 +211,7 @@ struct Town {
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
             if (k == SDLK_ESCAPE && dead()) { respawn(ms); continue; }
+            if (k >= SDLK_1 && k <= SDLK_4) drink(int(k - SDLK_1), ms);
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
@@ -406,6 +466,14 @@ struct Town {
         const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held;
         if (have_world) walk(mouse, over_ui, ms, float(ms - last_ms) / 1000.f);
         if (have_world) cross_level(ms);
+        if (!dead()) apply_regen(ms, last_ms);
+        // Due world sounds, quieter with distance (silent past 20 cells).
+        std::erase_if(cues, [&](const Cue& c) {
+            if (ms < c.at) return false;
+            const float d = std::hypot(c.x - player.x, c.y - player.y);
+            audio.play_sfx(*scene, c.sound, std::clamp(1.f - d / 20.f, 0.f, 1.f), rng(16));
+            return true;
+        });
         draw(fb, mouse, ms);
     }
 
@@ -443,6 +511,7 @@ struct Town {
         std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
         target_x = player.x; target_y = player.y;
         cc.stats.v[kLife] = cc.stats.v[kMaxLife];
+        regen.clear();
         pmode = -1; player.mode_ms = ms; attack_mon = -1;
         if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); merc_mode = "NU"; merc_target = -1; }
         d2d::log::info("respawned in the Rogue Encampment");
@@ -589,6 +658,9 @@ struct Town {
                 if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
             }
             if (!scene->flippy(g.item.code)) continue;
+            cue("item_flippy", ms, g.x, g.y);
+            if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
+                cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
             ground.push_back(std::move(g));
         }
     }
@@ -604,6 +676,7 @@ struct Town {
             const auto n = std::min<std::int64_t>(g.gold, room);
             if (n <= 0) return;
             cc.stats.v[kGold] += n;
+            cue("item_gold", 0, player.x, player.y);
             if ((g.gold -= int(n)) > 0) { g.label = std::to_string(g.gold) + " Gold"; return; }
         } else {
             const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
@@ -614,6 +687,7 @@ struct Town {
             if (x < 0) { d2d::log::info("no room for {}", g.label); return; }
             g.item.location = 0; g.item.panel = 1; g.item.column = x; g.item.row = y;
             cc.items.push_back(std::move(g.item));
+            cue("item_pickup", 0, player.x, player.y);
         }
         ground.erase(ground.begin() + std::ptrdiff_t(i));
     }
@@ -814,6 +888,8 @@ struct Town {
                     merc_until = ms + scene->npc_anim(*merc_npc, mode).length_ms();
                 }
             }
+            for (auto& m : monsters)
+                if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30) monster_sounds(m, ms);
             auto& foe = foes[0];
             if (foe.damage > 0) {
                 using namespace d2d::d2s;

@@ -303,7 +303,17 @@ struct Scene {
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
-    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0; };
+    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0;
+                   int group = 0; };                   // Group Size: variants at the following indices
+    std::unordered_map<std::string, int> sound_index;   // Sounds.txt Sound -> Index
+    // MonSounds.txt by Id (MonStats MonSound): per attack mode (A1, A2) the
+    // attack and weapon sounds, their delays in ticks and the attack sound's
+    // chance; the get-hit and death sounds and delays.
+    struct MonSound {
+        std::array<int, 2> attack{}, weapon{}, att_del{}, wea_del{}, att_prb{ 100, 100 };
+        int hit = 0, death = 0, hit_del = 0, death_del = 0;
+    };
+    std::unordered_map<std::string, MonSound> mon_sounds;
     std::vector<Sound> sounds;
     fs::path data_dir;                                  // the MPQs' folder
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds

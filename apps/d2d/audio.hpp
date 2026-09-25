@@ -30,6 +30,8 @@ struct Audio {
     ALCdevice* dev = nullptr;
     ALCcontext* ctx = nullptr;
     Channel voice, music, ambience, ui;
+    std::array<Channel, 12> sfx;                 // world sounds, oldest reused first
+    std::size_t sfx_next = 0;
     Channel music_old;                           // the previous song, fading out under `music`
     std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
     int voice_sound() const { return voice.sound; }
@@ -52,6 +54,7 @@ struct Audio {
     ~Audio() {
         video_stop();
         for (auto* c : { &voice, &music, &music_old, &ambience, &ui }) stop(*c);
+        for (auto& c : sfx) stop(c);
         if (music_job.valid()) music_job.wait();
         alcMakeContextCurrent(nullptr);
         if (ctx) alcDestroyContext(ctx);
@@ -109,6 +112,15 @@ struct Audio {
         const auto d = decode(wav);
         if (!d) { d2d::log::warn("sound {}: {}", index, SDL_GetError()); return false; }
         return start(c, *d, gain, loop, index);
+    }
+    // A world sound at `gain` (its distance), a random one of its group.
+    // ponytail: no stereo panning.
+    void play_sfx(const Scene& s, int index, float gain, int variant) {
+        if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size() || gain <= 0.01f) return;
+        const int g = s.sounds[std::size_t(index)].group;
+        auto& c = sfx[sfx_next++ % sfx.size()];
+        play(c, s, g > 1 ? index + variant % g : index);
+        if (c.src) alSourcef(c.src, AL_GAIN, c.gain * gain);
     }
     void play(Channel& c, const Scene& s, int index) {
         stop(c);
