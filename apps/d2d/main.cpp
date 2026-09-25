@@ -332,6 +332,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             cc.stats.v[std::size_t(id)] = std::atoll(args[3].c_str());
             return std::string("ok\n");
         }
+        if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
+            const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
+            for (int i = 0; i < 3; ++i) cc.header.difficulty[std::size_t(i)] &= 0x7f;
+            cc.header.difficulty[std::size_t(d)] |= 0x80;
+            t.new_game();
+            return std::string("ok\n");
+        }
         if (args.size() >= 3 && args[1] == "quest") {      // mark Act quest <q> done (bit 0), active difficulty
             const int q = std::atoi(args[2].c_str()), n = q * 16;
             if (q < 0 || q >= 48) return std::string("err quest 0..47\n");
@@ -401,6 +408,17 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
             out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\n", scene->monsters.types[std::size_t(m.type)].id,
                                m.u.x, m.u.y, sx, sy, m.hp, m.st.hp, m.mode);
+        }
+        return out + "ok\n";
+    });
+    // Loot on the ground: "<code>\t<label>\t<sx>\t<sy>" (feet on screen, game pixels).
+    ch.on("ground", [&](const std::vector<std::string>&) {
+        std::string out;
+        for (const auto& g : t.ground) {
+            const float dx = g.x - t.player.x, dy = g.y - t.player.y;
+            out += std::format("{}\t{}\t{}\t{}\n", g.item.code, g.label,
+                               int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
+                               int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))));
         }
         return out + "ok\n";
     });
@@ -647,6 +665,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.expansion = h.expansion();
                     cc.header = h;
                     t.spawn_merc();
+                    t.new_game();
                     // Quest-gated NPCs (Cain after Act 1 quest 4).
                     for (std::size_t i = 0; i < t.level->npcs.size() && i < t.npc_states.size(); ++i)
                         if (const int q = t.level->npcs[i].quest)

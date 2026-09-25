@@ -166,6 +166,7 @@ struct Monster {
     d2d::rules::MonStats st;
     int hp = 1;
     int leader = -1;                          // index of its group's leader
+    int difficulty = 0;
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
     std::string_view mode = "NU";             // animation mode token
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
@@ -188,10 +189,10 @@ struct Foe {
 constexpr float kMeleeReach = 1.1f;           // cells between centres
 
 // The level's spawns as monsters: each rolls its components (one of
-// MonStats2's HDv..S8v per layer) and its stats.
+// MonStats2's HDv..S8v per layer) and its stats at the difficulty.
 // ponytail: components from our own roll, not game.exe's
 // (the monster's seed at spawn isn't traced).
-std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng) {
+std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& sp : L.spawns) {
         if (sp.type < 0 || std::size_t(sp.type) >= s.mon_npc.size()) continue;
@@ -205,9 +206,10 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
         m.u.y = m.home_y = (float(sp.y) + 0.5f) / 5;
         m.u.dir = rng(16);
         m.u.wait_until = std::uint32_t(rng(4000));
-        m.st = d2d::rules::monster_stats(s.monsters, sp.type, 0, rng);
+        m.st = d2d::rules::monster_stats(s.monsters, sp.type, difficulty, rng);
         m.hp = m.st.hp;
         m.leader = sp.leader;
+        m.difficulty = std::clamp(difficulty, 0, 2);
         out.push_back(std::move(m));
     }
     return out;
@@ -278,7 +280,7 @@ void monster_update(const Scene& s, const Level& L, Monster& m, Foe& foe, d2d::r
         }
         if (ms < m.mode_until) return;
         set_mode(s, m, "NU", ms);
-        m.next_act = ms + std::uint32_t(t.diff[0].aidel) * 40;
+        m.next_act = ms + std::uint32_t(t.diff[std::size_t(m.difficulty)].aidel) * 40;
     }
     const float walk = cells_per_sec(float(t.velocity)) * dt;
     if (ms < m.flee_until) {

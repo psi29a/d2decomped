@@ -54,7 +54,17 @@ struct Unit {
     // 8.8 frame counter at unit+0x30).
     std::uint32_t mode_ms = 0;
     int npc = -1;                        // Level::npcs index, -1 = the player
+    // An item on the ground instead of a composite: its flippy DC6, played
+    // once from mode_ms (a frame a tick), then held on the last frame.
+    const d2d::dc6::Sprite* sprite = nullptr;
+    std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };   // hover label colour
 };
+
+// The DC6 frame a ground item shows `elapsed` ms after it dropped.
+const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& s, std::uint32_t elapsed) {
+    if (s.directions() == 0 || s.frames_per_direction() == 0) return nullptr;
+    return &s.frame(0, std::min<std::uint32_t>(elapsed / 40, s.frames_per_direction() - 1));
+}
 
 // Screen rectangle a composite's current frame covers with its feet at
 // (ax, ay): the union of every drawn layer's frame box. {x0, y0, x1, y1}.
@@ -194,7 +204,7 @@ void render_world(std::vector<std::uint8_t>& fb,
     // wall orientation, which matters once units stand inside a cell's
     // wall line.
     std::vector<const Unit*> order;
-    for (const auto& u : units) if (u.anim) order.push_back(&u);
+    for (const auto& u : units) if (u.anim || u.sprite) order.push_back(&u);
     auto diag_of = [&](const Unit* u) {
         return (int(std::floor(u->x)) - base_x) + (int(std::floor(u->y)) - base_y);
     };
@@ -206,10 +216,19 @@ void render_world(std::vector<std::uint8_t>& fb,
             const Unit& u = *order[next_unit];
             const auto [ax, ay] = iso_point(u.x, u.y);
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
-            draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms - u.mode_ms, ax, ay);
+            std::array<int, 4> b{};
+            if (u.sprite) {
+                const auto* f = flippy_frame(*u.sprite, elapsed_ms - u.mode_ms);
+                if (!f) continue;
+                blit_at_anchor(fb, *f, upal, ax, ay);
+                b = { ax + f->offset_x, ay + f->offset_y - int(f->height) + 1,
+                      ax + f->offset_x + int(f->width), ay + f->offset_y + 1 };
+            } else {
+                draw_composite(fb, *u.anim, upal, u.dir, elapsed_ms - u.mode_ms, ax, ay);
+                if (hovered && u.name && !u.name->empty()) b = composite_bounds(*u.anim, u.dir, elapsed_ms - u.mode_ms, ax, ay);
+            }
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && u.name && !u.name->empty()) {
-                const auto b = composite_bounds(*u.anim, u.dir, elapsed_ms - u.mode_ms, ax, ay);
                 if (mouse_x >= b[0] && mouse_x < b[2] && mouse_y >= b[1] && mouse_y < b[3])
                     *hovered = { &u, b };
             }

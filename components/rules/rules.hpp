@@ -28,6 +28,7 @@ struct ItemInfo {
     bool two_handed = false;           // weapons.txt 2handed
     bool one_or_two = false;           // 1or2handed: a Barbarian wields it in one hand
     int req_str = 0, req_dex = 0, req_lvl = 0;
+    std::string flippy;                // flippyfile: the on-the-ground animation
 };
 // ItemTypes.txt by Code: the Equiv parents, the BodyLocs.txt slots the
 // type can be worn in (BodyLoc1/2, not inherited), its class (ama, sor,
@@ -37,7 +38,19 @@ struct ItemType {
     std::array<int, 2> body{};         // 1 head .. 10 gloves, 0 none
     std::string cls;
     bool beltable = false;
+    bool always_magic = false, can_rare = true, always_normal = false;   // Magic / Rare / Normal columns
 };
+// TreasureClassEx.txt row: picks, the NoDrop weight, quality modifiers
+// (Unique, Set, Rare, Magic, in 1024ths off the odds) and the weighted
+// entries (item codes, other classes, "gld" or "gld,mul=N").
+struct TreasureClass {
+    int picks = 1, nodrop = 0;
+    std::array<int, 4> mod{};
+    std::vector<std::pair<std::string, int>> items;
+};
+// ItemRatio.txt (LoD rows) per [uber][unique, set, rare, magic, superior, normal]:
+// odds base, level divisor, minimum.
+struct QualityRatio { int base = 0, divisor = 1, min = 0; };
 struct ItemBase {
     int minac = 0, maxac = 0, cost = 0;
     int mindam = 0, maxdam = 0, str_bonus = 0, dex_bonus = 0;   // weapons.txt (2handmindam for two-handers)
@@ -131,6 +144,11 @@ struct Tables {
     std::vector<std::string> gamble;                       // gamble.txt codes
     std::array<GambleRates, 3> gamble_rates{};
     std::vector<Hireling> hirelings;                       // hireling.txt rows
+    // Drops: TreasureClassEx by name (plus the auto weapN / armoN classes),
+    // ItemRatio, and each base's weapons/armor.txt rarity.
+    std::unordered_map<std::string, TreasureClass> treasure;
+    std::array<std::array<QualityRatio, 6>, 2> quality_ratio{};
+    std::unordered_map<std::string, int> item_rarity;
 };
 
 // ponytail: stock = each listed item <Vendor>Min..Max times plus the
@@ -702,6 +720,13 @@ inline d2d::d2s::Item generate_item(const Tables& t, const std::string& code, in
         if ((it.max_durability = b->second.durability) > 0) it.durability = it.max_durability;
     }
     const std::string type = info ? info->type : std::string{};
+    // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
+    // their quantity. ponytail: superior items' own bonuses aren't rolled.
+    if (quality <= 3) {
+        it.quality = std::max(quality, 1);
+        if (b != t.item_base.end() && b->second.stackable) it.quantity = rng.range(b->second.min_stack, b->second.max_stack);
+        return it;
+    }
     auto special = [&](const std::vector<Special>& list) {
         int total = 0, pick = -1;
         for (std::size_t i = 0; i < list.size(); ++i)

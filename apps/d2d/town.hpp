@@ -66,6 +66,18 @@ struct Town {
     int   pmode = -1;
     std::uint32_t pmode_until = 0;
     bool  pstruck = false;                 // this swing's hit is resolved
+    // Loot on the Blood Moor's floor (gold: code "gld", `gold` coins), and
+    // the one being walked to for picking up.
+    struct GroundItem {
+        d2d::d2s::Item item;
+        int gold = 0;
+        float x = 0, y = 0;
+        std::uint32_t ms = 0;                // when it dropped: the flippy plays from here
+        std::string label;
+        std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
+    };
+    std::vector<GroundItem> ground;
+    int   pick_item = -1;
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
     bool  player_walked = false;           // `walking` as of the last frame
@@ -85,9 +97,18 @@ struct Town {
             std::tie(player.x, player.y) = level->start;
         if (have_world) std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
         if (scene) npc_states = npc_start(*level);
-        if (scene) monsters = spawn_monsters(*scene, scene->moor, rng);
+        if (scene) monsters = spawn_monsters(*scene, scene->moor, rng, 0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
+    }
+
+    // A fresh game for the character: the Blood Moor's monsters at its
+    // difficulty, no loot about.
+    void new_game() {
+        monsters = spawn_monsters(*scene, scene->moor, rng, cc.header.active_difficulty());
+        ground.clear();
+        attack_mon = pick_item = -1;
+        pmode = -1;
     }
 
     // The character's merc (cc.header) next to the player, if alive.
@@ -433,7 +454,69 @@ struct Town {
         d2d::log::info("killed {} (+{} exp){}", m.npc.name, exp, up ? std::format(", level {}", cc.stats.get(d2d::d2s::kLevel)) : "");
         if (up) cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
         fallen_scatter(*scene, monsters, std::size_t(attack_mon), rng, ms);
+        drop_loot(m, ms);
         attack_mon = -1;
+    }
+
+    // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
+    [[nodiscard]] int hovered_monster() const {
+        return hovered_npc <= -10 && hovered_npc > -1000 && std::size_t(-10 - hovered_npc) < monsters.size() ? -10 - hovered_npc : -1;
+    }
+    [[nodiscard]] int hovered_ground() const {
+        return hovered_npc <= -1000 && std::size_t(-1000 - hovered_npc) < ground.size() ? -1000 - hovered_npc : -1;
+    }
+
+    // A kill's loot (MonStats TreasureClass1 for the difficulty) round
+    // where it fell. Magic and better come unidentified.
+    // ponytail: D2 spreads drops by its own pattern (not traced); here each
+    // goes to the nearest free spot within half a cell.
+    void drop_loot(const Monster& m, std::uint32_t ms) {
+        const int diff = cc.header.active_difficulty();
+        const auto& tc = scene->monsters.types[std::size_t(m.type)].diff[std::size_t(std::clamp(diff, 0, 2))].tc;
+        std::vector<d2d::rules::Drop> drops;
+        d2d::rules::roll_drops(scene->rules, tc, m.st.level, rng, drops);
+        for (const auto& d : drops) {
+            GroundItem g;
+            std::tie(g.x, g.y) = level->nearest_free(m.u.x + float(rng(11) - 5) / 10, m.u.y + float(rng(11) - 5) / 10);
+            g.ms = ms;
+            if (d.code == "gld") {
+                g.item.code = "gld";
+                g.gold = d.gold;
+                g.label = std::to_string(d.gold) + " Gold";
+            } else {
+                g.item = d2d::rules::generate_item(scene->rules, d.code, m.st.level, d.quality, rng);
+                g.item.identified = d.quality <= 3;
+                const auto lines = item_lines(*scene, g.item, int(cc.stats.get(d2d::d2s::kLevel)));
+                if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
+            }
+            if (!scene->flippy(g.item.code)) continue;
+            ground.push_back(std::move(g));
+        }
+    }
+
+    // Picking up: gold into the purse (up to 10000 per character level),
+    // an item into the first inventory spot it fits.
+    // ponytail: potions don't go to the belt first; no "no room" sound.
+    void take(std::size_t i) {
+        using namespace d2d::d2s;
+        auto& g = ground[i];
+        if (g.item.code == "gld") {
+            const auto cap = cc.stats.get(kLevel) * 10000, room = std::max<std::int64_t>(cap - cc.stats.get(kGold), 0);
+            const auto n = std::min<std::int64_t>(g.gold, room);
+            if (n <= 0) return;
+            cc.stats.v[kGold] += n;
+            if ((g.gold -= int(n)) > 0) { g.label = std::to_string(g.gold) + " Gold"; return; }
+        } else {
+            const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+            std::vector<const Item*> inv;
+            for (const auto& x : cc.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+            const auto [w, h] = d2d::rules::item_size(scene->rules, g.item.code);
+            const auto [x, y] = d2d::rules::free_spot(scene->rules, inv, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, w, h);
+            if (x < 0) { d2d::log::info("no room for {}", g.label); return; }
+            g.item.location = 0; g.item.panel = 1; g.item.column = x; g.item.row = y;
+            cc.items.push_back(std::move(g.item));
+        }
+        ground.erase(ground.begin() + std::ptrdiff_t(i));
     }
 
     // Leaving the level: past its edge, collision and drawing already
@@ -522,10 +605,10 @@ struct Town {
             // Clicking an object you can operate walks to it
             // first (D2 operates on arrival).
             interact_npc = -1;
-            if (mouse.press_this_frame) attack_mon = -1;
-            if (mouse.press_this_frame && hovered_npc <= -10 && std::size_t(-10 - hovered_npc) < monsters.size()
-                && monsters[std::size_t(-10 - hovered_npc)].alive())
-                attack_mon = -10 - hovered_npc;       // walk up to it, then attack
+            if (mouse.press_this_frame) attack_mon = pick_item = -1;
+            if (mouse.press_this_frame && hovered_monster() >= 0 && monsters[std::size_t(hovered_monster())].alive())
+                attack_mon = hovered_monster();       // walk up to it, then attack
+            if (mouse.press_this_frame && hovered_ground() >= 0) pick_item = hovered_ground();   // walk to it, pick it up
             if (mouse.press_this_frame && hovered_npc >= 0) {
                 const auto& o = level->npcs[std::size_t(hovered_npc)];
                 const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
@@ -566,6 +649,15 @@ struct Town {
                 interact_npc = -1;                         // blocked on the way
             } else {
                 target_x = ox; target_y = oy;              // follow a walking NPC
+            }
+        }
+        if (pick_item >= 0 && !busy) {
+            const auto& g = ground[std::size_t(pick_item)];
+            if (std::hypot(g.x - player.x, g.y - player.y) <= 1.f) {
+                take(std::size_t(pick_item));
+                pick_item = -1; player.walking = false; player.path.clear();
+            } else {
+                target_x = g.x; target_y = g.y; player.walking = true;
             }
         }
         if (attack_mon >= 0 && !busy) {
@@ -630,6 +722,15 @@ struct Town {
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
         if (level == &scene->moor)
+            for (std::size_t i = 0; i < ground.size(); ++i) {
+                const auto& g = ground[i];
+                if (std::abs(g.x - player.x) >= 14 || std::abs(g.y - player.y) >= 14) continue;
+                Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
+                u.sprite = scene->flippy(g.item.code);
+                u.rgb = g.rgb;
+                extra.push_back(u);
+            }
+        if (level == &scene->moor)
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 const auto& m = monsters[i];
                 if (std::abs(m.u.x - player.x) >= 14 || std::abs(m.u.y - player.y) >= 14) continue;
@@ -650,8 +751,8 @@ struct Town {
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       merc_npc, merc ? &*merc : nullptr, &merc_label, extra);
-        if (hovered_npc <= -10 && std::size_t(-10 - hovered_npc) < monsters.size())
-            draw_monster_bar(fb, *scene, monsters[std::size_t(-10 - hovered_npc)]);
+        if (hovered_monster() >= 0)
+            draw_monster_bar(fb, *scene, monsters[std::size_t(hovered_monster())]);
         else if (attack_mon >= 0)
             draw_monster_bar(fb, *scene, monsters[std::size_t(attack_mon)]);
         if (pmode == kModeDD) {                    // ponytail: D2's death screen text isn't traced

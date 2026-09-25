@@ -37,6 +37,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>` per Blood Moor monster, then `ok` | Cells in the moor, feet on screen (while there), life, animation mode. |
+| `ground`                    | `<code>\t<label>\t<sx>\t<sy>` per item on the Blood Moor's ground, then `ok` | Loot: gold is `gld`; feet on screen. |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
@@ -44,6 +45,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug wear`                | `ok`                   | Halve the durability of everything worn (repair tests). |
 | `debug unid`                | `ok <count>`           | Unidentify every carried item (Cain tests). |
 | `debug stat <id> <v>`       | `ok`                   | Set character stat 0..15 (12 level, 14 gold, 15 stash gold, ...). |
+| `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's Blood Moor monsters. |
 | `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |

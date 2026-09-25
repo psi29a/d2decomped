@@ -147,8 +147,11 @@ E. **Monsters** — spawning done: game.exe's monster region and room
    (the hit on AnimData's event frame, hit chance and damage from
    `components/rules`), monsters notice, chase, surround and hit back,
    get-hit / death / corpses, Fallen scatter, experience and level-ups,
-   the player's death and respawn in camp. Next: drops, quill rat spikes,
-   the merc fighting, sounds.
+   the player's death and respawn in camp. Drops: TreasureClassEx (with
+   the auto weapN/armoN classes) and ItemRatio quality rolls, gold and
+   items on the ground (flippy DC6s, labels), click to pick up; monsters
+   follow the character's difficulty. Next: quill rat spikes, the merc
+   fighting, sounds.
 
 ## Next up (as of 2026-09-24)
 

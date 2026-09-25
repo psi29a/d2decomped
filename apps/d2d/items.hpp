@@ -192,7 +192,7 @@ std::vector<std::string> prop_lines(const Scene& s, std::vector<d2d::d2s::ItemPr
 }
 constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105, 105, 255 },
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
-    kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 };
+    kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 }, kTxtRed{ 255, 77, 77 };
 
 // FUN_0062efb0 (D2Common's transaction cost), for buying (sell == false,
 // the vendor's price) and selling (the vendor pays). Base = the item's
@@ -251,6 +251,9 @@ std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int c
             break;
         default: out.push_back({ base, it.ethereal || it.socketed ? kTxtGrey : kTxtWhite }); break;
     }
+    // Unidentified magic and better: the base name in its colour, no properties.
+    const bool unid = !it.identified && it.quality >= 4 && !it.runeword;
+    if (unid) out = { { base, out.front().rgb } };
     if (it.personalized && !it.owner.empty()) out.front().text = it.owner + "'s " + out.front().text;
     if (it.defense >= 0) {
         // Shown with the item's own +% and flat defence applied (16, 31).
@@ -267,6 +270,11 @@ std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int c
         out.push_back({ str("ItemStats1d") + " " + std::to_string(it.durability) + " " + str("ItemStats1j") + " "
                         + std::to_string(d2d::rules::max_durability(it)), kTxtWhite });
     if (it.quantity >= 0) out.push_back({ str("ItemStats1i") + " " + std::to_string(it.quantity), kTxtWhite });
+    if (unid) {
+        const auto u = str("ItemStats1b");                // "Unidentified"
+        out.push_back({ u.empty() || u == "ItemStats1b" ? "Unidentified" : u, kTxtRed });
+        return out;
+    }
     auto props = it.props;
     for (const auto& j : it.socketed_items) {
         const auto sp = socket_props(s, it, j);

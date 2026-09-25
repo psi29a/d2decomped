@@ -217,6 +217,8 @@ struct Scene {
     std::array<ClassStrs, 7> class_strs;
     d2d::rules::Tables rules;                    // item/vendor/price tables (components/rules)
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
+    mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> flippy_sprites;
+    const d2d::dc6::Sprite* flippy(const std::string& code) const;   // an item code's ground animation
     // An item's inventory graphic: the unique's/set item's own invfile,
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
     const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;

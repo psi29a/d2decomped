@@ -74,12 +74,13 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
         // ponytail: no highlight tint yet (D2 brightens the unit too).
-        if (hovered.first && hovered.first->npc > -10) {   // monsters: their bar at the top
+        if (hovered.first && (hovered.first->npc > -10 || hovered.first->npc <= -1000)) {   // monsters: their bar at the top
             const auto& nm = *hovered.first->name;
             const auto& b  = hovered.second;
+            const auto& c  = hovered.first->rgb;
             const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-            s.font.draw(fb, kW, kH, pal, (b[0] + b[2]) / 2 - s.font.measure(nm) / 2,
-                        b[1] - s.font.line_height() - 2, nm);
+            s.font.draw_tinted(fb, kW, kH, pal, (b[0] + b[2]) / 2 - s.font.measure(nm) / 2,
+                               b[1] - s.font.line_height() - 2, nm, c[0], c[1], c[2]);
         }
         if (inventory && class_idx >= 0 && class_idx < 7)
         {

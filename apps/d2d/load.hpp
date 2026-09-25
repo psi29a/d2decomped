@@ -162,6 +162,16 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) co
     return it->second;
 }
 
+const d2d::dc6::Sprite* Scene::flippy(const std::string& code) const {
+    const auto info = rules.item_info.find(code);
+    if (info == rules.item_info.end() || info->second.flippy.empty()) return nullptr;
+    auto [it, fresh] = flippy_sprites.try_emplace(info->second.flippy);
+    if (fresh)
+        if (auto b = mpqs.try_read(R"(data\global\items\)" + info->second.flippy + ".dc6"))
+            it->second = d2d::dc6::Sprite(*b);
+    return it->second ? &*it->second : nullptr;
+}
+
 const d2d::dc6::Sprite* Scene::item_sprite(const d2d::d2s::Item& item) const {
     const auto info = rules.item_info.find(item.code);
     if (info == rules.item_info.end()) return nullptr;
@@ -513,19 +523,21 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1,
                 t == &weapons && t->get(r, "2handed") == "1", t == &weapons && t->get(r, "1or2handed") == "1",
                 std::atoi(std::string(t->get(r, "reqstr")).c_str()), std::atoi(std::string(t->get(r, "reqdex")).c_str()),
-                std::atoi(std::string(t->get(r, "levelreq")).c_str()) };
+                std::atoi(std::string(t->get(r, "levelreq")).c_str()), std::string(t->get(r, "flippyfile")) };
     for (std::size_t r = 0; r < types.size(); ++r) {
         const std::string code(types.get(r, "Code"));
         scene.rules.types[code] = {
             { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) },
             { d2d::rules::body_slot(types.get(r, "BodyLoc1")), d2d::rules::body_slot(types.get(r, "BodyLoc2")) },
-            std::string(types.get(r, "Class")), types.get(r, "Beltable") == "1" };
+            std::string(types.get(r, "Class")), types.get(r, "Beltable") == "1",
+            types.get(r, "Magic") == "1", types.get(r, "Rare") == "1", types.get(r, "Normal") == "1" };
         auto& g = scene.type_invgfx[code];
         for (int i = 0; i < 6; ++i) g[std::size_t(i)] = std::string(types.get(r, "InvGfx" + std::to_string(i + 1)));
     }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
             "Hralti", "Alkor", "Ormus", "Elzix", "Asheara", "Cain", "Halbu", "Jamella", "Malah", "Larzuk", "Drehya" };
+        std::vector<std::pair<std::string, int>> weapons_by_level, armor_by_level;
         for (const auto* t : { &armor, &weapons, &misc })
             for (std::size_t r = 0; r < t->size(); ++r) {
                 const std::string code(t->get(r, "code"));
@@ -540,6 +552,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                           std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
                                           std::string(t->get(r, "ultracode")) };
                 if (t->get(r, "spawnable") != "1") continue;
+                scene.rules.item_rarity[code] = n("rarity");
+                if (t != &misc && n("level") > 0) (t == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, n("level"));
                 for (std::size_t v = 0; v < 17; ++v) {
                     const std::string V = kVendorCol[v];
                     d2d::rules::VendorItem vi{ code, n(V + "Min"), n(V + "Max"), n(V + "MagicMin"), n(V + "MagicMax"),
@@ -547,6 +561,31 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                     if (vi.max > 0 || vi.magic_max > 0) scene.rules.vendor_items[v].push_back(std::move(vi));
                 }
             }
+        // Drops: TreasureClassEx, ItemRatio (the LoD, non-class rows), auto classes.
+        const auto tcx = txt("TreasureClassEx");
+        for (std::size_t r = 0; r < tcx.size(); ++r) {
+            auto n = [&](std::string c) { return std::atoi(std::string(tcx.get(r, c)).c_str()); };
+            d2d::rules::TreasureClass c{ std::max(n("Picks"), 1), n("NoDrop"), { n("Unique"), n("Set"), n("Rare"), n("Magic") }, {} };
+            for (int i = 1; i <= 10; ++i) {
+                auto item = std::string(tcx.get(r, "Item" + std::to_string(i)));
+                std::erase(item, '"');
+                if (!item.empty()) c.items.emplace_back(std::move(item), n("Prob" + std::to_string(i)));
+            }
+            scene.rules.treasure.emplace(std::string(tcx.get(r, "Treasure Class")), std::move(c));
+        }
+        const auto ratio = txt("ItemRatio");
+        for (std::size_t r = 0; r < ratio.size(); ++r) {
+            if (ratio.get(r, "Version") != "1" || ratio.get(r, "Class Specific") != "0") continue;
+            auto n = [&](std::string c) { return std::atoi(std::string(ratio.get(r, c)).c_str()); };
+            auto& q = scene.rules.quality_ratio[ratio.get(r, "Uber") == "1" ? 1 : 0];
+            q[0] = { n("Unique"), n("UniqueDivisor"), n("UniqueMin") };
+            q[1] = { n("Set"), n("SetDivisor"), n("SetMin") };
+            q[2] = { n("Rare"), n("RareDivisor"), n("RareMin") };
+            q[3] = { n("Magic"), n("MagicDivisor"), n("MagicMin") };
+            q[4] = { n("HiQuality"), n("HiQualityDivisor"), 0 };
+            q[5] = { n("Normal"), n("NormalDivisor"), 0 };
+        }
+        d2d::rules::add_auto_treasure(scene.rules, weapons_by_level, armor_by_level);
         for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\buysell.dc6)", &scene.store_panel },
                                    { R"(data\global\ui\PANEL\buyselltabs.dc6)", &scene.store_tabs },
                                    { R"(data\global\ui\PANEL\buysellbtn.dc6)", &scene.store_buttons },
