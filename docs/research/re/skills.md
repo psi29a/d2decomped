@@ -457,6 +457,26 @@ operand and function lists.
   arrows (Fire / Cold Arrow), the other hit functions (Glacial Spike 13,
   Holy Bolt 7, Frozen Orb), explosions on walls, the delay, FCR
   breakpoints, SQ casting (Lightning casts as SC), the missile's light.
+- Part 2: srvstfunc 4 (**FUN_005da8b0**) only checks the ammo
+  (FUN_0056c4e0), so the Amazon's arrows and javelins take the same path
+  (Fire / Cold / Ice Arrow, Poison Javelin, Lightning Bolt). Do 8
+  (**FUN_005db410**, Teeth, Multiple Shot): calc1 srvmissilea missiles
+  (srvmissileb for monsters) at points a step apart across the line to
+  the target, centred on it — the step is the line's vector turned a
+  right angle and halved until its squared length is at most 3 subtiles
+  (FUN_0056d3b0; FUN_0056d370 scales short vectors up first); calc3 of
+  them in the middle, the rest flagged 0x10000. Do 17 (**FUN_005c9300**,
+  Charged Bolt): calc1 missiles at the target, each with FUN_005c9290
+  steering it. Do 22 (**FUN_005c9b50** → FUN_0056d400, the novas): 64
+  missiles toward the offsets in 0x6e1288 / 0x6e1388, lasting
+  FUN_00663270 (the row's range) + calc1. A row with no Skill (Multiple
+  Shot's) carries the weapon's damage at its SrcDamage (96).
+  Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
+  their struck list, so a monster takes one hit from it. Not yet: the
+  0x10000 flag's meaning, Charged Bolt's steering (a ±40° spread), the
+  direction tables (even angles), the ammo, the other do functions
+  (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
+  Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's

@@ -364,7 +364,10 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     // Missiles.txt, the rows monsters and skills fire.
     const auto mt = txt("Missiles"), sk = txt("Skills");
     std::unordered_set<std::string> skill_missiles;
-    for (std::size_t r = 0; r < sk.size(); ++r) skill_missiles.emplace(sk.get(r, "srvmissile"));
+    for (std::size_t r = 0; r < sk.size(); ++r) {
+        skill_missiles.emplace(sk.get(r, "srvmissile"));
+        skill_missiles.emplace(sk.get(r, "srvmissilea"));
+    }
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
@@ -466,7 +469,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
         S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam"); S.srcdam_raw = n("SrcDam");
-        S.srvmissile = g("srvmissile");
+        S.srvmissile = g("srvmissile"); S.srvmissilea = g("srvmissilea");
         S.result_flags = n("ResultFlags");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
         const auto et = std::ranges::find(kEl, g("EType"));

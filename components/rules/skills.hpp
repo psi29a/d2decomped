@@ -198,6 +198,7 @@ struct Skill {
     int hitshift = 8, srcdam = 128;
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
+    std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)
     int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;

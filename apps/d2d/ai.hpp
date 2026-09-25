@@ -218,7 +218,9 @@ struct Missile {
     int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
     int skill = -1;                           // the player's: the skill whose damage it carries
-    std::vector<int> struck;                  // monsters a flying-on missile already hit
+    // Monsters a flying-on missile already hit; a nova's missiles share
+    // theirs (one hit a monster). -1: an explosion is under way.
+    std::shared_ptr<std::vector<int>> struck = std::make_shared<std::vector<int>>();
 };
 
 // Direction 0..31 in D2's DCC order for a world step, like direction16:
