@@ -439,6 +439,20 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                            { std::string(su.get(r, "TC")), std::string(su.get(r, "TC(N)")), std::string(su.get(r, "TC(H)")) } });
         }
 
+    // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
+    // string key) and the two formats the client builds them with.
+    for (auto [file, i] : { std::pair{ "UniquePrefix", 0 }, { "UniqueSuffix", 1 }, { "UniqueAppellation", 2 } }) {
+        const auto t = txt(file);
+        for (std::size_t r = 0; r < t.size(); ++r) {
+            const std::string key(t.get(r, "Name"));
+            if (key.empty() || key == "Expansion") continue;
+            const auto v = lookup_string(scene, key);
+            scene.unique_names[std::size_t(i)].push_back(v ? u16_to_latin1(*v) : key);
+        }
+    }
+    for (int i = 0; i < 2; ++i)
+        if (const auto v = lookup_string(scene, std::uint16_t(0x6b9 + i))) scene.unique_formats[std::size_t(i)] = u16_to_latin1(*v);
+
     // MonUMod.txt: champion / unique mods and the constants column.
     if (const auto um = txt("MonUMod"); um.size() > 0)
         for (std::size_t r = 0; r < um.size(); ++r) {
@@ -502,7 +516,9 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             const auto& sup = scene.superuniques[std::size_t(su)];
             if (sup.type < 0) continue;
             const int lead = int(spawns.size());
-            spawns.push_back({ sup.type, u.x, u.y, -1, su, d2d::rules::Boss::superunique, sup.mods });
+            // ponytail: its own seed (unit +0x20) is the game seed here.
+            spawns.push_back({ sup.type, u.x, u.y, -1, su, d2d::rules::Boss::superunique,
+                               d2d::rules::superunique_mods(scene.umods, M.types[std::size_t(sup.type)], sup.mods, d, game) });
             const int minion = M.types[std::size_t(sup.type)].minion[0] >= 0 ? M.types[std::size_t(sup.type)].minion[0] : sup.type;
             const int n = sup.min_grp + (sup.max_grp > sup.min_grp ? int(game.next() % std::uint32_t(sup.max_grp - sup.min_grp + 1)) : 0);
             if (d == 0) d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, n,

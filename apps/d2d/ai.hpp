@@ -292,6 +292,33 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
 // MonStats2's HDv..S8v per layer) and its stats at the difficulty.
 // ponytail: components from our own roll, not game.exe's
 // (the monster's seed at spawn isn't traced).
+// A random unique's name (the client's FUN_004ac870): on {name seed, 666},
+// a suffix then a prefix into string 0x6b9 ("%0 %1"); then rand(100) < 50
+// builds it again, appellation, suffix, prefix, into 0x6ba ("%0 %1 %2").
+std::string unique_name(const Scene& s, int name_seed) {
+    const auto& [pre, suf, app] = s.unique_names;
+    if (pre.empty() || suf.empty()) return "?";
+    auto fill = [](std::string f, std::initializer_list<std::string> args) {   // "%0 %1 %2": positional
+        int i = 0;
+        for (const auto& a : args) {
+            const std::string k = "%" + std::to_string(i++);
+            if (const auto p = f.find(k); p != std::string::npos) f.replace(p, k.size(), a);
+        }
+        return f;
+    };
+    d2d::rules::Rng r{ std::uint32_t(name_seed) };
+    const auto& sx = suf[std::size_t(r(int(suf.size())))];
+    const auto& px = pre[std::size_t(r(int(pre.size())))];
+    auto name = fill(s.unique_formats[0].empty() ? "%0 %1" : s.unique_formats[0], { px, sx });
+    if (r(100) < 50 && !app.empty()) {
+        const auto& ax = app[std::size_t(r(int(app.size())))];
+        const auto& s2 = suf[std::size_t(r(int(suf.size())))];
+        const auto& p2 = pre[std::size_t(r(int(pre.size())))];
+        name = fill(s.unique_formats[1].empty() ? "%0 %1 %2" : s.unique_formats[1], { p2, s2, ax });
+    }
+    return name;
+}
+
 std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& sp : L.spawns[std::size_t(std::clamp(difficulty, 0, 2))]) {
@@ -333,10 +360,8 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
         m.hp = m.st.hp;
         m.leader = sp.leader;
         if (sp.super >= 0 && std::size_t(sp.super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(sp.super)].name;
-        // ponytail: a random unique's name comes from UniquePrefix / Suffix /
-        // Appellation on its name seed (mod rndname) — not built; it's
-        // shown as "<name> (Unique)", a champion as "<name> (Champion)".
-        else if (sp.boss == d2d::rules::Boss::unique) m.npc.name += " (Unique)";
+        else if (sp.boss == d2d::rules::Boss::unique) m.npc.name = unique_name(s, sp.name_seed);
+        // ponytail: the client's champion label isn't traced; "<name> (Champion)".
         else if (sp.boss == d2d::rules::Boss::champion) m.npc.name += " (Champion)";
         m.difficulty = std::clamp(difficulty, 0, 2);
         out.push_back(std::move(m));

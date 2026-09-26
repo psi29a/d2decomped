@@ -48,6 +48,7 @@ struct Spawn {
     int type = -1, x = 0, y = 0, leader = -1, super = -1;     // super: SuperUniques row
     Boss boss = Boss::none;                                   // champion / unique / its minion
     std::vector<int> mods;                                    // MonUMod ids
+    int name_seed = 0;                                        // a unique's (rndname)
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
@@ -169,7 +170,7 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
             const auto& ut = m.types[std::size_t(utype)];
             auto b = roll_boss(*pop->umods, ut, pop->difficulty, true, room.seed);
             const int leader = int(out.size());
-            out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods });
+            out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods, b.name_seed });
             ++pop->uniques;
             int px, py;
             if (b.kind == Boss::champion) {                       // FUN_0054e1e0: 1..3 more champions

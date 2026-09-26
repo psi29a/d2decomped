@@ -103,6 +103,14 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     +75 fire / cold / lightning / poison; 25 mana burn +20 magic; 27
     spectral hit +20 cold, fire, lightning (each under 75); 28 stone skin
     defence × 2, damage reduction + 50.
+- **Superuniques** (FUN_005a49b0): SuperUniques Mod1..3 (mod 24 skipped),
+  then `difficulty` more unique mods (FUN_005a0600, none twice), then
+  FUN_005a2120 as for any unique (mod 30 aura also runs FUN_005a1650).
+- **Random unique names** (client, FUN_004ac870): on `{name seed, 666}`
+  (the seed mod 1 wrote from a step of the monster's seed, low 16 bits),
+  a UniqueSuffix then a UniquePrefix into string 0x6b9 ("%0 %1"); then
+  `rand(100) < 50` builds it again from an appellation, a suffix and a
+  prefix into 0x6ba ("%0 %1 %2"): "Bane Poison the Hunter".
 - Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
   superuniques their SuperUniques TC (by difficulty).
 
@@ -111,9 +119,10 @@ d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`),
 load and applies the stats when a game's monsters are made. Not proven
 against game.exe: the monster's own seed isn't the game's (unit creation
 isn't emulated), and the behaviour mods (auras, enchanted death
-explosions and charged bolts, teleport, mana burn, multishot, curses,
-ghostly / fanatic / possessed / berserk) and random unique names
-(UniquePrefix / Suffix / Appellation) aren't built.
+explosions and charged bolts, spectral hit's damage, teleport, mana
+burn, multishot, curses, ghostly / fanatic / possessed / berserk) aren't
+traced or built: their code is in the combat and AI paths, not the mod
+table (which only sets stats). A champion's label isn't traced either.
 
 ## Not yet traced / approximated
 

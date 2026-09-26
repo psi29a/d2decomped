@@ -40,6 +40,7 @@ enum class Boss : std::uint8_t { none, champion, unique, superunique, minion };
 struct BossInfo {
     Boss kind = Boss::none;
     std::vector<int> mods;                      // MonUMod ids, in the order they were added
+    int name_seed = 0;                          // rndname (FUN_005a0ce0): low 16 bits of a step of its seed
 };
 
 // Named MonUMod ids.
@@ -89,6 +90,7 @@ inline BossInfo roll_boss(const UMods& m, const MonType& t, int difficulty, bool
     if (champions && seed(100) < m.k[0]) {
         b.kind = Boss::champion;
         if (const int id = pick(m, t, seed, [&](const UMod& u) { return u.champion ? u.cpick[std::size_t(d)] : 0; })) b.mods.push_back(id);
+        b.name_seed = int(seed.next() & 0xffff);
         return b;
     }
     b.kind = Boss::unique;
@@ -100,7 +102,25 @@ inline BossInfo roll_boss(const UMods& m, const MonType& t, int difficulty, bool
         if (!id) break;
         b.mods.push_back(id);
     }
+    b.name_seed = int(seed.next() & 0xffff);    // FUN_005a2120's fixed mods: 1 rndname first
     return b;
+}
+
+// A superunique's mods (FUN_005a49b0): SuperUniques Mod1..3 (24 skipped),
+// then `difficulty` more unique mods (upick, none twice), at most 5 before.
+inline std::vector<int> superunique_mods(const UMods& m, const MonType& t, const std::vector<int>& fixed, int difficulty, Rng& seed) {
+    using namespace unique_detail;
+    std::vector<int> mods;
+    for (const int id : fixed) if (id != 24) mods.push_back(id);
+    const int d = std::clamp(difficulty, 0, 2);
+    for (int i = 0; i < d; ++i) {
+        const int id = pick(m, t, seed, [&](const UMod& u) {
+            return !u.champion && std::ranges::find(mods, u.id) == mods.end() ? u.upick[std::size_t(d)] : 0;
+        });
+        if (!id) break;
+        mods.push_back(id);
+    }
+    return mods;
 }
 
 // What the mods do to a monster's stats (FUN_005a2120: the fixed rndname,
