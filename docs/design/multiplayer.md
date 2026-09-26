@@ -30,18 +30,26 @@ What already helps:
   interface into a running game; the scripted tests drive the game through
   it. It shows where a command boundary would sit.
 
-What would have to change:
+Done (2026-09-27, docs/PLAN.md "Networking-shaped core"):
+
+| Was | Now |
+|---|---|
+| The simulation stepped on the frame clock (~60 fps, variable `dt`) | `World::tick` at 25 Hz (`kTickMs` 40); the camera slides between ticks; other units move at the tick rate, as in game.exe |
+| `Town` mixed input, UI, simulation and drawing | `World` (server.hpp: levels, units, monsters, missiles, ground items, objects, rng) and `Town`, its client |
+| Monsters were vector indices | Unit ids (`Monster::id`, `Fight::monster_index`) |
+| Clicks called game code directly | `Command`s (protocol.hpp), applied in the tick; a busy player's dropped, as game.exe's dispatcher does |
+| The World told the client things by poking its fields | `Event`s: level changed, open UI (stash, waypoint, NPC) |
+
+Still to change:
 
 | Today | For multiplayer |
 |---|---|
-| The simulation steps on the frame clock (~60 fps, variable `dt`, ms timers) | A fixed 25 Hz tick; timers in ticks; drawing interpolates between ticks |
-| `Town` mixes input, UI panels, simulation and drawing | Split: a `World` (units, levels, rng — the server's) and a client (input, panels, camera, drawing) |
-| Units are vector indices (`monsters[i]`, hover encoded as `-10 - i`) | Stable unit ids, as D2's unit GUIDs |
 | One player, one merc (`Foe` array of two, `cc` the character) | N players and mercs; monster targeting, party experience, loot ownership |
-| One shared `Rng` for every roll | Server-owned seeds (D2 keeps per-unit and per-room seeds) so results are reproducible and not client-decided |
-| Clicks call game code directly (`fight.attack_mon = ...`) | Clicks become commands ("attack unit id with skill"), applied by the World |
-| Sounds and effects are cued locally (`Cues`) | Events sent from the World (hit, death, drop), the client picks sounds and effects |
-| Saves are read, never written | The server writes characters (.d2s) |
+| Item moves, stat / skill points, the store, potions, select-skill edit the character or `Fight` from the client | Commands (network.md's 0x18..0x2a, 0x32 / 0x33, 0x3a / 0x3b, 0x3c, 0x26) |
+| Objects and ground items named by index | Unit ids |
+| One shared `Rng` for every roll | Server-owned seeds (D2 keeps per-unit and per-room seeds) |
+| Sounds are cued by the World into `Cues`, which the client plays | Events (hit, death, drop); the client picks sounds and effects |
+| Saves are read, never written | The server writes characters (.d2s) through a `CharacterStore` |
 | Monster stats ignore player count | HP / experience / NoDrop scale with players (D2's /players setting) |
 
 ## Decision

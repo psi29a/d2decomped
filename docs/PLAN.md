@@ -75,13 +75,16 @@ them to input, units and drawing.
 | Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) |
 | Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | `skillbar.hpp` (HUD buttons, picker, hotkeys); skill use in `fight.hpp` |
 | Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `load.hpp` (`load_wilderness`) |
-| Town: input, panels, NPCs, walking, levels | — | `town.hpp` (`Town`) |
+| The game server: levels, units, commands, the 25 Hz tick | — | `server.hpp` (`World`), `protocol.hpp` (`Command`) |
+| The client: input, panels, camera, drawing | — | `town.hpp` (`Town`) |
 | Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
 | World sounds | — | `audio.hpp` (`Cues`) |
 
-`Town` owns the shared state (scene, level, character, player, merc, rng)
-and hands references to its subsystems (`Fight`, `Loot`); a new system
-follows the same pattern rather than growing `town.hpp` or `main.cpp`.
+`World` (server.hpp) owns the game's state (level, player, merc, NPCs,
+rng) and hands references to its subsystems (`Fight`, `Loot`); the client
+(`Town`) only sends it commands (protocol.hpp) and reacts to its events
+(docs/design/multiplayer.md). A new game system goes into the World or a
+subsystem it owns; a new panel or input into `Town`.
 
 ## Toolchain
 
@@ -338,11 +341,15 @@ below, so new features land on the new structure:
 1. Research: done, `docs/research/re/network.md` (C → S sizes
    0x730dc0 and handlers 0x6e0d18; S → C table 0x7114d0; game frames
    at 1000 / fps in FUN_0052fc20 → FUN_0052d870, flush every 40 ms).
-2. The split (2–4 days): a `World` owns the server state (levels, units
-   with stable ids, monsters, missiles, ground items, objects, the 25 Hz
-   tick, server-side rng); commands in, events and state out; `Town`
-   becomes the client. devctl verbs become commands. The smoke test stays
-   green throughout.
+2. The split: done (2026-09-27). `World` (server.hpp) owns the game and
+   steps at 25 Hz; `Town` is its client: input → `Command` (protocol.hpp:
+   Move, UseSkill, Interact, Pickup, Resurrect), `Event`s back (level
+   changed, open UI); monsters have unit ids; the camera slides between
+   ticks; devctl `cmd` sends commands and the smoke test walks and
+   attacks through them. Still on the client side of the line: item moves,
+   stat / skill points, the store, potions and select-skill edit the
+   character or Fight directly; objects and ground items are named by
+   index; one shared rng.
 3. `GameSession` with one player and a `.d2s` `CharacterStore` (saving).
 4. `TcpTransport`, then player-count scaling and party.
 
