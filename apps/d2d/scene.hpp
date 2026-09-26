@@ -44,6 +44,12 @@ struct Level {
     // shadows, roofs; the DT1's `type` field disambiguates orientations
     // that share (style, seq). First matching tile wins across DT1s.
     std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> tile_lookup;
+    // The DT1 tile game.exe's room pass gives each cell (drlg
+    // level_room_tiles, proven against game.exe): layer 0 wall, 1 floor,
+    // 2 shadow, in the order the rooms add them. Filled for generated
+    // levels; when present it replaces tile_lookup for drawing and walking.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; };
+    std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
     // 0x08 blocks player walking (DT1 subtile flag bits).

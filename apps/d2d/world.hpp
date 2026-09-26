@@ -167,6 +167,12 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [lv, off] = at(gx, gy);
             if (!lv) continue;
             const auto& cm = lv->ds1;
+            if (!lv->picks.empty()) {                   // the tiles game.exe picked: floors, then shadows
+                for (const int layer : { 1, 2 })
+                    for (const auto& p : lv->picks[off])
+                        if (p.layer == layer) blit_cell(gx, gy, *p.tile);
+                continue;
+            }
 
             // Floor (single layer typical). Type 0 in the floor stream
             // is the "no floor here" marker (dropped by the game); we
@@ -260,26 +266,25 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [lv, off] = at(gx, gy);
             if (!lv) continue;
             const auto& cm = lv->ds1;
+            auto draw_wall = [&](int type, const d2d::dt1::Tile& t) {
+                if (type != 15) { blit_cell(gx, gy, t); return; }
+                // Roof — hoist by the DT1's own roof_height.
+                auto [iso_x, iso_y] = iso(gx, gy);
+                iso_y -= t.roof_height;
+                blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
+            };
+            if (!lv->picks.empty()) {
+                for (const auto& p : lv->picks[off])
+                    if (p.layer == 0 && p.orient != 13) draw_wall(p.orient, *p.tile);
+                continue;
+            }
             for (const auto& wl : cm.walls()) {
                 const auto& c = wl.cells[off];
                 if (c.hidden) continue;
                 const int type = c.wall_type;
                 if (type == 0) continue;         // floor marker in wall stream
                 if (type == 13) continue;        // shadow (drawn above)
-                if (auto* t = find_tile(*lv, c.style, c.sequence, type)) {
-                    if (type == 15) {
-                        // Roof — hoist by the DT1's own roof_height plus
-                        // any DS1-encoded offset in wall_zero's upper bits.
-                        auto [iso_x, iso_y] = iso(gx, gy);
-                        iso_y -= t->roof_height;
-                        const int th = std::abs(t->height);
-                        const int sx = iso_x - t->width / 2;
-                        const int sy = iso_y - (th - kIsoH);
-                        blit_dt1_tile(fb, *t, pal, sx, sy);
-                    } else {
-                        blit_cell(gx, gy, *t);
-                    }
-                }
+                if (auto* t = find_tile(*lv, c.style, c.sequence, type)) draw_wall(type, *t);
             }
         }
     }
