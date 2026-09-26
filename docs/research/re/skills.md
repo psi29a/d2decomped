@@ -726,6 +726,47 @@ operand and function lists.
   row's EMin a frame), Plague's cloud count (one), Volcano's frame window,
   Double Throw (the throwing weapons' missiles), explosions on walls.
 
+### Buffs, curses, war cries (phase 6, part 4)
+- Do **18** (FUN_005c9480: Holy Shield, the Sorceress's armors, Bone /
+  Cyclone Armor, Burst of Speed, Fade, Venom), **23** (Energy Shield,
+  Blaze), **25** (FUN_005ca030, Enchant: on the ally targeted, else the
+  caster), **29** (FUN_005ca4d0, Thunder Storm), **47** (FUN_005d6630,
+  Cloak of Shadows): the aurastate (+0x80) with its aurastats for auralen
+  frames, the aura events (+0x84.., FUN_0056e740 with their function ids
+  +0x8a), the passive part (FUN_005c6dc0). Cloak then puts auratargetstate
+  cloaked on the monsters within aurarange (FUN_005d6520).
+- Curses: do **30** (FUN_005c37c0) and **61** (FUN_005c3f20, Confuse):
+  auratargetstate (+0x82) with its aurastats for auralen frames on every
+  unit within aurarange of the target (FUN_0056e780 -> FUN_005c35c0 /
+  FUN_005c3de0). **59** (FUN_005c3b90, Attract) on the one unit. **6**
+  (FUN_005db1c0, Inner Sight / Slow Missiles) round the caster. **71**
+  (FUN_005d8570, Taunt) on the monster (or the nearest within 20).
+- War cries: do **68** (FUN_005d83e0): a nova of srvmissilea (FUN_0056d400)
+  and the state on the caster (FUN_005d8290). Hit **18** (FUN_005ab0b0):
+  the state on an ally it reaches. **21** (FUN_005ab500, Battle Cry): the
+  auratargetstate on an enemy. **17** (FUN_005aafb0, Howl, do 22's nova):
+  a monster below the caster's level + FUN_004efc20 + the level runs
+  (FUN_005ddd00) for FUN_004cc7c0 frames.
+- Do **69** (FUN_005d81c0, Find Potion) / **72** (FUN_005d8780, Find Item):
+  a corpse without state 0x76 (then marked), at calc1 %: a potion
+  (FUN_005d8100) / a treasure drop of a tier by Param1..4 (FUN_005a8000).
+- Aura event functions seen: 1 Chilling Armor (hitbymissile), 2 Frozen
+  Armor (damagedinmelee), 3 Shiver Armor (attackedinmelee), 4 Iron Maiden
+  (domeleedamage), 5 Life Tap (damagedinmelee / damagedbymissile), 22 /
+  25 Bone / Cyclone Armor (absorbdamage), 24 Energy Shield (absorbdamage).
+- Built: `self_cast` (all of the above), `start_state`, `state_of`,
+  `absorb`, `buff_events`, `buff_tick` (Blaze, Thunder Storm),
+  `Monster::curse / cry` with `monster_states` (damage %, pace %, Iron
+  Maiden, Terror, blindness) and their aurastats in `target_of`, Life Tap
+  in `land`, Battle Orders' maxima in `update_fighters`, Redemption in
+  `aura_pulse`, Conversion (st 32 / do 79), Leap / Dragon Flight /
+  Telekinesis as spot skills, Grim Ward's totem, `Loot::put`; devctl
+  `debug states`. Not traced: the event functions (the published
+  effects), Thunder Storm's pace and reach, Confuse / Attract / Conversion
+  (the monster only stops seeing the player's side), Battle Command's
+  +1 skills, the war cries on the merc and pets, Leap's and Dragon
+  Flight's movement (they arrive at once), Find Potion's table.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

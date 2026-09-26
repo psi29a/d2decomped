@@ -180,6 +180,16 @@ struct Monster {
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
+    // Skills' states on it (their auratargetstate): one curse at a time
+    // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
+    // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
+    struct SkillState { int skill = -1, level = 0; std::uint32_t until = 0; };
+    SkillState curse, cry;
+    // What they do to it, as of this frame (Fight::monster_states): its
+    // damage % and speed %, the share of its melee damage it takes back
+    // (Iron Maiden), and until when it can't see (Dim Vision, Cloak).
+    int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
+    std::uint32_t blind_until = 0;
     [[nodiscard]] bool alive() const { return hp > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const Scene& s) const {
@@ -199,6 +209,8 @@ struct Foe {
     int damage = 0;                           // life lost this frame, whole points
     int poison = 0, poison_ticks = 0;         // poison taken this frame: total, over ticks
     bool blocked = false;                     // blocked a hit this frame
+    std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
+    int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
     void take(const d2d::rules::Taken& k) {
         blocked = blocked || k.blocked;
         damage += k.damage;
@@ -261,6 +273,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
             foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng, true));
+            ++foe.missile_hits;
             return true;
         }
         return false;
@@ -383,10 +396,14 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
             } else if (foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
-                const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.st, false, rng);
+                auto st = m.st;                                  // Weaken, Decrepify, Battle Cry, Taunt: its damage %
+                for (int* d : { &st.a1_min, &st.a1_max }) *d = std::max(*d * (100 + m.dmg_pct) / 100, 0);
+                const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, st, false, rng);
                 foe.take(k);
+                foe.melee_by.push_back(&m);
                 const auto& res = t.diff[std::size_t(m.difficulty)].res;
-                const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]) + k.damage * foe.f.thorns_pct / 100;
+                const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]) + k.damage * foe.f.thorns_pct / 100
+                                 + k.damage * m.reflect_pct / 100;  // Iron Maiden
                 if (k.hit && thorns > 0 && hurt(s, m, thorns, ms)) return true;
             }
         }
@@ -396,13 +413,14 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
     }
     // Chilled, it moves at coldeffect % slower.
     const float chill = ms < m.chill_until ? float(100 + t.diff[std::size_t(m.difficulty)].cold_effect) / 100.f : 1.f;
-    const float walk = cells_per_sec(float(t.velocity)) * dt * chill;
+    const float walk = cells_per_sec(float(t.velocity)) * dt * chill * float(std::max(100 + m.speed_pct, 10)) / 100;
     if (ms < m.flee_until) {
         if (m.mode != "WL") set_mode(s, m, "WL", ms);
         if (!monster_step(L, m, u.x - dx, u.y - dy, cells_per_sec(float(t.run)) * dt * chill, crowd)) m.flee_until = 0;
         return false;
     }
-    if (foe.alive && (dist < 8 || (m.aware && dist < 16))) {
+    // Blind (Dim Vision, Cloak of Shadows): it doesn't see past arm's length.
+    if (foe.alive && (dist < 8 || (m.aware && dist < 16)) && (ms >= m.blind_until || dist < 1.5f)) {
         m.aware = true;
         if (dist <= kMeleeReach) {
             u.dir = direction16(dx, dy);

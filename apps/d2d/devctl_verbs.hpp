@@ -174,6 +174,17 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
                 out += std::format(" {}={}{}{}", p.stat, p.value, p.itype.empty() ? "" : "/", p.itype);
             return out + "\n";
         }
+        if (args.size() >= 2 && args[1] == "states") {    // the player's buffs; each cursed / cried monster
+            std::string out = std::format("absorb={} maxlife={} maxmana={} def={} buffs=", t.fight.absorb_pool,
+                                          cc.stats.fixed(d2d::d2s::kMaxLife), cc.stats.fixed(d2d::d2s::kMaxMana), t.fight.pf.defense);
+            for (const auto& st : t.fight.self_states) out += std::format("{}:{},", st.skill, st.level);
+            out += "\n";
+            for (const auto& m : t.fight.monsters)
+                if (m.curse.skill >= 0 || m.cry.skill >= 0)
+                    out += std::format("{} hp={} curse={} cry={} dmg%={} speed%={} reflect%={} flee={} blind={}\n", m.npc.name, m.hp,
+                                       m.curse.skill, m.cry.skill, m.dmg_pct, m.speed_pct, m.reflect_pct, m.flee_until, m.blind_until);
+            return out + "ok\n";
+        }
         if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura
             std::string out;
             for (const auto& p : t.fight.pets)

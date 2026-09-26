@@ -520,7 +520,8 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (const auto a = T.names.stats.find(std::string(g("aurastat" + std::to_string(i + 1)))); a != T.names.stats.end())
                 S.aurastat[std::size_t(i)] = a->second;
         }
-        S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc"); S.prgdam = n("prgdam"); S.seqnum = n("seqnum");
+        S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc");
+        S.aurastate = g("aurastate"); S.auratarget = g("auratargetstate"); S.prgdam = n("prgdam"); S.seqnum = n("seqnum");
         for (int i = 0; i < 3; ++i) {
             S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
             S.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));

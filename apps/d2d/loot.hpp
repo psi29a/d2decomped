@@ -34,21 +34,25 @@ struct Loot {
         const auto& tc = scene->monsters.types[std::size_t(m.type)].diff[std::size_t(std::clamp(diff, 0, 2))].tc;
         std::vector<d2d::rules::Drop> drops;
         d2d::rules::roll_drops(scene->rules, tc, m.st.level, rng, drops);
-        for (const auto& d : drops) {
+        for (const auto& d : drops) put(d, m.u.x, m.u.y, m.st.level, ms);
+    }
+    // One drop round (x, y).
+    void put(const d2d::rules::Drop& d, float x, float y, int ilvl, std::uint32_t ms) {
+        {
             GroundItem g;
-            std::tie(g.x, g.y) = level->nearest_free(m.u.x + float(rng(11) - 5) / 10, m.u.y + float(rng(11) - 5) / 10);
+            std::tie(g.x, g.y) = level->nearest_free(x + float(rng(11) - 5) / 10, y + float(rng(11) - 5) / 10);
             g.ms = ms;
             if (d.code == "gld") {
                 g.item.code = "gld";
                 g.gold = d.gold;
                 g.label = std::to_string(d.gold) + " Gold";
             } else {
-                g.item = d2d::rules::generate_item(scene->rules, d.code, m.st.level, d.quality, rng);
+                g.item = d2d::rules::generate_item(scene->rules, d.code, ilvl, d.quality, rng);
                 g.item.identified = d.quality <= 3;
                 const auto lines = item_lines(*scene, g.item, int(cc.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
             }
-            if (!scene->flippy(g.item.code)) continue;
+            if (!scene->flippy(g.item.code)) return;
             cues.cue("item_flippy", ms, g.x, g.y);
             if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
                 cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);

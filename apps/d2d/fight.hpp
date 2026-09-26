@@ -52,11 +52,19 @@ inline bool skill_built(const d2d::rules::Skill& s) {
         || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
         || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70
         || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2) || (s.srvstfunc == 16 && s.srvdofunc == 32)
-        || (s.srvstfunc == 6 && s.srvdofunc == 11) || (s.srvstfunc == 10 && s.srvdofunc == 14)
+        || (s.srvstfunc == 6 && s.srvdofunc == 11) || (s.srvstfunc == 10 && s.srvdofunc == 14) || (s.srvstfunc == 32 && s.srvdofunc == 79)
         || moving_skill(s);
 }
-// Self casts (right click, no target): Holy Shield (36 / 18).
-inline bool self_cast(const d2d::rules::Skill& s) { return s.srvstfunc == 36 && s.srvdofunc == 18; }
+// Self casts (right click, no target): their aurastate on the caster for
+// auralen frames with its aurastats — do 18 (FUN_005c9480: Holy Shield,
+// the Sorceress's armors, Bone Armor, Cyclone Armor, Burst of Speed, Fade,
+// Venom), 23 (Energy Shield, Blaze), 25 (Enchant, on the caster), 29
+// (Thunder Storm), 47 (Cloak of Shadows).
+inline bool self_cast(const d2d::rules::Skill& s) {
+    return (s.srvstfunc == 36 || s.srvstfunc == 0 || s.srvstfunc == 13) && !s.aurastate.empty()
+        && (s.srvdofunc == 18 || s.srvdofunc == 25 || s.srvdofunc == 29 || s.srvdofunc == 47 || (s.srvdofunc == 23 && s.srvmissilea.empty())
+            || (s.srvdofunc == 23 && s.name == "Blaze"));
+}
 inline bool attack_mode(int m) { return m == kModeA1 || m == kModeKK || m == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
@@ -150,6 +158,10 @@ struct Fight {
     // calc2 ticks (FUN_005d97f0, 10 when that's 0).
     struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     std::vector<SelfState> self_states;
+    static constexpr int kBoneArmor = 132;         // ItemStatCost bonearmor
+    int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
+    std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
+    std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
@@ -397,6 +409,16 @@ struct Fight {
                 if (const int id = s->aurastat[i]; id >= 0 && id != 6 && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
+        // Battle Orders (item_maxhp_percent 76, item_maxmana_percent 77): the
+        // maxima up while it lasts, life and mana with them.
+        {
+            using namespace d2d::d2s;
+            const std::int64_t base_life = cc.stats.v[kMaxLife] - bo_life, base_mana = cc.stats.v[kMaxMana] - bo_mana;
+            const std::int64_t want_life = base_life * st_sum[76] / 100, want_mana = base_mana * st_sum[77] / 100;
+            cc.stats.v[kMaxLife] += want_life - bo_life; cc.stats.v[kLife] = std::min(cc.stats.v[kLife] + std::max<std::int64_t>(want_life - bo_life, 0), cc.stats.v[kMaxLife]);
+            cc.stats.v[kMaxMana] += want_mana - bo_mana; cc.stats.v[kMana] = std::min(cc.stats.v[kMana] + std::max<std::int64_t>(want_mana - bo_mana, 0), cc.stats.v[kMaxMana]);
+            bo_life = want_life; bo_mana = want_mana;
+        }
         pf = player_fighter(&pf_kick, &st_sum, &passives, &psum);
         constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison
         for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's on top of the panel's (Salvation, Resist Fire, ...)
@@ -635,6 +657,11 @@ struct Fight {
             m.bleed_rate = d2d::rules::open_wounds_per_sec(int(cc.stats.get(kLevel))) / 1000.0;
             m.bleed_until = ms + 8000;
         }
+        // Life Tap (damagedinmelee / damagedbymissile, func 5): calc1 % of the
+        // damage heals whoever dealt it.
+        if (const auto* lt = m.curse.skill >= 0 ? scene->skills.get(m.curse.skill) : nullptr; by_player && lt && lt->auratarget == "lifetap")
+            cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife]
+                                         + ((std::int64_t(b.damage) * calc(*lt, lt->calc[0], m.curse.level) / 100) << 8));
         if (hurt(*scene, m, b.damage, ms)) { killed(i, ms); return; }
         if (b.knockback) {                                   // a step straight back, if there's room
             const float dx = m.u.x - player.x, dy = m.u.y - player.y, d = std::max(std::hypot(dx, dy), 0.01f);
@@ -707,6 +734,14 @@ struct Fight {
         if (b.hit && s && s->srvdofunc == 9) frenzy(*s, ms);
         if (b.hit && s && s->srvstfunc == 7) impale_wear(*s);
         if (b.hit && s && (s->srvdofunc == 11 || s->srvdofunc == 14)) strike_bolts(*s, target, ms);
+        // Conversion (do 79): at calc1 % the monster turns for auralen frames.
+        // ponytail: it doesn't fight for the player; it stops seeing the
+        // player's side (as Confuse here).
+        if (b.hit && s && s->srvdofunc == 79 && monsters[target].alive()) {
+            const int lvl = skill_level ? skill_level(s->id) : 1;
+            if (int(rng(100)) < calc(*s, s->calc[0], lvl))
+                monsters[target].cry = { s->id, lvl, ms + std::uint32_t(std::max(calc(*s, s->auralen, lvl), 25)) * 40 };
+        }
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
         if (b.hit && s && s->srvdofunc == 64) {
@@ -763,7 +798,7 @@ struct Fight {
     // guards aren't applied; Corpse Explosion takes its corpse's life from
     // the MonStats roll, not FUN_006538a0's.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& s) {
-        return std::ranges::contains(std::array{ 33, 51, 20, 55, 63, 27 }, s.srvdofunc);
+        return std::ranges::contains(std::array{ 33, 51, 20, 55, 63, 27, 30, 6, 61, 59, 71, 69, 72, 77, 21, 52 }, s.srvdofunc);
     }
     void spot(const d2d::rules::Skill& s, std::uint32_t ms) {
         const int lvl = skill_level ? skill_level(s.id) : 1;
@@ -814,12 +849,80 @@ struct Fight {
                 });
                 break;
             }
-            case 27:
-                if (level == &scene->town || level->unit_blocked(cast_x, cast_y)) break;
-                player.x = cast_x; player.y = cast_y;
+            case 27: case 77: case 52: {
+                // Teleport; Leap (FUN_... do 77: the jump, then knockback
+                // round the landing within aurarange); Dragon Flight (do 52:
+                // next to the monster, then a kick).
+                // ponytail: Leap and Dragon Flight arrive at once (no jump,
+                // no flight); Leap's range (calc1) isn't checked.
+                float tx = cast_x, ty = cast_y;
+                const int tgt = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() ? attack_mon : -1;
+                if (s.srvdofunc == 52) {
+                    if (tgt < 0) break;
+                    const auto& m = monsters[std::size_t(tgt)];
+                    const float dx = player.x - m.u.x, dy = player.y - m.u.y, d = std::max(std::hypot(dx, dy), 0.01f);
+                    tx = m.u.x + dx / d * 0.8f; ty = m.u.y + dy / d * 0.8f;
+                }
+                if (level == &scene->town || level->unit_blocked(tx, ty)) break;
+                player.x = tx; player.y = ty;
                 player.path.clear(); player.walking = false;
-                player.goal_x = cast_x; player.goal_y = cast_y;
+                player.goal_x = tx; player.goal_y = ty;
+                if (s.srvdofunc == 77)
+                    within(tx, ty, calc(s, s.aurarange, lvl), [&](std::size_t j) {
+                        d2d::rules::Blow b{ .hit = true };
+                        b.knockback = true;
+                        land(j, b, true, ms);
+                    });
+                if (s.srvdofunc == 52) {
+                    d2d::rules::Swing sw;
+                    sw.kick = true;
+                    land(std::size_t(tgt), d2d::rules::player_blow(pf_kick, target_of(std::size_t(tgt)), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw),
+                         true, ms);
+                }
                 break;
+            }
+            case 21:                                         // Telekinesis (do 21): its damage and a knockback on the monster
+                if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
+                    auto b = d2d::rules::missile_blow(md, target_of(std::size_t(attack_mon)), pierce(), rng);
+                    b.knockback = true;
+                    land(std::size_t(attack_mon), b, true, ms);
+                }
+                break;
+            // Curses (do 30, FUN_005c37c0; 61 Confuse, FUN_005c3f20): the
+            // auratargetstate on every monster within aurarange of the point
+            // for auralen frames (FUN_0056e780), one curse at a time. Inner
+            // Sight / Slow Missiles (do 6, FUN_005db1c0) round the caster;
+            // Attract (59, FUN_005c3b90) and Taunt (71, FUN_005d8570) on the
+            // monster.
+            case 30: case 61: case 6: case 59: case 71: {
+                const std::uint32_t until = ms + std::uint32_t(std::max(calc(s, s.auralen, lvl), 25)) * 40;
+                const bool curse = s.srvdofunc == 30 || s.srvdofunc == 61 || s.srvdofunc == 59;
+                auto put = [&](std::size_t j) { (curse ? monsters[j].curse : monsters[j].cry) = { s.id, lvl, until }; };
+                if (s.srvdofunc == 59 || s.srvdofunc == 71) {
+                    if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) put(std::size_t(attack_mon));
+                } else {
+                    within(s.srvdofunc == 6 ? player.x : cast_x, s.srvdofunc == 6 ? player.y : cast_y, calc(s, s.aurarange, lvl), put);
+                }
+                break;
+            }
+            // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
+            // a corpse not yet searched (state 0x76), at calc1 %: a potion
+            // (FUN_005d8100), or the monster's treasure again (FUN_005a8000,
+            // a tier by Param1..4).
+            // ponytail: the potion by the character's level (FUN_005d8100's
+            // table isn't traced); Find Item rolls the monster's own class.
+            case 69: case 72: {
+                const int c = corpse_near(cast_x, cast_y);
+                if (c < 0) break;
+                auto& corpse = monsters[std::size_t(c)];
+                corpse.corpse_used = true;
+                if (int(rng(100)) >= calc(s, s.calc[0], lvl)) break;
+                if (s.srvdofunc == 72) { loot.drop(corpse, ms); break; }
+                const int tier = std::clamp(1 + int(cc.stats.get(d2d::d2s::kLevel)) / 12, 1, 5);
+                const std::string code = rng(20) == 0 ? "rvs" : (rng(2) ? "hp" : "mp") + std::to_string(tier);
+                loot.put({ code, 2, 0 }, corpse.u.x, corpse.u.y, corpse.st.level, ms);
+                break;
+            }
             default: break;
         }
     }
@@ -854,6 +957,130 @@ struct Fight {
         self_states.push_back({ s.id, lvl, until });
     }
 
+    // A self cast's state (FUN_005c9480 and kin): auralen frames — none
+    // (Bone Armor, Cyclone Armor) lasts until its absorb is spent. Bone /
+    // Cyclone Armor fill their pool (stat bonearmor, 256ths); Cloak of
+    // Shadows (FUN_005d6630) blinds the monsters within aurarange
+    // (auratargetstate cloaked) as long.
+    void start_state(const d2d::rules::Skill& s, int lvl, std::uint32_t ms) {
+        const int len = calc(s, s.auralen, lvl);
+        const std::uint32_t until = len > 0 ? ms + std::uint32_t(len) * 40 : ~0u;
+        std::erase_if(self_states, [&](const SelfState& st) { return st.skill == s.id; });
+        self_states.push_back({ s.id, lvl, until });
+        for (std::size_t k = 0; k < s.aurastat.size(); ++k)
+            if (s.aurastat[k] == kBoneArmor) absorb_pool = calc(s, s.aura_calc[k], lvl) >> 8, absorb_skill = s.id;
+        if (s.srvdofunc == 47)
+            for (auto& m : monsters)
+                if (m.alive() && std::hypot(m.u.x - player.x, m.u.y - player.y) * 5 <= float(calc(s, s.aurarange, lvl)))
+                    m.cry = { s.id, lvl, until };
+    }
+    [[nodiscard]] const SelfState* state_of(std::string_view name) const {
+        for (const auto& st : self_states)
+            if (const auto* k = scene->skills.get(st.skill); k && k->aurastate == name) return &st;
+        return nullptr;
+    }
+    // The player's buffs as the fight goes (their aura events, +0x84):
+    // Frozen Armor freezes a melee attacker for calc1 frames (func 2),
+    // Shiver Armor hits one with its cold (3), Chilling Armor answers a
+    // missile with its bolt at the nearest monster (1); Bone / Cyclone
+    // Armor absorb (22 / 25) and Energy Shield takes calc1 % of the damage
+    // from mana at calc2 / 16 mana a point (24). Blaze leaves its fire
+    // where the player walks; Thunder Storm strikes a monster within 5 cells
+    // every 1.6 s.
+    // ponytail: the event functions aren't traced (the published effects);
+    // Bone Armor takes any damage, Cyclone Armor too (not only elements);
+    // Chilling Armor's bolt goes at the nearest monster, not the shooter;
+    // Thunder Storm's pace and reach are the published ones.
+    int absorb(int damage) {
+        using namespace d2d::d2s;
+        if (damage <= 0) return 0;
+        if (absorb_pool > 0 && std::ranges::contains(self_states, absorb_skill, &SelfState::skill)) {
+            const int a = std::min(absorb_pool, damage);
+            absorb_pool -= a; damage -= a;
+            if (absorb_pool <= 0) std::erase_if(self_states, [&](const SelfState& st) { return st.skill == absorb_skill; });
+        }
+        if (const auto* es = state_of("energyshield"); es && damage > 0) {
+            const auto* k = scene->skills.get(es->skill);
+            const int part = damage * std::clamp(calc(*k, k->calc[0], es->level), 0, 95) / 100;
+            const int per16 = std::max(calc(*k, k->calc[1], es->level), 1);
+            const int can = int(std::min<std::int64_t>(part, (cc.stats.v[kMana] >> 8) * 16 / per16));
+            cc.stats.v[kMana] -= (std::int64_t(can) * per16 / 16) << 8;
+            damage -= can;
+        }
+        return damage;
+    }
+    void buff_events(Foe& me, std::uint32_t ms) {
+        for (const auto* m : me.melee_by) {
+            const auto i = std::size_t(m - monsters.data());
+            if (i >= monsters.size() || !monsters[i].alive()) continue;
+            if (const auto* fa = state_of("frozenarmor")) {
+                const auto* k = scene->skills.get(fa->skill);
+                const int frames = std::max(calc(*k, k->calc[0], fa->level), 1);
+                monsters[i].stun_until = std::max(monsters[i].stun_until, ms + std::uint32_t(frames) * 40);
+                monsters[i].chill_until = std::max(monsters[i].chill_until, ms + std::uint32_t(frames) * 40);
+            }
+            if (const auto* sa = state_of("shiverarmor")) {
+                const auto* k = scene->skills.get(sa->skill);
+                land(i, d2d::rules::missile_blow(d2d::rules::missile_damage(scene->skills, *k, calc_env(), sa->level), target_of(i), pierce(), rng),
+                     true, ms);
+            }
+        }
+        if (const auto* ca = state_of("chillingarmor"); ca && me.missile_hits > 0) {
+            const auto* k = scene->skills.get(ca->skill);
+            const auto mi = scene->missiles.find(k->srvmissilea);
+            int best = -1; float bd = 12.f;
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (const float d = std::hypot(monsters[j].u.x - player.x, monsters[j].u.y - player.y); monsters[j].alive() && d < bd) { bd = d; best = int(j); }
+            if (best >= 0 && mi != scene->missiles.end()) {
+                const auto& o = monsters[std::size_t(best)];
+                launch(mi->second, *k, ca->level, player.x, player.y, o.u.x - player.x, o.u.y - player.y, mi->second.range, ms);
+            }
+        }
+    }
+    void buff_tick(std::uint32_t ms) {
+        if (const auto* bz = state_of("blaze"); bz && player.walking && ms / 40 != blaze_frame) {
+            blaze_frame = ms / 40;
+            const auto* k = scene->skills.get(bz->skill);
+            if (const auto mi = scene->missiles.find(k->srvmissilea); mi != scene->missiles.end())
+                launch(mi->second, *k, bz->level, player.x, player.y, 0, 0, mi->second.range + mi->second.lev_range * bz->level, ms);
+        }
+        if (const auto* ts = state_of("thunderstorm"); ts && ms >= storm_next) {
+            storm_next = ms + 1600;
+            const auto* k = scene->skills.get(ts->skill);
+            int best = -1; float bd = 5.f;
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (const float d = std::hypot(monsters[j].u.x - player.x, monsters[j].u.y - player.y); monsters[j].alive() && d < bd) { bd = d; best = int(j); }
+            if (best >= 0)
+                land(std::size_t(best), d2d::rules::missile_blow(d2d::rules::missile_damage(scene->skills, *k, calc_env(), ts->level),
+                                                                 target_of(std::size_t(best)), pierce(), rng), true, ms);
+        }
+    }
+    // The skill states on the monsters (their curse and cry slots): what
+    // they add up to this frame. Aurastats damagepercent (25) and
+    // velocitypercent (67) go on its damage and pace; Iron Maiden returns
+    // calc1 % of its melee damage (event domeleedamage), Terror sends it
+    // running, Dim Vision and Cloak of Shadows blind it, Confuse and
+    // Attract leave it blind to the player (ponytail: they don't set it on
+    // other monsters).
+    void monster_states(std::uint32_t ms) {
+        for (auto& m : monsters) {
+            m.dmg_pct = m.speed_pct = m.reflect_pct = 0;
+            for (auto* st : { &m.curse, &m.cry }) {
+                if (st->skill < 0) continue;
+                if (ms >= st->until) { *st = {}; continue; }
+                const auto* k = scene->skills.get(st->skill);
+                if (!k) continue;
+                for (std::size_t a = 0; a < k->aurastat.size(); ++a) {
+                    if (k->aurastat[a] == 25) m.dmg_pct += calc(*k, k->aura_calc[a], st->level);
+                    if (k->aurastat[a] == 67) m.speed_pct += calc(*k, k->aura_calc[a], st->level);
+                }
+                const auto& n = k->auratarget;
+                if (n == "ironmaiden") m.reflect_pct += calc(*k, k->calc[0], st->level);
+                if (n == "terror") m.flee_until = std::max(m.flee_until, st->until);
+                if (n == "dimvision" || n == "cloaked" || n == "confuse" || n == "attract" || n == "conversion") m.blind_until = st->until;
+            }
+        }
+    }
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
     // ticks more (FUN_005d3320).
     void charge(const d2d::rules::Skill& s, std::uint32_t ms) {
@@ -1112,10 +1339,7 @@ struct Fight {
                 } else if (s && summon_skill(*s)) {
                     summon(*s, ms);
                 } else if (s) {
-                    const int lvl = skill_level ? skill_level(s->id) : 1;
-                    const auto env = calc_env();
-                    std::erase_if(self_states, [&](const SelfState& st) { return st.skill == s->id; });
-                    self_states.push_back({ s->id, lvl, ms + std::uint32_t(std::max(d2d::rules::eval_calc(scene->skills, s->auralen, env, s->id, lvl), 1)) * 40 });
+                    start_state(*s, skill_level ? skill_level(s->id) : 1, ms);
                 }
             }
             if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; if (!mouse.down) attack_mon = -1; }
@@ -1245,14 +1469,14 @@ struct Fight {
     // SrcDamage: Multiple Shot, Strafe); its hit functions: `burst`.
     // `any_owner`: a trap's shot, whose row names the player's skill.
     [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
-        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19, 73, 80, 117, 118, 123, 43, 48 };
-        static constexpr int kSt[] = { 0, 4, 8, 11, 26 };
+        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19, 73, 80, 117, 118, 123, 43, 48, 68, 75 };
+        static constexpr int kSt[] = { 0, 4, 8, 11, 26, 33 };
         const bool plain = (s.srvstfunc == 0 || s.srvstfunc == 4) && s.srvdofunc == 0;
         const bool multi = std::ranges::contains(kSt, s.srvstfunc) && std::ranges::contains(kDo, s.srvdofunc);
         const auto& name = plain ? s.srvmissile : s.srvmissilea;
         if ((!plain && !multi) || name.empty()) return nullptr;
         const auto m = scene->missiles.find(name);
-        static constexpr int kHit[] = { 0, 1, 2, 3, 4, 7, 9, 10, 12, 13, 14, 20, 22, 29, 36, 47, 48 };
+        static constexpr int kHit[] = { 0, 1, 2, 3, 4, 7, 9, 10, 12, 13, 14, 17, 18, 20, 21, 22, 26, 29, 36, 47, 48 };
         if (m == scene->missiles.end() || !std::ranges::contains(kHit, m->second.hit_func)) return nullptr;
         return any_owner || m->second.skill == s.name || m->second.skill.empty() ? &m->second : nullptr;
     }
@@ -1342,11 +1566,14 @@ struct Fight {
                 const float a = (float(rng(81)) - 40) * 3.14159265f / 180;
                 go(dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a), range);
             }
-        } else if (s.srvdofunc == 22) {
+        } else if (s.srvdofunc == 22 || s.srvdofunc == 68) {
+            // A war cry (do 68, FUN_005d83e0): the nova of its missile (range
+            // its row's), then its state on the caster (FUN_005d8290).
             for (int k = 0; k < 64; ++k) {
                 const float a = float(k) * 2 * 3.14159265f / 64;
-                go(std::cos(a), std::sin(a), mi.range + calc1).struck = shared;
+                go(std::cos(a), std::sin(a), s.srvdofunc == 68 ? mi.range : mi.range + calc1).struck = shared;
             }
+            if (s.srvdofunc == 68 && !s.aurastate.empty()) start_state(s, lvl, ms);
         } else if (s.srvdofunc == 10) {
             auto& a = go(dx, dy, range);
             a.target = target; a.ed_pct = calc1;
@@ -1388,6 +1615,8 @@ struct Fight {
                 const float a = k == 0 ? 0.f : (float(rng(41)) - 20) * 3.14159265f / 180;
                 go(dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a), range);
             }
+        } else if (s.srvdofunc == 75) {                      // Grim Ward: its start row at the point
+            launch(mi, s, lvl, cast_x, cast_y, 0, 0, mi.range, ms);
         } else if (s.srvdofunc == 123) {                     // Volcano (FUN_005c8080): at the target point
             launch(mi, s, lvl, cast_x, cast_y, 0, 0, range, ms);
         } else if (s.srvdofunc == 43) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
@@ -1493,7 +1722,7 @@ struct Fight {
                     }
             }
             // The Range runs out: the hit function goes off with no unit.
-            static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 29, 36, 48 };
+            static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48 };
             if (ms + 40 >= a.dies && a.frame < 0 && std::ranges::contains(kEnd, mi.hit_func)) burst(a, ms);
             // 15 (FUN_005af030, Frozen Orb): every Param1 frames SubMissile1
             // toward direction `turn` of 64 (0x6e2b78 / 0x6e2a78), turning
@@ -1503,6 +1732,13 @@ struct Fight {
                 launch(sub->second, *s, a.level, a.x, a.y, std::cos(t), std::sin(t), sub->second.range, ms);
                 a.turn += mi.param2;
             }
+            // 14 (Grim Ward's totem): every Param1 frames the monsters within
+            // aurarange of it run for auralen frames.
+            // ponytail: missile do 14 isn't traced; Param1 / aurarange read so.
+            if (mi.srv_do == 14 && age % std::max(mi.param1, 1) == 0)
+                for (auto& m : monsters)
+                    if (m.alive() && std::hypot(m.u.x - a.x, m.u.y - a.y) * 5 <= float(std::max(calc(*s, s->aurarange, a.level), 1)))
+                        m.flee_until = std::max(m.flee_until, ms + std::uint32_t(std::max(calc(*s, s->auralen, a.level), 1)) * 40);
             // 23 (FUN_005af790, Firestorm): SubMissile1 where it is, each frame.
             if (mi.srv_do == 23 && sub != scene->missiles.end())
                 launch(sub->second, *s, a.level, a.x, a.y, 0, 0, sub->second.range, ms);
@@ -1579,6 +1815,26 @@ struct Fight {
             const auto& t = scene->monsters.types[std::size_t(monsters[i].type)];
             if ((mi.hit_par2 == 1 && !t.undead) || (mi.hit_par2 == 2 && !t.demon)) return false;
         }
+        // 18 (FUN_005ab0b0: Shout, Battle Orders, Battle Command) is for
+        // allies; 21 (FUN_005ab500, Battle Cry) puts its auratargetstate on
+        // the monster for auralen frames; 17 (FUN_005aafb0, Howl) sends one
+        // below the caster's level + calc1 + the skill level running for
+        // Param3 + Param4 x (level - 1) frames (FUN_004cc7c0); neither hurts.
+        // ponytail: Howl's level sum (FUN_004efc20) read as calc1 + level.
+        if (mi.hit_func == 18) return false;
+        if (mi.hit_func == 21) {
+            if (monsters[i].cry.skill != s->id || ms >= monsters[i].cry.until)
+                monsters[i].cry = { s->id, a.level, ms + std::uint32_t(std::max(calc(*s, s->auralen, a.level), 1)) * 40 };
+            return false;
+        }
+        if (mi.hit_func == 17) {
+            const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
+            if (monsters[i].st.level < clvl + calc(*s, s->calc[0], a.level) + a.level)
+                monsters[i].flee_until = std::max(monsters[i].flee_until, ms + std::uint32_t(std::max(s->par[2] + (a.level - 1) * s->par[3], 25)) * 40);
+            a.struck->push_back(int(i));
+            return false;
+        }
+        if (mi.hit_func == 26) return false;                 // Grim Ward's start: it lands (burst)
         // NextHit rows strike a monster again NextDelay frames on.
         if (mi.next_hit) {
             auto it = std::ranges::find(a.hit_at, int(i), &std::pair<int, std::uint32_t>::first);
@@ -1681,7 +1937,7 @@ struct Fight {
             case 1: area(a, a.x, a.y, radius(mi.hit_par1, s->calc[0]), ms); break;
             case 3: area(a, a.x, a.y, radius(mi.hit_par1, s->aurarange), ms); break;
             case 13: area(a, a.x, a.y, radius(mi.hit_par1, s->aurarange), ms, radius(mi.hit_par2, s->auralen)); break;
-            case 2: case 4: case 36: case 51: if (sub) sub_at(a.x, a.y, 0, 0); break;
+            case 2: case 4: case 26: case 36: case 51: if (sub) sub_at(a.x, a.y, 0, 0); break;
             case 9: {
                 const int r = radius(mi.hit_par1, s->calc[0]);
                 area(a, a.x, a.y, r, ms);
@@ -1761,6 +2017,24 @@ struct Fight {
                 }
             return;
         }
+        // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
+        // calc2 life and mana back.
+        // ponytail: its callback isn't traced; one corpse a pulse.
+        if (s->srvdofunc == 82) {
+            using namespace d2d::d2s;
+            const int r = calc(*s, s->aurarange, lvl);
+            for (auto& m : monsters)
+                if (!m.alive() && !m.corpse_used && m.mode == "DD" && std::hypot(m.u.x - player.x, m.u.y - player.y) * 5 <= float(r)) {
+                    if (int(rng(100)) < calc(*s, s->calc[0], lvl)) {
+                        m.corpse_used = true;
+                        const std::int64_t g = std::int64_t(calc(*s, s->calc[1], lvl)) << 8;
+                        cc.stats.v[kLife] = std::min(cc.stats.v[kMaxLife], cc.stats.v[kLife] + g);
+                        cc.stats.v[kMana] = std::min(cc.stats.v[kMaxMana], cc.stats.v[kMana] + g);
+                    }
+                    break;
+                }
+            return;
+        }
         if ((s->srvdofunc != 66 && s->srvdofunc != 81) || s->etype < 0 || s->etype > 4) return;
         const auto md = d2d::rules::MissileDamage{ .etype = s->etype,
                                                    .elo = d2d::rules::elem_damage(scene->skills, *s, env, lvl, false, 0, true),
@@ -1786,10 +2060,19 @@ struct Fight {
     // slow: its cold chills instead).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t i) {
         auto t = monsters[i].target(*scene);
+        // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
+        // Cry, Inner Sight, Cloak of Shadows): their aurastats as the aura's.
+        for (const auto* st : { &monsters[i].curse, &monsters[i].cry })
+            if (const auto* k = st->skill >= 0 ? scene->skills.get(st->skill) : nullptr)
+                apply_target_stats(*k, st->level, t);
         const auto* s = scene->skills.get(aura);
         if (!s || (s->srvdofunc != 66 && s->srvdofunc != 81) || !in_aura(monsters[i])) return t;
+        apply_target_stats(*s, skill_level ? skill_level(aura) : 1, t);
+        return t;
+    }
+    void apply_target_stats(const d2d::rules::Skill& s_, int lvl, d2d::rules::Target& t) {
+        const auto* s = &s_;
         const auto env = calc_env();
-        const int lvl = skill_level ? skill_level(aura) : 1;
         for (std::size_t k = 0; k < s->aurastat.size(); ++k) {
             const int v = d2d::rules::eval_calc(scene->skills, s->aura_calc[k], env, s->id, lvl);
             switch (s->aurastat[k]) {
@@ -1797,10 +2080,10 @@ struct Fight {
                 case 39: t.res[2] += v; break;  case 41: t.res[3] += v; break;
                 case 43: t.res[4] += v; break;  case 45: t.res[5] += v; break;
                 case 171: t.ac += t.ac * v / 100; break;
+                case 31: t.ac = std::max(t.ac + v, 0); break;   // Inner Sight's armorclass
                 default: break;
             }
         }
-        return t;
     }
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
@@ -2267,6 +2550,9 @@ struct Fight {
                     killed(i, ms);                           // on the player's thorns
             }
             monster_dots(ms, dt);
+            monster_states(ms);
+            buff_events(foes[0], ms);
+            buff_tick(ms);
             aura_pulse(ms);
             for (std::size_t k = 0; k < pets.size(); ++k) pet_hurt(pets[k], foes[2 + k].damage, ms);
             pets_turn(ms, dt, crowd);
@@ -2311,6 +2597,7 @@ struct Fight {
                 else if (p.life <= old->life) *old = p;
             }
             if (foe.blocked && pmode < 0) set_pmode(kModeBL, ms);   // a block plays out (FBR)
+            foe.damage = absorb(foe.damage);
             foe.damage += int(self_hurt >> 8);
             self_hurt &= 255;
             if (foe.damage > 0) {
