@@ -1432,13 +1432,14 @@ struct Fight {
         merc_mode = u.walking ? "WL" : "NU";
     }
 
-    // The player's combat modes this frame: dead, the death plays out (a
-    // click respawns: true asks Town for it); a swing strikes, and ends —
-    // held on the monster, the next follows; a flinch or block ends.
-    bool player_modes(const Mouse& mouse, std::uint32_t ms, float dt) {
+    // The player's combat modes this frame: dead, the death plays out
+    // (true once it's over: a Resurrect may respawn); a swing strikes, and
+    // ends — `held` (the left skill sent again), the next follows; a
+    // flinch or block ends.
+    bool player_modes(bool held, std::uint32_t ms, float dt) {
         if (dead()) {
             if (pmode == kModeDT && ms >= pmode_until) set_pmode(kModeDD, ms);
-            return pmode == kModeDD && mouse.press_this_frame;
+            return pmode == kModeDD;
         }
         if (attack_mode(pmode)) {
             strike(ms);
@@ -1455,7 +1456,7 @@ struct Fight {
                 smove = {};
                 seq_loop = false;
                 pmode = -1; player.mode_ms = ms;
-                if (!mouse.down) attack_mon = -1;
+                if (!held) attack_mon = -1;
             }
         } else if (pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!pstruck && ms >= player.mode_ms + player_anim(kModeSC).action_ms()) {
@@ -1470,7 +1471,7 @@ struct Fight {
                     start_state(*s, skill_level ? skill_level(s->id) : 1, ms);
                 }
             }
-            if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; if (!mouse.down) attack_mon = -1; }
+            if (ms >= pmode_until) { pmode = -1; player.mode_ms = ms; if (!held) attack_mon = -1; }
         } else if ((pmode == kModeGH || pmode == kModeBL) && ms >= pmode_until) {
             pmode = -1; player.mode_ms = ms;
         }
