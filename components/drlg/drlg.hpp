@@ -125,19 +125,19 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
         const int W = q.w, H = q.h, x0 = L.x, y0 = L.y, x1 = L.x + L.w, y1 = L.y + L.h;
         auto at = [&](int x, int y) { q.x = x; q.y = y; };
         if (r.how == Place::Beside || (r.how == Place::BloodMoor && q.flip == 1)) {   // FUN_00676150 / 00676650
-            const std::array<std::pair<int, int>, 4> spot = { { { x0 - 16, y1 }, { x0 - W, r.how == Place::Beside ? y0 - 16 : y1 - H + 16 },
+            const std::array<std::pair<int, int>, 4> spot = { { { x0 - 16, y1 }, { x0 - W, y0 - 16 },
                                                                 { x1 - W + 16, y0 - H }, { x1, y1 - H + 16 } } };
             at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
         } else if (r.how == Place::BloodMoor) {
-            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W + 16, y1 }, { x0 - W, y0 - 16 },
+            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W + 16, y1 }, { x0 - W, y1 - H + 16 },
                                                                 { x0 - 16, y0 - H }, { x1, y0 - 16 } } };
             at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
         } else if (q.flip == 1) {                                                   // the town, FUN_00676450
-            const std::array<std::pair<int, int>, 4> spot = { { { x0, y1 }, { x0 - W, y1 - H - 8 },
+            const std::array<std::pair<int, int>, 4> spot = { { { x0, y1 }, { x0 - W, y0 + 8 },
                                                                 { x1 - W, y0 - H }, { x1, y1 - H - 8 } } };
             at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
         } else {
-            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W, y1 }, { x0 - W, y0 + 8 },
+            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W, y1 }, { x0 - W, y1 - H - 8 },
                                                                 { x0, y0 - H }, { x1, y0 + 8 } } };
             at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
         }

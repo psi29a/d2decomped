@@ -49,12 +49,11 @@ W/H the new level's size):
   (L.x−W, L.y−16), (L.x2−W+16, L.y−H), (L.x2, L.y2−H+16).
 - Blood Moor (FUN_00676650): side and alignment (`seed & 3`, then
   `& 1`); retries step (dir + flip) & 3 and flip ^ 1 through all 8. Size
-  96×56 left/right, 56×96 above/below. Spots, flip 1 as beside but left
-  is (L.x−W, L.y2−H+16); flip 0: (L.x2−W+16, L.y2), (L.x−W, L.y−16),
-  (L.x−16, L.y−H), (L.x2, L.y−16).
+  96×56 left/right, 56×96 above/below. Spots, flip 1 as beside; flip 0:
+  (L.x2−W+16, L.y2), (L.x−W, L.y2−H+16), (L.x−16, L.y−H), (L.x2, L.y−16).
 - town (FUN_00676450): as the Blood Moor with 8-tile offsets: flip 1
-  (L.x, L.y2), (L.x−W, L.y2−H−8), (L.x2−W, L.y−H), (L.x2, L.y2−H−8);
-  flip 0 (L.x2−W, L.y2), (L.x−W, L.y+8), (L.x, L.y−H), (L.x2, L.y+8).
+  (L.x, L.y2), (L.x−W, L.y+8), (L.x2−W, L.y−H), (L.x2, L.y2−H−8);
+  flip 0 (L.x2−W, L.y2), (L.x−W, L.y2−H−8), (L.x, L.y−H), (L.x2, L.y+8).
 - fixed (FUN_006768c0): below the link, left-aligned.
 
 **Driver** (FUN_006772c0): place record i; if its function has tried
@@ -131,8 +130,8 @@ from its cell — x = 0: 1 if y = 0 else 0; y = 0: 2 if x = w−1 else 1;
 x = w−1: 3 if y = h−1 else 2; y = h−1: 3 — then the neighbour of that
 side whose rect holds the probe (level + 8v + (−4, 4) / (4, −4) /
 (12, 4) / (4, 12)) gives bit 1 << (its Vis slot + 4). The span v → next
-(FUN_0067c760): vertical both ends inclusive, horizontal from the
-smaller x + 1 to the larger; +0x18 |= bit, +0x2c |= 1, or 3 with a
+(FUN_0067c760): the cells strictly between, then v, then next (its last
+argument, 1 here), so both ends are inclusive; +0x18 |= bit, +0x2c |= 1, or 3 with a
 style.
 
 **Borders** (FUN_00675850), for each outline vertex v (from the list
@@ -194,8 +193,8 @@ outside of a non-rectangular outline; a no-op on rectangles.
 - anywhere (FUN_00674730(def, file, margin, mask)): the first shuffled
   cell that fits gets placed (not border).
 - by a road (FUN_00674920(def, file)): shuffled cells; on a road cell
-  (+0x2c & 0x80), offsets (−1,0) (0,−1) (0,1) (1,0) (−1,−1) (−1,1)
-  (1,−1) (1,1) (0x6f0614 x / 0x6f060c y), the first that fits(def, 0,
+  (+0x2c & 0x80), offsets (−1,0) (0,−1) (0,1) (1,0) (−1,−1) (1,1)
+  (1,−1) (−1,1) (0x6f0614 x / 0x6f060c y), the first that fits(def, 0,
   0xf) gets placed; none → anywhere(def, file, 0, 0xf).
 - farthest (FUN_006744f0(rect, def, file, margin, mask)): sx =
   `rand(w−2)`, then sy = `rand(h−2)`; for i 0..h−2 and j 0..w−2
@@ -415,11 +414,183 @@ picked with orientation 4 — and a shadow (0x8000000) with orientation
 
 **Pick** (FUN_0066d820(room, orientation, word)): up to 40 tiles with
 that orientation / style / sequence, from the room's DT1s in list order
-and each DT1 in file order (FUN_00604ae0); total = Σ rarity (tile
+(FUN_00604ae0), each DT1's list for that key coming from its 128-bucket
+hash (FUN_0060d040; bucket (2·style − orientation + sequence) & 0x7f,
+node `{style, sequence, orientation, tiles, next}`) in **reverse file
+order**, because loading (FUN_0060a440 → FUN_0060cfa0) inserts at the front; total = Σ rarity (tile
 +0x20); r = `rand(total)` on the room seed (no roll when total is 0);
 the first tile whose running rarity sum reaches r + 1 (a single
 candidate is taken as is). None
 at all → orientation 10, style 0, sequence 0; still none → fatal.
+
+**Plain-room details** (checked against game.exe tile for tile):
+
+- The room seed isn't reset between the room's init and its tiles: the
+  picks continue from wherever grass, roads and LvlSub stamps left it.
+- A stamp's shadow cells (0x8000000) are picked at stamp time
+  (FUN_0066fad0 → FUN_0066e060, orientation 13) into the room's shadow
+  list, so they roll the room seed between stamps.
+- The plain room's mask is 0x44103 OR'd with each LvlSub row
+  FUN_006706a0 chose (Dt1Mask; Swamp adds 0x400000).
+- After init, FUN_0067c600 ORs 4 into every edge cell of the wall and
+  floor grids (rows 0 and 8, columns 0 and 8, of the 9×9 grids).
+- A word with bit 4 is an edge tile other rooms may share (FUN_0066e940):
+  the near rooms (FUN_0066bc20: this level's rooms, list order, less than
+  6 tiles apart on both axes, then bubble-sorted by FUN_0066bbc0 so a room
+  wholly left of or above the one before it moves ahead) are searched,
+  skipping itself, for a tile at that spot in one of their edge chains
+  (FUN_0066e4c0: rooms already up, point inside the room's rect edges
+  inclusive, floor chains for orientation 0, not orientation 4, shadow
+  bit only against shadows, same word bits 18..19). None → FUN_0066e620
+  picks it (rolling this room's seed) and chains it. Found →
+  FUN_0066e740 keeps the neighbour's tile unless its word had 0x80, or
+  the orientations merge (tables 0x6ef620, 0x6ef574) to something else,
+  or it's a style-30 / sequence-0 floor, when it re-picks on this room's
+  seed and overwrites the neighbour's tile.
+- So edge tiles, and everything picked after them in the room, depend on
+  which rooms are up first. The game brings rooms up as the player gets
+  near; d2d brings them up in the level's room list order (newest first,
+  i.e. the reverse of the cell order they were made in).
+- Act1/Outdoors/Trees.ds1 (v12) declares 14 substitution groups and ends
+  12 bytes into the 14th; FUN_00665950 reads past its buffer. In the
+  emulator that's zeros (a 0×0 group that stamps nothing); on real
+  hardware it's whatever follows the allocation.
+
+**Preset-room details:** the room keeps a 9×9 slice of every DS1 layer
+(presets' DS1s include the shared edge row and column), FUN_006667d0
+ORs 0x84 into every edge cell (walls layer 0, floors, shadow; floors are
+| 0x80 throughout), and the walk (FUN_00666ac0: floor layers, the first
+with FillBlanks, then wall layers, then the shadow) is 8 wide / high
+where KillEdge is set and the room sits on the preset's right / bottom
+edge, else 9. FillBlanks: an empty floor cell inside the room picks style
+30 sequence 0 (0x1e00100 on level 74). The room seed is fresh
+(`{room +4, 666}`): nothing between reset and walk rolls it. A hidden
+warp tile (orientation 10/11, style = warp slot ≤ 7) makes the warp unit
+(FUN_0066e1c0) and, when the slot's LvlWarp row has LitVersion, a 2×2
+lit floor up-left of it (FUN_0066e360: style = the tile's sequence,
+sequences 4..7, offsets 0x6ef554).
+
+Room tiles as game.exe keeps them (room +0x54): walls +0x08 count /
++0x14 array, floors +0x0c / +0x1c, shadows +0x10 / +0x24; 0x30-byte
+entries with room-relative x, y at +0x08, +0x0c, the tile header at
++0x18 and the orientation at +0x1c. A tile header points into its DT1's
+loaded file (0x60-byte records from `buf + 0x110`, rarity at +0x20);
+loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
+cached by name.
+
+## Maze levels (DrlgType 1) — FUN_00673b30
+
+The level's maze row (LvlMaze by level, FUN_0061f490: `{level,
+rooms[3] by difficulty, SizeX, SizeY, Merge}`, the level's +0x14) sizes
+every maze room. All rolls are on the level seed unless a room's seed is
+named; a room's seed is set when it's allocated (FUN_0066b3e0, stepping
+the level seed, as outdoors).
+
+1. **First room** (FUN_00673b30): allocated, SizeX × SizeY, centred in
+   the level ((level w − SizeX) / 2), added to the level's list
+   (FUN_0066b970, at the front).
+2. **Grow** (FUN_00671210, LevelTypes 3, 4, 7, 8, …): while the level has
+   fewer rooms than `rooms[difficulty]` (×3 for the act's boss-tomb level,
+   ×2 for its staff-tomb level, act 2 only): pick room `rand(n)` from the
+   list (FUN_006711a0); roll **that room's** seed & 3 for a side (0 left,
+   1 above, 2 right, 3 below); if it isn't special: allocate a room, put
+   it against that side (FUN_00670880) and keep it only if it overlaps no
+   room but that one (else freed, the level seed step stays spent). Kept:
+   link both ways (FUN_0066b5e0: side, and (side − 2) & 3 back; links go
+   to the front of a room's list, FUN_0066b560); then merge (FUN_00670c70):
+   every non-special listed room sharing an edge with it (gap < 1 on both
+   axes, not just a corner) and not yet linked rolls its own seed
+   % 1000 < Merge and, if FUN_00642240 gives a side, gets linked and its
+   preset redone; then the new room is added and both rooms' presets are
+   redone.
+3. **Preset by links** (FUN_006709b0): mask 1 left, 8 above, 2 right, 4
+   below; act 1 caves (LevelType 3) take def 0x34 + mask (53 Cave W … 67
+   Cave NSEW), file −1; this clears the room's special flag (flags & 2).
+4. **Special rooms** (LevelType 3, FUN_00672550): k = rand & 3; records
+   `{def to replace, def to set, file, side}` at 0x6ef8a8 + 0x10 k (the
+   entrance: 60→86 below, 54→84 left, 56→85 above, 53→83 right), then
+   0x6ef8e8 (Den of Evil: → 98 / 96 / 97 / 95) or 0x6ef928 (other caves),
+   plus 0x6ef968 for level 9 and 0x6ef9a8 for level 10; k = (k + 1) & 3
+   after each. FUN_006724e0: the first non-special listed room with that
+   def becomes the special; none → FUN_00670eb0 puts a new room on that
+   side of the first listed non-special room it fits beside (allocating,
+   and freeing on a miss, per try), links it, redoes the anchor's preset,
+   and makes the new room the special.
+5. FUN_00642590 moves every room so the rooms' top-left is the level's.
+6. FUN_006735f0 (not level 8): a few rooms become theme variants
+   (def + 15) — not ported yet.
+7. **Presets** (FUN_00673a60, list order): FUN_00666ed0 rolls
+   rand(Files) for the file; a room with a fixed file keeps its own, a
+   plain cave (0x34 < def < 0x44) takes the level's rotation for that def
+   (FUN_006738c0: first use rand(Files), then +1 each time, list at level
+   +0x1cc), a special keeps the roll. FUN_00667ed0 then makes the rooms:
+   one when the preset is under 13×13, else one per 8×8 block (rows, then
+   columns), each allocated in turn.
+
+d2d: `components/drlg/maze.hpp` (`generate_maze`). The Den of Evil
+(LvlMaze Rooms 1) is the first room, the entrance and the Den's own room:
+three 24×24 caves, 27 rooms. 1.14d's LvlMaze.txt has one Rooms column
+(the game reads the .bin); d2d uses it for every difficulty.
+
+## Checking against game.exe — what's proven, what isn't
+
+**How it's proven.** `tools/emu` runs game.exe 1.14d itself under unicorn:
+its CRT start-up, its own table loader (FUN_00619300, every .bin plus the
+LvlPrest / LvlSub DS1s from the MPQs) and its own act builder
+(FUN_006194a0, server side). `drlg.py` reads the result out of game.exe's
+memory; `build/tools/drlg-dump` prints d2d's in the same form;
+`diff_drlg.py <first>-<last> <level> [tiles]` diffs them line for line.
+"Proven" below means identical output on every seed listed, not a
+reading of the decompile. `tests/test_outdoor.cpp` pins a few of those
+values (seed 3) so a regression shows without the emulator.
+
+### Proven identical to game.exe (2026-09-26)
+
+| What | Level | Seeds checked |
+|---|---|---|
+| The level's rectangle in the act (act 1 layout, chain 1) | Blood Moor (2) | 1–5000, 0x7fff0000–0x7fff0fff, 0xffffe000–0xffffffff |
+| Outdoor flags after generation | Blood Moor | same |
+| The three cell grids (+0x04 presets, +0x18 values, +0x2c flags): borders, border LvlSubs, river / bridge, Den entrance, roads, shrine markers, fills, transitions | Blood Moor | same |
+| Every room: position, size, kind, seed (so every preset's file roll too) | Blood Moor | same |
+| Every room's tiles: walls, floors, shadows, each as DT1 file + tile index (grass, roads, LvlSub stamps and their shadows, preset rooms, FillBlanks, edge sharing, the Den entrance's lit floor) | Blood Moor | 1–1500, 0xfffffc18–0xffffffff |
+| Maze: rooms grown, special rooms, presets by links, file rotation, the 8x8 split, every room's seed | Den of Evil (8) | 1–2000 |
+| Every room's tiles | Den of Evil | 1–1000 |
+
+Conditions those results hold under, so they aren't overstated:
+
+- **Normal difficulty only.** Every run passes difficulty 0. The Blood
+  Moor's sizes don't change with difficulty; the maze's room count
+  would (LvlMaze.txt in 1.14d has one Rooms column, game.exe's .bin has
+  three; d2d uses the one for all) — untested for Nightmare / Hell.
+- **Tiles depend on room bring-up order** (edge sharing, see Room tiles).
+  Proven for game.exe's room-list order with only that level's rooms up.
+  In the game the order follows the player, and the town's or Cold
+  Plains' rooms may be up first; those orders aren't checked.
+- **Emulator shortcuts.** String-table lookups return "" (names only),
+  C++ static constructors (`__cinit`) aren't run, and memory past a file's
+  end reads as zero. The last matters once: Act1/Outdoors/Trees.ds1
+  declares 14 groups and ends inside the 14th, which game.exe reads past
+  its buffer; on real hardware that memory holds whatever follows, so the
+  14th group may not be the empty one both sides use here.
+- Only what the dumps print is compared: rectangles, flags, grids, rooms,
+  tiles. Anything else a level carries (below) isn't.
+
+### Not proven yet (ported from the decompile, or not ported)
+
+| What | State |
+|---|---|
+| The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
+| The town's own layout beyond its DS1 choice | not diffed |
+| Other outdoor levels (Cold Plains, Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, waypoints (FUN_00674b70), per-level fills | not ported |
+| Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
+| Other maze level types (crypts, act 2+) | not ported |
+| Preset units (FUN_00667620): monsters and objects from preset DS1s | not ported |
+| LvlSub stamp objects (shrines, waypoints) | not ported |
+| LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
+| Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
+| Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
+| Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
+| **The app:** d2d still draws the first matching DT1 tile, not the proven picks (`level_room_tiles`), and has no Den of Evil level to walk into | not wired up |
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
 `outdoor_data.hpp`, `tests/test_outdoor.cpp`; the app's `load_wilderness`

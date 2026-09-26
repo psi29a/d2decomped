@@ -5,6 +5,7 @@
 
 #include <drlg.hpp>
 #include <outdoor.hpp>
+#include <room_tiles.hpp>
 #include <txt.hpp>
 
 #include <charconv>
@@ -23,7 +24,8 @@ inline int to_int(std::string_view s, int fallback = 0) {
 // The tables plus every DS1 the act 1 wilderness can place or stamp.
 // Presets point into `maps`, so fill one in place and don't copy it.
 struct OutdoorAssets {
-    d2d::txt::Table levels;
+    d2d::txt::Table levels, lvl_types, lvl_warp, lvl_maze;
+    std::deque<Dt1File> dt1s;                           // loaded by load_room_dt1s
     std::deque<d2d::ds1::Map> maps;
     OutdoorData data;
     OutdoorAssets() = default;
@@ -45,12 +47,16 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& a, Read&& read) {
         try { return &a.maps.emplace_back(*b); } catch (...) { return nullptr; }
     };
     a.levels = table("Levels.txt");
+    a.lvl_types = table("LvlTypes.txt");
+    a.lvl_warp = table("LvlWarp.txt");
+    a.lvl_maze = table("LvlMaze.txt");
     const auto prest = table("LvlPrest.txt");
     for (std::size_t r = 0; r < prest.size(); ++r) {
         const int def = to_int(prest.get(r, "Def"));
-        if (def < 2 || def > 60) continue;                      // ponytail: act 1's outdoor presets
+        if (def < 2 || def > 102) continue;                     // ponytail: act 1's outdoor and cave presets
         Preset p{ to_int(prest.get(r, "SizeX")), to_int(prest.get(r, "SizeY")), to_int(prest.get(r, "Files")),
-                  to_int(prest.get(r, "Scan")), to_int(prest.get(r, "Pops")), {} };
+                  to_int(prest.get(r, "Scan")), to_int(prest.get(r, "Pops")),
+                  std::uint32_t(std::stoul("0" + std::string(prest.get(r, "Dt1Mask")))), {} };
         for (int i = 0; i < 6; ++i) p.maps[std::size_t(i)] = ds1(prest.get(r, "File" + std::to_string(i + 1)));
         a.data.presets[def] = p;
     }
@@ -60,6 +66,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& a, Read&& read) {
         s.type = to_int(sub.get(r, "Type"), -1);
         s.check_all = to_int(sub.get(r, "CheckAll"));
         s.bord_type = to_int(sub.get(r, "BordType"));
+        s.dt1_mask = std::uint32_t(std::stoul("0" + std::string(sub.get(r, "Dt1Mask"))));
         for (int t = 0; t < 5; ++t) {
             s.prob[std::size_t(t)] = to_int(sub.get(r, "Prob" + std::to_string(t)));
             s.trials[std::size_t(t)] = to_int(sub.get(r, "Trials" + std::to_string(t)));
@@ -68,6 +75,43 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& a, Read&& read) {
         if (s.type >= 0 && s.type <= 6) s.map = ds1(sub.get(r, "File"));  // act 1's rows
         a.data.subs.push_back(s);
     }
+}
+
+// The DT1s rooms of LvlTypes row `type` can list (by mask bit), plus the
+// three every room gets (FUN_0066f240).
+template <class Read> RoomDt1s load_room_dt1s(OutdoorAssets& a, Read&& read, int type) {
+    RoomDt1s d;
+    auto load = [&](std::string rel) -> const Dt1File* {
+        if (rel.empty() || rel == "0") return nullptr;
+        std::string p = R"(data\global\tiles\)", name;
+        for (const char c : rel) p.push_back(c == '/' ? '\\' : c);
+        for (const char c : rel.substr(rel.find_last_of("/\\") + 1)) name.push_back(char(std::tolower(static_cast<unsigned char>(c))));
+        const auto b = read(p);
+        if (!b) return nullptr;
+        return &a.dt1s.emplace_back(dt1_heads(name, *b));
+    };
+    for (std::size_t r = 0; r < a.lvl_types.size(); ++r)
+        if (to_int(a.lvl_types.get(r, "Id"), -1) == type)
+            for (int i = 0; i < 32; ++i) d.by_bit[std::size_t(i)] = load(std::string(a.lvl_types.get(r, "File " + std::to_string(i + 1))));
+    d.always = { load("Act1/Outdoors/Blank.dt1"), load("Act1/Barracks/InvisWal.dt1"), load("Act1/Barracks/Warp.dt1") };
+    return d;
+}
+
+// Levels.txt row by Id.
+inline std::optional<std::size_t> level_row(const d2d::txt::Table& levels, int id);
+
+// Which of level `id`'s warp slots lead through a LvlWarp row with
+// LitVersion set (their tiles get a lit floor, FUN_0066e360).
+inline std::array<bool, 8> lit_warps(const OutdoorAssets& a, int id) {
+    std::array<bool, 8> lit{};
+    const auto row = level_row(a.levels, id);
+    if (!row) return lit;
+    for (int i = 0; i < 8; ++i) {
+        const int w = to_int(a.levels.get(*row, "Warp" + std::to_string(i)), -1);
+        for (std::size_t r = 0; w >= 0 && r < a.lvl_warp.size(); ++r)
+            if (to_int(a.lvl_warp.get(r, "Id"), -1) == w) lit[std::size_t(i)] = to_int(a.lvl_warp.get(r, "LitVersion")) != 0;
+    }
+    return lit;
 }
 
 // Levels.txt row by Id.

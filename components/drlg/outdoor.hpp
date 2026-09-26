@@ -6,6 +6,7 @@
 
 #include <drlg.hpp>
 #include <ds1.hpp>
+#include <tile_pick.hpp>
 
 #include <algorithm>
 #include <array>
@@ -21,17 +22,20 @@ namespace d2d::drlg {
 // loaded File1..6 (null when absent), and the columns that roll units.
 struct Preset {
     int w = 0, h = 0, files = 0, scan = 0, pops = 0;
+    std::uint32_t dt1_mask = 0;                         // which LvlTypes files its rooms load
     std::array<const d2d::ds1::Map*, 6> maps{};
 };
 // LvlSub.txt, one row: the stamp sheet and its odds per theme.
 struct Sub {
     int type = 0, check_all = 0, bord_type = 0;
+    std::uint32_t dt1_mask = 0;
     std::array<int, 5> prob{}, trials{}, max{};
     const d2d::ds1::Map* map = nullptr;
 };
 struct OutdoorData {
     std::unordered_map<int, Preset> presets;           // by Def
     std::vector<Sub> subs;                              // file order
+    const RoomDt1s* dt1s = nullptr;                     // set: stamps pick their shadow tiles (FUN_0066e060)
 };
 // A walkable neighbour: its placed rect and its slot in this level's Vis.
 struct Neighbour { Placed rect; int slot = 0; };
@@ -41,15 +45,35 @@ struct OutdoorLevel {
     std::vector<Neighbour> neighbours;                  // Vis slot order
     Placed town;                                        // the Den goes far from it
 };
+// A plain room's DS1 words ((8+1)x(8+1), row-major) as game.exe keeps
+// them at room data +0x00 / +0x14 / +0x28 (orientation, wall, floor),
+// plus stamped shadows; its seed low word and DT1 mask (room +0x50).
+struct PlainRoom {
+    int x, y;                                           // level-relative tiles
+    std::uint32_t flags;                                // +0x18 value
+    std::uint32_t seed_low;                             // room +4
+    std::uint32_t theme_mask;                           // FUN_006706a0
+    std::uint32_t dt1_mask = 0x44103;                   // LevelType 2's files, | chosen LvlSub rows'
+    std::array<std::uint32_t, 81> orient{}, wall{}, floor{}, shadow{};
+    d2d::rules::Rng seed;                               // the room seed after its init; the tile picks go on from here
+    std::vector<RoomTile> tiles;                        // shadows the stamps picked (with OutdoorData::dt1s)
+};
 struct Outdoor {
     int cw = 0, ch = 0;                                 // cells (8x8 tiles)
+    std::uint32_t flags = 0;                            // outdoor flags after generation (layout | 0x20, 0x40)
     std::vector<std::uint32_t> g04, g18, g2c;           // preset def, values, flags
     std::vector<std::vector<std::pair<int, int>>> roads; // polylines, act tiles
     d2d::ds1::Map tiles;                                // the level, level-relative
     // Every room the finish allocated (8x8 tiles, presets split the same
     // way), level-relative tiles, with its seed: monsters populate these.
-    struct RoomSeed { int x = 0, y = 0; std::uint32_t seed = 0; };
+    struct RoomSeed {
+        int x = 0, y = 0;
+        std::uint32_t seed = 0;
+        int w = 8, h = 8, kind = 1;                     // kind 1 plain, 2 preset
+        int def = 0, file = 0, px = 0, py = 0;          // a preset room's LvlPrest def, file and the preset's origin
+    };
     std::vector<RoomSeed> rooms;
+    std::vector<PlainRoom> plain;                       // plain rooms' words, cell order
     std::vector<std::string> notes;                     // what isn't wired up yet
 };
 
@@ -211,7 +235,7 @@ struct Gen {
         return false;
     }
     bool by_road(int def, int file) {                              // FUN_00674920
-        static constexpr std::array<int, 8> ox = { -1, 0, 0, 1, -1, -1, 1, 1 }, oy = { 0, -1, 1, 0, -1, 1, -1, 1 };
+        static constexpr std::array<int, 8> ox = { -1, 0, 0, 1, -1, 1, 1, -1 }, oy = { 0, -1, 1, 0, -1, 1, -1, 1 };
         for (auto [x, y] : shuffled(cw - 2, ch - 2))
             if (g2c.get(x + 1, y + 1) & 0x80)
                 for (int k = 0; k < 8; ++k)
@@ -350,12 +374,11 @@ struct Gen {
                 return 1u << (n.slot + 4);
         return 0;
     }
-    void span(const Vert& v, const Vert& n, Cells& g, std::uint32_t val) {   // FUN_0067c760
-        if (v.x == n.x) {
-            for (int y = std::min(v.y, n.y); y <= std::max(v.y, n.y); ++y) g.op(v.x, y, val, 0);
-        } else {
-            for (int x = std::min(v.x, n.x) + 1; x <= std::max(v.x, n.x); ++x) g.op(x, v.y, val, 0);
-        }
+    // FUN_0067c760 walks the cells strictly between v and n, then writes v,
+    // then n (its last argument, 1 here): both ends inclusive either way.
+    void span(const Vert& v, const Vert& n, Cells& g, std::uint32_t val) {
+        for (int y = std::min(v.y, n.y); y <= std::max(v.y, n.y); ++y)
+            for (int x = std::min(v.x, n.x); x <= std::max(v.x, n.x); ++x) g.op(x, y, val, 0);
     }
     void contacts() {
         int v = head;
@@ -747,13 +770,7 @@ struct Gen {
 };
 
 // ---- a plain room's tiles (FUN_0067d2d0)
-struct Room {
-    int x, y;                                           // level-relative tiles
-    std::uint32_t flags;                                // +0x18 value
-    std::uint32_t seed_low;                             // room +4
-    std::uint32_t theme_mask;                           // FUN_006706a0
-    std::array<std::uint32_t, 81> orient{}, wall{}, floor{}, shadow{};
-};
+using Room = PlainRoom;
 
 inline void stamp_room(Room& r, const OutdoorData& d, const OutdoorLevel& L, d2d::rules::Rng& s,
                        int type, int theme, std::uint32_t mask, std::vector<std::string>& notes) {
@@ -797,7 +814,13 @@ inline void stamp_room(Room& r, const OutdoorData& d, const OutdoorLevel& L, d2d
                     if (w & 1) r.wall[i] = w;
                     if (const auto o = orient0(g.x + gx, g.y + gy)) r.orient[i] = o;
                     const auto sh = src(m.shadows(), g.x + gx, g.y + gy);
-                    if (sh & 0x8000000) r.shadow[i] = sh;
+                    if (!(sh & 0x8000000)) continue;
+                    if (d.dt1s) {                                                // FUN_0066e060: picked now, on the room seed
+                        const auto [f, k] = pick_tile(room_dt1_list(r.dt1_mask, *d.dt1s), s, 13, sh);
+                        r.tiles.push_back({ 2, x + gx, y + gy, 13, f, k });
+                    } else {
+                        r.shadow[i] = sh;
+                    }
                 }
             if (!m.objects().empty()) {
                 const std::string n = "drlg: LvlSub stamp objects (shrines, waypoints) not implemented";
@@ -880,6 +903,11 @@ inline void room_tiles(Room& r, const OutdoorData& d, const OutdoorLevel& L,
     stamp_room(r, d, L, s, L.sub_waypoint, 0, (r.flags >> 16) & 3, notes);
     stamp_room(r, d, L, s, L.sub_shrine, 0, (r.flags >> 12) & 0xf, notes);
     stamp_room(r, d, L, s, L.sub_type, L.sub_theme, r.theme_mask, notes);
+    r.seed = s;
+    // FUN_0067c600 on the wall and floor grids: every edge cell | 4 (its tile
+    // may be shared with the room next to it, FUN_0066e940).
+    for (int i = 0; i < 9; ++i)
+        for (const int k : { i, 72 + i, i * 9, i * 9 + 8 }) { r.wall[std::size_t(k)] |= 4; r.floor[std::size_t(k)] |= 4; }
 }
 
 }  // namespace outdoor_detail
@@ -939,9 +967,10 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
                 if (!p) { g.note("drlg: LvlPrest def " + std::to_string(def) + " missing"); continue; }
                 (void)g.seed(p->files);                   // FUN_00666ed0: rolled, then replaced
                 const int file = int((f >> 16) & 0xf);
-                if (p->scan || p->pops) g.note("drlg: preset units (FUN_00667620) not rolled — later room seeds drift");
+                if (p->scan || p->pops) g.note("drlg: preset units (FUN_00667620: the preset DS1s' monsters and objects) not placed");
                 for (int ty = 0; ty < p->h; ty += 8)
-                    for (int tx = 0; tx < p->w; tx += 8) out.rooms.push_back({ cx * 8 + tx, cy * 8 + ty, alloc().low });
+                    for (int tx = 0; tx < p->w; tx += 8)
+                        out.rooms.push_back({ cx * 8 + tx, cy * 8 + ty, alloc().low, 8, 8, 2, def, int((f >> 16) & 0xf), cx * 8, cy * 8 });
                 const auto* m = file < 6 ? p->maps[std::size_t(file)] : nullptr;
                 if (!m) { g.note("drlg: preset " + std::to_string(def) + " file " + std::to_string(file) + " not loaded"); continue; }
                 const int ox = cx * 8, oy = cy * 8;
@@ -959,12 +988,12 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
             } else if (!(f & 0x100)) {                    // FUN_0067d540
                 auto r = alloc();
                 out.rooms.push_back({ cx * 8, cy * 8, r.low });
-                Room room{ cx * 8, cy * 8, g.g18.get(cx, cy), r.low, 0, {}, {}, {}, {} };
+                Room room{ cx * 8, cy * 8, g.g18.get(cx, cy), r.low, 0, 0x44103, {}, {}, {}, {}, {}, {} };
                 if (L.sub_type != -1 && L.sub_theme != -1) {                     // FUN_006706a0
                     std::uint32_t bit = 0;
                     for (const auto& sub : d.subs) {
                         if (sub.type != L.sub_type) { if (bit) break; continue; }
-                        if (int(r.next() % 100) < sub.prob[std::size_t(L.sub_theme)]) room.theme_mask |= 1u << bit;
+                        if (int(r.next() % 100) < sub.prob[std::size_t(L.sub_theme)]) { room.theme_mask |= 1u << bit; room.dt1_mask |= sub.dt1_mask; }
                         ++bit;
                     }
                 }
@@ -981,7 +1010,9 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
                 if (room.shadow[i]) put(2, 0, room.x + x, room.y + y, room.shadow[i], 13);
             }
     }
+    out.plain = std::move(rooms);
     out.cw = g.cw;
+    out.flags = g.flags;
     out.ch = g.ch;
     out.g04 = g.g04.v;
     out.g18 = g.g18.v;

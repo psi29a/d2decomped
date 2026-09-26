@@ -150,14 +150,16 @@ game.exe lays it out, then fill it with monsters.
 
 A. **Act layout** — done: `components/drlg` `act1_layout`, `test_drlg`;
    the town DS1 comes from it (`--seed`, default 3 = townE1).
-B. **Outdoor DRLG** — done for the Blood Moor: `components/drlg/outdoor.hpp`
+B. **Outdoor DRLG** — done for the Blood Moor (what's proven identical to
+   game.exe and what isn't: docs/research/re/drlg.md "Checking against
+   game.exe"): `components/drlg/outdoor.hpp`
    (borders, border substitution, river/bridge, Den of Evil, roads,
    shrines markers, fills, plain rooms with LvlSub stamps, preset rooms),
-   `test_outdoor` over 60 seeds. Gaps, logged as "not implemented" at
-   load: preset units (FUN_00667620, so later room seeds drift from
-   game.exe), stamp objects (shrines, waypoints), CheckAll stamps, cliff
-   caves / cliff styles / waypoints (other act 1 levels), rarity tile
-   picks (first DT1 match instead of FUN_0066d820).
+   `test_outdoor` over 60 seeds; layout, room seeds and every room's
+   tiles (`room_tiles.hpp`) proven identical to game.exe with tools/emu.
+   Gaps: preset units and stamp objects (monsters, shrines, waypoints),
+   CheckAll stamps, cliff caves / cliff styles / waypoints (other act 1
+   levels); the app still draws first-match tiles, not the proven picks.
 C. **Levels from stamps** — done: the generator builds one `ds1::Map`
    for the level; `finish_level` gives it the town's lookup + collision.
 D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
@@ -309,11 +311,13 @@ Spawning
 
 Act 1 levels and rendering
 - Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
-  Dark Wood, Black Marsh, Tamoe Highland, Den of Evil and the other
-  caves/crypts (maze generator, DrlgType 1, FUN_00673b30), Tristram,
-  Monastery through the Catacombs.
-- In the Blood Moor: preset units (FUN_00667620, so room seeds drift),
-  shrines and stamp objects, rarity tile picks (FUN_0066d820).
+  Dark Wood, Black Marsh, Tamoe Highland, the other caves/crypts,
+  Tristram, Monastery through the Catacombs. The Den of Evil is generated
+  (components/drlg/maze.hpp, proven identical to game.exe) but not a
+  level in the app yet.
+- In the Blood Moor: preset units (FUN_00667620) and stamp objects
+  (shrines, waypoints); the app's tiles are first-match, not the proven
+  picks (`level_room_tiles`).
 - Rendering: shadows not blended, no unit shadows, no lighting / day-night
   / rain, cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs not drawn across the edge.
@@ -325,10 +329,10 @@ Town
 
 ## Next up (as of 2026-09-26)
 
-1. DRLG exactness: the Blood Moor's preset units (FUN_00667620, so room
-   seeds stop drifting), rarity tile picks (FUN_0066d820) and stamp
-   objects; then the Den of Evil maze (DrlgType 1, FUN_00673b30); and a
-   way to check layouts against game.exe.
+1. DRLG: done and proven for the Blood Moor and the Den of Evil (layout,
+   room seeds, tiles; docs/research/re/drlg.md "Checking against
+   game.exe"). Left: draw the proven tile picks in the app, walk into the
+   Den, preset units and stamp objects.
 2. Champions and uniques (FUN_005a43e0).
 3. Saving .d2s.
 4. Cold Plains and the rest of Act 1's outdoor levels.

@@ -1,6 +1,7 @@
 // The Blood Moor from real game data over many map seeds: a closed
 // border, one Den of Evil, roads, grass everywhere else, and the same
 // level from the same seed. Prints one level's cells.
+#include <maze.hpp>
 #include <outdoor_data.hpp>
 #include <mpq.hpp>
 
@@ -76,5 +77,41 @@ int main() {
         assert(again.g04 == o.g04 && again.g2c == o.g2c && again.roads == o.roads);
     }
     for (const auto& n : notes) std::printf("not implemented: %s\n", n.c_str());
+
+    // Values game.exe itself produces for map seed 3, read out under the
+    // emulator (tools/emu/drlg.py 3 2 tiles, drlg.py 3 8); diff_drlg.py
+    // checks thousands of seeds this way.
+    {
+        const auto read = [&](const std::string& p) { return mpqs.try_read(p); };
+        const auto dt1s = load_room_dt1s(a, read, 2);
+        a.data.dt1s = &dt1s;
+        const auto L = outdoor_level(a.levels, act1_from_map_seed(defs, 3), 2);
+        const auto o = generate_outdoor(a.data, L, level_seed(3, 2));
+        assert(o.rooms.size() == 83 && o.rooms.front().x == 0 && o.rooms.front().seed == 0x32de6615);
+        std::vector<std::string> notes;
+        const auto built = level_room_tiles(o.rooms, o.plain, a.data, dt1s, 2, lit_warps(a, 2), notes);
+        auto has = [&](int rx, int ry, int layer, int x, int y, const std::string& want) {    // any tile of the layer there
+            for (const auto& r : built)
+                if (r.x == rx && r.y == ry)
+                    for (const auto& t : r.tiles)
+                        if (t.layer == layer && t.x == rx + x && t.y == ry + y && t.file
+                            && t.file->name + ":" + std::to_string(t.index) == want) return true;
+            return false;
+        };
+        assert(has(24, 8, 1, 0, 0, "floor.dt1:39"));                             // a plain room's grass
+        assert(has(32, 8, 0, 6, 2, "trees.dt1:63"));                             // a stamped tree
+        assert(has(32, 8, 2, 5, 1, "trees.dt1:67"));                             // its shadow, picked at stamp time
+        assert(has(64, 24, 1, 2, 3, "cavedr.dt1:27"));                           // the Den entrance's lit floor
+        a.data.dt1s = nullptr;
+
+        MazeDef m;
+        m.rooms.fill(1); m.w = m.h = 24; m.merge = 500;                         // LvlMaze "Act 1 - Cave 1"
+        auto den = generate_maze(a.data, m, 8, 200, 200, level_seed(3, 8), 0, notes);
+        assert(den.size() == 27);
+        auto at = [&](int x, int y) { for (const auto& r : den) if (r.x == x && r.y == y) return r; return Outdoor::RoomSeed{}; };
+        assert(at(24, 0).def == 97 && at(24, 0).file == 0 && at(24, 0).seed == 0x8d8dcf44);    // the Den's own room
+        assert(at(0, 24).def == 84 && at(0, 24).file == 1);                                    // the entrance
+        assert(at(24, 24).def == 61 && at(24, 24).seed == 0x775aabb3);                         // Cave NW
+    }
     std::puts("test_outdoor: ok");
 }

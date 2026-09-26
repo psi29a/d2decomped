@@ -266,9 +266,13 @@ private:
             const auto n = c.rd_i32();
             if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus group count");
             groups_.resize(std::size_t(n));
+            // Act1/Outdoors/Trees.ds1 (v12) says 14 groups and ends 12 bytes
+            // into the 14th; game.exe (FUN_00665950) reads on past its buffer.
+            // Past the end reads as 0 here (a 0x0 group that stamps nothing).
+            auto rd = [&] { return c.p + 4 <= c.end ? c.rd_i32() : (c.p = c.end, 0); };
             for (auto& g : groups_) {
-                g.x = c.rd_i32(); g.y = c.rd_i32(); g.w = c.rd_i32(); g.h = c.rd_i32();
-                if (version_ >= 13) g.variants = c.rd_i32();
+                g.x = rd(); g.y = rd(); g.w = rd(); g.h = rd();
+                if (version_ >= 13) g.variants = rd();
             }
         }
 
