@@ -224,11 +224,13 @@ Committed:
   Static Field, Corpse Explosion, Teleport).
 - Phase 6, part 4 (`61feb63`): buffs, curses and war cries.
 
-In progress (phase 6, part 5, not committed): Royal Strike's and Claws
-of Thunder's releases, Bone Wall and Prison, Werewolf / Werebear (stats
-only) with Feral Rage, Maul, Fire Claws, Hunger and Rabies, Armageddon and
-Hurricane, Blade Sentinel and Shield, Wake of Fire / Inferno and Death
-Sentry's corpse blast, the vines, the Druid's spirits, Double Throw.
+- Phase 6, part 5 (`a1763c4`): Royal Strike's and Claws of Thunder's
+  releases, Bone Wall and Prison, Werewolf / Werebear (stats only) with
+  Feral Rage, Maul, Fire Claws, Hunger and Rabies, Armageddon and
+  Hurricane, Blade Sentinel and Shield, Wake of Fire / Inferno and Death
+  Sentry's corpse blast, the vines, the Druid's spirits, Double Throw.
+  Every class skill now has a path (devctl `debug unbuilt` lists none);
+  the approximations are per part in skills.md.
 
 ## Checkpoint 2026-09-25: what's still open
 

@@ -49,11 +49,11 @@ implemented. You can:
   coverage and the untraced approximations are listed per skill family
   in [`docs/research/re/skills.md`](docs/research/re/skills.md).
 
-Committed through `61feb63` (phase 6, part 4: buffs, curses and war
-cries). The last pieces (Royal Strike's releases, Bone Wall and Prison,
-shapeshifting and the Druid's melee skills, Armageddon and Hurricane,
-Blade Sentinel and Shield, the fire sentries and Death Sentry's blast,
-the vines, the Druid's spirits, Double Throw) are in progress.
+Every class skill is built, through `a1763c4` (phase 6, part 5: Royal
+Strike's releases, Bone Wall and Prison, shapeshifting and the Druid's
+melee skills, Armageddon and Hurricane, Blade Sentinel and Shield, the
+fire sentries and Death Sentry's blast, the vines, the Druid's spirits,
+Double Throw).
 
 It's all single-player and in memory: saves are read, never written.
 Not yet: levels past the Blood Moor, champions and uniques, quests,
