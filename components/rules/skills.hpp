@@ -200,6 +200,9 @@ struct Skill {
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)
     int perdelay = 0;                      // an aura's pulse, ticks
+    std::string summon, pettype;           // +0xbc the MonStats row it raises, +0xbe its pet group
+    Calc petmax;                           // +0xc0: how many of the group at once
+    bool target_corpse = false;            // TargetCorpse: raised from a corpse
     int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;

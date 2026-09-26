@@ -281,6 +281,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " level=" + std::to_string(cc.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(cc.stats.get(d2d::d2s::kExp))
              + " pmode=" + (t.fight.pmode >= 0 ? kModeCode[t.fight.pmode] : "-")
              + " missiles=" + std::to_string(t.fight.missiles.size())
+             + " pets=" + [&] { std::string o; for (const auto& p : t.fight.pets) o += (o.empty() ? "" : ",") + std::to_string(p.m.hp) + "/" + std::to_string(p.m.st.hp) + ":" + std::string(p.m.mode); return o.empty() ? std::string("-") : o; }()
              + " lskill=" + std::to_string(t.skillbar.left) + " rskill=" + std::to_string(t.skillbar.right)
              + " picker=" + std::to_string(t.skillbar.picking)
              + " charges=" + [&] {

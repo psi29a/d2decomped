@@ -175,6 +175,7 @@ struct Monster {
     std::uint32_t flee_until = 0;             // ms: running from the player
     bool struck = false;                      // this attack's hit is resolved
     bool aware = false;                       // has noticed the player
+    bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;

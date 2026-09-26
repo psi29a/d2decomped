@@ -92,6 +92,11 @@ struct Fight {
     d2d::rules::StatSum psum{};            // the player's stats (gear, passives) as of this frame
     float cast_x = 0, cast_y = 0;          // where a missile skill was sent
     int aura = 0;                          // the aura on (Town: the right skill when it's one)
+    // The player's summons (skills.md "Summons"): a Monster of the skill's
+    // summon row on the player's side, the skill that raised it, and the
+    // monster it's after.
+    struct Pet { Monster m; int skill = 0; int target = -1; };
+    std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
     // this swing uses (Attack when it's not built or can't be paid for),
@@ -145,6 +150,7 @@ struct Fight {
         regen.clear();
         charges.clear();
         self_states.clear();
+        pets.clear();
         attack_mon = -1;
         pmode = -1;
     }
@@ -798,7 +804,7 @@ struct Fight {
         }
         if ((func == 36 || func == 39) && mi) {
             auto put = [&](float x, float y, float vx, float vy, int range) {
-                Missile a{ mi, x, y, vx, vy, direction32(vx, vy), ms, ms + std::uint32_t(std::max(range, 1)) * 40 };
+                Missile a{ mi, x, y, vx, vy, direction32(vx, vy), ms, ms + std::uint32_t(std::max(range, 1)) * 40, {} };
                 a.friendly = true; a.skill = s.id; a.level = lvl;
                 missiles.push_back(a);
                 return missiles.size() - 1;
@@ -892,7 +898,7 @@ struct Fight {
                 if (archer && scene->missiles.contains("arrow")) {
                     const auto& mi = scene->missiles.at("arrow");
                     const float v = cells_per_sec(float(mi.vel));
-                    Missile a{ &mi, u.x, u.y, dx / d * v, dy / d * v, direction32(dx, dy), ms, ms + std::uint32_t(mi.range) * 40 };
+                    Missile a{ &mi, u.x, u.y, dx / d * v, dy / d * v, direction32(dx, dy), ms, ms + std::uint32_t(mi.range) * 40, {} };
                     a.min = merc_st.dmg_min; a.max = merc_st.dmg_max; a.ar = merc_st.ar; a.level = merc_st.level; a.friendly = true;
                     missiles.push_back(a);
                 } else if (m.alive() && d <= kMeleeReach + 0.3f) {
@@ -967,6 +973,8 @@ struct Fight {
                 pstruck = true;
                 if (const auto* s = scene->skills.get(swing_skill); s && missile_skill(*s)) {
                     fire(*s, ms);
+                } else if (s && summon_skill(*s)) {
+                    summon(*s, ms);
                 } else if (s) {
                     const int lvl = skill_level ? skill_level(s->id) : 1;
                     const auto env = calc_env();
@@ -1148,7 +1156,7 @@ struct Fight {
         auto launch = [&](float dx, float dy, int range) {
             const float d = std::max(std::hypot(dx, dy), 0.01f);
             Missile a{ &mi, player.x, player.y, dx / d * v, dy / d * v, direction32(dx, dy), ms,
-                       ms + std::uint32_t(std::max(range, 1)) * 40 };
+                       ms + std::uint32_t(std::max(range, 1)) * 40, {} };
             a.friendly = true; a.skill = s.id; a.level = lvl;
             if (s.srvdofunc == 22) a.struck = shared;
             missiles.push_back(a);
@@ -1205,7 +1213,6 @@ struct Fight {
             if (!std::ranges::contains(struck, int(i))) skill_missile_hits(a, i, ms);
             return true;
         }
-        auto& m = monsters[i];
         const auto target = target_of(i);
         const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
         auto md = a.info->skill.empty() ? row_damage(*a.info, a.level)
@@ -1293,6 +1300,162 @@ struct Fight {
             }
         }
         return t;
+    }
+    // A summoning skill d2d builds (the do spawns the `summon` row through
+    // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
+    // Skeleton and Skeletal Mage (31, from a corpse), Valkyrie (16), the
+    // Druid's Raven (114), Spirit Wolf, Fenris and Grizzly (119).
+    [[nodiscard]] bool summon_skill(const d2d::rules::Skill& s) const {
+        return !s.summon.empty() && scene->monsters.row(s.summon) >= 0
+            && (s.srvdofunc == 56 || s.srvdofunc == 57 || s.srvdofunc == 31 || s.srvdofunc == 16 || s.srvdofunc == 114
+                || (s.srvdofunc == 119 && (s.pettype == "spiritwolf" || s.pettype == "fenris" || s.pettype == "grizzly")));
+    }
+    // Casting one at (tx, ty) (the corpse there for Raise Skeleton): its
+    // mana and SC, the summon on the action frame.
+    bool cast_summon(int skill, float tx, float ty, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        const auto* s = scene->skills.get(skill);
+        if (!s || dead() || pmode >= 0 || !summon_skill(*s)) return false;
+        if (s->target_corpse && corpse_near(tx, ty) < 0) return false;
+        const int lvl = skill_level ? skill_level(skill) : 0;
+        const int cost = d2d::rules::mana_cost(*s, lvl);
+        if (lvl <= 0 || cc.stats.v[kMana] < cost) return false;
+        cc.stats.v[kMana] -= cost;
+        swing_skill = skill;
+        cast_x = tx; cast_y = ty;
+        attack_mon = -1;
+        player.dir = direction16(tx - player.x, ty - player.y);
+        set_pmode(kModeSC, ms);
+        pstruck = false;
+        return true;
+    }
+    // The unraised corpse within 2 cells of (x, y) nearest it, or -1.
+    [[nodiscard]] int corpse_near(float x, float y) const {
+        int best = -1; float bd = 2.f;
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (const auto& m = monsters[i]; !m.alive() && !m.corpse_used && m.mode == "DD")
+                if (const float d = std::hypot(m.u.x - x, m.u.y - y); d < bd) { bd = d; best = int(i); }
+        return best;
+    }
+    // The pet arrives (FUN_0056d940, FUN_005c49e0, FUN_005c4470): spawned
+    // as its MonStats row at the row's level, then set to level min(clvl,
+    // clvl x 3 / 4 + bonus) — bonus calc2 for the Druid's (do 114 / 119),
+    // else 0 — with MonLvl's own defense and attack rating at it (stats 31
+    // / 19), life + calc1 %.
+    // Past petmax of its pettype the oldest goes.
+    // ponytail: the skill's aurastats / passive stats / sumskills / sumumod
+    // on the pet (FUN_005c4470), Skeleton and Golem Mastery (FUN_005d6b60),
+    // the skeletal mage's missile and the golems' specials aren't built;
+    // pets stay in the Blood Moor.
+    void summon(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const int type = scene->monsters.row(s.summon);
+        const auto env = calc_env();
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        float x = cast_x, y = cast_y;
+        if (s.target_corpse) {
+            const int c = corpse_near(cast_x, cast_y);
+            if (c < 0) return;
+            monsters[std::size_t(c)].corpse_used = true;
+            x = monsters[std::size_t(c)].u.x; y = monsters[std::size_t(c)].u.y;
+        }
+        const int max = std::max(d2d::rules::eval_calc(scene->skills, s.petmax, env, s.id, lvl), 1);
+        auto same = [&](const Pet& p) { return scene->skills.get(p.skill) && scene->skills.get(p.skill)->pettype == s.pettype; };
+        while (std::ranges::count_if(pets, same) >= max) pets.erase(std::ranges::find_if(pets, same));
+        const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
+        const int bonus = s.srvdofunc == 114 || s.srvdofunc == 119 ? d2d::rules::eval_calc(scene->skills, s.calc[1], env, s.id, lvl) : 0;
+        const int plvl = std::max(std::min(clvl, clvl * 3 / 4 + bonus), 1);
+        Pet p;
+        auto& m = p.m;
+        m.type = type;
+        m.npc = scene->mon_npc[std::size_t(type)];
+        const auto& t = scene->monsters.types[std::size_t(type)];
+        for (std::size_t l = 0; l < 16; ++l)
+            if (!t.parts[l].empty()) m.npc.comp[l] = t.parts[l].front();
+        m.difficulty = std::clamp(cc.header.active_difficulty(), 0, 2);
+        m.st = d2d::rules::monster_stats(scene->monsters, type, m.difficulty, rng);   // spawned at its own level (FUN_005b2f20)
+        m.st.level = plvl;
+        if (!scene->monsters.lvl.empty()) {
+            const auto& L = scene->monsters.lvl[std::min<std::size_t>(std::size_t(plvl), scene->monsters.lvl.size() - 1)];
+            m.st.ac = L.ac[std::size_t(m.difficulty)];
+            m.st.th = L.th[std::size_t(m.difficulty)];
+        }
+        m.st.hp += int(std::int64_t(m.st.hp) * d2d::rules::eval_calc(scene->skills, s.calc[0], env, s.id, lvl) / 100);
+        m.hp = m.st.hp = std::max(m.st.hp, 1);
+        m.u.x = m.home_x = x; m.u.y = m.home_y = y;
+        m.u.dir = player.dir;
+        p.skill = s.id;
+        set_mode(*scene, m, "NU", ms);
+        pets.push_back(std::move(p));
+    }
+    // A pet as the monsters see it: its defense, its MonStats resistances.
+    [[nodiscard]] Foe pet_foe(const Pet& p) const {
+        auto f = d2d::rules::simple_fighter(p.m.st.a1_min, p.m.st.a1_max, p.m.st.th, p.m.st.ac);
+        const auto& r = scene->monsters.types[std::size_t(p.m.type)].diff[std::size_t(p.m.difficulty)].res;
+        f.res = { r[2], r[3], r[4], r[5] };
+        return Foe{ p.m.u.x, p.m.u.y, p.m.st.level, p.m.alive() && p.m.mode != "DT", p.m.u.walking, f };
+    }
+    void pet_hurt(Pet& p, int damage, std::uint32_t ms) {
+        if (damage > 0 && p.m.mode != "DT") hurt(*scene, p.m, damage, ms);
+    }
+    // The pets' turn, the merc's way: each goes for the nearest monster
+    // within 8 of the player that has noticed them (or within 4 of the
+    // pet), strikes it in reach on its A1's action frame (its damage and
+    // attack rating against the monster's defense), and otherwise follows
+    // the player. A dead one plays its death and is gone.
+    // ponytail: every pet fights in melee with A1; the Hireable-style
+    // think isn't game.exe's pet AI (not traced).
+    void pets_turn(std::uint32_t ms, float dt, const Crowd& crowd) {
+        std::erase_if(pets, [&](const Pet& p) { return !p.m.alive() && p.m.mode == "DT" && ms >= p.m.mode_until; });
+        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        for (auto& p : pets) {
+            auto& m = p.m;
+            auto& u = m.u;
+            if (!m.alive()) continue;
+            if (m.mode == "A1") {
+                if (!m.struck && p.target >= 0 && ms >= u.mode_ms + scene->npc_anim(m.npc, "A1").action_ms()) {
+                    m.struck = true;
+                    const auto i = std::size_t(p.target);
+                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - u.x, monsters[i].u.y - u.y) <= kMeleeReach + 0.3f)
+                        land(i, d2d::rules::player_blow(d2d::rules::simple_fighter(m.st.a1_min, m.st.a1_max, m.st.th),
+                                                        target_of(i), m.st.level, rng), false, ms);
+                }
+                if (ms < m.mode_until) continue;
+                set_mode(*scene, m, "NU", ms);
+            }
+            if (m.mode == "GH" && ms < m.mode_until) continue;
+            if (p.target >= 0 && !monsters[std::size_t(p.target)].alive()) p.target = -1;
+            if (p.target < 0) {
+                float best = 1e9f;
+                for (std::size_t i = 0; i < monsters.size(); ++i) {
+                    const auto& o = monsters[i];
+                    if (!o.alive()) continue;
+                    const float dp = std::hypot(o.u.x - player.x, o.u.y - player.y), dm = std::hypot(o.u.x - u.x, o.u.y - u.y);
+                    if (((o.aware && dp < 8) || dm < 4) && dm < best) { best = dm; p.target = int(i); }
+                }
+            }
+            const auto& t = scene->monsters.types[std::size_t(m.type)];
+            const float speed = cells_per_sec(float(std::max(t.run, t.velocity)));
+            if (p.target >= 0) {
+                const auto& o = monsters[std::size_t(p.target)];
+                const float dx = o.u.x - u.x, dy = o.u.y - u.y;
+                if (std::hypot(dx, dy) <= kMeleeReach) {
+                    u.dir = direction16(dx, dy);
+                    u.path.clear(); u.walking = false;
+                    set_mode(*scene, m, "A1", ms);
+                    m.struck = false;
+                    continue;
+                }
+                if (u.path.empty() || std::hypot(u.goal_x - o.u.x, u.goal_y - o.u.y) > 1.f) {
+                    u.path = walk_path(*level, u.x, u.y, o.u.x, o.u.y, crowd, &u);
+                    u.goal_x = o.u.x; u.goal_y = o.u.y;
+                }
+                if (!follow_path(*level, u, speed * dt, crowd)) p.target = -1;
+            } else {
+                merc_follow(*level, u, player.x, player.y, cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
+            }
+            const std::string_view want = u.walking ? "WL" : "NU";
+            if (m.mode != want) set_mode(*scene, m, want, ms);
+        }
     }
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
@@ -1382,9 +1545,10 @@ struct Fight {
         // around each player); what they hit comes off the player's life,
         // and a hit of a twelfth of max life or more makes them flinch (GH).
         if (in_moor) {
-            std::array<Foe, 2> foes{ Foe{ player.x, player.y, int(cc.stats.get(d2d::d2s::kLevel)), true, player.walking, pf },
-                                     Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
-                                          merc && merc->walking, merc_fighter() } };
+            std::vector<Foe> foes{ Foe{ player.x, player.y, int(cc.stats.get(d2d::d2s::kLevel)), true, player.walking, pf },
+                                   Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
+                                        merc && merc->walking, merc_fighter() } };
+            for (const auto& p : pets) foes.push_back(pet_foe(p));
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& m = monsters[i];
                 if (std::abs(m.u.x - player.x) < 30 && std::abs(m.u.y - player.y) < 30
@@ -1393,6 +1557,8 @@ struct Fight {
             }
             monster_dots(ms, dt);
             aura_pulse(ms);
+            for (std::size_t k = 0; k < pets.size(); ++k) pet_hurt(pets[k], foes[2 + k].damage, ms);
+            pets_turn(ms, dt, crowd);
             // The merc's arrows strike the first live monster they reach.
             missiles_update(*level, missiles, foes, rng, ms, dt, [&](Missile& a) {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
@@ -1467,8 +1633,11 @@ struct Fight {
                 u.missile = mi.info;
                 out.push_back(u);
             }
+        for (const auto& p : pets)
+            out.push_back({ p.m.u.x, p.m.u.y, &scene->npc_anim(p.m.npc, p.m.mode), p.m.u.dir, nullptr, p.m.u.mode_ms, -3 });
         for (std::size_t i = 0; i < monsters.size(); ++i) {
             const auto& m = monsters[i];
+            if (m.corpse_used) continue;
             if (std::abs(m.u.x - player.x) >= 14 || std::abs(m.u.y - player.y) >= 14) continue;
             out.push_back({ m.u.x, m.u.y, &scene->npc_anim(m.npc, m.mode), m.u.dir,
                             m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });

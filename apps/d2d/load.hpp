@@ -375,7 +375,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
         Scene::MissileInfo mi{ g("Vel"), g("Range"), g("SrcDamage"), g("MinDamage"), g("MaxDamage"),
-                               std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {} };
+                               std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {}, {} };
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
         mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
@@ -478,6 +478,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
         S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam"); S.srcdam_raw = n("SrcDam");
         S.srvmissile = g("srvmissile"); S.srvmissilea = g("srvmissilea"); S.perdelay = n("perdelay");
+        S.summon = g("summon"); S.pettype = g("pettype"); S.petmax = calc("petmax"); S.target_corpse = g("TargetCorpse") == "1";
         S.result_flags = n("ResultFlags");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
         const auto et = std::ranges::find(kEl, g("EType"));

@@ -6,7 +6,9 @@
 
 #include "rules.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -55,9 +57,13 @@ struct Monsters {
     std::vector<MonType> types;                 // MonStats rows
     std::unordered_map<std::string, int> by_id;
     std::vector<MonLvl> lvl;                    // by level
-    [[nodiscard]] int row(const std::string& id) const {
-        const auto it = by_id.find(id);
-        return it == by_id.end() ? -1 : it->second;
+    // By Id, any case (Skills.txt's summon says ClayGolem for claygolem).
+    [[nodiscard]] int row(std::string id) const {
+        if (const auto it = by_id.find(id); it != by_id.end()) return it->second;
+        for (auto& c : id) c = char(std::tolower(static_cast<unsigned char>(c)));
+        for (const auto& [k, v] : by_id)
+            if (k.size() == id.size() && std::ranges::equal(k, id, [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; })) return v;
+        return -1;
     }
 };
 

@@ -529,6 +529,37 @@ operand and function lists.
 - Built: `Fight::release` / `prg`; devctl `debug charges`, `debug
   release`.
 
+### Summons (phase 5, part 3)
+- Record: +0xbc `summon` (MonStats row), +0xbe `pettype`, +0xc0 `petmax`
+  (calc), +0xc4 sumskill1..5 with +0xd0 sumsk*calc, +0xe4 `sumumod`,
+  +0xe6 `sumoverlay`. Do functions: 56 (FUN_005c5100, the golems), 57
+  (Iron Golem), 31 (FUN_005c4b00, Raise Skeleton / Skeletal Mage, from a
+  corpse), 16 (FUN_005dc1e0, Valkyrie), 119 (FUN_005c7390, the Druid's
+  wolves, bear, spirits), 114 (Raven), 15 (Decoy), 44 / 45 (the
+  Assassin's traps), 49 (Shadow Warrior / Master).
+- **FUN_0056d940** spawns the row at the target (FUN_005b2f20, flags
+  0x42), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
+- **FUN_005c49e0**(skill, owner, pet, level, bonus): the pet's level
+  (stat 12) = min(owner's level, owner's × 3 / 4 + bonus) — bonus calc2
+  for 119 / 114, 0 else — then its defense (31) and attack rating (19)
+  straight from MonLvl at that level (+0xb70 rows of 0x78: difficulty
+  and expansion columns).
+- **FUN_005c4470**(pet, owner, skill, level, bonus): the skill's passive
+  stats (+0x98 / +0xa4) and aurastats (+0x54 / +0x68, in a state with
+  aurastate +0x80) onto the pet, life and max life + calc1 % (stats 6 /
+  7), sumskill n at sumsk n calc levels (FUN_0056deb0), the aura events,
+  sumumod (FUN_005a4850), sumoverlay, then FUN_005d6b60 (the masteries'
+  share, not traced).
+- Built: `Fight::pets` (a Monster each), `summon_skill` / `cast_summon` /
+  `summon` / `pets_turn` / `pet_foe`; monsters take pets as foes; Raise
+  Skeleton uses a Blood Moor corpse (`Monster::corpse_used`).
+  `Monsters::row` ignores case (Skills.txt says ClayGolem). Not yet:
+  FUN_005c4470's stats, sumskills (the skeletal mage's bolt, Fire Golem's
+  Holy Fire, Valkyrie's), sumumod, Skeleton / Golem Mastery
+  (FUN_005d6b60), pets' own think (they fight as the merc does, melee),
+  pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
+  and vines, Raven's hit count.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
