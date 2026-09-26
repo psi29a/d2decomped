@@ -560,6 +560,25 @@ operand and function lists.
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 
+### Traps (phase 5, part 4)
+- Do 45 (**FUN_005d6170** → **FUN_005d5e10**): the summon path —
+  FUN_0056e620 (the pet slot), FUN_0056d940 at the target, FUN_005c49e0 /
+  FUN_005c4470 (level, sumskills at their calcs) — then FUN_005a7e60 /
+  FUN_005a7c20 hand the trap its mode. The trap monsters (MonStats AI
+  AssassinSentry: aidel 15, aip1 100, aip2 10, aip3 15, aip4 13..25;
+  DeathSentry) shoot Skill1, a monster skill ('sentry lightning',
+  'BoltSentry', 'death sentry ltng', ...) whose missile row names the
+  player's skill (sentrylightningbolt → Lightning Sentry), so the damage
+  is the Assassin's skill at the trap's sumskill level.
+- Built: traps as pets (`Pet::shot_skill / shot_level / shots`,
+  `trap_shot`, `trap_turn`): every aidel ticks at the nearest monster
+  within aip4 subtiles; Charged Bolt Sentry's do 17 spread; spent after
+  Param1 shots (calc4 for Charged Bolt Sentry), untargetable. Not traced:
+  the AssassinSentry / DeathSentry AI functions (aip4 as range, shot
+  counts as published); not built: Wake of Fire / Inferno (do 125 / 95),
+  Death Sentry's corpse blast (do 55), Blade Sentinel / Fury / Shield,
+  Fire Blast / Shock Web (thrown traps).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
@@ -641,6 +660,8 @@ operand and function lists.
    mastery too, FUN_0056e0c0 passes flag 1). Was: (Fire Bolt, Magic Arrow, Poison Dagger): EMin/EMax by
    level, synergies, cast rate (FCR), the missile system that already flies
    quill spikes (`ai.hpp` Missile; friendly missiles like the merc's).
-5. **Auras, summons, charge-ups, sentries**: auras as states on units in
+5. ~~**Auras, summons, charge-ups, sentries**~~ — **done 2026-09-26**
+   (see "Auras", "Charge-up releases", "Summons", "Traps" above, each with
+   what isn't built). Was: auras as states on units in
    range, summons as monsters on the player's side (the merc code), the
    Assassin charges (srvprgfunc through srvdofunc), traps.

@@ -203,6 +203,8 @@ struct Skill {
     std::string summon, pettype;           // +0xbc the MonStats row it raises, +0xbe its pet group
     Calc petmax;                           // +0xc0: how many of the group at once
     bool target_corpse = false;            // TargetCorpse: raised from a corpse
+    std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
+    std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels
     int result_flags = 0;                  // ResultFlags (8: knockback)
     int etype = -1;                        // 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic, 5 stun
     int emin = 0, emax = 0;

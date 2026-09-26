@@ -95,7 +95,9 @@ struct Fight {
     // The player's summons (skills.md "Summons"): a Monster of the skill's
     // summon row on the player's side, the skill that raised it, and the
     // monster it's after.
-    struct Pet { Monster m; int skill = 0; int target = -1; };
+    // A trap (do 45) shoots instead: its skill (a monster skill whose
+    // missile carries the player's), at its level, `shots` times.
+    struct Pet { Monster m; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0; };
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
@@ -1106,14 +1108,15 @@ struct Fight {
     // Cold / Ice Arrow, Poison Javelin, Lightning Bolt, Fire Bolt, Ice Bolt,
     // Ice Blast, Lightning, Fire Ball, Bone Spear, Teeth, Multiple Shot,
     // Charged Bolt, Frost Nova, Nova, Poison Nova.
-    [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s) const {
+    // `any_owner`: a trap's shot, whose row names the player's skill.
+    [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
         const bool plain = (s.srvstfunc == 0 || s.srvstfunc == 4) && s.srvdofunc == 0;
         const bool multi = (s.srvstfunc == 0 || s.srvstfunc == 4) && (s.srvdofunc == 8 || s.srvdofunc == 17 || s.srvdofunc == 22);
         const auto& name = plain ? s.srvmissile : multi ? s.srvmissilea : s.srvmissile;
         if ((!plain && !multi) || name.empty()) return nullptr;
         const auto m = scene->missiles.find(name);
         if (m == scene->missiles.end() || (m->second.hit_func != 0 && m->second.hit_func != 1)) return nullptr;
-        return m->second.skill == s.name || m->second.skill.empty() ? &m->second : nullptr;
+        return any_owner || m->second.skill == s.name || m->second.skill.empty() ? &m->second : nullptr;
     }
     [[nodiscard]] bool missile_skill(const d2d::rules::Skill& s) const { return skill_missile(s) != nullptr; }
     // Casting one at (tx, ty): its mana, then its animation (A1 at the
@@ -1308,7 +1311,18 @@ struct Fight {
     [[nodiscard]] bool summon_skill(const d2d::rules::Skill& s) const {
         return !s.summon.empty() && scene->monsters.row(s.summon) >= 0
             && (s.srvdofunc == 56 || s.srvdofunc == 57 || s.srvdofunc == 31 || s.srvdofunc == 16 || s.srvdofunc == 114
-                || (s.srvdofunc == 119 && (s.pettype == "spiritwolf" || s.pettype == "fenris" || s.pettype == "grizzly")));
+                || (s.srvdofunc == 119 && (s.pettype == "spiritwolf" || s.pettype == "fenris" || s.pettype == "grizzly"))
+                || (s.srvdofunc == 45 && trap_shot(s) >= 0));
+    }
+    // A trap's shooting skill: the first of its sumskills that fires a
+    // missile d2d builds (the monster skills 'sentry lightning',
+    // 'BoltSentry', 'death sentry ltng'); -1 for the others (Wake of Fire's
+    // and Inferno's do 125 / 95, Death Sentry's corpse blast do 55).
+    [[nodiscard]] int trap_shot(const d2d::rules::Skill& s) const {
+        for (const auto& n : s.sumskill)
+            if (const auto it = scene->skills.by_name.find(n); !n.empty() && it != scene->skills.by_name.end())
+                if (const auto* k = scene->skills.get(it->second); k && skill_missile(*k, true)) return k->id;
+        return -1;
     }
     // Casting one at (tx, ty) (the corpse there for Raise Skeleton): its
     // mana and SC, the summon on the action frame.
@@ -1384,15 +1398,61 @@ struct Fight {
         m.u.x = m.home_x = x; m.u.y = m.home_y = y;
         m.u.dir = player.dir;
         p.skill = s.id;
+        if (s.srvdofunc == 45) {                             // a trap (FUN_005d6170 -> FUN_005d5e10)
+            p.shot_skill = trap_shot(s);
+            for (std::size_t k = 0; k < 5; ++k)
+                if (scene->skills.by_name.contains(s.sumskill[k]) && scene->skills.by_name.at(s.sumskill[k]) == p.shot_skill)
+                    p.shot_level = std::max(d2d::rules::eval_calc(scene->skills, s.sumsk_calc[k], env, s.id, lvl), 1);
+            const int c4 = d2d::rules::eval_calc(scene->skills, s.calc[3], env, s.id, lvl);
+            p.shots = c4 > 0 ? c4 : std::max(s.par[0], 1);
+        }
         set_mode(*scene, m, "NU", ms);
         pets.push_back(std::move(p));
     }
-    // A pet as the monsters see it: its defense, its MonStats resistances.
+    // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
+    // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
+    // at the nearest — the skill's missile, whose row names the player's
+    // skill for the damage (sentrylightningbolt: Lightning Sentry) at the
+    // trap's sumskill level; spent after its shots (the skill's Param1,
+    // Charged Bolt Sentry's calc4), it dies.
+    // ponytail: the sentry AI function isn't traced (aip4 read as the
+    // range, the shots from the published counts); it shoots from its
+    // spot, in no animation.
+    void trap_turn(Pet& p, std::uint32_t ms) {
+        auto& m = p.m;
+        if (ms < m.next_act) return;
+        const auto& d = scene->monsters.types[std::size_t(m.type)].diff[std::size_t(m.difficulty)];
+        m.next_act = ms + std::uint32_t(std::max(d.aidel, 1)) * 40;
+        const float range = float(d.aip[3] > 0 ? d.aip[3] : 25) / 5;
+        int best = -1; float bd = range;
+        for (std::size_t i = 0; i < monsters.size(); ++i)
+            if (const float dd = std::hypot(monsters[i].u.x - m.u.x, monsters[i].u.y - m.u.y); monsters[i].alive() && dd <= bd) { bd = dd; best = int(i); }
+        if (best < 0) return;
+        const auto* k = scene->skills.get(p.shot_skill);
+        if (!k) return;
+        const auto& mi = *skill_missile(*k, true);
+        const auto owner = scene->skills.by_name.find(mi.skill);
+        const float dx = monsters[std::size_t(best)].u.x - m.u.x, dy = monsters[std::size_t(best)].u.y - m.u.y, dist = std::max(std::hypot(dx, dy), 0.01f);
+        const float v = cells_per_sec(float(mi.vel));
+        const int n = k->srvdofunc == 17 ? std::max(d2d::rules::eval_calc(scene->skills, k->calc[0], calc_env(), k->id, p.shot_level), 1) : 1;
+        for (int j = 0; j < n; ++j) {
+            const float a = n > 1 ? (float(rng(81)) - 40) * 3.14159265f / 180 : 0.f;
+            const float ex = dx * std::cos(a) - dy * std::sin(a), ey = dx * std::sin(a) + dy * std::cos(a);
+            Missile x{ &mi, m.u.x, m.u.y, ex / dist * v, ey / dist * v, direction32(ex, ey), ms,
+                       ms + std::uint32_t(std::max(mi.range, 1)) * 40, {} };
+            x.friendly = true; x.level = p.shot_level;
+            x.skill = owner != scene->skills.by_name.end() ? owner->second : k->id;
+            missiles.push_back(x);
+        }
+        if (--p.shots <= 0) { m.hp = 0; set_mode(*scene, m, "DT", ms); }
+    }
+    // A pet as the monsters see it: its defense, its MonStats resistances
+    // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& p) const {
         auto f = d2d::rules::simple_fighter(p.m.st.a1_min, p.m.st.a1_max, p.m.st.th, p.m.st.ac);
         const auto& r = scene->monsters.types[std::size_t(p.m.type)].diff[std::size_t(p.m.difficulty)].res;
         f.res = { r[2], r[3], r[4], r[5] };
-        return Foe{ p.m.u.x, p.m.u.y, p.m.st.level, p.m.alive() && p.m.mode != "DT", p.m.u.walking, f };
+        return Foe{ p.m.u.x, p.m.u.y, p.m.st.level, p.m.alive() && p.m.mode != "DT" && p.shot_skill < 0, p.m.u.walking, f };
     }
     void pet_hurt(Pet& p, int damage, std::uint32_t ms) {
         if (damage > 0 && p.m.mode != "DT") hurt(*scene, p.m, damage, ms);
@@ -1411,6 +1471,7 @@ struct Fight {
             auto& m = p.m;
             auto& u = m.u;
             if (!m.alive()) continue;
+            if (p.shot_skill >= 0) { trap_turn(p, ms); continue; }
             if (m.mode == "A1") {
                 if (!m.struck && p.target >= 0 && ms >= u.mode_ms + scene->npc_anim(m.npc, "A1").action_ms()) {
                     m.struck = true;

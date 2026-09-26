@@ -236,7 +236,9 @@ Combat
   pulses, Conviction on monsters in range) and the charge-up releases
   (bursts, novas, scattered fire and ice; Royal Strike's not yet),
   and summons (golems, skeletons from corpses, Valkyrie, the Druid's
-  wolves / bear / raven) fighting at the player's side in the Blood Moor.
+  wolves / bear / raven) fighting at the player's side in the Blood Moor, and the Assassin's sentries (Lightning, Charged Bolt, Death) shooting
+  the player's skill. Phase 5 is done; what's left of each part is listed
+  in skills.md.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.
