@@ -129,6 +129,8 @@ inline int chest_rounds(bool locked, Rng& seed) {
 // trapfirebolt, 3 trap-poisoncloud's Skill1 PrimePoisonNova (two rings of
 // primepoisoncloud), 4 trap-nova's Skill1 Trap Nova (a nova of trapnova);
 // 5 / 7 fires (FUN_00582380), 8 undead (FUN_005822f0).
+// The missiles a unique's mods fire (uniques.hpp): loaded with the rest.
+inline constexpr std::array<const char*, 3> kBossMissile{ "lightunique", "coldunique", "monstercorpseexplode" };
 inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
                                                           "", "trapfirebolt", "", "" };
 // The trap's missile level: DifficultyLevels MonsterSkillBonus (+0x10:

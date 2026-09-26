@@ -163,6 +163,13 @@ void merc_follow(const Level& L, UnitState& m, float px, float py, float speed, 
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
     int type = -1;
+    // Its mods in the fight (uniques.hpp): life as of the last tick (a drop
+    // sets off Lightning Enchanted's bolts, at most every 10 frames), when
+    // its death effect is due, its mana burn per hit.
+    int last_hp = 0;
+    std::uint32_t bolts_at = 0, fx_at = 0;
+    bool fx_done = false;
+    int mana_lo = 0, mana_hi = 0;
     d2d::rules::Boss boss = d2d::rules::Boss::none;   // champion, unique, superunique, minion
     std::vector<int> mods;                    // MonUMod ids
     int super = -1;                           // SuperUniques row
@@ -220,6 +227,7 @@ struct Foe {
     bool blocked = false;                     // blocked a hit this frame
     std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
+    int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     void take(const d2d::rules::Taken& k) {
         blocked = blocked || k.blocked;
         damage += k.damage;
@@ -239,6 +247,7 @@ struct Missile {
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
     int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
+    bool fx = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
     // Monsters a flying-on missile already hit; a nova's missiles share
     // theirs (one hit a monster). -1: an explosion is under way.
@@ -279,6 +288,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
     std::erase_if(ms_, [&](Missile& m) {
         m.x += m.vx * dt; m.y += m.vy * dt;
         if (ms >= m.dies || L.blocked(m.x, m.y, 0x04)) return true;
+        if (m.fx) return false;
         if (m.friendly) return hits_monster(m);
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
@@ -349,7 +359,18 @@ void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vec
         for (auto& e : m.st.el)
             if (e.type < 0 && put < 2) e = { b.elem, 100, dm * b.elem_min_pct / 100, std::max(dm * b.elem_max_pct / 100, dm * b.elem_min_pct / 100), 0, put++ ? "A2" : "A1" };
     }
+    // Mana burn (FUN_005a1f90): manadrainmin / max (stats 62 / 63) = MonLvl
+    // damage x the elemental % rows for its kind.
+    // ponytail: FUN_005a00f0's rows read as the enchanted ones'.
+    if (std::ranges::contains(mods, d2d::rules::umod::manahit) && !s.monsters.lvl.empty()) {
+        const auto& L = s.monsters.lvl[std::min<std::size_t>(std::size_t(m.st.level), s.monsters.lvl.size() - 1)];
+        const int dm = L.dm[std::size_t(std::clamp(difficulty, 0, 2))], d = std::clamp(difficulty, 0, 2);
+        const int base = kind == d2d::rules::Boss::minion ? 16 : kind == d2d::rules::Boss::champion ? 22 : 28;
+        m.mana_lo = dm * s.umods.k[std::size_t(base + d)] / 100;
+        m.mana_hi = std::max(dm * s.umods.k[std::size_t(base + 3 + d)] / 100, m.mana_lo);
+    }
     m.hp = m.st.hp;
+    m.last_hp = m.hp;
     if (super >= 0 && std::size_t(super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(super)].name;
     else if (kind == d2d::rules::Boss::unique) m.npc.name = unique_name(s, name_seed);
     else if (kind == d2d::rules::Boss::champion) {                      // "Champion Zombie", "Ghostly Fallen" (FUN_004ac870)
@@ -375,7 +396,7 @@ Monster make_monster(const Scene& s, int type, float x, float y, d2d::rules::Rng
     m.u.dir = rng(16);
     m.u.wait_until = std::uint32_t(rng(4000));
     if (stats) m.st = d2d::rules::monster_stats(s.monsters, type, difficulty, rng);
-    m.hp = m.st.hp;
+    m.hp = m.last_hp = m.st.hp;
     m.difficulty = std::clamp(difficulty, 0, 2);
     return m;
 }
@@ -444,6 +465,19 @@ bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, co
 // ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
 // game.exe's per-AI think functions not traced); distances and timings
 // by eye; chasing goes straight at the player, sliding to a stop at walls.
+// A unique's attack starting (the mode-change hook, event 0): Spectral Hit
+// picks this attack's element (uniques.hpp kSpectralElement), in el[2].
+void attack_starts(const Scene& s, Monster& m, std::string_view mode, d2d::rules::Rng& rng) {
+    using d2d::rules::Boss;
+    if ((m.boss != Boss::unique && m.boss != Boss::superunique) || !std::ranges::contains(m.mods, d2d::rules::umod::spectralhit)
+        || s.monsters.lvl.empty()) return;
+    const auto& L = s.monsters.lvl[std::min<std::size_t>(std::size_t(m.st.level), s.monsters.lvl.size() - 1)];
+    const int dm = L.dm[std::size_t(m.difficulty)];
+    const int e = d2d::rules::kSpectralElement[std::size_t(rng(5))];
+    const int lo = dm * s.umods.k[28] / 100;
+    m.st.el[2] = { e, 100, lo, std::max(dm * s.umods.k[31] / 100, lo), e == 2 || e == 3 ? 40 : 0, mode };
+}
+
 // Returns true when the foe's thorns killed it.
 bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t ms, float dt, const Crowd& crowd, std::vector<Missile>& missiles) {
@@ -479,6 +513,17 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
                 x.src.a2_min = m.st.a2_min * mi.src_damage / 128 + mi.min;
                 x.src.a2_max = m.st.a2_max * mi.src_damage / 128 + mi.max;
                 missiles.push_back(x);
+                // Multishot (FUN_005a3610, the missile hook): two more, aimed a
+                // subtile to either side.
+                using d2d::rules::Boss;
+                if ((m.boss == Boss::unique || m.boss == Boss::superunique) && std::ranges::contains(m.mods, d2d::rules::umod::multishot))
+                    for (const float side : { 0.2f, -0.2f }) {
+                        const float tx = dx - dy / std::max(dist, 0.01f) * side, ty = dy + dx / std::max(dist, 0.01f) * side;
+                        const float td = std::max(std::hypot(tx, ty), 0.01f);
+                        Missile y = x;
+                        y.vx = tx / td * speed; y.vy = ty / td * speed; y.dir = direction32(tx, ty);
+                        missiles.push_back(y);
+                    }
             } else if (foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
@@ -486,6 +531,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
                 for (int* d : { &st.a1_min, &st.a1_max }) *d = std::max(*d * (100 + m.dmg_pct) / 100, 0);
                 const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, st, false, rng);
                 foe.take(k);
+                if (k.hit && m.mana_hi > 0) foe.mana_burn += rng.range(m.mana_lo, m.mana_hi);   // Mana Burn
                 foe.melee_by.push_back(&m);
                 const auto& res = t.diff[std::size_t(m.difficulty)].res;
                 const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]) + k.damage * foe.f.thorns_pct / 100
@@ -510,7 +556,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
         m.aware = true;
         if (dist <= kMeleeReach) {
             u.dir = direction16(dx, dy);
-            if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; }
+            if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; attack_starts(s, m, "A1", rng); }
             else if (m.mode != "NU") set_mode(s, m, "NU", ms);
             return false;
         }
@@ -523,6 +569,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
                 u.dir = direction16(dx, dy);
                 set_mode(s, m, "A2", ms);
                 m.struck = false;
+                attack_starts(s, m, "A2", rng);
                 return false;
             }
         }

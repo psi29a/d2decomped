@@ -92,13 +92,16 @@ int main() {
         assert(u.level_add == 3 && u.exp_mult == 5 && u.hp_pct == 100 && u.elem == 0 && u.elem_min_pct == 66);
         assert(u.res_add[2] == 75 && u.res_add[0] == 50 && u.double_defense);
         const auto c = boss_stats(um, t, Boss::champion, { 16 }, 1);
-        assert(c.level_add == 2 && c.exp_mult == 3 && c.hp_pct == 150 && c.dmg_pct == 100 && c.tohit_pct == 75 && c.velocity_pct == 20);
+        assert(c.level_add == 2 && c.exp_mult == 3 && c.hp_pct == 150 && c.dmg_pct == 75 && c.tohit_pct == 56 && c.velocity_pct == 20);   // nightmare keeps 75 % (kBossBonus)
         const auto f = boss_stats(um, t, Boss::unique, { 6 }, 0);       // fast: 2048 / 6 - 128 -> 100 max
         assert(f.velocity_pct == 100);
         // A champion's name word (FUN_004ac870): its champion mod's; the
         // fixed rndname alone falls through to the table's last.
         assert(champion_word({ 16 }) == 0xc94 && champion_word({ 36 }) == 0x2b4c && champion_word({ 39 }) == 0x2b4f);
         assert(champion_word({ 16, 5 }) == 0xc94 && champion_word({}) == 0x2b4f);
+        // Fire Enchanted's death blast (FUN_005a2620): max life x CE % (35 in
+        // nightmare), less a third; rolled from 60 % up.
+        assert((fire_blast(2037, 1) == std::pair{ 285, 475 }) && (fire_blast(100, 0) == std::pair{ 22, 38 }) && fire_blast(800, 2).second == 20);
     }
     std::puts("ok");
 }

@@ -169,8 +169,11 @@ struct BossStats {
 };
 // ponytail: resistance adds skip FUN_005a1370's "at most two immunities"
 // bookkeeping only as far as the monster's own base resists count (they
-// do); the difficulty percentage FUN_00611d30 +0x34 scales champion /
-// strong damage and to-hit by is taken as 100.
+// do).
+// DifficultyLevels ChampionDamageBonus / UniqueDamageBonus (+0x34 / +0x30,
+// 90 / 75 / 66): the share of the champion and strong damage and to-hit
+// bonuses a difficulty keeps (FUN_005a0e80, FUN_005a17e0).
+inline constexpr std::array<int, 3> kBossBonus{ 90, 75, 66 };
 inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const std::vector<int>& mods, int difficulty) {
     const int d = std::clamp(difficulty, 0, 2);
     BossStats s;
@@ -187,8 +190,8 @@ inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const s
         s.level_add += unique ? -1 : 2;
         s.exp_mult = 3;
         s.hp_pct = m.k[std::size_t(4 + d)];
-        s.tohit_pct += m.k[10];
-        s.dmg_pct += m.k[11];
+        s.tohit_pct += m.k[10] * kBossBonus[std::size_t(d)] / 100;
+        s.dmg_pct += m.k[11] * kBossBonus[std::size_t(d)] / 100;
         s.velocity_pct += 20;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
@@ -217,8 +220,8 @@ inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const s
     for (const int id : mods) {
         switch (id) {
         case umod::strong:                                               // FUN_005a17e0
-            s.dmg_pct += m.k[kind == Boss::minion ? 14 : 15];
-            s.tohit_pct += m.k[kind == Boss::minion ? 12 : 13];
+            s.dmg_pct += m.k[kind == Boss::minion ? 14 : 15] * kBossBonus[std::size_t(d)] / 100;
+            s.tohit_pct += m.k[kind == Boss::minion ? 12 : 13] * kBossBonus[std::size_t(d)] / 100;
             break;
         case umod::fast:                                                 // FUN_005a1910: 2048 / Velocity - 128, 10..100
             if (t.velocity > 0) s.velocity_pct += std::clamp(2048 / t.velocity - 128, 10, 100);
@@ -236,5 +239,28 @@ inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const s
     }
     return s;
 }
+
+// What a unique's mods do in the fight (the event hooks at 0x73c0b8, six
+// a mod, run by FUN_005a4270; docs/research/re/monsters.md "Boss mods in
+// the fight"). Only for the boss itself (flag 8), not its minions.
+//
+// Fire enchanted's death blast (FUN_005a2620): v = max life x
+// MonsterCEDamagePercent (DifficultyLevels +0x3c: 50 / 35 / 20) / 100,
+// then 3/4, 2/3 or 1/8 by difficulty; rolled from 60 % of v to v (the
+// monster's seed), 64ths of it both physical and fire, within difficulty
+// + 4 subtiles. Returns {lo, hi} before the roll.
+inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
+    static constexpr int kCE[3] = { 50, 35, 20 };
+    const int d = std::clamp(difficulty, 0, 2);
+    int v = max_life * kCE[d] / 100;
+    v = d == 0 ? v - v / 4 : d == 1 ? v - v / 3 : v / 8;
+    return { v * 60 / 100, v };
+}
+// Spectral hit (FUN_005a3040 / FUN_005a21d0): each attack, one of five
+// elements (0x6e21b8: fire, lightning, magic, cold, poison; as Skill::etype
+// 0, 1, 4, 2, 3), MonLvl damage x MonUMod constants row 28 (min) and 31
+// (max) %, the normal rows whatever the difficulty; cold and poison last 40
+// frames longer.
+inline constexpr std::array<int, 5> kSpectralElement{ 0, 1, 4, 2, 3 };
 
 }  // namespace d2d::rules

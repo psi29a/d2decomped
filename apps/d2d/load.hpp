@@ -401,7 +401,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
         bool used = name == "arrow" || skill_missiles.contains(name)    // the rogue merc's, skills',
-                 || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name));   // chest traps
+                 || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
+                 || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
         Scene::MissileInfo mi;
@@ -554,7 +555,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }(), bosses);
     }
     }
-    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: champion / unique behaviour mods (auras, enchanted explosions, teleport, mana burn, multishot, curses) and random unique names");
+    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: unique mods: auras, teleport, Cursed, thief, poison hit; Charged Bolt's wander");
 }
 
 // Skills (components/rules/skills.hpp): skillcalc.txt's operand names,

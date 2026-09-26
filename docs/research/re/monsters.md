@@ -140,15 +140,55 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   goes through FUN_005a0760 with champions allowed and FUN_005a2120:
   a champion or a unique, no pack.
 
-d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`),
-`populate_room` with a `Population`; the app populates each difficulty at
-load and applies the stats when a game's monsters are made. Not proven
-against game.exe: the monster's own seed isn't the game's (unit creation
-isn't emulated), and the behaviour mods (auras, enchanted death
-explosions and charged bolts, spectral hit's damage, teleport, mana
-burn, multishot, curses, ghostly / fanatic / possessed / berserk) aren't
-traced or built: their code is in the combat and AI paths, not the mod
-table (which only sets stats).
+## Boss mods in the fight
+
+The stat mods (above) run once, at spawn. What a mod does in the fight
+runs through the server's event table at 0x73c0b8: six hooks a mod
+(`[mod * 6 + event]`), run by `FUN_005a4270` for each of the monster's
+9 mod bytes, with the monster's flag 8 (unique) passed along. Most
+handlers do nothing without it, so a unique's minions don't explode.
+
+| Event | Run from | When |
+|---|---|---|
+| 0 | `FUN_005a7c20` (`FUN_005a4350`) | a mode change, before |
+| 1 | `FUN_005a7c20` (`FUN_005a4360`) | a mode change, after |
+| 2 | `FUN_005a4370`, the unit event 7 (0x6e2490[7]) | the event 1 handlers queue it (`FUN_005417d0(7, frame + n)`) |
+| 3 | `FUN_0057c6c0` | its hit lands on a target |
+| 4 | `FUN_0057cee0` | it takes damage |
+| 5 | `FUN_0059fa30` (`FUN_005a43b0`) | it makes a missile |
+
+| Mod | Hooks | What |
+|---|---|---|
+| 9 fire enchanted | 1 `FUN_005a25f0`, 2 `FUN_005a2620` | on death (mode 0), event 7 four frames on. Then the blast: missile 117 (monstercorpseexplode) for the look, and `FUN_0057e090` hits everyone within difficulty + 4 subtiles. v = max life × MonsterCEDamagePercent (DifficultyLevels +0x3c: 50 / 35 / 20) / 100, then ×3/4, ×2/3 or ×1/8 by difficulty. The roll runs from 60 % of v to v (the monster's seed), and the damage struct takes roll << 6 as both physical (+8) and fire (+0x10) |
+| 17 lightning enchanted | 1 `FUN_005a37d0`, 2 / 4 `FUN_005a29a0` via `FUN_005a2ba0` | hit in GH: event 7 two frames on; hit otherwise: at once. Either way at most once every 10 frames (monster data +0x18, flag 0x100). 8 missiles 195 (lightunique), 4 ways (0x6e2188 / 0x6e2178: N, E, S, W) × 2, at level mlvl / 2 (at least 1), steered by `FUN_005c9290` |
+| 18 cold enchanted | 1 `FUN_005a3800` (needs flag 8), 2 `FUN_005a2bd0` | on death, 4 frames on: a nova (`FUN_0056d400`) of missile 194 (coldunique) at level mlvl / 2, range from missile 119's |
+| 7 cursed | 3 `FUN_005a2530` | on a hit, 3 in 4 (its seed): Amplify Damage (skill 66) at level mlvl / 5 + 1, radius from the skill's calc (1..40), through `FUN_0056dbc0` |
+| 27 spectral hit | 0 `FUN_005a3040`, 5 `FUN_005a30b0` | at each mode change, and on a missile: one of five elements (0x6e21b8: fire 48 / 49, lightning 50 / 51, magic 52 / 53, cold 54..56, poison 57..59), min / max = MonLvl damage (DM, L-DM in an expansion game) × MonUMod constants row 28 / 31 % (the normal rows on every difficulty); cold and poison length + 40 |
+| 29 multishot | 5 `FUN_005a3610` | a missile it makes: two more, from the same skill and level, aimed a subtile to either side (flag 0x80 while they're made) |
+| 23 poison hit, 24 thief, 10 / 20 / 31 .. 42 | 0 / 3 / 1 + 2 | not traced (poison clouds, stealing, act bosses' deaths) |
+| 25 mana burn | (spawn) `FUN_005a1f90` | manadrain min / max (stats 62 / 63) = MonLvl damage × `FUN_005a00f0`'s % |
+| 26 teleport, 30 aura | (AI; spawn `FUN_005a1650`) | not traced |
+
+- DifficultyLevels +0x34 / +0x30 (ChampionDamageBonus / UniqueDamageBonus,
+  90 / 75 / 66) scale the champion and strong damage and to-hit bonuses.
+
+d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`,
+`fire_blast`, `kSpectralElement`, `kBossBonus`), `populate_room` with a
+`Population`; `make_boss` (ai.hpp) applies the stats and mana burn when a
+game's monsters are made; `Fight::boss_events` runs the lightning bolts
+and death effects each tick; `attack_starts` (spectral hit) and the
+multishot and mana-burn hooks sit in `monster_update`.
+
+- Built: fire, lightning and cold enchanted, spectral hit, multishot, mana
+  burn, the difficulty bonus.
+- Checked live on seed 3: nightmare's Gut Rend (lightning) let off bolts;
+  Ash Shifter (fire) blew up for 95 + 95; Gray Maim burned 24 mana a hit.
+- Simplified: a hit in GH fires the bolts at once, not 2 frames on; the
+  bolts go straight; mana burn's % taken as the enchanted rows'.
+- Not built: Cursed (monsters don't curse the player yet), thief, poison
+  hit, teleport, auras.
+- Not proven against game.exe: the monster's own seed isn't the game's
+  (unit creation isn't emulated).
 
 ## Not yet traced / approximated
 

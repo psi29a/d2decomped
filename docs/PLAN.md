@@ -372,10 +372,10 @@ table).
 Left for those, ranked:
 
 1. Done: "Champion" is a champion's name word ("Champion Zombie", FUN_004ac870); the label's joiner is a space; labels are for uniques and minions, led by Demon / Undead (monsters.md).
-2. Unique behaviour mods (1–2 days): fire / cold / lightning enchanted
-   (death explosion, chill, charged bolts), cursed, mana burn, teleport,
-   spectral hit, multishot, aura enchanted. Their stat parts are done
-   (uniques.hpp boss_stats); each needs its missile or skill.
+2. Unique mods: built (2026-09-27): fire / lightning / cold enchanted,
+   spectral hit, multishot, mana burn, the difficulty bonus (monsters.md
+   "Boss mods in the fight"). Left: Cursed (a curse on the player), thief,
+   poison hit, teleport (the AI), auras, Charged Bolt's wander.
 3. Storm, exploding and poison shrines: thrown potions and fireballs.
    Chest 397's own drop table.
 4. Seed emulation (2+ days, research): the object seeds and the

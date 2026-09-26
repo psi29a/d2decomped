@@ -51,7 +51,10 @@ implemented. You can:
   IAS/FHR/FBR/FRW, poison, chill, knockback). Kills give experience and
   level-ups and drop loot from the treasure classes. Champion and
   unique packs roll by game.exe's rules, with their mods' stats, random
-  names, labels and loot; superuniques (Corpsefire) get their fixed mods. The
+  names, labels and loot ("Champion Zombie", "Possessed Fallen"); fire
+  enchanted uniques blow up, lightning enchanted ones let off charged
+  bolts, cold enchanted ones leave a frost nova, mana burn drains you,
+  spectral hit and multishot work; superuniques (Corpsefire) get their fixed mods. The
   merc fights, and you die and respawn in camp.
 - **Skills**: every one of the 210 class skills has an implementation
   path, each built from the game.exe function behind it: melee and kicks, charge-ups and their
@@ -70,7 +73,7 @@ Double Throw).
 
 It's all single-player and in memory: saves are read, never written.
 Not yet: levels past the Blood Moor and the Den, the unique behaviour
-mods (enchanted, cursed, teleport...), four magic shrines,
+mods' auras, curses and teleport, four magic shrines,
 quests, waypoint and town portal travel, the shapeshifted look. The
 full list, ranked, is in [`docs/PLAN.md`](docs/PLAN.md) "Next up".
 

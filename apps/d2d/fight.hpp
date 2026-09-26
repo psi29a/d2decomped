@@ -1340,6 +1340,87 @@ struct Fight {
         }
     }
 
+    // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
+    // the fight"), each tick: Lightning Enchanted answers a drop in its life
+    // with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2) at
+    // most every 10 frames; 4 frames after it dies (the event 7 its death
+    // queues), Fire Enchanted's blast and Cold Enchanted's nova
+    // (FUN_005a2bd0: coldunique, level mlvl / 2).
+    // ponytail: a hit taken in GH waits 2 frames in game.exe, fires at once
+    // here; the bolts go straight (Charged Bolt's wander, FUN_005c9290, isn't
+    // built), each turned up to 25 degrees at random.
+    void boss_events(std::span<Foe> foes, std::uint32_t ms) {
+        using d2d::rules::Boss;
+        for (auto& m : monsters) {
+            const bool boss = m.boss == Boss::unique || m.boss == Boss::superunique;
+            const auto has = [&](int id) { return boss && std::ranges::contains(m.mods, id); };
+            if (m.alive()) {
+                if (has(d2d::rules::umod::lightning) && m.hp < m.last_hp && ms - m.bolts_at >= 10 * 40) {
+                    m.bolts_at = ms;
+                    d2d::log::info("{} lets off charged bolts", m.npc.name);
+                    const auto ring = std::make_shared<std::vector<int>>();
+                    for (const auto [bx, by] : { std::pair{ 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } })
+                        for (int k = 0; k < 2; ++k) {
+                            const float a = float(rng(51) - 25) * 3.14159265f / 180, c = std::cos(a), sn = std::sin(a);
+                            boss_missile(m, "lightunique", bx * c - by * sn, bx * sn + by * c, ring, ms);
+                        }
+                }
+            } else if (boss && !m.fx_done) {
+                if (!m.fx_at) m.fx_at = ms + 4 * 40;
+                else if (ms >= m.fx_at) {
+                    m.fx_done = true;
+                    if (has(d2d::rules::umod::fire)) fire_blast(m, foes, ms);
+                    if (has(d2d::rules::umod::cold)) {
+                        const auto ring = std::make_shared<std::vector<int>>();
+                        for (int k = 0; k < 64; ++k) {
+                            const float a = float(k) * 6.2831853f / 64;
+                            boss_missile(m, "coldunique", std::cos(a), std::sin(a), ring, ms);
+                        }
+                    }
+                }
+            }
+            m.last_hp = m.hp;
+        }
+    }
+    // A boss's missile from where it stands, at level mlvl / 2 (at least
+    // 1), the row's own element (FUN_0064b100 ..).
+    void boss_missile(const Monster& m, const char* name, float dx, float dy, const std::shared_ptr<std::vector<int>>& ring, std::uint32_t ms) {
+        const auto it = scene->missiles.find(name);
+        if (it == scene->missiles.end()) return;
+        const auto& mi = it->second;
+        const int lvl = std::max(m.st.level / 2, 1);
+        const auto md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
+        d2d::rules::MonStats st;
+        st.level = m.st.level;
+        st.th = 1 << 20;                                     // ToHit 0: always hits
+        if (md.etype >= 0) st.el[0] = { md.etype, 100, md.elo >> 8, std::max(md.ehi >> 8, 1), md.elen, "A2" };
+        const float speed = cells_per_sec(float(mi.vel)), d = std::max(std::hypot(dx, dy), 0.01f);
+        Missile x{ &mi, m.u.x, m.u.y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms, ms + std::uint32_t(std::max(mi.range, 1)) * 40, st };
+        x.struck = ring;
+        pending.push_back(std::move(x));
+    }
+    // Fire Enchanted's death blast (uniques.hpp fire_blast): physical and
+    // fire, each a 64th of the roll in 256ths, on everyone within
+    // difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
+    void fire_blast(const Monster& m, std::span<Foe> foes, std::uint32_t ms) {
+        const auto [lo, hi] = d2d::rules::fire_blast(m.st.hp, m.difficulty);
+        const int pts = (lo + rng(std::max(hi - lo, 1))) * 64 / 256;
+        const float r = float(m.difficulty + 4) / 5;
+        for (auto& f : foes) {
+            if (!f.alive || std::hypot(f.x - m.u.x, f.y - m.u.y) > r) continue;
+            d2d::rules::Taken k;
+            k.hit = true;
+            k.damage = std::max(pts * (100 - f.f.dr_pct) / 100 - f.f.dr_flat, 0) + d2d::rules::resisted(pts, f.f.res[0]);
+            f.take(k);
+        }
+        if (const auto it = scene->missiles.find("monstercorpseexplode"); it != scene->missiles.end()) {
+            Missile x{ &it->second, m.u.x, m.u.y, 0, 0, 0, ms, ms + std::uint32_t(std::max(it->second.range, 1)) * 40, {} };
+            x.fx = true;
+            pending.push_back(std::move(x));
+        }
+        d2d::log::info("{} explodes ({} fire, {} physical)", m.npc.name, pts, pts);
+    }
+
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.
     // ponytail: the merc's own experience share isn't kept.
@@ -2763,6 +2844,7 @@ struct Fight {
                     && monster_update(*scene, *level, m, foes, rng, ms, dt, crowd, missiles))
                     killed(i, ms);                           // on the player's thorns
             }
+            boss_events(foes, ms);
             monster_dots(ms, dt);
             monster_states(ms);
             buff_events(foes[0], ms);
@@ -2809,6 +2891,10 @@ struct Fight {
                 const auto old = std::ranges::find_if(regen, [](const Regen& r) { return r.poison; });
                 if (old == regen.end()) regen.push_back(p);
                 else if (p.life <= old->life) *old = p;
+            }
+            if (foe.mana_burn > 0) {                             // Mana Burn
+                cc.stats.v[d2d::d2s::kMana] = std::max<std::int64_t>(cc.stats.v[d2d::d2s::kMana] - (std::int64_t(foe.mana_burn) << 8), 0);
+                d2d::log::info("mana burn: -{} mana", foe.mana_burn);
             }
             if (foe.blocked && pmode < 0) set_pmode(kModeBL, ms);   // a block plays out (FBR)
             foe.damage = absorb(foe.damage);
