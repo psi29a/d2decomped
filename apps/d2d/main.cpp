@@ -592,7 +592,9 @@ int main(int argc, char** argv) {
     // kill the game.
     std::signal(SIGINT,  d2d_sigint_handler);
     std::signal(SIGTERM, d2d_sigint_handler);
+#ifdef SIGPIPE                                        // POSIX only; Windows has no SIGPIPE
     std::signal(SIGPIPE, SIG_IGN);
+#endif
 
     // Per-user dir, thirdeye layout (components/userdir): d2d.cfg, save/,
     // screenshots/. Config loads global -> ./ -> user, later wins.
@@ -707,7 +709,7 @@ int main(int argc, char** argv) {
         // macOS doesn't have.)
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
-        setenv("ALSOFT_DRIVERS", "null", 0);            // openal-soft's silent backend
+        if (!std::getenv("ALSOFT_DRIVERS")) SDL_setenv_unsafe("ALSOFT_DRIVERS", "null", 1);   // openal-soft's silent backend
     }
     return run_windowed(fb, scene, ch, frame_count, quit);
 }
