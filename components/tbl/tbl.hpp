@@ -108,8 +108,8 @@ private:
             const auto* valp = reinterpret_cast<const unsigned char*>(b.data() + valOff);
             std::u16string value;
             value.reserve(valLen - 1);
-            for (std::uint16_t i = 0; i + 1 < valLen; ++i) {  // skip trailing NUL
-                value.push_back(char16_t(valp[i]));
+            for (std::uint16_t j = 0; j + 1 < valLen; ++j) {  // skip trailing NUL
+                value.push_back(char16_t(valp[j]));
             }
 
             // Nodes carry a 16-bit `Index` at offset +0x01 — that's D2's ID.

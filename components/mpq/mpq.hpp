@@ -90,8 +90,9 @@ public:
 
     // A Blizzard patch installer (LODPatch_114d.exe: an MPQ appended to an
     // exe) read as the patch_d2.mpq it would install. Files sit flat in the
-    // archive; patch.lst maps game paths to them ("data\global\excel\
-    // armor.txt;armor.txt;0x0", ENG patchstring.tbl = patchstring~01.tbl)
+    // archive; patch.lst maps game paths to them
+    // ("data\global\excel\armor.txt;armor.txt;0x0", ENG patchstring.tbl =
+    // patchstring~01.tbl)
     // and each carries a 24-byte header:
     //   u16 size (24), u8 4, u8 stored (1 = raw, 0 = delta),
     //   u32 CRC-32 of the base file, u32 base size, u32 output size,

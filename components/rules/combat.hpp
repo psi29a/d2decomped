@@ -308,12 +308,12 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
     elem += resisted(rolled * sw.fire_pct / 100, t.res[2]) + resisted(rolled * sw.ltng_pct / 100, t.res[3]);
     if (const int c = resisted(rolled * sw.cold_pct / 100, t.res[4]); c > 0) { elem += c; b.chill_ticks = std::max(sw.cold_len, 1); }
     for (int e = 0; e < 5; ++e) {
-        const auto [lo, hi] = f.elem[std::size_t(e)];
-        if (hi <= 0) continue;
-        const int d = resisted(rng.range(lo, hi), t.res[std::size_t(kRes[e])]);
-        if (e == 3) { b.poison = d; b.poison_ticks = std::max(f.poison_len, 1); continue; }
-        if (e == 2 && d > 0) b.chill_ticks = std::max(b.chill_ticks, f.cold_len);
-        elem += d;
+        const auto [elo, ehi] = f.elem[std::size_t(e)];
+        if (ehi <= 0) continue;
+        const int ed = resisted(rng.range(elo, ehi), t.res[std::size_t(kRes[e])]);
+        if (e == 3) { b.poison = ed; b.poison_ticks = std::max(f.poison_len, 1); continue; }
+        if (e == 2 && ed > 0) b.chill_ticks = std::max(b.chill_ticks, f.cold_len);
+        elem += ed;
     }
     int cb = 0;
     if (f.crushing > 0 && rng(100) < f.crushing) { b.crushing = true; cb = resisted(t.hp / 4, t.res[0]); }

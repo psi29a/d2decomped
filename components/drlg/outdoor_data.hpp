@@ -63,7 +63,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& a, Read&& read) {
     for (const auto* name : { "MonStats.txt", "SuperUniques.txt" }) {
         const auto t = table(name);
         int rows = 0;
-        for (std::size_t r = 0; r < t.size(); ++r) rows += t.get(r, std::size_t{ 0 }) != "Expansion";
+        for (std::size_t r = 0; r < t.size(); ++r) rows += t.get(r, std::optional<std::size_t>{ 0 }) != "Expansion";
         (std::string_view(name) == "MonStats.txt" ? a.data.ids.monstats : a.data.ids.superuniques) = rows;
     }
     const auto prest = table("LvlPrest.txt");

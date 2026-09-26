@@ -102,12 +102,12 @@ int main() {
         if (!sd || !pi || !fs::exists(mpq_dir / "d2data.mpq")) {
             std::printf("SKIP real items: set D2_SAVES_DIR and D2_PATCH_INSTALLER\n");
         } else {
-            d2d::mpq::Stack st;
-            st.push_installer(pi);                // ItemStatCost.txt is 1.14d-only
-            if (fs::exists(mpq_dir / "d2exp.mpq")) st.push(mpq_dir / "d2exp.mpq");
-            st.push(mpq_dir / "d2data.mpq");
+            d2d::mpq::Stack stack;
+            stack.push_installer(pi);                // ItemStatCost.txt is 1.14d-only
+            if (fs::exists(mpq_dir / "d2exp.mpq")) stack.push(mpq_dir / "d2exp.mpq");
+            stack.push(mpq_dir / "d2data.mpq");
             auto tab = [&](const char* n) {
-                return d2d::txt::Table(st.read(std::string(R"(data\global\excel\)") + n + ".txt"));
+                return d2d::txt::Table(stack.read(std::string(R"(data\global\excel\)") + n + ".txt"));
             };
             const auto t = d2d::d2s::ItemTables::from(tab("ItemStatCost"), tab("armor"),
                                                       tab("weapons"), tab("misc"));

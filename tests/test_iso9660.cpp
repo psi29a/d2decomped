@@ -21,7 +21,7 @@ int main() {
     const fs::path iso = fs::path(home) / "Downloads"
         / "Diablo II + LoD" / "1. INSTALL DISC.ISO";
     if (!fs::exists(iso)) {
-        std::printf("test_iso9660: %s not found, skipped\n", iso.c_str());
+        std::printf("test_iso9660: %s not found, skipped\n", iso.string().c_str());
         return 0;
     }
 

@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
     const fs::path iso = argv[2];
 
     auto r = iso9660::Reader::open(iso);
-    if (!r) { std::fprintf(stderr, "cannot open %s\n", iso.c_str()); return 1; }
+    if (!r) { std::fprintf(stderr, "cannot open %s\n", iso.string().c_str()); return 1; }
 
     if (cmd == "list") {
         for (const auto& e : r->entries()) {
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
             ++count;
         }
         std::printf("extracted %zu files, %llu bytes to %s\n",
-                    count, (unsigned long long)total, dest.c_str());
+                    count, (unsigned long long)total, dest.string().c_str());
         return 0;
     }
     std::fprintf(stderr, "unknown command: %s\n", cmd.c_str());

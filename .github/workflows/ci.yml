@@ -40,7 +40,7 @@ jobs:
             name: Windows (MSVC)
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -116,7 +116,7 @@ jobs:
       # ccache 4.x handles MSVC too; CMake picks it up via
       # CMAKE_*_COMPILER_LAUNCHER. StormLib and CLI11 (FetchContent) share it.
       - name: Set up ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           key: ${{ matrix.os }}
           max-size: 1G

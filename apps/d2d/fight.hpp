@@ -1498,9 +1498,9 @@ struct Fight {
             const auto& a1 = player_anim(kModeA1);
             const int f = d2d::rules::attack_ticks(int(a1.frames ? a1.frames : 16), int(a1.speed ? a1.speed : 256), pf.ias, pf.wsm);
             whirl_next = ms + std::uint32_t(d2d::rules::whirlwind_gap(f)) * 40;
-            const int hands = std::ranges::count_if(cc.items, [&](const d2d::d2s::Item& it) {
+            const int hands = int(std::ranges::count_if(cc.items, [&](const d2d::d2s::Item& it) {
                 return it.location == 1 && (it.slot == 4 || it.slot == 5) && scene->rules.item_info.contains(it.code)
-                    && scene->rules.item_info.at(it.code).kind == 2; });
+                    && scene->rules.item_info.at(it.code).kind == 2; }));
             for (int h = 0; h < (hands >= 2 ? 2 : 1); ++h) {
                 std::vector<int> nearby;
                 for (std::size_t i = 0; i < monsters.size(); ++i)

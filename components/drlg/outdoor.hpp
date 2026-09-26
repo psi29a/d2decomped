@@ -319,24 +319,24 @@ struct Gen {
             case 2: hi = ny; lo = ny + nh; c = 1; s = verts[2].y; e = verts[3].y; corner = 2; vertical = true; break;
             default: lo = nx; hi = nx + nw; c = -1; s = verts[3].x; e = verts[0].x; corner = 3; vertical = false; break;
             }
-            // In c-space the edge runs s -> e; the neighbour spans A (its
-            // near end, `hi`) to B (`lo`).
+            // In c-space the edge runs s -> e; the neighbour spans na (its
+            // near end, `hi`) to nb (`lo`).
             auto at = [&](int after, int coord) {
                 const auto& v = verts[std::size_t(after)];
                 return vertical ? add_vert(after, v.x, coord) : add_vert(after, coord, v.y);
             };
             auto mark = [&](int v) { verts[std::size_t(v)].flags |= 1 | (n.town ? 2u : 0u); };
-            const int A = hi * c, B = lo * c;
+            const int na = hi * c, nb = lo * c;
             int p = corner;
-            if (A <= s * c) {
-                if (s * c <= B) {
+            if (na <= s * c) {
+                if (s * c <= nb) {
                     mark(p);
-                    if (B < e * c) at(p, lo);
+                    if (nb < e * c) at(p, lo);
                 }
-            } else if (A <= e * c) {
+            } else if (na <= e * c) {
                 p = at(p, hi);
                 mark(p);
-                if (B < e * c) at(p, lo);
+                if (nb < e * c) at(p, lo);
             }
         }
         // Level-relative cells, equal neighbours merged.
@@ -819,8 +819,8 @@ inline void stamp_room(Room& r, const OutdoorData& d, const OutdoorLevel& L, d2d
                     const auto sh = src(m.shadows(), g.x + gx, g.y + gy);
                     if (!(sh & 0x8000000)) continue;
                     if (d.dt1s) {                                                // FUN_0066e060: picked now, on the room seed
-                        const auto [f, k] = pick_tile(room_dt1_list(r.dt1_mask, *d.dt1s), s, 13, sh);
-                        r.tiles.push_back({ 2, x + gx, y + gy, 13, f, k });
+                        const auto [tf, k] = pick_tile(room_dt1_list(r.dt1_mask, *d.dt1s), s, 13, sh);
+                        r.tiles.push_back({ 2, x + gx, y + gy, 13, tf, k });
                     } else {
                         r.shadow[i] = sh;
                     }
@@ -895,7 +895,7 @@ inline void room_tiles(Room& r, const OutdoorData& d, const OutdoorLevel& L,
                 }
             }
         }
-    auto mk = [&](int x, int y) { return mask[std::size_t(y * 11 + x)] != 0; };
+    auto mk = [&](int x, int y) { return int(mask[std::size_t(y * 11 + x)] != 0); };
     for (int x = 1; x <= 9; ++x)
         for (int y = 9; y >= 1; --y) {
             if (!mk(x, y)) continue;

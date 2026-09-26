@@ -15,6 +15,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # crc32s collide at link time (LNK2005).
 set(STORM_USE_BUNDLED_LIBRARIES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(stormlib)
+# Third-party: its warnings aren't ours to fix.
+target_compile_options(storm PRIVATE $<IF:$<C_COMPILER_ID:MSVC>,/w,-w>)
 
 add_library(mpq INTERFACE)
 target_link_libraries(mpq INTERFACE storm)

@@ -88,8 +88,8 @@ int main() {
         const auto L = outdoor_level(a.levels, act1_from_map_seed(defs, 3), 2);
         const auto o = generate_outdoor(a.data, L, level_seed(3, 2));
         assert(o.rooms.size() == 83 && o.rooms.front().x == 0 && o.rooms.front().seed == 0x32de6615);
-        std::vector<std::string> notes;
-        const auto built = level_room_tiles(o.rooms, o.plain, a.data, dt1s, 2, warp_slots(a, 2), notes);
+        std::vector<std::string> dnotes;
+        const auto built = level_room_tiles(o.rooms, o.plain, a.data, dt1s, 2, warp_slots(a, 2), dnotes);
         auto has = [&](int rx, int ry, int layer, int x, int y, const std::string& want) {    // any tile of the layer there
             for (const auto& r : built)
                 if (r.x == rx && r.y == ry)
@@ -106,7 +106,7 @@ int main() {
 
         MazeDef m;
         m.rooms.fill(1); m.w = m.h = 24; m.merge = 500;                         // LvlMaze "Act 1 - Cave 1"
-        auto den = generate_maze(a.data, m, 8, 200, 200, level_seed(3, 8), 0, notes);
+        auto den = generate_maze(a.data, m, 8, 200, 200, level_seed(3, 8), 0, dnotes);
         assert(den.size() == 27);
         auto at = [&](int x, int y) { for (const auto& r : den) if (r.x == x && r.y == y) return r; return Outdoor::RoomSeed{}; };
         assert(at(24, 0).def == 97 && at(24, 0).file == 0 && at(24, 0).seed == 0x8d8dcf44);    // the Den's own room
@@ -114,7 +114,7 @@ int main() {
         assert(at(24, 24).def == 61 && at(24, 24).seed == 0x775aabb3);                         // Cave NW
         // Units (drlg.py 3 8 units): Corpsefire (superunique 40 = MonStats rows + 40) in room (40, 8).
         const auto den_dt1s = load_room_dt1s(a, read, 3);
-        const auto den_rooms = level_room_tiles(den, {}, a.data, den_dt1s, 8, warp_slots(a, 8), notes);
+        const auto den_rooms = level_room_tiles(den, {}, a.data, den_dt1s, 8, warp_slots(a, 8), dnotes);
         bool corpsefire = false;
         for (const auto& r : den_rooms)
             for (const auto& u : r.units)

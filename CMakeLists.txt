@@ -23,10 +23,15 @@ if(WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
+# Structs here lean on default member initializers and are aggregate-
+# initialized with only their leading fields ({ x, y, ... }); -Wextra's
+# missing-field-initializers flags exactly that idiom. getenv is fine:
+# MSVC's _s variants aren't portable.
 if(MSVC)
     add_compile_options(/W4 /permissive-)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wno-missing-field-initializers)
 endif()
 
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).

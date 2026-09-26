@@ -105,7 +105,7 @@ struct Level {
                         return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
         return { x, y };
     }
-    std::pair<float, float> start{ -1, -1 };            // cells: where a player joining arrives; see load_world
+    std::pair<float, float> start{ -1.f, -1.f };            // cells: where a player joining arrives; see load_world
     // Its warps (the units its hidden warp tiles make): cell, the level
     // it leads to (Levels.txt Vis), and where someone arriving through it
     // stands (its LvlWarp ExitWalk, subtiles from the cell).

@@ -1,12 +1,16 @@
 # All tests. Each `test_*.cpp` becomes its own executable + ctest entry.
 # ponytail: no framework, no fixtures. asserts + int main.
 
+# Tests use plain asserts; NDEBUG would strip them and make the test a no-op
+# under Release / RelWithDebInfo. Keep asserts on: drop NDEBUG from this
+# directory's flags (a -UNDEBUG on top trips MSVC's D9025 override warning).
+foreach(v CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_MINSIZEREL)
+    string(REGEX REPLACE "[-/]DNDEBUG" "" ${v} "${${v}}")
+endforeach()
+
 function(d2d_add_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE ${ARGN})
-    # Tests use plain asserts; NDEBUG would strip them and make the test a no-op
-    # under Release / RelWithDebInfo. Keep asserts unconditionally on.
-    target_compile_options(${name} PRIVATE -UNDEBUG)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 

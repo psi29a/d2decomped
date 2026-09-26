@@ -1651,8 +1651,8 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
     }
 }
 
-// Translate a DS1-embedded tileset path (e.g. "\d2\data\global\tiles\act1\
-// town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
+// Translate a DS1-embedded tileset path (e.g.
+// "\d2\data\global\tiles\act1\town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
 // DS1 files store paths as they were on Blizzard's build box, with a
 // leading "\d2\" prefix and forward slashes never — normalize both.
 [[nodiscard]] inline std::string ds1_path_to_mpq(std::string_view s) {

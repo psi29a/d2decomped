@@ -288,7 +288,7 @@ int main() {
     }
     const auto rare = generate_item(g, "cap", 10, 6, roll);
     int pre = 0, suf = 0;
-    for (int k = 0; k < 6; ++k) (k % 2 ? suf : pre) += rare.affixes[std::size_t(k)] != 0;
+    for (int j = 0; j < 6; ++j) (j % 2 ? suf : pre) += rare.affixes[std::size_t(j)] != 0;
     assert(rare.quality == 6 && pre == 1 && suf == 1 && rare.rare1 >= 156 && rare.rare2 >= 1);   // one per group
     const auto uni = generate_item(g, "cap", 10, 7, roll);
     assert(uni.quality == 7 && uni.unique_id == 0 && uni.props.size() == 2);

@@ -174,8 +174,8 @@ int main() {
         md.etype = 1;
         assert(missile_blow(md, mt, { 0, 90, 0, 0 }, br).damage == 0);       // immune: pierce doesn't reach
         md.etype = 2;
-        const auto cb = missile_blow(md, mt, { 0, 0, 500, 0 }, br);
-        assert(cb.damage == 200 && cb.chill_ticks == 25);                    // -100 % at the least
+        const auto ck = missile_blow(md, mt, { 0, 0, 500, 0 }, br);
+        assert(ck.damage == 200 && ck.chill_ticks == 25);                    // -100 % at the least
         md.etype = 3;
         const auto pb = missile_blow(md, mt, {}, br);
         assert(pb.damage == 0 && pb.poison == 100 * 25 && pb.poison_ticks == 25);

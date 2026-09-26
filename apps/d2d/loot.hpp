@@ -51,7 +51,7 @@ struct Loot {
                                                                                                    : t.diff[d].tc;
         std::vector<d2d::rules::Drop> drops;
         d2d::rules::roll_drops(scene->rules, tc, m.st.level, rng, drops);
-        for (const auto& d : drops) put(d, m.u.x, m.u.y, m.st.level, ms);
+        for (const auto& dr : drops) put(dr, m.u.x, m.u.y, m.st.level, ms);
     }
     // One drop round (x, y).
     void put(const d2d::rules::Drop& d, float x, float y, int ilvl, std::uint32_t ms) {

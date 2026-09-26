@@ -22,7 +22,8 @@ static bool g_units = false;                            // print rooms' units in
 
 static std::string dump(const OutdoorAssets& a, std::uint32_t seed, int id, const RoomDt1s* dt1s = nullptr) {
     std::ostringstream os;
-    auto pf = [&](const char* fmt, auto... v) { char b[256]; std::snprintf(b, sizeof b, fmt, v...); os << b; };
+    char b[256];
+#define pf(...) (std::snprintf(b, sizeof b, __VA_ARGS__), os << b)   // a literal format each time (-Wformat-security)
     if (const auto row = level_row(a.levels, id); row && to_int(a.levels.get(*row, "DrlgType")) == 1) {
         const int w = to_int(a.levels.get(*row, "SizeX")), h = to_int(a.levels.get(*row, "SizeY"));
         pf("level %d at %d,%d size %dx%d\n", id, to_int(a.levels.get(*row, "OffsetX")), to_int(a.levels.get(*row, "OffsetY")), w, h);
@@ -114,6 +115,7 @@ static std::string dump(const OutdoorAssets& a, std::uint32_t seed, int id, cons
     }
     for (const auto& n : notes) std::fprintf(stderr, "not implemented: %s\n", n.c_str());
     return os.str();
+#undef pf
 }
 
 int main(int argc, char** argv) {

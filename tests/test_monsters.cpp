@@ -82,10 +82,10 @@ int main() {
         t.diff[2].res = { 0, 0, 0, 0, 0, 0 };
         int champions = 0;
         for (std::uint32_t seed = 1; seed <= 1000; ++seed) {
-            Rng r{ seed };
-            const auto b = roll_boss(um, t, 2, true, r);
-            if (b.kind == Boss::champion) { ++champions; assert(b.mods == std::vector<int>{ 16 }); continue; }
-            assert(b.mods.size() == 3 && b.mods[0] != b.mods[1] && b.mods[1] != b.mods[2] && b.mods[0] != b.mods[2]);
+            Rng rs{ seed };
+            const auto bb = roll_boss(um, t, 2, true, rs);
+            if (bb.kind == Boss::champion) { ++champions; assert(bb.mods == std::vector<int>{ 16 }); continue; }
+            assert(bb.mods.size() == 3 && bb.mods[0] != bb.mods[1] && bb.mods[1] != bb.mods[2] && bb.mods[0] != bb.mods[2]);
         }
         assert(champions > 140 && champions < 260);                     // ~20 %
         const auto u = boss_stats(um, t, Boss::unique, { 9, 28 }, 2);   // hell: fire enchanted, stone skin

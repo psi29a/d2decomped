@@ -4,10 +4,10 @@
 // engines put their files in the same places:
 //   user dir    macOS    ~/Library/Preferences/<app>/
 //               Linux    ~/.config/<app>/
-//               Windows  Documents\My Games\<app>\
+//               Windows  Documents\My Games\<app>
 //   global dir  macOS    /Library/Preferences/<app>/
 //               Linux    /etc/<app>/
-//               Windows  Program Files\<app>\
+//               Windows  Program Files\<app>
 // ponytail: a few free functions instead of thirdeye's FixedPath template
 // + token mapping; port the ?user?/?global? tokens when a cfg needs them.
 #pragma once

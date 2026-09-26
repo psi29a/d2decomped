@@ -32,7 +32,7 @@ int main() {
         // Index 0 is always transparent by convention.
         assert(p[0].a == 0);
         // Every other entry is opaque.
-        for (int i = 1; i < 256; ++i) assert(p[i].a == 0xFF);
+        for (int i = 1; i < 256; ++i) assert(p[std::uint8_t(i)].a == 0xFF);
 
         // Print a couple entries so a regression jumps out visually.
         std::printf("ACT1 pal[0] = %02x %02x %02x %02x\n",
