@@ -579,6 +579,48 @@ operand and function lists.
   Death Sentry's corpse blast (do 55), Blade Sentinel / Fury / Shield,
   Fire Blast / Shock Web (thrown traps).
 
+### Do-function missiles (phase 6, part 1)
+- Tables: srvdofunc 0x7322b0, missile pSrvDoFunc 0x73c768, pSrvHitFunc
+  0x73c840, pSrvDmgFunc 0x73c960 (4-byte entries, index = the column).
+- **Do 10** (FUN_005db6d0: Guided Arrow, Bone Spirit): srvmissilea at the
+  target unit (flags 0x20; 0x420 with none); calc1 through the callback
+  **0x5db6a0**, which adds it to the missile's stat 25 (damage %). Missile
+  do **7** (FUN_005ae780) re-aims at the target every Param1 frames; hit
+  **10** (FUN_005aa650) lets a guided one pass all but its target.
+- **St 8** (FUN_005dacd0, Strafe): n = the monsters within aurarange,
+  clamped to [min(calc3, calc1), calc1]; **do 12** (FUN_005dba40) shoots one
+  at the next (FUN_0056bd10) per call, calc2 as its damage % (0x5db6a0).
+- **Do 26** (FUN_005ca1b0, Chain Lightning): srvmissilea with calc1 hops
+  (FUN_0064a710). Hit **12** (FUN_005aa730): with hops > 1, a new one from
+  the hit point at another unit within sHitPar1 (else aurarange) subtiles,
+  filter 0x88583, not the one just hit, a hop fewer.
+- **Do 28** (FUN_005ca3e0 -> FUN_0056ede0: Meteor, Blizzard, Eruption):
+  srvmissilea standing at the target point (within 100). Blizzard's centre
+  (missile do **10**, FUN_005aea60) and Eruption's (**25**, FUN_005af880)
+  call FUN_005a9820: every calc2 frames SubMissile1 at a random point
+  within calc1 subtiles. Meteor's centre hits (**14**, FUN_005aabb0) when
+  its Range runs out (FUN_005adf10 with no unit): the skill's damage within
+  sHitPar1 (else aurarange) subtiles (FUN_0056bad0), then FUN_005aaa90
+  puts HitSubMissile1 at 18 offsets (x 0x6e2550, y 0x6e2598; every
+  sHitPar2th) with flags 0x8001 and a per-frame fire of FUN_004cc7c0 =
+  Param3 + (level - 1) x Param4.
+- **Do 24** (FUN_005c9ea0, Fire Wall): from the target point two
+  srvmissilea makers out across the caster's line, srvmissileb on the
+  point. The maker (missile do **6**, FUN_005ae680) leaves SubMissile1
+  where it is each frame.
+- **Do 19** (FUN_005c8ca0, Inferno, Arctic Blast; st 11 FUN_005c8fa0
+  checks the mana): a flame per call lasting calc1 frames (flags 0x8020).
+- Missile do **5** (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze)
+  stands and collides every frame; damage func **3** (FUN_005ad220) only
+  rolls a hit flag (0x4000) against a percentage: the damage is the
+  skill's per frame, in 256ths (Fire Wall 1: 15 << 4 = 240 = 23 a second).
+- Built: `Fight::fire` / `missile_tick` / `burn` / `launch` (fight.hpp),
+  `Missile::target / hops / ed_pct / fixed` (ai.hpp), MissileInfo
+  srv_do / param1..2 / hit_par2 / sub / hit_sub (loaded to a fixed point
+  of SubMissile1 / HitSubMissile1). Not traced: FUN_0056bd10's pick (the
+  nearest), DamageRate's use, Charged Bolt's and Strafe's timing (arrows
+  3 ticks apart), Inferno's held channel (it lasts the cast).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

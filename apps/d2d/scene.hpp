@@ -341,7 +341,11 @@ struct Scene {
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
-                         std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{}; };
+                         std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
+                         // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
+                         // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
+                         int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
+                         std::string sub, hit_sub; };
     std::unordered_map<std::string, MissileInfo> missiles;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;

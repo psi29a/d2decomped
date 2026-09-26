@@ -222,6 +222,12 @@ struct Missile {
     // Monsters a flying-on missile already hit; a nova's missiles share
     // theirs (one hit a monster). -1: an explosion is under way.
     std::shared_ptr<std::vector<int>> struck = std::make_shared<std::vector<int>>();
+    // The player's skill missiles' extras: the monster a guided one seeks
+    // (-1 none), a chain's hops left, the damage % its skill adds (stat 25,
+    // the do's callback 0x5db6a0), its element per frame in 256ths when the
+    // row's own is replaced (Meteor's fire: FUN_005aaa90's 0x8001), the
+    // last frame a spawner or burner ran.
+    int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
 };
 
 // Direction 0..31 in D2's DCC order for a world step, like direction16:

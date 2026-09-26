@@ -368,16 +368,28 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         skill_missiles.emplace(sk.get(r, "srvmissile"));
         for (const char* c : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(sk.get(r, c));
     }
+    // and the rows those spawn (SubMissile1, HitSubMissile1: Fire Wall's
+    // flames, Meteor's fire, Blizzard's shards), to a fixed point.
+    for (bool more = true; more;) {
+        more = false;
+        for (std::size_t r = 0; r < mt.size(); ++r)
+            if (skill_missiles.contains(std::string(mt.get(r, "Missile"))))
+                for (const char* c : { "SubMissile1", "HitSubMissile1" })
+                    if (const std::string n(mt.get(r, c)); !n.empty()) more |= skill_missiles.emplace(n).second;
+    }
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
         bool used = name == "arrow" || skill_missiles.contains(name);   // the rogue merc's, skills'
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
-        Scene::MissileInfo mi{ g("Vel"), g("Range"), g("SrcDamage"), g("MinDamage"), g("MaxDamage"),
-                               std::max(g("AnimSpeed"), 1), std::max(g("AnimLen"), 1), {}, {} };
+        Scene::MissileInfo mi;
+        mi.vel = g("Vel"); mi.range = g("Range"); mi.src_damage = g("SrcDamage"); mi.min = g("MinDamage"); mi.max = g("MaxDamage");
+        mi.anim_speed = std::max(g("AnimSpeed"), 1); mi.anim_len = std::max(g("AnimLen"), 1);
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
         mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
+        mi.srv_do = g("pSrvDoFunc"); mi.param1 = g("Param1"); mi.param2 = g("Param2"); mi.hit_par2 = g("sHitPar2");
+        mi.sub = mt.get(r, "SubMissile1"); mi.hit_sub = mt.get(r, "HitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto e = std::ranges::find(kEl, mt.get(r, "EType")); e != kEl.end()) mi.etype = *e == "frze" ? 2 : int(e - kEl.begin());
         mi.emin = g("EMin"); mi.emax = g("Emax"); mi.hitshift = g("HitShift"); mi.elen = g("ELen");

@@ -79,6 +79,10 @@ struct Fight {
 
     std::vector<Monster> monsters;         // the Blood Moor's (Level::spawns), kept while the game runs
     std::vector<Missile> missiles;         // in flight in the Blood Moor
+    std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
+    std::vector<std::pair<int, std::uint32_t>> strafe;   // Strafe's arrows to come: target, when
+    std::vector<std::pair<int, int>> burned;             // this frame's burns: monster, skill
+    int channel = -1, last_frame = -1;     // Inferno's skill while its cast lasts
     // The monster being attacked (walked up to, then struck), the player's
     // non-walking mode (A1 attack, GH get-hit, BL block, DT dying, DD dead;
     // -1 none) and when it ends.
@@ -1101,21 +1105,24 @@ struct Fight {
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
     // -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,
-    // FUN_005da8b0, only checks the ammo), or its srvmissilea from do 8
-    // (a fan), 17 (Charged Bolt) or 22 (a nova). The row carries the skill's
-    // damage (Skill) or none (the weapon's at SrcDamage: Multiple Shot),
-    // and hits with no function or 1 (the explosion): Magic Arrow, Fire /
-    // Cold / Ice Arrow, Poison Javelin, Lightning Bolt, Fire Bolt, Ice Bolt,
-    // Ice Blast, Lightning, Fire Ball, Bone Spear, Teeth, Multiple Shot,
-    // Charged Bolt, Frost Nova, Nova, Poison Nova.
+    // FUN_005da8b0, only checks the ammo), or its srvmissilea from its do:
+    // 8 (a fan), 17 (Charged Bolt), 22 (a nova), 10 (Guided Arrow, Bone
+    // Spirit), 12 (Strafe), 26 (Chain Lightning), 28 (Meteor, Blizzard,
+    // Eruption), 24 (Fire Wall), 19 (Inferno, Arctic Blast). The row carries
+    // the skill's damage (Skill) or none (the weapon's at SrcDamage:
+    // Multiple Shot, Strafe), and hits with no function, 1 (the explosion),
+    // 10 (guided), 12 (chain) or 14 (Meteor's landing).
     // `any_owner`: a trap's shot, whose row names the player's skill.
     [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
+        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19 };
+        static constexpr int kSt[] = { 0, 4, 8, 11 };
         const bool plain = (s.srvstfunc == 0 || s.srvstfunc == 4) && s.srvdofunc == 0;
-        const bool multi = (s.srvstfunc == 0 || s.srvstfunc == 4) && (s.srvdofunc == 8 || s.srvdofunc == 17 || s.srvdofunc == 22);
-        const auto& name = plain ? s.srvmissile : multi ? s.srvmissilea : s.srvmissile;
+        const bool multi = std::ranges::contains(kSt, s.srvstfunc) && std::ranges::contains(kDo, s.srvdofunc);
+        const auto& name = plain ? s.srvmissile : s.srvmissilea;
         if ((!plain && !multi) || name.empty()) return nullptr;
         const auto m = scene->missiles.find(name);
-        if (m == scene->missiles.end() || (m->second.hit_func != 0 && m->second.hit_func != 1)) return nullptr;
+        static constexpr int kHit[] = { 0, 1, 10, 12, 14 };
+        if (m == scene->missiles.end() || !std::ranges::contains(kHit, m->second.hit_func)) return nullptr;
         return any_owner || m->second.skill == s.name || m->second.skill.empty() ? &m->second : nullptr;
     }
     [[nodiscard]] bool missile_skill(const d2d::rules::Skill& s) const { return skill_missile(s) != nullptr; }
@@ -1140,6 +1147,19 @@ struct Fight {
         pstruck = false;
         return true;
     }
+    // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
+    // `range` ticks (0 velocity: it stays put).
+    Missile& launch(const Scene::MissileInfo& mi, const d2d::rules::Skill& s, int lvl, float x, float y, float dx, float dy,
+                    int range, std::uint32_t ms) {
+        const float v = cells_per_sec(float(mi.vel)), d = std::max(std::hypot(dx, dy), 0.01f);
+        Missile a{ &mi, x, y, dx / d * v, dy / d * v, direction32(dx, dy), ms, ms + std::uint32_t(std::max(range, 1)) * 40, {} };
+        a.friendly = true; a.skill = s.id; a.level = lvl;
+        pending.push_back(a);
+        return pending.back();
+    }
+    [[nodiscard]] int calc(const d2d::rules::Skill& s, const d2d::rules::Calc& c, int lvl) {
+        return d2d::rules::eval_calc(scene->skills, c, calc_env(), s.id, lvl);
+    }
     // The missiles leave the caster at their velocity for Range + LevRange x
     // level ticks: one toward the cast point; do 8 (FUN_005db410) calc1 of
     // them at points a step apart across the line to it (the step: the
@@ -1147,25 +1167,32 @@ struct Fight {
     // subtiles, FUN_0056d3b0), centred on it; do 17 (FUN_005c9300) calc1
     // toward it, each wandering (FUN_005c9290); do 22 (FUN_005c9b50 ->
     // FUN_0056d400) 64 all round, for Range + calc1 ticks.
+    // Do 10 (FUN_005db6d0: Guided Arrow, Bone Spirit): one at the monster
+    // clicked, which it seeks (missile do 7); calc1 is its damage %
+    // (stat 25 through the callback 0x5db6a0). Do 12 (FUN_005dba40,
+    // Strafe): st 8 (FUN_005dacd0) counts the monsters within aurarange
+    // and clamps that between min(calc3, calc1) and calc1; each do then
+    // shoots one at the next of them (FUN_0056bd10), calc2 its damage %.
+    // Do 26 (FUN_005ca1b0, Chain Lightning): one carrying calc1 hops. Do 28
+    // (FUN_005ca3e0 -> FUN_0056ede0: Meteor, Blizzard, Eruption): the row
+    // at the cast point. Do 24 (FUN_005c9ea0, Fire Wall): from the target
+    // two makers out across the line from the caster, and srvmissileb on
+    // it. Do 19 (FUN_005c8ca0, Inferno): a flame of calc1 ticks per frame
+    // while the cast lasts.
     // ponytail: Charged Bolt's wander is a random spread of ±40 degrees, not
     // FUN_005c9290's path; the nova's 64 directions are even angles, not
-    // the tables at 0x6e1288 / 0x6e1388.
+    // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
+    // (3 ticks apart), not a repeated attack animation; Inferno's channel
+    // is its cast's animation (no held button, no mana per frame).
     void fire(const d2d::rules::Skill& s, std::uint32_t ms) {
         const auto& mi = *skill_missile(s);
-        const float v = cells_per_sec(float(mi.vel));
         const int lvl = skill_level ? skill_level(s.id) : 1;
-        const int calc1 = d2d::rules::eval_calc(scene->skills, s.calc[0], calc_env(), s.id, lvl);
+        const int calc1 = calc(s, s.calc[0], lvl);
         const auto shared = std::make_shared<std::vector<int>>();
-        auto launch = [&](float dx, float dy, int range) {
-            const float d = std::max(std::hypot(dx, dy), 0.01f);
-            Missile a{ &mi, player.x, player.y, dx / d * v, dy / d * v, direction32(dx, dy), ms,
-                       ms + std::uint32_t(std::max(range, 1)) * 40, {} };
-            a.friendly = true; a.skill = s.id; a.level = lvl;
-            if (s.srvdofunc == 22) a.struck = shared;
-            missiles.push_back(a);
-        };
         const float dx = cast_x - player.x, dy = cast_y - player.y;
         const int range = mi.range + mi.lev_range * lvl;
+        const int target = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() ? attack_mon : -1;
+        auto go = [&](float ddx, float ddy, int r) -> Missile& { return launch(mi, s, lvl, player.x, player.y, ddx, ddy, r, ms); };
         if (s.srvdofunc == 8) {
             const int n = std::max(calc1, 1);
             float px = dy * 5, py = -dx * 5;                 // subtiles, turned a right angle
@@ -1173,22 +1200,170 @@ struct Fight {
             if (px == 0 && py == 0) px = 1;
             for (int k = 0; k < n; ++k) {
                 const float o = float(k) - float(n) / 2;
-                launch(dx + o * px / 5, dy + o * py / 5, range);
+                go(dx + o * px / 5, dy + o * py / 5, range);
             }
         } else if (s.srvdofunc == 17) {
             for (int k = 0; k < std::max(calc1, 1); ++k) {
                 const float a = (float(rng(81)) - 40) * 3.14159265f / 180;
-                launch(dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a), range);
+                go(dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a), range);
             }
         } else if (s.srvdofunc == 22) {
             for (int k = 0; k < 64; ++k) {
                 const float a = float(k) * 2 * 3.14159265f / 64;
-                launch(std::cos(a), std::sin(a), mi.range + calc1);
+                go(std::cos(a), std::sin(a), mi.range + calc1).struck = shared;
             }
+        } else if (s.srvdofunc == 10) {
+            auto& a = go(dx, dy, range);
+            a.target = target; a.ed_pct = calc1;
+        } else if (s.srvdofunc == 12) {
+            const int r = calc(s, s.aurarange, lvl);
+            std::vector<int> near;
+            if (target >= 0) near.push_back(target);
+            for (std::size_t i = 0; i < monsters.size(); ++i)
+                if (int(i) != target && monsters[i].alive()
+                    && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) * 5 <= float(r)) near.push_back(int(i));
+            const int hi = calc1, lo = std::min(calc(s, s.calc[2], lvl), hi);
+            const int n = std::clamp(int(near.size()), lo, hi);
+            for (int k = 0; k < n; ++k)
+                strafe.push_back({ near.empty() ? -1 : near[std::size_t(k) % near.size()], ms + std::uint32_t(k) * 120 });
+        } else if (s.srvdofunc == 26) {
+            go(dx, dy, range).hops = calc1;
+        } else if (s.srvdofunc == 28) {
+            launch(mi, s, lvl, cast_x, cast_y, 0, 0, range, ms);
+        } else if (s.srvdofunc == 24) {
+            const float ox = target >= 0 ? monsters[std::size_t(target)].u.x : cast_x;
+            const float oy = target >= 0 ? monsters[std::size_t(target)].u.y : cast_y;
+            const float wx = oy - player.y, wy = player.x - ox;
+            launch(mi, s, lvl, ox, oy, wx, wy, range, ms);
+            launch(mi, s, lvl, ox, oy, -wx, -wy, range, ms);
+            if (const auto c = scene->missiles.find(s.srvmissileb); c != scene->missiles.end())
+                launch(c->second, s, lvl, ox, oy, 0, 0, c->second.range + c->second.lev_range * lvl, ms);
+        } else if (s.srvdofunc == 19) {
+            channel = s.id;
         } else {
-            launch(dx, dy, range);
+            go(dx, dy, range);
         }
     }
+    // Once a frame for the player's skill missiles (their pSrvDoFunc):
+    // 7 (FUN_005ae780) turns a guided one to its target every Param1
+    // frames; 6 (FUN_005ae680, Fire Wall's maker) leaves its SubMissile1
+    // where it is; 10 / 25 (FUN_005aea60 / FUN_005af880 -> FUN_005a9820:
+    // Blizzard, Eruption) every calc2 frames drop SubMissile1 at a random
+    // point within calc1 subtiles; 5 (FUN_005ae520: the flames of Fire
+    // Wall, Meteor, Blaze) burns whoever stands in it every frame, CollideKill
+    // 0. Hit function 14 (FUN_005aabb0, Meteor) goes off where the row's
+    // Range ends: the skill's damage on everything within sHitPar1 (else
+    // aurarange) subtiles, then HitSubMissile1 at the 18 offsets of
+    // 0x6e2550 / 0x6e2598 (every sHitPar2th; FUN_005aaa90), each burning
+    // Param3 + Param4 x (level - 1) 256ths a frame (FUN_004cc7c0).
+    // Also Strafe's queued arrows and Inferno's flames.
+    // ponytail: a burner hits a monster once a frame however many overlap
+    // (by skill); the maker leaves one a frame (not per subtile); a Bone
+    // Spirit cast at nothing seeks the monster nearest the cast point.
+    void missile_tick(std::uint32_t ms) {
+        const int frame = int(ms / 40);
+        if (frame == last_frame) return;
+        last_frame = frame;
+        burned.clear();
+        std::erase_if(strafe, [&](const std::pair<int, std::uint32_t>& q) {
+            if (ms < q.second) return false;
+            const auto* s = scene->skills.get(swing_skill);
+            if (!s || s->srvdofunc != 12) return true;
+            const auto& mi = *skill_missile(*s);
+            const int lvl = skill_level ? skill_level(s->id) : 1;
+            float tx = cast_x, ty = cast_y;
+            if (q.first >= 0 && monsters[std::size_t(q.first)].alive()) { tx = monsters[std::size_t(q.first)].u.x; ty = monsters[std::size_t(q.first)].u.y; }
+            launch(mi, *s, lvl, player.x, player.y, tx - player.x, ty - player.y, mi.range + mi.lev_range * lvl, ms).ed_pct
+                = calc(*s, s->calc[1], lvl);
+            return true;
+        });
+        if (channel >= 0) {
+            const auto* s = scene->skills.get(channel);
+            if (!s || pmode != kModeSC || swing_skill != channel) channel = -1;
+            else {
+                const int lvl = skill_level ? skill_level(s->id) : 1;
+                launch(*skill_missile(*s), *s, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y,
+                       std::max(calc(*s, s->calc[0], lvl), 1), ms);
+            }
+        }
+        for (std::size_t k = 0; k < missiles.size(); ++k) {
+            auto& a = missiles[k];
+            if (a.skill < 0 || !a.info) continue;
+            const auto* s = scene->skills.get(a.skill);
+            if (!s) continue;
+            const int age = int(ms - a.born) / 40;
+            const auto& mi = *a.info;
+            if (mi.srv_do == 7 && age % std::max(mi.param1, 1) == 0) {
+                if (a.target < 0 && s->srvstfunc == 0) {
+                    float best = 1e9f;
+                    for (std::size_t i = 0; i < monsters.size(); ++i)
+                        if (const float d = std::hypot(monsters[i].u.x - cast_x, monsters[i].u.y - cast_y); monsters[i].alive() && d < best) {
+                            best = d; a.target = int(i);
+                        }
+                }
+                if (a.target >= 0 && monsters[std::size_t(a.target)].alive()) {
+                    const auto& m = monsters[std::size_t(a.target)];
+                    const float v = std::hypot(a.vx, a.vy), dx = m.u.x - a.x, dy = m.u.y - a.y, d = std::max(std::hypot(dx, dy), 0.01f);
+                    a.vx = dx / d * v; a.vy = dy / d * v; a.dir = direction32(dx, dy);
+                }
+            }
+            const auto sub = mi.sub.empty() ? scene->missiles.end() : scene->missiles.find(mi.sub);
+            if (mi.srv_do == 6 && sub != scene->missiles.end())
+                launch(sub->second, *s, a.level, a.x, a.y, 0, 0, sub->second.range + sub->second.lev_range * a.level, ms);
+            if ((mi.srv_do == 10 || mi.srv_do == 25) && sub != scene->missiles.end()) {
+                const int every = std::max(calc(*s, s->calc[1], a.level), 1), r = std::max(calc(*s, s->calc[0], a.level), 1);
+                if (age % every == 0) {
+                    const float ox = float(int(rng(2 * r - 1)) - (r - 1)) / 5, oy = float(int(rng(2 * r - 1)) - (r - 1)) / 5;
+                    launch(sub->second, *s, a.level, a.x + ox, a.y + oy, 0, 0, sub->second.range, ms);
+                }
+            }
+            if (mi.srv_do == 5) {
+                const auto md = a.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = 0, .elo = a.fixed, .ehi = a.fixed }
+                                             : d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level);
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - a.x, monsters[i].u.y - a.y) <= 0.5f
+                        && !std::ranges::contains(burned, std::pair{ int(i), a.skill })) {
+                        burned.emplace_back(int(i), a.skill);
+                        burn(i, md, ms);
+                    }
+            }
+            if (mi.hit_func == 14 && ms + 40 >= a.dies && a.frame < 0) {
+                a.frame = frame;
+                const int r = mi.hit_par1 > 0 ? mi.hit_par1 : std::max(calc(*s, s->aurarange, a.level), 1);
+                for (std::size_t i = 0; i < monsters.size(); ++i)
+                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - a.x, monsters[i].u.y - a.y) * 5 <= float(r))
+                        land(i, d2d::rules::missile_blow(d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level), target_of(i),
+                                                         pierce(), rng), true, ms);
+                if (const auto h = scene->missiles.find(mi.hit_sub); h != scene->missiles.end()) {
+                    static constexpr int kX[18] = { 2, -2, 0, 0, -3, 0, 3, -1, 1, -1, 2, -4, -3, -1, 0, 1, 3, 4 };
+                    static constexpr int kY[18] = { -2, -2, 2, 5, 3, 3, 3, 2, 1, -1, -1, -2, -2, -3, -4, -3, -3, -2 };
+                    const int burn256 = s->par[2] + (a.level - 1) * s->par[3];
+                    for (std::size_t j = 0; j < 18; j += std::size_t(std::max(mi.hit_par2, 1))) {
+                        launch(h->second, *s, a.level, a.x + float(kX[j]) / 5, a.y + float(kY[j]) / 5, 0, 0, h->second.range, ms).fixed
+                            = burn256 > 0 ? burn256 : -1;
+                    }
+                }
+            }
+        }
+    }
+    // An element in 256ths a frame on monster i (a burner's): less its
+    // resistance, gathered until whole points come off (no hit recovery).
+    void burn(std::size_t i, const d2d::rules::MissileDamage& md, std::uint32_t ms) {
+        static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };
+        if (md.etype < 0 || md.etype > 4 || md.ehi <= 0) return;
+        auto& m = monsters[i];
+        const auto t = target_of(i);
+        int res = t.res[std::size_t(kRes[md.etype])];
+        if (md.etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(md.etype)], -100);
+        m.dot_acc += double(d2d::rules::resisted(rng.range(md.elo, md.ehi), res)) / 256;
+        const int whole = int(m.dot_acc);
+        if (whole <= 0) return;
+        m.dot_acc -= whole;
+        m.hp -= whole;
+        m.aware = true;
+        if (!m.alive()) { set_mode(*scene, m, "DT", ms); killed(i, ms); }
+    }
+    [[nodiscard]] std::array<int, 4> pierce() const { return { int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) }; }
     // A skill's missile reaching monster i (FUN_0064b860's record): with a
     // weapon share (the skill's SrcDam, or a row with no Skill its
     // SrcDamage) the weapon's blow at that share, attack rating rolled;
@@ -1205,6 +1380,9 @@ struct Fight {
     bool skill_missile_hits(Missile& a, std::size_t i, std::uint32_t ms) {
         const auto* s = scene->skills.get(a.skill);
         if (!s) return true;
+        if (a.info->srv_do == 5) return false;               // a burner: missile_tick's
+        // Hit function 10 (FUN_005aa650): a guided one passes by all but its target.
+        if (a.info->hit_func == 10 && a.target >= 0 && a.target != int(i) && monsters[std::size_t(a.target)].alive()) return false;
         auto& struck = *a.struck;
         if (a.info->hit_func == 1 && !std::ranges::contains(struck, -1)) {
             struck.push_back(-1);                            // exploding: the hits below are its
@@ -1224,16 +1402,31 @@ struct Fight {
         if (md.srcdam > 0) {
             d2d::rules::Swing sw;
             sw.srcdam = md.srcdam;
+            sw.ed_pct = a.ed_pct;
             b = d2d::rules::player_blow(pf, target, clvl, rng, sw);
         } else if (a.info->to_hit) {
             b.hit = int(rng(100)) < d2d::rules::hit_chance(pf.ar, target.ac, clvl, target.level);
         }
         if (b.hit) {
-            const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
-            b = d2d::rules::missile_blow(md, target, pierce, rng, b);
+            b = d2d::rules::missile_blow(md, target, pierce(), rng, b);
         }
         land(i, b, true, ms);
         struck.push_back(int(i));
+        // Hit function 12 (FUN_005aa730, Chain Lightning): with hops left, on
+        // from here at another monster within sHitPar1 (else aurarange)
+        // subtiles (FUN_0056bd10), a hop fewer.
+        // ponytail: the nearest one, not FUN_0056bd10's pick.
+        if (a.info->hit_func == 12 && a.hops > 1) {
+            const int r = a.info->hit_par1 > 0 ? a.info->hit_par1 : calc(*s, s->aurarange, a.level);
+            int best = -1; float bd = 1e9f;
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (const float d = std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y);
+                    j != i && monsters[j].alive() && d * 5 <= float(r) && d < bd) { bd = d; best = int(j); }
+            if (best >= 0) {
+                const auto& m = monsters[std::size_t(best)];
+                launch(*a.info, *s, a.level, a.x, a.y, m.u.x - a.x, m.u.y - a.y, a.info->range, ms).hops = a.hops - 1;
+            }
+        }
         return a.info->collide_kill && !(a.info->pierce && int(rng(100)) < int(psum[328]));
     }
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
@@ -1620,6 +1813,7 @@ struct Fight {
             aura_pulse(ms);
             for (std::size_t k = 0; k < pets.size(); ++k) pet_hurt(pets[k], foes[2 + k].damage, ms);
             pets_turn(ms, dt, crowd);
+            missile_tick(ms);
             // The merc's arrows strike the first live monster they reach.
             missiles_update(*level, missiles, foes, rng, ms, dt, [&](Missile& a) {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
@@ -1636,6 +1830,8 @@ struct Fight {
                 }
                 return false;
             });
+            std::ranges::move(pending, std::back_inserter(missiles));
+            pending.clear();
             if (merc && foes[1].damage > 0 && merc_mode != "DT") {
                 merc_life -= foes[1].damage;
                 auto& u = *merc;
