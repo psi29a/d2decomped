@@ -7,7 +7,8 @@ C++26 engine. Ghidra drives decompilation; reference implementations
 ## Non-goals
 
 - Ship a game with Blizzard assets. Users bring their own ISOs.
-- Multiplayer server (Battle.net). Out of scope until singleplayer runs.
+- Realm / Battle.net services for now. The game itself is built
+  client/server from here on (docs/design/multiplayer.md).
 - Pixel-perfect renderer. Match behavior, not implementation.
 
 ## Phases
@@ -126,7 +127,8 @@ combat and skills). Next: more of Act 1 (Cold Plains, the Den of Evil).
   a launch page earns its place.
 - Save format: keep 1.14d-compatible or greenfield? Compatible unless it
   hurts.
-- Networking: leave off until singleplayer runs.
+- Networking: decided 2026-09-27. Listen server, single player as a
+  one-player in-process session (docs/design/multiplayer.md).
 
 ## Known issues / to investigate
 
@@ -196,11 +198,6 @@ E. **Monsters** — spawning done: game.exe's monster region and room
 
 ## Later research (noted, not scheduled)
 
-- **Networking**: game.exe's client/server packet tables and handlers
-  (single player runs both in one process). Routes and the codebase impact
-  in `docs/design/multiplayer.md`.
-- **The simulation loop**: the server's 25 Hz tick, the client's frame and
-  interpolation, event timers.
 - **Render paths**: the DirectDraw, Direct3D, Glide and OpenGL back ends
   (lighting, blends, shadows, perspective). What d2d could do with them in
   `docs/design/rendering.md`.
@@ -330,6 +327,24 @@ Town
 - Warriv's "go east", waypoint travel, the hire list's widget and offer
   count, Cain's spot in an already-rescued game, trade leftovers (magic
   stock, the real stock roll), saving .d2s.
+
+## Networking-shaped core (from 2026-09-27; before more features)
+
+Decided: every game is a server-authoritative `GameSession`; single
+player is one client on an in-process transport
+(docs/design/multiplayer.md "Decision"). Done before the feature list
+below, so new features land on the new structure:
+
+1. Research (half a day): game.exe's packet tables (client → server,
+   server → client) and handlers, the server tick, the client frame
+   and interpolation. Output: `docs/research/re/network.md`.
+2. The split (2–4 days): a `World` owns the server state (levels, units
+   with stable ids, monsters, missiles, ground items, objects, the 25 Hz
+   tick, server-side rng); commands in, events and state out; `Town`
+   becomes the client. devctl verbs become commands. The smoke test stays
+   green throughout.
+3. `GameSession` with one player and a `.d2s` `CharacterStore` (saving).
+4. `TcpTransport`, then player-count scaling and party.
 
 ## Next up (as of 2026-09-26)
 

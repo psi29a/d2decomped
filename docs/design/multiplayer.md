@@ -1,8 +1,8 @@
 # Multiplayer — impact and routes
 
-Status: design notes, nothing built. Written 2026-09-25 against the code as
-of commit ffc527c. The game.exe research this needs (the packet tables, the
-server/client tick) is listed under "Later research" in `docs/PLAN.md`.
+Status: decided 2026-09-27, being built (docs/PLAN.md "Networking-shaped
+core"). First written 2026-09-25 against commit ffc527c; the rules below
+merge a networking design review (2026-09-27) into it.
 
 ## How Diablo II does it
 
@@ -44,9 +44,78 @@ What would have to change:
 | Saves are read, never written | The server writes characters (.d2s) |
 | Monster stats ignore player count | HP / experience / NoDrop scale with players (D2's /players setting) |
 
-## Routes
+## Decision
 
-1. **Listen server, snapshots (recommended).** One player hosts, running
+Route 1, a **listen server**, and D2's own shape: every game is a
+`GameSession` with an authoritative server simulation and one or more
+clients. Single player is one client talking to an in-process server,
+as in game.exe. Multiplayer is the same session with more clients.
+The same server code runs every mode: a local game, a TCP-hosted game,
+and a dedicated server with nobody at the keyboard.
+
+Rules:
+
+1. **The server is authoritative.** Damage, hits, skill effects, items
+   (made, destroyed, owned), monsters (spawn, AI, death), quests, NPC and
+   map state, experience, party. A client sends intents (walk to x, y;
+   use skill s on unit u; operate object o; pick up item i; talk to NPC
+   n; leave) and shows what the server sends back.
+2. **One implementation of the rules**, with no separate single-player
+   path. `components/rules` and `components/drlg` stay pure (tables and
+   seeds in, results out) and run on the server.
+3. **The transport is a detail.** A `LocalTransport` passes messages
+   in-process, in order, with no sockets and no loopback TCP for single
+   player. `TcpTransport` comes later, with explicit framing, partial
+   reads and writes, bounded buffers and backpressure, and no game logic
+   in the socket code. A loopback-TCP test mode then exercises it.
+4. **Don't network the engine.** Rendering, animation, sounds, UI,
+   pathfinding internals, caches: all local. Only inputs (commands) and
+   outputs (state updates, events) cross the boundary.
+5. **A fixed tick.** Network input is queued as commands and applied at
+   the start of a tick; the tick then produces the updates. No network
+   callback touches the world directly. The tick is game.exe's 25 Hz.
+6. **The message model is D2's.** game.exe's client/server packets (the
+   research in step 2) give the message shapes. Where cheap, the internal
+   messages use them, so a D2GS-compatible codec is a codec rather than a
+   second design. Packet layouts belong to the codec, not to the
+   simulation.
+7. **The session and the save are separate.** `GameSession`: the world,
+   the clock, units, monsters, items, NPCs, quests, party, membership,
+   `max_players`. `PlayerSession`: the connection, the player's unit id,
+   its character reference, replication state. A `CharacterStore` loads
+   and saves characters: `.d2s` locally, anything later for a realm.
+8. **No hard-coded 8.** `max_players` defaults to 8 (classic); nothing
+   in the data structures assumes it. More than 8 is a later,
+   experimental mode: D2's balance (monster HP, experience, NoDrop by
+   player count) is built round 8.
+9. **Layers above the game stay above it.** A lobby, Realm (MCP) and
+   Battle.net (BNCS) sit over the game server. None of it goes into the
+   simulation. Not planned yet.
+
+Useful references for the protocol: d2-clientless and
+d2-dedicated-server (jaenster, 1.14d D2GS / Realm), D2MOO (engine
+structures), OpenD2.
+
+## Order
+
+1. Research: game.exe's packet tables (client → server, server → client),
+   their handlers, and the server tick. Results go in
+   `docs/research/re/network.md`.
+2. The networking-shaped core, in-process only:
+   - `World` (the server side: levels, units with stable ids, monsters,
+     missiles, ground items, objects, the tick, server rng)
+   - a command queue in (`Command`), events and state out
+   - `Town` becomes the client: input, panels, camera, drawing, sounds
+   - the devctl verbs send commands too
+3. Single player as `GameSession` with one player and `.d2s` persistence
+   (saving is part of this).
+4. `TcpTransport`: host plus clients. Then player-count scaling and
+   party.
+5. Later: the D2GS codec, a dedicated server, then Realm and Battle.net.
+
+## The other routes considered
+
+1. **Listen server, snapshots (chosen).** One player hosts, running
    the World; others are thin clients: they send commands and receive
    compact updates for the units near them, interpolating between ticks.
    Single player is the same thing with the host alone, as in D2. It
