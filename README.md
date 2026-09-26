@@ -10,7 +10,8 @@ what's next; RE notes live in [`docs/research/re/`](docs/research/re/).
 
 ## Status
 
-Phase 5 (core loop) is in progress. You can:
+The core loop (phase 5) covers Act 1's start, and combat (phase 6) is
+implemented. You can:
 
 - **Frontend**: startup cinematics, title, credits, Cinematics menu,
   character select with your real `.d2s` saves, character create.
@@ -31,9 +32,32 @@ Phase 5 (core loop) is in progress. You can:
 - **Movement**: collision as game.exe builds it; clicks path round
   obstacles.
 - **Waypoint**: the panel, act tabs and activation (no travel yet).
+- **Leaving town**: walk over the camp's bridge into a Blood Moor laid
+  out the way game.exe generates it (act layout, outdoor DRLG, stamps);
+  the merc and your pets come along, music and automap follow.
+- **Combat**: the Blood Moor's monsters spawn by game.exe's rules and
+  notice, chase, surround and hit back. Hits use your gear (hit chance,
+  block, resistances, crushing blow, deadly strike, leech, thorns,
+  IAS/FHR/FBR/FRW, poison, chill, knockback). Kills give experience and
+  level-ups and drop loot from the treasure classes. The merc fights,
+  and you die and respawn in camp.
+- **Skills**: close to all 210 class skills, each built from the
+  game.exe function behind it: melee and kicks, charge-ups and their
+  releases, passives and masteries, missiles (with explosions, chains,
+  homing, walls, novas, orbs), auras, summons and their masteries,
+  traps, buffs and absorbs, curses, war cries and corpse skills. The
+  coverage and the untraced approximations are listed per skill family
+  in [`docs/research/re/skills.md`](docs/research/re/skills.md).
+
+Committed through `61feb63` (phase 6, part 4: buffs, curses and war
+cries). The last pieces (Royal Strike's releases, Bone Wall and Prison,
+shapeshifting and the Druid's melee skills, Armageddon and Hurricane,
+Blade Sentinel and Shield, the fire sentries and Death Sentry's blast,
+the vines, the Druid's spirits, Double Throw) are in progress.
 
 It's all single-player and in memory: saves are read, never written.
-No combat, no leaving town yet.
+Not yet: levels past the Blood Moor, champions and uniques, quests,
+waypoint travel, the shapeshifted look.
 
 ## Build
 

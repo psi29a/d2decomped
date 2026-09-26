@@ -12,7 +12,7 @@ C++26 engine. Ghidra drives decompilation; reference implementations
 
 ## Phases
 
-Status as of 2026-09-24.
+Status as of 2026-09-26.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -37,11 +37,15 @@ Status as of 2026-09-24.
    they exist so contributors can open them in Ghidra. Once this phase is
    done, the `bin/` import will be dropped from the launcher — redistributing
    Blizzard's binaries is not permitted, so no release will include them.
-5. **Core loop** — main menu, character select, load act 1 rogue camp,
-   render tiles. No combat yet. *In progress:* frontend, town, NPCs,
-   panels, trade and waypoints work (see README "Status").
-6. **Combat + AI** — actor state machine, packet-equivalent events,
-   monster AI from game.exe.
+5. **Core loop**: main menu, character select, load act 1 rogue camp,
+   render tiles. *Done for Act 1's start:* frontend, town, NPCs, panels,
+   trade and waypoints (no travel yet); leaving camp into a generated
+   Blood Moor. Left: the other Act 1 levels, waypoint travel, saving.
+6. **Combat + AI**: actor state machine, packet-equivalent events,
+   monster AI from game.exe. *Implemented:* monsters and their fights,
+   gear in combat, drops, experience, the merc, and the skills (phases 0–6
+   in `docs/research/re/skills.md`). Left: the per-type AI think
+   functions, champions and uniques, the gaps each skill section lists.
 7. **Cross-platform polish** — Linux/macOS/Windows CI, controller,
    high-DPI, rebindable input.
 
@@ -112,7 +116,8 @@ Inspiration only. We do not copy code — we read, understand, cite in
 
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
-NPCs talk and trade. The next milestone is leaving town (phase 5's end).
+NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
+combat and skills). Next: more of Act 1 (Cold Plains, the Den of Evil).
 
 ## Open questions
 
@@ -198,7 +203,36 @@ E. **Monsters** — spawning done: game.exe's monster region and room
   (lighting, blends, shadows, perspective). What d2d could do with them in
   `docs/design/rendering.md`.
 
+## Skills: where they stand (2026-09-26)
+
+Committed:
+- Phase 0–2: combat corrections, skill rows, the calc language, the skill
+  bar and picker; melee skills, kicks, charge-ups, sequences, moving
+  skills.
+- Phase 3 (`ba82a88`): passives and masteries.
+- Phase 4 (`4c17cde`, `3420f7a`, `c1a0ff1`): missile spells, fans, novas,
+  Poison Dagger.
+- Phase 5 (`eec2efd`..`a679193`): auras, charge-up releases, summons,
+  sentries.
+- Phase 6, part 1 (`26506da`): do-function missiles (Guided Arrow,
+  Strafe, Chain Lightning, Meteor, Blizzard, Fire Wall, Inferno).
+- Phase 6, part 2 (`f28d84f`): pets' stats and masteries, sumskills,
+  Hydra, Revive, Decoy, Shadow Warrior, pets following across levels.
+- Phase 6, part 3 (`1631376`): missile hit functions and spot spells
+  (Frozen Orb, Glacial Spike, Holy Bolt, Fist of the Heavens, Blessed
+  Hammer, the arrows, the Druid's elementals, the Assassin's traps,
+  Static Field, Corpse Explosion, Teleport).
+- Phase 6, part 4 (`61feb63`): buffs, curses and war cries.
+
+In progress (phase 6, part 5, not committed): Royal Strike's and Claws
+of Thunder's releases, Bone Wall and Prison, Werewolf / Werebear (stats
+only) with Feral Rage, Maul, Fire Claws, Hunger and Rabies, Armageddon and
+Hurricane, Blade Sentinel and Shield, Wake of Fire / Inferno and Death
+Sentry's corpse blast, the vines, the Druid's spirits, Double Throw.
+
 ## Checkpoint 2026-09-25: what's still open
+
+*(Superseded for skills by the section above; the rest still stands.)*
 
 Combat
 - Skills: none usable yet. skills.md has the traced machinery (records,
