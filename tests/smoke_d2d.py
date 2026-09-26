@@ -318,6 +318,21 @@ try:
     mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
     assert len(mons) > 50 and {m[0] for m in mons} == {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
+    # Through the protocol alone (`cmd`: what a remote client sends the
+    # World): walk a few cells east, then attack a monster until it's hurt.
+    x0, y0 = float(lv[2]), float(lv[3])
+    cmd(f"cmd move {x0 + 3:.1f} {y0:.1f}"); frames(60)
+    assert float(cmd("debug level").split()[2]) > x0 + 1, "cmd move didn't walk"
+    m = min(mons, key=lambda m: (float(m[1]) - x0) ** 2 + (float(m[2]) - y0) ** 2)
+    uid = m[-1].lstrip("#")
+    cmd(f"debug warp {float(m[1]) - 1:.2f} {float(m[2]):.2f}"); frames(6)
+    for _ in range(40):
+        cur = next(r.split("\t") for r in cmd("monsters").splitlines()[:-1] if r.split("\t")[-1] == "#" + uid)
+        if cur[5].split("/")[0] != cur[5].split("/")[1]:
+            break
+        cmd(f"cmd skill 0 {cur[1]} {cur[2]} {uid} 1"); frames(20)
+    assert cur[5].split("/")[0] != cur[5].split("/")[1], f"cmd skill didn't hurt {cur}"
+    lv = cmd("debug level").split()
     cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
     assert cmd("debug level").split()[1] == "1"
 

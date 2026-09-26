@@ -53,6 +53,20 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
     // By value: click_verb is this function's local (a [&] would dangle).
     ch.on("click", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_LEFT); });
     ch.on("rclick", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_RIGHT); });
+    // A command straight to the World, as a client sends one (protocol.hpp);
+    // applied at its next tick.
+    ch.on("cmd", [&](const std::vector<std::string>& a) {
+        auto f = [&](std::size_t i) { return i < a.size() ? std::stof(a[i]) : 0.f; };
+        auto n = [&](std::size_t i, int d = -1) { return i < a.size() ? std::atoi(a[i].c_str()) : d; };
+        const std::string k = a.size() > 1 ? a[1] : "";
+        if (k == "move" && a.size() >= 4) t.queued.push_back(cmd::Move{ f(2), f(3), true });
+        else if (k == "skill" && a.size() >= 5) t.queued.push_back(cmd::UseSkill{ n(2, 0), f(3), f(4), n(5), n(6, 0) != 0 });
+        else if (k == "interact" && a.size() >= 3) t.queued.push_back(cmd::Interact{ n(2) });
+        else if (k == "pickup" && a.size() >= 3) t.queued.push_back(cmd::Pickup{ n(2) });
+        else if (k == "resurrect") t.queued.push_back(cmd::Resurrect{});
+        else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <item> | resurrect\n");
+        return std::string("ok\n");
+    });
     ch.on("key", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err key <name>\n");
         const SDL_Keycode k = SDL_GetKeyFromName(args[1].c_str());
@@ -297,9 +311,9 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             static constexpr std::array<const char*, 5> kBoss = { "-", "champion", "unique", "superunique", "minion" };
             std::string mods;
             for (const int md : m.mods) mods += (mods.empty() ? "" : ",") + std::to_string(md);
-            out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\t{}\t{}\tlvl{}\t{}\n", scene->monsters.types[std::size_t(m.type)].id,
+            out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\t{}\t{}\tlvl{}\t{}\t#{}\n", scene->monsters.types[std::size_t(m.type)].id,
                                m.u.x, m.u.y, sx, sy, m.hp, m.st.hp, m.mode, kBoss[std::size_t(m.boss)], mods.empty() ? "-" : mods,
-                               m.st.level, m.npc.name);
+                               m.st.level, m.npc.name, m.id);
         }
         return out + "ok\n";
     });
