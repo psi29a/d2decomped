@@ -103,7 +103,7 @@ inline Region monster_region(const Monsters& m, const LevelMon& L, int difficult
 
 // A spawned monster, in level-relative subtiles; `leader` is the index
 // of its group's first monster (itself for a leader).
-struct Spawn { int type = -1, x = 0, y = 0, leader = -1; };
+struct Spawn { int type = -1, x = 0, y = 0, leader = -1, super = -1; };   // super: SuperUniques row
 
 // A room to populate: its rect in subtiles and its seed.
 struct SpawnRoom { int x = 0, y = 0, w = 0, h = 0; Rng seed; };

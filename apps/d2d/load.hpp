@@ -421,6 +421,18 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         scene.missiles.emplace(name, std::move(mi));
     }
+    // SuperUniques.txt: name (string key), Class, minions.
+    std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
+    for (std::size_t r = 0; r < ms.size(); ++r) if (ms.get(r, "Id") != "Expansion") ms_bin.push_back(r);
+    if (const auto su = txt("SuperUniques"); su.size() > 0)
+        for (std::size_t r = 0; r < su.size(); ++r) {
+            if (su.get(r, "Superunique") == "Expansion") continue;
+            const std::string key(su.get(r, "Name"));
+            const auto v = lookup_string(scene, key);
+            scene.superuniques.push_back({ v ? u16_to_latin1(*v) : key, row(su.get(r, "Class")), num(su.get(r, "MinGrp")),
+                                           num(su.get(r, "MaxGrp")) });
+        }
+
     // Each level's rooms populated, one game seed across them.
     // ponytail: the Blood Moor then the Den, both at load and in cell order;
     // game.exe populates a room when it first comes up, in whatever order
@@ -447,6 +459,36 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             }
             return false;
         };
+        // Its preset monsters first (Level::units, what the level's DS1s
+        // place): MonStats rows that aren't NPCs, and superuniques with
+        // their minions round them.
+        // ponytail: a superunique is its class with its name and minions —
+        // its mods (SuperUniques Mod1..3), unique stat bonuses and TC aren't
+        // applied (champions / uniques aren't built); MonPlace units skipped;
+        // minions stand at the nearest free spots round it, not D2's pattern.
+        for (const auto& u : L.units) {
+            if (u.type != 1 || u.id < 0) continue;
+            const int nmon = int(ms_bin.size());
+            if (u.id < nmon) {
+                const auto r = ms_bin[std::size_t(u.id)];
+                if (ms.get(r, "npc") != "1") L.spawns.push_back({ int(r), u.x, u.y });
+                continue;
+            }
+            const int su = u.id - nmon;
+            if (std::size_t(su) >= scene.superuniques.size()) continue;       // MonPlace
+            const auto& sup = scene.superuniques[std::size_t(su)];
+            if (sup.type < 0) continue;
+            const int lead = int(L.spawns.size());
+            L.spawns.push_back({ sup.type, u.x, u.y, -1, su });
+            const int minion = M.types[std::size_t(sup.type)].minion[0] >= 0 ? M.types[std::size_t(sup.type)].minion[0] : sup.type;
+            const int n = sup.min_grp + (sup.max_grp > sup.min_grp ? int(game.next() % std::uint32_t(sup.max_grp - sup.min_grp + 1)) : 0);
+            d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, n,
+                           (float(u.x) + 0.5f) / 5, (float(u.y) + 0.5f) / 5);
+            for (int k = 0; k < n; ++k) {
+                const auto [fx, fy] = L.nearest_free((float(u.x) + 0.5f) / 5 + float(k % 3 - 1) * 0.6f, (float(u.y) + 0.5f) / 5 + float(k / 3 - 1) * 0.6f);
+                L.spawns.push_back({ minion, int(fx * 5), int(fy * 5), lead });
+            }
+        }
         for (const auto& rm : L.rooms) {
             // Clear ground, and no monster already within its 2-subtile
             // footprint (game.exe stamps each placed monster into collision, 0x800).
@@ -467,7 +509,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             return s;
         }());
     }
-    if (!scene.den.rooms.empty()) d2d::log::info("  not implemented: the Den's Corpsefire (a superunique from its preset)");
+    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: superunique mods, unique stat bonuses and TCs (placed as their class, named, with minions)");
 }
 
 // Skills (components/rules/skills.hpp): skillcalc.txt's operand names,
@@ -626,11 +668,9 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     const auto objects = txt("objects");
     std::unordered_map<std::string, std::size_t> obj_row;
     for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
-    for (const auto& o : scene.town.ds1.objects()) {
-        if (o.type != 2 || o.id < 0 || o.id >= 150) continue;
-        const int oid = kObjPreset[0][std::size_t(o.id)];    // act 1
+    auto add_object = [&](Level& into, int oid, int sx, int sy) {
         const auto it = obj_row.find(std::to_string(oid));
-        if (oid == 0 || it == obj_row.end()) continue;
+        if (oid == 0 || it == obj_row.end()) return;
         const auto r = it->second;
         Npc n;
         n.root   = "objects";
@@ -654,24 +694,45 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         for (std::size_t l = 0; l < 16; ++l)
             if (objects.get(r, kLayerCode[l]) == "1") n.comp[l] = "lit";
-        if (n.code.empty()) continue;
-        n.x = (float(o.x) + 0.5f) / 5;
-        n.y = (float(o.y) + 0.5f) / 5;
-        scene.town.npcs.push_back(std::move(n));
-    }
+        if (n.code.empty()) return;
+        n.x = (float(sx) + 0.5f) / 5;
+        n.y = (float(sy) + 0.5f) / 5;
+        into.npcs.push_back(std::move(n));
+    };
+    for (const auto& o : scene.town.ds1.objects())
+        if (o.type == 2 && o.id >= 0 && o.id < 150) add_object(scene.town, kObjPreset[0][std::size_t(o.id)], o.x, o.y);   // act 1
+
+    // The wild levels' preset units (Level::units): objects, and monsters
+    // MonStats marks as NPCs (Flavie by the Blood Moor's way in). Unit ids
+    // are game.exe's: MonStats rows without its Expansion row.
+    std::vector<std::size_t> ms_bin;
+    for (std::size_t r = 0; r < ms.size(); ++r) if (ms.get(r, "Id") != "Expansion") ms_bin.push_back(r);
+    for (Level* wild : { &scene.moor, &scene.den })
+        for (const auto& u : wild->units) {
+            if (u.type == 2) add_object(*wild, u.id, u.x, u.y);
+            if (u.type != 1 || u.id < 0 || std::size_t(u.id) >= ms_bin.size() || ms.get(ms_bin[std::size_t(u.id)], "npc") != "1") continue;
+            auto n = monster(ms_bin[std::size_t(u.id)]);
+            if (n.code.empty()) continue;
+            n.x = (float(u.x) + 0.5f) / 5;
+            n.y = (float(u.y) + 0.5f) / 5;
+            wild->npcs.push_back(std::move(n));
+        }
 
     // Footprints into the walk grid, centred on each unit's subtile.
     // (Quest-gated units like Cain stay out of it: they're not always there.)
     // ponytail: static — fine while NPCs only idle; moving units need a
     // separate occupancy layer.
-    const int ww = scene.town.ds1.width() * 5, wh = scene.town.ds1.height() * 5;
-    for (const auto& n : scene.town.npcs) {
-        if (!n.path.empty() || n.quest) continue;   // walkers don't hold a spot
-        const int cx = int(n.x * 5), cy = int(n.y * 5);
-        for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
-            for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
-                if (x >= 0 && y >= 0 && x < ww && y < wh)
-                    scene.town.walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
+    for (Level* lv : { &scene.town, &scene.moor, &scene.den }) {
+        const int ww = lv->ds1.width() * 5, wh = lv->ds1.height() * 5;
+        if (lv->walk.size() != std::size_t(ww) * std::size_t(wh)) continue;
+        for (const auto& n : lv->npcs) {
+            if (!n.path.empty() || n.quest) continue;   // walkers don't hold a spot
+            const int cx = int(n.x * 5), cy = int(n.y * 5);
+            for (int y = cy - n.size_y / 2; y < cy - n.size_y / 2 + n.size_y; ++y)
+                for (int x = cx - n.size_x / 2; x < cx - n.size_x / 2 + n.size_x; ++x)
+                    if (x >= 0 && y >= 0 && x < ww && y < wh)
+                        lv->walk[std::size_t(y) * std::size_t(ww) + std::size_t(x)] |= 0x01;
+        }
     }
 
     // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify
@@ -1614,7 +1675,7 @@ LevelDt1s load_level_dt1s(Level& lv, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAs
 std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const LevelDt1s& d,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes) {
-    const auto built = d2d::drlg::level_room_tiles(made, plain, a.data, d.heads, lv.id, d2d::drlg::lit_warps(a, lv.id), notes);
+    const auto built = d2d::drlg::level_room_tiles(made, plain, a.data, d.heads, lv.id, d2d::drlg::warp_slots(a, lv.id), notes);
     const int W = lv.ds1.width(), H = lv.ds1.height();
     lv.picks.assign(std::size_t(W) * std::size_t(H), {});
     std::size_t placed = 0;
@@ -1627,6 +1688,8 @@ std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const 
                 { std::uint8_t(t.layer), std::uint8_t(t.orient), &it->second->tiles()[std::size_t(t.index)] });
             ++placed;
         }
+    for (const auto& r : built)
+        for (const auto& u : r.units) lv.units.push_back({ u.type, u.id, u.mode, u.x + r.x * 5, u.y + r.y * 5, u.flags });
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk.
     // ponytail: ExitWalk read as subtiles from the warp's cell; check the
     // arrival spot against game.exe when it matters.

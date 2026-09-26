@@ -315,9 +315,10 @@ Act 1 levels and rendering
   Tristram, Monastery through the Catacombs.
 - Built and proven against game.exe (layout and tiles): the Blood Moor
   and the Den of Evil; click the cave mouth to go in, the stairs to come
-  back. Missing there: preset units (FUN_00667620) and stamp objects
-  (shrines, waypoints), the Den's Corpsefire; warp arrival spots are a
-  guess (LvlWarp ExitWalk).
+  back. Preset units (proven too) put in the shrines, torches, chests,
+  Flavie and Corpsefire with his minions. Missing: superunique mods and
+  stat bonuses, shrines / chests that do anything; warp arrival spots
+  are a guess (LvlWarp ExitWalk).
 - Rendering: shadows not blended, no unit shadows, no lighting / day-night
   / rain, cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs not drawn across the edge.
@@ -332,8 +333,8 @@ Town
 1. DRLG: done and proven for the Blood Moor and the Den of Evil (layout,
    room seeds, tiles; docs/research/re/drlg.md "Checking against
    game.exe"), drawn and walkable in d2d, the Den entered by its warp.
-   Left: preset units and stamp objects (Corpsefire, shrines), then
-   Cold Plains.
+   Preset units too (Corpsefire, shrines, Flavie). Left: champions /
+   uniques (Corpsefire's mods), operable shrines and chests, then Cold Plains.
 2. Champions and uniques (FUN_005a43e0).
 3. Saving .d2s.
 4. Cold Plains and the rest of Act 1's outdoor levels.

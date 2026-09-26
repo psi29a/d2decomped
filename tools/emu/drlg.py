@@ -116,6 +116,23 @@ def tiles_dump(e, lvl):
     return "\n".join(out)
 
 
+def units_dump(e, lvl):
+    """Each room's units (room +0x5c, next +0xc) once rooms are up (tiles_dump brings them), list order:
+    type +0x14 : id +4, mode +0, room-relative subtiles x +8 / y +0x18, flags +0x1c."""
+    x0, y0 = e.s32(lvl + 0x1c), e.s32(lvl + 0x20)
+    rooms = []
+    r = e.r32(lvl + 0x10)
+    while r:
+        units = []
+        u = e.r32(r + 0x5c)
+        while u:
+            units.append(f"{e.s32(u + 0x14)}:{e.s32(u + 4)} m{e.s32(u)} {e.s32(u + 8)},{e.s32(u + 0x18)} f{e.r32(u + 0x1c):x}")
+            u = e.r32(u + 0xc)
+        if units: rooms.append((e.s32(r + 0x38) - y0, e.s32(r + 0x34) - x0, " ".join(units)))
+        r = e.r32(r + 0x24)
+    return "\n".join(f"units {x},{y}: {us}" for y, x, us in sorted(rooms))
+
+
 def level_dump(e, seed, lid):
     act = alloc_act(e, 0, seed, lid)
     lvl = find_level(e, act, lid)
@@ -137,5 +154,6 @@ if __name__ == "__main__":
             with open(f"{sys.argv[3]}/{seed}.txt", "w") as f: f.write(level_dump(e, seed, lid) + "\n")
     else:
         print(level_dump(e, int(sys.argv[1], 0), lid))
-        if len(sys.argv) > 3 and sys.argv[3] == "tiles":
-            print(tiles_dump(e, _last_level))
+        if len(sys.argv) > 3 and sys.argv[3] in ("tiles", "units"):
+            t = tiles_dump(e, _last_level)
+            print(t if sys.argv[3] == "tiles" else units_dump(e, _last_level))

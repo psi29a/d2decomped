@@ -104,6 +104,21 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             t.player.walking = false;
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "warps" && t.level) {     // the level's warps: index, cell, where to
+            std::string out;
+            for (std::size_t i = 0; i < t.level->warps.size(); ++i)
+                out += std::format("{}\t{:.1f}\t{:.1f}\t{}\n", i, t.level->warps[i].x, t.level->warps[i].y, t.level->warps[i].to);
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "enter" && t.level) {     // stand by warp i as if clicked: the next frame takes it
+            const auto i = std::size_t(std::atoi(args[2].c_str()));
+            if (i >= t.level->warps.size()) return std::string("err no such warp\n");
+            std::tie(t.player.x, t.player.y) = t.level->nearest_free(t.level->warps[i].x + 0.5f, t.level->warps[i].y + 1.5f);
+            t.target_x = t.player.x; t.target_y = t.player.y;
+            t.player.walking = false;
+            t.take_warp = int(i);
+            return std::string("ok\n");
+        }
         if (args.size() >= 4 && args[1] == "stat") {       // set character stat <id 0..15> to <value>
             const int id = std::atoi(args[2].c_str());
             if (id < 0 || id > 15) return std::string("err stat 0..15\n");

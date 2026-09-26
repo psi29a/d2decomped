@@ -12,12 +12,19 @@
 
 #include <outdoor.hpp>
 #include <tile_pick.hpp>
+#include <units.hpp>
+
+#include <map>
 
 #include <array>
 #include <string>
 #include <vector>
 
 namespace d2d::drlg {
+
+// A level's warp slot (Levels.txt Warp0..7): its LvlWarp row — Id, lit
+// (LitVersion), and the warp unit's offset from its tile (OffsetX / Y).
+struct WarpSlot { int id = -1; bool lit = false; int off_x = 0, off_y = 0; };
 
 // A tile a room holds: level-relative x, y; the word it came from.
 struct PlacedTile {
@@ -37,6 +44,8 @@ struct BuiltRoom {
     // level-relative cell and slot — where the warp unit stands (FUN_0066e1c0).
     struct Warp { int x, y, slot; };
     std::vector<Warp> warps;
+    // Units for the server (room +0x5c): room-relative subtiles, newest first.
+    std::vector<Unit> units;
     bool up = false;
     const PlainRoom* plain = nullptr;
     const Outdoor::RoomSeed* seed = nullptr;
@@ -72,20 +81,20 @@ inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, 
 
 // Every room of a level with its tiles; `made` in the order game.exe made
 // them (Outdoor::rooms, generate_maze), `plain` an outdoor level's plain rooms.
-// `lit`: which of the level's warp slots (Levels.txt Warp0..7) name a
-// LvlWarp row with LitVersion set.
+// `slots`: the level's warp slots (warp_slots).
 inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& made, const std::vector<PlainRoom>& plain,
                                                const OutdoorData& od, const RoomDt1s& d, int level,
-                                               const std::array<bool, 8>& lit, std::vector<std::string>& notes) {
+                                               const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes) {
     using namespace room_tiles_detail;
     auto note = [&](std::string n) { if (std::ranges::find(notes, n) == notes.end()) notes.push_back(std::move(n)); };
     std::vector<BuiltRoom> rooms;                       // game.exe's list: newest room first
     for (auto it = made.rbegin(); it != made.rend(); ++it) {
-        BuiltRoom b{ it->x, it->y, it->w, it->h, it->kind, {}, {}, {}, false, nullptr, &*it };
+        BuiltRoom b{ it->x, it->y, it->w, it->h, it->kind, {}, {}, {}, {}, false, nullptr, &*it };
         if (it->kind == 1)
             for (const auto& p : plain) if (p.x == it->x && p.y == it->y) b.plain = &p;
         rooms.push_back(std::move(b));
     }
+    std::map<std::pair<int, int>, std::vector<Unit>> preset_units;   // by the preset's origin: units no room has taken yet
     for (std::size_t ri = 0; ri < rooms.size(); ++ri) {
         auto& R = rooms[ri];
         R.up = true;
@@ -97,6 +106,36 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             pre = &it->second;
             map = R.seed->file < 6 ? pre->maps[std::size_t(R.seed->file)] : nullptr;
             if (!map) { note("drlg: preset " + std::to_string(R.seed->def) + " file not loaded"); continue; }
+        }
+        if (R.plain) {
+            R.units = R.plain->units;                   // the stamps' objects (made at the room's init)
+        } else {
+            // The preset's units, the first time one of its rooms comes up
+            // (FUN_00667890 -> FUN_00667620; a maze made them at generation,
+            // FUN_00667970), then this room takes the ones inside it (FUN_00666710).
+            auto key = std::pair{ R.seed->px, R.seed->py };
+            auto pu = preset_units.find(key);
+            if (pu == preset_units.end()) {
+                auto list = ds1_units(*map, od.ids);
+                std::ranges::reverse(list);             // copied into the preset's list front-first again (FUN_00667510)
+                for (auto& u : list) {
+                    if (rolled_unit(u, od.ids)) note("drlg: preset units that roll to stay (FUN_00667620) not implemented");
+                    u.x += R.seed->px * 5;
+                    u.y += R.seed->py * 5;
+                }
+                if (level == 2 && R.seed->def >= 4 && R.seed->def <= 7 && R.seed->file == 3 && od.ids.monstats > 0x10a)
+                    list.insert(list.begin(), { 1, 0x10a, 1, (R.seed->px + pre->w / 2) * 5, (R.seed->py + pre->h / 2) * 5, 0 });   // FUN_006664a0: Flavie
+                pu = preset_units.emplace(key, std::move(list)).first;
+            }
+            auto& list = pu->second;
+            for (auto it = list.begin(); it != list.end();) {
+                if (it->x >= R.x * 5 && it->y >= R.y * 5 && it->x < (R.x + R.w) * 5 && it->y < (R.y + R.h) * 5) {
+                    R.units.insert(R.units.begin(), { it->type, it->id, it->mode, it->x - R.x * 5, it->y - R.y * 5, it->flags });
+                    it = list.erase(it);
+                } else {
+                    ++it;
+                }
+            }
         }
         const auto list = room_dt1_list(R.plain ? R.plain->dt1_mask : pre->dt1_mask, d);
         const auto nearby = near_rooms(rooms, ri);
@@ -179,7 +218,10 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 if ((o == 8 || o == 9) && (level < 111 || (level > 112 && level != 117))) { note("drlg: hidden orientation 8/9 tiles (FUN_0066d9e0) not implemented"); return; }
                 if (o == 10 || o == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     R.warps.push_back({ x, y, style });
-                    if (lit[std::size_t(style)])         // style <= 7 here: the warp slot
+                    const auto& ws = slots[std::size_t(style)];   // style <= 7 here: the warp slot
+                    if (ws.id >= 0 && x - R.x != R.w && y - R.y != R.h)   // the warp unit
+                        R.units.insert(R.units.begin(), { 5, ws.id, 0, (x - R.x) * 5 + ws.off_x, (y - R.y) * 5 + ws.off_y, 0 });
+                    if (ws.lit)
                         for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
                             const std::uint32_t lw = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;
                             const auto [f, i] = pick(0, lw);

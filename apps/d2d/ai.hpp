@@ -302,6 +302,7 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
         m.st = d2d::rules::monster_stats(s.monsters, sp.type, difficulty, rng);
         m.hp = m.st.hp;
         m.leader = sp.leader;
+        if (sp.super >= 0 && std::size_t(sp.super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(sp.super)].name;
         m.difficulty = std::clamp(difficulty, 0, 2);
         out.push_back(std::move(m));
     }

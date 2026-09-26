@@ -18,6 +18,8 @@
 namespace fs = std::filesystem;
 using namespace d2d::drlg;
 
+static bool g_units = false;                            // print rooms' units instead of their tiles
+
 static std::string dump(const OutdoorAssets& a, std::uint32_t seed, int id, const RoomDt1s* dt1s = nullptr) {
     std::ostringstream os;
     auto pf = [&](const char* fmt, auto... v) { char b[256]; std::snprintf(b, sizeof b, fmt, v...); os << b; };
@@ -41,8 +43,17 @@ static std::string dump(const OutdoorAssets& a, std::uint32_t seed, int id, cons
         for (const auto& r : sorted)
             pf("%d,%d %dx%d kind %d seed %08x def %d file %d at %d,%d\n", r.x, r.y, r.w, r.h, r.kind, r.seed, r.def, r.file, r.px, r.py);
         if (dt1s) {
-            auto built = level_room_tiles(rooms, {}, a.data, *dt1s, id, lit_warps(a, id), notes);
+            auto built = level_room_tiles(rooms, {}, a.data, *dt1s, id, warp_slots(a, id), notes);
             std::ranges::sort(built, {}, [](const auto& r) { return std::tuple(r.y, r.x); });
+            if (g_units) {
+                for (const auto& r : built) {
+                    if (r.units.empty()) continue;
+                    pf("units %d,%d:", r.x, r.y);
+                    for (const auto& u : r.units) pf(" %d:%d m%d %d,%d f%x", u.type, u.id, u.mode, u.x, u.y, u.flags);
+                    pf("\n");
+                }
+                built.clear();
+            }
             for (const auto& r : built) {
                 const auto it = a.data.presets.find(r.seed->def);
                 const auto mask = it != a.data.presets.end() ? it->second.dt1_mask : 0u;
@@ -77,8 +88,17 @@ static std::string dump(const OutdoorAssets& a, std::uint32_t seed, int id, cons
     for (const auto& r : rooms) pf("%d,%d %dx%d kind %d seed %08x\n", r.x, r.y, r.w, r.h, r.kind, r.seed);
     auto notes = o.notes;
     if (dt1s) {                                         // plain rooms' tiles, as tools/emu/drlg.py tiles
-        auto built = level_room_tiles(o.rooms, o.plain, a.data, *dt1s, id, lit_warps(a, id), notes);
+        auto built = level_room_tiles(o.rooms, o.plain, a.data, *dt1s, id, warp_slots(a, id), notes);
         std::ranges::sort(built, {}, [](const auto& r) { return std::tuple(r.y, r.x); });
+        if (g_units) {
+            for (const auto& r : built) {
+                if (r.units.empty()) continue;
+                pf("units %d,%d:", r.x, r.y);
+                for (const auto& u : r.units) pf(" %d:%d m%d %d,%d f%x", u.type, u.id, u.mode, u.x, u.y, u.flags);
+                pf("\n");
+            }
+            built.clear();
+        }
         for (const auto& r : built) {
             const auto it = a.data.presets.find(r.seed->def);
             const auto mask = r.plain ? r.plain->dt1_mask : it != a.data.presets.end() ? it->second.dt1_mask : 0u;
@@ -106,7 +126,8 @@ int main(int argc, char** argv) {
     for (const char* n : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / n)) mpqs.push(dir / n);
     OutdoorAssets a;                                    // not const: load_room_dt1s adds to it
     load_outdoor_assets(a, [&](const std::string& p) { return mpqs.try_read(p); });
-    const bool tiles = argc > 4 && std::string(argv[argc - 1]) == "tiles";
+    g_units = argc > 4 && std::string(argv[argc - 1]) == "units";
+    const bool tiles = argc > 4 && (std::string(argv[argc - 1]) == "tiles" || g_units);
     RoomDt1s dt1s;
     if (tiles) {
         const auto row = level_row(a.levels, id);

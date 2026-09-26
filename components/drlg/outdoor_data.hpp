@@ -50,6 +50,22 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& a, Read&& read) {
     a.lvl_types = table("LvlTypes.txt");
     a.lvl_warp = table("LvlWarp.txt");
     a.lvl_maze = table("LvlMaze.txt");
+    // Unit ids (FUN_00665950): monpreset.bin is {int count; {byte act, byte kind, u16 id}[count]}.
+    if (const auto b = read(R"(data\global\excel\monpreset.bin)"); b && b->size() >= 4) {
+        auto u8 = [&](std::size_t o) { return int(std::to_integer<unsigned>((*b)[o])); };
+        const int n = u8(0) | u8(1) << 8 | u8(2) << 16 | u8(3) << 24;
+        for (int i = 0; i < n && std::size_t(4 + 4 * i + 3) < b->size(); ++i) {
+            const auto o = std::size_t(4 + 4 * i);
+            const int act = u8(o) - 1;
+            if (act >= 0 && act < 5) a.data.ids.monpreset[std::size_t(act)].emplace_back(u8(o + 1), u8(o + 2) | u8(o + 3) << 8);
+        }
+    }
+    for (const auto* name : { "MonStats.txt", "SuperUniques.txt" }) {
+        const auto t = table(name);
+        int rows = 0;
+        for (std::size_t r = 0; r < t.size(); ++r) rows += t.get(r, std::size_t{ 0 }) != "Expansion";
+        (std::string_view(name) == "MonStats.txt" ? a.data.ids.monstats : a.data.ids.superuniques) = rows;
+    }
     const auto prest = table("LvlPrest.txt");
     for (std::size_t r = 0; r < prest.size(); ++r) {
         const int def = to_int(prest.get(r, "Def"));
@@ -100,18 +116,19 @@ template <class Read> RoomDt1s load_room_dt1s(OutdoorAssets& a, Read&& read, int
 // Levels.txt row by Id.
 inline std::optional<std::size_t> level_row(const d2d::txt::Table& levels, int id);
 
-// Which of level `id`'s warp slots lead through a LvlWarp row with
-// LitVersion set (their tiles get a lit floor, FUN_0066e360).
-inline std::array<bool, 8> lit_warps(const OutdoorAssets& a, int id) {
-    std::array<bool, 8> lit{};
+// Level `id`'s warp slots (Levels.txt Warp0..7) with their LvlWarp rows.
+inline std::array<WarpSlot, 8> warp_slots(const OutdoorAssets& a, int id) {
+    std::array<WarpSlot, 8> slots{};
     const auto row = level_row(a.levels, id);
-    if (!row) return lit;
+    if (!row) return slots;
     for (int i = 0; i < 8; ++i) {
         const int w = to_int(a.levels.get(*row, "Warp" + std::to_string(i)), -1);
         for (std::size_t r = 0; w >= 0 && r < a.lvl_warp.size(); ++r)
-            if (to_int(a.lvl_warp.get(r, "Id"), -1) == w) lit[std::size_t(i)] = to_int(a.lvl_warp.get(r, "LitVersion")) != 0;
+            if (to_int(a.lvl_warp.get(r, "Id"), -1) == w)
+                slots[std::size_t(i)] = { w, to_int(a.lvl_warp.get(r, "LitVersion")) != 0, to_int(a.lvl_warp.get(r, "OffsetX")),
+                                          to_int(a.lvl_warp.get(r, "OffsetY")) };
     }
-    return lit;
+    return slots;
 }
 
 // Levels.txt row by Id.

@@ -532,6 +532,43 @@ d2d: `components/drlg/maze.hpp` (`generate_maze`). The Den of Evil
 three 24×24 caves, 27 rooms. 1.14d's LvlMaze.txt has one Rooms column
 (the game reads the .bin); d2d uses it for every difficulty.
 
+## Preset units (Preset.cpp)
+
+A room's unit list (room +0x5c, `{mode, id, x, next, path, type, y,
+flags}`, FUN_0066bf30, new units at the front; x, y subtiles from the
+room's corner) is what the server spawns from. Sources, in the order
+they're added:
+
+- A DS1's units as its loader lists them (FUN_00665950, file order, each
+  put at the front): type 1 monsters (v5+) through MonPreset for the DS1's
+  act (`monpreset.bin`: count, then `{act, kind, u16 id}`; kind 1 MonStats
+  row, 2 superunique → MonStats rows + i, 0 MonPlace → + superuniques + i),
+  mode 1; type 2 objects (v6+) through the act's table at 0x748ad8
+  (`components/drlg/obj_preset.hpp`), ids ≥ 150 less 150; flags from v6.
+  Row counts are the .bin's: 734 MonStats, 66 SuperUniques (the .txt
+  files' Expansion rows don't count).
+- A preset copies them into its record the first time one of its rooms
+  comes up (FUN_00667890 → FUN_00667620, each copy put at the front
+  again, so the record runs in file order; a maze did this at
+  generation, FUN_00667970). Some ids only stay on a roll of the room
+  seed (outdoors) or the level seed (maze): monsters 0xcc, 0xcd, 0x173,
+  0x174 (1 in 3), MonPlace 0x21 (3 in 4), 0x22 (1 in 2), 0x23 (1 in 4),
+  objects 0xc4, 0x105 (1 in 2), 0x245 (3 in 4).
+- Then, the first time: the Blood Moor's border openings (defs 4..7 file
+  3) get Flavie (MonStats 266, mode 1) at the preset's centre
+  (FUN_006664a0), at the front.
+- The room's preset init takes the record's units inside its rect
+  (FUN_00666710, record order, each put at the front of the room's list).
+- LvlSub stamps (FUN_0066fa10): the stamp DS1's units strictly inside the
+  group, moved to where the group went.
+- Warp tiles (FUN_0066e1c0): a type-5 unit, id the slot's LvlWarp Id,
+  at the tile (×5) plus LvlWarp OffsetX / Y, unless the tile is on the
+  room's far edge.
+
+d2d: `components/drlg/units.hpp` (`ds1_units`), `room_tiles.hpp`
+(`BuiltRoom::units`); the app makes them objects, NPCs and monsters
+(`load_npcs`, `load_monsters`).
+
 ## Checking against game.exe — what's proven, what isn't
 
 **How it's proven.** `tools/emu` runs game.exe 1.14d itself under unicorn:
@@ -555,6 +592,8 @@ values (seed 3) so a regression shows without the emulator.
 | Every room's tiles: walls, floors, shadows, each as DT1 file + tile index (grass, roads, LvlSub stamps and their shadows, preset rooms, FillBlanks, edge sharing, the Den entrance's lit floor) | Blood Moor | 1–1500, 0xfffffc18–0xffffffff |
 | Maze: rooms grown, special rooms, presets by links, file rotation, the 8x8 split, every room's seed | Den of Evil (8) | 1–2000 |
 | Every room's tiles | Den of Evil | 1–1000 |
+| Every room's units (room +0x5c, list order): preset monsters, superuniques (Corpsefire), objects (shrines, torches, chests), LvlSub stamp objects, Flavie at the border opening, warp units | Blood Moor | 1–1500, 0xfffffe00–0xffffffff |
+| Every room's units | Den of Evil | 1–1500 |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -584,14 +623,14 @@ Conditions those results hold under, so they aren't overstated:
 | Other outdoor levels (Cold Plains, Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, waypoints (FUN_00674b70), per-level fills | not ported |
 | Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
 | Other maze level types (crypts, act 2+) | not ported |
-| Preset units (FUN_00667620): monsters and objects from preset DS1s | not ported |
-| LvlSub stamp objects (shrines, waypoints) | not ported |
+| Preset units that roll to stay (FUN_00667620: traps, Diablo's towers, some MonPlace codes) | not ported (act 1's outdoor and cave presets have none; logged if met) |
+| Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
 | Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
 | Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
 | The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player (LvlWarp ExitWalk read as subtiles from the warp's cell) and what counts as clicking one (2 cells, not LvlWarp's Select box) are guesses | wired up; warp arrival not diffed |
-| The Den's Corpsefire (a superunique from its preset), and monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | not ported / not diffed |
+| What the server does with units: superunique mods and stat bonuses, minion placement, MonPlace units; objects' behaviour (shrines, chests); monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | partly built, not diffed |
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
 `outdoor_data.hpp`, `tests/test_outdoor.cpp`; the app's `load_wilderness`

@@ -7,6 +7,7 @@
 #include <drlg.hpp>
 #include <ds1.hpp>
 #include <tile_pick.hpp>
+#include <units.hpp>
 
 #include <algorithm>
 #include <array>
@@ -36,6 +37,7 @@ struct OutdoorData {
     std::unordered_map<int, Preset> presets;           // by Def
     std::vector<Sub> subs;                              // file order
     const RoomDt1s* dt1s = nullptr;                     // set: stamps pick their shadow tiles (FUN_0066e060)
+    UnitIds ids;                                        // how DS1 units' ids map
 };
 // A walkable neighbour: its placed rect and its slot in this level's Vis.
 struct Neighbour { Placed rect; int slot = 0; };
@@ -57,6 +59,7 @@ struct PlainRoom {
     std::array<std::uint32_t, 81> orient{}, wall{}, floor{}, shadow{};
     d2d::rules::Rng seed;                               // the room seed after its init; the tile picks go on from here
     std::vector<RoomTile> tiles;                        // shadows the stamps picked (with OutdoorData::dt1s)
+    std::vector<Unit> units;                            // the stamps' objects, room-relative subtiles, newest first
 };
 struct Outdoor {
     int cw = 0, ch = 0;                                 // cells (8x8 tiles)
@@ -822,9 +825,10 @@ inline void stamp_room(Room& r, const OutdoorData& d, const OutdoorLevel& L, d2d
                         r.shadow[i] = sh;
                     }
                 }
-            if (!m.objects().empty()) {
-                const std::string n = "drlg: LvlSub stamp objects (shrines, waypoints) not implemented";
-                if (std::ranges::find(notes, n) == notes.end()) notes.push_back(n);
+            for (const auto& u : ds1_units(m, d.ids)) {                          // FUN_0066fa10: the group's objects
+                const int gx = g.x * 5, gy = g.y * 5;
+                if (gx < u.x && gy < u.y && u.x < gx + g.w * 5 && u.y < gy + g.h * 5)
+                    r.units.insert(r.units.begin(), { u.type, u.id, u.mode, u.x - gx + x * 5, u.y - gy + y * 5, u.flags });
             }
         };
         const int max = sub.max[std::size_t(theme)];

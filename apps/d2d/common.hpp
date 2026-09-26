@@ -33,7 +33,7 @@
 #include "npc_talk.hpp"
 #include "speech_sound.hpp"
 #include "video.hpp"
-#include "obj_preset.hpp"
+#include <obj_preset.hpp>
 
 #include <SDL3/SDL.h>
 

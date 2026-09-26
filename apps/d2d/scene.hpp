@@ -107,6 +107,10 @@ struct Level {
     // stands (its LvlWarp ExitWalk, subtiles from the cell).
     struct Warp { float x, y; int to; float exit_x, exit_y; };
     std::vector<Warp> warps;
+    // Its rooms' preset units (drlg level_room_tiles, proven against
+    // game.exe): level-relative subtiles; load_npcs / load_monsters make
+    // them objects, NPCs and monsters.
+    std::vector<d2d::drlg::Unit> units;
     // Monsters: its Levels.txt columns, the rooms the generator made and
     // what populating them spawned (subtiles, level-relative).
     d2d::rules::LevelMon mon;
@@ -292,6 +296,10 @@ struct Scene {
     Level town;                                        // the Rogue Encampment
     Level moor;                                        // the Blood Moor, generated from map_seed
     Level den;                                         // the Den of Evil (maze), from map_seed
+    // SuperUniques.txt (without its Expansion row): name, MonStats row of
+    // its Class, minions.
+    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; };
+    std::vector<SuperUnique> superuniques;
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the
