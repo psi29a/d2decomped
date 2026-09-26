@@ -53,13 +53,75 @@ seed: parity bit picks the axis, `rand(c)` the offset, two sign bits), the
 first spot inside the room whose collision (FUN_0064d9b0, MonStats2
 spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
 
+## Champions and uniques
+
+- **The roll** (FUN_005be020, room seed) per spawn hit: while the level has
+  made fewer uniques than MonUMin (region +0x2c8 vs +700), a unique when
+  `rand(100) < rooms_done·100 / rooms_in_level` (+4, counted by
+  FUN_0054ebc0 each room; +0xc); else while under MonUMax (+0x2bd), a unique
+  when `rand(100) < 6`; else one more roll, 1 or 2, and FUN_0054ec90 turns 1
+  into 2: a group. Normal act 1 has MonUMin / MonUMax 0; the Blood Moor
+  has 4 / 5 in nightmare, 7 / 9 in hell; the Den of Evil none.
+- **The unique** (FUN_0054ec90 → FUN_005a43e0(game, room, 1, 0, 0, 1)): a
+  type picked again (FUN_005bde80 unique flag: nightmare / hell from the
+  region's rarity list; normal from Levels.txt umon1..), placed like a
+  group's leader (FUN_005a09e0 → FUN_0054dc40), counted (FUN_005a0320).
+- **Champion or unique** (FUN_005a0760, the monster's own seed at unit
+  +0x20): `rand(100) <` MonUMod row 0's `constants` (20) → champion (flags
+  |= 4) with one champion mod (FUN_005a0500: MonUMod rows with `champion`
+  set, `cpick` weights for the difficulty); else `rand(1) + 1 + difficulty`
+  unique mods, at most 8 in all (FUN_005a0600: rows without `champion`,
+  `upick` weights, none twice). A row is allowed (FUN_005a03e0) when
+  enabled, not an LoD row in a classic game, the monster isn't of an
+  `exclude1/2` MonType, and fPick 2 (multishot) isn't on a melee monster
+  (fPick 1 / 3 test FUN_0046c140).
+- **Its company**: a champion (FUN_0054e1e0) brings `rand(3) + 1` more of
+  its type at radius 4, each a champion with mod 16 (FUN_005a48c0); a
+  unique (FUN_005a0c00 from FUN_005a2120) brings `rand(4) + 3` of MonStats
+  minion1 (else its own type) at radius 3, flagged minions (0x10).
+- **What the mods do** (FUN_005a2120: fixed mods 1..4 for uniques, 0x6e2168,
+  then its own, through the table at 0x73c008), with MonUMod's
+  `constants` column (row: 0 champion chance, 1–3 minion +hp%, 4–6
+  champion +hp%, 7–9 unique +hp%, 10 champion +tohit%, 11 champion +dmg%,
+  12 minion +tohit%, 13 unique +tohit%, 14 minion +dmg% (strong), 15
+  unique +dmg% (strong), 16–21 minion elemental min / max %, 22–27
+  champion's, 28–33 unique's; each triple by difficulty):
+  - 1 rndname: the name seed (monster data +0x14) from the monster seed;
+  - 2 hpmultiply (FUN_005a0dc0 → FUN_005a0d20): life += life × (+hp% row);
+  - 4 leveladd (FUN_005a0e40): level + 3, experience × 5;
+  - 16 champion (FUN_005a0e80): level − 1 (net + 2), experience − 2/5 (×
+    3), +dmg% (stat 0x19) and +tohit% (0x77) from rows 11 / 10 scaled by
+    the difficulty's +0x34 percentage, velocity + 20 %;
+  - 5 strong (FUN_005a17e0): rows 15 / 13 (unique) or 14 / 12 (minion);
+  - 6 fast (FUN_005a1910): velocity % = 2048 / MonStats Velocity − 128,
+    10..100;
+  - 9 / 17 / 18 fire / lightning / cold enchanted (FUN_005a1990 & co):
+    element min / max = MonLvl damage for its level × (elemental rows) %,
+    then FUN_005a1370;
+  - FUN_005a1370, unless the monster already has two immunities: 8 magic
+    resistant +40 cold, fire, lightning (each under 100); 9 / 18 / 17 / 23
+    +75 fire / cold / lightning / poison; 25 mana burn +20 magic; 27
+    spectral hit +20 cold, fire, lightning (each under 75); 28 stone skin
+    defence × 2, damage reduction + 50.
+- Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
+  superuniques their SuperUniques TC (by difficulty).
+
+d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`),
+`populate_room` with a `Population`; the app populates each difficulty at
+load and applies the stats when a game's monsters are made. Not proven
+against game.exe: the monster's own seed isn't the game's (unit creation
+isn't emulated), and the behaviour mods (auras, enchanted death
+explosions and charged bolts, teleport, mana burn, multishot, curses,
+ghostly / fanatic / possessed / berserk) and random unique names
+(UniquePrefix / Suffix / Appellation) aren't built.
+
 ## Not yet traced / approximated
 
 - Room activation order (game.exe populates when a room first becomes
   active; we do every room at load in cell order) and the game seed itself
   (we use the map seed).
 - The seed at `+0x20` used for party and group counts (we use the room's).
-- Uniques/champions (FUN_005a43e0), the `spawn` replacement, level def
+- The `spawn` replacement, level def
   `+0x31`'s first-pick retry.
 - The monster's component roll and stat init.
 

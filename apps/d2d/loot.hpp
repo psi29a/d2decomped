@@ -40,7 +40,15 @@ struct Loot {
     // goes to the nearest free spot within half a cell.
     void drop(const Monster& m, std::uint32_t ms) {
         const int diff = cc.header.active_difficulty();
-        const auto& tc = scene->monsters.types[std::size_t(m.type)].diff[std::size_t(std::clamp(diff, 0, 2))].tc;
+        // Champions drop from TreasureClass2, uniques from 3, superuniques
+        // from their SuperUniques TC (for the difficulty).
+        const auto d = std::size_t(std::clamp(diff, 0, 2));
+        const auto& t = scene->monsters.types[std::size_t(m.type)];
+        const std::string& tc = m.super >= 0 && std::size_t(m.super) < scene->superuniques.size() && !scene->superuniques[std::size_t(m.super)].tc[d].empty()
+                                    ? scene->superuniques[std::size_t(m.super)].tc[d]
+                              : m.boss == d2d::rules::Boss::champion && !t.tc_champion[d].empty() ? t.tc_champion[d]
+                              : m.boss == d2d::rules::Boss::unique && !t.tc_unique[d].empty()     ? t.tc_unique[d]
+                                                                                                   : t.diff[d].tc;
         std::vector<d2d::rules::Drop> drops;
         d2d::rules::roll_drops(scene->rules, tc, m.st.level, rng, drops);
         for (const auto& d : drops) put(d, m.u.x, m.u.y, m.st.level, ms);

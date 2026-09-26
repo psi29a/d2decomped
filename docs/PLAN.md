@@ -333,8 +333,9 @@ Town
 1. DRLG: done and proven for the Blood Moor and the Den of Evil (layout,
    room seeds, tiles; docs/research/re/drlg.md "Checking against
    game.exe"), drawn and walkable in d2d, the Den entered by its warp.
-   Preset units too (Corpsefire, shrines, Flavie). Left: champions /
-   uniques (Corpsefire's mods), operable shrines and chests, then Cold Plains.
+   Preset units too (Corpsefire, shrines, Flavie). Champions and uniques
+   roll in nightmare / hell (docs/research/re/monsters.md). Left: their
+   behaviour mods and names, operable shrines and chests, then Cold Plains.
 2. Champions and uniques (FUN_005a43e0).
 3. Saving .d2s.
 4. Cold Plains and the rest of Act 1's outdoor levels.

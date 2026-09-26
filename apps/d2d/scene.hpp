@@ -115,7 +115,7 @@ struct Level {
     // what populating them spawned (subtiles, level-relative).
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
-    std::vector<d2d::rules::Spawn> spawns;
+    std::array<std::vector<d2d::rules::Spawn>, 3> spawns;   // by difficulty
 };
 
 struct Scene {
@@ -298,8 +298,9 @@ struct Scene {
     Level den;                                         // the Den of Evil (maze), from map_seed
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
-    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; };
+    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc; };
     std::vector<SuperUnique> superuniques;
+    d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the

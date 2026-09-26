@@ -69,5 +69,32 @@ int main() {
         assert(s.level == 1 && s.hp >= 7 && s.hp <= 12);
         assert(s.ac == 5 && s.th == 8 && s.a1_min == 1 && s.a1_max == 3 && s.exp == 33);
     }
+    // Champions and uniques (uniques.hpp) on a small MonUMod: champion
+    // chance 20; hell uniques take 3 mods, never twice; the stat rules.
+    {
+        UMods um;
+        um.k = { 20, 100, 75, 50, 200, 150, 100, 300, 200, 100, 75, 100, 50, 100, 75, 150, 0, 33, 33, 0, 50, 50, 33, 33, 33,
+                 50, 50, 50, 66, 66, 66, 100, 100, 100 };
+        for (int id : { 5, 6, 8, 9, 17, 18, 27, 28 }) um.rows.push_back({ id, true, false, 0, "", "", {}, { 6, 6, 6 } });
+        um.rows.push_back({ 16, true, true, 0, "", "", { 1, 1, 1 }, {} });
+        MonType t;
+        t.velocity = 6;
+        t.diff[2].res = { 0, 0, 0, 0, 0, 0 };
+        int champions = 0;
+        for (std::uint32_t seed = 1; seed <= 1000; ++seed) {
+            Rng r{ seed };
+            const auto b = roll_boss(um, t, 2, true, r);
+            if (b.kind == Boss::champion) { ++champions; assert(b.mods == std::vector<int>{ 16 }); continue; }
+            assert(b.mods.size() == 3 && b.mods[0] != b.mods[1] && b.mods[1] != b.mods[2] && b.mods[0] != b.mods[2]);
+        }
+        assert(champions > 140 && champions < 260);                     // ~20 %
+        const auto u = boss_stats(um, t, Boss::unique, { 9, 28 }, 2);   // hell: fire enchanted, stone skin
+        assert(u.level_add == 3 && u.exp_mult == 5 && u.hp_pct == 100 && u.elem == 0 && u.elem_min_pct == 66);
+        assert(u.res_add[2] == 75 && u.res_add[0] == 50 && u.double_defense);
+        const auto c = boss_stats(um, t, Boss::champion, { 16 }, 1);
+        assert(c.level_add == 2 && c.exp_mult == 3 && c.hp_pct == 150 && c.dmg_pct == 100 && c.tohit_pct == 75 && c.velocity_pct == 20);
+        const auto f = boss_stats(um, t, Boss::unique, { 6 }, 0);       // fast: 2048 / 6 - 128 -> 100 max
+        assert(f.velocity_pct == 100);
+    }
     std::puts("ok");
 }

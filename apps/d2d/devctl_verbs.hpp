@@ -277,8 +277,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             const float dx = m.u.x - t.player.x, dy = m.u.y - t.player.y;
             const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
-            out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\n", scene->monsters.types[std::size_t(m.type)].id,
-                               m.u.x, m.u.y, sx, sy, m.hp, m.st.hp, m.mode);
+            static constexpr std::array<const char*, 5> kBoss = { "-", "champion", "unique", "superunique", "minion" };
+            std::string mods;
+            for (const int md : m.mods) mods += (mods.empty() ? "" : ",") + std::to_string(md);
+            out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}/{}\t{}\t{}\t{}\tlvl{}\t{}\n", scene->monsters.types[std::size_t(m.type)].id,
+                               m.u.x, m.u.y, sx, sy, m.hp, m.st.hp, m.mode, kBoss[std::size_t(m.boss)], mods.empty() ? "-" : mods,
+                               m.st.level, m.npc.name);
         }
         return out + "ok\n";
     });

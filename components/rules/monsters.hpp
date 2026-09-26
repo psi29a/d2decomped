@@ -4,7 +4,9 @@
 // combat.hpp, what they drop in drops.hpp.
 #pragma once
 
+#include "montypes.hpp"
 #include "rules.hpp"
+#include "uniques.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,67 +17,6 @@
 #include <vector>
 
 namespace d2d::rules {
-
-// The MonStats / MonStats2 columns spawning and fighting read, per row.
-struct MonType {
-    std::string id, code, name_key, ai;         // Id, Code, NameStr, AI
-    int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
-    int min_grp = 0, max_grp = 0, party_min = 0, party_max = 0, sparse = 0, rarity = 0;
-    std::array<int, 2> minion{ -1, -1 };        // minion1/2 rows
-    std::array<int, 3> level{};                 // Level, Level(N), Level(H)
-    int velocity = 0, run = 0;
-    bool enabled = false, killable = false, melee = false;
-    bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
-    std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
-    std::string sound;                          // MonSound: its MonSounds.txt row
-    // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
-    std::array<std::string, 3> el_mode;
-    std::array<int, 3> el_type{ -1, -1, -1 };
-    bool can_block = false;                     // MonStats2 mBL
-    // Percentages of the MonLvl row (1.10+ style), per difficulty.
-    struct Diff {
-        int min_hp = 0, max_hp = 0, ac = 0, exp = 0;
-        int a1_min = 0, a1_max = 0, a1_th = 0, a2_min = 0, a2_max = 0, a2_th = 0;
-        int aidel = 0, aidist = 0;
-        std::array<int, 8> aip{};
-        std::string tc;                          // TreasureClass1
-        std::array<int, 6> res{};                // ResDm, ResMa, ResFi, ResLi, ResCo, ResPo (%)
-        int to_block = 0, drain = 100, cold_effect = 0;   // ToBlock, Drain (leech %), coldeffect (speed % while chilled)
-        struct El { int pct = 0, min = 0, max = 0, dur = 0; };
-        std::array<El, 3> el{};                  // El1..3 Pct / MinD / MaxD (MonLvl %) / Dur (ticks)
-    };
-    std::array<Diff, 3> diff{};
-    // MonStats2.
-    int size = 2;                               // SizeX
-    std::string base_w;                         // BaseW
-    std::array<std::vector<std::string>, 16> parts;   // HDv..S8v components, per layer present
-};
-
-// MonLvl.txt, by level: the base values MonStats' percentages apply to.
-struct MonLvl { std::array<int, 3> ac{}, th{}, hp{}, dm{}, xp{}; };
-
-struct Monsters {
-    std::vector<MonType> types;                 // MonStats rows
-    std::unordered_map<std::string, int> by_id;
-    std::vector<MonLvl> lvl;                    // by level
-    // By Id, any case (Skills.txt's summon says ClayGolem for claygolem).
-    [[nodiscard]] int row(std::string id) const {
-        if (const auto it = by_id.find(id); it != by_id.end()) return it->second;
-        for (auto& c : id) c = char(std::tolower(static_cast<unsigned char>(c)));
-        for (const auto& [k, v] : by_id)
-            if (k.size() == id.size() && std::ranges::equal(k, id, [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; })) return v;
-        return -1;
-    }
-};
-
-// Levels.txt monster columns for one level.
-struct LevelMon {
-    std::array<int, 3> density{};               // MonDen, (N), (H): chance in 100000 per 3x3 subtiles
-    std::array<int, 3> umin{}, umax{};          // MonUMin/Max (normal has none in 1.14d act 1)
-    bool wander = false;                        // MonWndr
-    int num_mon = 0;                            // NumMon
-    std::vector<int> mon, nmon;                 // mon1.., nmon1.. rows (normal / NM+hell)
-};
 
 // The level's monster region (FUN_005479c0 / FUN_005475e0): up to NumMon
 // (at most 13) types drawn without replacement from the difficulty's
@@ -103,7 +44,20 @@ inline Region monster_region(const Monsters& m, const LevelMon& L, int difficult
 
 // A spawned monster, in level-relative subtiles; `leader` is the index
 // of its group's first monster (itself for a leader).
-struct Spawn { int type = -1, x = 0, y = 0, leader = -1, super = -1; };   // super: SuperUniques row
+struct Spawn {
+    int type = -1, x = 0, y = 0, leader = -1, super = -1;     // super: SuperUniques row
+    Boss boss = Boss::none;                                   // champion / unique / its minion
+    std::vector<int> mods;                                    // MonUMod ids
+};
+
+// A level's population so far (monster region +4 rooms done, +0xc rooms
+// in the level, +0x2c8 uniques made) and what its uniques roll with.
+struct Population {
+    int rooms_done = 0, rooms_total = 0, uniques = 0;
+    int umin = 0, umax = 0;                                   // Levels MonUMin / MonUMax for the difficulty
+    int difficulty = 0;
+    const UMods* umods = nullptr;
+};
 
 // A room to populate: its rect in subtiles and its seed.
 struct SpawnRoom { int x = 0, y = 0, w = 0, h = 0; Rng seed; };
@@ -159,15 +113,29 @@ bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& ox, int&
 // soldiers come as one leader plus their party.
 // `fits(x, y)`: can a monster stand at subtile (x, y); `near_entrance(x, y)`:
 // too close to where players come in.
-// ponytail: champions/uniques not rolled; the seed at +0x20 the counts
-// use isn't identified — the room's seed stands in; MonStats `spawn`
-// replacements aren't applied (no act 1 wilderness monster has one).
+// With `pop`, champions and uniques as FUN_005be020 / FUN_005a43e0 roll them.
+// ponytail: the seed at +0x20 the counts use isn't identified — the
+// room's seed stands in; MonStats `spawn` replacements aren't applied (no
+// act 1 wilderness monster has one).
 template <class Fits, class Near>
 void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom room, Rng& game,
-                   Fits&& fits, Near&& near_entrance, std::vector<Spawn>& out) {
+                   Fits&& fits, Near&& near_entrance, std::vector<Spawn>& out, Population* pop = nullptr) {
     using monster_detail::place;
+    if (pop) ++pop->rooms_done;                                 // FUN_0054ebc0
     if (reg.types.empty() || density <= 0) return;
     density = std::min(density, 10000);
+    // FUN_0054dc40: a spot in the room (the rect shrunk by one subtile at
+    // the top left), 20 tries, not by an entrance, where a monster fits.
+    auto spot = [&](int& sx, int& sy) {
+        const int rx = room.x + 1, ry = room.y + 1, rw = room.x + room.w - rx, rh = room.y + room.h - ry;
+        for (int tries = 0; tries < 20; ++tries) {
+            const int x = room.seed(rw) + rx, y = room.seed(rh) + ry;
+            if (near_entrance(x, y)) continue;
+            int px, py;
+            if (place(room, x, y, -1, fits, px, py)) { sx = x; sy = y; return true; }
+        }
+        return false;
+    };
     for (int n = (room.h / 3) * (room.w / 3); n > 0; --n) {
         if (int(game.next() % 100000) > density) continue;
         int r = room.seed(reg.total) + 1;               // rarity pick
@@ -176,23 +144,50 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
         k = std::min(k, reg.types.size() - 1);
         const int type = reg.types[k].first;
         const auto& t = m.types[std::size_t(type)];
-        (void)room.seed(100);                           // FUN_005be020's roll: a group either way
+        // FUN_005be020 (room seed): a unique while under MonUMin (chance
+        // rooms done / rooms in the level) or under MonUMax (6 %); else a
+        // group (its champion answer, 1, becomes a group too).
+        bool boss = false;
+        if (pop && pop->uniques < pop->umin && pop->rooms_total > 0)
+            boss = room.seed(100) < pop->rooms_done * 100 / pop->rooms_total;
+        if (pop && !boss && pop->uniques < pop->umax) boss = room.seed(100) < 6;
+        if (!boss) (void)room.seed(100);
+        if (boss && pop->umods) {
+            // FUN_005a43e0: one monster of a type picked again (FUN_005bde80
+            // unique pick: NM / hell use the region's list), at a spot
+            // (FUN_005a09e0), champion or unique (FUN_005a0760), then a
+            // champion's pack (FUN_0054e1e0) or a unique's minions (FUN_005a0c00).
+            // ponytail: normal's pick from Levels.txt umon1.. isn't there (act 1
+            // normal has MonUMin / MonUMax 0); a monster's own seed (unit
+            // +0x20) is the room's here; MonStats `spawn` replacement skipped.
+            int r2 = room.seed(reg.total) + 1;
+            std::size_t k2 = 0;
+            for (; k2 < reg.types.size(); ++k2) { r2 -= reg.types[k2].second; if (r2 < 1) break; }
+            const int utype = reg.types[std::min(k2, reg.types.size() - 1)].first;
+            int sx, sy, lx, ly;
+            if (!spot(sx, sy) || !place(room, sx, sy, -1, fits, lx, ly)) continue;
+            const auto& ut = m.types[std::size_t(utype)];
+            auto b = roll_boss(*pop->umods, ut, pop->difficulty, true, room.seed);
+            const int leader = int(out.size());
+            out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods });
+            ++pop->uniques;
+            int px, py;
+            if (b.kind == Boss::champion) {                       // FUN_0054e1e0: 1..3 more champions
+                for (int n = room.seed(3) + 1; n > 0; --n)
+                    if (place(room, lx, ly, 4, fits, px, py)) out.push_back({ utype, px, py, leader, -1, Boss::champion, { umod::champion } });
+            } else {                                              // FUN_005a0c00: 3..6 minions (minion1 or its own type)
+                const int mt = ut.minion[0] >= 0 ? ut.minion[0] : utype;
+                for (int n = room.seed(4) + 3; n > 0; --n)
+                    if (place(room, lx, ly, 3, fits, px, py)) out.push_back({ mt, px, py, leader, -1, Boss::minion, {} });
+            }
+            continue;
+        }
         int lo = t.min_grp, hi = t.max_grp;
         if (t.base == 19 || t.base == 91) lo = hi = 1;  // FUN_0054ec40
         if (t.sparse && t.sparse < int(game.next() % 100)) continue;
         if (!lo || !hi || lo > hi) continue;
-        // A spot in the room (the rect shrunk by one subtile at the top left).
-        const int rx = room.x + 1, ry = room.y + 1, rw = room.x + room.w - rx, rh = room.y + room.h - ry;
         int sx = 0, sy = 0;
-        bool found = false;
-        for (int tries = 0; tries < 20 && !found; ++tries) {
-            const int x = room.seed(rw) + rx, y = room.seed(rh) + ry;
-            if (near_entrance(x, y)) continue;
-            int px, py;
-            found = place(room, x, y, -1, fits, px, py);
-            if (found) { sx = x; sy = y; }
-        }
-        if (!found) continue;
+        if (!spot(sx, sy)) continue;
         int lx, ly;
         if (!place(room, sx, sy, -1, fits, lx, ly)) continue;
         const int leader = int(out.size());
@@ -221,12 +216,12 @@ struct MonStats {
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
     std::array<El, 3> el{};
 };
-inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& rng) {
+inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& rng, int level_add = 0) {
     MonStats s;
     if (type < 0 || std::size_t(type) >= m.types.size()) return s;
     const auto& t = m.types[std::size_t(type)];
     const int d = std::clamp(difficulty, 0, 2);
-    s.level = std::max(t.level[std::size_t(d)], 1);
+    s.level = std::max(t.level[std::size_t(d)] + level_add, 1);
     if (m.lvl.empty()) return s;
     const auto& L = m.lvl[std::min<std::size_t>(std::size_t(s.level), m.lvl.size() - 1)];
     const auto& p = t.diff[std::size_t(d)];

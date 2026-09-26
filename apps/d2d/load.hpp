@@ -295,6 +295,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             t.el_type[std::size_t(e)] = ty == kEl.end() ? -1 : int(ty - kEl.begin());
         }
         t.sound = g("MonSound");
+        t.montype = g("MonType");
         for (int d = 0; d < 3; ++d) {
             const std::string x = kSfx[d];
             auto& p = t.diff[std::size_t(d)];
@@ -307,6 +308,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             static constexpr const char* kRes[6] = { "ResDm", "ResMa", "ResFi", "ResLi", "ResCo", "ResPo" };
             for (int i = 0; i < 6; ++i) p.res[std::size_t(i)] = num(g(kRes[i] + x));
             p.to_block = num(g("ToBlock" + x));
+            t.tc_champion[std::size_t(d)] = g("TreasureClass2" + x);
+            t.tc_unique[std::size_t(d)] = g("TreasureClass3" + x);
             p.drain = g("Drain" + x).empty() ? 100 : num(g("Drain" + x));
             p.cold_effect = num(g("coldeffect" + x));
             for (int e = 0; e < 3; ++e) {
@@ -429,20 +432,40 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (su.get(r, "Superunique") == "Expansion") continue;
             const std::string key(su.get(r, "Name"));
             const auto v = lookup_string(scene, key);
+            std::vector<int> mods;
+            for (const char* c : { "Mod1", "Mod2", "Mod3" }) if (const int md = num(su.get(r, c)); md > 0) mods.push_back(md);
             scene.superuniques.push_back({ v ? u16_to_latin1(*v) : key, row(su.get(r, "Class")), num(su.get(r, "MinGrp")),
-                                           num(su.get(r, "MaxGrp")) });
+                                           num(su.get(r, "MaxGrp")), mods,
+                                           { std::string(su.get(r, "TC")), std::string(su.get(r, "TC(N)")), std::string(su.get(r, "TC(H)")) } });
+        }
+
+    // MonUMod.txt: champion / unique mods and the constants column.
+    if (const auto um = txt("MonUMod"); um.size() > 0)
+        for (std::size_t r = 0; r < um.size(); ++r) {
+            if (um.get(r, "uniquemod") == "Expansion") continue;
+            auto g = [&](const char* c) { return num(um.get(r, c)); };
+            const int id = g("id");
+            if (id >= 0 && id < 34) scene.umods.k[std::size_t(id)] = g("constants");
+            scene.umods.rows.push_back({ id, g("enabled") == 1, g("champion") == 1, g("fPick"), std::string(um.get(r, "exclude1")),
+                                         std::string(um.get(r, "exclude2")), { g("cpick"), g("cpick (N)"), g("cpick (H)") },
+                                         { g("upick"), g("upick (N)"), g("upick (H)") } });
         }
 
     // Each level's rooms populated, one game seed across them.
     // ponytail: the Blood Moor then the Den, both at load and in cell order;
     // game.exe populates a room when it first comes up, in whatever order
     // the player brings them, each level's region seeded when it's made.
+    // Every difficulty is its own game: its own region, density and (in
+    // nightmare and hell) champions and uniques (MonUMin / MonUMax).
+    for (int d = 0; d < 3; ++d) {
     d2d::rules::Rng game{ scene.map_seed };
     for (Level* wild : { &scene.moor, &scene.den }) {
         auto& L = *wild;
         if (L.rooms.empty() || L.walk.empty()) continue;
+        auto& spawns = L.spawns[std::size_t(d)];
         d2d::rules::Rng region_seed{ game.next() };
-        const auto region = d2d::rules::monster_region(M, L.mon, 0, region_seed);
+        const auto region = d2d::rules::monster_region(M, L.mon, d, region_seed);
+        d2d::rules::Population pop{ 0, int(L.rooms.size()), 0, L.mon.umin[std::size_t(d)], L.mon.umax[std::size_t(d)], d, &scene.umods };
         // Not within WarpDist (2025 = 45^2 subtiles) of where players come
         // in: the camp for the Blood Moor, the warps for a level entered by one.
         std::vector<std::array<int, 4>> ways;
@@ -471,45 +494,49 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             const int nmon = int(ms_bin.size());
             if (u.id < nmon) {
                 const auto r = ms_bin[std::size_t(u.id)];
-                if (ms.get(r, "npc") != "1") L.spawns.push_back({ int(r), u.x, u.y });
+                if (ms.get(r, "npc") != "1") spawns.push_back({ int(r), u.x, u.y });
                 continue;
             }
             const int su = u.id - nmon;
             if (std::size_t(su) >= scene.superuniques.size()) continue;       // MonPlace
             const auto& sup = scene.superuniques[std::size_t(su)];
             if (sup.type < 0) continue;
-            const int lead = int(L.spawns.size());
-            L.spawns.push_back({ sup.type, u.x, u.y, -1, su });
+            const int lead = int(spawns.size());
+            spawns.push_back({ sup.type, u.x, u.y, -1, su, d2d::rules::Boss::superunique, sup.mods });
             const int minion = M.types[std::size_t(sup.type)].minion[0] >= 0 ? M.types[std::size_t(sup.type)].minion[0] : sup.type;
             const int n = sup.min_grp + (sup.max_grp > sup.min_grp ? int(game.next() % std::uint32_t(sup.max_grp - sup.min_grp + 1)) : 0);
-            d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, n,
+            if (d == 0) d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, n,
                            (float(u.x) + 0.5f) / 5, (float(u.y) + 0.5f) / 5);
             for (int k = 0; k < n; ++k) {
                 const auto [fx, fy] = L.nearest_free((float(u.x) + 0.5f) / 5 + float(k % 3 - 1) * 0.6f, (float(u.y) + 0.5f) / 5 + float(k / 3 - 1) * 0.6f);
-                L.spawns.push_back({ minion, int(fx * 5), int(fy * 5), lead });
+                spawns.push_back({ minion, int(fx * 5), int(fy * 5), lead, -1, d2d::rules::Boss::minion, {} });
             }
         }
         for (const auto& rm : L.rooms) {
             // Clear ground, and no monster already within its 2-subtile
             // footprint (game.exe stamps each placed monster into collision, 0x800).
             auto fits = [&](int x, int y) {
-                for (const auto& o : L.spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
+                for (const auto& o : spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
                 return !L.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
             };
-            d2d::rules::populate_room(M, region, L.mon.density[0],
-                { rm.x * 5, rm.y * 5, rm.w * 5, rm.h * 5, d2d::rules::Rng{ rm.seed } }, game, fits, near_way, L.spawns);
+            d2d::rules::populate_room(M, region, L.mon.density[std::size_t(d)],
+                { rm.x * 5, rm.y * 5, rm.w * 5, rm.h * 5, d2d::rules::Rng{ rm.seed } }, game, fits, near_way, spawns, &pop);
         }
         std::array<int, 3> by{};
-        for (const auto& sp : L.spawns)
+        for (const auto& sp : spawns)
             for (std::size_t i = 0; i < region.types.size() && i < 3; ++i) by[i] += sp.type == region.types[i].first;
-        d2d::log::info("  Monsters: {} in {} ({})", L.spawns.size(), wild == &scene.moor ? "the Blood Moor" : "the Den of Evil", [&] {
+        int bosses = 0;
+        for (const auto& sp : spawns) bosses += sp.boss == d2d::rules::Boss::champion || sp.boss == d2d::rules::Boss::unique;
+        d2d::log::info("  Monsters ({}): {} in {} ({}), {} champions / uniques", kSfx[d][0] ? kSfx[d] : "normal", spawns.size(),
+                       wild == &scene.moor ? "the Blood Moor" : "the Den of Evil", [&] {
             std::string s;
             for (std::size_t i = 0; i < region.types.size() && i < 3; ++i)
                 s += (i ? ", " : "") + std::to_string(by[i]) + " " + M.types[std::size_t(region.types[i].first)].id;
             return s;
-        }());
+        }(), bosses);
     }
-    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: superunique mods, unique stat bonuses and TCs (placed as their class, named, with minions)");
+    }
+    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: champion / unique behaviour mods (auras, enchanted explosions, teleport, mana burn, multishot, curses) and random unique names");
 }
 
 // Skills (components/rules/skills.hpp): skillcalc.txt's operand names,
