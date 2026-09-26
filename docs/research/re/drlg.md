@@ -590,7 +590,8 @@ Conditions those results hold under, so they aren't overstated:
 | Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
 | Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
-| **The app:** d2d still draws the first matching DT1 tile, not the proven picks (`level_room_tiles`), and has no Den of Evil level to walk into | not wired up |
+| The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player (LvlWarp ExitWalk read as subtiles from the warp's cell) and what counts as clicking one (2 cells, not LvlWarp's Select box) are guesses | wired up; warp arrival not diffed |
+| The Den's Corpsefire (a superunique from its preset), and monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | not ported / not diffed |
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
 `outdoor_data.hpp`, `tests/test_outdoor.cpp`; the app's `load_wilderness`

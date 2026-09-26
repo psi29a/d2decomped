@@ -102,6 +102,11 @@ struct Level {
         return { x, y };
     }
     std::pair<float, float> start{ -1, -1 };            // cells: where a player joining arrives; see load_world
+    // Its warps (the units its hidden warp tiles make): cell, the level
+    // it leads to (Levels.txt Vis), and where someone arriving through it
+    // stands (its LvlWarp ExitWalk, subtiles from the cell).
+    struct Warp { float x, y; int to; float exit_x, exit_y; };
+    std::vector<Warp> warps;
     // Monsters: its Levels.txt columns, the rooms the generator made and
     // what populating them spawned (subtiles, level-relative).
     d2d::rules::LevelMon mon;
@@ -286,6 +291,7 @@ struct Scene {
     d2d::palette::Palette                    act1_pal;
     Level town;                                        // the Rogue Encampment
     Level moor;                                        // the Blood Moor, generated from map_seed
+    Level den;                                         // the Den of Evil (maze), from map_seed
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the

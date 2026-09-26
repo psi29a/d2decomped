@@ -88,7 +88,11 @@ struct Fight {
     Loot& loot;
     Cues& cues;
 
-    std::vector<Monster> monsters;         // the Blood Moor's (Level::spawns), kept while the game runs
+    std::vector<Monster> monsters;         // mon_level's (Level::spawns), kept while the game runs
+
+    const Level* mon_level = nullptr;                // whose monsters `monsters` are
+
+    std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     std::vector<Missile> missiles;         // in flight in the Blood Moor
     std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
     std::vector<std::pair<int, std::uint32_t>> strafe;   // Strafe's arrows to come: target, when
@@ -183,6 +187,9 @@ struct Fight {
     // A fresh game at `difficulty`: its monsters, nothing in flight.
     void new_game(int difficulty) {
         monsters = spawn_monsters(*scene, scene->moor, rng, difficulty);
+        mon_level = &scene->moor;
+        kept.clear();
+        kept[&scene->den] = spawn_monsters(*scene, scene->den, rng, difficulty);
         missiles.clear();
         regen.clear();
         charges.clear();
@@ -2701,8 +2708,8 @@ struct Fight {
         for (auto& p : pets)                                 // pets stand in the way too (Bone Wall)
             if (p.m.alive() && p.where == level) c.units.push_back(&p.m.u);
     }
-    // One frame of the fight in the Blood Moor (`in_moor`), and the merc's
-    // turn (following, outside it).
+    // One frame of the fight outside town (`in_moor`: in the level whose
+    // monsters these are), and the merc's turn (following, in town).
     void world(bool in_moor, std::uint32_t ms, float dt, const Crowd& crowd) {
         // Monsters think while the player is near (D2 runs the rooms
         // around each player); what they hit comes off the player's life,
@@ -2799,6 +2806,17 @@ struct Fight {
             }
         }
     }
+    // The player went to `to`: an outdoor level's monsters come back, the
+    // last one's are kept as they were; nothing in flight follows.
+    void enter(const Level* to) {
+        if (to == &scene->town || to == mon_level) return;
+        kept[mon_level] = std::move(monsters);
+        monsters = std::move(kept[to]);
+        mon_level = to;
+        missiles.clear();
+        attack_mon = merc_target = -1;
+        for (auto& p : pets) p.target = -1;
+    }
     // Monsters, missiles and the merc as units the world draws by depth.
     void units(const std::string* merc_label, std::vector<Unit>& out) const {
         if (merc && merc_npc)                          // npc -2: the merc, hoverable, no NPC menu
@@ -2807,7 +2825,7 @@ struct Fight {
         for (const auto& p : pets)
             if (p.where == level)
                 out.push_back({ p.m.u.x, p.m.u.y, &scene->npc_anim(p.m.npc, p.m.mode), p.m.u.dir, nullptr, p.m.u.mode_ms, -3 });
-        if (level != &scene->moor) return;
+        if (level != mon_level) return;
         for (const auto& mi : missiles)
             if (mi.info->dcc) {
                 Unit u{ mi.x, mi.y, nullptr, mi.dir, nullptr, mi.born, -1 };

@@ -33,6 +33,10 @@ struct BuiltRoom {
     // indices, newest first, chains newest first; floor chains vs the rest.
     struct Chain { bool floor; std::vector<std::size_t> tiles; };
     std::vector<Chain> chains;
+    // Hidden warp tiles (orientation 10/11, style = the level's warp slot):
+    // level-relative cell and slot — where the warp unit stands (FUN_0066e1c0).
+    struct Warp { int x, y, slot; };
+    std::vector<Warp> warps;
     bool up = false;
     const PlainRoom* plain = nullptr;
     const Outdoor::RoomSeed* seed = nullptr;
@@ -77,7 +81,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
     auto note = [&](std::string n) { if (std::ranges::find(notes, n) == notes.end()) notes.push_back(std::move(n)); };
     std::vector<BuiltRoom> rooms;                       // game.exe's list: newest room first
     for (auto it = made.rbegin(); it != made.rend(); ++it) {
-        BuiltRoom b{ it->x, it->y, it->w, it->h, it->kind, {}, {}, false, nullptr, &*it };
+        BuiltRoom b{ it->x, it->y, it->w, it->h, it->kind, {}, {}, {}, false, nullptr, &*it };
         if (it->kind == 1)
             for (const auto& p : plain) if (p.x == it->x && p.y == it->y) b.plain = &p;
         rooms.push_back(std::move(b));
@@ -174,6 +178,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (w & 0x80000000u) {
                 if ((o == 8 || o == 9) && (level < 111 || (level > 112 && level != 117))) { note("drlg: hidden orientation 8/9 tiles (FUN_0066d9e0) not implemented"); return; }
                 if (o == 10 || o == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
+                    R.warps.push_back({ x, y, style });
                     if (lit[std::size_t(style)])         // style <= 7 here: the warp slot
                         for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
                             const std::uint32_t lw = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;

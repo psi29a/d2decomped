@@ -1,5 +1,5 @@
 // Loot: what kills drop (treasure classes, components/rules/drops.hpp) lying
-// on the Blood Moor's floor, drawn with each item's flippy, and picking it
+// on each level's floor, drawn with each item's flippy, and picking it
 // up into the purse or the inventory.
 #pragma once
 
@@ -23,7 +23,16 @@ struct Loot {
         std::string label;
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
     };
-    std::vector<GroundItem> ground;
+    std::vector<GroundItem> ground;        // ground_level's
+    const Level* ground_level = nullptr;
+    std::unordered_map<const Level*, std::vector<GroundItem>> kept;   // other levels' floors
+    // The player went to `to`: what lies on its floor, the last level's kept.
+    void enter(const Level* to) {
+        if (to == ground_level) return;
+        if (ground_level) kept[ground_level] = std::move(ground);
+        ground = std::move(kept[to]);
+        ground_level = to;
+    }
 
     // A kill's loot (MonStats TreasureClass1 for the difficulty) round
     // where it fell. Magic and better come unidentified.

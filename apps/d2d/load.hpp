@@ -10,6 +10,7 @@ namespace {
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a,
                      const std::vector<d2d::drlg::Placed>& layout);
+void load_den(Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a);
 
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
@@ -337,11 +338,11 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             L.xp[std::size_t(d)] = num(ml.get(r, "L-XP" + x));
         }
     }
-    auto& moor = scene.moor;
+    for (Level* wild : { &scene.moor, &scene.den })
     for (std::size_t r = 0; r < lv.size(); ++r) {
-        if (num(lv.get(r, "Id")) != moor.id || moor.id == 0) continue;
+        if (num(lv.get(r, "Id")) != wild->id || wild->id == 0) continue;
         auto g = [&](std::string c) { return lv.get(r, c); };
-        auto& L = moor.mon;
+        auto& L = wild->mon;
         L.density = { num(g("MonDen")), num(g("MonDen(N)")), num(g("MonDen(H)")) };
         L.umin = { num(g("MonUMin")), num(g("MonUMin(N)")), num(g("MonUMin(H)")) };
         L.umax = { num(g("MonUMax")), num(g("MonUMax(N)")), num(g("MonUMax(H)")) };
@@ -420,36 +421,53 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         }
         scene.missiles.emplace(name, std::move(mi));
     }
-    if (moor.rooms.empty() || moor.walk.empty()) return;
+    // Each level's rooms populated, one game seed across them.
+    // ponytail: the Blood Moor then the Den, both at load and in cell order;
+    // game.exe populates a room when it first comes up, in whatever order
+    // the player brings them, each level's region seeded when it's made.
     d2d::rules::Rng game{ scene.map_seed };
-    d2d::rules::Rng region_seed{ game.next() };
-    const auto region = d2d::rules::monster_region(M, moor.mon, 0, region_seed);
-    // Not within WarpDist (2025 = 45^2 subtiles) of the camp, where players come in.
-    const int tx0 = (scene.town.world_x - moor.world_x) * 5, ty0 = (scene.town.world_y - moor.world_y) * 5;
-    const int tx1 = tx0 + scene.town.ds1.width() * 5, ty1 = ty0 + scene.town.ds1.height() * 5;
-    auto near_camp = [&](int x, int y) {
-        const int dx = std::max({ tx0 - x, 0, x - tx1 }), dy = std::max({ ty0 - y, 0, y - ty1 });
-        return dx * dx + dy * dy < 2025;
-    };
-    for (const auto& rm : moor.rooms) {
-        // Clear ground, and no monster already within its 2-subtile
-        // footprint (game.exe stamps each placed monster into collision, 0x800).
-        auto fits = [&](int x, int y) {
-            for (const auto& o : moor.spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
-            return !moor.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+    for (Level* wild : { &scene.moor, &scene.den }) {
+        auto& L = *wild;
+        if (L.rooms.empty() || L.walk.empty()) continue;
+        d2d::rules::Rng region_seed{ game.next() };
+        const auto region = d2d::rules::monster_region(M, L.mon, 0, region_seed);
+        // Not within WarpDist (2025 = 45^2 subtiles) of where players come
+        // in: the camp for the Blood Moor, the warps for a level entered by one.
+        std::vector<std::array<int, 4>> ways;
+        if (wild == &scene.moor) {
+            const int tx0 = (scene.town.world_x - L.world_x) * 5, ty0 = (scene.town.world_y - L.world_y) * 5;
+            ways.push_back({ tx0, ty0, tx0 + scene.town.ds1.width() * 5, ty0 + scene.town.ds1.height() * 5 });
+        } else {
+            for (const auto& w : L.warps) ways.push_back({ int(w.x) * 5, int(w.y) * 5, int(w.x) * 5 + 5, int(w.y) * 5 + 5 });
+        }
+        auto near_way = [&](int x, int y) {
+            for (const auto& [x0, y0, x1, y1] : ways) {
+                const int dx = std::max({ x0 - x, 0, x - x1 }), dy = std::max({ y0 - y, 0, y - y1 });
+                if (dx * dx + dy * dy < 2025) return true;
+            }
+            return false;
         };
-        d2d::rules::populate_room(M, region, moor.mon.density[0],
-            { rm.x * 5, rm.y * 5, 40, 40, d2d::rules::Rng{ rm.seed } }, game, fits, near_camp, moor.spawns);
+        for (const auto& rm : L.rooms) {
+            // Clear ground, and no monster already within its 2-subtile
+            // footprint (game.exe stamps each placed monster into collision, 0x800).
+            auto fits = [&](int x, int y) {
+                for (const auto& o : L.spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
+                return !L.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+            };
+            d2d::rules::populate_room(M, region, L.mon.density[0],
+                { rm.x * 5, rm.y * 5, rm.w * 5, rm.h * 5, d2d::rules::Rng{ rm.seed } }, game, fits, near_way, L.spawns);
+        }
+        std::array<int, 3> by{};
+        for (const auto& sp : L.spawns)
+            for (std::size_t i = 0; i < region.types.size() && i < 3; ++i) by[i] += sp.type == region.types[i].first;
+        d2d::log::info("  Monsters: {} in {} ({})", L.spawns.size(), wild == &scene.moor ? "the Blood Moor" : "the Den of Evil", [&] {
+            std::string s;
+            for (std::size_t i = 0; i < region.types.size() && i < 3; ++i)
+                s += (i ? ", " : "") + std::to_string(by[i]) + " " + M.types[std::size_t(region.types[i].first)].id;
+            return s;
+        }());
     }
-    std::array<int, 3> by{};
-    for (const auto& sp : moor.spawns)
-        for (std::size_t i = 0; i < region.types.size() && i < 3; ++i) by[i] += sp.type == region.types[i].first;
-    d2d::log::info("  Monsters: {} in the Blood Moor ({})", moor.spawns.size(), [&] {
-        std::string s;
-        for (std::size_t i = 0; i < region.types.size() && i < 3; ++i)
-            s += (i ? ", " : "") + std::to_string(by[i]) + " " + M.types[std::size_t(region.types[i].first)].id;
-        return s;
-    }());
+    if (!scene.den.rooms.empty()) d2d::log::info("  not implemented: the Den's Corpsefire (a superunique from its preset)");
 }
 
 // Skills (components/rules/skills.hpp): skillcalc.txt's operand names,
@@ -976,12 +994,13 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                    { R"(data\global\ui\menu\expwaygatetabs.dc6)", &scene.wp_tabs[1] } })
             if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
     }
-    // Rogue Encampment / Blood Moor (Levels.txt Id 1 / 2): automap Layer,
+    // Rogue Encampment / Blood Moor / Den of Evil (Levels.txt Id 1 / 2 / 8): automap Layer,
     // and SoundEnv -> SoundEnviron Song / Day Ambience (Sounds.txt indices).
     {
         const auto lv = txt("Levels"), se = txt("SoundEnviron");
         for (std::size_t r = 0; r < lv.size(); ++r) {
-            Level* into = lv.get(r, "Id") == "1" ? &scene.town : lv.get(r, "Id") == "2" ? &scene.moor : nullptr;
+            const auto id = lv.get(r, "Id");
+            Level* into = id == "1" ? &scene.town : id == "2" ? &scene.moor : id == "8" ? &scene.den : nullptr;
             if (!into) continue;
             into->layer = std::atoi(std::string(lv.get(r, "Layer")).c_str());
             const auto env = lv.get(r, "SoundEnv");
@@ -1469,6 +1488,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
             if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
         scene.act1_layout = layout;
         load_wilderness(scene, mpqs, act1, layout);
+        load_den(scene, mpqs, act1);
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
         load_monsters(scene, mpqs);
@@ -1563,61 +1583,131 @@ void finish_level(Level& L) {
 // The Blood Moor from the map seed (components/drlg): act 1's layout
 // places it against the town, the generator fills it, its tiles come from
 // the Act 1 wilderness DT1s (LvlTypes).
-void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a,
-                     const std::vector<d2d::drlg::Placed>& layout) {
-    const auto t0 = d2d::log::ms();
-    const auto L = d2d::drlg::outdoor_level(a.levels, layout, 2);
-    if (L.rect.w == 0) { d2d::log::warn("wilderness: the layout placed no Blood Moor"); return; }
-    const auto row = d2d::drlg::level_row(a.levels, 2);
-    const int type = row ? d2d::drlg::to_int(a.levels.get(*row, "LevelType")) : 2;
-    auto& lv = scene.moor;
-    lv.id = 2;
-    lv.type = type;
-    // The DT1s its rooms list (LvlTypes files by mask bit, then Blank,
-    // InvisWal, Warp): headers for the picks, archives for drawing.
-    const auto read = [&](const std::string& p) { return mpqs.try_read(p); };
-    const auto heads = d2d::drlg::load_room_dt1s(a, read, type);
+// A generated level's DT1s: the headers its rooms' picks read (LvlTypes
+// files of its type by mask bit, then Blank, InvisWal, Warp) and the
+// archives drawn from, loaded into the level.
+struct LevelDt1s {
+    d2d::drlg::RoomDt1s heads;
     std::unordered_map<const d2d::drlg::Dt1File*, const d2d::dt1::Archive*> archive;
-    {
-        std::vector<std::pair<const d2d::drlg::Dt1File*, std::string>> files;
-        for (std::size_t r = 0; r < a.lvl_types.size(); ++r)
-            if (d2d::drlg::to_int(a.lvl_types.get(r, "Id"), -1) == type)
-                for (int i = 0; i < 32; ++i)
-                    if (heads.by_bit[std::size_t(i)]) files.emplace_back(heads.by_bit[std::size_t(i)], std::string(a.lvl_types.get(r, "File " + std::to_string(i + 1))));
-        for (std::size_t k = 0; k < 3; ++k)
-            if (heads.always[k]) files.emplace_back(heads.always[k], std::array{ "Act1/Outdoors/Blank.dt1", "Act1/Barracks/InvisWal.dt1", "Act1/Barracks/Warp.dt1" }[k]);
-        lv.dt1s.reserve(files.size());                  // archive points into it
-        for (const auto& [h, f] : files) {
-            auto db = mpqs.try_read(R"(data\global\tiles\)" + ds1_path_to_mpq(f));
-            if (!db) continue;
-            try { archive[h] = &lv.dt1s.emplace_back(*db); } catch (const std::exception& e) { d2d::log::warn("wilderness: {}: {}", f, e.what()); }
-        }
+};
+LevelDt1s load_level_dt1s(Level& lv, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, int type) {
+    LevelDt1s d;
+    d.heads = d2d::drlg::load_room_dt1s(a, [&](const std::string& p) { return mpqs.try_read(p); }, type);
+    std::vector<std::pair<const d2d::drlg::Dt1File*, std::string>> files;
+    for (std::size_t r = 0; r < a.lvl_types.size(); ++r)
+        if (d2d::drlg::to_int(a.lvl_types.get(r, "Id"), -1) == type)
+            for (int i = 0; i < 32; ++i)
+                if (d.heads.by_bit[std::size_t(i)]) files.emplace_back(d.heads.by_bit[std::size_t(i)], std::string(a.lvl_types.get(r, "File " + std::to_string(i + 1))));
+    for (std::size_t k = 0; k < 3; ++k)
+        if (d.heads.always[k]) files.emplace_back(d.heads.always[k], std::array{ "Act1/Outdoors/Blank.dt1", "Act1/Barracks/InvisWal.dt1", "Act1/Barracks/Warp.dt1" }[k]);
+    lv.dt1s.reserve(files.size());                      // archive points into it
+    for (const auto& [h, f] : files) {
+        auto db = mpqs.try_read(R"(data\global\tiles\)" + ds1_path_to_mpq(f));
+        if (!db) continue;
+        try { d.archive[h] = &lv.dt1s.emplace_back(*db); } catch (const std::exception& e) { d2d::log::warn("level {}: {}: {}", lv.id, f, e.what()); }
     }
-    a.data.dt1s = &heads;                               // stamps pick their shadows as they go (game.exe's rolls)
-    auto o = d2d::drlg::generate_outdoor(a.data, L, d2d::drlg::level_seed(scene.map_seed, 2));
-    auto notes = o.notes;
-    const auto built = d2d::drlg::level_room_tiles(o.rooms, o.plain, a.data, heads, 2, d2d::drlg::lit_warps(a, 2), notes);
-    a.data.dt1s = nullptr;
-    for (const auto& n : notes) d2d::log::info("  not implemented: {}", n);
-    lv.ds1 = std::move(o.tiles);
-    lv.rooms = std::move(o.rooms);
-    lv.world_x = L.rect.x;
-    lv.world_y = L.rect.y;
+    return d;
+}
+
+// Its rooms brought up (drlg level_room_tiles, proven against game.exe):
+// every cell's picked tiles, its warps, then lookup and collision.
+std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const LevelDt1s& d,
+                            const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
+                            std::vector<std::string>& notes) {
+    const auto built = d2d::drlg::level_room_tiles(made, plain, a.data, d.heads, lv.id, d2d::drlg::lit_warps(a, lv.id), notes);
     const int W = lv.ds1.width(), H = lv.ds1.height();
     lv.picks.assign(std::size_t(W) * std::size_t(H), {});
     std::size_t placed = 0;
     for (const auto& r : built)
         for (const auto& t : r.tiles) {
             if (t.x < 0 || t.y < 0 || t.x >= W || t.y >= H || !t.file || t.index < 0) continue;
-            const auto it = archive.find(t.file);
-            if (it == archive.end() || std::size_t(t.index) >= it->second->size()) continue;
+            const auto it = d.archive.find(t.file);
+            if (it == d.archive.end() || std::size_t(t.index) >= it->second->size()) continue;
             lv.picks[std::size_t(t.y) * std::size_t(W) + std::size_t(t.x)].push_back(
                 { std::uint8_t(t.layer), std::uint8_t(t.orient), &it->second->tiles()[std::size_t(t.index)] });
             ++placed;
         }
+    // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk.
+    // ponytail: ExitWalk read as subtiles from the warp's cell; check the
+    // arrival spot against game.exe when it matters.
+    if (const auto row = d2d::drlg::level_row(a.levels, lv.id))
+        for (const auto& r : built)
+            for (const auto& w : r.warps) {
+                if (w.slot < 0 || w.slot > 7) continue;
+                const int to = d2d::drlg::to_int(a.levels.get(*row, "Vis" + std::to_string(w.slot)));
+                const int wid = d2d::drlg::to_int(a.levels.get(*row, "Warp" + std::to_string(w.slot)), -1);
+                if (to <= 0 || wid < 0) continue;
+                float ex = 0, ey = 0;
+                for (std::size_t k = 0; k < a.lvl_warp.size(); ++k)
+                    if (d2d::drlg::to_int(a.lvl_warp.get(k, "Id"), -1) == wid) {
+                        ex = float(d2d::drlg::to_int(a.lvl_warp.get(k, "ExitWalkX"))) / 5;
+                        ey = float(d2d::drlg::to_int(a.lvl_warp.get(k, "ExitWalkY"))) / 5;
+                        break;
+                    }
+                lv.warps.push_back({ float(w.x), float(w.y), to, ex, ey });
+            }
     finish_level(lv);
-    d2d::log::info("  Blood Moor: {}x{} tiles at ({}, {}), {} roads, {} tilesets, {} picked tiles, map seed {} ({} ms)",
-                   W, H, lv.world_x, lv.world_y, o.roads.size(), lv.dt1s.size(), placed, scene.map_seed, d2d::log::ms() - t0);
+    return placed;
+}
+
+void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a,
+                     const std::vector<d2d::drlg::Placed>& layout) {
+    const auto t0 = d2d::log::ms();
+    const auto L = d2d::drlg::outdoor_level(a.levels, layout, 2);
+    if (L.rect.w == 0) { d2d::log::warn("wilderness: the layout placed no Blood Moor"); return; }
+    const auto row = d2d::drlg::level_row(a.levels, 2);
+    auto& lv = scene.moor;
+    lv.id = 2;
+    lv.type = row ? d2d::drlg::to_int(a.levels.get(*row, "LevelType")) : 2;
+    const auto dt1s = load_level_dt1s(lv, mpqs, a, lv.type);
+    a.data.dt1s = &dt1s.heads;                          // stamps pick their shadows as they go (game.exe's rolls)
+    auto o = d2d::drlg::generate_outdoor(a.data, L, d2d::drlg::level_seed(scene.map_seed, 2));
+    a.data.dt1s = nullptr;
+    auto notes = o.notes;
+    lv.ds1 = std::move(o.tiles);
+    lv.world_x = L.rect.x;
+    lv.world_y = L.rect.y;
+    const auto placed = set_level_tiles(lv, a, dt1s, o.rooms, o.plain, notes);
+    lv.rooms = std::move(o.rooms);
+    for (const auto& n : notes) d2d::log::info("  not implemented: {}", n);
+    d2d::log::info("  Blood Moor: {}x{} tiles at ({}, {}), {} roads, {} tilesets, {} picked tiles, {} warp tiles, map seed {} ({} ms)",
+                   lv.ds1.width(), lv.ds1.height(), lv.world_x, lv.world_y, o.roads.size(), lv.dt1s.size(), placed,
+                   lv.warps.size(), scene.map_seed, d2d::log::ms() - t0);
+}
+
+// The Den of Evil (Levels.txt 8, a maze): drlg generate_maze from the map
+// seed, its preset rooms' tiles picked as game.exe picks them. It sits
+// apart from the act's outdoor levels; its warp leads back to the Blood Moor.
+void load_den(Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a) {
+    const auto t0 = d2d::log::ms();
+    const auto row = d2d::drlg::level_row(a.levels, 8);
+    if (!row) return;
+    auto& lv = scene.den;
+    lv.id = 8;
+    lv.type = d2d::drlg::to_int(a.levels.get(*row, "LevelType"));
+    d2d::drlg::MazeDef m;
+    for (std::size_t r = 0; r < a.lvl_maze.size(); ++r)
+        if (d2d::drlg::to_int(a.lvl_maze.get(r, "Level"), -1) == 8) {
+            m.rooms.fill(d2d::drlg::to_int(a.lvl_maze.get(r, "Rooms")));   // ponytail: the .txt's one column for every difficulty
+            m.w = d2d::drlg::to_int(a.lvl_maze.get(r, "SizeX"));
+            m.h = d2d::drlg::to_int(a.lvl_maze.get(r, "SizeY"));
+            m.merge = d2d::drlg::to_int(a.lvl_maze.get(r, "Merge"));
+        }
+    if (m.w == 0) { d2d::log::warn("den: no LvlMaze row for level 8"); return; }
+    std::vector<std::string> notes;
+    const int sw = d2d::drlg::to_int(a.levels.get(*row, "SizeX")), sh = d2d::drlg::to_int(a.levels.get(*row, "SizeY"));
+    auto made = d2d::drlg::generate_maze(a.data, m, 8, sw, sh, d2d::drlg::level_seed(scene.map_seed, 8), 0, notes);
+    int W = 0, H = 0;
+    for (const auto& r : made) { W = std::max(W, r.x + r.w); H = std::max(H, r.y + r.h); }
+    lv.ds1 = d2d::ds1::Map(W, H, 4, 2);
+    lv.world_x = d2d::drlg::to_int(a.levels.get(*row, "OffsetX"));
+    lv.world_y = d2d::drlg::to_int(a.levels.get(*row, "OffsetY"));
+    const auto dt1s = load_level_dt1s(lv, mpqs, a, lv.type);
+    const auto placed = set_level_tiles(lv, a, dt1s, made, {}, notes);
+    lv.rooms = std::move(made);
+    for (const auto& n : notes) d2d::log::info("  not implemented: {}", n);
+    d2d::log::info("  Den of Evil: {}x{} tiles, {} rooms, {} tilesets, {} picked tiles, {} warp tiles ({} ms)", W, H,
+                   lv.rooms.size(), lv.dt1s.size(), placed, lv.warps.size(), d2d::log::ms() - t0);
 }
 
 // The town and the Blood Moor as neighbours in the act (Level::near).

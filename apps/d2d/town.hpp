@@ -9,7 +9,8 @@ namespace {
 
 struct Town {
     const Scene* scene = nullptr;
-    const Level* level = nullptr;          // where the character is: the town or the Blood Moor
+    const Level* level = nullptr;          // where the character is: the town, the Blood Moor, the Den of Evil
+    int take_warp = -1;                    // the warp of `level` the player clicked and is walking to
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::uint32_t level_ms = 0;            // when the player entered `level`
@@ -75,6 +76,8 @@ struct Town {
         fight.new_game(cc.header.active_difficulty());
         skillbar.new_game();
         loot.ground.clear();
+        loot.kept.clear();
+        loot.ground_level = level;
         cues.due.clear();
         pick_item = -1;
     }
@@ -385,6 +388,7 @@ struct Town {
             npc_states = npc_start(*level);
             level_ms = ms;
         }
+        take_warp = -1;
         std::tie(player.x, player.y) = level->start.first >= 0 ? level->start : std::pair{ player.x, player.y };
         std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
         target_x = player.x; target_y = player.y;
@@ -436,13 +440,66 @@ struct Town {
                 automap.open = other_automaps[level->layer].open;
             }
             level = n.level;
+            fight.enter(level);
+            loot.enter(level);
             npc_states = npc_start(*level);
             hovered_npc = interact_npc = -1;
             npc_menu = {}; store = {}; speech = {}; waypoint = {};
             level_ms = ms;                                  // its song comes in 3 s later
-            d2d::log::info("level: {} at ({:.1f}, {:.1f})", level->id == 1 ? "Rogue Encampment" : "Blood Moor", player.x, player.y);
+            d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), player.x, player.y);
             return;
         }
+    }
+    [[nodiscard]] static const char* level_name(const Level& l) {
+        return l.id == 1 ? "Rogue Encampment" : l.id == 2 ? "Blood Moor" : l.id == 8 ? "Den of Evil" : "?";
+    }
+
+    // Taking a warp (a cave mouth): a click by one walks there; close to
+    // it, the player goes to the level it leads to and stands at that
+    // level's warp back, at its ExitWalk. Everything with the player
+    // (merc, pets) comes along; the automap and monsters are the new level's.
+    // ponytail: "close" is 2 cells of the warp's cell, not LvlWarp's
+    // Select box; arriving puts the player on the first warp back.
+    void use_warp(std::uint32_t ms) {
+        if (take_warp < 0 || std::size_t(take_warp) >= level->warps.size()) return;
+        const auto w = level->warps[std::size_t(take_warp)];
+        if (std::hypot(w.x + 0.5f - player.x, w.y + 0.5f - player.y) > 2.f) {
+            if (!player.walking) take_warp = -1;                                // stopped short
+            return;
+        }
+        take_warp = -1;
+        const Level* to = w.to == 1 ? &scene->town : w.to == 2 ? &scene->moor : w.to == 8 ? &scene->den : nullptr;
+        if (!to || to->ds1.width() == 0) {
+            d2d::log::info("not implemented: level {} (a warp from level {})", w.to, level->id);
+            return;
+        }
+        const auto back = std::ranges::find(to->warps, level->id, &Level::Warp::to);
+        const float ax = back == to->warps.end() ? float(to->ds1.width()) / 2 : back->x + back->exit_x;
+        const float ay = back == to->warps.end() ? float(to->ds1.height()) / 2 : back->y + back->exit_y;
+        const auto [px, py] = to->nearest_free(ax, ay);
+        const float dx = player.x - px, dy = player.y - py;
+        fight.pets_cross(level, to, dx, dy);
+        if (to->layer != level->layer) {
+            other_automaps[level->layer] = std::move(automap);
+            automap = std::move(other_automaps[to->layer]);
+            automap.open = other_automaps[level->layer].open;
+        }
+        const Level* from = level;
+        level = to;
+        player.x = px; player.y = py;
+        player.walking = false; player.path.clear();
+        target_x = px; target_y = py;
+        if (merc) {
+            merc->path.clear();
+            std::tie(merc->x, merc->y) = level->nearest_free(px + 1, py + 1);
+        }
+        fight.enter(level);
+        loot.enter(level);
+        npc_states = npc_start(*level);
+        hovered_npc = interact_npc = pick_item = -1;
+        npc_menu = {}; store = {}; speech = {}; waypoint = {};
+        level_ms = ms;
+        d2d::log::info("level: {} at ({:.1f}, {:.1f}), through a warp from {}", level_name(*level), px, py, level_name(*from));
     }
 
     // Walking: a click on the ground (not over the UI) sets the target and
@@ -458,7 +515,7 @@ struct Town {
         if (merc) crowd.units.push_back(&*merc);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             if (!level->npcs[i].path.empty() && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
-        const bool in_moor = level == &scene->moor;
+        const bool in_moor = level != &scene->town;     // outside: this level's monsters are about
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then a click (or Esc) respawns in camp;
         // a swing or a flinch holds the player in place until it ends.
@@ -482,6 +539,11 @@ struct Town {
                 fight.attack_skill = skillbar.left;
             }
             if (mouse.press_this_frame && hovered_ground() >= 0) pick_item = hovered_ground();   // walk to it, pick it up
+            if (mouse.press_this_frame) {                                                          // a click on a warp: go through it
+                take_warp = -1;
+                for (std::size_t i = 0; i < level->warps.size(); ++i)
+                    if (std::hypot(level->warps[i].x + 0.5f - target_x, level->warps[i].y + 0.5f - target_y) < 2.f) take_warp = int(i);
+            }
             if (mouse.press_this_frame && hovered_npc >= 0) {
                 const auto& o = level->npcs[std::size_t(hovered_npc)];
                 const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
@@ -596,6 +658,7 @@ struct Town {
         }
         npc_patrol(*level, npc_states, { npc_menu.npc, speech.npc, store.npc }, ms, dt, crowd);
         fight.world(in_moor, ms, dt, crowd);
+        use_warp(ms);
     }
 
     // The frame: the world with its units, the open panels, the tree and
@@ -608,7 +671,7 @@ struct Town {
         const int ui_cls = std::max(cc.selected, 0);
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
-        if (level == &scene->moor) loot.units(player.x, player.y, extra);
+        if (level != &scene->town) loot.units(player.x, player.y, extra);
         fight.units(&merc_label, extra);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
