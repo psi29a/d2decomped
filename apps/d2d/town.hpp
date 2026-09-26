@@ -75,12 +75,19 @@ struct Town {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: magic shrines (16..22), the skill shrine and trapped chests
-    // (flag 0x80) only log; D2's operate range is 2 cells here.
-    void operate(int i, std::uint32_t ms) {
+    // ponytail: magic shrines (16..22) and traps 5, 7, 8 only log; a trap
+    // monster's missile flies once (its Trap-* AI isn't built); D2's
+    // operate range is 2 cells here.
+    void operate(int i, std::uint32_t ms, int force = -1) {   // force (devctl): the shrine row / trap to play
         using namespace d2d::d2s;
         const auto& o = level->npcs[std::size_t(i)];
         const int diff = cc.header.active_difficulty();
+        if (o.operate_fn == 4 && o.locked) {           // a key from the inventory (FUN_0055f140: item type key)
+            const auto key = std::ranges::find_if(cc.items, [](const Item& it) { return it.location == 0 && it.panel == 1 && it.code == "key"; });
+            if (key == cc.items.end()) { d2d::log::info("I need a key."); return; }
+            if (key->quantity > 1) --key->quantity;
+            else cc.items.erase(key);
+        }
         operated[{ level, i }] = ms;
         if (o.operate_fn == 4) {
             const auto& al = scene->area_level;
@@ -88,18 +95,69 @@ struct Town {
             const auto [lo, hi] = d2d::rules::kChestLevels[0];
             const auto tc = d2d::rules::chest_tc(0, diff, alvl(level->id), alvl(lo), alvl(hi));
             std::vector<d2d::rules::Drop> drops;
-            d2d::rules::roll_drops(scene->rules, tc, alvl(level->id), rng, drops);
+            const int rounds = d2d::rules::chest_rounds(o.locked, rng);
+            for (int n = 0; n < rounds; ++n) d2d::rules::roll_drops(scene->rules, tc, alvl(level->id), rng, drops);
             for (const auto& d : drops) loot.put(d, o.x, o.y, alvl(level->id), ms);
-            d2d::log::info("opened a chest: {} ({} drops)", tc, drops.size());
+            d2d::log::info("opened a chest: {} x{} ({} drops){}", tc, rounds, drops.size(), o.trap ? std::format(", trap {}", o.trap) : "");
+            if (const int trap = force >= 0 ? force : o.trap) spring_trap(trap, o.x, o.y, alvl(level->id), ms);
             return;
         }
-        if (std::size_t(o.shrine) >= scene->shrines.size()) return;
-        const auto& s = scene->shrines[std::size_t(o.shrine)];
+        const int row = force >= 0 ? force : o.shrine;
+        if (std::size_t(row) >= scene->shrines.size()) return;
+        const auto& s = scene->shrines[std::size_t(row)];
         auto& v = cc.stats.v;
         d2d::rules::shrine_recharge(s, v[kLife], v[kMaxLife], v[kMana], v[kMaxMana]);
         if (auto b = d2d::rules::shrine_boost(s, fight.pf.ar); !b.empty())
-            fight.boost = { o.shrine, std::move(b), ms + std::uint32_t(s.duration) * 40u };
-        d2d::log::info("shrine {} (code {}){}", o.shrine, s.code, s.code == 12 || s.code >= 16 ? ", not built" : "");
+            fight.boost = { row, std::move(b), ms + std::uint32_t(s.duration) * 40u };
+        if (s.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
+            if (const auto code = d2d::rules::gem_shrine(scene->rules, cc.items, rng); !code.empty())
+                loot.put({ .code = code }, player.x, player.y, 1, ms);
+        if (s.code == 20 && fight.mon_level == level) {   // warping (FUN_00583050): the nearest plain monster turns boss
+            // ponytail: FUN_00582750's filter read as alive, not a boss, not
+            // an NPC; FUN_0065a800's search range isn't traced.
+            int best = -1;
+            float bd = 1e9f;
+            for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
+                const auto& m = fight.monsters[k];
+                const float d = std::hypot(m.u.x - player.x, m.u.y - player.y);
+                if (m.alive() && m.boss == d2d::rules::Boss::none && d < bd) { bd = d; best = int(k); }
+            }
+            if (best >= 0) {                               // FUN_005a4940: FUN_005a0760 (champions allowed), FUN_005a2120
+                auto& m = fight.monsters[std::size_t(best)];
+                const auto b = d2d::rules::roll_boss(scene->umods, scene->monsters.types[std::size_t(m.type)], diff, true, rng);
+                make_boss(*scene, m, b.kind, b.mods, -1, b.name_seed, diff, rng);
+                d2d::log::info("warping shrine: {} is now a {}", m.npc.name, b.kind == d2d::rules::Boss::champion ? "champion" : "unique");
+            }
+        }
+        d2d::log::info("shrine {} (code {}){}", row, s.code, s.code >= 16 && s.code != 18 && s.code != 20 ? ", not built" : "");
+    }
+
+    // A chest's trap (the table at 0x732cec): the trap monster's missile
+    // from the chest at the player, its elemental damage at the area level
+    // (Missiles.txt EMin / EMax plus the per-level columns). Missiles with
+    // ToHit 0 always hit.
+    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t ms) {
+        const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
+        const auto it = scene->missiles.find(name);
+        if (!*name || it == scene->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }
+        const auto& mi = it->second;
+        d2d::rules::MonStats st;
+        st.level = alvl;
+        st.th = mi.to_hit ? alvl * 10 : 1 << 20;
+        st.a2_min = mi.min; st.a2_max = std::max(mi.max, mi.min);
+        auto lev = [&](const std::array<int, 5>& per) {       // levels 2..8, 9..16, 17..22, 23..28, 29+
+            static constexpr int kTo[5] = { 8, 16, 22, 28, 1000 };
+            int v = 0;
+            for (int l = 2, k = 0; l <= alvl; ++l) { while (l > kTo[k]) ++k; v += per[std::size_t(k)]; }
+            return v;
+        };
+        // In 256ths << HitShift; poison's a frame, over ELen frames.
+        auto pts = [&](int e) { const std::int64_t v = std::int64_t(e) << mi.hitshift; return int(mi.etype == 3 ? v * std::max(mi.elen, 1) >> 8 : v >> 8); };
+        if (mi.etype >= 0) st.el[0] = { mi.etype, 100, pts(mi.emin + lev(mi.emin_lev)), pts(mi.emax + lev(mi.emax_lev)), mi.elen, "A2" };
+        const float speed = cells_per_sec(float(mi.vel));
+        const float dx = player.x - x, dy = player.y - y, d = std::max(std::hypot(dx, dy), 0.01f);
+        fight.missiles.push_back(Missile{ &mi, x, y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms,
+                                          ms + std::uint32_t(std::max(mi.range, 1)) * 40, st });
     }
 
     // A fresh game for the character: the Blood Moor's monsters at its
@@ -543,6 +601,10 @@ struct Town {
         // An aura on the right button is on (a Paladin's; D2 runs the right
         // skill's aura).
         if (const auto* ra = scene->skills.get(skillbar.right)) fight.aura = ra->aura ? skillbar.right : 0;
+        // The skill shrine's +all skills while its boost lasts.
+        skillbar.extra.clear();
+        if (ms < fight.boost.until)
+            for (const auto& [id, v] : fight.boost.stats) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
         fight.update_fighters(ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt, minutes; 0 never).

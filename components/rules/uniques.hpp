@@ -123,6 +123,14 @@ inline std::vector<int> superunique_mods(const UMods& m, const MonType& t, const
     return mods;
 }
 
+// The label under a boss's name (client FUN_004adea0): each mod's string
+// by MonUMod id (the table at 0x725188; 0 = none), in the order it has
+// them, until the line passes 480 px; a minion's is "Minion" (0xc95).
+inline constexpr std::array<std::uint16_t, 31> kUModLabel{
+    0, 0, 0, 0, 0, 0xc85, 0xc86, 0xc87, 0xc88, 0xc89, 0, 0, 0, 0, 0, 0,
+    0, 0xc8b, 0xc8a, 0, 0, 0, 0, 0, 0xc91, 0xc8c, 0xc8e, 0xc8d, 0xc8f, 0xc90, 0xc92 };
+inline constexpr std::uint16_t kMinionLabel = 0xc95, kChampionLabel = 0xc94;
+
 // What the mods do to a monster's stats (FUN_005a2120: the fixed rndname,
 // hpmultiply, light, leveladd for uniques, then its own mods; champions
 // and minions get theirs through `champion`). `boss` is the unique's /

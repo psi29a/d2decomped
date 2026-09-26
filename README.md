@@ -40,15 +40,17 @@ implemented. You can:
   units are in: Corpsefire and his minions, Flavie, shrines, chests,
   torches. The merc and your pets come along, music and automap follow.
 - **Shrines and chests**: shrines refill or boost you (armor, combat,
-  resists, mana regen, stamina, experience) and reset on their timer;
-  chests open and drop their act's chest treasure class.
+  resists, mana regen, stamina, skills, experience), upgrade a gem or
+  turn the nearest monster into a champion or unique, and reset on their
+  timer. Chests open and drop their act's chest treasure class; some are
+  locked (bring a key) and some are trapped.
 - **Combat**: the Blood Moor's monsters spawn by game.exe's rules and
   notice, chase, surround and hit back. Hits use your gear (hit chance,
   block, resistances, crushing blow, deadly strike, leech, thorns,
   IAS/FHR/FBR/FRW, poison, chill, knockback). Kills give experience and
   level-ups and drop loot from the treasure classes. Champion and
   unique packs roll by game.exe's rules, with their mods' stats, random
-  names and loot; superuniques (Corpsefire) get their fixed mods. The
+  names, labels and loot; superuniques (Corpsefire) get their fixed mods. The
   merc fights, and you die and respawn in camp.
 - **Skills**: every one of the 210 class skills has an implementation
   path, each built from the game.exe function behind it: melee and kicks, charge-ups and their
@@ -67,7 +69,7 @@ Double Throw).
 
 It's all single-player and in memory: saves are read, never written.
 Not yet: levels past the Blood Moor and the Den, the unique behaviour
-mods (enchanted, cursed, teleport...), magic shrines, trapped chests,
+mods (enchanted, cursed, teleport...), four magic shrines, most traps,
 quests, waypoint and town portal travel, the shapeshifted look. The
 full list, ranked, is in [`docs/PLAN.md`](docs/PLAN.md) "Next up".
 

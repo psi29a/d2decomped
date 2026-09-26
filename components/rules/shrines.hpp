@@ -44,8 +44,7 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
 // its stat; combat FUN_005839b0: Arg0 % of the attack rating as tohit (19)
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,
 // staminarecoverybonus (28) 1000), by Code. `ar`: the player's rating.
-// ponytail: skill boost (12, FUN_00583bf0 +Arg0 all skills) isn't here —
-// no all-skills stat in the fighter yet.
+// Skills FUN_00583bf0: +Arg0 all skills (item_allskills, 127).
 inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& s, int ar) {
     switch (s.code) {
     case 6:  return { { 171, s.arg0 } };                  // skill_armor_percent
@@ -54,6 +53,7 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& s, int ar)
     case 9:  return { { 43, s.arg0 } };                   // coldresist
     case 10: return { { 41, s.arg0 } };                   // lightresist
     case 11: return { { 45, s.arg0 } };                   // poisonresist
+    case 12: return { { 127, s.arg0 } };                  // item_allskills
     case 13: return { { 27, s.arg0 } };                   // manarecoverybonus
     case 14: return { { 28, 1000 } };                     // staminarecoverybonus
     case 15: return { { 85, s.arg0 } };                   // item_addexperience
@@ -76,6 +76,22 @@ inline void shrine_recharge(const ShrineRow& s, std::int64_t& life, std::int64_t
     }
 }
 
+// The gem shrine (FUN_00582c40): the first gem in the inventory with a
+// better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,
+// a chipped gem, rand(6) on the player's seed. Returns the code to give,
+// "" when `upgrade` took one.
+inline std::string gem_shrine(const Tables& t, std::vector<d2s::Item>& items, Rng& seed) {
+    for (auto& it : items) {
+        if (it.location != 0 || it.panel != 1) continue;
+        const auto b = t.item_base.find(it.code);
+        if (b == t.item_base.end() || b->second.better_gem.empty() || b->second.better_gem == "non") continue;
+        it.code = b->second.better_gem;
+        return {};
+    }
+    static constexpr const char* kChipped[6] = { "gcw", "gcr", "gcg", "gcb", "gcy", "gcv" };
+    return kChipped[seed(6)];
+}
+
 // FUN_00585b90: a chest's treasure class, "Act %d%s Chest %s" (FUN_0065a2c0:
 // "", " (N)", " (H)"; A..C). The act's two marker levels (0x6e1988: act 1
 // Blood Moor and Catacombs 4, 2 Lut Gholein .. , by area level) split a
@@ -86,6 +102,35 @@ inline std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int 
     static constexpr const char* kD[3] = { "", " (N)", " (H)" };
     return std::format("Act {}{} Chest {}", std::clamp(act, 0, 4) + 1, kD[std::clamp(difficulty, 0, 2)], char('A' + cls));
 }
+// A chest as its init makes it (InitFn 3, FUN_0054fcb0, on the object's
+// seed): first the trap (FUN_0054fbb0: rand(100) < MonLvl1 / 8 + 5, then
+// a type 1..8, FUN_004bc500), then objects.txt Lockable chests lock at
+// rand(100) < MonLvl1 / 2 + 8 (flag 0x80); one more step. MonLvl1: the
+// classic normal column (Levels +0x10), whatever the difficulty.
+struct ChestInit { int trap = 0; bool locked = false; };
+inline ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
+    ChestInit c;
+    if (seed(100) < mlvl1 / 8 + 5) c.trap = seed.range(1, 8);
+    if (lockable && seed(100) < mlvl1 / 2 + 8) c.locked = true;
+    seed.next();
+    return c;
+}
+// Opening it (FUN_00585f60): a locked one takes a key and drops two
+// rounds; any other is empty one time in four (rand(100) < 25).
+// ponytail: objects.txt 397's own drop table and the guaranteed drop
+// behind FUN_005540d0 aren't here.
+inline int chest_rounds(bool locked, Rng& seed) {
+    const bool full = seed(100) > 24;
+    return locked ? 2 : full ? 1 : 0;
+}
+// What a trap springs (the table at 0x732cec): 1..4 and 6 a trap monster
+// at the chest (FUN_00582420: 1 trap-lightning, 2 / 6 trap-firebolt,
+// 3 trap-poisoncloud, 4 trap-nova), its missile here (MonStats MissA1,
+// trap-nova's MissS1); 5 / 7 objects (FUN_00582380), 8 one or two of the
+// level's monsters (FUN_005822f0). "" = not built: 1's chainlightning and
+// 4's nova carry no damage of their own (their skill's, not traced).
+inline constexpr std::array<const char*, 9> kTrapMissile{ "", "", "trapfirebolt", "trappoisonjavcloud", "", "", "trapfirebolt", "", "" };
+
 // The marker levels by act (0x6e1988).
 inline constexpr std::array<std::pair<int, int>, 5> kChestLevels{ { { 2, 37 }, { 41, 73 }, { 76, 102 }, { 104, 108 }, { 109, 136 } } };
 

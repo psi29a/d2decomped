@@ -28,6 +28,8 @@ struct Npc {
     int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
     int op_frames = 0;                   // objects.txt FrameCnt1 when it has an OP mode (Mode1)
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
+    int trap = 0;                        // a chest's trap type (roll_chest), 0 none
+    bool locked = false;                 // a locked chest: takes a key
 };
 
 // One level (Levels.txt row): its DS1, the DT1s it references and a
@@ -306,7 +308,7 @@ struct Scene {
     std::array<std::vector<std::string>, 3> unique_names;   // UniquePrefix / Suffix / Appellation, resolved
     std::array<std::string, 2> unique_formats;         // strings 0x6b9 ("%0 %1"), 0x6ba ("%0 %1 %2")
     std::vector<d2d::rules::ShrineRow> shrines;        // Shrines.txt
-    std::vector<std::array<int, 3>> area_level;        // Levels.txt MonLvl1Ex..3Ex by Id
+    std::vector<std::array<int, 4>> area_level;        // Levels.txt MonLvl1Ex..3Ex, then classic MonLvl1, by Id
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the

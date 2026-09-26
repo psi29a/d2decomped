@@ -317,10 +317,11 @@ Act 1 levels and rendering
   and the Den of Evil; click the cave mouth to go in, the stairs to come
   back. Preset units (proven too) put in the shrines, torches, chests,
   Flavie and Corpsefire with his minions. Shrines work (recharges and
-  boosts; magic shrines and the skill shrine only log) and chests open
-  and drop their act chest TC (docs/research/re/objects.md). Missing:
-  the unique behaviour mods, trapped chests; warp arrival spots are a
-  guess (LvlWarp ExitWalk).
+  boosts, skill, gem, warping; the other magic shrines only log) and
+  chests open, lock (keys) and drop their act chest TC; traps fire
+  firebolts and poison (docs/research/re/objects.md). Missing: the unique
+  behaviour mods, the other traps; warp arrival spots are a guess
+  (LvlWarp ExitWalk).
 - Rendering: shadows not blended, no unit shadows, no lighting / day-night
   / rain, cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs not drawn across the edge.
@@ -338,23 +339,25 @@ game.exe"). Built from game.exe but not emulator-checked: champions and
 uniques (docs/research/re/monsters.md), shrines and chests
 (docs/research/re/objects.md "Shrines and chests").
 
+Done from the half-day list (docs/research/re/objects.md, monsters.md):
+the skill, gem and warping shrines; locked chests (keys, two rounds), the
+empty quarter and traps 2 / 3 / 6; the chest item level (the chest
+unit's, the area level); the boss label under the name (the 0x725188
+table).
+
 Left for those, ranked:
 
-1. Small (about half a day together):
-   - Skill shrine (code 12, FUN_00583bf0): +Arg0 to all skills; needs an
-     all-skills stat feeding skill levels.
-   - Chest item level: FUN_0055a6d0's level argument isn't traced (the
-     area level is assumed).
-   - Trapped chests (flag 0x80 in FUN_00585f60): which trap fires.
-   - The champion / unique label: "Champion" or the mod names under the
-     name, in D2's colours.
-   - Warping shrine (nearest monster becomes unique: roll_boss) and gem
-     shrine (upgrade a gem or give one).
+1. Traps still to build (about half a day): 1 and 4 (chainlightning /
+   nova carry their skill's damage, not traced), 5 / 7 (FUN_00582380's
+   objects), 8 (FUN_005822f0: the level's monsters); the trap monsters'
+   AIs (Trap-Missile, Trap-Poison, Trap-Nova) instead of one missile.
+   Also: where "Champion" (0xc94) is used, and the label's joiner.
 2. Unique behaviour mods (1–2 days): fire / cold / lightning enchanted
    (death explosion, chill, charged bolts), cursed, mana burn, teleport,
    spectral hit, multishot, aura enchanted. Their stat parts are done
    (uniques.hpp boss_stats); each needs its missile or skill.
 3. Storm, exploding and poison shrines: thrown potions and fireballs.
+   Chest 397's own drop table.
 4. Seed emulation (2+ days, research): the object seeds and the
    monster's own seed, so shrine picks and boss rolls can be checked
    against game.exe per room. game.exe populates a room on activation,

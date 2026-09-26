@@ -60,6 +60,7 @@ struct ItemBase {
     bool stackable = false;
     int level = 0, durability = 0, gamble_cost = 0, min_stack = 0, max_stack = 0;
     std::string normcode, ubercode, ultracode;         // normal / exceptional / elite versions
+    std::string better_gem;                            // misc.txt BetterGem ("" or "non": none)
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };

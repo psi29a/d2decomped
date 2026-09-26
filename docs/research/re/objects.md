@@ -63,8 +63,40 @@ the row's LevelMin. Then 5 → 3, 4 → 2 (the exchanges are never placed) and
 
 Shrines reset after Shrines.txt "reset time in minutes" (0: never).
 
-**Chests** (OperateFn 4, `FUN_00585f60`, trapped flag 0x80; drop
-`FUN_00585b90`): the TC is `"Act %d%s Chest %s"` (`FUN_0065a2c0` builds the
+**Chest init** (InitFn 3, `FUN_0054fcb0`, on the object's seed), stored in
+the object's flag byte:
+
+- First the trap (`FUN_0054fbb0`, also InitFn 2): `rand(100) < MonLvl1 / 8
+  + 5` gives a trap type `1..8` (`FUN_004bc500`), in the low 7 bits.
+- Then, when objects.txt Lockable (+0x171) is set, `rand(100) < MonLvl1 / 2
+  + 8` locks it (0x80). One more seed step.
+- MonLvl1 is Levels +0x10, the classic normal column, on every difficulty.
+
+**Opening** (OperateFn 4, `FUN_00585f60`):
+
+- Locked: the player needs a key (`FUN_0055f140`: an inventory item of type
+  key; one off its quantity, 0x46, or the key goes). Without one nothing
+  opens. A locked chest drops **two** rounds.
+- `rand(100) > 24`, or locked, or the flag behind `FUN_005540d0`: it drops.
+  So an unlocked chest is empty one time in four. With that flag and
+  nothing dropped, up to 10 more tries.
+- objects.txt 397 has its own tiered table (gold, potions); not in act 1's
+  levels.
+- Then the trap fires (`FUN_00582510`, the table at 0x732cec):
+
+| Trap | Function | Does |
+|---|---|---|
+| 1 | 0x582490 → `FUN_00582420` | trap monster 330 trap-lightning (MissA1 chainlightning) |
+| 2, 6 | 0x5824b0 | 326 trap-firebolt (trapfirebolt) |
+| 3 | 0x5824d0 | 329 trap-poisoncloud (trappoisonjavcloud) |
+| 4 | 0x5824f0 | 369 trap-nova (MissS1 nova) |
+| 5, 7 | 0x582380 | objects at the chest and one subtile over |
+| 8 | 0x5822f0 | one or two of the level's monsters (`FUN_005474c0`) |
+
+The drop's item level: `FUN_0055a6d0` takes the chest unit and no level,
+so it's the unit's, the area level.
+
+**Chest treasure class** (`FUN_00585b90`): the TC is `"Act %d%s Chest %s"` (`FUN_0065a2c0` builds the
 table at 0x96c5f4: "", " (N)", " (H)"; A, B, C). `FUN_00654e80` picks by
 difficulty, act and class. The class comes from the area level against the
 act's two marker levels at 0x6e1988: (2, 37), (41, 73), (76, 102),
@@ -77,5 +109,14 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   emulator-checked.
 - Seeds: the object's and the game's object seed aren't emulated, so which
   shrine a spot gets differs from game.exe.
-- Not built: magic shrines, the skill shrine, trapped chests, the chest's
-  item level (taken as the area level).
+- Built: every recharge and boost shrine (the skill shrine as
+  item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
+  first inventory gem with a misc.txt BetterGem goes up one, else a
+  chipped gem, `rand(6)`: gcw gcr gcg gcb gcy gcv), warping (20: see
+  monsters.md), locked chests and keys, the empty quarter, traps 2, 3, 6.
+- Traps: the missile flies once from the chest with its Missiles.txt
+  element at the area level. The trap monsters' own AIs (Trap-Missile,
+  Trap-Poison, Trap-Nova) aren't built.
+- Not built: magic shrines 17 (portal), 19 (storm), 21 (exploding), 22
+  (poison); traps 1 and 4 (their missiles' damage comes from a skill,
+  not traced), 5 and 7 (objects), 8 (monsters); chest 397's table.

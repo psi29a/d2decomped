@@ -400,7 +400,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
-        bool used = name == "arrow" || skill_missiles.contains(name);   // the rogue merc's, skills'
+        bool used = name == "arrow" || skill_missiles.contains(name)    // the rogue merc's, skills',
+                 || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name));   // chest traps
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
         Scene::MissileInfo mi;
@@ -720,7 +721,7 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         const int id = num(lvs.get(r, "Id"));
         if (id < 0 || id > 1000) continue;
         if (std::size_t(id) >= scene.area_level.size()) scene.area_level.resize(std::size_t(id) + 1);
-        scene.area_level[std::size_t(id)] = { num(lvs.get(r, "MonLvl1Ex")), num(lvs.get(r, "MonLvl2Ex")), num(lvs.get(r, "MonLvl3Ex")) };
+        scene.area_level[std::size_t(id)] = { num(lvs.get(r, "MonLvl1Ex")), num(lvs.get(r, "MonLvl2Ex")), num(lvs.get(r, "MonLvl3Ex")), num(lvs.get(r, "MonLvl1")) };
     }
     std::unordered_map<std::string, std::size_t> obj_row;
     for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
@@ -739,6 +740,14 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
             // object's own seed and the game's object seed (not emulated).
             d2d::rules::Rng obj(std::uint32_t(sx * 7919 + sy) ^ scene.map_seed);
             n.shrine = d2d::rules::roll_shrine(scene.shrines, std::atoi(std::string(objects.get(r, "Parm0")).c_str()), into.id, obj, rgn);
+        }
+        if (objects.get(r, "InitFn") == "3") {      // a chest: its trap and lock (FUN_0054fcb0)
+            d2d::rules::Rng obj(std::uint32_t(sx * 7919 + sy) ^ scene.map_seed);   // ponytail: as the shrines'
+            const auto& al = scene.area_level;
+            const int mlvl1 = std::size_t(into.id) < al.size() ? al[std::size_t(into.id)][3] : 1;
+            const auto c = d2d::rules::roll_chest(mlvl1, objects.get(r, "Lockable") == "1", obj);
+            n.trap = c.trap; n.locked = c.locked;
+            if (n.locked) if (auto v = lookup_string(scene, "lockedchest")) n.name = u16_to_latin1(*v);
         }
         n.base_w = "hth";
         const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
@@ -887,7 +896,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                           t->get(r, "stackable") == "1", n("level"),
                                           t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),
                                           std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
-                                          std::string(t->get(r, "ultracode")) };
+                                          std::string(t->get(r, "ultracode")), std::string(t->get(r, "BetterGem")) };
                 if (t->get(r, "spawnable") != "1") continue;
                 scene.rules.item_rarity[code] = n("rarity");
                 if (t != &misc && n("level") > 0) (t == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, n("level"));

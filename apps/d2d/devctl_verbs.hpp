@@ -124,14 +124,15 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             std::string out;
             for (std::size_t i = 0; i < t.level->npcs.size(); ++i)
                 if (const auto& n = t.level->npcs[i]; n.operate_fn == 2 || n.operate_fn == 4)
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\n", i, n.x, n.y, n.operate_fn == 2 ? "shrine" : "chest", n.shrine,
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, n.x, n.y, n.operate_fn == 2 ? "shrine" : "chest",
+                                       n.operate_fn == 2 ? n.shrine : n.trap, n.locked ? "locked" : "-",
                                        i < t.npc_states.size() && !t.npc_states[i].mode.empty() ? t.npc_states[i].mode : std::string_view(n.mode));
             return out + "ok\n";
         }
         if (args.size() >= 3 && args[1] == "operate" && t.level) {   // operate shrine / chest i where it stands
             const int i = std::atoi(args[2].c_str());
             if (i < 0 || std::size_t(i) >= t.level->npcs.size()) return std::string("err no such object\n");
-            t.operate(i, t.now_ms);
+            t.operate(i, t.now_ms, args.size() >= 4 ? std::atoi(args[3].c_str()) : -1);
             return std::format("ok life={} mana={} boost={}\n", t.cc.stats.fixed(d2d::d2s::kLife), t.cc.stats.fixed(d2d::d2s::kMana), t.fight.boost.shrine);
         }
         if (args.size() >= 4 && args[1] == "stat") {       // set character stat <id 0..15> to <value>

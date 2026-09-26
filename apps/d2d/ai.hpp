@@ -320,6 +320,36 @@ std::string unique_name(const Scene& s, int name_seed) {
     return name;
 }
 
+// A champion / unique / superunique / minion (rules/uniques.hpp,
+// FUN_005a2120): a higher level, more life, damage and to-hit,
+// resistances, speed, an element; its name. At full life.
+void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
+               int difficulty, d2d::rules::Rng& rng) {
+    const auto& t = s.monsters.types[std::size_t(m.type)];
+    const auto b = d2d::rules::boss_stats(s.umods, t, kind, mods, difficulty);
+    m.st = d2d::rules::monster_stats(s.monsters, m.type, difficulty, rng, b.level_add);
+    m.boss = kind;
+    m.mods = mods;
+    m.super = super;
+    m.st.hp += m.st.hp * b.hp_pct / 100;
+    m.st.exp *= b.exp_mult;
+    for (int* v : { &m.st.a1_min, &m.st.a1_max, &m.st.a2_min, &m.st.a2_max }) *v += *v * b.dmg_pct / 100;
+    m.st.th += m.st.th * b.tohit_pct / 100;
+    if (b.double_defense) m.st.ac *= 2;
+    m.boss_res = b.res_add;
+    m.boss_speed = b.velocity_pct;
+    if (b.elem >= 0 && !s.monsters.lvl.empty()) {                      // enchanted: MonLvl damage x %
+        const auto& L = s.monsters.lvl[std::min<std::size_t>(std::size_t(m.st.level), s.monsters.lvl.size() - 1)];
+        const int dm = L.dm[std::size_t(std::clamp(difficulty, 0, 2))];
+        int put = 0;
+        for (auto& e : m.st.el)
+            if (e.type < 0 && put < 2) e = { b.elem, 100, dm * b.elem_min_pct / 100, std::max(dm * b.elem_max_pct / 100, dm * b.elem_min_pct / 100), 0, put++ ? "A2" : "A1" };
+    }
+    m.hp = m.st.hp;
+    if (super >= 0 && std::size_t(super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(super)].name;
+    else if (kind == d2d::rules::Boss::unique) m.npc.name = unique_name(s, name_seed);   // a champion keeps its name; the bar labels it
+}
+
 std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& sp : L.spawns[std::size_t(std::clamp(difficulty, 0, 2))]) {
@@ -334,36 +364,10 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
         m.u.y = m.home_y = (float(sp.y) + 0.5f) / 5;
         m.u.dir = rng(16);
         m.u.wait_until = std::uint32_t(rng(4000));
-        // Champions and uniques (rules/uniques.hpp, FUN_005a2120): a higher
-        // level, more life, damage and to-hit, resistances, speed, an element.
-        const auto b = sp.boss == d2d::rules::Boss::none ? d2d::rules::BossStats{}
-                                                         : d2d::rules::boss_stats(s.umods, t, sp.boss, sp.mods, difficulty);
-        m.st = d2d::rules::monster_stats(s.monsters, sp.type, difficulty, rng, b.level_add);
-        if (sp.boss != d2d::rules::Boss::none) {
-            m.boss = sp.boss;
-            m.mods = sp.mods;
-            m.super = sp.super;
-            m.st.hp += m.st.hp * b.hp_pct / 100;
-            m.st.exp *= b.exp_mult;
-            for (int* v : { &m.st.a1_min, &m.st.a1_max, &m.st.a2_min, &m.st.a2_max }) *v += *v * b.dmg_pct / 100;
-            m.st.th += m.st.th * b.tohit_pct / 100;
-            if (b.double_defense) m.st.ac *= 2;
-            m.boss_res = b.res_add;
-            m.boss_speed = b.velocity_pct;
-            if (b.elem >= 0 && !s.monsters.lvl.empty()) {                  // enchanted: MonLvl damage x %
-                const auto& L = s.monsters.lvl[std::min<std::size_t>(std::size_t(m.st.level), s.monsters.lvl.size() - 1)];
-                const int dm = L.dm[std::size_t(std::clamp(difficulty, 0, 2))];
-                int put = 0;
-                for (auto& e : m.st.el)
-                    if (e.type < 0 && put < 2) e = { b.elem, 100, dm * b.elem_min_pct / 100, std::max(dm * b.elem_max_pct / 100, dm * b.elem_min_pct / 100), 0, put++ ? "A2" : "A1" };
-            }
-        }
+        if (sp.boss != d2d::rules::Boss::none) make_boss(s, m, sp.boss, sp.mods, sp.super, sp.name_seed, difficulty, rng);
+        else m.st = d2d::rules::monster_stats(s.monsters, sp.type, difficulty, rng);
         m.hp = m.st.hp;
         m.leader = sp.leader;
-        if (sp.super >= 0 && std::size_t(sp.super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(sp.super)].name;
-        else if (sp.boss == d2d::rules::Boss::unique) m.npc.name = unique_name(s, sp.name_seed);
-        // ponytail: the client's champion label isn't traced; "<name> (Champion)".
-        else if (sp.boss == d2d::rules::Boss::champion) m.npc.name += " (Champion)";
         m.difficulty = std::clamp(difficulty, 0, 2);
         out.push_back(std::move(m));
     }

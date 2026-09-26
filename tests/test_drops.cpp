@@ -55,6 +55,26 @@ int main() {
         const int any = roll_shrine(rows, 0, 2, o, g);
         assert(any >= 1 && any <= 3);
     }
+    // Chests: traps and locks by the classic area level; a locked chest
+    // drops twice, others are empty a quarter of the time.
+    int traps = 0, locks = 0, empty = 0;
+    for (int i = 0; i < 4000; ++i) {
+        Rng c{ std::uint32_t(i) };
+        const auto ci = roll_chest(1, true, c);                              // 5 % traps, 8 % locks at MonLvl1 1
+        assert(ci.trap >= 0 && ci.trap <= 8);
+        traps += ci.trap > 0; locks += ci.locked;
+        assert(chest_rounds(true, c) == 2);
+        empty += chest_rounds(false, c) == 0;
+    }
+    assert(traps > 120 && traps < 290 && locks > 220 && locks < 430 && empty > 850 && empty < 1150);
+    // The gem shrine: a gem goes up; with none, a chipped one.
+    d.item_base["gcv"].better_gem = "gfv";
+    d.item_base["gpv"].better_gem = "non";
+    std::vector<d2d::d2s::Item> inv(2);
+    inv[0].code = "gpv"; inv[1].code = "gcv"; inv[0].panel = inv[1].panel = 1;
+    Rng gs{ 5 };
+    assert(gem_shrine(d, inv, gs).empty() && inv[1].code == "gfv" && inv[0].code == "gpv");
+    assert(gem_shrine(d, inv, gs).substr(0, 2) == "gc");
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");
 }

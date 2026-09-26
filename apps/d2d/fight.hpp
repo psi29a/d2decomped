@@ -26,6 +26,23 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
         }
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
+    // Its mods under it (d2d::rules::kUModLabel). ponytail: joined by a
+    // space (FUN_004adea0 joins with a string set empty at start-up,
+    // 0x7c0c58, and uses "space" 0xf9b for the minion line), and
+    // "Champion" (0xc94) for champions, whose use isn't traced.
+    std::string label;
+    using d2d::rules::Boss;
+    if (m.boss == Boss::minion) label = string_id(s, d2d::rules::kMinionLabel);
+    else if (m.boss == Boss::champion) label = string_id(s, d2d::rules::kChampionLabel);
+    else if (m.boss != Boss::none)
+        for (const int id : m.mods) {
+            if (id < 0 || std::size_t(id) >= d2d::rules::kUModLabel.size() || !d2d::rules::kUModLabel[std::size_t(id)]) continue;
+            const auto next = label + (label.empty() ? "" : " ") + string_id(s, d2d::rules::kUModLabel[std::size_t(id)]);
+            if (s.font.measure(next) > 480) break;
+            label = next;
+        }
+    if (!label.empty())
+        s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(label) / 2, y0 + h + 2, label);
 }
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):

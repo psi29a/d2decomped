@@ -13,6 +13,7 @@ namespace {
 struct SkillBar {
     const Scene* scene;
     CharCreateUI& cc;
+    std::vector<d2d::d2s::ItemProp> extra;   // stats on top of the gear (the skill shrine's +all skills)
     int left = 0, right = 0;               // Skills.txt ids (0: Attack)
     int picking = 0;                       // the picker open: 1 left, 2 right, 0 none
 
@@ -38,7 +39,7 @@ struct SkillBar {
         const auto* s = scene->skills.get(id);
         const int base = base_level(id);
         if (!s || s->cls.empty()) return base;
-        std::vector<d2d::d2s::ItemProp> props;
+        std::vector<d2d::d2s::ItemProp> props = extra;
         for (const auto& it : cc.items) {
             if (it.location != 1 || it.slot < 1 || it.slot > 10) continue;
             props.insert(props.end(), it.props.begin(), it.props.end());

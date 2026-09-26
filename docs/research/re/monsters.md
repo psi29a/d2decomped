@@ -113,6 +113,23 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   prefix into 0x6ba ("%0 %1 %2"): "Bane Poison the Hunter".
 - Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
   superuniques their SuperUniques TC (by difficulty).
+- **The label under the name** (client FUN_004adea0, called from
+  FUN_00452580): a minion's is "Minion" (0xc95). Otherwise each of the
+  monster's mods (up to 9, in order) with a string in the u16 table at
+  0x725188, by MonUMod id: 5 Extra Strong 0xc85, 6 Extra Fast, 7 Cursed,
+  8 Magic Resistant, 9 Fire Enchanted 0xc89, 17 Lightning Enchanted 0xc8b,
+  18 Cold Enchanted 0xc8a, 24 Thief 0xc91, 25 Mana Burn 0xc8c,
+  26 Teleportation 0xc8e, 27 Spectral Hit 0xc8d, 28 Stone Skin 0xc8f,
+  29 Multiple Shots 0xc90, 30 Aura Enchanted 0xc92; the rest none. It
+  stops once the line passes 480 px. The joiner is the wide string at
+  0x7c0c58, which start-up (0x6cad00) sets empty; d2d joins with a space
+  (the minion line's "space", 0xf9b). "Champion" (0xc94) is used
+  elsewhere (0x6da48c in .rdata), not traced; d2d shows it for
+  champions.
+- **The warping shrine** (FUN_00583050 → FUN_005a4940): the nearest
+  monster passing FUN_00582750 (a monster, not already a boss, ...)
+  goes through FUN_005a0760 with champions allowed and FUN_005a2120:
+  a champion or a unique, no pack.
 
 d2d: `components/rules/uniques.hpp` (`roll_boss`, `boss_stats`),
 `populate_room` with a `Population`; the app populates each difficulty at
@@ -122,7 +139,7 @@ isn't emulated), and the behaviour mods (auras, enchanted death
 explosions and charged bolts, spectral hit's damage, teleport, mana
 burn, multishot, curses, ghostly / fanatic / possessed / berserk) aren't
 traced or built: their code is in the combat and AI paths, not the mod
-table (which only sets stats). A champion's label isn't traced either.
+table (which only sets stats).
 
 ## Not yet traced / approximated
 
