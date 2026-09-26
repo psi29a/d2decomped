@@ -661,6 +661,71 @@ operand and function lists.
   Warrior's own skills (it swings the owner's blow), Decoy's and the
   Shadow's look (drawn as their rows), Raven's hit count (Param5).
 
+### Missile hit functions and spot spells (phase 6, part 3)
+- A missile's hit function runs when it strikes a unit and, with no unit,
+  where its Range runs out (FUN_005ae1f0 -> FUN_005adf10(0, 1)): return
+  bit 2 damages the unit, bit 1 ends the missile, 4 passes by. So Fire
+  Ball, the exploding arrows and Glacial Spike go off at the end of their
+  flight as well.
+- **2** (FUN_005a9d80, Plague Javelin), **4** (FUN_005b07a0, Exploding /
+  Freezing Arrow), **36** (FUN_005abf70, Fire Blast / Shock Web in the
+  air: passes units, lands at its target), **51** (volcano debris):
+  HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
+  aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
+  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
+  allies by calc1. **9** (FUN_005aa250, Immolation Arrow): the damage
+  within sHitPar1 (else calc1), fire over that ground (FUN_005a9530).
+  **13** (FUN_005aa8b0, Glacial Spike): the damage within sHitPar1 (else
+  aurarange), frozen sHitPar2 (else auralen) frames (FUN_005a8f20). **20**
+  (FUN_005ab370, Lightning Fury): HitSubMissile1 at up to sHitPar2 (else
+  calc1) units within sHitPar1 (else aurarange). **22** (FUN_005add20,
+  Fist of the Heavens): the damage within aurarange of its target, then
+  holy bolts at the undead in it (FUN_005ab630). **29** (FUN_005abb00,
+  Frozen Orb): HitSubMissile1 toward every sHitPar1th of 64 directions
+  (0x6e2738 / 0x6e2638: a circle of radius 30). **47** (FUN_005ac550,
+  Molten Boulder): the damage within sHitPar1 (else aurarange), fire at
+  0x6e2550's offsets; it rolls on. **48** (FUN_005ac6d0): HitSubMissile1
+  on toward the target.
+- Missile do **15** (FUN_005af030, Frozen Orb): every Param1 frames
+  SubMissile1 toward direction n of 64 (0x6e2b78 / 0x6e2a78), n += Param2.
+  **23** (FUN_005af790, Firestorm): SubMissile1 where it is. **27**
+  (FUN_005afa30, Tornado): every Param1 (else calc4) frames its damage
+  within Param2 (else aurarange). **28** (FUN_005afb80, Volcano): every
+  Param1 (else calc4) frames, between frames Param3 and Param4,
+  SubMissile1 thrown within Param2 (else aurarange).
+- NextHit rows strike a unit again NextDelay frames on (Twister, Tornado,
+  Shock Field, the war cries).
+- Skill dos: **11** (FUN_005db850, Charged Strike): calc1 of its missile
+  from the unit struck, away from the caster, wandering. **14**
+  (FUN_005dbe50, Lightning Strike): from the unit struck at another within
+  calc1 (FUN_0056bd10), calc2 hops. **73** (FUN_005d0040, Blessed Hammer):
+  path type 14 (FUN_00648cf0), +50 % magic damage (stats 52 / 53) against
+  the undead (FUN_006461d0). **80** (FUN_005d0670, Fist of the Heavens):
+  its delay missile on the target. **117** (FUN_005c7160, Firestorm):
+  calc1 makers, all but the first wandering. **118** (FUN_005c72f0,
+  Twister / Tornado): calc1 of them (FUN_005c7040). **123** (FUN_005c8080,
+  Volcano): at the point. **43** (FUN_005d5d70 -> FUN_005d5bf0, Shock
+  Web): prgcalc of them scattered within aurarange. **48** (FUN_005d68a0,
+  Blade Fury): one per attack frame while it's held. **33**
+  (FUN_005d3140, Psychic Hammer): the skill's damage on the unit, knockback
+  at calc1 % (calc2 champion, calc3 unique, calc4 boss). **51**
+  (FUN_005d76e0, Mind Blast): physical and stun within aurarange (or
+  prgcalc), conversion through FUN_005d7680. **20** (FUN_005c9800 ->
+  FUN_005c96a0, Static Field): calc1 % of life within aurarange. **55**
+  (FUN_005c4df0, Corpse Explosion): the corpse's max life (FUN_006538a0) x
+  calc1..calc2 %, half fire half physical, within aurarange / 2. **63**
+  (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**
+  (FUN_005ca360, Teleport): to the point if it's open and not in town.
+  **74** (FUN_005d88b0, Double Throw): both weapons' missiles (flag 1)
+  with the skill's toht (stat 19) and calc1 damage % (stat 25).
+- Built: `Fight::burst / strike / area / spot / spot_skill /
+  strike_bolts / land_range`, `Missile::ox / oy / turn / hit_at`,
+  MonType undead / demon. Not traced / not built: Blessed Hammer's path
+  (a spiral out at a fifth of its speed), Holy Bolt's healing, Static
+  Field's floor, Mind Blast's conversion, Immolation's fire damage (the
+  row's EMin a frame), Plague's cloud count (one), Volcano's frame window,
+  Double Throw (the throwing weapons' missiles), explosions on walls.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

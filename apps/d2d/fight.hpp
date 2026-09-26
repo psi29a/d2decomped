@@ -52,6 +52,7 @@ inline bool skill_built(const d2d::rules::Skill& s) {
         || (s.srvstfunc == 37 && s.srvdofunc == 13) || (s.srvstfunc == 29 && s.srvdofunc == 64) || s.srvdofunc == 150
         || (s.srvstfunc == 5 && s.srvdofunc == 7) || (s.srvstfunc == 25 && s.srvdofunc == 46) || s.srvdofunc == 9 || s.srvdofunc == 70
         || (s.srvstfunc == 9 && s.srvdofunc == 13) || (s.srvstfunc == 7 && s.srvdofunc == 2) || (s.srvstfunc == 16 && s.srvdofunc == 32)
+        || (s.srvstfunc == 6 && s.srvdofunc == 11) || (s.srvstfunc == 10 && s.srvdofunc == 14)
         || moving_skill(s);
 }
 // Self casts (right click, no target): Holy Shield (36 / 18).
@@ -695,7 +696,7 @@ struct Fight {
         const bool charging = s && s->srvstfunc == 23, finishing = finisher(s);
         std::erase_if(charges, [&](const Charge& c) { return ms >= c.until; });
         if (finishing) add_charges(f, sw);
-        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78, 32 }, s->srvdofunc)) skill_element(f, *s);
+        if (s && s->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78, 32, 11, 14 }, s->srvdofunc)) skill_element(f, *s);
         const int hp_before = m.hp;
         const auto target = std::size_t(attack_mon);
         const auto b = d2d::rules::player_blow(f, target_of(target), int(cc.stats.get(d2d::d2s::kLevel)), rng, sw);
@@ -705,6 +706,7 @@ struct Fight {
         if (b.hit && s && s->srvdofunc == 50) dragon_tail(*s, target, b.phys, ms);
         if (b.hit && s && s->srvdofunc == 9) frenzy(*s, ms);
         if (b.hit && s && s->srvstfunc == 7) impale_wear(*s);
+        if (b.hit && s && (s->srvdofunc == 11 || s->srvdofunc == 14)) strike_bolts(*s, target, ms);
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
         if (b.hit && s && s->srvdofunc == 64) {
@@ -716,6 +718,111 @@ struct Fight {
         if (!monsters[target].alive()) attack_mon = -1;
     }
 
+    // Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
+    // monster struck, on away from the player (to twice its spot less the
+    // player's), each wandering (FUN_005c9290). Lightning Strike (do 14,
+    // FUN_005dbe50): from the monster struck at another within calc1
+    // subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
+    // ponytail: the wander is a ±40 degree spread, as Charged Bolt's.
+    void strike_bolts(const d2d::rules::Skill& s, std::size_t i, std::uint32_t ms) {
+        const auto m = scene->missiles.find(s.srvmissilea);
+        if (m == scene->missiles.end()) return;
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const float x = monsters[i].u.x, y = monsters[i].u.y, dx = x - player.x, dy = y - player.y;
+        if (s.srvdofunc == 11) {
+            for (int k = 0; k < std::max(calc(s, s.calc[0], lvl), 1); ++k) {
+                const float a = (float(rng(81)) - 40) * 3.14159265f / 180;
+                launch(m->second, s, lvl, x, y, dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a),
+                       m->second.range + m->second.lev_range * lvl, ms).struck->push_back(int(i));
+            }
+            return;
+        }
+        const int r = calc(s, s.calc[0], lvl);
+        int best = -1; float bd = 1e9f;
+        for (std::size_t j = 0; j < monsters.size(); ++j)
+            if (const float d = std::hypot(monsters[j].u.x - x, monsters[j].u.y - y); j != i && monsters[j].alive() && d * 5 <= float(r) && d < bd) {
+                bd = d; best = int(j);
+            }
+        if (best < 0) return;
+        const auto& o = monsters[std::size_t(best)];
+        launch(m->second, s, lvl, x, y, o.u.x - x, o.u.y - y, m->second.range, ms).hops = calc(s, s.calc[1], lvl);
+    }
+    // Skills that act where they're cast, with no missile of their own:
+    // Psychic Hammer (do 33, FUN_005d3140: the skill's damage on the
+    // monster, knocked back at calc1 % — calc2 / 3 / 4 for champions,
+    // uniques, bosses), Mind Blast (51, FUN_005d76e0: the skill's physical
+    // and stun within aurarange of the point), Static Field (20,
+    // FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
+    // aurarange of the caster, as lightning), Corpse Explosion (55,
+    // FUN_005c4df0: a corpse's max life x calc1..calc2 %, half fire and half
+    // physical, within half its aurarange), Poison Explosion (63,
+    // FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
+    // FUN_005ca360: to the point, where it's open; not in town).
+    // ponytail: Static Field's floor in Nightmare / Hell, Mind Blast's
+    // conversion (Param3 / 4 through FUN_005d7680) and the knockback
+    // guards aren't applied; Corpse Explosion takes its corpse's life from
+    // the MonStats roll, not FUN_006538a0's.
+    [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& s) {
+        return std::ranges::contains(std::array{ 33, 51, 20, 55, 63, 27 }, s.srvdofunc);
+    }
+    void spot(const d2d::rules::Skill& s, std::uint32_t ms) {
+        const int lvl = skill_level ? skill_level(s.id) : 1;
+        const auto env = calc_env();
+        const auto md = d2d::rules::missile_damage(scene->skills, s, env, lvl);
+        auto within = [&](float x, float y, int r, auto&& f) {
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (monsters[j].alive() && std::hypot(monsters[j].u.x - x, monsters[j].u.y - y) * 5 <= float(r)) f(j);
+        };
+        switch (s.srvdofunc) {
+            case 33:
+                if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
+                    const auto i = std::size_t(attack_mon);
+                    auto b = d2d::rules::missile_blow(md, target_of(i), pierce(), rng);
+                    b.knockback = int(rng(100)) < calc(s, s.calc[0], lvl);
+                    land(i, b, true, ms);
+                }
+                break;
+            case 51:
+                within(cast_x, cast_y, calc(s, s.aurarange, lvl), [&](std::size_t j) { land(j, d2d::rules::missile_blow(md, target_of(j), pierce(), rng), true, ms); });
+                break;
+            case 20: {
+                const int pct = calc(s, s.calc[0], lvl);
+                within(player.x, player.y, calc(s, s.aurarange, lvl), [&](std::size_t j) {
+                    d2d::rules::Blow b{ .hit = true };
+                    b.damage = d2d::rules::resisted(monsters[j].hp * pct / 100, target_of(j).res[3]);
+                    land(j, b, true, ms);
+                });
+                break;
+            }
+            case 55: case 63: {
+                const int c = corpse_near(cast_x, cast_y);
+                if (c < 0) break;
+                auto& corpse = monsters[std::size_t(c)];
+                corpse.corpse_used = true;
+                if (s.srvdofunc == 63) {
+                    if (const auto m = scene->missiles.find(s.srvmissilea); m != scene->missiles.end())
+                        launch(m->second, s, lvl, corpse.u.x, corpse.u.y, 0, 0, m->second.range, ms);
+                    break;
+                }
+                const int lo = calc(s, s.calc[0], lvl), hi = std::max(calc(s, s.calc[1], lvl), lo);
+                const int dmg = int(std::int64_t(corpse.st.hp) * rng.range(lo, hi) / 100);
+                within(corpse.u.x, corpse.u.y, std::max(calc(s, s.aurarange, lvl) / 2, 1), [&](std::size_t j) {
+                    const auto t = target_of(j);
+                    d2d::rules::Blow b{ .hit = true };
+                    b.damage = d2d::rules::resisted(dmg / 2, t.res[0]) + d2d::rules::resisted(dmg - dmg / 2, t.res[2]);
+                    land(j, b, true, ms);
+                });
+                break;
+            }
+            case 27:
+                if (level == &scene->town || level->unit_blocked(cast_x, cast_y)) break;
+                player.x = cast_x; player.y = cast_y;
+                player.path.clear(); player.walking = false;
+                player.goal_x = cast_x; player.goal_y = cast_y;
+                break;
+            default: break;
+        }
+    }
     // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
     // brackets, synergy and the element's mastery (flag 1); Power Strike's
     // lightning, Poison Dagger's poison). Stun is elsewhere.
@@ -1000,6 +1107,8 @@ struct Fight {
                 pstruck = true;
                 if (const auto* s = scene->skills.get(swing_skill); s && missile_skill(*s)) {
                     fire(*s, ms);
+                } else if (s && spot_skill(*s)) {
+                    spot(*s, ms);
                 } else if (s && summon_skill(*s)) {
                     summon(*s, ms);
                 } else if (s) {
@@ -1129,20 +1238,21 @@ struct Fight {
     // FUN_005da8b0, only checks the ammo), or its srvmissilea from its do:
     // 8 (a fan), 17 (Charged Bolt), 22 (a nova), 10 (Guided Arrow, Bone
     // Spirit), 12 (Strafe), 26 (Chain Lightning), 28 (Meteor, Blizzard,
-    // Eruption), 24 (Fire Wall), 19 (Inferno, Arctic Blast). The row carries
-    // the skill's damage (Skill) or none (the weapon's at SrcDamage:
-    // Multiple Shot, Strafe), and hits with no function, 1 (the explosion),
-    // 10 (guided), 12 (chain) or 14 (Meteor's landing).
+    // Eruption), 24 (Fire Wall), 19 (Inferno, Arctic Blast), 73 (Blessed
+    // Hammer), 80 (Fist of the Heavens), 117 (Firestorm), 118 (Twister,
+    // Tornado), 123 (Volcano), 43 (Shock Web), 48 (Blade Fury). The row
+    // carries the skill's damage (Skill) or none (the weapon's at
+    // SrcDamage: Multiple Shot, Strafe); its hit functions: `burst`.
     // `any_owner`: a trap's shot, whose row names the player's skill.
     [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
-        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19 };
-        static constexpr int kSt[] = { 0, 4, 8, 11 };
+        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19, 73, 80, 117, 118, 123, 43, 48 };
+        static constexpr int kSt[] = { 0, 4, 8, 11, 26 };
         const bool plain = (s.srvstfunc == 0 || s.srvstfunc == 4) && s.srvdofunc == 0;
         const bool multi = std::ranges::contains(kSt, s.srvstfunc) && std::ranges::contains(kDo, s.srvdofunc);
         const auto& name = plain ? s.srvmissile : s.srvmissilea;
         if ((!plain && !multi) || name.empty()) return nullptr;
         const auto m = scene->missiles.find(name);
-        static constexpr int kHit[] = { 0, 1, 10, 12, 14 };
+        static constexpr int kHit[] = { 0, 1, 2, 3, 4, 7, 9, 10, 12, 13, 14, 20, 22, 29, 36, 47, 48 };
         if (m == scene->missiles.end() || !std::ranges::contains(kHit, m->second.hit_func)) return nullptr;
         return any_owner || m->second.skill == s.name || m->second.skill.empty() ? &m->second : nullptr;
     }
@@ -1156,7 +1266,7 @@ struct Fight {
     bool cast_missile(int skill, float tx, float ty, std::uint32_t ms) {
         using namespace d2d::d2s;
         const auto* s = scene->skills.get(skill);
-        if (!s || dead() || pmode >= 0 || !missile_skill(*s)) return false;
+        if (!s || dead() || pmode >= 0 || (!missile_skill(*s) && !spot_skill(*s))) return false;
         const int lvl = skill_level ? skill_level(skill) : 0;
         const int cost = d2d::rules::mana_cost(*s, lvl);
         if (lvl <= 0 || cc.stats.v[kMana] < cost) { attack_mon = -1; return false; }
@@ -1213,7 +1323,11 @@ struct Fight {
         const float dx = cast_x - player.x, dy = cast_y - player.y;
         const int range = mi.range + mi.lev_range * lvl;
         const int target = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() ? attack_mon : -1;
-        auto go = [&](float ddx, float ddy, int r) -> Missile& { return launch(mi, s, lvl, player.x, player.y, ddx, ddy, r, ms); };
+        auto go = [&](float ddx, float ddy, int r) -> Missile& {
+            auto& a = launch(mi, s, lvl, player.x, player.y, ddx, ddy, r, ms);
+            a.ox = cast_x; a.oy = cast_y;                    // where it was sent (Molten Boulder's roll)
+            return a;
+        };
         if (s.srvdofunc == 8) {
             const int n = std::max(calc1, 1);
             float px = dy * 5, py = -dx * 5;                 // subtiles, turned a right angle
@@ -1259,11 +1373,38 @@ struct Fight {
             launch(mi, s, lvl, ox, oy, -wx, -wy, range, ms);
             if (const auto c = scene->missiles.find(s.srvmissileb); c != scene->missiles.end())
                 launch(c->second, s, lvl, ox, oy, 0, 0, c->second.range + c->second.lev_range * lvl, ms);
-        } else if (s.srvdofunc == 19) {
+        } else if (s.srvdofunc == 19 || s.srvdofunc == 48) {
             channel = s.id;
+        } else if (s.srvdofunc == 73) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
+            auto& a = go(dx, dy, range);
+            a.ox = player.x; a.oy = player.y;
+            a.turn = int(std::atan2(dy, dx) * 1000);
+        } else if (s.srvdofunc == 80) {                      // Fist of the Heavens (FUN_005d0670): on the target
+            if (target < 0) return;
+            const auto& m = monsters[std::size_t(target)];
+            launch(mi, s, lvl, m.u.x, m.u.y, 0, 0, range, ms).target = target;
+        } else if (s.srvdofunc == 117 || s.srvdofunc == 118) {   // Firestorm (FUN_005c7160), Twister / Tornado (FUN_005c72f0)
+            for (int k = 0; k < std::max(calc1, 1); ++k) {
+                const float a = k == 0 ? 0.f : (float(rng(41)) - 20) * 3.14159265f / 180;
+                go(dx * std::cos(a) - dy * std::sin(a), dx * std::sin(a) + dy * std::cos(a), range);
+            }
+        } else if (s.srvdofunc == 123) {                     // Volcano (FUN_005c8080): at the target point
+            launch(mi, s, lvl, cast_x, cast_y, 0, 0, range, ms);
+        } else if (s.srvdofunc == 43) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
+            const int n = std::max(calc(s, s.prgcalc[0], lvl), 1), r = std::max(calc(s, s.aurarange, lvl), 1);
+            for (int k = 0; k < n; ++k) {
+                const float tx = cast_x + float(int(rng(2 * r + 1)) - r) / 5, ty = cast_y + float(int(rng(2 * r + 1)) - r) / 5;
+                go(tx - player.x, ty - player.y, land_range(mi, tx - player.x, ty - player.y));
+            }
         } else {
-            go(dx, dy, range);
+            go(dx, dy, mi.hit_func == 36 ? land_range(mi, dx, dy) : range);
         }
+    }
+    // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
+    // down at its target: its range is the frames to get there.
+    [[nodiscard]] static int land_range(const Scene::MissileInfo& mi, float dx, float dy) {
+        const float per_frame = cells_per_sec(float(std::max(mi.vel, 1))) * 0.04f;
+        return std::max(int(std::hypot(dx, dy) / per_frame), 1);
     }
     // Once a frame for the player's skill missiles (their pSrvDoFunc):
     // 7 (FUN_005ae780) turns a guided one to its target every Param1
@@ -1303,8 +1444,11 @@ struct Fight {
             if (!s || pmode != kModeSC || swing_skill != channel) channel = -1;
             else {
                 const int lvl = skill_level ? skill_level(s->id) : 1;
-                launch(*skill_missile(*s), *s, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y,
-                       std::max(calc(*s, s->calc[0], lvl), 1), ms);
+                const auto& mi = *skill_missile(*s);
+                if (s->srvdofunc == 19)
+                    launch(mi, *s, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y, std::max(calc(*s, s->calc[0], lvl), 1), ms);
+                else if (frame % 3 == 0)                     // Blade Fury (FUN_005d68a0): one per attack frame
+                    launch(mi, *s, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y, mi.range, ms);
             }
         }
         for (std::size_t k = 0; k < missiles.size(); ++k) {
@@ -1348,22 +1492,41 @@ struct Fight {
                         burn(i, md, ms);
                     }
             }
-            if (mi.hit_func == 14 && ms + 40 >= a.dies && a.frame < 0) {
-                a.frame = frame;
-                const int r = mi.hit_par1 > 0 ? mi.hit_par1 : std::max(calc(*s, s->aurarange, a.level), 1);
-                for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - a.x, monsters[i].u.y - a.y) * 5 <= float(r))
-                        land(i, d2d::rules::missile_blow(d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level), target_of(i),
-                                                         pierce(), rng), true, ms);
-                if (const auto h = scene->missiles.find(mi.hit_sub); h != scene->missiles.end()) {
-                    static constexpr int kX[18] = { 2, -2, 0, 0, -3, 0, 3, -1, 1, -1, 2, -4, -3, -1, 0, 1, 3, 4 };
-                    static constexpr int kY[18] = { -2, -2, 2, 5, 3, 3, 3, 2, 1, -1, -1, -2, -2, -3, -4, -3, -3, -2 };
-                    const int burn256 = s->par[2] + (a.level - 1) * s->par[3];
-                    for (std::size_t j = 0; j < 18; j += std::size_t(std::max(mi.hit_par2, 1))) {
-                        launch(h->second, *s, a.level, a.x + float(kX[j]) / 5, a.y + float(kY[j]) / 5, 0, 0, h->second.range, ms).fixed
-                            = burn256 > 0 ? burn256 : -1;
-                    }
-                }
+            // The Range runs out: the hit function goes off with no unit.
+            static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 29, 36, 48 };
+            if (ms + 40 >= a.dies && a.frame < 0 && std::ranges::contains(kEnd, mi.hit_func)) burst(a, ms);
+            // 15 (FUN_005af030, Frozen Orb): every Param1 frames SubMissile1
+            // toward direction `turn` of 64 (0x6e2b78 / 0x6e2a78), turning
+            // Param2 on.
+            if (mi.srv_do == 15 && sub != scene->missiles.end() && age % std::max(mi.param1, 1) == 0) {
+                const float t = float(a.turn & 63) * 2 * 3.14159265f / 64;
+                launch(sub->second, *s, a.level, a.x, a.y, std::cos(t), std::sin(t), sub->second.range, ms);
+                a.turn += mi.param2;
+            }
+            // 23 (FUN_005af790, Firestorm): SubMissile1 where it is, each frame.
+            if (mi.srv_do == 23 && sub != scene->missiles.end())
+                launch(sub->second, *s, a.level, a.x, a.y, 0, 0, sub->second.range, ms);
+            // 27 (FUN_005afa30, Tornado): every Param1 (else calc4) frames its
+            // damage within Param2 (else aurarange) subtiles.
+            if (mi.srv_do == 27 && age % std::max(mi.param1 > 0 ? mi.param1 : calc(*s, s->calc[3], a.level), 1) == 0)
+                area(a, a.x, a.y, mi.param2 > 0 ? mi.param2 : calc(*s, s->aurarange, a.level), ms);
+            // 28 (FUN_005afb80, Volcano): every Param1 (else calc4) frames
+            // SubMissile1 thrown at a point within Param2 (else aurarange).
+            // ponytail: its Param3 / Param4 frame window isn't applied.
+            if (mi.srv_do == 28 && sub != scene->missiles.end()
+                && age % std::max(mi.param1 > 0 ? mi.param1 : calc(*s, s->calc[3], a.level), 1) == 0) {
+                const int r = std::max(mi.param2 > 0 ? mi.param2 : calc(*s, s->aurarange, a.level), 1);
+                const float tx = float(int(rng(2 * r + 1)) - r) / 5, ty = float(int(rng(2 * r + 1)) - r) / 5;
+                launch(sub->second, *s, a.level, a.x, a.y, tx, ty, land_range(sub->second, tx, ty), ms);
+            }
+            // Blessed Hammer (do 73's path 14): round its caster's spot and out.
+            // ponytail: the client path's shape isn't traced: a turn each 1.6
+            // s, out at a fifth of its speed.
+            if (s->srvdofunc == 73 && mi.srv_do <= 1) {
+                const float t = float(ms - a.born) / 1000, r = t * cells_per_sec(float(mi.vel)) * 0.2f;
+                const float ang = float(a.turn) / 1000 + t * 2 * 3.14159265f / 1.6f;
+                a.x = a.ox + r * std::cos(ang); a.y = a.oy + r * std::sin(ang);
+                a.vx = a.vy = 0;
             }
         }
     }
@@ -1401,23 +1564,66 @@ struct Fight {
     bool skill_missile_hits(Missile& a, std::size_t i, std::uint32_t ms) {
         const auto* s = scene->skills.get(a.skill);
         if (!s) return true;
-        if (a.info->srv_do == 5) return false;               // a burner: missile_tick's
+        const auto& mi = *a.info;
+        if (mi.srv_do == 5) return false;                    // a burner: missile_tick's
         // Hit function 10 (FUN_005aa650): a guided one passes by all but its target.
-        if (a.info->hit_func == 10 && a.target >= 0 && a.target != int(i) && monsters[std::size_t(a.target)].alive()) return false;
-        auto& struck = *a.struck;
-        if (a.info->hit_func == 1 && !std::ranges::contains(struck, -1)) {
-            struck.push_back(-1);                            // exploding: the hits below are its
-            const int r = a.info->hit_par1 > 0 ? a.info->hit_par1
-                        : d2d::rules::eval_calc(scene->skills, s->calc[0], calc_env(), s->id, a.level);
+        if (mi.hit_func == 10 && a.target >= 0 && a.target != int(i) && monsters[std::size_t(a.target)].alive()) return false;
+        // 36 (FUN_005abf70: Fire Blast, Shock Web in the air), 14 / 22 / 29 /
+        // 48 (Meteor, Fist of the Heavens, Frozen Orb, Molten Boulder rising)
+        // pass over units and act where they come down.
+        if (mi.hit_func == 36 || mi.hit_func == 14 || mi.hit_func == 22 || mi.hit_func == 29 || mi.hit_func == 48) return false;
+        // 7 (FUN_005a9fb0: Holy Bolt, the Fist's bolts): sHitPar2 1 strikes
+        // the undead only (FUN_0063e990), 2 demons (FUN_0063e940); the rest
+        // it passes (4). ponytail: it doesn't heal the player's side (calc1).
+        if (mi.hit_func == 7) {
+            const auto& t = scene->monsters.types[std::size_t(monsters[i].type)];
+            if ((mi.hit_par2 == 1 && !t.undead) || (mi.hit_par2 == 2 && !t.demon)) return false;
+        }
+        // NextHit rows strike a monster again NextDelay frames on.
+        if (mi.next_hit) {
+            auto it = std::ranges::find(a.hit_at, int(i), &std::pair<int, std::uint32_t>::first);
+            if (it != a.hit_at.end() && ms < it->second + std::uint32_t(std::max(mi.next_delay, 1)) * 40) return false;
+            if (it == a.hit_at.end()) a.hit_at.emplace_back(int(i), ms); else it->second = ms;
+        }
+        // 1 (FUN_005a9a70) and 13 (FUN_005aa8b0) go off here, the area taking in the unit.
+        if (mi.hit_func == 1 || mi.hit_func == 13) { burst(a, ms); return true; }
+        strike(a, i, ms);
+        if (!mi.next_hit) a.struck->push_back(int(i));
+        // Hit function 12 (FUN_005aa730, Chain Lightning): with hops left, on
+        // from here at another monster within sHitPar1 (else aurarange)
+        // subtiles (FUN_0056bd10), a hop fewer.
+        // ponytail: the nearest one, not FUN_0056bd10's pick.
+        if (mi.hit_func == 12 && a.hops > 1) {
+            const int r = mi.hit_par1 > 0 ? mi.hit_par1 : calc(*s, s->aurarange, a.level);
+            int best = -1; float bd = 1e9f;
             for (std::size_t j = 0; j < monsters.size(); ++j)
-                if (monsters[j].alive() && std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y) * 5 <= float(std::max(r, 1)))
-                    skill_missile_hits(a, j, ms);
-            if (!std::ranges::contains(struck, int(i))) skill_missile_hits(a, i, ms);
+                if (const float d = std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y);
+                    j != i && monsters[j].alive() && d * 5 <= float(r) && d < bd) { bd = d; best = int(j); }
+            if (best >= 0) {
+                const auto& m = monsters[std::size_t(best)];
+                launch(mi, *s, a.level, a.x, a.y, m.u.x - a.x, m.u.y - a.y, mi.range, ms).hops = a.hops - 1;
+            }
+        }
+        if (mi.hit_func == 2 || mi.hit_func == 4 || mi.hit_func == 9 || mi.hit_func == 20 || mi.hit_func == 47) {
+            a.target = int(i);
+            burst(a, ms);
+            if (mi.hit_func == 47) return false;             // the boulder rolls on (FUN_005ac550 returns 1)
             return true;
         }
+        return mi.collide_kill && !(mi.pierce && int(rng(100)) < int(psum[328]));
+    }
+    // A skill missile's damage on monster i: with a weapon share (the
+    // skill's SrcDam, or a row with no Skill its SrcDamage) the weapon's
+    // blow at that share, attack rating rolled; else a sure hit (ToHit rows
+    // roll the attack rating); then the skill's damage (missile_blow).
+    // `freeze`: a Glacial Spike's freeze, frames.
+    void strike(const Missile& a, std::size_t i, std::uint32_t ms, int freeze = 0) {
+        const auto* s = scene->skills.get(a.skill);
+        if (!s || !monsters[i].alive()) return;
         const auto target = target_of(i);
         const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
-        auto md = a.info->skill.empty() ? row_damage(*a.info, a.level)
+        auto md = a.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = a.info->etype < 0 ? 0 : a.info->etype, .elo = a.fixed, .ehi = a.fixed }
+                : a.info->skill.empty() ? row_damage(*a.info, a.level)
                                         : d2d::rules::missile_damage(scene->skills, *s, calc_env(), a.level);
         d2d::rules::Blow b{ .hit = true };
         if (md.srcdam > 0) {
@@ -1428,27 +1634,105 @@ struct Fight {
         } else if (a.info->to_hit) {
             b.hit = int(rng(100)) < d2d::rules::hit_chance(pf.ar, target.ac, clvl, target.level);
         }
-        if (b.hit) {
-            b = d2d::rules::missile_blow(md, target, pierce(), rng, b);
-        }
+        if (b.hit) b = d2d::rules::missile_blow(md, target, pierce(), rng, b);
+        if (b.hit && freeze > 0) { b.chill_ticks = std::max(b.chill_ticks, freeze); b.stun_ticks = std::max(b.stun_ticks, freeze); }
         land(i, b, true, ms);
-        struck.push_back(int(i));
-        // Hit function 12 (FUN_005aa730, Chain Lightning): with hops left, on
-        // from here at another monster within sHitPar1 (else aurarange)
-        // subtiles (FUN_0056bd10), a hop fewer.
-        // ponytail: the nearest one, not FUN_0056bd10's pick.
-        if (a.info->hit_func == 12 && a.hops > 1) {
-            const int r = a.info->hit_par1 > 0 ? a.info->hit_par1 : calc(*s, s->aurarange, a.level);
-            int best = -1; float bd = 1e9f;
-            for (std::size_t j = 0; j < monsters.size(); ++j)
-                if (const float d = std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y);
-                    j != i && monsters[j].alive() && d * 5 <= float(r) && d < bd) { bd = d; best = int(j); }
-            if (best >= 0) {
-                const auto& m = monsters[std::size_t(best)];
-                launch(*a.info, *s, a.level, a.x, a.y, m.u.x - a.x, m.u.y - a.y, a.info->range, ms).hops = a.hops - 1;
+    }
+    // Every monster within r subtiles of (x, y) takes the missile's damage.
+    void area(const Missile& a, float x, float y, int r, std::uint32_t ms, int freeze = 0) {
+        for (std::size_t j = 0; j < monsters.size(); ++j)
+            if (monsters[j].alive() && std::hypot(monsters[j].u.x - x, monsters[j].u.y - y) * 5 <= float(std::max(r, 1))) strike(a, j, ms, freeze);
+    }
+    // A missile's hit function where it is — with the unit it struck, or
+    // none where its Range ran out (FUN_005adf10 calls it either way), once:
+    // 1 (FUN_005a9a70) the skill's damage within sHitPar1 (else calc1)
+    // subtiles; 3 (bomb on ground) within aurarange; 13 (FUN_005aa8b0,
+    // Glacial Spike) within sHitPar1 (else aurarange), freezing sHitPar2
+    // (else auralen) frames; 2 / 4 / 36 / 51 (FUN_005a9d80, FUN_005b07a0,
+    // FUN_005abf70) HitSubMissile1 there (Plague Javelin's cloud, Exploding /
+    // Freezing Arrow's blast, the traps on the ground); 9 (FUN_005aa250,
+    // Immolation Arrow) the damage within sHitPar1 (else calc1) and its fire
+    // over that ground (FUN_005a9530); 14 (Meteor, FUN_005aabb0) and 47
+    // (FUN_005ac550, Molten Boulder) the damage within sHitPar1 (else
+    // aurarange) and HitSubMissile1 at 0x6e2550's 18 offsets; 20
+    // (FUN_005ab370, Lightning Fury) HitSubMissile1 from here at up to
+    // calc1 monsters within aurarange; 22 (FUN_005add20, Fist of the Heavens)
+    // the damage within aurarange of its target, then HitSubMissile1 at
+    // each undead in it; 29 (FUN_005abb00, Frozen Orb) HitSubMissile1 in
+    // every sHitPar1th of 64 directions; 48 (FUN_005ac6d0) HitSubMissile1
+    // on toward where it was sent.
+    // ponytail: Immolation's ground fire burns the row's EMin a frame (the
+    // record FUN_0064b7c0 builds isn't traced); Plague's clouds are one;
+    // a wall doesn't set a missile off.
+    void burst(Missile& a, std::uint32_t ms) {
+        const auto* s = scene->skills.get(a.skill);
+        if (!s || a.frame >= 0) return;
+        a.frame = int(ms / 40);
+        const auto& mi = *a.info;
+        const auto hs = mi.hit_sub.empty() ? scene->missiles.end() : scene->missiles.find(mi.hit_sub);
+        const bool sub = hs != scene->missiles.end();
+        auto sub_at = [&](float x, float y, float dx, float dy) -> Missile& {
+            return launch(hs->second, *s, a.level, x, y, dx, dy, hs->second.range + hs->second.lev_range * a.level, ms);
+        };
+        auto radius = [&](int par, const d2d::rules::Calc& c) { return par > 0 ? par : std::max(calc(*s, c, a.level), 1); };
+        static constexpr int kX[18] = { 2, -2, 0, 0, -3, 0, 3, -1, 1, -1, 2, -4, -3, -1, 0, 1, 3, 4 };
+        static constexpr int kY[18] = { -2, -2, 2, 5, 3, 3, 3, 2, 1, -1, -1, -2, -2, -3, -4, -3, -3, -2 };
+        switch (mi.hit_func) {
+            case 1: area(a, a.x, a.y, radius(mi.hit_par1, s->calc[0]), ms); break;
+            case 3: area(a, a.x, a.y, radius(mi.hit_par1, s->aurarange), ms); break;
+            case 13: area(a, a.x, a.y, radius(mi.hit_par1, s->aurarange), ms, radius(mi.hit_par2, s->auralen)); break;
+            case 2: case 4: case 36: case 51: if (sub) sub_at(a.x, a.y, 0, 0); break;
+            case 9: {
+                const int r = radius(mi.hit_par1, s->calc[0]);
+                area(a, a.x, a.y, r, ms);
+                if (sub)
+                    for (int ox = -r; ox <= r; ++ox)
+                        for (int oy = -r; oy <= r; ++oy)
+                            if (ox * ox + oy * oy <= r * r) sub_at(a.x + float(ox) / 5, a.y + float(oy) / 5, 0, 0).fixed = hs->second.emin;
+                break;
             }
+            case 14: case 47: {
+                area(a, a.x, a.y, radius(mi.hit_par1, s->aurarange), ms);
+                const int burn256 = s->par[2] + (a.level - 1) * s->par[3];   // Meteor's (FUN_004cc7c0)
+                if (sub)
+                    for (std::size_t j = 0; j < 18; j += std::size_t(std::max(mi.hit_par2, 1)))
+                        sub_at(a.x + float(kX[j]) / 5, a.y + float(kY[j]) / 5, 0, 0).fixed
+                            = mi.hit_func == 14 && burn256 > 0 ? burn256 : hs->second.emin > 0 ? hs->second.emin : -1;
+                break;
+            }
+            case 20: {
+                if (!sub) break;
+                const int r = radius(mi.hit_par1, s->aurarange);
+                int n = radius(mi.hit_par2, s->calc[0]);
+                for (std::size_t j = 0; j < monsters.size() && n > 0; ++j)
+                    if (int(j) != a.target && monsters[j].alive() && std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y) * 5 <= float(r)) {
+                        sub_at(a.x, a.y, monsters[j].u.x - a.x, monsters[j].u.y - a.y);
+                        --n;
+                    }
+                break;
+            }
+            case 22: {
+                const float x = a.target >= 0 ? monsters[std::size_t(a.target)].u.x : a.x;
+                const float y = a.target >= 0 ? monsters[std::size_t(a.target)].u.y : a.y;
+                const int r = radius(mi.hit_par1, s->aurarange);
+                area(a, x, y, r, ms);
+                if (sub)
+                    for (std::size_t j = 0; j < monsters.size(); ++j)
+                        if (monsters[j].alive() && scene->monsters.types[std::size_t(monsters[j].type)].undead
+                            && std::hypot(monsters[j].u.x - x, monsters[j].u.y - y) * 5 <= float(r))
+                            sub_at(x, y, monsters[j].u.x - x, monsters[j].u.y - y);
+                break;
+            }
+            case 29:
+                if (sub)
+                    for (int k = 0; k < 64; k += std::max(mi.hit_par1, 1)) {
+                        const float t = float(k) * 2 * 3.14159265f / 64;
+                        sub_at(a.x, a.y, std::cos(t), std::sin(t));
+                    }
+                break;
+            case 48: if (sub) sub_at(a.x, a.y, a.ox - a.x, a.oy - a.y); break;
+            default: break;
         }
-        return a.info->collide_kill && !(a.info->pierce && int(rng(100)) < int(psum[328]));
     }
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
@@ -1943,7 +2227,7 @@ struct Fight {
         const auto& m = monsters[std::size_t(attack_mon)];
         if (!m.alive()) { attack_mon = -1; return std::nullopt; }
         const auto* s = scene->skills.get(attack_skill);
-        if (s && missile_skill(*s)) {                        // from here, at it
+        if (s && (missile_skill(*s) || spot_skill(*s))) {   // from here, at it
             cast_missile(attack_skill, m.u.x, m.u.y, ms);
             return std::nullopt;
         }

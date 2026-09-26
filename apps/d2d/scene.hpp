@@ -345,6 +345,7 @@ struct Scene {
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
+                         bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
                          std::string sub, hit_sub; };
     std::unordered_map<std::string, MissileInfo> missiles;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components

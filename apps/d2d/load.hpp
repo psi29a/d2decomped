@@ -284,6 +284,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         t.velocity = num(g("Velocity")); t.run = num(g("Run"));
         t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
         t.miss_a2 = g("MissA2");
+        t.undead = g("hUndead") == "1" || g("lUndead") == "1"; t.demon = g("demon") == "1";
         for (int e = 0; e < 3; ++e) {
             static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
             const std::string E = "El" + std::to_string(e + 1);
@@ -391,6 +392,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
         mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
         mi.srv_do = g("pSrvDoFunc"); mi.param1 = g("Param1"); mi.param2 = g("Param2"); mi.hit_par2 = g("sHitPar2");
+        mi.next_hit = g("NextHit") == 1; mi.next_delay = g("NextDelay");
         mi.sub = mt.get(r, "SubMissile1"); mi.hit_sub = mt.get(r, "HitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto e = std::ranges::find(kEl, mt.get(r, "EType")); e != kEl.end()) mi.etype = *e == "frze" ? 2 : int(e - kEl.begin());

@@ -25,6 +25,7 @@ struct MonType {
     std::array<int, 3> level{};                 // Level, Level(N), Level(H)
     int velocity = 0, run = 0;
     bool enabled = false, killable = false, melee = false;
+    bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
     std::string sound;                          // MonSound: its MonSounds.txt row
     // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
