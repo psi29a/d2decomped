@@ -82,16 +82,86 @@ the object's flag byte:
   nothing dropped, up to 10 more tries.
 - objects.txt 397 has its own tiered table (gold, potions); not in act 1's
   levels.
-- Then the trap fires (`FUN_00582510`, the table at 0x732cec):
+- Then the trap fires (`FUN_00582510`, the table at 0x732cec). Trap 8
+  first checks its monster (below); a flying scimitar in act 1 means no
+  trap at all. Otherwise the chest's trap event (`FUN_005417d0`) and
+  `FUN_00553380` follow, whatever the trap did.
 
 | Trap | Function | Does |
 |---|---|---|
-| 1 | 0x582490 → `FUN_00582420` | trap monster 330 trap-lightning (MissA1 chainlightning) |
-| 2, 6 | 0x5824b0 | 326 trap-firebolt (trapfirebolt) |
-| 3 | 0x5824d0 | 329 trap-poisoncloud (trappoisonjavcloud) |
-| 4 | 0x5824f0 | 369 trap-nova (MissS1 nova) |
-| 5, 7 | 0x582380 | objects at the chest and one subtile over |
-| 8 | 0x5822f0 | one or two of the level's monsters (`FUN_005474c0`) |
+| 1 | 0x582490 → `FUN_00582420` | trap monster 330 trap-lightning (AI Trap-Missile) |
+| 2, 6 | 0x5824b0 | 326 trap-firebolt (Trap-Missile) |
+| 3 | 0x5824d0 | 329 trap-poisoncloud (Trap-Poison) |
+| 4 | 0x5824f0 | 369 trap-nova (Trap-Nova) |
+| 5, 7 | `FUN_00582380` | fires: objects 162 (fire large) at the chest, 160 (fire small) one subtile east |
+| 8 | `FUN_005822f0` | one or two undead of the level's family |
+
+**Trap monsters** (`FUN_00582420`): the monster at the chest's subtile
+(`FUN_005b3090` → `FUN_005b2a00`, mode 1, flags 0x88); if that fails, the
+first spot clear of collision mask 0x3f11 (`FUN_0064e840`), then
+`FUN_005b2f20` (radius 3, mode 8). Their AIs (the server AI table at
+0x73ca20, 16-byte rows; MonStats +0x1e is the AI, +0x56 / +0x5c / +0x62 are
+aip1..3 by difficulty) all run the same way:
+
+- While there's a target within aip1 subtiles and it has acted fewer than
+  aip2 times: on one think it acts (count + 1), on the next it idles
+  aip3 frames.
+- Otherwise it flags the target (0x20000 at +0xc4) and goes to mode 0,
+  death. aip2 is 1 for all four, so each trap acts **once** and is gone. A
+  player out of range when it's made gets nothing.
+- Trap-Missile (77, `FUN_005fb5b0`; trap-firebolt, trap-lightning): mode 4
+  (A1) at the target, aip1 25, aip3 15. With no skill set, A1 fires the
+  mode's missile (`FUN_005a7670` → `FUN_005a6d50`: `FUN_0063e6b0`, MonStats
+  +0x3a MissA1) through `FUN_0056ecb0` with skill 0 at level
+  **MonsterSkillBonus + 1**, or the monster's level when +0xc4 has 0x200
+  (not traced). MonsterSkillBonus is DifficultyLevels +0x10: 0 / 3 / 7, so
+  level 1 / 4 / 8.
+- Trap-Poison (80, `FUN_005fb900`) and Trap-Nova (92, `FUN_005fb9b0`): the
+  monster's Skill1 (MonStats +0x170, mode Sk1mode +0x180) at the target
+  (`FUN_005dead0`); aip1 20, aip3 15. Monster skills are given at Sk*lvl
+  (+0x198) + MonsterSkillBonus (`FUN_00573cb0` with `FUN_00573930`): level
+  1 / 4 / 8 again.
+
+**What each one does**, at missile level L = 1 / 4 / 8. A missile's
+elemental damage (`FUN_0064b860` → `FUN_0064b100` / `FUN_0064b1d0`) is
+EMin / Emax plus the per-level columns, `<< HitShift`. A row with a Skill
+takes that skill's damage at L instead:
+
+| Trap | What | Damage |
+|---|---|---|
+| 1 | chainlightning (its Skill is Chain Lightning) | lightning 1-40 / 1-73 / 1-117 |
+| 2, 6 | trapfirebolt, one at the target | fire 4-16 / 43-58 / 95-114; explodes (fireexplode) |
+| 3 | PrimePoisonNova (do 99, `FUN_005ccd10`): 8 primepoisoncloud at the offsets at 0x6e31a8 / 0x6e31e8, speed Param1 << 6, then 8 more between them at Param2 << 6 (calc2 2) | poison 10 / 25 / 45 per frame in 256ths, over 300 / 360 / 440 frames |
+| 4 | Trap Nova (do 22, the nova ring of trapnova) | lightning 1-20 / 34-59 / 78-111 |
+
+- MonStats' own columns mislead here. Trap-poisoncloud's MissA1
+  (trappoisonjavcloud) never fires, because its AI casts Skill1. Trap-nova's
+  MissA1 / MissS1 (firebolt, nova) aren't used either: the skill's
+  srvmissilea is trapnova.
+
+**Fires** (5, 7): both made in mode 2 (`FUN_005540a0`). The small one only
+when the subtile east is still in the chest's room. Their InitFn 22
+(`FUN_0054fb40`) and OperateFn 11 (`FUN_005843d0`) only switch modes. The
+only readers of objects.txt Damage (+0x19c) are `FUN_005df990` /
+`FUN_005dfa00`, reached from the gas and exploding traps (`FUN_00581680`,
+`FUN_005818b0`, `FUN_00581cd0`) and the exploding barrel (`FUN_00584240`),
+not from fire. So the chest fire does no damage as far as traced.
+
+**Trap 8** (`FUN_005822f0`):
+
+- Count: one step of the seed at the start of the game's monster-region
+  block (game +0x10f0), `(seed & 1) + 1`.
+- Family (`FUN_005474c0`, cached per level at region +0x1c): the first of
+  the level's region monsters (region +0x14, 0x34 each) that's a zombie
+  (zombie1..5, ids 5..9; mummy1..5, 96..100, in act 2) or a skeleton
+  (0..3), skeleton archer (170..173) or skeleton mage (274..277,
+  379..382, 383..386, 387..390). It gives the family's first id. With
+  none it's 234, a flying scimitar, and in act 1 (`FUN_00582250`) that
+  means nothing happens.
+- Each one (`FUN_00582280`): `FUN_005b2490` picks the level's variant
+  (`FUN_0063ec70`: the Levels mon list entry with the same BaseId, else
+  a step along the family by `FUN_006510c0`, not traced). It's placed at
+  the chest in mode 8, tried at radius −1, then 1, then 3.
 
 The drop's item level: `FUN_0055a6d0` takes the chest unit and no level,
 so it's the unit's, the area level.
@@ -113,10 +183,13 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
   first inventory gem with a misc.txt BetterGem goes up one, else a
   chipped gem, `rand(6)`: gcw gcr gcg gcb gcy gcv), warping (20: see
-  monsters.md), locked chests and keys, the empty quarter, traps 2, 3, 6.
-- Traps: the missile flies once from the chest with its Missiles.txt
-  element at the area level. The trap monsters' own AIs (Trap-Missile,
-  Trap-Poison, Trap-Nova) aren't built.
+  monsters.md), locked chests and keys, the empty quarter, traps 2 and 6
+  (one missile from the chest).
+- Wrong in d2d until the trap pass: the missile level is the area level
+  (should be 1 / 4 / 8 by difficulty, above), and trap 3 flies
+  trappoisonjavcloud (should be PrimePoisonNova's 16 primepoisonclouds).
 - Not built: magic shrines 17 (portal), 19 (storm), 21 (exploding), 22
-  (poison); traps 1 and 4 (their missiles' damage comes from a skill,
-  not traced), 5 and 7 (objects), 8 (monsters); chest 397's table.
+  (poison); traps 1, 4, 5 / 7 (fires, no damage), 8; chest 397's table.
+- Traced but not emulator-checked: everything under "Trap monsters" and
+  "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
+  the AI's target pick.
