@@ -43,7 +43,8 @@ implemented. You can:
   resists, mana regen, stamina, skills, experience), upgrade a gem or
   turn the nearest monster into a champion or unique, and reset on their
   timer. Chests open and drop their act's chest treasure class; some are
-  locked (bring a key) and some are trapped.
+  locked (bring a key) and some are trapped: lightning, fire bolts, a
+  poison nova, a lightning nova, fire, or undead rising.
 - **Combat**: the Blood Moor's monsters spawn by game.exe's rules and
   notice, chase, surround and hit back. Hits use your gear (hit chance,
   block, resistances, crushing blow, deadly strike, leech, thorns,
@@ -69,7 +70,7 @@ Double Throw).
 
 It's all single-player and in memory: saves are read, never written.
 Not yet: levels past the Blood Moor and the Den, the unique behaviour
-mods (enchanted, cursed, teleport...), four magic shrines, most traps,
+mods (enchanted, cursed, teleport...), four magic shrines,
 quests, waypoint and town portal travel, the shapeshifted look. The
 full list, ranked, is in [`docs/PLAN.md`](docs/PLAN.md) "Next up".
 

@@ -47,6 +47,8 @@ struct Town {
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;
+    struct Fire { const Level* level; const Npc* npc; float x, y; };
+    std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
     bool  player_ran = false;
@@ -75,9 +77,8 @@ struct Town {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: magic shrines (16..22) and traps 5, 7, 8 only log; a trap
-    // monster's missile flies once (its Trap-* AI isn't built); D2's
-    // operate range is 2 cells here.
+    // ponytail: magic shrines (16..22) other than gem and warping only
+    // log; D2's operate range is 2 cells here.
     void operate(int i, std::uint32_t ms, int force = -1) {   // force (devctl): the shrine row / trap to play
         using namespace d2d::d2s;
         const auto& o = level->npcs[std::size_t(i)];
@@ -132,32 +133,81 @@ struct Town {
         d2d::log::info("shrine {} (code {}){}", row, s.code, s.code >= 16 && s.code != 18 && s.code != 20 ? ", not built" : "");
     }
 
-    // A chest's trap (the table at 0x732cec): the trap monster's missile
-    // from the chest at the player, its elemental damage at the area level
-    // (Missiles.txt EMin / EMax plus the per-level columns). Missiles with
-    // ToHit 0 always hit.
+    // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
+    // "Trap monsters"). The trap monster acts once and is gone, so its
+    // shot goes straight from the chest at the player: missile level 1 / 4
+    // / 8 by difficulty; a row with a Skill (chainlightning) carries that
+    // skill's damage, the others their own columns. 5 / 7 leave two fires
+    // (no damage traced); 8 raises the level's undead.
+    // ponytail: the AI's range check (aip1) is skipped — the player opening
+    // the chest is always close; chainlightning doesn't hop; trapfirebolt's
+    // fireexplode isn't spawned.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t ms) {
+        const int diff = std::clamp(cc.header.active_difficulty(), 0, 2);
+        if (trap == 5 || trap == 7) {                  // FUN_00582380: large at the chest, small a subtile east
+            fires.push_back({ level, &scene->trap_fires[0], x, y });
+            fires.push_back({ level, &scene->trap_fires[1], x + 0.2f, y });
+            d2d::log::info("trap {}: fire", trap);
+            return;
+        }
+        if (trap == 8) {                               // FUN_005822f0: 1 or 2 of the level's undead family
+            const int fam = d2d::rules::trap_undead(level->region[std::size_t(diff)], 0);
+            if (fam < 0 || fight.mon_level != level) { d2d::log::info("trap 8: no undead here"); return; }
+            // FUN_0063ec70: the level's own variant of the family.
+            // ponytail: from the region, else the family's first (FUN_006510c0's step not traced).
+            int type = fam;
+            const auto& types = scene->monsters.types;
+            for (const int r : level->region[std::size_t(diff)]) if (types[std::size_t(r)].base == types[std::size_t(fam)].base) { type = r; break; }
+            const int n = int(rng.next() & 1) + 1;
+            for (int k = 0; k < n; ++k) {
+                const auto [fx, fy] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
+                auto m = make_monster(*scene, type, fx, fy, rng, diff);
+                m.aware = true;
+                fight.monsters.push_back(std::move(m));
+            }
+            d2d::log::info("trap 8: {} x{}", types[std::size_t(type)].id, n);
+            return;
+        }
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
         const auto it = scene->missiles.find(name);
         if (!*name || it == scene->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }
         const auto& mi = it->second;
+        const int lvl = d2d::rules::kTrapLevel[std::size_t(diff)];
+        d2d::rules::MissileDamage md;
+        if (const auto k = scene->skills.by_name.find(mi.skill); !mi.skill.empty() && k != scene->skills.by_name.end()) {
+            d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, lvl, &rng };
+            md = d2d::rules::missile_damage(scene->skills, *scene->skills.get(k->second), env, lvl);
+        } else {
+            md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
+        }
         d2d::rules::MonStats st;
         st.level = alvl;
-        st.th = mi.to_hit ? alvl * 10 : 1 << 20;
+        st.th = mi.to_hit ? alvl * 10 : 1 << 20;       // ToHit 0: always hits
         st.a2_min = mi.min; st.a2_max = std::max(mi.max, mi.min);
-        auto lev = [&](const std::array<int, 5>& per) {       // levels 2..8, 9..16, 17..22, 23..28, 29+
-            static constexpr int kTo[5] = { 8, 16, 22, 28, 1000 };
-            int v = 0;
-            for (int l = 2, k = 0; l <= alvl; ++l) { while (l > kTo[k]) ++k; v += per[std::size_t(k)]; }
-            return v;
+        // In 256ths a frame; poison's over its length.
+        auto pts = [&](int e) { const std::int64_t v = e; return int(md.etype == 3 ? v * std::max(md.elen, 1) >> 8 : v >> 8); };
+        if (md.etype >= 0) st.el[0] = { md.etype, 100, pts(md.elo), pts(md.ehi), md.elen, "A2" };
+        auto shoot = [&](float dx, float dy, float vel, const std::shared_ptr<std::vector<int>>& struck) {
+            const float speed = cells_per_sec(vel), d = std::max(std::hypot(dx, dy), 0.01f);
+            Missile m{ &mi, x, y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms, ms + std::uint32_t(std::max(mi.range, 1)) * 40, st };
+            m.struck = struck;
+            fight.missiles.push_back(std::move(m));
         };
-        // In 256ths << HitShift; poison's a frame, over ELen frames.
-        auto pts = [&](int e) { const std::int64_t v = std::int64_t(e) << mi.hitshift; return int(mi.etype == 3 ? v * std::max(mi.elen, 1) >> 8 : v >> 8); };
-        if (mi.etype >= 0) st.el[0] = { mi.etype, 100, pts(mi.emin + lev(mi.emin_lev)), pts(mi.emax + lev(mi.emax_lev)), mi.elen, "A2" };
-        const float speed = cells_per_sec(float(mi.vel));
-        const float dx = player.x - x, dy = player.y - y, d = std::max(std::hypot(dx, dy), 0.01f);
-        fight.missiles.push_back(Missile{ &mi, x, y, dx / d * speed, dy / d * speed, direction32(dx, dy), ms,
-                                          ms + std::uint32_t(std::max(mi.range, 1)) * 40, st });
+        const auto ring = std::make_shared<std::vector<int>>();
+        if (trap == 3) {                               // PrimePoisonNova: 8 at Param1 << 6, 8 between at Param2 << 6
+            for (std::size_t k = 0; k < d2d::rules::kPoisonNova.size(); ++k) {
+                const auto [ox, oy] = d2d::rules::kPoisonNova[k];
+                shoot(float(ox), float(oy), float(k % 2 ? mi.param2 : mi.param1) / 4, ring);   // << 6 of a Vel's << 8
+            }
+        } else if (trap == 4) {                        // Trap Nova (do 22): the nova's 64
+            for (int k = 0; k < 64; ++k) {
+                const float a = float(k) * 6.2831853f / 64;
+                shoot(std::cos(a), std::sin(a), float(mi.vel), ring);
+            }
+        } else {
+            shoot(player.x - x, player.y - y, float(mi.vel), std::make_shared<std::vector<int>>());
+        }
+        d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
     }
 
     // A fresh game for the character: the Blood Moor's monsters at its
@@ -170,6 +220,7 @@ struct Town {
         loot.ground_level = level;
         cues.due.clear();
         operated.clear();
+        fires.clear();
         pick_item = -1;
     }
 
@@ -783,6 +834,8 @@ struct Town {
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
         if (level != &scene->town) loot.units(player.x, player.y, extra);
+        for (const auto& f : fires)
+            if (f.level == level) extra.push_back({ f.x, f.y, &scene->npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
         fight.units(&merc_label, extra);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.

@@ -480,6 +480,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         auto& spawns = L.spawns[std::size_t(d)];
         d2d::rules::Rng region_seed{ game.next() };
         const auto region = d2d::rules::monster_region(M, L.mon, d, region_seed);
+        for (const auto& [row, rarity] : region.types) L.region[std::size_t(d)].push_back(row);
         d2d::rules::Population pop{ 0, int(L.rooms.size()), 0, L.mon.umin[std::size_t(d)], L.mon.umax[std::size_t(d)], d, &scene.umods };
         // Not within WarpDist (2025 = 45^2 subtiles) of where players come
         // in: the camp for the Blood Moor, the warps for a level entered by one.
@@ -772,6 +773,12 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.y = (float(sy) + 0.5f) / 5;
         into.npcs.push_back(std::move(n));
     };
+    {                                               // a chest trap's fires (5 / 7: objects 162 and 160)
+        Level tmp;
+        add_object(tmp, 162, 0, 0);
+        add_object(tmp, 160, 0, 0);
+        for (std::size_t k = 0; k < tmp.npcs.size() && k < 2; ++k) scene.trap_fires[k] = std::move(tmp.npcs[k]);
+    }
     for (const auto& o : scene.town.ds1.objects())
         if (o.type == 2 && o.id >= 0 && o.id < 150) add_object(scene.town, kObjPreset[0][std::size_t(o.id)], o.x, o.y);   // act 1
 

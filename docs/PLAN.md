@@ -341,20 +341,15 @@ uniques (docs/research/re/monsters.md), shrines and chests
 
 Done from the half-day list (docs/research/re/objects.md, monsters.md):
 the skill, gem and warping shrines; locked chests (keys, two rounds), the
-empty quarter and traps 2 / 3 / 6 (3 flies the wrong missile, see 1); the chest item level (the chest
+empty quarter; all eight chest traps (trap monsters' one shot at
+level 1 / 4 / 8, PrimePoisonNova's rings, Trap Nova, fires, trap 8's
+undead); the chest item level (the chest
 unit's, the area level); the boss label under the name (the 0x725188
 table).
 
 Left for those, ranked:
 
-1. Traps (researched, docs/research/re/objects.md "Trap monsters"; about
-   half a day to build): each trap is a one-shot trap monster. Fix the
-   missile level (1 / 4 / 8 by difficulty, not the area level) and trap 3
-   (PrimePoisonNova's two rings of primepoisoncloud); add 1
-   (chainlightning at Chain Lightning's damage), 4 (Trap Nova's ring), 5 /
-   7 (two fires, no damage) and 8 (one or two of the level's undead
-   family, rising at the chest). Also: where "Champion" (0xc94) is used,
-   and the label's joiner.
+1. Where "Champion" (0xc94) is used, and the boss label's joiner (small).
 2. Unique behaviour mods (1–2 days): fire / cold / lightning enchanted
    (death explosion, chill, charged bolts), cursed, mana burn, teleport,
    spectral hit, multishot, aura enchanted. Their stat parts are done

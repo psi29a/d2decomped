@@ -120,6 +120,7 @@ struct Level {
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
     std::array<std::vector<d2d::rules::Spawn>, 3> spawns;   // by difficulty
+    std::array<std::vector<int>, 3> region;                 // its monster region's MonStats rows, by difficulty (trap 8)
 };
 
 struct Scene {
@@ -377,6 +378,7 @@ struct Scene {
                          bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
                          std::string sub, hit_sub; };
     std::unordered_map<std::string, MissileInfo> missiles;
+    std::array<Npc, 2> trap_fires;                         // objects 162 / 160, ON (a chest's traps 5 and 7)
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;

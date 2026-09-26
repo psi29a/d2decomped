@@ -124,12 +124,34 @@ inline int chest_rounds(bool locked, Rng& seed) {
     return locked ? 2 : full ? 1 : 0;
 }
 // What a trap springs (the table at 0x732cec): 1..4 and 6 a trap monster
-// at the chest (FUN_00582420: 1 trap-lightning, 2 / 6 trap-firebolt,
-// 3 trap-poisoncloud, 4 trap-nova), its missile here (MonStats MissA1,
-// trap-nova's MissS1); 5 / 7 objects (FUN_00582380), 8 one or two of the
-// level's monsters (FUN_005822f0). "" = not built: 1's chainlightning and
-// 4's nova carry no damage of their own (their skill's, not traced).
-inline constexpr std::array<const char*, 9> kTrapMissile{ "", "", "trapfirebolt", "trappoisonjavcloud", "", "", "trapfirebolt", "", "" };
+// at the chest (FUN_00582420) that acts once (its Trap-* AI, aip2 1) and
+// dies: 1 trap-lightning's MissA1 chainlightning, 2 / 6 trap-firebolt's
+// trapfirebolt, 3 trap-poisoncloud's Skill1 PrimePoisonNova (two rings of
+// primepoisoncloud), 4 trap-nova's Skill1 Trap Nova (a nova of trapnova);
+// 5 / 7 fires (FUN_00582380), 8 undead (FUN_005822f0).
+inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
+                                                          "", "trapfirebolt", "", "" };
+// The trap's missile level: DifficultyLevels MonsterSkillBonus (+0x10:
+// 0 / 3 / 7) + 1 — a mode's missile (FUN_005a6d50) and a monster's skills
+// (FUN_00573cb0, Sk1lvl 1) alike.
+inline constexpr std::array<int, 3> kTrapLevel{ 1, 4, 8 };
+// PrimePoisonNova (do 99, FUN_005ccd10): the offsets at 0x6e31e8 / 0x6e31a8;
+// even ones at Param1 << 6, the odd ones between at Param2 << 6 (calc2 2).
+inline constexpr std::array<std::pair<int, int>, 16> kPoisonNova{ { { 0, 2 }, { 1, 2 }, { 2, 2 }, { 2, 1 }, { 2, 0 }, { 2, -1 }, { 2, -2 }, { 1, -2 },
+                                                                    { 0, -2 }, { -1, -2 }, { -2, -2 }, { -2, -1 }, { -2, 0 }, { -2, 1 }, { -2, 2 }, { -1, 2 } } };
+// Trap 8's family (FUN_005474c0): the first of the level's region monsters
+// (MonStats rows = game ids below the Expansion row) that's a zombie
+// (mummy in act 2, `act` 0-based) or a skeleton, archer or skeleton mage:
+// that family's first id. None: 234, a flying scimitar — and in act 1
+// (FUN_00582250) no trap at all (-1).
+inline int trap_undead(const std::vector<int>& region, int act) {
+    const int z = act == 1 ? 96 : 5;
+    for (const int id : region) {
+        if (id >= z && id < z + 5) return z;
+        for (const int b : { 0, 170, 274, 379, 383, 387 }) if (id >= b && id < b + 4) return b;
+    }
+    return act == 0 ? -1 : 234;
+}
 
 // The marker levels by act (0x6e1988).
 inline constexpr std::array<std::pair<int, int>, 5> kChestLevels{ { { 2, 37 }, { 41, 73 }, { 76, 102 }, { 104, 108 }, { 109, 136 } } };

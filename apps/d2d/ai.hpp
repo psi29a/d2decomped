@@ -281,6 +281,9 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
         if (m.friendly) return hits_monster(m);
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
+            const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
+            if (std::ranges::contains(*m.struck, key)) continue;
+            m.struck->push_back(key);
             foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng, true));
             ++foe.missile_hits;
             return true;
@@ -350,25 +353,33 @@ void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vec
     else if (kind == d2d::rules::Boss::unique) m.npc.name = unique_name(s, name_seed);   // a champion keeps its name; the bar labels it
 }
 
+// A plain monster of MonStats row `type` at (x, y) cells: its components
+// and stats rolled (a boss's by make_boss instead: `stats` false).
+Monster make_monster(const Scene& s, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true) {
+    const auto& t = s.monsters.types[std::size_t(type)];
+    Monster m;
+    m.type = type;
+    m.npc = s.mon_npc[std::size_t(type)];
+    for (std::size_t l = 0; l < 16; ++l)
+        if (!t.parts[l].empty()) m.npc.comp[l] = t.parts[l][std::size_t(rng(int(t.parts[l].size())))];
+    m.u.x = m.home_x = x;
+    m.u.y = m.home_y = y;
+    m.u.dir = rng(16);
+    m.u.wait_until = std::uint32_t(rng(4000));
+    if (stats) m.st = d2d::rules::monster_stats(s.monsters, type, difficulty, rng);
+    m.hp = m.st.hp;
+    m.difficulty = std::clamp(difficulty, 0, 2);
+    return m;
+}
+
 std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& sp : L.spawns[std::size_t(std::clamp(difficulty, 0, 2))]) {
         if (sp.type < 0 || std::size_t(sp.type) >= s.mon_npc.size()) continue;
-        const auto& t = s.monsters.types[std::size_t(sp.type)];
-        Monster m;
-        m.type = sp.type;
-        m.npc = s.mon_npc[std::size_t(sp.type)];
-        for (std::size_t l = 0; l < 16; ++l)
-            if (!t.parts[l].empty()) m.npc.comp[l] = t.parts[l][std::size_t(rng(int(t.parts[l].size())))];
-        m.u.x = m.home_x = (float(sp.x) + 0.5f) / 5;
-        m.u.y = m.home_y = (float(sp.y) + 0.5f) / 5;
-        m.u.dir = rng(16);
-        m.u.wait_until = std::uint32_t(rng(4000));
-        if (sp.boss != d2d::rules::Boss::none) make_boss(s, m, sp.boss, sp.mods, sp.super, sp.name_seed, difficulty, rng);
-        else m.st = d2d::rules::monster_stats(s.monsters, sp.type, difficulty, rng);
-        m.hp = m.st.hp;
+        const bool boss = sp.boss != d2d::rules::Boss::none;
+        auto m = make_monster(s, sp.type, (float(sp.x) + 0.5f) / 5, (float(sp.y) + 0.5f) / 5, rng, difficulty, !boss);
+        if (boss) make_boss(s, m, sp.boss, sp.mods, sp.super, sp.name_seed, difficulty, rng);
         m.leader = sp.leader;
-        m.difficulty = std::clamp(difficulty, 0, 2);
         out.push_back(std::move(m));
     }
     return out;

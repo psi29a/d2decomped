@@ -67,6 +67,11 @@ int main() {
         empty += chest_rounds(false, c) == 0;
     }
     assert(traps > 120 && traps < 290 && locks > 220 && locks < 430 && empty > 850 && empty < 1150);
+    // Trap 8's undead: zombies (mummies in act 2) or a skeleton family by
+    // its first id; else a flying scimitar, nothing in act 1.
+    assert(trap_undead({ 19, 7, 2 }, 0) == 5);                           // fallen1, zombie3 first
+    assert(trap_undead({ 19, 172 }, 0) == 170 && trap_undead({ 98 }, 1) == 96 && trap_undead({ 7 }, 1) == 234);
+    assert(trap_undead({ 19 }, 0) == -1 && trap_undead({}, 2) == 234);
     // The gem shrine: a gem goes up; with none, a chipped one.
     d.item_base["gcv"].better_gem = "gfv";
     d.item_base["gpv"].better_gem = "non";

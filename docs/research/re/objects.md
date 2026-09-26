@@ -183,13 +183,18 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
   first inventory gem with a misc.txt BetterGem goes up one, else a
   chipped gem, `rand(6)`: gcw gcr gcg gcb gcy gcv), warping (20: see
-  monsters.md), locked chests and keys, the empty quarter, traps 2 and 6
-  (one missile from the chest).
-- Wrong in d2d until the trap pass: the missile level is the area level
-  (should be 1 / 4 / 8 by difficulty, above), and trap 3 flies
-  trappoisonjavcloud (should be PrimePoisonNova's 16 primepoisonclouds).
+  monsters.md), locked chests and keys, the empty quarter, and all eight
+  traps (`Town::spring_trap`; rules in shrines.hpp: `kTrapMissile`,
+  `kTrapLevel`, `kPoisonNova`, `trap_undead`). The trap monster isn't
+  made: its one shot leaves the chest at once. A ring's missiles strike
+  each foe once.
+- Simplified: no aip1 range check (whoever opens the chest is close);
+  chainlightning doesn't hop; trapfirebolt's fireexplode isn't spawned;
+  the fires last until a new game; trap 8's monsters stand up aware,
+  without mode 8, one step apart; the variant comes from the level's
+  region rows (Levels' mon list and `FUN_006510c0` not read).
 - Not built: magic shrines 17 (portal), 19 (storm), 21 (exploding), 22
-  (poison); traps 1, 4, 5 / 7 (fires, no damage), 8; chest 397's table.
+  (poison); chest 397's table.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.
