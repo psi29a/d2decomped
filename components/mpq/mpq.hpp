@@ -64,7 +64,8 @@ private:
 class Archive {
 public:
     explicit Archive(const std::filesystem::path& path) {
-        if (!SFileOpenArchive(path.string().c_str(), 0,
+        // path.c_str() is native, matching StormLib's TCHAR (wchar_t on Windows).
+        if (!SFileOpenArchive(path.c_str(), 0,
                               MPQ_OPEN_READ_ONLY | STREAM_FLAG_READ_ONLY,
                               &h_)) {
             throw std::runtime_error("MPQ open failed: " + path.string());

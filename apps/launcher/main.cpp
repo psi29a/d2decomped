@@ -666,8 +666,8 @@ private:
     static int importBinariesFromExe(const QString& exe, const QString& dst) {
         namespace fs = std::filesystem;
         HANDLE mpq{};
-        const auto exeUtf8 = exe.toStdString();
-        if (!SFileOpenArchive(exeUtf8.c_str(), 0,
+        const fs::path exePath(exe.toStdWString());      // c_str() is TCHAR-native (wchar_t on Windows)
+        if (!SFileOpenArchive(exePath.c_str(), 0,
                               MPQ_OPEN_READ_ONLY | STREAM_FLAG_READ_ONLY, &mpq)) {
             return -1;
         }

@@ -197,7 +197,7 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
         if (!place(room, sx, sy, -1, fits, lx, ly)) continue;
         const int leader = int(out.size());
         out.push_back({ type, lx, ly, leader });
-        auto near = [&](int who, int radius) {
+        auto nearby = [&](int who, int radius) {
             int px, py;
             if (who >= 0 && std::size_t(who) < m.types.size() && place(room, lx, ly, radius, fits, px, py))
                 out.push_back({ who, px, py, leader });
@@ -205,9 +205,9 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
         if (t.minion[0] >= 0) {                         // FUN_005b2830
             const int count = room.seed.range(t.party_min, t.party_max);
             const int kinds = t.minion[1] >= 0 ? 2 : 1;
-            for (int i = 0; i < count; ++i) near(t.minion[std::size_t(i % kinds)], 4);
+            for (int i = 0; i < count; ++i) nearby(t.minion[std::size_t(i % kinds)], 4);
         }
-        for (int extra = room.seed(hi - lo + 1) + lo - 1; extra > 0; --extra) near(type, 3);
+        for (int extra = room.seed(hi - lo + 1) + lo - 1; extra > 0; --extra) nearby(type, 3);
     }
 }
 

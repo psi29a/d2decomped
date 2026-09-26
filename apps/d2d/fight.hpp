@@ -1471,12 +1471,12 @@ struct Fight {
                 return it.location == 1 && (it.slot == 4 || it.slot == 5) && scene->rules.item_info.contains(it.code)
                     && scene->rules.item_info.at(it.code).kind == 2; });
             for (int h = 0; h < (hands >= 2 ? 2 : 1); ++h) {
-                std::vector<int> near;
+                std::vector<int> nearby;
                 for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) <= 5.f) near.push_back(int(i));
-                if (near.empty()) return;
-                const auto nx = std::ranges::upper_bound(near, attack_mon);
-                attack_mon = nx != near.end() ? *nx : near.front();
+                    if (monsters[i].alive() && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) <= 5.f) nearby.push_back(int(i));
+                if (nearby.empty()) return;
+                const auto nx = std::ranges::upper_bound(nearby, attack_mon);
+                attack_mon = nx != nearby.end() ? *nx : nearby.front();
                 hit(ms, 5.f);
             }
             return;
@@ -1666,15 +1666,15 @@ struct Fight {
             a.target = target; a.ed_pct = calc1;
         } else if (s.srvdofunc == 12) {
             const int r = calc(s, s.aurarange, lvl);
-            std::vector<int> near;
-            if (target >= 0) near.push_back(target);
+            std::vector<int> nearby;
+            if (target >= 0) nearby.push_back(target);
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (int(i) != target && monsters[i].alive()
-                    && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) * 5 <= float(r)) near.push_back(int(i));
+                    && std::hypot(monsters[i].u.x - player.x, monsters[i].u.y - player.y) * 5 <= float(r)) nearby.push_back(int(i));
             const int hi = calc1, lo = std::min(calc(s, s.calc[2], lvl), hi);
-            const int n = std::clamp(int(near.size()), lo, hi);
+            const int n = std::clamp(int(nearby.size()), lo, hi);
             for (int k = 0; k < n; ++k)
-                strafe.push_back({ near.empty() ? -1 : near[std::size_t(k) % near.size()], ms + std::uint32_t(k) * 120 });
+                strafe.push_back({ nearby.empty() ? -1 : nearby[std::size_t(k) % nearby.size()], ms + std::uint32_t(k) * 120 });
         } else if (s.srvdofunc == 26) {
             go(dx, dy, range).hops = calc1;
         } else if (s.srvdofunc == 28) {

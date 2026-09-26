@@ -152,7 +152,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             return x >= 0 && y >= 0 && x < lv.ds1.width() && y < lv.ds1.height();
         };
         if (on(L, gx, gy)) return { &L, std::size_t(gy) * std::size_t(mw) + std::size_t(gx) };
-        for (const auto& n : L.near)
+        for (const auto& n : L.nearby)
             if (on(*n.level, gx - n.dx, gy - n.dy))
                 return { n.level, std::size_t(gy - n.dy) * std::size_t(n.level->ds1.width()) + std::size_t(gx - n.dx) };
         return { nullptr, 0 };

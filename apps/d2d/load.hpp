@@ -1590,11 +1590,11 @@ void load_wilderness(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdo
 // The town and the Blood Moor as neighbours in the act (Level::near).
 // Pointers into the scene: call once it's where it will stay.
 void link_levels(Scene& s) {
-    s.town.near.clear();
-    s.moor.near.clear();
+    s.town.nearby.clear();
+    s.moor.nearby.clear();
     if (s.moor.ds1.width() == 0 || s.town.ds1.width() == 0) return;
-    s.town.near.push_back({ &s.moor, s.moor.world_x - s.town.world_x, s.moor.world_y - s.town.world_y });
-    s.moor.near.push_back({ &s.town, s.town.world_x - s.moor.world_x, s.town.world_y - s.moor.world_y });
+    s.town.nearby.push_back({ &s.moor, s.moor.world_x - s.town.world_x, s.moor.world_y - s.town.world_y });
+    s.moor.nearby.push_back({ &s.town, s.town.world_x - s.moor.world_x, s.town.world_y - s.moor.world_y });
 }
 
 // Load one DS1 + every DT1 it references (silently skips missing ones —

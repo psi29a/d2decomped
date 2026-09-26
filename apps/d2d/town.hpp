@@ -207,7 +207,7 @@ struct Town {
         // closes it. ponytail: talk/trade/hire/gamble not built.
         bool menu_click = false;
         automap_reveal(*scene, *level, automap, player.x, player.y);
-        for (const auto& n : level->near)                   // what's in view across the edge
+        for (const auto& n : level->nearby)                   // what's in view across the edge
             if (n.level->layer == level->layer)
                 automap_reveal(*scene, *n.level, automap, player.x - float(n.dx), player.y - float(n.dy));
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
@@ -409,7 +409,7 @@ struct Town {
     void cross_level(std::uint32_t ms) {
         const float wx = float(level->world_x) + target_x, wy = float(level->world_y) + target_y;
         bool known = level->inside(target_x, target_y);
-        for (const auto& n : level->near) known = known || n.level->inside(target_x - float(n.dx), target_y - float(n.dy));
+        for (const auto& n : level->nearby) known = known || n.level->inside(target_x - float(n.dx), target_y - float(n.dy));
         if (!known)
             for (const auto& p : scene->act1_layout)
                 if (wx >= float(p.x) && wy >= float(p.y) && wx < float(p.x + p.w) && wy < float(p.y + p.h)
@@ -418,7 +418,7 @@ struct Town {
                     d2d::log::info("not implemented: level {} (the player headed there from level {})", p.level, level->id);
                 }
         if (level->inside(player.x, player.y)) return;
-        for (const auto& n : level->near) {
+        for (const auto& n : level->nearby) {
             if (!n.level->inside(player.x - float(n.dx), player.y - float(n.dy))) continue;
             const float dx = float(n.dx), dy = float(n.dy);
             auto shift = [&](UnitState& u) {

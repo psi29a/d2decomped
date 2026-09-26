@@ -54,7 +54,7 @@ struct Level {
     // the renderer use theirs — the way D2 walks and draws across rooms
     // of neighbouring levels.
     struct Near { const Level* level; int dx, dy; };
-    std::vector<Near> near;
+    std::vector<Near> nearby;
     [[nodiscard]] bool inside(float x, float y) const {
         return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
     }
@@ -63,7 +63,7 @@ struct Level {
     // camp's, let them by).
     [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
         if (!inside(x, y))
-            for (const auto& n : near)
+            for (const auto& n : nearby)
                 if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy), mask);
         return blocked_here(x, y, mask);
     }

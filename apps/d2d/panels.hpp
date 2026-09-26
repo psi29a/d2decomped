@@ -150,8 +150,8 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
         }
         if (t.id == 30 && v < 0) continue;                // max level: blank
         const auto txt = std::to_string(v);
-        const bool small = (fixed || t.id == 31) && (v > 999 || f16.measure(txt) >= t.x1 - t.x0);
-        text(small ? f8 : f16, t.x0, t.x1, t.y, txt);
+        const bool small_font = (fixed || t.id == 31) && (v > 999 || f16.measure(txt) >= t.x1 - t.x0);
+        text(small_font ? f8 : f16, t.x0, t.x1, t.y, txt);
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
     if (auto v = lookup_string(s, cls)) cls = u16_to_latin1(*v);

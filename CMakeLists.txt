@@ -16,6 +16,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+# windows.h (via StormLib, SDL) otherwise #defines min/max and, through
+# the RPC headers, small; near/far it defines regardless, so the code
+# avoids those names.
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
 if(MSVC)
     add_compile_options(/W4 /permissive-)
 else()
