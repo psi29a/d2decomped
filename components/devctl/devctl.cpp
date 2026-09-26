@@ -52,6 +52,7 @@ bool Channel::active() const noexcept { return false; }
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -98,6 +99,13 @@ static void write_all(int fd, std::string_view s) {
         ssize_t w = ::send(fd, p, n, 0);
         if (w > 0) { p += w; n -= std::size_t(w); continue; }
         if (w < 0 && errno == EINTR) continue;
+        // Non-blocking socket, buffer full (a big reply): wait for it to
+        // drain rather than cut the reply short. 2 s without progress:
+        // treat the client as stuck.
+        if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            pollfd pfd{ fd, POLLOUT, 0 };
+            if (::poll(&pfd, 1, 2000) > 0) continue;
+        }
         break;   // client gone; caller will notice on next pump
     }
 }

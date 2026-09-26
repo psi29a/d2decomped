@@ -78,8 +78,17 @@ def state():
     print("state:", kv)
     return kv
 
+def frame():
+    return int(cmd("info").split("frame=")[1].split()[0])
+
 def frames(n=6):
-    time.sleep(n / 60)
+    # n frames actually drawn, not n/60 s: a slow frame (or a slow machine)
+    # would otherwise leave input unprocessed when the assert looks.
+    want = frame() + n
+    deadline = time.time() + 10 + n / 10
+    while frame() < want:
+        assert time.time() < deadline, f"stuck waiting for frame {want}"
+        time.sleep(0.005)
 
 try:
     for _ in range(100):
@@ -87,7 +96,7 @@ try:
             break
         assert proc.poll() is None, "d2d exited during startup"
         time.sleep(0.1)
-    frames()
+    frames(1)                         # the first frame: the screen is up
 
     st = state()
     assert st["screen"] == "charselect" and st["save"] == "0"   # LoD preselects 0
@@ -147,12 +156,25 @@ try:
                 p = l.split("\t")
                 if p[0].endswith(name):
                     return int(p[1]), int(p[2])
-        for _ in range(5):
-            x, y = npc_at("Warriv")
-            cmd(f"move {x} {y - 40}"); frames(6)
-            cmd(f"click {x} {y - 40}"); frames(70)
-            if state()["menu"] != "0":
-                break
+        def walk_to(name, done, dy=40, tries=12):
+            """Click `name` (a step its way when off screen: the edge may
+            be a wall), wait for the walk to end; again (it may patrol)
+            until done(state)."""
+            for _ in range(tries):
+                x, y = npc_at(name)
+                y -= dy
+                f = min(1.0, 250 / max(abs(x - 400), 2 * abs(y - 340), 1))
+                x, y = int(400 + (x - 400) * f), int(340 + (y - 340) * f)
+                cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(2)
+                for _ in range(60):
+                    st = state()
+                    if done(st) or st["walking"] == "0":
+                        break
+                    frames(10)
+                frames(6)
+                if done(state()):
+                    return
+        walk_to("Warriv", lambda st: st["menu"] != "0")
         assert state()["menu"] == "3", "Warriv's menu did not open"
         # talk -> the talk submenu (talk, introduction, gossip, cancel);
         # introduction -> his speech scrolls; Esc ends it.
@@ -175,12 +197,7 @@ try:
         assert state()["voice"] == "0", "voice kept playing after the speech closed"
         # The town waypoint (OperateFn 23): walk to it -> the panel, Act I's
         # 9 rows (touching it activates the town's); Esc closes it.
-        for _ in range(5):
-            x, y = npc_at("Waypoint")
-            cmd(f"move {x} {y - 20}"); frames(6)
-            cmd(f"click {x} {y - 20}"); frames(120)
-            if state()["waypoint"] != "0":
-                break
+        walk_to("Waypoint", lambda st: st["waypoint"] != "0", dy=20)
         assert state()["waypoint"] == "9", "waypoint panel did not open"
         cmd("key Escape"); frames()
         assert state()["waypoint"] == "0"
@@ -205,12 +222,7 @@ try:
         cmd("debug stat 15 1000000")             # a stash full of gold
 
         # Pathing: from the start to Charsi on foot, round the camp.
-        for _ in range(3):
-            x, y = npc_at("Charsi")
-            x, y = max(10, min(790, x)), max(10, min(590, y - 40))
-            cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(240)
-            if state()["menu"] != "0":
-                break
+        walk_to("Charsi", lambda st: st["menu"] != "0")
         assert menu_line("trade/repair"), "didn't walk to Charsi"
         cmd("key Escape"); frames()
 
@@ -220,15 +232,17 @@ try:
         n0 = int(state()["items"])
         cmd("move 110 137"); cmd("rclick 110 137"); frames(4)   # first stock cell
         assert int(state()["items"]) == n0 + 1, "gamble bought nothing"
-        # The item cursor: pick it up, put it down elsewhere.
+        # The item cursor: pick it up, put it down again.
         at = [l for l in cmd("items").splitlines() if l.startswith("[") and "panel=1 " in l][-1]
         col, row = (int(v) for v in at.split("at=")[1].rstrip("]").split(","))
-        gx, gy = 419 + 29 * col + 14, 315 + 29 * row + 14
+        w, h = (int(v) for v in at.split("size=")[1].split()[0].split("x"))
+        gx, gy = 419 + 29 * col + 14, 315 + 29 * row + 14              # its top-left cell
+        cx, cy = gx + (w - 1) * 29 // 2, gy + (h - 1) * 29 // 2        # held items drop by their centre
         cmd("key Escape"); frames()                             # closes the store and the inventory
         cmd("key i"); frames()
         cmd(f"move {gx} {gy}"); cmd(f"click {gx} {gy}"); frames(4)
         assert state()["held"] != "-", "didn't pick the item up"
-        cmd("move 564 373"); cmd("click 564 373"); frames(4)    # mid-grid: fits up to 2x4
+        cmd(f"move {cx} {cy}"); cmd(f"click {cx} {cy}"); frames(4)   # back where it was: a real save's grid may be full
         assert state()["held"] == "-", "didn't put the item down"
         cmd("key i"); frames()
 
@@ -279,7 +293,9 @@ try:
     # The skill bar: a click on the right button opens its picker, Esc
     # closes it (the synthetic save's skills are Attack).
     st = state()
-    assert st["lskill"] == "0" and st["rskill"] == "0" and st["picker"] == "0", st
+    if not real:
+        assert st["lskill"] == "0" and st["rskill"] == "0", st
+    assert st["picker"] == "0", st
     cmd("click 659 580"); frames()
     assert state()["picker"] == "2"
     cmd("key Escape"); frames()

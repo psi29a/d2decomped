@@ -28,7 +28,7 @@ const char* screen_name(Screen s) {
 // outlive it.
 void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, CharSelectUI& csu, CharCreateUI& cc,
                          Town& t, const std::optional<Scene>& scene, Audio& audio) {
-    auto click_verb = [&](const std::vector<std::string>& args, std::uint8_t button) {
+    auto click_verb = [&win = win](const std::vector<std::string>& args, std::uint8_t button) {
         if (args.size() < 3) return std::string("err click <x> <y>\n");
         // Args are game pixels; queued events carry window coords and get
         // converted back by SDL_ConvertEventToRenderCoordinates on poll.
@@ -50,8 +50,9 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         }
         return std::string("ok\n");
     };
-    ch.on("click", [&](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_LEFT); });
-    ch.on("rclick", [&](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_RIGHT); });
+    // By value: click_verb is this function's local (a [&] would dangle).
+    ch.on("click", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_LEFT); });
+    ch.on("rclick", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_RIGHT); });
     ch.on("key", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err key <name>\n");
         const SDL_Keycode k = SDL_GetKeyFromName(args[1].c_str());
@@ -258,6 +259,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         for (const auto& it : cc.items) {
             out += "[" + it.code + " loc=" + std::to_string(it.location) + " slot=" + std::to_string(it.slot)
                  + " q=" + std::to_string(it.quality) + " panel=" + std::to_string(it.panel)
+                 + std::format(" size={}x{}", d2d::rules::item_size(scene->rules, it.code).first, d2d::rules::item_size(scene->rules, it.code).second)
                  + " at=" + std::to_string(it.column) + "," + std::to_string(it.row) + "]\n";
             for (const auto& l : item_lines(*scene, it, int(cc.stats.get(d2d::d2s::kLevel))))
                 out += "  " + l.text + "\n";
