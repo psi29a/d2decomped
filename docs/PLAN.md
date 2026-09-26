@@ -335,9 +335,9 @@ player is one client on an in-process transport
 (docs/design/multiplayer.md "Decision"). Done before the feature list
 below, so new features land on the new structure:
 
-1. Research (half a day): game.exe's packet tables (client → server,
-   server → client) and handlers, the server tick, the client frame
-   and interpolation. Output: `docs/research/re/network.md`.
+1. Research: done, `docs/research/re/network.md` (C → S sizes
+   0x730dc0 and handlers 0x6e0d18; S → C table 0x7114d0; game frames
+   at 1000 / fps in FUN_0052fc20 → FUN_0052d870, flush every 40 ms).
 2. The split (2–4 days): a `World` owns the server state (levels, units
    with stable ids, monsters, missiles, ground items, objects, the 25 Hz
    tick, server-side rng); commands in, events and state out; `Town`
