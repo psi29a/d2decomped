@@ -1,0 +1,212 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      # Hash relative paths so ccache hits survive a moved workspace
+      # (as ../opendf).
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_SLOPPINESS: "locale,time_macros,include_file_ctime,include_file_mtime"
+      # Prebuilt Windows dependency versions (see "Download prebuilt dependencies").
+      SDL3_VERSION: "3.4.16"
+      OPENAL_VERSION: "1.25.2"
+      # BtbN keeps month-end autobuilds indefinitely (dailies are pruned), so
+      # pin one of those: an immutable n9.0.x release-branch build.
+      FFMPEG_TAG: "autobuild-2026-08-31-13-27"
+      FFMPEG_BUILD: "ffmpeg-n9.0.1-11-ge47273f4d9-win64-lgpl-shared-9.0"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # libsdl3-dev is only in 25.04+; ubuntu-latest (24.04) lacks it.
+          - os: ubuntu-26.04
+            name: Linux (GCC)
+          - os: macos-latest
+            name: macOS (Clang)
+          - os: windows-latest
+            name: Windows (MSVC)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build build-essential pkg-config \
+            libsdl3-dev libopenal-dev zlib1g-dev qt6-base-dev libgl1-mesa-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja pkgconf sdl3 openal-soft ffmpeg qt
+
+      # Windows: prebuilt release binaries rather than compiling anything.
+      #   SDL3        - libsdl-org's VC dev zip (ships SDL3Config.cmake)
+      #   OpenAL Soft - kcat's bin zip (headers, OpenAL32.lib, soft_oal.dll)
+      #   FFmpeg      - BtbN's LGPL shared build (import libs + .pc files),
+      #                 a pinned month-end autobuild of the 9.0 release branch
+      #   zlib        - no official MSVC binary; the runner's preinstalled
+      #                 vcpkg builds just zlib (seconds), cached with the rest.
+      # Bump the versions here and the cache key together.
+      - name: Cache Windows dependencies
+        if: runner.os == 'Windows'
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/deps
+          key: deps-win-sdl3-${{ env.SDL3_VERSION }}-openal-${{ env.OPENAL_VERSION }}-${{ env.FFMPEG_BUILD }}-zlib-v1
+
+      - name: Download prebuilt dependencies (Windows)
+        if: runner.os == 'Windows' && steps.cache-deps.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $deps = "${{ github.workspace }}\deps"
+          New-Item -ItemType Directory -Force -Path $deps | Out-Null
+          function Get-Zip($url, $name) {
+            Write-Host "Downloading $url"
+            Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\$name.zip"
+            7z x -y "-o$deps" "$env:RUNNER_TEMP\$name.zip" | Out-Null
+          }
+          Get-Zip "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL3_VERSION/SDL3-devel-$env:SDL3_VERSION-VC.zip" sdl3
+          Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal
+          Get-Zip "https://github.com/BtbN/FFmpeg-Builds/releases/download/$env:FFMPEG_TAG/$env:FFMPEG_BUILD.zip" ffmpeg
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib --triplet x64-windows --x-install-root="$deps\vcpkg"
+          Get-ChildItem $deps
+
+      # pkg-config for FFmpeg's .pc files (pkgconfiglite is a prebuilt binary).
+      - name: Install pkg-config (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install pkgconfiglite -y --no-progress
+
+      - name: Set up Ninja (Windows)
+        if: runner.os == 'Windows'
+        uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # v6
+
+      - name: Install Qt6 (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          cache: true
+
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # ccache 4.x handles MSVC too; CMake picks it up via
+      # CMAKE_*_COMPILER_LAUNCHER. StormLib and CLI11 (FetchContent) share it.
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}
+          max-size: 1G
+
+      - name: Configure (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          EXTRA_ARGS=()
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            EXTRA_ARGS+=("-DCMAKE_PREFIX_PATH=$(brew --prefix qt)")
+          fi
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $deps = "${{ github.workspace }}\deps"
+          $sdl = "$deps\SDL3-$env:SDL3_VERSION"
+          $al = "$deps\openal-soft-$env:OPENAL_VERSION-bin"
+          $ff = "$deps\$env:FFMPEG_BUILD"
+          $z = "$deps\vcpkg\x64-windows"
+          $env:PKG_CONFIG_PATH = "$ff\lib\pkgconfig"
+          # BtbN's .pc files are relocatable (prefix=${pcfiledir}/../..).
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+            "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
+            "-DSDL3_DIR=$sdl\cmake" `
+            "-DOPENAL_INCLUDE_DIR=$al\include" `
+            "-DOPENAL_LIBRARY=$al\libs\Win64\OpenAL32.lib"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # No game data on the runners: tests that need MPQs print SKIP and pass.
+      - name: Test (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ctest --test-dir build --output-on-failure -C Release
+
+      # Put every runtime DLL next to the binaries: the tests need them on
+      # PATH, and the uploaded artifact then runs as-is.
+      - name: Stage runtime DLLs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $deps = "${{ github.workspace }}\deps"
+          $dlls = @(
+            "$deps\SDL3-$env:SDL3_VERSION\lib\x64\SDL3.dll",
+            "$deps\openal-soft-$env:OPENAL_VERSION-bin\bin\Win64\soft_oal.dll",
+            "$deps\$env:FFMPEG_BUILD\bin\*.dll",
+            "$deps\vcpkg\x64-windows\bin\*.dll")
+          foreach ($dir in @("build\apps\d2d", "build\tests", "build\tools\mpq-cat", "build\tools\drlg-dump")) {
+            if (Test-Path $dir) { Copy-Item -Path $dlls -Destination $dir -Force }
+          }
+          # soft_oal.dll is what OpenAL32.lib imports as OpenAL32.dll.
+          Get-ChildItem -Recurse build -Filter soft_oal.dll | ForEach-Object { Copy-Item $_.FullName (Join-Path $_.DirectoryName "OpenAL32.dll") -Force }
+          windeployqt --no-translations --no-compiler-runtime build\apps\launcher\d2d-launcher.exe
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2d-${{ matrix.os }}
+          path: |
+            build/apps/d2d/d2d
+            build/apps/d2d/d2d.exe
+            build/apps/launcher/d2d-launcher
+            build/apps/launcher/d2d-launcher.exe
+            build/apps/launcher/d2d-launcher.app
+            build/tools/mpq-cat/mpq-cat
+            build/tools/mpq-cat/mpq-cat.exe
+            build/tools/drlg-dump/drlg-dump
+            build/tools/drlg-dump/drlg-dump.exe
+            build/apps/d2d/*.dll
+            build/apps/launcher/*.dll
+            build/apps/launcher/platforms
+            build/apps/launcher/styles
+            build/apps/launcher/imageformats
+            build/apps/launcher/tls
+            build/apps/launcher/networkinformation
+          if-no-files-found: warn
