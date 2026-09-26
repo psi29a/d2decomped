@@ -34,8 +34,12 @@ d2d_add_test(test_drlg drlg)
 d2d_add_test(test_outdoor drlg mpq)
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
-add_test(NAME smoke_d2d
-         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/smoke_d2d.py $<TARGET_FILE:d2d>)
+# Python3_EXECUTABLE rather than `python3`: Windows installs it as python.exe.
+find_package(Python3 COMPONENTS Interpreter)
+if (Python3_Interpreter_FOUND)
+    add_test(NAME smoke_d2d
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/smoke_d2d.py $<TARGET_FILE:d2d>)
+endif()
 
 # Optional game-data inputs, handed to the tests that use them (they skip
 # those parts when unset): -DD2_PATCH_INSTALLER=.../LODPatch_114d.exe,
@@ -50,5 +54,8 @@ if (D2_SAVES_DIR)
     list(APPEND d2d_test_env "D2_SAVES_DIR=${D2_SAVES_DIR}")
 endif()
 if (d2d_test_env)
-    set_tests_properties(smoke_d2d test_d2s test_outdoor PROPERTIES ENVIRONMENT "${d2d_test_env}")
+    set_tests_properties(test_d2s test_outdoor PROPERTIES ENVIRONMENT "${d2d_test_env}")
+    if (TARGET d2d AND Python3_Interpreter_FOUND)
+        set_tests_properties(smoke_d2d PROPERTIES ENVIRONMENT "${d2d_test_env}")
+    endif()
 endif()

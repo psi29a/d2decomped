@@ -18,4 +18,4 @@ target_link_libraries(mpq INTERFACE storm)
 target_include_directories(mpq INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${stormlib_SOURCE_DIR}/src)
-target_compile_features(mpq INTERFACE cxx_std_26)
+target_compile_features(mpq INTERFACE cxx_std_${CMAKE_CXX_STANDARD})

@@ -2,7 +2,7 @@
 # thirdeye's components/files layout.
 add_library(userdir INTERFACE)
 target_include_directories(userdir INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_features(userdir INTERFACE cxx_std_26)
+target_compile_features(userdir INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
 if (WIN32)
     target_link_libraries(userdir INTERFACE shell32 ole32)
 endif()

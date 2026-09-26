@@ -10,9 +10,9 @@ using namespace d2d::rules;
 
 int main() {
     Tables d;
-    d.item_info["hax"] = { .kind = 2, .type = "axe" };
-    d.item_info["rin"] = { .kind = 0, .type = "ring" };
-    d.item_info["hp1"] = { .kind = 0, .type = "hpot" };
+    d.item_info["hax"] = { .type = "axe", .kind = 2 };
+    d.item_info["rin"] = { .type = "ring", .kind = 0 };
+    d.item_info["hp1"] = { .type = "hpot", .kind = 0 };
     d.types["ring"].always_magic = true;
     d.item_base["hax"] = { .level = 1, .normcode = "hax" };
     d.item_rarity = { { "hax", 3 }, { "big", 1 } };

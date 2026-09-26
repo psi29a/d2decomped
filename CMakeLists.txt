@@ -1,7 +1,13 @@
 cmake_minimum_required(VERSION 3.28)
 project(D2Decomp LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 26)
+# MSVC: CMake has no C++26 flag for it; 23 maps to /std:c++latest, the
+# newest dialect MSVC offers.
+if(MSVC)
+    set(CMAKE_CXX_STANDARD 23)
+else()
+    set(CMAKE_CXX_STANDARD 26)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
