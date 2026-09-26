@@ -348,6 +348,7 @@ struct Scene {
                          bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
                          std::string sub, hit_sub; };
     std::unordered_map<std::string, MissileInfo> missiles;
+    std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
 };

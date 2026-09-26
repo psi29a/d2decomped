@@ -371,6 +371,19 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         if (const std::string a(sk.get(r, "srvmissilea")); num(sk.get(r, "srvdofunc")) == 149 && !a.empty())   // necromage1..4
             for (char d = '2'; d <= '4'; ++d) skill_missiles.emplace(a.substr(0, a.size() - 1) + d);
     }
+    // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
+    // Double Throw.
+    std::unordered_map<int, std::string> thrown_ids;
+    {
+        const auto wt = txt("weapons");
+        for (std::size_t r = 0; r < wt.size(); ++r)
+            if (const int id = num(wt.get(r, "missiletype")); id > 0) thrown_ids.emplace(id, std::string(wt.get(r, "code")));
+        for (std::size_t r = 0; r < mt.size(); ++r)
+            if (const auto it = thrown_ids.find(num(mt.get(r, "Id"))); it != thrown_ids.end()) skill_missiles.emplace(mt.get(r, "Missile"));
+        for (const auto& [id, code] : thrown_ids)
+            for (std::size_t r = 0; r < mt.size(); ++r)
+                if (num(mt.get(r, "Id")) == id) scene.thrown[code] = std::string(mt.get(r, "Missile"));
+    }
     // and the rows those spawn (SubMissile1, HitSubMissile1: Fire Wall's
     // flames, Meteor's fire, Blizzard's shards), to a fixed point.
     for (bool more = true; more;) {

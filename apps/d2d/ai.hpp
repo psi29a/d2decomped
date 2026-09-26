@@ -241,6 +241,7 @@ struct Missile {
     // last frame a spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
     float ox = 0, oy = 0;                     // where it was sent (Molten Boulder), a spiral's centre
+    float bx = 0, by = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     std::vector<std::pair<int, std::uint32_t>> hit_at;   // NextHit: when it last struck each monster
 };

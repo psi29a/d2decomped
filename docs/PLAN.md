@@ -273,6 +273,16 @@ Combat
   wolves / bear / raven) fighting at the player's side in the Blood Moor, and the Assassin's sentries (Lightning, Charged Bolt, Death) shooting
   the player's skill. Phase 5 is done; what's left of each part is listed
   in skills.md.
+  Phase 6 (2026-09-26) rounds every class skill off: the do-function
+  missiles (Guided Arrow, Strafe, Chain Lightning, Meteor, Blizzard, Fire
+  Wall, Inferno), pets (the summon's stats and masteries, sumskills,
+  Hydra, Revive, Decoy, Shadow Warrior, following across levels), the
+  missile hit functions and spot spells (Frozen Orb, Glacial Spike, FoH,
+  Blessed Hammer, the arrows, the Druid's elementals, Static Field, Corpse
+  Explosion, Teleport), buffs / curses / war cries, and the rest (Royal
+  Strike, Bone Wall / Prison, vines, shapeshifting, Armageddon, Blade
+  Sentinel / Shield, the sentries). devctl `debug unbuilt` lists no class
+  skill without a path; what each part approximates is in skills.md.
 - Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
   FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
   names.

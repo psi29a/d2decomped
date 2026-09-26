@@ -174,6 +174,17 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
                 out += std::format(" {}={}{}{}", p.stat, p.value, p.itype.empty() ? "" : "/", p.itype);
             return out + "\n";
         }
+        if (args.size() >= 2 && args[1] == "unbuilt" && scene) {   // class skills no path in Fight takes
+            std::string out;
+            for (const auto& k : scene->skills.rows) {
+                if (k.cls.empty() || k.id < 0) continue;
+                auto& f = t.fight;
+                const bool built = skill_built(k) || self_cast(k) || f.missile_skill(k) || f.spot_skill(k) || f.summon_skill(k) || k.aura
+                                || (k.srvstfunc == 0 && k.srvdofunc == 0 && (k.passive_stat[0] >= 0 || k.passive));
+                if (!built) out += std::format("{} {} st{} do{}\n", k.id, k.name, k.srvstfunc, k.srvdofunc);
+            }
+            return out + "ok\n";
+        }
         if (args.size() >= 2 && args[1] == "states") {    // the player's buffs; each cursed / cried monster
             std::string out = std::format("absorb={} maxlife={} maxmana={} def={} buffs=", t.fight.absorb_pool,
                                           cc.stats.fixed(d2d::d2s::kMaxLife), cc.stats.fixed(d2d::d2s::kMaxMana), t.fight.pf.defense);

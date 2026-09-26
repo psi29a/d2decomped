@@ -767,6 +767,49 @@ operand and function lists.
   +1 skills, the war cries on the merc and pets, Leap's and Dragon
   Flight's movement (they arrive at once), Find Potion's table.
 
+### The rest (phase 6, part 5)
+- Royal Strike's releases: **40** (FUN_005d5010: the count's missile
+  standing at the target, its meteor), **143** (FUN_005d4f40 ->
+  FUN_005d4870) and **37** (FUN_005d4e70 -> FUN_005d4150, Claws of
+  Thunder's third): a 64-direction scan (FUN_005d4680 / FUN_005d40f0) for
+  units within prgcalc (else aurarange), a missile at each with
+  FUN_004efc20 + 1 hops; **41** (FUN_005d5080): prgcalc of them toward
+  random points round the target.
+- Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
+  srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
+  **62** (FUN_005c5d00, Bone Prison): twelve round the point (0x6e304c /
+  0x6e307c: (-1,-4) (1,-4) (3,-3) (4,-1) (4,1) (3,3) (-1,4) (1,4) (-3,3)
+  (-4,-1) (-4,1) (-3,-3)).
+- Do **115** (FUN_005c6a80, the vines): the summon at level calc2, state
+  0x96. **116** (FUN_005c6ec0, Werewolf / Werebear): the aurastate for
+  auralen frames (1000 + Shape Shifting), a second cast (FUN_0056c740)
+  shifts back (FUN_0056f020). **120** (FUN_005c77c0, Feral Rage / Maul):
+  the state, its count (stat 0xa9) up by one to calc2. **122**
+  (FUN_005c7f10, Hunger): the hit with calc1 damage % and calc2 / calc3
+  stolen. st **56** (FUN_005c7690) / **58** (FUN_005c7e00): the
+  werebeast hits.
+- Do **124** (FUN_005c8190, Armageddon / Hurricane): the state and a timer
+  event (FUN_005417d0(5, FUN_004efc80 + frame)). **44** (FUN_005d6020,
+  Blade Sentinel): a trap monster (FUN_005d5e10) sent to the point and
+  back (FUN_00554ea0). **54** (FUN_005d7e10 -> FUN_005d7ce0, Blade
+  Shield): its events while the state lasts. **125** (FUN_005d1170, Wake
+  of Fire's shot): its maker row toward the target. **95**
+  (FUN_005cc4e0, Inferno Sentry's shot): one flame a frame, its reach
+  from the monster's own bytes (+0x9a / +0x9b), for calc3 frames.
+- Built: those as `prg` 37 / 40 / 41 / 143, `summon` walls / vines /
+  spirits, self casts 116 / 124 / 54 (`buff_tick`: Armageddon, Hurricane,
+  Blade Shield), the werebeast melee (st 56 / 57 / 58, do 120 / 121 /
+  122), Blade Sentinel (its row back and forth, missile do 20), Double
+  Throw (weapons.txt missiletype, `Scene::thrown`), Wake of Fire's maker
+  (missile do 31) and Inferno Sentry's flames on traps, Death Sentry's
+  corpse blast (`corpse_blast`), pets in the crowd (walls block), devctl
+  `debug unbuilt` (lists none). Not traced / not built: the shapeshifted
+  look (the Druid keeps his) and the werebeast skills' form requirement,
+  Rabies' spread, the walls' time (24 s published) and makers' pace,
+  Armageddon / Hurricane / Blade Shield paces, Blade Sentinel as a
+  monster, Double Throw's toht, Vine Attack / the cyclers (the vines'
+  published behaviour).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
