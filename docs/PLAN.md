@@ -229,8 +229,10 @@ Committed:
   Feral Rage, Maul, Fire Claws, Hunger and Rabies, Armageddon and
   Hurricane, Blade Sentinel and Shield, Wake of Fire / Inferno and Death
   Sentry's corpse blast, the vines, the Druid's spirits, Double Throw.
-  Every class skill now has a path (devctl `debug unbuilt` lists none);
-  the approximations are per part in skills.md.
+  Every class skill now has an implementation path (devctl `debug
+  unbuilt` lists none). That isn't the same as complete or exact:
+  fidelity varies, and the approximations and gaps are per part in
+  skills.md.
 
 ## Checkpoint 2026-09-25: what's still open
 
@@ -321,15 +323,18 @@ Town
   count, Cain's spot in an already-rescued game, trade leftovers (magic
   stock, the real stock roll), saving .d2s.
 
-## Next up (as of 2026-09-24)
+## Next up (as of 2026-09-26)
 
-1. Testable game rules: store, prices, item cursor, stat/skill points,
-   repair, item generation, gambling and pathing are in
-   `components/rules` with `test_rules`. NPC patrol can follow once it's
-   off `Scene`.
-2. Trade leftovers: magic stock, the real stock roll, charge recharging.
-3. NPC menu leftovers: Warriv's "go east", resurrecting a dead merc, the
-   hire list's own list widget and offer count, Cain's spawn spot in a
-   game where he's already rescued.
-4. Waypoint travel and leaving town (Act 1 wilderness DRLG), once more
-   fundamentals are in place.
+1. DRLG exactness: the Blood Moor's preset units (FUN_00667620, so room
+   seeds stop drifting), rarity tile picks (FUN_0066d820) and stamp
+   objects; then the Den of Evil maze (DrlgType 1, FUN_00673b30); and a
+   way to check layouts against game.exe.
+2. Champions and uniques (FUN_005a43e0).
+3. Saving .d2s.
+4. Cold Plains and the rest of Act 1's outdoor levels.
+5. Skill fidelity: pet AI, the shapeshifted look, the approximations
+   listed in skills.md.
+
+Town leftovers (Warriv's "go east", waypoint travel, merc resurrect, the
+hire list widget, Cain's spot, trade leftovers, charge recharging) are
+in the checkpoint above.
