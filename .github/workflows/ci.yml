@@ -156,7 +156,8 @@ jobs:
             "-DOPENAL_LIBRARY=$al\libs\Win64\OpenAL32.lib"
 
       - name: Build
-        run: cmake --build build --config Release
+        # -k 0: keep going past the first failure so one run shows every error.
+        run: cmake --build build --config Release -- -k 0
 
       # No game data on the runners: tests that need MPQs print SKIP and pass.
       - name: Test (Linux/macOS)

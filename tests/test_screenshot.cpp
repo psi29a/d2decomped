@@ -12,6 +12,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <random>
+#include <string>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -37,7 +39,7 @@ int main() {
     }
 
     const auto path = fs::temp_directory_path()
-        / ("d2d-screenshot-test-" + std::to_string(::getpid()) + ".png");
+        / ("d2d-screenshot-test-" + std::to_string(std::random_device{}()) + ".png");
 
     const auto wrote = d2d::screenshot::save_png(path, src, W, H);
     assert(wrote > 8);
