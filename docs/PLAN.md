@@ -332,16 +332,40 @@ Town
 
 ## Next up (as of 2026-09-26)
 
-1. DRLG: done and proven for the Blood Moor and the Den of Evil (layout,
-   room seeds, tiles; docs/research/re/drlg.md "Checking against
-   game.exe"), drawn and walkable in d2d, the Den entered by its warp.
-   Preset units too (Corpsefire, shrines, Flavie). Champions and uniques
-   roll in nightmare / hell (docs/research/re/monsters.md); shrines and
-   chests operate. Left: the behaviour mods, magic shrines, then Cold Plains.
-2. Champions and uniques (FUN_005a43e0).
-3. Saving .d2s.
-4. Cold Plains and the rest of Act 1's outdoor levels.
-5. Skill fidelity: pet AI, the shapeshifted look, the approximations
+Done and proven: the Blood Moor and the Den of Evil (layout, room seeds,
+tiles, preset units; docs/research/re/drlg.md "Checking against
+game.exe"). Built from game.exe but not emulator-checked: champions and
+uniques (docs/research/re/monsters.md), shrines and chests
+(docs/research/re/objects.md "Shrines and chests").
+
+Left for those, ranked:
+
+1. Small (about half a day together):
+   - Skill shrine (code 12, FUN_00583bf0): +Arg0 to all skills; needs an
+     all-skills stat feeding skill levels.
+   - Chest item level: FUN_0055a6d0's level argument isn't traced (the
+     area level is assumed).
+   - Trapped chests (flag 0x80 in FUN_00585f60): which trap fires.
+   - The champion / unique label: "Champion" or the mod names under the
+     name, in D2's colours.
+   - Warping shrine (nearest monster becomes unique: roll_boss) and gem
+     shrine (upgrade a gem or give one).
+2. Unique behaviour mods (1–2 days): fire / cold / lightning enchanted
+   (death explosion, chill, charged bolts), cursed, mana burn, teleport,
+   spectral hit, multishot, aura enchanted. Their stat parts are done
+   (uniques.hpp boss_stats); each needs its missile or skill.
+3. Storm, exploding and poison shrines: thrown potions and fireballs.
+4. Seed emulation (2+ days, research): the object seeds and the
+   monster's own seed, so shrine picks and boss rolls can be checked
+   against game.exe per room. game.exe populates a room on activation,
+   so the order follows the player.
+5. Portal shrine: waits for town portals.
+
+Then:
+
+6. Saving .d2s.
+7. Cold Plains and the rest of Act 1's outdoor levels.
+8. Skill fidelity: pet AI, the shapeshifted look, the approximations
    listed in skills.md.
 
 Town leftovers (Warriv's "go east", waypoint travel, merc resurrect, the
