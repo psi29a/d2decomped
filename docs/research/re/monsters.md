@@ -113,19 +113,28 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   prefix into 0x6ba ("%0 %1 %2"): "Bane Poison the Hunter".
 - Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
   superuniques their SuperUniques TC (by difficulty).
-- **The label under the name** (client FUN_004adea0, called from
-  FUN_00452580): a minion's is "Minion" (0xc95). Otherwise each of the
-  monster's mods (up to 9, in order) with a string in the u16 table at
-  0x725188, by MonUMod id: 5 Extra Strong 0xc85, 6 Extra Fast, 7 Cursed,
-  8 Magic Resistant, 9 Fire Enchanted 0xc89, 17 Lightning Enchanted 0xc8b,
-  18 Cold Enchanted 0xc8a, 24 Thief 0xc91, 25 Mana Burn 0xc8c,
-  26 Teleportation 0xc8e, 27 Spectral Hit 0xc8d, 28 Stone Skin 0xc8f,
-  29 Multiple Shots 0xc90, 30 Aura Enchanted 0xc92; the rest none. It
-  stops once the line passes 480 px. The joiner is the wide string at
-  0x7c0c58, which start-up (0x6cad00) sets empty; d2d joins with a space
-  (the minion line's "space", 0xf9b). "Champion" (0xc94) is used
-  elsewhere (0x6da48c in .rdata), not traced; d2d shows it for
-  champions.
+- **The label under the name** (client FUN_004adea0, from FUN_00452580,
+  from FUN_00454ad0): only for uniques (flag 8, FUN_004ae360) and minions
+  (0x10, FUN_004ae380). It starts with "Demon" (0x275e, MonStats flag
+  byte +0xd) or "Undead" (0x275d, FUN_0063e990), if either. A minion's is
+  then "Minion" (0xc95, after 0xf9b). A unique's is then each of its mods
+  (up to 9, in order) with a string in the u16 table at 0x725188, by
+  MonUMod id: 5 Extra Strong 0xc85, 6 Extra Fast, 7 Cursed, 8 Magic
+  Resistant, 9 Fire Enchanted 0xc89, 17 Lightning Enchanted 0xc8b, 18 Cold
+  Enchanted 0xc8a, 24 Thief 0xc91, 25 Mana Burn 0xc8c, 26 Teleportation
+  0xc8e, 27 Spectral Hit 0xc8d, 28 Stone Skin 0xc8f, 29 Multiple Shots
+  0xc90, 30 Aura Enchanted 0xc92; the rest have none. Each word comes
+  after the joiner at 0x7c0c58, a space: start-up zeroes it and
+  FUN_004ac870 copies L" " into it. The line stops once it passes 480 px.
+  Monsters 0x2c0..0x2c5 get no mod words.
+- **A champion's name** (client FUN_004ac870, the handler at 0x724d78 for
+  mods 1, 12, 16 and 36..39; FUN_004ad020 runs the fixed mods 1..4, then
+  the monster's own, and the last write wins): "%0 %1" (0x2b40), with the
+  word for its champion mod from the table at 0x6da488 and then its
+  MonStats name. The words: 16 "Champion" (0xc94), 36 Ghostly, 37 Fanatic,
+  38 Possessed, 39 Berserker (0x2b4c..0x2b4f). The search checks the
+  first four keys; no match gives the fifth. So: "Champion Zombie",
+  "Possessed Zombie". Champions get no label.
 - **The warping shrine** (FUN_00583050 → FUN_005a4940): the nearest
   monster passing FUN_00582750 (a monster, not already a boss, ...)
   goes through FUN_005a0760 with champions allowed and FUN_005a2120:

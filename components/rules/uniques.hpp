@@ -123,13 +123,35 @@ inline std::vector<int> superunique_mods(const UMods& m, const MonType& t, const
     return mods;
 }
 
-// The label under a boss's name (client FUN_004adea0): each mod's string
-// by MonUMod id (the table at 0x725188; 0 = none), in the order it has
-// them, until the line passes 480 px; a minion's is "Minion" (0xc95).
+// The label under a boss's name (client FUN_004adea0, from FUN_00452580):
+// only for uniques (flag 8) and minions (0x10). It starts with "Demon"
+// (0x275e) or "Undead" (0x275d) by MonStats' flags (FUN_00454ad0), then
+// each mod's string by MonUMod id (the table at 0x725188; 0 = none), in
+// the order it has them, each after the joiner (a space: FUN_004ac870
+// copies L" " into 0x7c0c58), until the line passes 480 px. A minion's is
+// "Minion" (0xc95), after the leading word and 0xf9b.
 inline constexpr std::array<std::uint16_t, 31> kUModLabel{
     0, 0, 0, 0, 0, 0xc85, 0xc86, 0xc87, 0xc88, 0xc89, 0, 0, 0, 0, 0, 0,
     0, 0xc8b, 0xc8a, 0, 0, 0, 0, 0, 0xc91, 0xc8c, 0xc8e, 0xc8d, 0xc8f, 0xc90, 0xc92 };
-inline constexpr std::uint16_t kMinionLabel = 0xc95, kChampionLabel = 0xc94;
+inline constexpr std::uint16_t kMinionLabel = 0xc95, kMinionSpace = 0xf9b, kDemonLabel = 0x275e, kUndeadLabel = 0x275d;
+
+// A champion's name (client FUN_004ac870, run through the mod table at
+// 0x724d78 for the fixed mods 1..4, then the monster's own; the last one
+// wins): "%0 %1" (0x2b40) with the word for its champion mod from 0x6da488
+// (16 "Champion" 0xc94, 36 Ghostly .. 39 Berserker 0x2b4c..0x2b4f) and its
+// name. The search checks the first four keys; no match gives the fifth.
+inline constexpr std::uint16_t kChampionFormat = 0x2b40;
+inline std::uint16_t champion_word(const std::vector<int>& mods) {
+    static constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, 0xc94 }, { 36, 0x2b4c }, { 37, 0x2b4d }, { 38, 0x2b4e }, { 39, 0x2b4f } } };
+    std::uint16_t w = kWord[4].second;                          // fixed mod 1 (rndname) runs it first: no key matches
+    for (const int id : mods) {
+        if (id != 1 && id != 12 && id != 16 && (id < 36 || id > 39)) continue;
+        std::size_t k = 0;
+        while (k < 4 && kWord[k].first != id) ++k;
+        w = kWord[k].second;
+    }
+    return w;
+}
 
 // What the mods do to a monster's stats (FUN_005a2120: the fixed rndname,
 // hpmultiply, light, leveladd for uniques, then its own mods; champions

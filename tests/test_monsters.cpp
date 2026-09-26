@@ -95,6 +95,10 @@ int main() {
         assert(c.level_add == 2 && c.exp_mult == 3 && c.hp_pct == 150 && c.dmg_pct == 100 && c.tohit_pct == 75 && c.velocity_pct == 20);
         const auto f = boss_stats(um, t, Boss::unique, { 6 }, 0);       // fast: 2048 / 6 - 128 -> 100 max
         assert(f.velocity_pct == 100);
+        // A champion's name word (FUN_004ac870): its champion mod's; the
+        // fixed rndname alone falls through to the table's last.
+        assert(champion_word({ 16 }) == 0xc94 && champion_word({ 36 }) == 0x2b4c && champion_word({ 39 }) == 0x2b4f);
+        assert(champion_word({ 16, 5 }) == 0xc94 && champion_word({}) == 0x2b4f);
     }
     std::puts("ok");
 }

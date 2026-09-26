@@ -351,7 +351,14 @@ void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vec
     }
     m.hp = m.st.hp;
     if (super >= 0 && std::size_t(super) < s.superuniques.size()) m.npc.name = s.superuniques[std::size_t(super)].name;
-    else if (kind == d2d::rules::Boss::unique) m.npc.name = unique_name(s, name_seed);   // a champion keeps its name; the bar labels it
+    else if (kind == d2d::rules::Boss::unique) m.npc.name = unique_name(s, name_seed);
+    else if (kind == d2d::rules::Boss::champion) {                      // "Champion Zombie", "Ghostly Fallen" (FUN_004ac870)
+        auto f = string_id(s, d2d::rules::kChampionFormat);
+        if (f.empty()) f = "%0 %1";
+        for (const auto& [k, v] : { std::pair{ std::string("%0"), string_id(s, d2d::rules::champion_word(mods)) }, { std::string("%1"), m.npc.name } })
+            if (const auto p = f.find(k); p != std::string::npos) f.replace(p, k.size(), v);
+        m.npc.name = f;
+    }
 }
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components

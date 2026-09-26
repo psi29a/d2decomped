@@ -371,7 +371,7 @@ table).
 
 Left for those, ranked:
 
-1. Where "Champion" (0xc94) is used, and the boss label's joiner (small).
+1. Done: "Champion" is a champion's name word ("Champion Zombie", FUN_004ac870); the label's joiner is a space; labels are for uniques and minions, led by Demon / Undead (monsters.md).
 2. Unique behaviour mods (1–2 days): fire / cold / lightning enchanted
    (death explosion, chill, charged bolts), cursed, mana burn, teleport,
    spectral hit, multishot, aura enchanted. Their stat parts are done

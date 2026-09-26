@@ -26,21 +26,24 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
         }
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
-    // Its mods under it (d2d::rules::kUModLabel). ponytail: joined by a
-    // space (FUN_004adea0 joins with a string set empty at start-up,
-    // 0x7c0c58, and uses "space" 0xf9b for the minion line), and
-    // "Champion" (0xc94) for champions, whose use isn't traced.
+    // The label under it (uniques and minions, d2d::rules::kUModLabel):
+    // Demon / Undead, then its mods; a minion's "Minion". Champions have
+    // none: their name says it.
     std::string label;
     using d2d::rules::Boss;
-    if (m.boss == Boss::minion) label = string_id(s, d2d::rules::kMinionLabel);
-    else if (m.boss == Boss::champion) label = string_id(s, d2d::rules::kChampionLabel);
-    else if (m.boss != Boss::none)
+    const auto& t = s.monsters.types[std::size_t(m.type)];
+    const std::uint16_t lead = t.demon ? d2d::rules::kDemonLabel : t.undead ? d2d::rules::kUndeadLabel : 0;
+    if (lead) label = string_id(s, lead);
+    if (m.boss == Boss::minion)
+        label = (lead ? label + string_id(s, d2d::rules::kMinionSpace) : "") + string_id(s, d2d::rules::kMinionLabel);
+    else if (m.boss == Boss::unique || m.boss == Boss::superunique)
         for (const int id : m.mods) {
             if (id < 0 || std::size_t(id) >= d2d::rules::kUModLabel.size() || !d2d::rules::kUModLabel[std::size_t(id)]) continue;
             const auto next = label + (label.empty() ? "" : " ") + string_id(s, d2d::rules::kUModLabel[std::size_t(id)]);
             if (s.font.measure(next) > 480) break;
             label = next;
         }
+    else label.clear();
     if (!label.empty())
         s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(label) / 2, y0 + h + 2, label);
 }
