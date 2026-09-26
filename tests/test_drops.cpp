@@ -2,6 +2,7 @@
 // multiplier), NoDrop odds, quality rolls (rings at least magic, potions
 // plain).
 #include <drops.hpp>
+#include <shrines.hpp>
 
 #include <cassert>
 #include <cstdio>
@@ -39,6 +40,20 @@ int main() {
         roll_drops(d, "Two", 1, dr, out);
         assert(out.size() == 2);
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
+    }
+    // Chests: act 1's A below a third of the way from the Blood Moor (1)
+    // to Catacombs 4 (11), B below two thirds, else C.
+    assert(chest_tc(0, 0, 1, 1, 11) == "Act 1 Chest A" && chest_tc(0, 1, 4, 1, 11) == "Act 1 (N) Chest B");
+    assert(chest_tc(0, 2, 7, 1, 11) == "Act 1 (H) Chest C");
+    // Shrines: the exchanges come back as boosts; LevelMin holds rows back.
+    std::vector<ShrineRow> rows(6);
+    for (int r = 1; r < 6; ++r) rows[std::size_t(r)] = { .code = r, .effectclass = r == 4 ? 2 : r == 5 ? 3 : 4, .level_min = r == 3 ? 99 : 1 };
+    rows[2].effectclass = 2;
+    for (int i = 0; i < 200; ++i) {
+        Rng o{ std::uint32_t(i) }, g{ std::uint32_t(i * 3) };
+        assert(roll_shrine(rows, 1, 2, o, g) == 2);                      // health: 2, or 4 -> 2
+        const int any = roll_shrine(rows, 0, 2, o, g);
+        assert(any >= 1 && any <= 3);
     }
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");

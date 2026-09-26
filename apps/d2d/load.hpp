@@ -709,8 +709,22 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
     // mode: ON for things with a light in ON (torches, fires, the camp
     // waypoint), else NU. ponytail: D2 sets it per object in its InitFn.
     const auto objects = txt("objects");
+    // Shrines.txt, and each level's area level (chests' treasure class).
+    const auto shr = txt("Shrines"), lvs = txt("Levels");
+    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+    for (std::size_t r = 0; r < shr.size(); ++r) {
+        auto g = [&](const char* c) { return num(shr.get(r, c)); };
+        scene.shrines.push_back({ g("Code"), g("Arg0"), g("Arg1"), g("Duration in frames"), g("reset time in minutes"), g("effectclass"), g("LevelMin") });
+    }
+    for (std::size_t r = 0; r < lvs.size(); ++r) {
+        const int id = num(lvs.get(r, "Id"));
+        if (id < 0 || id > 1000) continue;
+        if (std::size_t(id) >= scene.area_level.size()) scene.area_level.resize(std::size_t(id) + 1);
+        scene.area_level[std::size_t(id)] = { num(lvs.get(r, "MonLvl1Ex")), num(lvs.get(r, "MonLvl2Ex")), num(lvs.get(r, "MonLvl3Ex")) };
+    }
     std::unordered_map<std::string, std::size_t> obj_row;
     for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
+    d2d::rules::Rng rgn(scene.map_seed);            // the game's object seed (FUN_00546fa0)
     auto add_object = [&](Level& into, int oid, int sx, int sy) {
         const auto it = obj_row.find(std::to_string(oid));
         if (oid == 0 || it == obj_row.end()) return;
@@ -719,9 +733,16 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         n.root   = "objects";
         n.code   = std::string(objects.get(r, "Token"));
         n.operate_fn = std::atoi(std::string(objects.get(r, "OperateFn")).c_str());
+        if (objects.get(r, "Mode1") == "1") n.op_frames = std::atoi(std::string(objects.get(r, "FrameCnt1")).c_str());
+        if (objects.get(r, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
+            // ponytail: seeded from the level and spot — game.exe rolls the
+            // object's own seed and the game's object seed (not emulated).
+            d2d::rules::Rng obj(std::uint32_t(sx * 7919 + sy) ^ scene.map_seed);
+            n.shrine = d2d::rules::roll_shrine(scene.shrines, std::atoi(std::string(objects.get(r, "Parm0")).c_str()), into.id, obj, rgn);
+        }
         n.base_w = "hth";
         const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
-                     && objects.get(r, "Lit2") != "0";
+                     && objects.get(r, "Lit2") != "0" && n.operate_fn != 2 && n.operate_fn != 4;   // shrines / chests: NU until used
         n.mode   = on ? "ON" : "NU";
         // Hover name when selectable in its start mode (Selectable0 = NU,
         // 2 = ON): objects.txt Name through the string tables.

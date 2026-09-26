@@ -57,6 +57,8 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y); past the edge next to another level, the next frame crosses into it. |
 | `debug warps`               | `<i>\t<x>\t<y>\t<to>` per warp, `ok` | The level's warps (cave mouths, stairs): cell and the Levels.txt Id they lead to. |
+| `debug objects`             | `<i>\t<x>\t<y>\t<shrine\|chest>\t<row>\t<mode>` per object, `ok` | The level's shrines (Shrines.txt row) and chests, and their mode now. |
+| `debug operate <i>`         | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (town.hpp operate) without walking to it. |
 | `debug enter <i>`           | `ok` / `err no such warp` | Stand by warp i as if it was clicked; the next frame takes it (`debug level` shows where). |
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |
 | `move <x> <y>`              | `ok`                   | Pushes an SDL mouse motion to game coords (hover without clicking). |

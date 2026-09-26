@@ -316,9 +316,11 @@ Act 1 levels and rendering
 - Built and proven against game.exe (layout and tiles): the Blood Moor
   and the Den of Evil; click the cave mouth to go in, the stairs to come
   back. Preset units (proven too) put in the shrines, torches, chests,
-  Flavie and Corpsefire with his minions. Missing: superunique mods and
-  stat bonuses, shrines / chests that do anything; warp arrival spots
-  are a guess (LvlWarp ExitWalk).
+  Flavie and Corpsefire with his minions. Shrines work (recharges and
+  boosts; magic shrines and the skill shrine only log) and chests open
+  and drop their act chest TC (docs/research/re/objects.md). Missing:
+  the unique behaviour mods, trapped chests; warp arrival spots are a
+  guess (LvlWarp ExitWalk).
 - Rendering: shadows not blended, no unit shadows, no lighting / day-night
   / rain, cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs not drawn across the edge.
@@ -334,8 +336,8 @@ Town
    room seeds, tiles; docs/research/re/drlg.md "Checking against
    game.exe"), drawn and walkable in d2d, the Den entered by its warp.
    Preset units too (Corpsefire, shrines, Flavie). Champions and uniques
-   roll in nightmare / hell (docs/research/re/monsters.md). Left: their
-   behaviour mods and names, operable shrines and chests, then Cold Plains.
+   roll in nightmare / hell (docs/research/re/monsters.md); shrines and
+   chests operate. Left: the behaviour mods, magic shrines, then Cold Plains.
 2. Champions and uniques (FUN_005a43e0).
 3. Saving .d2s.
 4. Cold Plains and the rest of Act 1's outdoor levels.

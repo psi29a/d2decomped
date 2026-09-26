@@ -119,6 +119,20 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             t.take_warp = int(i);
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "objects" && t.level) {   // shrines / chests: index, cell, kind, shrine row, mode
+            std::string out;
+            for (std::size_t i = 0; i < t.level->npcs.size(); ++i)
+                if (const auto& n = t.level->npcs[i]; n.operate_fn == 2 || n.operate_fn == 4)
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\n", i, n.x, n.y, n.operate_fn == 2 ? "shrine" : "chest", n.shrine,
+                                       i < t.npc_states.size() && !t.npc_states[i].mode.empty() ? t.npc_states[i].mode : std::string_view(n.mode));
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "operate" && t.level) {   // operate shrine / chest i where it stands
+            const int i = std::atoi(args[2].c_str());
+            if (i < 0 || std::size_t(i) >= t.level->npcs.size()) return std::string("err no such object\n");
+            t.operate(i, t.now_ms);
+            return std::format("ok life={} mana={} boost={}\n", t.cc.stats.fixed(d2d::d2s::kLife), t.cc.stats.fixed(d2d::d2s::kMana), t.fight.boost.shrine);
+        }
         if (args.size() >= 4 && args[1] == "stat") {       // set character stat <id 0..15> to <value>
             const int id = std::atoi(args[2].c_str());
             if (id < 0 || id > 15) return std::string("err stat 0..15\n");

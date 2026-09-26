@@ -17,6 +17,7 @@ struct UnitState {
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
     float goal_x = 0, goal_y = 0;     // where the merc's route was planned to
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
+    std::string_view mode;            // an object's mode now, "" = its start mode (Npc::mode)
     std::vector<std::pair<float, float>> path;   // a walk_path route being followed
 };
 

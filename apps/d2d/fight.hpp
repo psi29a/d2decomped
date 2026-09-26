@@ -183,6 +183,9 @@ struct Fight {
     // Potions working: life / mana (8.8 fixed) a millisecond, until when.
     struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
     std::vector<Regen> regen;
+    // A shrine's boost (Shrines.txt booster: its stats, FUN_00583b30), one
+    // at a time, until when.
+    struct Boost { int shrine = 0; std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; } boost;
 
     // A fresh game at `difficulty`: its monsters, nothing in flight.
     void new_game(int difficulty) {
@@ -194,6 +197,7 @@ struct Fight {
         regen.clear();
         charges.clear();
         self_states.clear();
+        boost = {};
         pets.clear();
         attack_mon = -1;
         pmode = -1;
@@ -419,6 +423,8 @@ struct Fight {
                 if (const int id = s->aurastat[i]; id >= 0 && id != 6 && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(scene->skills, s->aura_calc[i], env, s->id, st.level);
         }
+        if (ms < boost.until)
+            for (const auto& [id, v] : boost.stats) if (std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += v;
         // Battle Orders (item_maxhp_percent 76, item_maxmana_percent 77): the
         // maxima up while it lasts, life and mana with them.
         {
@@ -1310,7 +1316,8 @@ struct Fight {
     void killed(std::size_t i, std::uint32_t ms) {
         const auto& m = monsters[i];
         const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
-        const auto exp = d2d::rules::kill_exp(m.st.exp, int(cc.stats.get(d2d::d2s::kLevel)), m.st.level);
+        auto exp = d2d::rules::kill_exp(m.st.exp, int(cc.stats.get(d2d::d2s::kLevel)), m.st.level);
+        exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
         const int up = d2d::rules::gain_exp(cc.stats, exp, scene->exp_next, scene->class_gains[sc]);
         d2d::log::info("killed {} (+{} exp){}", m.npc.name, exp, up ? std::format(", level {}", cc.stats.get(d2d::d2s::kLevel)) : "");
         if (up) cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);

@@ -62,8 +62,9 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             if (st && st->hidden) continue;
             const float x = st ? st->x : n.x, y = st ? st->y : n.y;
             if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
-            const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : std::string_view(n.mode));
-            units.push_back({ x, y, &anim, st ? st->dir : 0, &n.name, st ? st->mode_ms : 0, int(i) });
+            const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : st && !st->mode.empty() ? st->mode : std::string_view(n.mode));
+            static const std::string none;
+            units.push_back({ x, y, &anim, st ? st->dir : 0, st && !st->mode.empty() && n.root == "objects" ? &none : &n.name, st ? st->mode_ms : 0, int(i) });
         }
         if (merc && merc_state)                    // npc -2: not an NPC-menu unit
             units.push_back({ merc_state->x, merc_state->y,

@@ -46,6 +46,8 @@ struct Town {
     int   pick_item = -1;
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     int   interact_npc = -1;               // clicked object being walked to
+    std::map<std::pair<const Level*, int>, std::uint32_t> operated;
+    std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
     bool  player_ran = false;
     bool  inv_open = false;   // 'I' — inventory panel
@@ -70,6 +72,36 @@ struct Town {
         fight.skill_level = [this](int id) { return skillbar.level(id); };
     }
 
+    // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
+    // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
+    // drops at the area level).
+    // ponytail: magic shrines (16..22), the skill shrine and trapped chests
+    // (flag 0x80) only log; D2's operate range is 2 cells here.
+    void operate(int i, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        const auto& o = level->npcs[std::size_t(i)];
+        const int diff = cc.header.active_difficulty();
+        operated[{ level, i }] = ms;
+        if (o.operate_fn == 4) {
+            const auto& al = scene->area_level;
+            auto alvl = [&](int id) { return std::size_t(id) < al.size() ? al[std::size_t(id)][std::size_t(std::clamp(diff, 0, 2))] : 1; };
+            const auto [lo, hi] = d2d::rules::kChestLevels[0];
+            const auto tc = d2d::rules::chest_tc(0, diff, alvl(level->id), alvl(lo), alvl(hi));
+            std::vector<d2d::rules::Drop> drops;
+            d2d::rules::roll_drops(scene->rules, tc, alvl(level->id), rng, drops);
+            for (const auto& d : drops) loot.put(d, o.x, o.y, alvl(level->id), ms);
+            d2d::log::info("opened a chest: {} ({} drops)", tc, drops.size());
+            return;
+        }
+        if (std::size_t(o.shrine) >= scene->shrines.size()) return;
+        const auto& s = scene->shrines[std::size_t(o.shrine)];
+        auto& v = cc.stats.v;
+        d2d::rules::shrine_recharge(s, v[kLife], v[kMaxLife], v[kMana], v[kMaxMana]);
+        if (auto b = d2d::rules::shrine_boost(s, fight.pf.ar); !b.empty())
+            fight.boost = { o.shrine, std::move(b), ms + std::uint32_t(s.duration) * 40u };
+        d2d::log::info("shrine {} (code {}){}", o.shrine, s.code, s.code == 12 || s.code >= 16 ? ", not built" : "");
+    }
+
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
     void new_game() {
@@ -79,6 +111,7 @@ struct Town {
         loot.kept.clear();
         loot.ground_level = level;
         cues.due.clear();
+        operated.clear();
         pick_item = -1;
     }
 
@@ -99,6 +132,7 @@ struct Town {
     // Esc with nothing open goes back to the roster (screen).
     void update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector<SDL_Keycode>& keys_this_frame,
                 Screen& screen, Audio& audio, std::uint32_t ms, std::uint32_t last_ms) {
+        now_ms = ms;
         // ESC handled globally in handle_sdl_events (returns to Title).
         // D2 movement: press or hold the left button on the ground
         // and the character walks toward that point (the target
@@ -510,6 +544,18 @@ struct Town {
         // skill's aura).
         if (const auto* ra = scene->skills.get(skillbar.right)) fight.aura = ra->aura ? skillbar.right : 0;
         fight.update_fighters(ms);
+        // Used shrines and chests: OP while it plays, then ON; a shrine back
+        // to NU after its reset time (Shrines.txt, minutes; 0 never).
+        for (auto it = operated.begin(); it != operated.end();) {
+            const auto& [key, at] = *it;
+            const auto i = std::size_t(key.second);
+            const auto& o = key.first->npcs[i];
+            const int reset = o.operate_fn == 2 && std::size_t(o.shrine) < scene->shrines.size() ? scene->shrines[std::size_t(o.shrine)].reset : 0;
+            const bool back = reset > 0 && ms - at >= std::uint32_t(reset) * 60000u;
+            if (key.first == level && i < npc_states.size())
+                npc_states[i].mode = back ? std::string_view{} : ms - at < std::uint32_t(o.op_frames) * 40u ? "OP" : "ON";
+            it = back ? operated.erase(it) : std::next(it);
+        }
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&*merc);
@@ -547,7 +593,8 @@ struct Town {
             if (mouse.press_this_frame && hovered_npc >= 0) {
                 const auto& o = level->npcs[std::size_t(hovered_npc)];
                 const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
-                if (o.operate_fn == 32 || o.operate_fn == 23 || (o.root == "monsters" && menu)) {
+                const bool usable = (o.operate_fn == 2 || o.operate_fn == 4) && !operated.contains({ level, hovered_npc });
+                if (o.operate_fn == 32 || o.operate_fn == 23 || usable || (o.root == "monsters" && menu)) {
                     interact_npc = hovered_npc;
                     const auto& st = npc_states[std::size_t(hovered_npc)];
                     target_x = o.path.empty() ? o.x : st.x;
@@ -562,7 +609,9 @@ struct Town {
             const auto& st = npc_states[std::size_t(interact_npc)];
             const float ox = o.path.empty() ? o.x : st.x, oy = o.path.empty() ? o.y : st.y;
             if (std::hypot(ox - player.x, oy - player.y) < 2.f) {
-                if (o.operate_fn == 32) {
+                if (o.operate_fn == 2 || o.operate_fn == 4) {
+                    operate(interact_npc, ms);
+                } else if (o.operate_fn == 32) {
                     stash_open = inv_open = true; char_open = false;
                 } else if (o.operate_fn == 23) {
                     // Touching it activates it (the town's: wp 0).
