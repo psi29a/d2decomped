@@ -32,6 +32,10 @@ struct Town {
     int& take_warp = world.take_warp;
     int& interact_npc = world.interact_npc;
     int& pick_item = world.pick_item;
+    std::vector<Command> queued;           // sent since the World's last tick
+    std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
+    float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
+    float cam_x = 0, cam_y = 0;            // where the camera is this frame
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere
     std::uint32_t level_ms = 0;            // when the player entered `level`
     bool have_world = false;
@@ -384,7 +388,7 @@ struct Town {
         // who sits at (kW/2, kH/2 + kIsoH/2).
         const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
         const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
-        const float wx = player.x + (u + v) / 2, wy = player.y + (v - u) / 2;
+        const float wx = cam_x + (u + v) / 2, wy = cam_y + (v - u) / 2;
         const int hm = hovered_monster();
         const bool live = hm >= 0 && fight.monsters[std::size_t(hm)].alive();
         if (mouse.press_this_frame) {
@@ -415,9 +419,19 @@ struct Town {
         if (ms < fight.boost.until)
             for (const auto& [id, v] : fight.boost.stats) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
         world.talking = { npc_menu.npc, speech.npc, store.npc };
-        world.tick(input(mouse, over_ui), ms, last_ms);
-        for (const auto& e : world.events) handle(e, ms);
-        world.events.clear();
+        std::ranges::move(input(mouse, over_ui), std::back_inserter(queued));
+        // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
+        // clock skips ahead (game.exe catches up one frame at most).
+        if (world_ms == 0 || ms - world_ms > 1000) world_ms = ms - std::min<std::uint32_t>(ms - last_ms, kTickMs);
+        for (int n = 0; ms - world_ms >= kTickMs && n < 5; ++n) {
+            prev_x = player.x; prev_y = player.y;
+            world.tick(queued, world_ms + kTickMs, world_ms);
+            world_ms += kTickMs;
+            queued.clear();
+            for (const auto& e : world.events) handle(e, ms);
+            world.events.clear();
+        }
+        if (ms - world_ms >= kTickMs) world_ms = ms - (ms - world_ms) % kTickMs;
     }
 
     // What the World told the client.
@@ -429,6 +443,7 @@ struct Town {
                 if (lc->keep_map) automap.open = other_automaps[lc->from->layer].open;
             }
             hovered_npc = pick_item = -1;
+            prev_x = player.x; prev_y = player.y;           // no slide across levels
             npc_menu = {}; store = {}; speech = {}; waypoint = {};
             level_ms = ms;                                  // its song comes in 3 s later
             return;
@@ -460,7 +475,14 @@ struct Town {
         const int ui_cls = std::max(cc.selected, 0);
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
-        if (level != &scene->town) loot.units(player.x, player.y, extra);
+        // The camera (and the player's unit) between the World's last two
+        // ticks; a jump (a warp, devctl) snaps.
+        // ponytail: the other units move at the tick rate, as game.exe draws them.
+        const float a = std::clamp(float(ms - world_ms) / float(kTickMs), 0.f, 1.f);
+        const bool jump = std::hypot(player.x - prev_x, player.y - prev_y) > 2.f;
+        cam_x = jump ? player.x : prev_x + (player.x - prev_x) * a;
+        cam_y = jump ? player.y : prev_y + (player.y - prev_y) * a;
+        if (level != &scene->town) loot.units(cam_x, cam_y, extra);
         for (const auto& f : fires)
             if (f.level == level) extra.push_back({ f.x, f.y, &scene->npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
         fight.units(&merc_label, extra);
@@ -474,7 +496,7 @@ struct Town {
         render_ingame(fb, *scene, *level, ui_cls,
                       fight.gfx(),
                       cc.input_name, cc.hardcore,
-                      player.x, player.y, mode,
+                      cam_x, cam_y, mode,
                       player.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
                       inv_open ? &cc.items : nullptr,
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,

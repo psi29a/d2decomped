@@ -23,6 +23,10 @@ struct OpenUI { enum Kind { stash, waypoint, talk } kind = stash; int npc = -1; 
 }  // namespace ev
 using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 
+// The game's step: game.exe's frame, 1000 / 25 ms (FUN_0052fc20,
+// docs/research/re/network.md).
+constexpr std::uint32_t kTickMs = 40;
+
 struct World {
     const Scene* scene = nullptr;
     CharCreateUI& cc;
