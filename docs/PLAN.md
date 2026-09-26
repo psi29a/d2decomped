@@ -45,7 +45,7 @@ Status as of 2026-09-26.
    monster AI from game.exe. *Implemented:* monsters and their fights,
    gear in combat, drops, experience, the merc, and the skills (phases 0–6
    in `docs/research/re/skills.md`). Left: the per-type AI think
-   functions, champions and uniques, the gaps each skill section lists.
+   functions, the unique behaviour mods, the gaps each skill section lists.
 7. **Cross-platform polish** — Linux/macOS/Windows CI, controller,
    high-DPI, rebindable input.
 
@@ -157,9 +157,9 @@ B. **Outdoor DRLG** — done for the Blood Moor (what's proven identical to
    shrines markers, fills, plain rooms with LvlSub stamps, preset rooms),
    `test_outdoor` over 60 seeds; layout, room seeds and every room's
    tiles (`room_tiles.hpp`) proven identical to game.exe with tools/emu.
-   Gaps: preset units and stamp objects (monsters, shrines, waypoints),
-   CheckAll stamps, cliff caves / cliff styles / waypoints (other act 1
-   levels); the app still draws first-match tiles, not the proven picks.
+   Preset units are proven too, and the app draws the proven picks.
+   Gaps: CheckAll stamps, cliff caves / cliff styles / waypoints (other
+   act 1 levels).
 C. **Levels from stamps** — done: the generator builds one `ds1::Map`
    for the level; `finish_level` gives it the town's lookup + collision.
 D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
@@ -289,9 +289,9 @@ Combat
   Strike, Bone Wall / Prison, vines, shapeshifting, Armageddon, Blade
   Sentinel / Shield, the sentries). devctl `debug unbuilt` lists no class
   skill without a path; what each part approximates is in skills.md.
-- Champions and uniques (Nightmare/Hell Blood Moor: MonUMin/Max 4-9):
-  FUN_005a43e0 -> FUN_005a09e0 / FUN_005a2120, mod functions at 0x73c008,
-  names.
+- Champion / unique behaviour mods (the mod functions at 0x73c008 past
+  the stat ones): enchanted, cursed, mana burn, teleport, spectral hit,
+  multishot, aura enchanted. Rolls, stats and names are built.
 - Formulas taken from the published rules, not traced (combat.md): hit
   chance, the damage order, crushing blow divisors, block, hit recovery
   thresholds, FHR/FBR breakpoint tables, mana regen base.
