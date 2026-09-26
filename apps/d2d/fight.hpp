@@ -106,6 +106,14 @@ struct Fight {
     Cues& cues;
 
     std::vector<Monster> monsters;         // mon_level's (Level::spawns), kept while the game runs
+    int next_id = 1;                       // the next monster's unit id
+    // A monster by unit id: its index in `monsters`, or -1.
+    [[nodiscard]] int monster_index(int id) const {
+        if (id < 0) return -1;
+        const auto it = std::ranges::find(monsters, id, &Monster::id);
+        return it == monsters.end() ? -1 : int(it - monsters.begin());
+    }
+    void add_monster(Monster m) { m.id = next_id++; monsters.push_back(std::move(m)); }
 
     const Level* mon_level = nullptr;                // whose monsters `monsters` are
 
@@ -210,6 +218,8 @@ struct Fight {
         mon_level = &scene->moor;
         kept.clear();
         kept[&scene->den] = spawn_monsters(*scene, scene->den, rng, difficulty);
+        next_id = 1;
+        for (auto* v : { &monsters, &kept[&scene->den] }) for (auto& m : *v) m.id = next_id++;
         missiles.clear();
         regen.clear();
         charges.clear();

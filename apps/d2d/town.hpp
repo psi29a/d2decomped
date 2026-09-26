@@ -3,6 +3,7 @@
 // movement, NPCs, then the render.
 #pragma once
 
+#include "protocol.hpp"
 #include "skillbar.hpp"
 
 namespace {
@@ -163,7 +164,7 @@ struct Town {
                 const auto [fx, fy] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
                 auto m = make_monster(*scene, type, fx, fy, rng, diff);
                 m.aware = true;
-                fight.monsters.push_back(std::move(m));
+                fight.add_monster(std::move(m));
             }
             d2d::log::info("trap 8: {} x{}", types[std::size_t(type)].id, n);
             return;
@@ -645,6 +646,93 @@ struct Town {
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through a warp from {}", level_name(*level), px, py, level_name(*from));
     }
 
+    // The client's side of a click: what it asks the server for
+    // (protocol.hpp). A held left button re-aims the walk; a press picks
+    // what's under the cursor: a monster to attack, an item, an object or
+    // NPC, else the ground. The right button uses the right skill there.
+    [[nodiscard]] std::vector<Command> input(const Mouse& mouse, bool over_ui) const {
+        std::vector<Command> out;
+        if (fight.pmode >= 0 || over_ui) return out;
+        // Screen -> world: invert the iso projection around the player,
+        // who sits at (kW/2, kH/2 + kIsoH/2).
+        const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
+        const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
+        const float wx = player.x + (u + v) / 2, wy = player.y + (v - u) / 2;
+        const int hm = hovered_monster();
+        const bool live = hm >= 0 && fight.monsters[std::size_t(hm)].alive();
+        if (mouse.press_this_frame) {
+            if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, fight.monsters[std::size_t(hm)].id });
+            else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ hovered_ground() });
+            else if (hovered_npc >= 0) out.push_back(cmd::Interact{ hovered_npc });
+            else out.push_back(cmd::Move{ wx, wy, true });
+        } else if (mouse.down) {
+            out.push_back(cmd::Move{ wx, wy, false });
+        }
+        if (mouse.rpress_this_frame) out.push_back(cmd::UseSkill{ skillbar.right, wx, wy, live ? fight.monsters[std::size_t(hm)].id : -1 });
+        return out;
+    }
+
+    // The server's side: a command from the player, checked and applied
+    // (a busy or dead player's were dropped by input()).
+    void apply(const Command& c, std::uint32_t ms) {
+        const bool in_moor = level != &scene->town;
+        auto walk_to = [&](float x, float y, bool fresh) {
+            target_x = x; target_y = y;
+            player.walking = true;
+            interact_npc = -1;
+            if (!fresh) return;
+            fight.attack_mon = pick_item = -1;
+            take_warp = -1;                                                  // a click on a warp: go through it
+            for (std::size_t i = 0; i < level->warps.size(); ++i)
+                if (std::hypot(level->warps[i].x + 0.5f - x, level->warps[i].y + 0.5f - y) < 2.f) take_warp = int(i);
+        };
+        if (const auto* m = std::get_if<cmd::Move>(&c)) { walk_to(m->x, m->y, m->fresh); return; }
+        if (const auto* p = std::get_if<cmd::Pickup>(&c)) {                  // walk to it, pick it up
+            if (std::size_t(p->item) >= loot.ground.size()) return;
+            walk_to(loot.ground[std::size_t(p->item)].x, loot.ground[std::size_t(p->item)].y, true);
+            pick_item = p->item;
+            return;
+        }
+        if (const auto* in = std::get_if<cmd::Interact>(&c)) {               // walk to it; operate or talk on arrival
+            if (std::size_t(in->npc) >= level->npcs.size()) return;
+            const auto& o = level->npcs[std::size_t(in->npc)];
+            const auto& st = npc_states[std::size_t(in->npc)];
+            const float ox = o.path.empty() ? o.x : st.x, oy = o.path.empty() ? o.y : st.y;
+            walk_to(ox, oy, true);
+            const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
+            const bool usable = (o.operate_fn == 2 || o.operate_fn == 4) && !operated.contains({ level, in->npc });
+            if (o.operate_fn == 32 || o.operate_fn == 23 || usable || (o.root == "monsters" && menu)) interact_npc = in->npc;
+            return;
+        }
+        const auto& k = std::get<cmd::UseSkill>(c);
+        const auto* s = scene->skills.get(k.skill);
+        const int mi = fight.monster_index(k.unit);
+        const bool live = mi >= 0 && fight.monsters[std::size_t(mi)].alive();
+        if (s && self_cast(*s)) {                                            // Holy Shield: where the player stands
+            if (fight.cast(k.skill, ms)) player.walking = false;
+        } else if (s && s->srvdofunc == 76 && mi < 0) {                      // Whirlwind to that point (FUN_005d8f50)
+            fight.move_x = k.x; fight.move_y = k.y;
+            fight.attack_mon = -1;
+            fight.attack_skill = k.skill;
+            interact_npc = pick_item = -1;
+            player.walking = false;
+            player.dir = direction16(fight.move_x - player.x, fight.move_y - player.y);
+            fight.start_swing(ms);
+        } else if (s && !live && (fight.missile_skill(*s) || fight.spot_skill(*s)) && (in_moor || s->in_town)) {
+            interact_npc = pick_item = -1;                                   // a missile, Teleport, Corpse Explosion at the spot
+            if (fight.cast_missile(k.skill, k.x, k.y, ms)) player.walking = false;
+        } else if (s && !live && fight.summon_skill(*s) && in_moor) {        // Raise Skeleton: the corpse there
+            interact_npc = pick_item = -1;
+            if (fight.cast_summon(k.skill, k.x, k.y, ms)) player.walking = false;
+        } else if (live) {                                                   // walk up to it, then attack
+            target_x = k.x; target_y = k.y;
+            player.walking = true;
+            interact_npc = pick_item = -1;
+            fight.attack_mon = mi;
+            fight.attack_skill = k.skill;
+        }
+    }
+
     // Walking: a click on the ground (not over the UI) sets the target and
     // an object to operate on arrival; the player follows a walk_path; NPCs
     // patrol; the merc follows.
@@ -681,40 +769,7 @@ struct Town {
         if (fight.player_modes(mouse, ms, dt)) respawn(ms);
         if (fight.dead()) return;
         const bool busy = fight.pmode >= 0;
-        if (!busy && (mouse.down || mouse.press_this_frame) && !over_ui) {
-            // Screen -> world: invert the iso projection around
-            // the player, who sits at (kW/2, kH/2 + kIsoH/2).
-            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
-            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
-            target_x = player.x + (u + v) / 2;
-            target_y = player.y + (v - u) / 2;
-            player.walking = true;
-            // Clicking an object you can operate walks to it
-            // first (D2 operates on arrival).
-            interact_npc = -1;
-            if (mouse.press_this_frame) fight.attack_mon = pick_item = -1;
-            if (mouse.press_this_frame && hovered_monster() >= 0 && fight.monsters[std::size_t(hovered_monster())].alive()) {
-                fight.attack_mon = hovered_monster(); // walk up to it, then attack with the left skill
-                fight.attack_skill = skillbar.left;
-            }
-            if (mouse.press_this_frame && hovered_ground() >= 0) pick_item = hovered_ground();   // walk to it, pick it up
-            if (mouse.press_this_frame) {                                                          // a click on a warp: go through it
-                take_warp = -1;
-                for (std::size_t i = 0; i < level->warps.size(); ++i)
-                    if (std::hypot(level->warps[i].x + 0.5f - target_x, level->warps[i].y + 0.5f - target_y) < 2.f) take_warp = int(i);
-            }
-            if (mouse.press_this_frame && hovered_npc >= 0) {
-                const auto& o = level->npcs[std::size_t(hovered_npc)];
-                const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == o.hc_idx; });
-                const bool usable = (o.operate_fn == 2 || o.operate_fn == 4) && !operated.contains({ level, hovered_npc });
-                if (o.operate_fn == 32 || o.operate_fn == 23 || usable || (o.root == "monsters" && menu)) {
-                    interact_npc = hovered_npc;
-                    const auto& st = npc_states[std::size_t(hovered_npc)];
-                    target_x = o.path.empty() ? o.x : st.x;
-                    target_y = o.path.empty() ? o.y : st.y;
-                }
-            }
-        }
+        for (const auto& c : input(mouse, over_ui)) apply(c, ms);
         // Close enough to the stash: open it with the inventory.
         // ponytail: 2 cells, not D2's per-object operate range.
         if (interact_npc >= 0) {
@@ -756,52 +811,6 @@ struct Town {
             } else {
                 target_x = g.x; target_y = g.y; player.walking = true;
             }
-        }
-        // A right click with a self cast on the right button (Holy Shield):
-        // cast where the player stands, whatever's under the cursor.
-        const auto* rs = scene->skills.get(skillbar.right);
-        const bool rcast = rs && self_cast(*rs);
-        if (!busy && mouse.rpress_this_frame && !over_ui && rcast && fight.cast(skillbar.right, ms)) player.walking = false;
-        // Whirlwind on the right button, clicked on open ground: whirl to
-        // that point (FUN_005d8f50 paths to the clicked spot).
-        if (!busy && mouse.rpress_this_frame && !over_ui && hovered_monster() < 0 && rs && rs->srvdofunc == 76) {
-            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
-            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
-            fight.move_x = player.x + (u + v) / 2;
-            fight.move_y = player.y + (v - u) / 2;
-            fight.attack_mon = -1;
-            fight.attack_skill = skillbar.right;
-            interact_npc = pick_item = -1;
-            player.walking = false;
-            player.dir = direction16(fight.move_x - player.x, fight.move_y - player.y);
-            fight.start_swing(ms);
-        }
-        // A missile skill (or one that acts on a spot: Teleport, Corpse
-        // Explosion on the corpse there) on the right button, clicked on
-        // open ground: cast at that point from here.
-        const int hm = hovered_monster();
-        if (!busy && mouse.rpress_this_frame && !over_ui && (hm < 0 || !fight.monsters[std::size_t(hm)].alive()) && rs
-            && (fight.missile_skill(*rs) || fight.spot_skill(*rs)) && (in_moor || rs->in_town)) {
-            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
-            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
-            interact_npc = pick_item = -1;
-            if (fight.cast_missile(skillbar.right, player.x + (u + v) / 2, player.y + (v - u) / 2, ms)) player.walking = false;
-        }
-        // A summoning skill on the right button: cast at the cursor (Raise
-        // Skeleton: the corpse there).
-        if (!busy && mouse.rpress_this_frame && !over_ui && (hm < 0 || !fight.monsters[std::size_t(hm)].alive())
-            && rs && fight.summon_skill(*rs) && in_moor) {
-            const float u = float(mouse.x - int(kW) / 2) / (kIsoW / 2);
-            const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
-            interact_npc = pick_item = -1;
-            if (fight.cast_summon(skillbar.right, player.x + (u + v) / 2, player.y + (v - u) / 2, ms)) player.walking = false;
-        }
-        // A right click on a monster: the right skill.
-        if (!busy && !rcast && mouse.rpress_this_frame && !over_ui && hovered_monster() >= 0
-            && fight.monsters[std::size_t(hovered_monster())].alive()) {
-            fight.attack_mon = hovered_monster();
-            interact_npc = pick_item = -1;
-            fight.attack_skill = skillbar.right;
         }
         if (const auto to = fight.engage(ms)) { std::tie(target_x, target_y) = *to; player.walking = true; }
         if (player.walking && fight.pmode < 0) {

@@ -161,6 +161,7 @@ void merc_follow(const Level& L, UnitState& m, float px, float py, float speed, 
 // A monster in the level: its type (MonStats row), composite recipe with
 // the components it rolled, where it is, its stats and what it's doing.
 struct Monster {
+    int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
     int type = -1;
     d2d::rules::Boss boss = d2d::rules::Boss::none;   // champion, unique, superunique, minion
     std::vector<int> mods;                    // MonUMod ids
