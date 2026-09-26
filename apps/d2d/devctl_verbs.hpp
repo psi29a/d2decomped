@@ -174,6 +174,15 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
                 out += std::format(" {}={}{}{}", p.stat, p.value, p.itype.empty() ? "" : "/", p.itype);
             return out + "\n";
         }
+        if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura
+            std::string out;
+            for (const auto& p : t.fight.pets)
+                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={}\n",
+                                   p.m.npc.name, p.m.st.level, p.m.hp, p.m.st.hp, p.m.st.a1_min, p.m.st.a1_max, p.m.st.th, p.m.st.ac,
+                                   p.res[0], p.res[1], p.res[2], p.res[3], p.fire_lo, p.fire_hi, p.ranged, p.ranged_level, p.aura,
+                                   p.aura_level, p.where == t.level);
+            return out + "ok\n";
+        }
         if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable
             const int id = std::atoi(args[3].c_str());
             const bool left = args[2] == "left";

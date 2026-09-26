@@ -429,6 +429,7 @@ struct Town {
             shift(player);
             target_x -= dx; target_y -= dy;
             if (merc) shift(*merc);
+            fight.pets_cross(level, n.level, dx, dy);
             if (n.level->layer != level->layer) {
                 other_automaps[level->layer] = std::move(automap);
                 automap = std::move(other_automaps[n.level->layer]);

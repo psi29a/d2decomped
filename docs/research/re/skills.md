@@ -621,6 +621,46 @@ operand and function lists.
   nearest), DamageRate's use, Charged Bolt's and Strafe's timing (arrows
   3 ticks apart), Inferno's held channel (it lasts the cast).
 
+### Pets (phase 6, part 2)
+- **FUN_005c4470** is how the masteries reach pets: the summoning skill's
+  passive stats (+0x98 / +0xa4, set as base stats) and aurastats (+0x54 /
+  +0x68, in its aurastate) go on the pet, their calcs run with the
+  owner's skills — Raise Skeleton's maxhp is `skill('Skeleton
+  Mastery'.lvl) * par1 * 256`, Clay Golem's tohit `skill('Golem
+  Mastery'.ln56) + ...`, the golems' synergies likewise. Then life (with
+  that maxhp) + calc1 %, sumskills at their sumsk calcs (FUN_0056deb0),
+  the aura events, sumumod, sumoverlay. **FUN_005d6b60** isn't a
+  mastery: it's the pet's MonEquip.txt gear.
+- A pet's life and damage are MonStats' own columns (a skeleton 21 life,
+  1-2 damage in Normal, 30 / 42 in Nightmare / Hell), not MonLvl-scaled.
+  The Druid's and Raven's rows have no damage: the skill's physical
+  (MinDam + MinLevDam) is theirs. (Neither traced: the published values.)
+- Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
+  byte +0xf (necromage1..4: poison, cold, fire, lightning).
+- Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
+  level (HydraMissile, whose row 'hydra' carries the Hydra skill).
+- Do 58 (**FUN_005c56c0**, Revive): the corpse's monster rises with its
+  own stats (FUN_006538a0), brought down to the owner's level and life
+  when above it, then FUN_005c4470 (200 % life, Revive's speed and
+  damage %); the pet's time is calc2 frames.
+- Do 15 (**FUN_005dc000**, Decoy): the owner's look (FUN_00621ce0), life =
+  owner's max life x calc3 %, the owner's level, gone in calc2 frames.
+- Do 49 (**FUN_005d6e70**, Shadow Warrior / Master): the owner's level
+  (stat 12), skills (FUN_005d6cf0) and look; gear by FUN_005d6b60.
+- Do 114 / 119 (FUN_005c6910 / FUN_005c7390): FUN_005c49e0 with calc2 as
+  the bonus level, then FUN_005c4470.
+- Built: `Fight::summon_one` (the stats, sumskills: a missile it shoots or
+  an aura it runs), `Pet::ranged / aura / res / thorns / fire / until /
+  variant / hits / idle / mirror / where`, `pet_aura` (Fire Golem's Holy
+  Fire round it), the totems' do-65 auras on the player in range
+  (`update_fighters`), `pets_cross` (pets follow the player over a level
+  edge; traps stay), devctl `debug pets`. Not traced / not built: the pet
+  AI functions (NecroPet, DruidWolf, Totem, ... — the merc's think for
+  all), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
+  Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, the Shadow
+  Warrior's own skills (it swings the owner's blow), Decoy's and the
+  Shadow's look (drawn as their rows), Raven's hit count (Param5).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per

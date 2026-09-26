@@ -367,6 +367,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (std::size_t r = 0; r < sk.size(); ++r) {
         skill_missiles.emplace(sk.get(r, "srvmissile"));
         for (const char* c : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(sk.get(r, c));
+        if (const std::string a(sk.get(r, "srvmissilea")); num(sk.get(r, "srvdofunc")) == 149 && !a.empty())   // necromage1..4
+            for (char d = '2'; d <= '4'; ++d) skill_missiles.emplace(a.substr(0, a.size() - 1) + d);
     }
     // and the rows those spawn (SubMissile1, HitSubMissile1: Fire Wall's
     // flames, Meteor's fire, Blizzard's shards), to a fixed point.
