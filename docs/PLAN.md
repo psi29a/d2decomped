@@ -364,11 +364,56 @@ below, so new features land on the new structure:
    tick; it crosses as bytes (replication.hpp) and the client draws and
    clicks from it alone; the World owns its own character, the client's
    is the View's; run / walk, talking, sounds and events go over too.
-6. Next: a World with N players (Fight's player state per player), then
-   `TcpTransport` (a second d2d joins), player-count scaling and party.
-   Later: Views as deltas of what's near each player.
+6. Views as deltas: done (2026-09-27; about 0.4 KB a tick).
+7. Deferred until Act 1 plays through (see "Road to a whole Act 1"): a
+   World with N players (Fight's player state per player), `TcpTransport`
+   (a second d2d joins), a standalone `d2ds` server, player-count scaling
+   and party.
 
-## Next up (as of 2026-09-26)
+## Road to a whole Act 1 (from 2026-09-27)
+
+Goal: Act 1 playable from the camp to Andariel and the way to Act 2, each
+piece from game.exe (no lost bits: checked against it where the emulator
+can, tools/emu). In this order:
+
+**Step 1 — levels on demand; game data apart from graphics** (~1–1.5 days).
+Every level is built at start today (0.1–0.4 s each optimised, monsters
+for all three difficulties); Act 1 has ~30. The same cut serves the
+standalone server later.
+- `GameData` (the World's): tables, levels (layout, collision, rooms,
+  warps, objects), monster populations, animation timings (COF +
+  animdata). `Assets` (the client's): DT1 / DCC / DC6 pixels, fonts,
+  sounds. The World never touches `Assets`.
+- A level is built from the map seed the first time it's needed
+  (deterministic, so client and server agree), only at the game's
+  difficulty; the levels next to the player's build in the background.
+- Checks: start time flat as levels are added; the Blood Moor and Den
+  still match game.exe (test_drlg / emulator); smoke green.
+
+**Step 2 — Act 1's content, researched then built:**
+1. Preset units (`FUN_00667620`): the monsters and objects a level's
+   DS1s place — superuniques, quest objects, special chests.
+2. Outdoor levels: Cold Plains, Stony Field, Dark Wood, Black Marsh,
+   Tamoe Highland, the Burial Grounds, Tristram; each checked against
+   game.exe like the Blood Moor.
+3. Dungeons: the caves and holes (Cave, Underground Passage, Hole, Pit),
+   Crypt / Mausoleum, the Forgotten Tower, the Monastery (Gate, Outer
+   Cloister, Barracks, Jail, Inner Cloister, Cathedral), Catacombs 1–4.
+4. Waypoint travel; level warps between all of them.
+5. The six quests: states, NPC talk, rewards (Den of Evil, Sisters' Burial
+   Grounds, Search for Cain, The Forgotten Tower, Tools of the Trade,
+   Sisters to the Slaughter), and their superuniques.
+6. Andariel (her AI, poison) and Warriv's way east: the end of Act 1.
+7. Alongside: the remaining unique mods (Cursed, thief, poison hit,
+   teleport, auras), town portals, the corpse on death.
+
+**Step 3 — networking** (the deferred item 7 above).
+
+Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
+Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't
+traced); a Debug build loads ~2.5x slower than RelWithDebInfo.
+
+## Earlier list (as of 2026-09-26; superseded by "Road to a whole Act 1")
 
 Done and proven: the Blood Moor and the Den of Evil (layout, room seeds,
 tiles, preset units; docs/research/re/drlg.md "Checking against
