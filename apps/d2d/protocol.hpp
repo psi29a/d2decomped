@@ -8,6 +8,8 @@
 #include <cstring>
 #include <deque>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <span>
 #include <type_traits>
 #include <variant>
@@ -86,13 +88,27 @@ struct Out {
         return *this;
     }
     Out& u8(int v) { return put(std::uint8_t(v)); }
+    Out& u16(int v) { return put(std::uint16_t(v)); }
     Out& i32(int v) { return put(std::int32_t(v)); }
+    Out& u32(std::uint32_t v) { return put(v); }
     Out& f32(float v) { return put(v); }
+    Out& str(std::string_view v) {
+        u16(int(v.size()));
+        b.insert(b.end(), v.begin(), v.end());
+        return *this;
+    }
 };
 struct In {
     std::span<const std::uint8_t> b;
     std::size_t at = 1;
     bool ok = true;
+    std::string str() {
+        const std::size_t n = get<std::uint16_t>();
+        if (!ok || at + n > b.size()) { ok = false; return {}; }
+        std::string v(reinterpret_cast<const char*>(b.data() + at), n);
+        at += n;
+        return v;
+    }
     template <class T> T get() {
         T v{};
         if (at + sizeof v > b.size()) { ok = false; return v; }
@@ -175,6 +191,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
 // TCP transport replaces.
 struct LocalTransport {
     std::deque<std::vector<std::uint8_t>> to_server;
+    std::vector<std::uint8_t> to_client;   // the World's latest View, as its wire form (replication.hpp)
     void send(const Command& c) { to_server.push_back(encode(c)); }
     // What the server has been sent since it last looked.
     std::vector<Command> receive() {

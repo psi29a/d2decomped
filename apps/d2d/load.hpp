@@ -406,6 +406,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
         if (!used) continue;
         Scene::MissileInfo mi;
+        mi.name = name;
         mi.vel = g("Vel"); mi.range = g("Range"); mi.src_damage = g("SrcDamage"); mi.min = g("MinDamage"); mi.max = g("MaxDamage");
         mi.anim_speed = std::max(g("AnimSpeed"), 1); mi.anim_len = std::max(g("AnimLen"), 1);
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");

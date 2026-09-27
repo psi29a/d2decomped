@@ -3,7 +3,7 @@
 // movement, NPCs, then the render.
 #pragma once
 
-#include "server.hpp"
+#include "replication.hpp"
 #include "skillbar.hpp"
 
 namespace {
@@ -118,6 +118,13 @@ struct Town {
         : scene(s), cc(c), world(s, c, start_x, start_y) {
         have_world = level && !level->dt1s.empty();
         view = world.view();
+    }
+
+    // What the World tells the client: its View, over as bytes too.
+    void publish() {
+        net.to_client = encode_view(*scene, world.view());
+        if (auto v = decode_view(*scene, net.to_client)) view = std::move(*v);
+        else d2d::log::warn("a View didn't decode ({} bytes)", net.to_client.size());
     }
 
     // Saving the character: the item on the cursor goes back first, then
@@ -453,14 +460,16 @@ struct Town {
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || ms - world_ms > 1000) world_ms = ms - std::min<std::uint32_t>(ms - last_ms, kTickMs);
+        bool ticked = false;
         for (int n = 0; ms - world_ms >= kTickMs && n < 5; ++n) {
-            prev_x = player.x; prev_y = player.y;
+            prev_x = view.player.x; prev_y = view.player.y;
             world.tick(net.receive(), world_ms + kTickMs, world_ms);
             world_ms += kTickMs;
             for (const auto& e : world.events) handle(e, ms);
             world.events.clear();
+            ticked = true;
         }
-        view = world.view();
+        if (ticked || view.level != level) publish();
         if (ms - world_ms >= kTickMs) world_ms = ms - (ms - world_ms) % kTickMs;
     }
 

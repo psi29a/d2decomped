@@ -39,7 +39,7 @@ struct View {
     bool running = false, dead = false;
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
-    std::span<const d2d::rules::SeqFrame> seq{};   // an SQ skill's frames while it plays
+    std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     Scene::Appearance gfx{};               // what the character wears
@@ -138,7 +138,7 @@ struct World {
         v.dead = fight.dead();
         v.pmode = fight.pmode;
         v.prate = fight.prate;
-        v.seq = fight.seq; v.seq_frame_ms = fight.seq_frame_ms; v.seq_loop = fight.seq_loop;
+        v.seq.assign(fight.seq.begin(), fight.seq.end()); v.seq_frame_ms = fight.seq_frame_ms; v.seq_loop = fight.seq_loop;
         v.gfx = fight.gfx();
         if (merc && merc_npc) v.merc = View::Merc{ *merc, merc_npc, fight.merc_mode };
         for (const auto& p : fight.pets) if (p.where == level) v.pets.push_back({ p.m.npc, p.m.u, p.m.mode });

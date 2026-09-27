@@ -373,7 +373,7 @@ struct Scene {
     // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
     // its first hit; else flies through), Pierce (may fly on, stat 328 %),
     // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
-    struct MissileInfo { int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+    struct MissileInfo { std::string name; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          std::optional<d2d::dcc::Sprite> dcc;
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          bool to_hit = false, collide_kill = true, pierce = false;
