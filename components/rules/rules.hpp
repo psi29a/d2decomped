@@ -598,6 +598,29 @@ inline int spend_stat_points(d2d::d2s::Stats& st, int stat, int n, const ClassGa
     return n;
 }
 
+// Akara's Reset Stat/Skill Points (FUN_00570360, FUN_00570c80): every
+// skill's points come back (stat 5) and its level goes to 0; each stat
+// goes back to the class's CharStats base (str, energy, dex, vit — `base`
+// in stat order), the difference to or from stat 4; energy and vitality
+// take their mana / life and stamina max with them (current too when they
+// rise, else clamped to the new max).
+inline void respec(d2d::d2s::Stats& st, const std::array<int, 4>& base, const ClassGains& g) {
+    using namespace d2d::d2s;
+    for (auto& lv : st.skills) { st.v[kSkillPts] += lv; lv = 0; }
+    for (int stat = 0; stat < 4; ++stat) {
+        const std::int64_t d = base[std::size_t(stat)] - st.v[std::size_t(stat)];
+        st.v[kStatPts] -= d;
+        st.v[std::size_t(stat)] += d;
+        auto pool = [&](int cur, int max, int quarters) {
+            st.v[std::size_t(max)] += std::int64_t(quarters) * d * 64;
+            if (d > 0) st.v[std::size_t(cur)] += std::int64_t(quarters) * d * 64;
+            st.v[std::size_t(cur)] = std::min(st.v[std::size_t(cur)], st.v[std::size_t(max)]);
+        };
+        if (stat == kEne) pool(kMana, kMaxMana, g.mana_per_energy);
+        if (stat == kVit) { pool(kLife, kMaxLife, g.life_per_vit); pool(kStamina, kMaxStamina, g.stamina_per_vit); }
+    }
+}
+
 // Can skill i (0..29 of class cls) take a point: a level to go, the
 // character level, and every prerequisite learned? (FUN_004ac200 greys
 // out the icons that can't.)

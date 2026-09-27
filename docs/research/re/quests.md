@@ -121,9 +121,7 @@ This is the order of `<class>_act1_complete_*` in Sounds.txt.
 ponytail: not built yet:
 - the quest log, and the timing of its "Return to Akara" state;
 - parties and late joiners;
-- the "!" marker;
 - the Den's lighting change;
-- Akara's respec menu entry (quest 41).
 
 ## The balloon over an NPC (npcalert)
 
@@ -134,3 +132,29 @@ shows Overlay.txt `npcalert`: NPCSpeechBalloon.dcc, 16 frames drawn about
 
 d2d: `DenQuest::alert` → `UnitState::alert` (replicated) → `Unit::overlay`
 (world.hpp, drawn additive).
+
+## Akara's Reset Stat/Skill Points (quest 41)
+
+- **The menu:** `0x4b6da0` patches Akara's menu record (0x726c48) to talk,
+  trade, 0x2ba0 "Reset Stat/Skill Points". The menu builder (`0x4b4830`)
+  shows the reset line while quest 41 bit 0 is clear and either bit 1 is
+  set or the game is in Hell (`FUN_0044dcd0() == 2`).
+- **Confirming:** choosing the line opens a confirmation (`0x4b5ad0`) with
+  the reset name as heading, "ok" (0xd49) and "cancel" (0xd48). "ok"
+  (`0x4b4290`) sends 0x38 to Akara.
+- **The server (0x94 in the 0x38 handler):**
+  - in Hell, if the Den of Evil is done and quest 41 bits 1 and 0 are both
+    clear, it sets bits 13 and 1 (`FUN_0058fd20`);
+  - then, while bit 1 is set, it resets skills (`FUN_00570360`) and stats
+    (`FUN_00570c80`), and `FUN_0058fd50` sets bit 0 and clears bit 1.
+- **Skills:** each skill's base points go back into stat 5 and its level
+  becomes 0.
+- **Stats:** each stat goes back to the class's CharStats base, with the
+  difference moved to or from stat 4. Energy (`FUN_00570a80`) and
+  vitality (`FUN_00570b60`) also change max mana, life and stamina by the
+  per-point quarters. Current values rise with them, or are cut down to
+  the new max.
+
+d2d: `rules::respec`, `cmd::Respec` (0x38 kind 3), `open_respec_menu`.
+Quest menus now open after the quest speech, as game.exe builds them
+then.

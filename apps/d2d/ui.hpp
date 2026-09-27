@@ -229,7 +229,7 @@ PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
 struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
     std::vector<Line> lines;
     int x = 0, y = 0, w = 0, h = 0;
@@ -255,8 +255,11 @@ void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y
 // clvl and the unidentified item count adjust the table like game.exe:
 // Kashya gains "hire" above level 7 (FUN_004b66b0 -> FUN_004b6410
 // patches her record to talk, hire); "identify items" only shows when
-// something needs it (FUN_004b4830).
-NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0) {
+// something needs it (FUN_004b4830). Akara's record is patched to talk,
+// trade, "Reset Stat/Skill Points" (0x2ba0, 0x4b6da0), the last shown while
+// `respec` (quest 41: not used, and open — or any time in Hell).
+NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0,
+                           bool respec = false) {
     NpcMenuState m;
     const auto& n = L.npcs[std::size_t(npc)];
     const auto it = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
@@ -265,6 +268,7 @@ NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x
     m.lines.push_back({ n.name, 21, 0, 0, true });
     auto entries = it->entries;
     if (n.hc_idx == 150 && clvl > 7) entries = { 0xd35, 0xd45 };
+    if (n.hc_idx == 148 && respec) entries[2] = 0x2ba0;
     for (const auto id : entries)
         if (id && !(id == 0xfb4 && unidentified == 0))
             m.lines.push_back({ string_id(s, id), 15, 0, 0, false,
@@ -272,8 +276,21 @@ NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x
                                 : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade
                                 : id == 0xd46 ? NpcMenuState::kGamble
                                 : id == 0xd45 ? NpcMenuState::kHire
-                                : id == 0xfb4 ? NpcMenuState::kIdentify : NpcMenuState::kClose });
+                                : id == 0xfb4 ? NpcMenuState::kIdentify
+                                : id == 0x2ba0 ? NpcMenuState::kRespec : NpcMenuState::kClose });
     m.lines.push_back({ string_id(s, 0x102e), 15 });
+    layout_npc_menu(s, m, screen_x, screen_y);
+    return m;
+}
+
+// The reset's confirmation (0x4b5ad0): its name (gold), "ok" (0xd49),
+// "cancel" (0xd48).
+NpcMenuState open_respec_menu(const Scene& s, int npc, int screen_x, int screen_y) {
+    NpcMenuState m;
+    m.npc = npc;
+    m.lines.push_back({ string_id(s, 0x2ba0), 21, 0, 0, true });
+    m.lines.push_back({ string_id(s, 0xd49), 15, 0, 0, false, NpcMenuState::kRespecOk });
+    m.lines.push_back({ string_id(s, 0xd48), 15 });
     layout_npc_menu(s, m, screen_x, screen_y);
     return m;
 }

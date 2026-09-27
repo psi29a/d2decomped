@@ -572,6 +572,21 @@ struct World {
             return true;
         }
         if (std::holds_alternative<cmd::CloseTrade>(c)) { store = {}; return true; }
+        // Akara's reset (the 0x38 handler for her, hcIdx 0x94): while quest
+        // 41 (the Den of Evil's reward) is open, stats and skills go back,
+        // then it's used (FUN_0058fd50: bit 0 on, 1 off).
+        if (const auto* p = std::get_if<cmd::Respec>(&c)) {
+            using d2d::rules::qbit;
+            if (std::size_t(p->npc) >= level->npcs.size() || level->npcs[std::size_t(p->npc)].hc_idx != d2d::rules::DenQuest::kAkara
+                || !qbit(quests(), 41, 1)) return true;
+            const auto cls = std::size_t(std::clamp<int>(cc.header.cls, 0, 6));
+            const auto& b = scene->class_start[cls];
+            d2d::rules::respec(cc.stats, { b.str, b.ene, b.dex, b.vit }, scene->class_gains[cls]);
+            d2d::rules::qset(quests(), 41, 0);
+            d2d::rules::qset(quests(), 41, 1, false);
+            d2d::log::info("Akara reset the stat and skill points");
+            return true;
+        }
         if (const auto* p = std::get_if<cmd::Run>(&c)) { running = p->on; return true; }
         if (const auto* p = std::get_if<cmd::Chat>(&c)) { talking = { p->npc, -1, -1 }; return true; }
         if (const auto* p = std::get_if<cmd::QuestMessage>(&c)) {   // only what that NPC has to say
@@ -761,6 +776,14 @@ struct World {
                     events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
                 } else {
                     if (d2d::rules::is_healer(o.hc_idx)) d2d::rules::heal(cc.stats);
+                    // In Hell, a Den of Evil done before the reset existed
+                    // opens it on meeting Akara (FUN_0058fd20: quest 41 bits
+                    // 13 and 1).
+                    if (o.hc_idx == d2d::rules::DenQuest::kAkara && cc.header.active_difficulty() == 2) {
+                        auto& f = quests();
+                        using d2d::rules::qbit;
+                        if (qbit(f, 1, 0) && !qbit(f, 41, 1) && !qbit(f, 41, 0)) { d2d::rules::qset(f, 41, 13); d2d::rules::qset(f, 41, 1); }
+                    }
                     events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, den.talk(quests(), o.hc_idx) });
                 }
                 player.walking = false; interact_npc = -1;

@@ -210,6 +210,13 @@ int main() {
     assert(spend_stat_points(ps, d2d::d2s::kEne, 1, amazon) == 1 && ps.get(d2d::d2s::kMaxMana) == 6 * 64);   // 1.5 mana
     assert(spend_stat_points(ps, d2d::d2s::kStr, 10, amazon) == 2 && ps.get(d2d::d2s::kStr) == 2);         // only 2 left
     assert(spend_stat_points(ps, d2d::d2s::kDex, 1, amazon) == 0 && ps.get(d2d::d2s::kStatPts) == 0);
+    // Akara's reset undoes it all: the 5 points back, life / stamina /
+    // mana to where they were, skills' points back.
+    ps.skills[3] = 4; ps.skills[7] = 1;
+    respec(ps, { 0, 0, 0, 0 }, amazon);
+    assert(ps.get(d2d::d2s::kStatPts) == 5 && ps.get(d2d::d2s::kStr) == 0 && ps.get(d2d::d2s::kVit) == 0);
+    assert(ps.fixed(d2d::d2s::kMaxLife) == 50 && ps.fixed(d2d::d2s::kLife) == 50 && ps.get(d2d::d2s::kMaxMana) == 0);
+    assert(ps.get(d2d::d2s::kSkillPts) == 5 && ps.skills[3] == 0);
 
     // Repair: missing / max of the base, rep mult; ethereal and whole items don't.
     Tables r = t;

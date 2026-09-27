@@ -65,6 +65,9 @@ struct Repair { int item = -1; };
 struct Identify {};
 struct Hire { int offer = -1; };
 struct CloseTrade {};
+// Akara's Reset Stat/Skill Points, confirmed ("ok" sends game.exe's 0x38
+// to her; d2d tells it apart with kind 3).
+struct Respec { int npc = -1; };
 // 0x53 / 0x54: run or walk.
 struct Run { bool on = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
@@ -78,7 +81,7 @@ struct QuestMessage { int npc = -1, string = 0; };
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt,
                              cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
-                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade,
+                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade, cmd::Respec,
                              cmd::Run, cmd::Chat, cmd::QuestMessage>;
 
 // The wire form of a command (what a transport carries): its id byte —
@@ -147,6 +150,7 @@ inline std::vector<std::uint8_t> encode(const Command& c) {
         else if constexpr (std::is_same_v<T, cmd::ToBelt>) o.u8(0x23).i32(m.box);
         else if constexpr (std::is_same_v<T, cmd::OpenTrade>) o.u8(0x38).u8(m.gamble ? 1 : 0).i32(m.npc);
         else if constexpr (std::is_same_v<T, cmd::OpenHire>) o.u8(0x38).u8(2).i32(m.npc);
+        else if constexpr (std::is_same_v<T, cmd::Respec>) o.u8(0x38).u8(3).i32(m.npc);
         else if constexpr (std::is_same_v<T, cmd::Buy>) o.u8(0x32).i32(m.stock);
         else if constexpr (std::is_same_v<T, cmd::Sell>) o.u8(0x33).i32(m.item);
         else if constexpr (std::is_same_v<T, cmd::Repair>) o.u8(0x35).i32(m.item);
@@ -184,7 +188,11 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
         case 0x18: { const int p = i32(), col = i32(); c = cmd::ToGrid{ p, col, i32() }; break; }
         case 0x1a: c = cmd::ToBody{ i32() }; break;
         case 0x23: c = cmd::ToBelt{ i32() }; break;
-        case 0x38: { const int kind = u8(), npc = i32(); c = kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } }; break; }
+        case 0x38: {
+            const int kind = u8(), npc = i32();
+            c = kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
+            break;
+        }
         case 0x32: c = cmd::Buy{ i32() }; break;
         case 0x33: c = cmd::Sell{ i32() }; break;
         case 0x35: c = cmd::Repair{ i32() }; break;

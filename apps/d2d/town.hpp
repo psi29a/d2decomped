@@ -247,7 +247,7 @@ struct Town {
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
-                else if (speech.npc >= 0) speech = {};              // then speech
+                else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
                     inv_open = char_open = stash_open = cube_open = tree_open = false;
@@ -387,6 +387,8 @@ struct Town {
         if (speech.npc >= 0 && (speech.done(ms) || mouse.press_this_frame)) {
             menu_click = mouse.press_this_frame;          // a click skips the speech
             speech = {};
+            if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
+            menu_after_speech = -1;
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             const int li = npc_menu.line_at(mouse.x, mouse.y);
             const auto action = li >= 0 ? npc_menu.lines[std::size_t(li)].action : NpcMenuState::kClose;
@@ -408,6 +410,10 @@ struct Town {
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, sx, sy, npc_quest);
+            } else if (action == NpcMenuState::kRespec) {
+                npc_menu = open_respec_menu(*scene, who, sx, sy);
+            } else if (action == NpcMenuState::kRespecOk) {
+                net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), ms);
                 net.send(cmd::QuestMessage{ who, npc_menu_arg });
@@ -590,7 +596,7 @@ struct Town {
             // distance still snaps).
             prev_x += float(lc->from->world_x - level->world_x);
             prev_y += float(lc->from->world_y - level->world_y);
-            npc_menu = {}; store = {}; speech = {}; waypoint = {};
+            npc_menu = {}; store = {}; speech = {}; waypoint = {}; menu_after_speech = -1;
             level_ms = ms;                                  // its song comes in 3 s later
             return;
         }
@@ -606,23 +612,34 @@ struct Town {
             inv_open = char_open = stash_open = cube_open = false;
             return;
         }
-        // The NPC's feet on screen, as render_world projects them.
-        const auto& o = level->npcs[std::size_t(ui.npc)];
-        const auto& st = view.npc_states[std::size_t(ui.npc)];
-        const float dx = (o.path.empty() ? o.x : st.x) - view.player.x, dy = (o.path.empty() ? o.y : st.y) - view.player.y;
-        npc_menu = open_npc_menu(*scene, *level, ui.npc,
-            int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
-            int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),
-            int(cc.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(cc.items));
         // A quest message for the player plays at once (FUN_004a10e0 on
-        // the first kind-0 one); hearing it is what the server acts on.
+        // the first kind-0 one; hearing it is what the server acts on), the
+        // menu after it.
         npc_quest = ui.quest;
         for (const auto& q : npc_quest)
             if (q.greet) {
                 speech = start_speech(*scene, ui.npc, std::uint16_t(q.string), ms);
                 net.send(cmd::QuestMessage{ ui.npc, q.string });
-                break;
+                menu_after_speech = ui.npc;
+                return;
             }
+        open_menu(ui.npc);
+    }
+    int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
+    // NPC `npc`'s menu, placed by its feet on screen as render_world
+    // projects them.
+    void open_menu(int npc) {
+        const auto& o = level->npcs[std::size_t(npc)];
+        const auto& st = view.npc_states[std::size_t(npc)];
+        const float dx = (o.path.empty() ? o.x : st.x) - view.player.x, dy = (o.path.empty() ? o.y : st.y) - view.player.y;
+        npc_menu = open_npc_menu(*scene, *level, npc,
+            int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
+            int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),
+            int(cc.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(cc.items), [&] {
+                const int d = cc.header.active_difficulty();
+                const auto& f = cc.header.quests[std::size_t(std::clamp(d, 0, 2))];
+                return !d2d::rules::qbit(f, 41, 0) && (d2d::rules::qbit(f, 41, 1) || d == 2);
+            }());
     }
 
     // The frame: the world with its units, the open panels, the tree and
