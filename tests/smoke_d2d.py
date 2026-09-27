@@ -227,6 +227,7 @@ try:
         cmd("key Escape"); frames()
 
         # Gamble at Gheed: a rolled item lands in the inventory.
+        cmd("debug clearinv"); frames(2)        # room for it, whatever the save carries
         near("Gheed")
         pick("gamble")
         n0 = int(state()["items"])

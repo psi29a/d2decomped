@@ -214,6 +214,10 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             for (auto& it : t.world.cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
             return "ok " + std::to_string(d2d::rules::unidentified(t.world.cc.items)) + "\n";
         }
+        if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
+            std::erase_if(t.world.cc.items, [](const auto& it) { return it.location == 0 && it.panel == 1; });
+            return std::string("ok\n");
+        }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
             for (auto& it : t.world.cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
             return std::string("ok\n");
