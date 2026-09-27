@@ -66,15 +66,16 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             static const std::string none;
             units.push_back({ x, y, &anim, st ? st->dir : 0, st && !st->mode.empty() && n.root == "objects" ? &none : &n.name, st ? st->mode_ms : 0, int(i) });
         }
-        // The neighbour levels' objects (torches by the camp's gate), as
-        // they stand: D2 draws the rooms round the player whichever level
-        // they're in. Not clickable from here (npc -3).
-        // ponytail: objects only; the neighbour's NPCs patrol in the World,
-        // which only steps the player's level.
+        // The neighbour levels' objects and NPCs (torches by the camp's
+        // gate, Flavie), as they stand: D2 draws the rooms round the player
+        // whichever level they're in. Not clickable from here (npc -3).
+        // ponytail: NPCs at their start, where npc_start puts them on
+        // crossing (the World steps only the player's level); quest-gated
+        // ones (Cain) left out.
         static const std::string no_name;
         for (const auto& nb : L.nearby)
             for (const auto& n : nb.level->npcs) {
-                if (n.root != "objects") continue;
+                if (n.quest) continue;
                 const float x = n.x + float(nb.dx), y = n.y + float(nb.dy);
                 if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
                 units.push_back({ x, y, &s.npc_anim(n, n.mode), 0, &no_name, 0, -3 });
