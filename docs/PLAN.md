@@ -91,7 +91,7 @@ subsystem it owns; a new panel or input into `Town`.
 - C++26 (`-std=c++2c` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
 - System packages: SDL3 (window, input, WAV decode), OpenAL (openal-soft),
   FFmpeg (Bink cinematics), zlib, Qt6 ≥ 6.5 (launcher only).
-- `FetchContent`: StormLib (MPQ), CLI11.
+- StormLib (MPQ): the system package, else `FetchContent`; CLI11: `FetchContent`.
 - License: GPL-3.0-or-later (matches OpenD2). Compatible with StormLib
   (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL).
 

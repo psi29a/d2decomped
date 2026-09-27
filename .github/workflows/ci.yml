@@ -49,20 +49,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y cmake ninja-build build-essential pkg-config \
-            libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev qt6-base-dev libgl1-mesa-dev \
+            libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake ninja pkgconf sdl3 openal-soft ffmpeg qt
+        run: brew install cmake ninja pkgconf sdl3 openal-soft ffmpeg qt stormlib
 
       # Windows: prebuilt release binaries rather than compiling anything.
       #   SDL3        - libsdl-org's VC dev zip (ships SDL3Config.cmake)
       #   OpenAL Soft - kcat's bin zip (headers, OpenAL32.lib, soft_oal.dll)
       #   FFmpeg      - BtbN's LGPL shared build (import libs + .pc files),
       #                 a pinned month-end autobuild of the 9.0 release branch
-      #   zlib        - no official MSVC binary; the runner's preinstalled
-      #                 vcpkg builds just zlib (seconds), cached with the rest.
+      #   zlib,       - no official MSVC binaries; the runner's preinstalled
+      #   StormLib      vcpkg builds them (and bzip2), cached with the rest.
       # Bump the versions here and the cache key together.
       - name: Cache Windows dependencies
         if: runner.os == 'Windows'
@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/deps
-          key: deps-win-sdl3-${{ env.SDL3_VERSION }}-openal-${{ env.OPENAL_VERSION }}-${{ env.FFMPEG_BUILD }}-zlib-v1
+          key: deps-win-sdl3-${{ env.SDL3_VERSION }}-openal-${{ env.OPENAL_VERSION }}-${{ env.FFMPEG_BUILD }}-zlib-stormlib-v2
 
       - name: Download prebuilt dependencies (Windows)
         if: runner.os == 'Windows' && steps.cache-deps.outputs.cache-hit != 'true'
@@ -86,7 +86,7 @@ jobs:
           Get-Zip "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL3_VERSION/SDL3-devel-$env:SDL3_VERSION-VC.zip" sdl3
           Get-Zip "https://github.com/kcat/openal-soft/releases/download/$env:OPENAL_VERSION/openal-soft-$env:OPENAL_VERSION-bin.zip" openal
           Get-Zip "https://github.com/BtbN/FFmpeg-Builds/releases/download/$env:FFMPEG_TAG/$env:FFMPEG_BUILD.zip" ffmpeg
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib --triplet x64-windows --x-install-root="$deps\vcpkg"
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install zlib stormlib --triplet x64-windows --x-install-root="$deps\vcpkg"
           Get-ChildItem $deps
 
       # pkg-config for FFmpeg's .pc files (pkgconfiglite is a prebuilt binary).
@@ -177,7 +177,7 @@ jobs:
             "$deps\openal-soft-$env:OPENAL_VERSION-bin\bin\Win64\soft_oal.dll",
             "$deps\$env:FFMPEG_BUILD\bin\*.dll",
             "$deps\vcpkg\x64-windows\bin\*.dll")
-          foreach ($dir in @("build\apps\d2d", "build\tests", "build\tools\mpq-cat", "build\tools\drlg-dump")) {
+          foreach ($dir in @("build\apps\d2d", "build\apps\launcher", "build\tests", "build\tools\mpq-cat", "build\tools\drlg-dump")) {
             if (Test-Path $dir) { Copy-Item -Path $dlls -Destination $dir -Force }
           }
           # soft_oal.dll is what OpenAL32.lib imports as OpenAL32.dll.

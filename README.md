@@ -94,9 +94,12 @@ Needs:
 - SDL3, OpenAL (openal-soft), FFmpeg (libavformat, libavcodec,
   libavutil, libswscale, libswresample), zlib, and Qt6 ≥ 6.5 for the
   launcher.
-- StormLib and CLI11 come in through FetchContent.
+- StormLib: the system's when found (Debian / Ubuntu `libstorm-dev`,
+  Homebrew `stormlib`, vcpkg `stormlib`), else built from source
+  (`-DD2D_BUNDLED_STORMLIB=ON` forces that). CLI11 comes in through
+  FetchContent.
 
-macOS: `brew install sdl3 openal-soft ffmpeg qt`.
+macOS: `brew install sdl3 openal-soft ffmpeg qt stormlib`.
 
 ## Run
 

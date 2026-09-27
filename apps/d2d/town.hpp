@@ -54,10 +54,10 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // units the world draws by depth (npc -2 the merc, -3 pets, -10 - i
 // monster i of the View, -1000 - i ground item i).
 void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out) {
-    auto near = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
+    auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
-        if (!near(g.x, g.y) || v.level == &s.town) continue;
+        if (!in_view(g.x, g.y) || v.level == &s.town) continue;
         Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
         u.sprite = s.flippy(g.item.code);
         u.rgb = g.rgb;
@@ -75,7 +75,7 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
     }
     for (std::size_t i = 0; i < v.monsters.size(); ++i) {
         const auto& m = v.monsters[i];
-        if (m.corpse_used || !near(m.u.x, m.u.y)) continue;
+        if (m.corpse_used || !in_view(m.u.x, m.u.y)) continue;
         out.push_back({ m.u.x, m.u.y, &s.npc_anim(m.npc, m.mode), m.u.dir, m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
     }
 }

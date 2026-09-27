@@ -48,8 +48,8 @@ CursorClick item_cursor_command(const Scene& s, const std::vector<d2d::d2s::Item
             // The held item is drawn centred on the cursor: its top-left
             // cell is the one under the cursor, shifted back half its size.
             const auto [w, h] = d2d::rules::item_size(t, held->code);
-            const int col = int(std::floor((mx - L->grid_x - (w - 1) * L->box_w / 2.f) / float(L->box_w)));
-            const int row = int(std::floor((my - L->grid_y - (h - 1) * L->box_h / 2.f) / float(L->box_h)));
+            const int col = int(std::floor((float(mx - L->grid_x) - float((w - 1) * L->box_w) / 2.f) / float(L->box_w)));
+            const int row = int(std::floor((float(my - L->grid_y) - float((h - 1) * L->box_h) / 2.f) / float(L->box_h)));
             return { true, cmd::ToGrid{ panel, col, row } };
         }
         for (const auto& it : items) {

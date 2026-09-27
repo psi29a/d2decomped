@@ -33,12 +33,12 @@ int main() {
 
     // A 40x40-subtile room (one 8x8-tile room) with a blocked column.
     auto fits = [](int x, int y) { return x != 20 && x >= 0 && y >= 0; };
-    auto near = [](int x, int y) { return x < 5 && y < 5; };
+    auto near_way = [](int x, int y) { return x < 5 && y < 5; };
     std::vector<Spawn> a, b;
     Rng g1{ 7 }, g2{ 7 };
     for (int i = 0; i < 20; ++i) {
-        populate_room(m, reg, 10000, { 0, 0, 40, 40, Rng{ std::uint32_t(100 + i) } }, g1, fits, near, a);
-        populate_room(m, reg, 10000, { 0, 0, 40, 40, Rng{ std::uint32_t(100 + i) } }, g2, fits, near, b);
+        populate_room(m, reg, 10000, { 0, 0, 40, 40, Rng{ std::uint32_t(100 + i) } }, g1, fits, near_way, a);
+        populate_room(m, reg, 10000, { 0, 0, 40, 40, Rng{ std::uint32_t(100 + i) } }, g2, fits, near_way, b);
     }
     assert(a.size() == b.size() && !a.empty());                  // same seeds, same monsters
     int leaders = 0, fallen_groups = 0;
@@ -48,7 +48,7 @@ int main() {
         assert(s.x >= 0 && s.y >= 0 && s.x < 40 && s.y < 40 && s.x != 20);
         if (s.leader != int(i)) continue;
         ++leaders;
-        assert(!near(s.x, s.y));
+        assert(!near_way(s.x, s.y));
         std::size_t n = 1;
         while (i + n < a.size() && a[i + n].leader == int(i)) ++n;
         if (s.type == 1) { ++fallen_groups; assert(n >= 1 && n <= 4); }   // leader + party 2..3 (fewer if crowded)
@@ -59,7 +59,7 @@ int main() {
 
     // Density 0: nobody.
     std::vector<Spawn> none;
-    populate_room(m, reg, 0, { 0, 0, 40, 40, Rng{ 1 } }, g1, fits, near, none);
+    populate_room(m, reg, 0, { 0, 0, 40, 40, Rng{ 1 } }, g1, fits, near_way, none);
     assert(none.empty());
 
     // Stats: zombie level 1 in normal = 7 HP x 101..181 %.
@@ -82,8 +82,8 @@ int main() {
         t.diff[2].res = { 0, 0, 0, 0, 0, 0 };
         int champions = 0;
         for (std::uint32_t seed = 1; seed <= 1000; ++seed) {
-            Rng rs{ seed };
-            const auto bb = roll_boss(um, t, 2, true, rs);
+            Rng bs{ seed };
+            const auto bb = roll_boss(um, t, 2, true, bs);
             if (bb.kind == Boss::champion) { ++champions; assert(bb.mods == std::vector<int>{ 16 }); continue; }
             assert(bb.mods.size() == 3 && bb.mods[0] != bb.mods[1] && bb.mods[1] != bb.mods[2] && bb.mods[0] != bb.mods[2]);
         }

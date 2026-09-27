@@ -338,9 +338,9 @@ struct World {
         cc.expansion = c.expansion; cc.header = c.header;
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
-        for (const auto [now, max] : { std::pair{ d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana },
-                                       { d2d::d2s::kStamina, d2d::d2s::kMaxStamina } })
-            cc.stats.v[now] = cc.stats.v[max];
+        for (const auto& [cur, max] : { std::pair{ d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana },
+                                        { d2d::d2s::kStamina, d2d::d2s::kMaxStamina } })
+            cc.stats.v[cur] = cc.stats.v[max];
         held.reset();
         store = {};
         spawn_merc();
@@ -677,12 +677,12 @@ struct World {
         // swing or a flinch holds the player in place until it ends, and
         // an attack goes on while the button's held (the left skill sent
         // again).
-        const bool held = std::ranges::any_of(cmds, [](const Command& c) {
+        const bool button = std::ranges::any_of(cmds, [](const Command& c) {
             const auto* k = std::get_if<cmd::UseSkill>(&c);
             return std::holds_alternative<cmd::Move>(c) || (k && k->left);
         });
         const bool resurrect = std::ranges::any_of(cmds, [](const Command& c) { return std::holds_alternative<cmd::Resurrect>(c); });
-        if (fight.player_modes(held, ms, dt) && resurrect) respawn(ms);
+        if (fight.player_modes(button, ms, dt) && resurrect) respawn(ms);
         if (!fight.dead()) {
         const bool busy = fight.pmode >= 0;
         for (const auto& c : cmds) if (!std::holds_alternative<cmd::Resurrect>(c)) apply(c, ms);

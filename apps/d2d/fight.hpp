@@ -1352,7 +1352,7 @@ struct Fight {
                     m.bolts_at = ms;
                     d2d::log::info("{} lets off charged bolts", m.npc.name);
                     const auto ring = std::make_shared<std::vector<int>>();
-                    for (const auto [bx, by] : { std::pair{ 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } })
+                    for (const auto& [bx, by] : { std::pair{ 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } })
                         for (int k = 0; k < 2; ++k) {
                             const float a = float(rng(51) - 25) * 3.14159265f / 180, c = std::cos(a), sn = std::sin(a);
                             boss_missile(m, "lightunique", bx * c - by * sn, bx * sn + by * c, ring, ms);

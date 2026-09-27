@@ -142,7 +142,8 @@ inline constexpr std::uint16_t kMinionLabel = 0xc95, kMinionSpace = 0xf9b, kDemo
 // name. The search checks the first four keys; no match gives the fifth.
 inline constexpr std::uint16_t kChampionFormat = 0x2b40;
 inline std::uint16_t champion_word(const std::vector<int>& mods) {
-    static constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, 0xc94 }, { 36, 0x2b4c }, { 37, 0x2b4d }, { 38, 0x2b4e }, { 39, 0x2b4f } } };
+    static constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, std::uint16_t(0xc94) }, { 36, std::uint16_t(0x2b4c) }, { 37, std::uint16_t(0x2b4d) },
+                                                                                  { 38, std::uint16_t(0x2b4e) }, { 39, std::uint16_t(0x2b4f) } } };
     std::uint16_t w = kWord[4].second;                          // fixed mod 1 (rndname) runs it first: no key matches
     for (const int id : mods) {
         if (id != 1 && id != 12 && id != 16 && (id < 36 || id > 39)) continue;

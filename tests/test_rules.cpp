@@ -328,8 +328,8 @@ int main() {
     for (const auto& [x, y] : round) assert(!wall(x, y));
     assert(round.size() > 10);                                             // had to detour
     auto boxed = [](int x, int y) { return std::abs(x - 20) <= 2 && std::abs(y) <= 2 && !(x == 20 && y == 0); };
-    const auto near = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in
-    assert(!near.empty() && near.back() == std::pair(17, 0));
+    const auto closest = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in
+    assert(!closest.empty() && closest.back() == std::pair(17, 0));
     assert(find_path(3, 3, 3, 3, wall).empty());
 
     // Mercenaries: the hire list's offers and hiring.

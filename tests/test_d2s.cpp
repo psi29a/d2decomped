@@ -164,12 +164,12 @@ int main() {
             }
             // A character made in d2d (no file yet): a fresh header.
             {
-                d2d::d2s::Header h; h.name = "Fresh"; h.cls = 4; h.level = 1; h.status = 0x20;
-                h.appearance.fill(0xff); h.tints.fill(0xff); h.difficulty = { 0x80, 0, 0 };
+                d2d::d2s::Header fh; fh.name = "Fresh"; fh.cls = 4; fh.level = 1; fh.status = 0x20;
+                fh.appearance.fill(0xff); fh.tints.fill(0xff); fh.difficulty = { 0x80, 0, 0 };
                 d2d::d2s::Stats st; st.v[d2d::d2s::kStr] = 30; st.v[d2d::d2s::kLevel] = 1; st.v[d2d::d2s::kLife] = 55 << 8;
                 d2d::d2s::Item axe; axe.code = "hax"; axe.location = 1; axe.slot = 4; axe.quality = 2; axe.ilvl = 1;
                 axe.identified = true; axe.max_durability = axe.durability = 28;
-                const auto w = d2d::d2s::write_save({}, h, st, { axe }, t);
+                const auto w = d2d::d2s::write_save({}, fh, st, { axe }, t);
                 const auto h2 = d2d::d2s::parse_header(w);
                 const auto items = d2d::d2s::parse_items(w, t);
                 assert(h2.name == "Fresh" && h2.cls == 4 && h2.expansion() && h2.active_difficulty() == 0);

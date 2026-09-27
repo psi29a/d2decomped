@@ -174,11 +174,11 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
             ++pop->uniques;
             int px, py;
             if (b.kind == Boss::champion) {                       // FUN_0054e1e0: 1..3 more champions
-                for (int k = room.seed(3) + 1; k > 0; --k)
+                for (int c = room.seed(3) + 1; c > 0; --c)
                     if (place(room, lx, ly, 4, fits, px, py)) out.push_back({ utype, px, py, leader, -1, Boss::champion, { umod::champion } });
             } else {                                              // FUN_005a0c00: 3..6 minions (minion1 or its own type)
                 const int mt = ut.minion[0] >= 0 ? ut.minion[0] : utype;
-                for (int k = room.seed(4) + 3; k > 0; --k)
+                for (int c = room.seed(4) + 3; c > 0; --c)
                     if (place(room, lx, ly, 3, fits, px, py)) out.push_back({ mt, px, py, leader, -1, Boss::minion, {} });
             }
             continue;
