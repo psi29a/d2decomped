@@ -147,6 +147,9 @@ combat and skills). Next: more of Act 1 (Cold Plains, the Den of Evil).
 
 ## Known issues / to investigate
 
+Bugs in the original (game.exe, the MPQs) are kept apart, with a
+confidence each: docs/research/re/bugs.md.
+
 Noted while playing the dev build (2026-09-24):
 
 - **Collision.** Now built like game.exe's room grid (DT1 subtile rows
