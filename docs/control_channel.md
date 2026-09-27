@@ -37,7 +37,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `save`                      | `ok` / `err <why>`     | Save the character now (character_store.hpp), as leaving the game does. |
 | `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <unit>`, `resurrect`, `stat <stat> [n]`, `skillpt <index>`, `select <skill> <left>`, `belt <slot>`. What a remote client would send. |
-| `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
+| `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>\t<index>\t<cell x>\t<cell y>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu; index for `cmd interact`. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>\t<boss>\t<mods>\tlvl<n>\t<name>\t#<unit>` per monster of the current outdoor level, then `ok` | Cells, feet on screen (while there), life, animation mode; champion / unique / superunique / minion (or -), MonUMod ids, level, name, unit id (what `cmd skill` takes). |
 | `ground`                    | `<code>\t<label>\t<sx>\t<sy>\t#<unit>` per item on the level's ground, then `ok` | Loot: gold is `gld`; feet on screen; unit id (what `cmd pickup` takes). |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
@@ -56,6 +56,8 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug charges <id> <n>`  | `ok`                   | Hold n (1..3) charges of charge-up skill id (release tests). |
 | `debug release`           | `ok <missiles>` / `err no monster` | Release the held charges on the nearest live monster (FUN_005d5220). |
 | `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
+| `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N` | Quest q's 16 flag bits; `reset` clears them and restarts the game's Den of Evil. |
+| `debug kill [n]`            | `ok`                   | Kill the level's monsters but n (no experience; for quest tests). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y); past the edge next to another level, the next frame crosses into it. |

@@ -204,6 +204,15 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             const int q = std::atoi(args[2].c_str()), n = q * 16;
             if (q < 0 || q >= 48) return std::string("err quest 0..47\n");
             auto& h = t.world.cc.header;
+            auto& f = t.world.quests();
+            if (args.size() >= 4 && args[3] == "reset") {   // not started; the game's Den quest too
+                f[std::size_t(n >> 3)] = f[std::size_t(n >> 3) + 1] = 0;
+                t.world.den = {};
+                t.world.den_left = -1;
+            }
+            if (args.size() >= 4)                          // show / reset: its 16 bits, the Den's state
+                return std::format("ok bits={:#06x} den={} skillpts={}\n", f[std::size_t(n >> 3)] | f[std::size_t(n >> 3) + 1] << 8,
+                                   t.world.den.state, t.world.cc.stats.get(d2d::d2s::kSkillPts));
             h.quests[std::size_t(h.active_difficulty())][std::size_t(n >> 3)] |= std::uint8_t(1 << (n & 7));
             for (std::size_t i = 0; i < t.level->npcs.size() && i < t.npc_states.size(); ++i)
                 if (const int g = t.level->npcs[i].quest)
@@ -213,6 +222,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         if (args.size() >= 2 && args[1] == "unid") {       // unidentify every carried item
             for (auto& it : t.world.cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
             return "ok " + std::to_string(d2d::rules::unidentified(t.world.cc.items)) + "\n";
+        }
+        if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n> (quests)
+            int keep = args.size() >= 3 ? std::atoi(args[2].c_str()) : 0;
+            for (auto& m : t.world.fight.monsters)
+                if (m.alive() && keep-- <= 0) hurt(*scene, m, m.hp, t.world.now);
+            return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
             std::erase_if(t.world.cc.items, [](const auto& it) { return it.location == 0 && it.panel == 1; });
@@ -310,7 +325,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& e) { return e.hc_idx == n.hc_idx; });
-            out += n.name + "\t" + std::to_string(sx) + "\t" + std::to_string(sy) + "\t" + (menu ? "1" : "0") + "\n";
+            out += std::format("{}\t{}\t{}\t{}\t{}\t{:.1f}\t{:.1f}\n", n.name, sx, sy, menu ? 1 : 0, i, dx + t.player.x, dy + t.player.y);
         }
         return out + "ok\n";
     });

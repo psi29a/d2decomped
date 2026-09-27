@@ -229,7 +229,7 @@ PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
 struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
     std::vector<Line> lines;
     int x = 0, y = 0, w = 0, h = 0;
@@ -280,8 +280,13 @@ NpcMenuState open_npc_menu(const Scene& s, const Level& L, int npc, int screen_x
 
 // The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"
 // unless the NPC's talk record says no_intro, "gossip", then "cancel"
-// (0xd48). ponytail: no quest topics (FUN_0049f900) or Greiz/Cain extras.
-NpcMenuState open_talk_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y) {
+// (0xd48). The NPC's quest topics (the server's kind-2 messages,
+// FUN_0049f900) go after gossip, each under its quest's name (the table at
+// 0x722678: message -> name).
+// ponytail: the Den of Evil's names only (messages 64..80 -> 3714); no
+// Greiz/Cain extras.
+NpcMenuState open_talk_menu(const Scene& s, const Level& L, int npc, int screen_x, int screen_y,
+                            const std::vector<d2d::rules::QuestMsg>& quest = {}) {
     NpcMenuState m;
     const auto& n = L.npcs[std::size_t(npc)];
     const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
@@ -291,6 +296,9 @@ NpcMenuState open_talk_menu(const Scene& s, const Level& L, int npc, int screen_
         if (!t->no_intro) m.lines.push_back({ string_id(s, 0xd47), 15, 0, 0, false, NpcMenuState::kIntro });
         m.lines.push_back({ string_id(s, 0xd43), 15, 0, 0, false, NpcMenuState::kGossip });
     }
+    for (const auto& q : quest)
+        if (!q.greet && q.string >= 64 && q.string <= 80)
+            m.lines.push_back({ string_id(s, 3714), 15, 0, 0, false, NpcMenuState::kQuest, q.string });
     m.lines.push_back({ string_id(s, 0xd48), 15 });
     layout_npc_menu(s, m, screen_x, screen_y);
     return m;

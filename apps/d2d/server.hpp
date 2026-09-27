@@ -22,7 +22,8 @@ namespace ev {
 struct LevelChanged { const Level* from = nullptr; bool keep_map = false; };
 // Arrived at an object or NPC that opens a panel (game.exe's 0x58 "open
 // UI" and the NPC interaction).
-struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; int npc = -1; };
+// A talk carries the NPC's quest messages for the player (quests.hpp).
+struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; int npc = -1; std::vector<d2d::rules::QuestMsg> quest; };
 }  // namespace ev
 using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 
@@ -109,6 +110,10 @@ struct World {
     Store store;                           // the NPC window open (npc < 0: none): its stock
     std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
     int next_item_id = 1;                  // the next item's unit id
+    d2d::rules::DenQuest den;              // this game's Den of Evil
+    int den_left = -1;                     // its monsters alive when last counted
+    // The quest flags of the difficulty played.
+    d2d::rules::QuestBits& quests() { return cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))]; }
     // Every item of the character has a unit id (new ones get theirs).
     void item_ids() {
         for (auto& it : cc.items) if (it.id < 0) it.id = next_item_id++;
@@ -356,6 +361,9 @@ struct World {
         loot.kept.clear();
         loot.ground_level = level;
         cues.due.clear();
+        den = {};
+        den.join(quests());
+        den_left = -1;
         operated.clear();
         fires.clear();
         pick_item = -1;
@@ -431,6 +439,27 @@ struct World {
             return;
         }
     }
+    // The Den's monsters after a death (a1q1.cpp FUN_00590260): the last
+    // five are counted down in the quest log; the last one clears it, and a
+    // player who's earned the reward says so (event 0x23: the class's
+    // act1_complete_den, LAB_005900e0).
+    // ponytail: counted when the number drops (game.exe: on each death);
+    // the quest log isn't drawn, so the count goes to the log.
+    void den_count(std::uint32_t ms) {
+        if (level->id != d2d::rules::DenQuest::kDen || fight.mon_level != level) return;
+        const int left = int(std::ranges::count_if(fight.monsters, &Monster::alive));
+        if (den_left >= 0 && left < den_left) {
+            const auto k = den.killed(quests(), left);
+            if (k == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
+            if (k == d2d::rules::DenQuest::Kill::cleared) {
+                d2d::log::info("Den of Evil: cleared");
+                static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+                if (d2d::rules::qbit(quests(), 1, 13) && cc.header.cls < 7)
+                    cues.cue(std::format("{}_act1_complete_den", kClass[cc.header.cls]), ms, player.x, player.y);
+            }
+        }
+        den_left = left;
+    }
     [[nodiscard]] static const char* level_name(const Level& l) {
         return l.id == 1 ? "Rogue Encampment" : l.id == 2 ? "Blood Moor" : l.id == 8 ? "Den of Evil" : "?";
     }
@@ -474,6 +503,7 @@ struct World {
         loot.enter(level);
         npc_states = npc_start(*level);
         interact_npc = pick_item = -1;
+        if (level->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through a warp from {}", level_name(*level), px, py, level_name(*from));
     }
 
@@ -527,6 +557,16 @@ struct World {
         if (std::holds_alternative<cmd::CloseTrade>(c)) { store = {}; return true; }
         if (const auto* p = std::get_if<cmd::Run>(&c)) { running = p->on; return true; }
         if (const auto* p = std::get_if<cmd::Chat>(&c)) { talking = { p->npc, -1, -1 }; return true; }
+        if (const auto* p = std::get_if<cmd::QuestMessage>(&c)) {   // only what that NPC has to say
+            if (std::size_t(p->npc) >= level->npcs.size()) return true;
+            const int hc = level->npcs[std::size_t(p->npc)].hc_idx;
+            if (!std::ranges::contains(den.talk(quests(), hc), p->string, &d2d::rules::QuestMsg::string)) return true;
+            if (den.said(quests(), hc, p->string)) {
+                ++cc.stats.v[d2d::d2s::kSkillPts];
+                d2d::log::info("Den of Evil: Akara's reward, a skill point");
+            }
+            return true;
+        }
         return false;
     }
 
@@ -704,7 +744,7 @@ struct World {
                     events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
                 } else {
                     if (d2d::rules::is_healer(o.hc_idx)) d2d::rules::heal(cc.stats);
-                    events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc });
+                    events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, den.talk(quests(), o.hc_idx) });
                 }
                 player.walking = false; interact_npc = -1;
             } else if (!player.walking) {
@@ -741,6 +781,7 @@ struct World {
         }
         npc_patrol(*level, npc_states, talking, ms, dt, crowd);
         fight.world(in_moor, ms, dt, crowd);
+        den_count(ms);
         use_warp();
         }
         cross_level();

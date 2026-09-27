@@ -24,6 +24,7 @@
 #include <combat.hpp>
 #include <drops.hpp>
 #include <shrines.hpp>
+#include <quests.hpp>
 #include <skills.hpp>
 #include <sequences.hpp>
 #include <userdir.hpp>

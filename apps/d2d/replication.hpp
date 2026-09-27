@@ -249,7 +249,11 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
     o.u16(int(v.events.size()));
     for (const auto& e : v.events) {
         if (const auto* lc = std::get_if<ev::LevelChanged>(&e)) o.u8(0).i32(lc->from ? lc->from->id : -1).u8(lc->keep_map);
-        else { const auto& ui = std::get<ev::OpenUI>(e); o.u8(1).u8(int(ui.kind)).i32(ui.npc); }
+        else {
+            const auto& ui = std::get<ev::OpenUI>(e);
+            o.u8(1).u8(int(ui.kind)).i32(ui.npc).u16(int(ui.quest.size()));
+            for (const auto& q : ui.quest) o.i32(q.string).u8(q.greet);
+        }
     }
     o.u16(int(v.sounds.size()));
     for (const auto& c : v.sounds) o.u32(c.at).i32(c.sound).f32(c.x).f32(c.y);
@@ -399,7 +403,9 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
             if (from) v.events.push_back(ev::LevelChanged{ from, keep });
         } else {
             const auto kind = ev::OpenUI::Kind(u8());
-            v.events.push_back(ev::OpenUI{ kind, i32() });
+            ev::OpenUI ui{ kind, i32() };
+            for (int q = u16(); q > 0 && in.ok; --q) { const int str = i32(); ui.quest.push_back({ str, u8() != 0 }); }
+            v.events.push_back(std::move(ui));
         }
     }
     v.sounds.clear();

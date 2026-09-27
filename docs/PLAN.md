@@ -444,6 +444,10 @@ standalone server later.
 5. The six quests: states, NPC talk, rewards (Den of Evil, Sisters' Burial
    Grounds, Search for Cain, The Forgotten Tower, Tools of the Trade,
    Sisters to the Slaughter), and their superuniques.
+   *Den of Evil built (2026-09-27, docs/research/re/quests.md):* Akara
+   gives it, the Den counts down, clearing it is announced in the class's
+   voice, Akara's reward is a skill point; the flags are game.exe's. Left:
+   the quest log panel, the "!" marker, Akara's respec (quest 41).
 6. Andariel (her AI, poison) and Warriv's way east: the end of Act 1.
 7. Alongside: the remaining unique mods (Cursed, thief, poison hit,
    teleport, auras), town portals, the corpse on death.

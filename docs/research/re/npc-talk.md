@@ -70,6 +70,8 @@ drawn at `0x49d5a0`.
   `DAT_007bf250`, a list of message IDs the server sends (entries of
   type 2, `FUN_00661390` / `FUN_006613c0`), so the game-server quest
   scripts decide them.
+  d2d builds them for the Den of Evil (quests.md): its kind-2 messages
+  are topics named "Den of Evil", and a kind-0 one plays on the click.
 - Lines are clipped to the box rather than revealed partially.
 - Voice: when a speech starts, `FUN_004a10e0` looks up its string with
   `FUN_004e0650`. That walks `{u32 sound, u32 string}` pairs at

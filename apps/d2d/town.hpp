@@ -142,6 +142,7 @@ struct Town {
     Store store;                           // an open vendor store (npc < 0: none): the View's stock, the client's tab and buttons
     WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)
+    std::vector<d2d::rules::QuestMsg> npc_quest;   // what the NPC being talked to has on quests
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     SkillBar skillbar{ scene, cc };        // the skill buttons, picker and hotkeys (skillbar.hpp)
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
@@ -379,7 +380,10 @@ struct Town {
             } else if (action == NpcMenuState::kGamble || action == NpcMenuState::kTrade) {
                 net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
-                npc_menu = open_talk_menu(*scene, *level, who, sx, sy);
+                npc_menu = open_talk_menu(*scene, *level, who, sx, sy, npc_quest);
+            } else if (action == NpcMenuState::kQuest) {
+                speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), ms);
+                net.send(cmd::QuestMessage{ who, npc_menu_arg });
             } else if (action == NpcMenuState::kIntro || action == NpcMenuState::kGossip) {
                 const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
                 if (t != kNpcTalk.end() && !t->topics.empty()) {
@@ -580,6 +584,15 @@ struct Town {
             int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
             int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),
             int(cc.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(cc.items));
+        // A quest message for the player plays at once (FUN_004a10e0 on
+        // the first kind-0 one); hearing it is what the server acts on.
+        npc_quest = ui.quest;
+        for (const auto& q : npc_quest)
+            if (q.greet) {
+                speech = start_speech(*scene, ui.npc, std::uint16_t(q.string), ms);
+                net.send(cmd::QuestMessage{ ui.npc, q.string });
+                break;
+            }
     }
 
     // The frame: the world with its units, the open panels, the tree and

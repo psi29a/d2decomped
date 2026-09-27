@@ -70,13 +70,16 @@ struct Run { bool on = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
 // it stands meanwhile), -1 none.
 struct Chat { int npc = -1; };
+// 0x31: the player heard quest message `string` from NPC `npc` (Akara's
+// "Den of Evil" starts the quest, her "successful" hands out the reward).
+struct QuestMessage { int npc = -1, string = 0; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt,
                              cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade,
-                             cmd::Run, cmd::Chat>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -152,6 +155,7 @@ inline std::vector<std::uint8_t> encode(const Command& c) {
         else if constexpr (std::is_same_v<T, cmd::CloseTrade>) o.u8(0x30);
         else if constexpr (std::is_same_v<T, cmd::Run>) o.u8(m.on ? 0x53 : 0x54);
         else if constexpr (std::is_same_v<T, cmd::Chat>) o.u8(0x2f).i32(m.npc);
+        else if constexpr (std::is_same_v<T, cmd::QuestMessage>) o.u8(0x31).i32(m.npc).i32(m.string);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, c);
     return o.b;
@@ -189,6 +193,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
         case 0x30: c = cmd::CloseTrade{}; break;
         case 0x53: case 0x54: c = cmd::Run{ b[0] == 0x53 }; break;
         case 0x2f: c = cmd::Chat{ i32() }; break;
+        case 0x31: { const int n = i32(); c = cmd::QuestMessage{ n, i32() }; break; }
         default: return std::nullopt;
     }
     if (!in.ok || in.at != b.size()) return std::nullopt;
