@@ -32,7 +32,7 @@ struct Town {
     int& take_warp = world.take_warp;
     int& interact_npc = world.interact_npc;
     int& pick_item = world.pick_item;
-    std::vector<Command> queued;           // sent since the World's last tick
+    LocalTransport net;                    // the commands to the World, as their wire form (single player)
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
     float cam_x = 0, cam_y = 0;            // where the camera is this frame
@@ -110,11 +110,11 @@ struct Town {
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
             if (k == SDLK_ESCAPE && fight.dead()) { if (fight.pmode == kModeDD) world.respawn(ms); continue; }
-            if (k >= SDLK_1 && k <= SDLK_4) queued.push_back(cmd::UseBelt{ int(k - SDLK_1) });
+            if (k >= SDLK_1 && k <= SDLK_4) net.send(cmd::UseBelt{ int(k - SDLK_1) });
             if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
-                else if (store.npc >= 0) { queued.push_back(cmd::CloseTrade{}); inv_open = false; } // the store first
+                else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) speech = {};              // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
@@ -147,12 +147,12 @@ struct Town {
         if (mouse.press_this_frame && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
-                queued.push_back(cmd::Sell{ held->id });
+                net.send(cmd::Sell{ held->id });
                 item_click = true;
             } else {
                 const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
                                                     { inv_open, stash_open, cube_open, belt_open, cc.expansion }, mouse.x, mouse.y);
-                if (cl.cmd) queued.push_back(*cl.cmd);
+                if (cl.cmd) net.send(*cl.cmd);
                 item_click = cl.consumed;
             }
         }
@@ -168,7 +168,7 @@ struct Town {
                     && d2d::rules::can_learn(scene->rules, cls, sk, cc.stats.skills, int(cc.stats.get(d2d::d2s::kLevel))) ? sk : -1;
             }
             if (mouse.release_this_frame) {
-                if (skill_pressed >= 0 && sk == skill_pressed) queued.push_back(cmd::SkillPoint{ sk });
+                if (skill_pressed >= 0 && sk == skill_pressed) net.send(cmd::SkillPoint{ sk });
                 skill_pressed = -1;
             }
         }
@@ -180,7 +180,7 @@ struct Town {
             if (mouse.release_this_frame) {
                 if (stat_pressed >= 0 && sb == stat_pressed) {
                     const int n = (SDL_GetModState() & SDL_KMOD_SHIFT) ? int(cc.stats.get(d2d::d2s::kStatPts)) : 1;
-                    queued.push_back(cmd::StatPoint{ kStatButtons[std::size_t(sb)].stat, n });
+                    net.send(cmd::StatPoint{ kStatButtons[std::size_t(sb)].stat, n });
                 }
                 stat_pressed = -1;
             }
@@ -245,13 +245,13 @@ struct Town {
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
             npc_menu = {};
             if (action == NpcMenuState::kHire) {
-                queued.push_back(cmd::OpenHire{ who });             // Kashya's list: the World rolls it
+                net.send(cmd::OpenHire{ who });             // Kashya's list: the World rolls it
             } else if (action == NpcMenuState::kHireOffer) {
-                queued.push_back(cmd::Hire{ npc_menu_arg });
+                net.send(cmd::Hire{ npc_menu_arg });
             } else if (action == NpcMenuState::kIdentify) {
-                queued.push_back(cmd::Identify{});
+                net.send(cmd::Identify{});
             } else if (action == NpcMenuState::kGamble || action == NpcMenuState::kTrade) {
-                queued.push_back(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
+                net.send(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, sx, sy);
             } else if (action == NpcMenuState::kIntro || action == NpcMenuState::kGossip) {
@@ -287,9 +287,9 @@ struct Town {
                 // repair all (18) fixes everything worn and carried.
                 const bool repairer = store_button_frames(store)[2] == 6;
                 if (on && mouse.release_this_frame && i == 2 && repairer) store.mode = store.mode == 3 ? 0 : 3;
-                if (on && mouse.release_this_frame && i == 3 && repairer) queued.push_back(cmd::Repair{ -1 });
+                if (on && mouse.release_this_frame && i == 3 && repairer) net.send(cmd::Repair{ -1 });
                 if (on && mouse.release_this_frame && i == 3 && store_button_frames(store)[3] == 10) {
-                    queued.push_back(cmd::CloseTrade{});
+                    net.send(cmd::CloseTrade{});
                     inv_open = false;
                     break;
                 }
@@ -302,7 +302,7 @@ struct Town {
             const int si = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
             if (si >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
-                queued.push_back(cmd::Buy{ si });
+                net.send(cmd::Buy{ si });
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
@@ -312,8 +312,8 @@ struct Town {
                     if (!(it.location == 0 && it.panel == 1) && !(worn && store.mode == 3)) continue;
                     const auto r = worn ? lay.slots[std::size_t(it.slot)] : grid_rect(*scene, lay, it);
                     if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
-                        if (store.mode == 2) queued.push_back(cmd::Sell{ it.id });
-                        else queued.push_back(cmd::Repair{ it.id });
+                        if (store.mode == 2) net.send(cmd::Sell{ it.id });
+                        else net.send(cmd::Repair{ it.id });
                         break;
                     }
                 }
@@ -391,23 +391,22 @@ struct Town {
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, std::uint32_t last_ms) {
         // The skill buttons: a change goes to the World (0x3c), which runs a
         // right-button aura (a Paladin's).
-        if (std::uint32_t(skillbar.left) != cc.header.left_skill) queued.push_back(cmd::SelectSkill{ skillbar.left, true });
+        if (std::uint32_t(skillbar.left) != cc.header.left_skill) net.send(cmd::SelectSkill{ skillbar.left, true });
         if (std::uint32_t(skillbar.right) != cc.header.right_skill || (fight.aura != 0) != (scene->skills.get(skillbar.right) && scene->skills.get(skillbar.right)->aura))
-            queued.push_back(cmd::SelectSkill{ skillbar.right, false });
+            net.send(cmd::SelectSkill{ skillbar.right, false });
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
         if (ms < fight.boost.until)
             for (const auto& [id, v] : fight.boost.stats) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
         world.talking = { npc_menu.npc, speech.npc, store.npc };
-        std::ranges::move(input(mouse, over_ui), std::back_inserter(queued));
+        for (const auto& c : input(mouse, over_ui)) net.send(c);
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || ms - world_ms > 1000) world_ms = ms - std::min<std::uint32_t>(ms - last_ms, kTickMs);
         for (int n = 0; ms - world_ms >= kTickMs && n < 5; ++n) {
             prev_x = player.x; prev_y = player.y;
-            world.tick(queued, world_ms + kTickMs, world_ms);
+            world.tick(net.receive(), world_ms + kTickMs, world_ms);
             world_ms += kTickMs;
-            queued.clear();
             for (const auto& e : world.events) handle(e, ms);
             world.events.clear();
         }

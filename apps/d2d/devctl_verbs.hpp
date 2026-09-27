@@ -65,15 +65,15 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         auto f = [&](std::size_t i) { return i < a.size() ? std::stof(a[i]) : 0.f; };
         auto n = [&](std::size_t i, int d = -1) { return i < a.size() ? std::atoi(a[i].c_str()) : d; };
         const std::string k = a.size() > 1 ? a[1] : "";
-        if (k == "move" && a.size() >= 4) t.queued.push_back(cmd::Move{ f(2), f(3), true });
-        else if (k == "skill" && a.size() >= 5) t.queued.push_back(cmd::UseSkill{ n(2, 0), f(3), f(4), n(5), n(6, 0) != 0 });
-        else if (k == "interact" && a.size() >= 3) t.queued.push_back(cmd::Interact{ n(2) });
-        else if (k == "pickup" && a.size() >= 3) t.queued.push_back(cmd::Pickup{ n(2) });
-        else if (k == "resurrect") t.queued.push_back(cmd::Resurrect{});
-        else if (k == "stat" && a.size() >= 3) t.queued.push_back(cmd::StatPoint{ n(2, 0), n(3, 1) });
-        else if (k == "skillpt" && a.size() >= 3) t.queued.push_back(cmd::SkillPoint{ n(2, 0) });
-        else if (k == "select" && a.size() >= 4) t.queued.push_back(cmd::SelectSkill{ n(2, 0), n(3, 0) != 0 });
-        else if (k == "belt" && a.size() >= 3) t.queued.push_back(cmd::UseBelt{ n(2, 0) });
+        if (k == "move" && a.size() >= 4) t.net.send(cmd::Move{ f(2), f(3), true });
+        else if (k == "skill" && a.size() >= 5) t.net.send(cmd::UseSkill{ n(2, 0), f(3), f(4), n(5), n(6, 0) != 0 });
+        else if (k == "interact" && a.size() >= 3) t.net.send(cmd::Interact{ n(2) });
+        else if (k == "pickup" && a.size() >= 3) t.net.send(cmd::Pickup{ n(2) });
+        else if (k == "resurrect") t.net.send(cmd::Resurrect{});
+        else if (k == "stat" && a.size() >= 3) t.net.send(cmd::StatPoint{ n(2, 0), n(3, 1) });
+        else if (k == "skillpt" && a.size() >= 3) t.net.send(cmd::SkillPoint{ n(2, 0) });
+        else if (k == "select" && a.size() >= 4) t.net.send(cmd::SelectSkill{ n(2, 0), n(3, 0) != 0 });
+        else if (k == "belt" && a.size() >= 3) t.net.send(cmd::UseBelt{ n(2, 0) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot>\n");
         return std::string("ok\n");
