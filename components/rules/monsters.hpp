@@ -103,6 +103,52 @@ bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& ox, int&
 
 }  // namespace monster_detail
 
+// A type by rarity from the region (FUN_005bde80) on `seed`.
+inline int pick_type(const Region& reg, Rng& seed) {
+    int r = seed(reg.total) + 1;
+    std::size_t k = 0;
+    for (; k < reg.types.size(); ++k) { r -= reg.types[k].second; if (r < 1) break; }
+    return reg.types[std::min(k, reg.types.size() - 1)].first;
+}
+
+// FUN_0054dc40: a spot in the room (the rect shrunk by one subtile at the
+// top left), 20 tries, not by an entrance, where a monster fits.
+template <class Fits, class Near>
+bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& sx, int& sy) {
+    const int rx = room.x + 1, ry = room.y + 1, rw = room.x + room.w - rx, rh = room.y + room.h - ry;
+    for (int tries = 0; tries < 20; ++tries) {
+        const int x = room.seed(rw) + rx, y = room.seed(rh) + ry;
+        if (near_entrance(x, y)) continue;
+        int px, py;
+        if (monster_detail::place(room, x, y, -1, fits, px, py)) { sx = x; sy = y; return true; }
+    }
+    return false;
+}
+
+// FUN_005a43e0 at (lx, ly): champion or unique (FUN_005a0760), counted,
+// then a champion's pack (FUN_0054e1e0: 1..3 more champions, radius 4) or
+// a unique's minions (FUN_005a0c00: 3..6 of minion1 or its own type,
+// radius 3).
+// ponytail: a monster's own seed (unit +0x20) is the room's here.
+template <class Fits>
+void boss_pack(const Monsters& m, int utype, int lx, int ly, SpawnRoom& room, Fits&& fits, std::vector<Spawn>& out, Population& pop) {
+    using monster_detail::place;
+    const auto& ut = m.types[std::size_t(utype)];
+    auto b = roll_boss(*pop.umods, ut, pop.difficulty, true, room.seed);
+    const int leader = int(out.size());
+    out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods, b.name_seed });
+    ++pop.uniques;
+    int px, py;
+    if (b.kind == Boss::champion) {
+        for (int c = room.seed(3) + 1; c > 0; --c)
+            if (place(room, lx, ly, 4, fits, px, py)) out.push_back({ utype, px, py, leader, -1, Boss::champion, { umod::champion } });
+    } else {
+        const int mt = ut.minion[0] >= 0 ? ut.minion[0] : utype;
+        for (int c = room.seed(4) + 3; c > 0; --c)
+            if (place(room, lx, ly, 3, fits, px, py)) out.push_back({ mt, px, py, leader, -1, Boss::minion, {} });
+    }
+}
+
 // Populate one room (FUN_0054ec90): one roll of the game seed per 3x3
 // subtiles against the density; a hit picks a type by rarity
 // (FUN_005bde80), rolls unique-or-group (FUN_005be020; no uniques while
@@ -125,25 +171,10 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
     if (pop) ++pop->rooms_done;                                 // FUN_0054ebc0
     if (reg.types.empty() || density <= 0) return;
     density = std::min(density, 10000);
-    // FUN_0054dc40: a spot in the room (the rect shrunk by one subtile at
-    // the top left), 20 tries, not by an entrance, where a monster fits.
-    auto spot = [&](int& sx, int& sy) {
-        const int rx = room.x + 1, ry = room.y + 1, rw = room.x + room.w - rx, rh = room.y + room.h - ry;
-        for (int tries = 0; tries < 20; ++tries) {
-            const int x = room.seed(rw) + rx, y = room.seed(rh) + ry;
-            if (near_entrance(x, y)) continue;
-            int px, py;
-            if (place(room, x, y, -1, fits, px, py)) { sx = x; sy = y; return true; }
-        }
-        return false;
-    };
+    auto spot = [&](int& sx, int& sy) { return room_spot(room, fits, near_entrance, sx, sy); };
     for (int n = (room.h / 3) * (room.w / 3); n > 0; --n) {
         if (int(game.next() % 100000) > density) continue;
-        int r = room.seed(reg.total) + 1;               // rarity pick
-        std::size_t k = 0;
-        for (; k < reg.types.size(); ++k) { r -= reg.types[k].second; if (r < 1) break; }
-        k = std::min(k, reg.types.size() - 1);
-        const int type = reg.types[k].first;
+        const int type = pick_type(reg, room.seed);
         const auto& t = m.types[std::size_t(type)];
         // FUN_005be020 (room seed): a unique while under MonUMin (chance
         // rooms done / rooms in the level) or under MonUMax (6 %); else a
@@ -161,26 +192,10 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
             // ponytail: normal's pick from Levels.txt umon1.. isn't there (act 1
             // normal has MonUMin / MonUMax 0); a monster's own seed (unit
             // +0x20) is the room's here; MonStats `spawn` replacement skipped.
-            int r2 = room.seed(reg.total) + 1;
-            std::size_t k2 = 0;
-            for (; k2 < reg.types.size(); ++k2) { r2 -= reg.types[k2].second; if (r2 < 1) break; }
-            const int utype = reg.types[std::min(k2, reg.types.size() - 1)].first;
+            const int utype = pick_type(reg, room.seed);
             int sx, sy, lx, ly;
             if (!spot(sx, sy) || !place(room, sx, sy, -1, fits, lx, ly)) continue;
-            const auto& ut = m.types[std::size_t(utype)];
-            auto b = roll_boss(*pop->umods, ut, pop->difficulty, true, room.seed);
-            const int leader = int(out.size());
-            out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods, b.name_seed });
-            ++pop->uniques;
-            int px, py;
-            if (b.kind == Boss::champion) {                       // FUN_0054e1e0: 1..3 more champions
-                for (int c = room.seed(3) + 1; c > 0; --c)
-                    if (place(room, lx, ly, 4, fits, px, py)) out.push_back({ utype, px, py, leader, -1, Boss::champion, { umod::champion } });
-            } else {                                              // FUN_005a0c00: 3..6 minions (minion1 or its own type)
-                const int mt = ut.minion[0] >= 0 ? ut.minion[0] : utype;
-                for (int c = room.seed(4) + 3; c > 0; --c)
-                    if (place(room, lx, ly, 3, fits, px, py)) out.push_back({ mt, px, py, leader, -1, Boss::minion, {} });
-            }
+            boss_pack(m, utype, lx, ly, room, fits, out, *pop);
             continue;
         }
         int lo = t.min_grp, hi = t.max_grp;

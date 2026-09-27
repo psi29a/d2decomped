@@ -428,7 +428,12 @@ standalone server later.
 
 **Step 2 — Act 1's content, researched then built:**
 1. Preset units (`FUN_00667620`): the monsters and objects a level's
-   DS1s place — superuniques, quest objects, special chests.
+   DS1s place — superuniques, quest objects, special chests. *Researched
+   and built (2026-09-27):* the roll-to-stay outdoors; MonPlace markers
+   (Fallen / shamans at their spots, champion and unique packs, Blood
+   Raven); superunique minions MinGrp..MaxGrp (+ difficulty) at radius 3.
+   Left: a maze's roll, the superunique specials (Countess, Smith, ...),
+   quest objects' behaviour.
 2. Outdoor levels: Cold Plains, Stony Field, Dark Wood, Black Marsh,
    Tamoe Highland, the Burial Grounds, Tristram; each checked against
    game.exe like the Blood Moor.

@@ -537,45 +537,106 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const 
         }
         return false;
     };
-    // Its preset monsters first (Level::units, what the level's DS1s
-    // place): MonStats rows that aren't NPCs, and superuniques with
-    // their minions round them.
-    // ponytail: a superunique is its class with its name and minions —
-    // its mods (SuperUniques Mod1..3), unique stat bonuses and TC aren't
-    // applied (champions / uniques aren't built); MonPlace units skipped;
-    // minions stand at the nearest free spots round it, not D2's pattern.
+    // Clear ground, and no monster already within its 2-subtile footprint
+    // (game.exe stamps each placed monster into collision, 0x800).
+    auto fits = [&](int x, int y) {
+        for (const auto& o : spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
+        return !L.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+    };
+    // Its preset units (Level::units, what the level's DS1s place), as
+    // FUN_0054e600 spawns them (docs/research/re/monsters.md "Preset units
+    // on the server"): a MonStats row at its spot; a superunique with its
+    // minions; a MonPlace code by the switch (Fallen and shamans, champion
+    // packs, unique packs, Blood Raven; the rest, group25..100 among them,
+    // spawn nothing).
+    // ponytail: placements roll a copy of the room's seed (game.exe shares
+    // the room's, and a monster's own for its company); the level-list walk
+    // up a family's chain (FUN_0063ec70's second half) and the champion /
+    // unique pick from Levels.txt umon1.. in normal aren't there (the
+    // region's list stands in).
+    using d2d::rules::monster_detail::place;
+    const int nmon = int(scene.mon_bin.size()), nsu = int(scene.superuniques.size());
+    auto bin = [&](int b) { return b >= 0 && b < nmon ? int(scene.mon_bin[std::size_t(b)]) : -1; };
+    auto room_at = [&](int x, int y) -> d2d::rules::SpawnRoom {
+        for (const auto& rm : L.rooms)
+            if (x >= rm.x * 5 && y >= rm.y * 5 && x < (rm.x + rm.w) * 5 && y < (rm.y + rm.h) * 5)
+                return { rm.x * 5, rm.y * 5, rm.w * 5, rm.h * 5, d2d::rules::Rng{ rm.seed } };
+        return { 0, 0, L.ds1.width() * 5, L.ds1.height() * 5, d2d::rules::Rng{ scene.map_seed } };
+    };
+    // FUN_005b2f20 at the spot (radius -1), then within `retry` if taken.
+    auto at_spot = [&](int type, int x, int y, int retry) {
+        if (type < 0) return;
+        auto room = room_at(x, y);
+        int px, py;
+        if (place(room, x, y, -1, fits, px, py) || (retry > 0 && place(room, x, y, retry, fits, px, py))) spawns.push_back({ type, px, py });
+    };
+    // FUN_0063ec70 + FUN_0054e2a0: a base monster as the level has it — the
+    // first of its family in the level's list, then Carvers / Devilkin (and
+    // their shamans) by level.
+    auto own = [&](int base_bin) {
+        int row = bin(base_bin);
+        if (row < 0) return -1;
+        for (const int r : L.mon.mon)
+            if (r >= 0 && std::size_t(r) < M.types.size() && M.types[std::size_t(r)].base == M.types[std::size_t(row)].base) { row = r; break; }
+        const int base = M.types[std::size_t(row)].base, id = L.id;
+        if (base == bin(0x13)) return id == 6 ? bin(0x14) : id == 7 || id == 12 || id == 16 ? bin(0x15) : row;
+        if (base == bin(0x3a)) return id == 6 || id == 7 ? bin(0x3b) : id == 12 || id == 16 ? bin(0x3c) : row;
+        return row;
+    };
     for (const auto& u : L.units) {
         if (u.type != 1 || u.id < 0) continue;
-        const int nmon = int(scene.mon_bin.size());
-        if (u.id < nmon) {
+        if (u.id < nmon) {                                                // a MonStats row (FUN_0054e490)
             const auto r = scene.mon_bin[std::size_t(u.id)];
-            if (!scene.mon_is_npc[r]) spawns.push_back({ int(r), u.x, u.y });
+            const bool stay = u.id == 0xe5 || (u.id >= 0x11c && u.id <= 0x120) || u.id == 0x188 || u.id == 0x189;   // FUN_0054e3a0
+            if (!scene.mon_is_npc[r]) at_spot(int(r), u.x, u.y, stay ? 0 : 4);
             continue;
         }
+        if (u.id >= nmon + nsu) {                                         // MonPlace
+            const int code = u.id - nmon - nsu;
+            if (code == 0x11 || code == 0x12) at_spot(own(code == 0x11 ? 0x13 : 0x3a), u.x, u.y, 4);   // place_fallen / _fallenshaman
+            else if (code == 0x05) at_spot(bin(0x10b), u.x, u.y, 0);      // place_bloodraven
+            else if ((code == 0x02 || code == 0x03) && !region.types.empty()) {
+                auto room = room_at(u.x, u.y);
+                const int type = d2d::rules::pick_type(region, room.seed);   // FUN_005bde80, the unique pick
+                int px, py, sx, sy;
+                if (code == 0x03) {                                       // place_champion: at the spot, mod 16, 1..3 more (FUN_0054e1e0)
+                    if (!place(room, u.x, u.y, -1, fits, px, py)) continue;
+                    const int lead = int(spawns.size());
+                    spawns.push_back({ type, px, py, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion } });
+                    for (int c = room.seed(3) + 1; c > 0; --c)
+                        if (place(room, px, py, 4, fits, sx, sy)) spawns.push_back({ type, sx, sy, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion } });
+                } else if (d2d::rules::room_spot(room, fits, near_way, sx, sy) && place(room, sx, sy, -1, fits, px, py)) {
+                    d2d::rules::boss_pack(M, type, px, py, room, fits, spawns, pop);   // place_unique_pack: a random spot of the room (FUN_005a43e0)
+                }
+            }
+            continue;
+        }
+        // A superunique (FUN_005a49b0): at its spot, its mods, then
+        // MinGrp..MaxGrp (each + difficulty when both are set) of minion1
+        // (else its own type) at radius 3 (FUN_005a0c00 / FUN_005b23c0).
+        // ponytail: its unique stat bonuses and TC come in the fight / loot;
+        // the per-superunique specials (the Countess, the Smith ...) aren't built.
         const int su = u.id - nmon;
-        if (std::size_t(su) >= scene.superuniques.size()) continue;       // MonPlace
         const auto& sup = scene.superuniques[std::size_t(su)];
         if (sup.type < 0) continue;
+        auto room = room_at(u.x, u.y);
+        int lx, ly;
+        if (!place(room, u.x, u.y, -1, fits, lx, ly) && !place(room, u.x, u.y, 5, fits, lx, ly)) continue;
         const int lead = int(spawns.size());
-        // ponytail: its own seed (unit +0x20) is the game seed here.
-        spawns.push_back({ sup.type, u.x, u.y, -1, su, d2d::rules::Boss::superunique,
+        spawns.push_back({ sup.type, lx, ly, -1, su, d2d::rules::Boss::superunique,
                            d2d::rules::superunique_mods(scene.umods, M.types[std::size_t(sup.type)], sup.mods, d, game) });
         const int minion = M.types[std::size_t(sup.type)].minion[0] >= 0 ? M.types[std::size_t(sup.type)].minion[0] : sup.type;
-        const int n = sup.min_grp + (sup.max_grp > sup.min_grp ? int(game.next() % std::uint32_t(sup.max_grp - sup.min_grp + 1)) : 0);
-        if (d == 0) d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, n,
-                       (float(u.x) + 0.5f) / 5, (float(u.y) + 0.5f) / 5);
+        const int lo = sup.min_grp + (sup.min_grp && sup.max_grp ? d : 0), hi = sup.max_grp + (sup.min_grp && sup.max_grp ? d : 0);
+        const int n = room.seed.range(lo, std::max(lo, hi));
+        int placed = 0;
         for (int k = 0; k < n; ++k) {
-            const auto [fx, fy] = L.nearest_free((float(u.x) + 0.5f) / 5 + float(k % 3 - 1) * 0.6f, (float(u.y) + 0.5f) / 5 + float(k / 3 - 1) * 0.6f);
-            spawns.push_back({ minion, int(fx * 5), int(fy * 5), lead, -1, d2d::rules::Boss::minion, {} });
+            int px, py;
+            if (place(room, lx, ly, 3, fits, px, py)) { spawns.push_back({ minion, px, py, lead, -1, d2d::rules::Boss::minion, {} }); ++placed; }
         }
+        if (d == 0) d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, M.types[std::size_t(sup.type)].id, placed,
+                                   (float(lx) + 0.5f) / 5, (float(ly) + 0.5f) / 5);
     }
     for (const auto& rm : L.rooms) {
-        // Clear ground, and no monster already within its 2-subtile
-        // footprint (game.exe stamps each placed monster into collision, 0x800).
-        auto fits = [&](int x, int y) {
-            for (const auto& o : spawns) if (std::abs(o.x - x) < 2 && std::abs(o.y - y) < 2) return false;
-            return !L.unit_blocked((float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
-        };
         d2d::rules::populate_room(M, region, L.mon.density[std::size_t(d)],
             { rm.x * 5, rm.y * 5, rm.w * 5, rm.h * 5, d2d::rules::Rng{ rm.seed } }, game, fits, near_way, spawns, &pop);
     }

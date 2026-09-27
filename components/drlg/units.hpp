@@ -69,4 +69,20 @@ inline bool rolled_unit(const Unit& u, const UnitIds& ids) {
     return u.type == 2 && (u.id == 0xc4 || u.id == 0x105 || u.id == 0x245);
 }
 
+// FUN_00667620's roll for one of those: a step of `seed` (the room's
+// outdoors), kept on its low word — monsters 1 in 3, MonPlace group25 3 in
+// 4, group50 1 in 2, group75 1 in 4 (group100 never rolls), objects 0xc4 /
+// 0x105 1 in 2, 0x245 3 in 4. `Seed` is d2d::rules::Rng.
+template <class Seed>
+bool stays(const Unit& u, const UnitIds& ids, Seed& seed) {
+    if (!rolled_unit(u, ids)) return true;
+    const std::uint32_t low = seed.next();
+    if (u.type == 1 && u.id < ids.monstats) return low % 3 == 0;
+    if (u.type == 1) {
+        const int place = u.id - ids.monstats - ids.superuniques;
+        return place == 0x21 ? (low & 3) != 0 : place == 0x22 ? (low & 1) != 0 : (low & 3) == 0;
+    }
+    return u.id == 0x245 ? (low & 3) != 0 : (low & 1) == 0;
+}
+
 }  // namespace d2d::drlg
