@@ -512,4 +512,95 @@ void draw_waypoints(std::vector<std::uint8_t>& fb, const Scene& s, const Waypoin
     }
 }
 
+// The quest log (QuestLog.cpp: FUN_004a34f0 draws it), a left-hand panel
+// where the character panel goes. Its table at 0x723f30 (16 bytes a quest:
+// shown, icon, slot, act, name record, quest number): act, slot 0..5,
+// icon (0x6da2c8's a1q1 ..), the quest's flags number, its name string.
+struct QuestEntry { int act, slot, icon, quest, name; };
+inline constexpr std::array<QuestEntry, 27> kQuestLog = { {
+    { 0, 0, 0, 1, 3714 }, { 0, 1, 1, 2, 3715 }, { 0, 4, 2, 3, 3716 }, { 0, 2, 3, 4, 3717 }, { 0, 3, 4, 5, 3718 }, { 0, 5, 5, 6, 3719 },
+    { 1, 0, 6, 9, 923 }, { 1, 1, 7, 10, 924 }, { 1, 2, 8, 11, 925 }, { 1, 3, 9, 12, 926 }, { 1, 4, 10, 13, 927 }, { 1, 5, 11, 14, 928 },
+    { 2, 3, 12, 17, 930 }, { 2, 2, 13, 18, 931 }, { 2, 1, 14, 19, 932 }, { 2, 0, 15, 20, 933 }, { 2, 4, 16, 21, 934 }, { 2, 5, 17, 22, 935 },
+    { 3, 0, 18, 25, 937 }, { 3, 2, 20, 26, 938 }, { 3, 1, 19, 27, 939 },
+    { 4, 0, 21, 35, 22618 }, { 4, 1, 22, 36, 22622 }, { 4, 2, 23, 37, 22627 }, { 4, 3, 24, 38, 22633 }, { 4, 4, 25, 39, 22637 }, { 4, 5, 26, 40, 22641 },
+} };
+// Slots' icons, bottom-left (0x723ea8); the act tabs' x (the expansion's);
+// the name's baseline and the description's first, 20 apart, 270 wide
+// (0x724210..0x724218).
+inline constexpr std::array<std::pair<int, int>, 6> kQuestSlot = { { { 26, 121 }, { 123, 121 }, { 220, 121 }, { 26, 218 }, { 123, 218 }, { 220, 218 } } };
+inline constexpr std::array<int, 6> kQuestTabX = { 5, 0x43, 0x81, 0xbf, 0xfd, 0x13b };
+struct QuestLog { bool open = false; int act = 0, slot = -1; };
+
+// An icon's frame: 26 not started, 0 under way (25 while selected), 24 done
+// (frames 1..24 are the done animation, played once the quest completes).
+// ponytail: under way = any flag bit but 0 set; the animation and the
+// questdone plate for a selected finished quest aren't drawn.
+inline int quest_icon_frame(const d2d::rules::QuestBits& f, int quest, bool selected) {
+    if (d2d::rules::qbit(f, quest, 0)) return 24;
+    for (int b = 1; b < 16; ++b) if (d2d::rules::qbit(f, quest, b)) return selected ? 25 : 0;
+    return 26;
+}
+// What the log says about quest `quest` (the Den of Evil's lines, qstsa1q1x;
+// FUN_004a1950 picks them from the flags and the server's log state).
+// ponytail: the Den only; its "Monsters remaining" count isn't sent yet.
+inline int quest_line(const d2d::rules::QuestBits& f, int quest) {
+    using d2d::rules::qbit;
+    if (quest != 1 || qbit(f, 1, 0)) return 0;
+    if (qbit(f, 1, 1)) return 3740;                      // Return to Akara for a reward.
+    if (qbit(f, 1, 3) || qbit(f, 1, 4)) return 3736;     // Kill all the monsters in the Den.
+    if (qbit(f, 1, 2)) return 3735;                      // Look for the Den in the wilderness ...
+    return 0;
+}
+inline int quest_tab_at(int mx, int my) {
+    if (my < kCharPanelY || my >= kCharPanelY + 33) return -1;
+    for (int a = 4; a >= 0; --a) if (mx >= kCharPanelX + kQuestTabX[std::size_t(a)] && mx < kCharPanelX + kQuestTabX[std::size_t(a) + 1]) return a;
+    return -1;
+}
+inline int quest_slot_at(const Scene& s, int mx, int my) {
+    for (int k = 0; k < 6; ++k) {
+        const auto [x, y] = kQuestSlot[std::size_t(k)];
+        const int w = s.quest_icons[0].frames_per_direction() ? int(s.quest_icons[0].frame(0, 0).width) : 64;
+        const int h = s.quest_icons[0].frames_per_direction() ? int(s.quest_icons[0].frame(0, 0).height) : 64;
+        if (mx >= kCharPanelX + x && mx < kCharPanelX + x + w && my >= kCharPanelY + y - h && my < kCharPanelY + y) return k;
+    }
+    return -1;
+}
+void draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, const QuestLog& q, const d2d::rules::QuestBits& f) {
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const int px = kCharPanelX, py = kCharPanelY;
+    auto bottom = [&](const d2d::dc6::Sprite& sp, std::uint32_t frame, int x, int y) {   // DC6s draw up from their bottom-left
+        if (frame >= sp.frames_per_direction()) return;
+        const auto& fr = sp.frame(0, frame);
+        blit_sprite(fb, fr, pal, px + x, py + y - int(fr.height));
+    };
+    bottom(s.quest_bg, 0, 0, 256); bottom(s.quest_bg, 1, 256, 256);
+    bottom(s.quest_bg, 2, 0, 432); bottom(s.quest_bg, 3, 256, 432);
+    for (int a = 0; a < 5; ++a) bottom(s.quest_tabs, std::uint32_t(a * 2 + (a == q.act ? 0 : 1)), kQuestTabX[std::size_t(a)], 33);
+    const QuestEntry* sel = nullptr;
+    for (const auto& e : kQuestLog) {
+        if (e.act != q.act) continue;
+        const auto [x, y] = kQuestSlot[std::size_t(e.slot)];
+        const bool on = e.slot == q.slot;
+        if (on) sel = &e;
+        bottom(s.quest_icons[std::size_t(e.icon)], std::uint32_t(quest_icon_frame(f, e.quest, on)), x, y);
+        bottom(s.quest_sockets, on ? 1u : 0u, x - 4, y + 5);
+    }
+    if (!sel) return;
+    auto centred = [&](const std::string& t, int y) { s.font.draw(fb, kW, kH, pal, px + (320 - s.font.measure(t)) / 2, py + y - s.font.line_height(), t); };
+    centred(string_id(s, std::uint16_t(sel->name)), 248);
+    if (const int line = quest_line(f, sel->quest)) {          // word-wrapped to 270 px (FUN_00502970(0x10e))
+        std::string text = string_id(s, std::uint16_t(line)), row;
+        int y = 270;
+        std::size_t a = 0;
+        while (a < text.size()) {
+            const auto b = std::min(text.find(' ', a), text.size());
+            const std::string word = text.substr(a, b - a);
+            if (!row.empty() && s.font.measure(row + " " + word) > 270) { centred(row, y); y += 20; row.clear(); }
+            row += (row.empty() ? "" : " ") + word;
+            a = b + 1;
+        }
+        if (!row.empty()) centred(row, y);
+    }
+}
+
 }  // namespace

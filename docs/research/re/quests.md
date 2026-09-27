@@ -119,7 +119,7 @@ This is the order of `<class>_act1_complete_*` in Sounds.txt.
 - `cmd::QuestMessage` (0x31) is checked against what that NPC has.
 
 ponytail: not built yet:
-- the quest log, and the timing of its "Return to Akara" state;
+- the timing of the quest log's "Return to Akara" state (8 ticks after clearing);
 - parties and late joiners;
 - the Den's lighting change;
 
@@ -158,3 +158,31 @@ d2d: `DenQuest::alert` → `UnitState::alert` (replicated) → `Unit::overlay`
 d2d: `rules::respec`, `cmd::Respec` (0x38 kind 3), `open_respec_menu`.
 Quest menus now open after the quest speech, as game.exe builds them
 then.
+
+## The quest log (QuestLog.cpp)
+
+- **Art:** `FUN_004a23d0` loads questbackground (4 pieces), questtabs /
+  expquesttabs, questsockets, questdone, invps and questlast.
+  `FUN_004a3220` loads each quest's icon by the name list at 0x6da2c8
+  (a1q1 ..).
+- **The table:** 0x723f30 has 16 bytes a quest: shown, icon, slot, act,
+  the log record, the quest's flag number. The acts' icon ranges are at
+  0x723f08.
+- **Drawing (`FUN_004a34f0`):**
+  - the background at the panel;
+  - the tabs at x 5, 0x43, 0x81, 0xbf, 0xfd (the expansion's), frame
+    2 × act when selected, else + 1;
+  - each icon at its slot (0x723ea8: (26 | 123 | 220, 121 | 218),
+    bottom-left), with a socket under it (frame 1 when selected);
+  - the selected quest's name at y 248, then its lines from y 270,
+    20 apart, wrapped to 270 px.
+- **Icon frames:** 26 not started, 0 under way, 1–24 the completion
+  animation (100 ms a frame), 24 done, 25 selected.
+- **The text:** `FUN_004a1950` picks the line from the flags and the log
+  state the server sends. Each record is the name, a message to replay,
+  then {string, message} per log state.
+
+d2d: `draw_quest_log` in panels.hpp, opened with Q. ponytail: the Den's
+lines from its flags (`quest_line`), no monsters-remaining count, no
+completion animation, no questdone plate, and the two buttons (close,
+questlast) aren't drawn.

@@ -1496,6 +1496,13 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 scene.skill_icons[c] = d2d::dc6::Sprite(*b);
         }
         if (auto b = mpqs.try_read(R"(data\global\ui\SPELLS\Skillicon.dc6)")) scene.generic_skill_icons = d2d::dc6::Sprite(*b);
+        for (auto [sprite, file] : { std::pair{ &scene.quest_bg, "questbackground" }, { &scene.quest_tabs, "expquesttabs" },
+                                     { &scene.quest_sockets, "questsockets" } })
+            if (auto b = mpqs.try_read(std::string(R"(data\global\ui\menu\)") + file + ".dc6")) *sprite = d2d::dc6::Sprite(*b);
+        for (std::size_t i = 0; i < scene.quest_icons.size(); ++i)    // the names at 0x6da2c8: a1q1..a1q6, a2q1.., a4q1..3, a5q1..
+            if (auto b = mpqs.try_read(std::format(R"(data\global\ui\menu\a{}q{}.dc6)", i < 6 ? 1 : i < 12 ? 2 : i < 18 ? 3 : i < 21 ? 4 : 5,
+                                                   i < 18 ? i % 6 + 1 : i < 21 ? i - 17 : i - 20)))
+                scene.quest_icons[i] = d2d::dc6::Sprite(*b);
     }
     for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
         auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };

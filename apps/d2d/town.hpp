@@ -131,6 +131,7 @@ struct Town {
     std::optional<d2d::d2s::Item> held;   // the item on the cursor (the View's)
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
+    QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes
     int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
     int   skill_pressed = -1;              // skill icon held down
     std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open (the View's)
@@ -240,7 +241,8 @@ struct Town {
             skillbar.key(k, mouse.x, mouse.y);                // F1-F8
             if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
-            if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
+            if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
+            if (k == SDLK_Q) { quest_log.open = !quest_log.open; if (quest_log.open) char_open = stash_open = cube_open = false; }
             if (k == SDLK_ESCAPE && view.dead) { net.send(cmd::Resurrect{}); continue; }
             if (k >= SDLK_1 && k <= SDLK_4) net.send(cmd::UseBelt{ int(k - SDLK_1) });
             if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
@@ -249,8 +251,8 @@ struct Town {
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
-                else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
-                    inv_open = char_open = stash_open = cube_open = tree_open = false;
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open)   // then panels
+                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
                 else { save(); screen = Screen::CharSelect; }
             }
         }
@@ -260,7 +262,7 @@ struct Town {
             (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
             (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
                       && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
-            ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
+            ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                        && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
         // The belt: its HUD strip (row 1's boxes) toggles the popup;
         // strip and open popup take the click instead of the world.
@@ -289,6 +291,11 @@ struct Town {
             }
         }
         if (mouse.press_this_frame && over_belt && mouse.y >= b0[2] && !item_click) belt_open = !belt_open;
+        // Quest log: a tab picks the act, an icon the quest.
+        if (quest_log.open && mouse.press_this_frame) {
+            if (const int a = quest_tab_at(mouse.x, mouse.y); a >= 0) { quest_log.act = a; quest_log.slot = -1; }
+            if (const int k = quest_slot_at(*scene, mouse.x, mouse.y); k >= 0) quest_log.slot = k;
+        }
         // Skill tree: tabs switch on press; a skill icon pressed and
         // released spends a point (FUN_004ab7e0 / FUN_004abc30).
         if (tree_open) {
@@ -601,15 +608,15 @@ struct Town {
             return;
         }
         const auto& ui = std::get<ev::OpenUI>(e);
-        if (ui.kind == ev::OpenUI::stash) { stash_open = inv_open = true; char_open = false; return; }
-        if (ui.kind == ev::OpenUI::trade) { inv_open = true; char_open = stash_open = cube_open = false; return; }
+        if (ui.kind == ev::OpenUI::stash) { stash_open = inv_open = true; char_open = quest_log.open = false; return; }
+        if (ui.kind == ev::OpenUI::trade) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; return; }
         if (ui.kind == ev::OpenUI::hire) {
             npc_menu = open_hire_menu(*scene, ui.npc, hire_offers, cc.stats.get(d2d::d2s::kGold) + cc.stats.get(d2d::d2s::kGoldBank));
             return;
         }
         if (ui.kind == ev::OpenUI::waypoint) {
             waypoint = { .open = true };
-            inv_open = char_open = stash_open = cube_open = false;
+            inv_open = char_open = stash_open = cube_open = quest_log.open = false;
             return;
         }
         // A quest message for the player plays at once (FUN_004a10e0 on
@@ -682,6 +689,8 @@ struct Town {
                       nullptr, nullptr, nullptr, extra, rate);
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        if (quest_log.open)
+            draw_quest_log(fb, *scene, quest_log, cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))]);
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);

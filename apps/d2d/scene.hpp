@@ -420,6 +420,10 @@ struct Scene : GameData {
     // (frames 0..3 the panel, 4t..4t+3 tab t on top) and <Cl>Skillicon.
     std::array<d2d::dc6::Sprite, 7> skill_tree_bg, skill_icons;   // by d2s class
     d2d::dc6::Sprite generic_skill_icons;              // SPELLS\Skillicon: Attack and the other non-class skills
+    // The quest log's art (FUN_004a23d0 / FUN_004a3220): questbackground,
+    // expquesttabs, questsockets, and each quest's icon (a1q1 .. a5q6).
+    d2d::dc6::Sprite quest_bg, quest_tabs, quest_sockets;
+    std::array<d2d::dc6::Sprite, 27> quest_icons;
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     int                   bg_tiles_across{4};
 
