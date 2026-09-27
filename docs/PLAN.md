@@ -355,7 +355,15 @@ below, so new features land on the new structure:
    or quits: parse-back check, temp file + rename, a one-time .d2s.bak; the
    19 real saves write back byte for byte (test_d2s). New characters get
    CharStats.txt's stats, start skill and items and are saved at once.
-4. `TcpTransport`, then player-count scaling and party.
+4. The client's side of the line, emptied (2026-09-27): character edits,
+   item moves and NPC deals are commands; ground items and the
+   character's items have unit ids; the World works out skill levels;
+   commands cross as bytes through a `LocalTransport` (protocol.hpp,
+   test_protocol).
+5. Next: replication (the World sends each client what it needs to
+   draw; the client stops reading the World), a World with N players
+   (Fight's player state per player), then `TcpTransport`, player-count
+   scaling and party.
 
 ## Next up (as of 2026-09-26)
 
