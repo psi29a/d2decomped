@@ -22,7 +22,7 @@ namespace ev {
 struct LevelChanged { const Level* from = nullptr; bool keep_map = false; };
 // Arrived at an object or NPC that opens a panel (game.exe's 0x58 "open
 // UI" and the NPC interaction).
-struct OpenUI { enum Kind { stash, waypoint, talk } kind = stash; int npc = -1; };
+struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; int npc = -1; };
 }  // namespace ev
 using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 
@@ -55,6 +55,8 @@ struct World {
     std::vector<Event> events;             // for the client, since it last looked
     const CharacterStore* characters = nullptr;   // where the character is saved
     std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
+    Store store;                           // the NPC window open (npc < 0: none): its stock
+    std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
     int next_item_id = 1;                  // the next item's unit id
     // Every item of the character has a unit id (new ones get theirs).
     void item_ids() {
@@ -359,6 +361,57 @@ struct World {
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through a warp from {}", level_name(*level), px, py, level_name(*from));
     }
 
+    // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
+    // identifying, hiring. True when `c` was one.
+    bool deal(const Command& c) {
+        const auto& t = scene->rules;
+        const int clvl = int(cc.stats.get(d2d::d2s::kLevel));
+        if (const auto* p = std::get_if<cmd::OpenTrade>(&c)) {
+            if (std::size_t(p->npc) >= level->npcs.size()) return true;
+            store = p->gamble ? d2d::rules::open_gamble(t, level->npcs[std::size_t(p->npc)].id, clvl) : open_store(*scene, *level, p->npc, rng);
+            store.npc = p->npc;
+            store.header = cc.header;
+            events.push_back(ev::OpenUI{ ev::OpenUI::trade, p->npc });
+            return true;
+        }
+        if (const auto* p = std::get_if<cmd::OpenHire>(&c)) {
+            // ponytail: the server's offer count isn't traced; five.
+            hire_offers.clear();
+            for (int k = 0; k < 5; ++k)
+                if (auto o = d2d::rules::merc_offer(t, cc.expansion, 0, cc.header.active_difficulty(), clvl, rng)) hire_offers.push_back(*o);
+            events.push_back(ev::OpenUI{ ev::OpenUI::hire, p->npc });
+            return true;
+        }
+        if (const auto* p = std::get_if<cmd::Buy>(&c)) {
+            if (store.npc < 0 || p->stock < 0) return true;
+            if (store.gamble) d2d::rules::store_gamble(t, store, p->stock, cc.items, cc.stats, rng);
+            else d2d::rules::store_buy(t, store, p->stock, cc.items, cc.stats);
+            return true;
+        }
+        if (const auto* p = std::get_if<cmd::Sell>(&c)) {
+            if (store.npc < 0) return true;
+            if (held && held->id == p->item) { cc.items.push_back(std::move(*held)); held.reset(); }
+            const auto it = std::ranges::find(cc.items, p->item, &d2d::d2s::Item::id);
+            if (it != cc.items.end()) d2d::rules::store_sell(t, store, std::size_t(it - cc.items.begin()), cc.items, cc.stats);
+            return true;
+        }
+        if (const auto* p = std::get_if<cmd::Repair>(&c)) {
+            if (store.npc < 0) return true;
+            if (p->item < 0) { d2d::rules::store_repair_all(t, store, cc.items, cc.stats); return true; }
+            const auto it = std::ranges::find(cc.items, p->item, &d2d::d2s::Item::id);
+            if (it != cc.items.end()) d2d::rules::store_repair(t, store, *it, cc.stats);
+            return true;
+        }
+        if (std::holds_alternative<cmd::Identify>(c)) { d2d::rules::identify_all(cc.items); return true; }
+        if (const auto* p = std::get_if<cmd::Hire>(&c)) {
+            if (p->offer >= 0 && std::size_t(p->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(p->offer)], cc.header, cc.stats))
+                spawn_merc();
+            return true;
+        }
+        if (std::holds_alternative<cmd::CloseTrade>(c)) { store = {}; return true; }
+        return false;
+    }
+
     // A command from the player, checked and applied. A busy player's
     // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).
     void apply(const Command& c, std::uint32_t ms) {
@@ -407,6 +460,7 @@ struct World {
             if (held && p->box >= 0 && p->box < B.boxes) d2d::rules::put_in_belt(t, cc.items, held, p->box, B.boxes);
             return;
         }
+        if (deal(c)) return;
         if (fight.pmode >= 0) return;
         const bool in_moor = level != &scene->town;
         auto walk_to = [&](float x, float y, bool fresh) {

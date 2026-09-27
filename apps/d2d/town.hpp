@@ -45,13 +45,13 @@ struct Town {
     bool  tree_open = false;               // skill tree ('T')
     int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
     int   skill_pressed = -1;              // skill icon held down
-    std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
+    std::vector<d2d::rules::MercOffer>& hire_offers = world.hire_offers;   // Kashya's list while it's open (the World's)
     std::string merc_label;
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
     Automap automap;                       // Tab
-    Store store;                           // an open vendor store (npc < 0: none)
+    Store& store = world.store;            // an open vendor store (npc < 0: none; the World's stock)
     WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
@@ -116,7 +116,7 @@ struct Town {
             if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
-                else if (store.npc >= 0) { store = {}; inv_open = false; } // the store first
+                else if (store.npc >= 0) { queued.push_back(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) speech = {};              // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
@@ -149,9 +149,7 @@ struct Town {
         if (mouse.press_this_frame && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
-                cc.items.push_back(std::move(*held));
-                held.reset();
-                d2d::rules::store_sell(scene->rules, store, cc.items.size() - 1, cc.items, cc.stats);
+                queued.push_back(cmd::Sell{ held->id });
                 item_click = true;
             } else {
                 const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
@@ -249,31 +247,13 @@ struct Town {
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
             npc_menu = {};
             if (action == NpcMenuState::kHire) {
-                // Kashya's list. ponytail: the server's offer count
-                // isn't traced; five, rolled when the list opens.
-                hire_offers.clear();
-                for (int k = 0; k < 5; ++k)
-                    if (auto o = d2d::rules::merc_offer(scene->rules, cc.expansion, 0, cc.header.active_difficulty(),
-                                                        int(cc.stats.get(d2d::d2s::kLevel)), rng))
-                        hire_offers.push_back(*o);
-                npc_menu = open_hire_menu(*scene, who, hire_offers,
-                                          cc.stats.get(d2d::d2s::kGold) + cc.stats.get(d2d::d2s::kGoldBank));
+                queued.push_back(cmd::OpenHire{ who });             // Kashya's list: the World rolls it
             } else if (action == NpcMenuState::kHireOffer) {
-                const int k = npc_menu_arg;
-                if (k >= 0 && std::size_t(k) < hire_offers.size()
-                    && d2d::rules::hire(hire_offers[std::size_t(k)], cc.header, cc.stats))
-                    spawn_merc();
+                queued.push_back(cmd::Hire{ npc_menu_arg });
             } else if (action == NpcMenuState::kIdentify) {
-                d2d::rules::identify_all(cc.items);
-            } else if (action == NpcMenuState::kGamble) {
-                store = d2d::rules::open_gamble(scene->rules, n.id, int(cc.stats.get(d2d::d2s::kLevel)));
-                store.npc = who;
-                store.header = cc.header;
-                inv_open = true; char_open = stash_open = cube_open = false;
-            } else if (action == NpcMenuState::kTrade) {
-                store = open_store(*scene, *level, who, rng);
-                store.header = cc.header;
-                inv_open = true; char_open = stash_open = cube_open = false;
+                queued.push_back(cmd::Identify{});
+            } else if (action == NpcMenuState::kGamble || action == NpcMenuState::kTrade) {
+                queued.push_back(cmd::OpenTrade{ who, action == NpcMenuState::kGamble });
             } else if (action == NpcMenuState::kTalk) {
                 npc_menu = open_talk_menu(*scene, *level, who, sx, sy);
             } else if (action == NpcMenuState::kIntro || action == NpcMenuState::kGossip) {
@@ -309,10 +289,10 @@ struct Town {
                 // repair all (18) fixes everything worn and carried.
                 const bool repairer = store_button_frames(store)[2] == 6;
                 if (on && mouse.release_this_frame && i == 2 && repairer) store.mode = store.mode == 3 ? 0 : 3;
-                if (on && mouse.release_this_frame && i == 3 && repairer)
-                    d2d::rules::store_repair_all(scene->rules, store, cc.items, cc.stats);
+                if (on && mouse.release_this_frame && i == 3 && repairer) queued.push_back(cmd::Repair{ -1 });
                 if (on && mouse.release_this_frame && i == 3 && store_button_frames(store)[3] == 10) {
-                    store = {}; inv_open = false;
+                    queued.push_back(cmd::CloseTrade{});
+                    inv_open = false;
                     break;
                 }
             }
@@ -324,11 +304,7 @@ struct Town {
             const int si = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
             if (si >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
-                if (store.gamble) {
-                        d2d::rules::store_gamble(scene->rules, store, si, cc.items, cc.stats, rng);
-                    } else {
-                    d2d::rules::store_buy(scene->rules, store, si, cc.items, cc.stats);
-                }
+                queued.push_back(cmd::Buy{ si });
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
@@ -338,8 +314,8 @@ struct Town {
                     if (!(it.location == 0 && it.panel == 1) && !(worn && store.mode == 3)) continue;
                     const auto r = worn ? lay.slots[std::size_t(it.slot)] : grid_rect(*scene, lay, it);
                     if (mouse.x >= r[0] && mouse.x < r[0] + r[2] && mouse.y >= r[1] && mouse.y < r[1] + r[3]) {
-                        if (store.mode == 2) d2d::rules::store_sell(scene->rules, store, i, cc.items, cc.stats);
-                        else d2d::rules::store_repair(scene->rules, store, cc.items[i], cc.stats);
+                        if (store.mode == 2) queued.push_back(cmd::Sell{ it.id });
+                        else queued.push_back(cmd::Repair{ it.id });
                         break;
                     }
                 }
@@ -456,6 +432,11 @@ struct Town {
         }
         const auto& ui = std::get<ev::OpenUI>(e);
         if (ui.kind == ev::OpenUI::stash) { stash_open = inv_open = true; char_open = false; return; }
+        if (ui.kind == ev::OpenUI::trade) { inv_open = true; char_open = stash_open = cube_open = false; return; }
+        if (ui.kind == ev::OpenUI::hire) {
+            npc_menu = open_hire_menu(*scene, ui.npc, hire_offers, cc.stats.get(d2d::d2s::kGold) + cc.stats.get(d2d::d2s::kGoldBank));
+            return;
+        }
         if (ui.kind == ev::OpenUI::waypoint) {
             waypoint = { .open = true };
             inv_open = char_open = stash_open = cube_open = false;

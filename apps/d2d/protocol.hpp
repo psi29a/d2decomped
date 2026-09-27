@@ -42,10 +42,25 @@ struct ToCursor { int item = -1; };
 struct ToGrid { int panel = 1, col = 0, row = 0; };
 struct ToBody { int slot = 0; };
 struct ToBelt { int box = 0; };
+// NPC deals: 0x38 an NPC's trade / gamble window or hire list (the server
+// rolls the stock / offers); 0x32 buy stock item `stock` (a gamble too);
+// 0x33 sell an item (by unit id; the one in hand too); 0x35 repair one
+// (-1: everything); 0x34 Cain identifies everything; 0x36 hire offer
+// `offer`; closing the window.
+// ponytail: stock and offers by index, not unit id.
+struct OpenTrade { int npc = -1; bool gamble = false; };
+struct OpenHire { int npc = -1; };
+struct Buy { int stock = -1; };
+struct Sell { int item = -1; };
+struct Repair { int item = -1; };
+struct Identify {};
+struct Hire { int offer = -1; };
+struct CloseTrade {};
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt,
-                             cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt>;
+                             cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
+                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade>;
 
 }  // namespace
