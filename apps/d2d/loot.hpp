@@ -16,6 +16,7 @@ struct Loot {
     Cues& cues;
     // An item on the ground (gold: code "gld", `gold` coins).
     struct GroundItem {
+        int id = -1;                         // its unit id (the server's)
         d2d::d2s::Item item;
         int gold = 0;
         float x = 0, y = 0;
@@ -24,6 +25,12 @@ struct Loot {
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
     };
     std::vector<GroundItem> ground;        // ground_level's
+    int next_id = 1;                       // the next ground item's unit id
+    // A ground item by unit id: its index in `ground`, or -1.
+    [[nodiscard]] int index_of(int id) const {
+        const auto it = std::ranges::find(ground, id, &GroundItem::id);
+        return it == ground.end() ? -1 : int(it - ground.begin());
+    }
     const Level* ground_level = nullptr;
     std::unordered_map<const Level*, std::vector<GroundItem>> kept;   // other levels' floors
     // The player went to `to`: what lies on its floor, the last level's kept.
@@ -73,6 +80,7 @@ struct Loot {
             cues.cue("item_flippy", ms, g.x, g.y);
             if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
                 cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
+            g.id = next_id++;
             ground.push_back(std::move(g));
         }
     }

@@ -398,7 +398,7 @@ struct Town {
         const bool live = hm >= 0 && fight.monsters[std::size_t(hm)].alive();
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, fight.monsters[std::size_t(hm)].id, true });
-            else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ hovered_ground() });
+            else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ loot.ground[std::size_t(hovered_ground())].id });
             else if (hovered_npc >= 0) out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ wx, wy, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims

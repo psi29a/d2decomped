@@ -46,7 +46,7 @@ struct World {
     bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
     int   take_warp = -1;                  // the warp of `level` the player is walking to
     int   interact_npc = -1;               // the object / NPC being walked to
-    int   pick_item = -1;                  // the ground item being walked to
+    int   pick_item = -1;                  // the ground item being walked to (its unit id)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     struct Fire { const Level* level; const Npc* npc; float x, y; };
@@ -391,8 +391,9 @@ struct World {
         };
         if (const auto* m = std::get_if<cmd::Move>(&c)) { walk_to(m->x, m->y, m->fresh); return; }
         if (const auto* p = std::get_if<cmd::Pickup>(&c)) {                  // walk to it, pick it up
-            if (std::size_t(p->item) >= loot.ground.size()) return;
-            walk_to(loot.ground[std::size_t(p->item)].x, loot.ground[std::size_t(p->item)].y, true);
+            const int gi = loot.index_of(p->item);
+            if (gi < 0) return;
+            walk_to(loot.ground[std::size_t(gi)].x, loot.ground[std::size_t(gi)].y, true);
             pick_item = p->item;
             return;
         }
@@ -503,10 +504,12 @@ struct World {
                 target_x = ox; target_y = oy;              // follow a walking NPC
             }
         }
+        if (pick_item >= 0 && loot.index_of(pick_item) < 0) pick_item = -1;   // someone took it
         if (pick_item >= 0 && !busy) {
-            const auto& g = loot.ground[std::size_t(pick_item)];
+            const auto gi = std::size_t(loot.index_of(pick_item));
+            const auto& g = loot.ground[gi];
             if (std::hypot(g.x - player.x, g.y - player.y) <= 1.f) {
-                loot.take(std::size_t(pick_item));
+                loot.take(gi);
                 pick_item = -1; player.walking = false; player.path.clear();
             } else {
                 target_x = g.x; target_y = g.y; player.walking = true;

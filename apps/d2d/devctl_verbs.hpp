@@ -70,7 +70,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         else if (k == "interact" && a.size() >= 3) t.queued.push_back(cmd::Interact{ n(2) });
         else if (k == "pickup" && a.size() >= 3) t.queued.push_back(cmd::Pickup{ n(2) });
         else if (k == "resurrect") t.queued.push_back(cmd::Resurrect{});
-        else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <item> | resurrect\n");
+        else if (k == "stat" && a.size() >= 3) t.queued.push_back(cmd::StatPoint{ n(2, 0), n(3, 1) });
+        else if (k == "skillpt" && a.size() >= 3) t.queued.push_back(cmd::SkillPoint{ n(2, 0) });
+        else if (k == "select" && a.size() >= 4) t.queued.push_back(cmd::SelectSkill{ n(2, 0), n(3, 0) != 0 });
+        else if (k == "belt" && a.size() >= 3) t.queued.push_back(cmd::UseBelt{ n(2, 0) });
+        else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
+                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot>\n");
         return std::string("ok\n");
     });
     ch.on("key", [&](const std::vector<std::string>& args) {
@@ -328,9 +333,9 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         std::string out;
         for (const auto& g : t.loot.ground) {
             const float dx = g.x - t.player.x, dy = g.y - t.player.y;
-            out += std::format("{}\t{}\t{}\t{}\n", g.item.code, g.label,
+            out += std::format("{}\t{}\t{}\t{}\t#{}\n", g.item.code, g.label,
                                int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
-                               int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))));
+                               int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))), g.id);
         }
         return out + "ok\n";
     });

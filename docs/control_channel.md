@@ -36,10 +36,10 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `save`                      | `ok` / `err <why>`     | Save the character now (character_store.hpp), as leaving the game does. |
-| `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <item>`, `resurrect`. What a remote client would send. |
+| `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <unit>`, `resurrect`, `stat <stat> [n]`, `skillpt <index>`, `select <skill> <left>`, `belt <slot>`. What a remote client would send. |
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>\t<boss>\t<mods>\tlvl<n>\t<name>\t#<unit>` per monster of the current outdoor level, then `ok` | Cells, feet on screen (while there), life, animation mode; champion / unique / superunique / minion (or -), MonUMod ids, level, name, unit id (what `cmd skill` takes). |
-| `ground`                    | `<code>\t<label>\t<sx>\t<sy>` per item on the Blood Moor's ground, then `ok` | Loot: gold is `gld`; feet on screen. |
+| `ground`                    | `<code>\t<label>\t<sx>\t<sy>\t#<unit>` per item on the level's ground, then `ok` | Loot: gold is `gld`; feet on screen; unit id (what `cmd pickup` takes). |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
