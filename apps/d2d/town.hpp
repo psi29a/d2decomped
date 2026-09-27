@@ -8,6 +8,55 @@
 
 namespace {
 
+// The client's drawing of what the World told it (View): the ground
+// items, fires, the merc, pets, missiles and monsters near (cx, cy) as
+// units the world draws by depth (npc -2 the merc, -3 pets, -10 - i
+// monster i of the View, -1000 - i ground item i).
+void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out) {
+    auto near = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
+    for (std::size_t i = 0; i < v.ground.size(); ++i) {
+        const auto& g = v.ground[i];
+        if (!near(g.x, g.y) || v.level == &s.town) continue;
+        Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
+        u.sprite = s.flippy(g.item.code);
+        u.rgb = g.rgb;
+        out.push_back(u);
+    }
+    for (const auto& f : v.fires) out.push_back({ f.x, f.y, &s.npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
+    if (v.merc)
+        out.push_back({ v.merc->u.x, v.merc->u.y, &s.npc_anim(*v.merc->npc, v.merc->mode), v.merc->u.dir,
+                        v.merc->mode == "DT" ? nullptr : merc_label, v.merc->u.mode_ms, -2 });
+    for (const auto& p : v.pets) out.push_back({ p.u.x, p.u.y, &s.npc_anim(p.npc, p.mode), p.u.dir, nullptr, p.u.mode_ms, -3 });
+    for (const auto& m : v.missiles) {
+        Unit u{ m.x, m.y, nullptr, m.dir, nullptr, m.born, -1 };
+        u.missile = m.info;
+        out.push_back(u);
+    }
+    for (std::size_t i = 0; i < v.monsters.size(); ++i) {
+        const auto& m = v.monsters[i];
+        if (m.corpse_used || !near(m.u.x, m.u.y)) continue;
+        out.push_back({ m.u.x, m.u.y, &s.npc_anim(m.npc, m.mode), m.u.dir, m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
+    }
+}
+// Over the world: the hovered (else attacked) monster's life bar, the
+// death message.
+void view_overlays(std::vector<std::uint8_t>& fb, const Scene& s, const View& v, int hovered) {
+    if (hovered >= 0) draw_monster_bar(fb, s, v.monsters[std::size_t(hovered)]);
+    else if (const int a = v.monster(v.attack); a >= 0) draw_monster_bar(fb, s, v.monsters[std::size_t(a)]);
+    if (v.pmode == kModeDD) {                    // ponytail: D2's death screen text isn't traced
+        const std::string msg = "You have died.  Click or press Esc to continue.";
+        const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+        s.font.draw_tinted(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(msg) / 2, int(kH) / 2 - 60, msg, 220, 60, 60);
+    }
+}
+// An SQ skill's frame now: the mode and when it started, as Fight::seq_view.
+std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, std::uint32_t ms) {
+    const auto i = std::size_t((ms - v.player.mode_ms) / std::max<std::uint32_t>(v.seq_frame_ms, 1));
+    const auto& f = v.seq[v.seq_loop ? i % v.seq.size() : std::min(i, v.seq.size() - 1)];
+    const auto mpf = s.composite(cls, f.mode, v.gfx).ms_per_frame();
+    return { f.mode, ms - mpf * f.frame - mpf / 2 };
+}
+
 // The client (docs/design/multiplayer.md): input, panels, camera,
 // drawing and sound, over a World (server.hpp) it sends commands to. The
 // references below are the World's, for the code that reads them.
@@ -33,6 +82,7 @@ struct Town {
     int& interact_npc = world.interact_npc;
     int& pick_item = world.pick_item;
     LocalTransport net;                    // the commands to the World, as their wire form (single player)
+    View view;                             // what the World told the client after its last tick
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
     float cam_x = 0, cam_y = 0;            // where the camera is this frame
@@ -59,6 +109,7 @@ struct Town {
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
+    std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
@@ -66,6 +117,7 @@ struct Town {
     Town(const Scene* s, CharCreateUI& c, int start_x = -1, int start_y = -1)
         : scene(s), cc(c), world(s, c, start_x, start_y) {
         have_world = level && !level->dt1s.empty();
+        view = world.view();
     }
 
     // Saving the character: the item on the cursor goes back first, then
@@ -346,10 +398,10 @@ struct Town {
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const {
-        return hovered_npc <= -10 && hovered_npc > -1000 && std::size_t(-10 - hovered_npc) < fight.monsters.size() ? -10 - hovered_npc : -1;
+        return hovered_npc <= -10 && hovered_npc > -1000 && std::size_t(-10 - hovered_npc) < view.monsters.size() ? -10 - hovered_npc : -1;
     }
     [[nodiscard]] int hovered_ground() const {
-        return hovered_npc <= -1000 && std::size_t(-1000 - hovered_npc) < loot.ground.size() ? -1000 - hovered_npc : -1;
+        return hovered_npc <= -1000 && std::size_t(-1000 - hovered_npc) < view.ground.size() ? -1000 - hovered_npc : -1;
     }
 
     // The client's side of a click: what it asks the server for
@@ -358,7 +410,7 @@ struct Town {
     // NPC, else the ground. The right button uses the right skill there.
     [[nodiscard]] std::vector<Command> input(const Mouse& mouse, bool over_ui) const {
         std::vector<Command> out;
-        if (fight.dead()) {                                  // a click, once the death has played, respawns
+        if (view.dead) {                                     // a click, once the death has played, respawns
             if (mouse.press_this_frame) out.push_back(cmd::Resurrect{});
             return out;
         }
@@ -369,20 +421,19 @@ struct Town {
         const float v = float(mouse.y - int(kH) / 2 - kIsoH / 2) / (kIsoH / 2);
         const float wx = cam_x + (u + v) / 2, wy = cam_y + (v - u) / 2;
         const int hm = hovered_monster();
-        const bool live = hm >= 0 && fight.monsters[std::size_t(hm)].alive();
+        const bool live = hm >= 0 && view.monsters[std::size_t(hm)].alive();
         if (mouse.press_this_frame) {
-            if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, fight.monsters[std::size_t(hm)].id, true });
-            else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ loot.ground[std::size_t(hovered_ground())].id });
+            if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, view.monsters[std::size_t(hm)].id, true });
+            else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
             else if (hovered_npc >= 0) out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ wx, wy, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
-            const int am = fight.attack_mon;
-            if (am >= 0 && std::size_t(am) < fight.monsters.size() && fight.monsters[std::size_t(am)].alive())
-                out.push_back(cmd::UseSkill{ fight.attack_skill, wx, wy, fight.monsters[std::size_t(am)].id, true });
+            if (const int am = view.monster(view.attack); am >= 0 && view.monsters[std::size_t(am)].alive())
+                out.push_back(cmd::UseSkill{ view.attack_skill, wx, wy, view.attack, true });
             else
                 out.push_back(cmd::Move{ wx, wy, false });
         }
-        if (mouse.rpress_this_frame) out.push_back(cmd::UseSkill{ skillbar.right, wx, wy, live ? fight.monsters[std::size_t(hm)].id : -1 });
+        if (mouse.rpress_this_frame) out.push_back(cmd::UseSkill{ skillbar.right, wx, wy, live ? view.monsters[std::size_t(hm)].id : -1 });
         return out;
     }
 
@@ -392,12 +443,11 @@ struct Town {
         // The skill buttons: a change goes to the World (0x3c), which runs a
         // right-button aura (a Paladin's).
         if (std::uint32_t(skillbar.left) != cc.header.left_skill) net.send(cmd::SelectSkill{ skillbar.left, true });
-        if (std::uint32_t(skillbar.right) != cc.header.right_skill || (fight.aura != 0) != (scene->skills.get(skillbar.right) && scene->skills.get(skillbar.right)->aura))
+        if (std::uint32_t(skillbar.right) != cc.header.right_skill || (view.aura != 0) != (scene->skills.get(skillbar.right) && scene->skills.get(skillbar.right)->aura))
             net.send(cmd::SelectSkill{ skillbar.right, false });
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
-        if (ms < fight.boost.until)
-            for (const auto& [id, v] : fight.boost.stats) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
+        for (const auto& [id, v] : view.boost) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
         world.talking = { npc_menu.npc, speech.npc, store.npc };
         for (const auto& c : input(mouse, over_ui)) net.send(c);
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
@@ -410,6 +460,7 @@ struct Town {
             for (const auto& e : world.events) handle(e, ms);
             world.events.clear();
         }
+        view = world.view();
         if (ms - world_ms >= kTickMs) world_ms = ms - (ms - world_ms) % kTickMs;
     }
 
@@ -452,10 +503,12 @@ struct Town {
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.
     void draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t ms) {
-        const int pmode = fight.pmode;
-        if (const bool m = player.walking && running; pmode < 0 && (player.walking != player_walked || m != player_ran)) {
-            player_walked = player.walking; player_ran = m; player.mode_ms = ms;
+        auto& me = view.player;                           // the client's copy: its animation clock is the client's
+        const int pmode = view.pmode;
+        if (const bool m = me.walking && view.running; pmode < 0 && (me.walking != player_walked || m != player_ran)) {
+            player_walked = me.walking; player_ran = m; walk_ms = ms;
         }
+        if (pmode < 0) me.mode_ms = std::max(me.mode_ms, walk_ms);     // a swing's end restarts it too
         const int ui_cls = std::max(cc.selected, 0);
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
@@ -463,31 +516,29 @@ struct Town {
         // ticks; a jump (a warp, devctl) snaps.
         // ponytail: the other units move at the tick rate, as game.exe draws them.
         const float a = std::clamp(float(ms - world_ms) / float(kTickMs), 0.f, 1.f);
-        const bool jump = std::hypot(player.x - prev_x, player.y - prev_y) > 2.f;
-        cam_x = jump ? player.x : prev_x + (player.x - prev_x) * a;
-        cam_y = jump ? player.y : prev_y + (player.y - prev_y) * a;
-        if (level != &scene->town) loot.units(cam_x, cam_y, extra);
-        for (const auto& f : fires)
-            if (f.level == level) extra.push_back({ f.x, f.y, &scene->npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
-        fight.units(&merc_label, extra);
+        const bool jump = std::hypot(me.x - prev_x, me.y - prev_y) > 2.f;
+        cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
+        cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
-        if (pmode == kModeDD) player.mode_ms = ms - (fight.player_anim(kModeDT).length_ms() - 1);
-        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : player.walking ? (running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
-        std::uint32_t mode_ms = player.mode_ms;
-        float rate = pmode >= 0 && pmode != kModeDD ? fight.prate : 1.f;
-        if (!fight.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = fight.seq_view(ms); rate = 1.f; }   // an SQ skill's frame
-        render_ingame(fb, *scene, *level, ui_cls,
-                      fight.gfx(),
+        const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];
+        if (pmode == kModeDD) me.mode_ms = ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);
+        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : me.walking ? (view.running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        std::uint32_t mode_ms = me.mode_ms;
+        float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
+        if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, ms); rate = 1.f; }   // an SQ skill's frame
+        render_ingame(fb, *scene, *view.level, ui_cls,
+                      view.gfx,
                       cc.input_name, cc.hardcore,
                       cam_x, cam_y, mode,
-                      player.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, npc_states,
+                      me.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, view.npc_states,
                       inv_open ? &cc.items : nullptr,
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate);
-        fight.overlays(fb, hovered_monster());
+        view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,

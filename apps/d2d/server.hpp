@@ -26,6 +26,44 @@ struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; i
 }  // namespace ev
 using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 
+// What a client is told after each tick (the S -> C side, network.md):
+// everything it draws and clicks on. In-process these are copies; a TCP
+// transport sends them as bytes.
+// ponytail: monsters go whole (the fields a client needs aren't picked yet);
+// the character (cc), the store and the item in hand are still shared with
+// the World; levels are pointers into the shared Scene (the same on every
+// machine, from the map seed).
+struct View {
+    const Level* level = nullptr;
+    UnitState player;
+    bool running = false, dead = false;
+    int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
+    float prate = 1.f;
+    std::span<const d2d::rules::SeqFrame> seq{};   // an SQ skill's frames while it plays
+    std::uint32_t seq_frame_ms = 40;
+    bool seq_loop = false;
+    Scene::Appearance gfx{};               // what the character wears
+    struct Merc { UnitState u; const Npc* npc = nullptr; std::string_view mode; };
+    std::optional<Merc> merc;
+    struct Pet { Npc npc; UnitState u; std::string_view mode; };
+    std::vector<Pet> pets;                 // the player's summons on this level
+    std::vector<Monster> monsters;         // the level's
+    struct Shot { const Scene::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; };
+    std::vector<Shot> missiles;
+    int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
+    std::vector<Loot::GroundItem> ground;  // the level's floor
+    struct Fire { float x, y; const Npc* npc; };
+    std::vector<Fire> fires;
+    std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
+    std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
+    int aura = 0;                          // the aura that's on
+    // A monster by unit id: its index in `monsters`, or -1.
+    [[nodiscard]] int monster(int id) const {
+        const auto it = std::ranges::find(monsters, id, &Monster::id);
+        return id < 0 || it == monsters.end() ? -1 : int(it - monsters.begin());
+    }
+};
+
 // The game's step: game.exe's frame, 1000 / 25 ms (FUN_0052fc20,
 // docs/research/re/network.md).
 constexpr std::uint32_t kTickMs = 40;
@@ -90,6 +128,33 @@ struct World {
         };
     }
     World(const World&) = delete;
+
+    // What the client is told (View).
+    [[nodiscard]] View view() const {
+        View v;
+        v.level = level;
+        v.player = player;
+        v.running = running;
+        v.dead = fight.dead();
+        v.pmode = fight.pmode;
+        v.prate = fight.prate;
+        v.seq = fight.seq; v.seq_frame_ms = fight.seq_frame_ms; v.seq_loop = fight.seq_loop;
+        v.gfx = fight.gfx();
+        if (merc && merc_npc) v.merc = View::Merc{ *merc, merc_npc, fight.merc_mode };
+        for (const auto& p : fight.pets) if (p.where == level) v.pets.push_back({ p.m.npc, p.m.u, p.m.mode });
+        if (level == fight.mon_level) {
+            v.monsters = fight.monsters;
+            for (const auto& m : fight.missiles) if (m.info && m.info->dcc) v.missiles.push_back({ m.info, m.x, m.y, m.dir, m.born });
+        }
+        if (fight.attack_mon >= 0 && std::size_t(fight.attack_mon) < fight.monsters.size()) v.attack = fight.monsters[std::size_t(fight.attack_mon)].id;
+        v.attack_skill = fight.attack_skill;
+        if (loot.ground_level == level) v.ground = loot.ground;
+        for (const auto& f : fires) if (f.level == level) v.fires.push_back({ f.x, f.y, f.npc });
+        v.npc_states = npc_states;
+        if (now < fight.boost.until) v.boost = fight.boost.stats;
+        v.aura = fight.aura;
+        return v;
+    }
 
     // The character to the CharacterStore: the save's header with what the
     // game changed (level, when last played, the gear's look), its stats and
