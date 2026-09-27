@@ -42,6 +42,7 @@ struct Level {
     int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
     int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
     int song = 0, ambience = 0;                        // SoundEnviron Song / Day Ambience (Sounds.txt)
+    int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
     d2d::ds1::Map ds1;
     std::vector<d2d::dt1::Archive> dt1s;
     // Keyed by (style, seq, type) — one map covers floors, walls, trees,
@@ -273,7 +274,8 @@ struct GameData {
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
     struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0;
-                   int group = 0; };                   // Group Size: variants at the following indices
+                   int group = 0;                      // Group Size: variants at the following indices
+                   std::array<int, 3> block{ -1, -1, -1 }; };   // a song's Block 1..3: cue points, in sample frames
     std::unordered_map<std::string, int> sound_index;   // Sounds.txt Sound -> Index
     // MonSounds.txt by Id (MonStats MonSound): per attack mode (A1, A2) the
     // attack and weapon sounds, their delays in ticks and the attack sound's

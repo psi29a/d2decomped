@@ -143,6 +143,12 @@ struct Town {
     WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<d2d::rules::QuestMsg> npc_quest;   // what the NPC being talked to has on quests
+    // The level's random ambient sound (SoundEnviron Day / Night Event,
+    // FUN_004e42e0): its sound, the gap to the next and the last one's
+    // time, in sound ticks (25 Hz).
+    int amb_event = 0;
+    std::uint32_t amb_next = 0, amb_last = 0;
+    d2d::rules::Rng sound_rng{ 0x5eed5u };
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
     SkillBar skillbar{ scene, cc };        // the skill buttons, picker and hotkeys (skillbar.hpp)
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
@@ -351,6 +357,27 @@ struct Town {
         if (audio.music.sound > 0 && level->song > 0 && audio.music.sound != level->song && ms - level_ms >= 75 * 40) {
             audio.crossfade_music(*scene, level->song);
             if (audio.ambience.sound != level->ambience) audio.play(audio.ambience, *scene, level->ambience);
+        }
+        // Every Event Delay ticks, give or take a third, one of the event
+        // sounds from the left or right (x +-450..750, y +-100 in game.exe's
+        // units; the first within one gap of arriving).
+        // ponytail: always the day's event (no night yet); x becomes pan
+        // x / 750, y is dropped.
+        {
+            const std::uint32_t tick = ms / 40;
+            const int ev = level->day_event, delay = level->event_delay;
+            auto spread = [&](int n) { return sound_rng(2 * n + 1) - n; };
+            if (ev != amb_event) {
+                amb_event = ev;
+                amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
+                amb_last = tick - std::uint32_t(sound_rng(int(amb_next)));
+            }
+            if (ev > 0 && tick - amb_last >= amb_next) {
+                const int x = (sound_rng(2) ? 1 : -1) * (450 + sound_rng(301));
+                audio.play_sfx(*scene, ev, 1.f, sound_rng(16), float(x) / 750.f);
+                amb_last = tick;
+                amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
+            }
         }
         if (speech.npc >= 0 && speech.voice == 0) {
             speech.voice = -1;

@@ -14,9 +14,20 @@ namespace {
 // Changing songs cross-fades like game.exe: the old one fades out over its
 // Sounds.txt Fade Out, the new one in over its Fade In (FUN_004b9ef0 /
 // FUN_004ba020 ramp the volume linearly), in sound ticks — 25 a second.
+// A level song picks up where it left off, at its next Block cue point
+// (FUN_004dcaa0, below).
 // ponytail: channels are head-relative (no 3D positions yet); ambience
-// changes don't fade; songs restart instead of resuming at their Block
-// cue points (FUN_004dcaa0 keeps a position per song).
+// changes don't fade.
+// A song's resume point from its position (FUN_004dcaa0).
+[[nodiscard]] constexpr int next_block(const std::array<int, 3>& b, int pos) {
+    if (pos >= 0 && pos < b[0]) return b[0];
+    if (pos >= b[0] && pos < b[1]) return b[1];
+    if (pos >= b[1] && pos < b[2]) return b[2];
+    return 0;
+}
+static_assert(next_block({ 100, 200, -1 }, 50) == 100 && next_block({ 100, 200, -1 }, 150) == 200
+              && next_block({ 100, 200, -1 }, 250) == 0 && next_block({ -1, -1, -1 }, 10) == 0);
+
 struct Audio {
     struct Decoded { ALenum format = 0; ALsizei freq = 0; std::vector<Uint8> pcm; };
     struct Channel {
@@ -116,14 +127,17 @@ struct Audio {
         if (!d) { d2d::log::warn("sound {}: {}", index, SDL_GetError()); return false; }
         return start(c, *d, gain, loop, index);
     }
-    // A world sound at `gain` (its distance), a random one of its group.
-    // ponytail: no stereo panning.
-    void play_sfx(const GameData& s, int index, float gain, int variant) {
+    // A world sound at `gain` (its distance), a random one of its group,
+    // `pan` -1 (left) .. 1 (right).
+    // ponytail: world sounds don't pan by where they are yet; only the
+    // level's ambient events do.
+    void play_sfx(const GameData& s, int index, float gain, int variant, float pan = 0.f) {
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size() || gain <= 0.01f) return;
         const int g = s.sounds[std::size_t(index)].group;
         auto& c = sfx[sfx_next++ % sfx.size()];
         play(c, s, g > 1 ? index + variant % g : index);
         if (c.src) alSourcef(c.src, AL_GAIN, c.gain * gain);
+        if (c.src && pan != 0.f) alSource3f(c.src, AL_POSITION, pan, 0.f, -std::sqrt(std::max(0.f, 1.f - pan * pan)));
     }
     void play(Channel& c, const GameData& s, int index) {
         stop(c);
@@ -183,9 +197,17 @@ struct Audio {
         music_fade_in_ms = fade_of(index, true);
         play_music(s, index);
     }
+    // Where each song picks up (FUN_004dcaa0): every 125 sound ticks (5 s)
+    // of play, the next Block cue point past the position — [0, block 1)
+    // -> block 1, [1, 2) -> 2, [2, 3) -> 3, else the start. By Sounds.txt
+    // index, in sample frames.
+    std::unordered_map<int, int> song_resume;
+    std::array<int, 3> music_blocks{ -1, -1, -1 };
+    std::uint64_t music_mark_ms = 0;
     void play_music(const GameData& s, int index) {
         if (index <= 0 || std::size_t(index) >= s.sounds.size()) { stop(music); return; }
         const auto& snd = s.sounds[std::size_t(index)];
+        music_blocks = snd.block;
         play_music_path(s, std::string(R"(data\global\music\)") + snd.file, index,
                         float(std::clamp(snd.volume, 0, 255)) / 255.f, true);
     }
@@ -246,14 +268,24 @@ struct Audio {
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto d = music_job.get();
             if (!d) d2d::log::warn("music {}: not loaded", music_job_sound);
-            else if (music.sound == music_job_sound && start(music, *d, music_job_gain, music_job_loop, music_job_sound)
-                     && music_fade_in_ms) {
-                set_gain(music, 0.f);
-                fade(music, music_job_gain, music_fade_in_ms);
+            else if (music.sound == music_job_sound && start(music, *d, music_job_gain, music_job_loop, music_job_sound)) {
+                if (const auto r = song_resume.find(music.sound); r != song_resume.end() && r->second > 0)
+                    alSourcei(music.src, AL_SAMPLE_OFFSET, r->second);
+                music_mark_ms = SDL_GetTicks();
+                if (music_fade_in_ms) {
+                    set_gain(music, 0.f);
+                    fade(music, music_job_gain, music_fade_in_ms);
+                }
             }
             music_fade_in_ms = 0;
         }
         const auto now = SDL_GetTicks();
+        if (music.src && music.sound > 0 && now - music_mark_ms > 125 * kTickMs) {
+            ALint pos = 0;
+            alGetSourcei(music.src, AL_SAMPLE_OFFSET, &pos);
+            song_resume[music.sound] = next_block(music_blocks, pos);
+            music_mark_ms = now;
+        }
         for (auto* c : { &music, &music_old }) {
             if (!c->fade_t1) continue;
             const float t = std::min(1.f, float(now - c->fade_t0) / float(c->fade_t1 - c->fade_t0));

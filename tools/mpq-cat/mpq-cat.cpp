@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     d2d::mpq::Stack mpqs;
     if (std::filesystem::exists(dir / "patch_d2.mpq")) mpqs.push(dir / "patch_d2.mpq");
     else if (const char* p = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(p);
-    for (const char* n : { "d2exp.mpq", "d2data.mpq", "d2char.mpq", "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
+    for (const char* n : { "d2exp.mpq", "d2data.mpq", "d2char.mpq", "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq", "d2xmusic.mpq", "d2music.mpq" })
         if (std::filesystem::exists(dir / n)) mpqs.push(dir / n);
     for (int i = 2; i < argc; ++i) {
         const auto b = mpqs.try_read(argv[i]);

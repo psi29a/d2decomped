@@ -1258,6 +1258,10 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 if (se.get(e, "Index") == env) {
                     into->song = std::atoi(std::string(se.get(e, "Song")).c_str());
                     into->ambience = std::atoi(std::string(se.get(e, "Day Ambience")).c_str());
+                    into->night_ambience = std::atoi(std::string(se.get(e, "Night Ambience")).c_str());
+                    into->day_event = std::atoi(std::string(se.get(e, "Day Event")).c_str());
+                    into->night_event = std::atoi(std::string(se.get(e, "Night Event")).c_str());
+                    into->event_delay = std::atoi(std::string(se.get(e, "Event Delay")).c_str());
                 }
         }
     }
@@ -1271,7 +1275,9 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                                              st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1",
                                              std::atoi(std::string(st.get(r, "Fade In")).c_str()),
                                              std::atoi(std::string(st.get(r, "Fade Out")).c_str()),
-                                             std::atoi(std::string(st.get(r, "Group Size")).c_str()) };
+                                             std::atoi(std::string(st.get(r, "Group Size")).c_str()),
+                                             { std::atoi(std::string(st.get(r, "Block 1")).c_str()), std::atoi(std::string(st.get(r, "Block 2")).c_str()),
+                                               std::atoi(std::string(st.get(r, "Block 3")).c_str()) } };
             scene.sound_index.emplace(std::string(st.get(r, "Sound")), i);
         }
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
@@ -1988,6 +1994,10 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
             if (b.sound_env.get(e, "Index") == g("SoundEnv")) {
                 lv->song = num(b.sound_env.get(e, "Song"));
                 lv->ambience = num(b.sound_env.get(e, "Day Ambience"));
+                lv->night_ambience = num(b.sound_env.get(e, "Night Ambience"));
+                lv->day_event = num(b.sound_env.get(e, "Day Event"));
+                lv->night_event = num(b.sound_env.get(e, "Night Event"));
+                lv->event_delay = num(b.sound_env.get(e, "Event Delay"));
             }
         auto mon = [&](std::string_view k) { return k.empty() ? -1 : scene.monsters.row(std::string(k)); };
         auto& L = lv->mon;

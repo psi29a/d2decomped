@@ -454,6 +454,9 @@ standalone server later.
 
 **Step 3 — networking** (the deferred item 7 above).
 
+Blood Moor polish (2026-09-27): ambient events and song resume done
+(sound.md); next the unique mods and shrines, the quest log, lighting.
+
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
 Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't
 traced); a Debug build loads ~2.5x slower than RelWithDebInfo.
