@@ -67,6 +67,8 @@ struct View {
     std::optional<d2d::d2s::Item> held;
     std::optional<Store> store;
     std::vector<d2d::rules::MercOffer> hire_offers;
+    std::vector<Cues::Cue> sounds;         // the world's sounds cued since the last View
+    std::vector<Event> events;             // what the World said since the last View
     // A monster by unit id: its index in `monsters`, or -1.
     [[nodiscard]] int monster(int id) const {
         const auto it = std::ranges::find(monsters, id, &Monster::id);
@@ -515,6 +517,8 @@ struct World {
             return true;
         }
         if (std::holds_alternative<cmd::CloseTrade>(c)) { store = {}; return true; }
+        if (const auto* p = std::get_if<cmd::Run>(&c)) { running = p->on; return true; }
+        if (const auto* p = std::get_if<cmd::Chat>(&c)) { talking = { p->npc, -1, -1 }; return true; }
         return false;
     }
 

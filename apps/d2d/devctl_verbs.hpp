@@ -142,7 +142,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             std::tie(t.player.x, t.player.y) = t.level->nearest_free(t.level->warps[i].x + 0.5f, t.level->warps[i].y + 1.5f);
             t.target_x = t.player.x; t.target_y = t.player.y;
             t.player.walking = false;
-            t.take_warp = int(i);
+            t.world.take_warp = int(i);
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "objects" && t.level) {   // shrines / chests: index, cell, kind, shrine row, mode
@@ -388,7 +388,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " items=" + std::to_string(cc.items.size())
              + " held=" + (t.held ? t.held->code : "-")
              + " unid=" + std::to_string(d2d::rules::unidentified(cc.items))
-             + " merc=" + (t.merc ? std::format("{:.1f},{:.1f}", t.merc->x, t.merc->y) + ":" + t.merc_npc->code : std::string("-"))
+             + " merc=" + (t.merc ? std::format("{:.1f},{:.1f}", t.merc->x, t.merc->y) + ":" + t.world.merc_npc->code : std::string("-"))
              + " menu=" + std::to_string(t.npc_menu.npc >= 0 ? int(t.npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(t.automap.open ? int(t.automap.cells.size()) : 0)
              + " speech=" + std::to_string(t.speech.npc >= 0 ? int(t.speech.lines.size()) : 0)

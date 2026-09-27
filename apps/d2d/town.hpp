@@ -64,25 +64,21 @@ struct Town {
     const Scene* scene = nullptr;
     CharCreateUI& cc;                      // the in-game character (save, items, stats)
     World world;                           // the game server's side (in-process: single player)
-    const Level*& level = world.level;     // where the character is: the town, the Blood Moor, the Den of Evil
-    UnitState& player = world.player;      // the camera follows
+    const Level* level = nullptr;          // where the character is (the View's): the town, the Blood Moor, the Den of Evil
+    d2d::rules::Rng rng{ 0x7f4a7c15u };    // the client's own rolls (which gossip, sound variations)
+    Cues cues{ scene };                    // the world's sounds the View brought, due to play
+    // The World's state by name, for the devctl verbs (admin and tests, on
+    // the server's side); the client itself reads only `view`.
+    UnitState& player = world.player;
     std::vector<UnitState>& npc_states = world.npc_states;
     std::optional<UnitState>& merc = world.merc;
-    const Npc*& merc_npc = world.merc_npc;
-    bool& running = world.running;         // R toggles, like D2's run/walk button
-    d2d::rules::Rng& rng = world.rng;
-    Cues& cues = world.cues;
     Loot& loot = world.loot;
     Fight& fight = world.fight;
-    std::map<std::pair<const Level*, int>, std::uint32_t>& operated = world.operated;
-    std::vector<World::Fire>& fires = world.fires;
     float& target_x = world.target_x;
     float& target_y = world.target_y;
-    int& take_warp = world.take_warp;
-    int& interact_npc = world.interact_npc;
-    int& pick_item = world.pick_item;
     LocalTransport net;                    // the commands to the World, as their wire form (single player)
     View view;                             // what the World told the client after its last tick
+    int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
     float cam_x = 0, cam_y = 0;            // where the camera is this frame
@@ -116,17 +112,25 @@ struct Town {
 
     Town(const Scene* s, CharCreateUI& c, int start_x = -1, int start_y = -1)
         : scene(s), cc(c), world(s, start_x, start_y) {
-        have_world = level && !level->dt1s.empty();
+        have_world = world.level && !world.level->dt1s.empty();
         view = world.view();
+        level = view.level;
     }
 
     // What the World tells the client: its View, over as bytes too. The
     // character in it becomes the client's (the panels draw it); the store
     // keeps the client's tab and buttons.
     void publish() {
-        net.to_client = encode_view(*scene, world.view());
+        auto out = world.view();
+        out.sounds = std::move(world.cues.due);
+        world.cues.due.clear();
+        out.events = std::move(world.events);
+        world.events.clear();
+        net.to_client = encode_view(*scene, out);
         if (auto v = decode_view(*scene, net.to_client)) view = std::move(*v);
         else { d2d::log::warn("a View didn't decode ({} bytes)", net.to_client.size()); return; }
+        level = view.level;
+        cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
         if (!view.has_character) return;
         cc.header = view.header; cc.stats = view.stats; cc.items = view.items;
         cc.expansion = view.header.expansion();
@@ -149,8 +153,6 @@ struct Town {
     void enter() {
         world.enter(cc);
         skillbar.new_game();
-        if (const auto m = scene->mercs.find(cc.header.merc_type); merc && m != scene->mercs.end())
-            merc_label = merc_name(*scene, m->second, cc.header.merc_name);
         publish();
     }
 
@@ -180,12 +182,12 @@ struct Town {
         for (const auto k : keys_this_frame) {
             if (k == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (k == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
-            if (k == SDLK_R) running = !running;              // D2's run/walk toggle
+            if (k == SDLK_R) net.send(cmd::Run{ !view.running });   // D2's run/walk toggle
             skillbar.key(k, mouse.x, mouse.y);                // F1-F8
             if (k == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
-            if (k == SDLK_ESCAPE && fight.dead()) { if (fight.pmode == kModeDD) world.respawn(ms); continue; }
+            if (k == SDLK_ESCAPE && view.dead) { net.send(cmd::Resurrect{}); continue; }
             if (k >= SDLK_1 && k <= SDLK_4) net.send(cmd::UseBelt{ int(k - SDLK_1) });
             if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             if (k == SDLK_ESCAPE) {
@@ -279,10 +281,11 @@ struct Town {
         // "cancel" so far — every entry closes it), anything else
         // closes it. ponytail: talk/trade/hire/gamble not built.
         bool menu_click = false;
-        automap_reveal(*scene, *level, automap, player.x, player.y);
+        const auto& me = view.player;
+        automap_reveal(*scene, *level, automap, me.x, me.y);
         for (const auto& n : level->nearby)                   // what's in view across the edge
             if (n.level->layer == level->layer)
-                automap_reveal(*scene, *n.level, automap, player.x - float(n.dx), player.y - float(n.dy));
+                automap_reveal(*scene, *n.level, automap, me.x - float(n.dx), me.y - float(n.dy));
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.
         if (speech.npc < 0 && audio.voice.src) audio.stop_voice();
@@ -315,8 +318,8 @@ struct Town {
             const int npc_menu_arg = li >= 0 ? npc_menu.lines[std::size_t(li)].arg : -1;
             const int who = npc_menu.npc;
             const auto& n = level->npcs[std::size_t(who)];
-            const auto& st = npc_states[std::size_t(who)];
-            const float dx = (n.path.empty() ? n.x : st.x) - player.x, dy = (n.path.empty() ? n.y : st.y) - player.y;
+            const auto& st = view.npc_states[std::size_t(who)];
+            const float dx = (n.path.empty() ? n.x : st.x) - view.player.x, dy = (n.path.empty() ? n.y : st.y) - view.player.y;
             const int sx = int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int sy = int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
             npc_menu = {};
@@ -416,7 +419,7 @@ struct Town {
         const bool bar_click = skillbar.click(mouse);
         const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
         if (have_world) walk(mouse, over_ui, ms, last_ms);
-        cues.play(audio, player.x, player.y, rng, ms);
+        cues.play(audio, view.player.x, view.player.y, rng, ms);
         draw(fb, mouse, ms);
     }
 
@@ -472,7 +475,11 @@ struct Town {
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
         for (const auto& [id, v] : view.boost) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = v });
-        world.talking = { npc_menu.npc, speech.npc, store.npc };
+        // The NPC the client's talking with (it stands meanwhile), when that changes.
+        if (const int talk = npc_menu.npc >= 0 ? npc_menu.npc : speech.npc >= 0 ? speech.npc : store.npc; talk != talking_sent) {
+            net.send(cmd::Chat{ talk });
+            talking_sent = talk;
+        }
         for (const auto& c : input(mouse, over_ui)) net.send(c);
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
@@ -484,11 +491,11 @@ struct Town {
             world_ms += kTickMs;
             ticked = true;
         }
-        if (ticked || view.level != level) publish();
-        // What the World said, handled once the View it goes with is here
-        // (the hire list's offers come in the View).
-        for (const auto& e : world.events) handle(e, ms);
-        world.events.clear();
+        if (!ticked && view.level == world.level) return;
+        publish();
+        // What the World said, handled once the View it came in is here
+        // (the hire list's offers come with it).
+        for (const auto& e : view.events) handle(e, ms);
         if (ms - world_ms >= kTickMs) world_ms = ms - (ms - world_ms) % kTickMs;
     }
 
@@ -500,8 +507,8 @@ struct Town {
                 automap = std::move(other_automaps[level->layer]);
                 if (lc->keep_map) automap.open = other_automaps[lc->from->layer].open;
             }
-            hovered_npc = pick_item = -1;
-            prev_x = player.x; prev_y = player.y;           // no slide across levels
+            hovered_npc = -1;
+            prev_x = view.player.x; prev_y = view.player.y;   // no slide across levels
             npc_menu = {}; store = {}; speech = {}; waypoint = {};
             level_ms = ms;                                  // its song comes in 3 s later
             return;
@@ -520,8 +527,8 @@ struct Town {
         }
         // The NPC's feet on screen, as render_world projects them.
         const auto& o = level->npcs[std::size_t(ui.npc)];
-        const auto& st = npc_states[std::size_t(ui.npc)];
-        const float dx = (o.path.empty() ? o.x : st.x) - player.x, dy = (o.path.empty() ? o.y : st.y) - player.y;
+        const auto& st = view.npc_states[std::size_t(ui.npc)];
+        const float dx = (o.path.empty() ? o.x : st.x) - view.player.x, dy = (o.path.empty() ? o.y : st.y) - view.player.y;
         npc_menu = open_npc_menu(*scene, *level, ui.npc,
             int(kW) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
             int(kH) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),

@@ -127,6 +127,13 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v) {
             for (const auto& tab : st.tabs) wire::items(o, tab, *s.item_tables);
         }
     }
+    o.u16(int(v.events.size()));
+    for (const auto& e : v.events) {
+        if (const auto* lc = std::get_if<ev::LevelChanged>(&e)) o.u8(0).i32(lc->from ? lc->from->id : -1).u8(lc->keep_map);
+        else { const auto& ui = std::get<ev::OpenUI>(e); o.u8(1).u8(int(ui.kind)).i32(ui.npc); }
+    }
+    o.u16(int(v.sounds.size()));
+    for (const auto& c : v.sounds) o.u32(c.at).i32(c.sound).f32(c.x).f32(c.y);
     o.u16(int(v.hire_offers.size()));
     for (const auto& h : v.hire_offers)
         o.i32(h.id).i32(h.level).i32(h.life).i32(h.str).i32(h.dex).i32(h.cost).i32(h.def).i32(h.dmg_min).i32(h.dmg_max)
@@ -213,6 +220,22 @@ inline std::optional<View> decode_view(const Scene& s, std::span<const std::uint
             v.store = std::move(st);
         }
     } else if (n > 0) return std::nullopt;
+    for (int k = u16(); k > 0 && in.ok; --k) {
+        if (u8() == 0) {
+            const Level* from = level_of(s, i32());
+            const bool keep = u8();
+            if (from) v.events.push_back(ev::LevelChanged{ from, keep });
+        } else {
+            const auto kind = ev::OpenUI::Kind(u8());
+            v.events.push_back(ev::OpenUI{ kind, i32() });
+        }
+    }
+    for (int k = u16(); k > 0 && in.ok; --k) {
+        const auto at = u32();
+        const int snd = i32();
+        const float x = f32(), y = f32();
+        v.sounds.push_back({ at, snd, x, y });
+    }
     for (int k = u16(); k > 0 && in.ok; --k) {
         d2d::rules::MercOffer h;
         h.id = i32(); h.level = i32(); h.life = i32(); h.str = i32(); h.dex = i32(); h.cost = i32(); h.def = i32();

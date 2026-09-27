@@ -11,7 +11,8 @@ int main() {
         cmd::Interact{ 9 }, cmd::Pickup{ 41 }, cmd::Resurrect{}, cmd::StatPoint{ 3, 5 }, cmd::SkillPoint{ 12 },
         cmd::SelectSkill{ 98, false }, cmd::UseBelt{ 2 }, cmd::ToCursor{ 17 }, cmd::ToGrid{ 5, -1, 3 }, cmd::ToBody{ 4 },
         cmd::ToBelt{ 7 }, cmd::OpenTrade{ 3, true }, cmd::OpenTrade{ 3, false }, cmd::OpenHire{ 8 }, cmd::Buy{ 2 },
-        cmd::Sell{ 55 }, cmd::Repair{ -1 }, cmd::Identify{}, cmd::Hire{ 1 }, cmd::CloseTrade{} };
+        cmd::Sell{ 55 }, cmd::Repair{ -1 }, cmd::Identify{}, cmd::Hire{ 1 }, cmd::CloseTrade{}, cmd::Run{ true }, cmd::Run{ false },
+        cmd::Chat{ 4 }, cmd::Chat{ -1 } };
     for (const auto& c : all) {
         const auto b = encode(c);
         const auto back = decode(b);

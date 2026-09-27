@@ -65,12 +65,18 @@ struct Repair { int item = -1; };
 struct Identify {};
 struct Hire { int offer = -1; };
 struct CloseTrade {};
+// 0x53 / 0x54: run or walk.
+struct Run { bool on = false; };
+// 0x2f: the NPC the player's talking with (its menu, speech or store open;
+// it stands meanwhile), -1 none.
+struct Chat { int npc = -1; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt,
                              cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
-                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade>;
+                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade,
+                             cmd::Run, cmd::Chat>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -144,6 +150,8 @@ inline std::vector<std::uint8_t> encode(const Command& c) {
         else if constexpr (std::is_same_v<T, cmd::Identify>) o.u8(0x34);
         else if constexpr (std::is_same_v<T, cmd::Hire>) o.u8(0x36).i32(m.offer);
         else if constexpr (std::is_same_v<T, cmd::CloseTrade>) o.u8(0x30);
+        else if constexpr (std::is_same_v<T, cmd::Run>) o.u8(m.on ? 0x53 : 0x54);
+        else if constexpr (std::is_same_v<T, cmd::Chat>) o.u8(0x2f).i32(m.npc);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, c);
     return o.b;
@@ -179,6 +187,8 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
         case 0x34: c = cmd::Identify{}; break;
         case 0x36: c = cmd::Hire{ i32() }; break;
         case 0x30: c = cmd::CloseTrade{}; break;
+        case 0x53: case 0x54: c = cmd::Run{ b[0] == 0x53 }; break;
+        case 0x2f: c = cmd::Chat{ i32() }; break;
         default: return std::nullopt;
     }
     if (!in.ok || in.at != b.size()) return std::nullopt;
