@@ -161,7 +161,17 @@ struct Scene {
     // character's starting gear — through `comp` (components/compcode).
     struct PlayerAnim {
         d2d::cof::Cof                     cof;
-        std::array<d2d::dcc::Sprite, 16>  layers;
+        // Each layer's DCC file, decoded when it's first drawn: the World
+        // reads only the COF and timings (a mode's length, its hit frame).
+        mutable std::array<std::vector<std::byte>, 16> dcc;
+        mutable std::array<d2d::dcc::Sprite, 16>       decoded;
+        [[nodiscard]] const d2d::dcc::Sprite& layer(std::size_t t) const {
+            if (!dcc[t].empty()) {
+                try { decoded[t] = d2d::dcc::Sprite(dcc[t]); } catch (const std::exception& e) { d2d::log::warn("{} layer {}: {}", name, t, e.what()); }
+                dcc[t] = {};
+            }
+            return decoded[t];
+        }
         std::string                       name;       // COF base name, e.g. "AITW1HS"
         std::uint32_t                     speed = 0;  // animdata.d2 rate (256 = a frame per tick)
         std::uint32_t                     frames = 0; // animdata.d2 frames per direction

@@ -17,6 +17,9 @@ set(STORM_USE_BUNDLED_LIBRARIES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(stormlib)
 # Third-party: its warnings aren't ours to fix.
 target_compile_options(storm PRIVATE $<IF:$<C_COMPILER_ID:MSVC>,/w,-w>)
+# Optimised in every build: a Debug d2d spent ~1 s of its start in StormLib
+# at -O0 (listfiles, decompression). (MSVC's Debug /RTC1 refuses /O2.)
+target_compile_options(storm PRIVATE $<$<AND:$<CONFIG:Debug>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-O2>)
 
 add_library(mpq INTERFACE)
 target_link_libraries(mpq INTERFACE storm)

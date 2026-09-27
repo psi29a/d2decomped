@@ -215,6 +215,10 @@ void Channel::pump() {
         if (c < 0) break;
         const int flags = ::fcntl(c, F_GETFL, 0);
         ::fcntl(c, F_SETFL, flags | O_NONBLOCK);
+        // The old client may have read its reply and hung up since the
+        // drain above (a fast poller reconnects within one pump).
+        if (char b; impl_->client_fd >= 0 && impl_->rx_buf.empty() && ::recv(impl_->client_fd, &b, 1, MSG_PEEK) == 0)
+            impl_->close_client();
         if (impl_->client_fd >= 0) {
             const char busy[] = "err busy\n";
             (void)::send(c, busy, sizeof(busy) - 1, 0);

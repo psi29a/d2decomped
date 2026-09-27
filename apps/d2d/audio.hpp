@@ -38,6 +38,9 @@ struct Audio {
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads).
     std::future<std::optional<Decoded>> music_job;
+    // Replaced jobs still running: an async future's destructor waits for
+    // its task, so they're let finish here instead of on the frame.
+    std::vector<std::future<std::optional<Decoded>>> music_dropped;
     int music_job_sound = 0;
     float music_job_gain = 1.f;
     std::unordered_map<std::string, std::vector<std::byte>> file_cache;
@@ -144,6 +147,7 @@ struct Audio {
         music_job_sound = id;
         music_job_gain = gain;
         music_job_loop = loop;
+        if (music_job.valid()) music_dropped.push_back(std::move(music_job));
         music_job = std::async(std::launch::async, [dir = s.data_dir, path = std::move(path)]() -> std::optional<Decoded> {
             d2d::mpq::Stack st;
             for (const char* n : { "d2xmusic.mpq", "d2music.mpq" })
@@ -238,6 +242,7 @@ struct Audio {
 
     // Land a finished music job; free one-shots that have played out.
     void update() {
+        std::erase_if(music_dropped, [](const auto& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; });
         if (music_job.valid() && music_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto d = music_job.get();
             if (!d) d2d::log::warn("music {}: not loaded", music_job_sound);

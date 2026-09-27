@@ -84,7 +84,8 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
     // 25 ticks/s; each tick advances speed/256 frames.
     const auto ms_per_frame = p.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
-    for (const auto& spr : p.layers) {
+    for (std::size_t t = 0; t < p.dcc.size(); ++t) {
+        const auto& spr = p.layer(t);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
         const auto& f = spr.frame(dir, frame);
         r = { std::min(r[0], ax + f.box_left), std::min(r[1], ay + f.box_top),
@@ -338,8 +339,8 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     const auto ms_per_frame = p.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (const auto type : p.cof.priority(dir, frame)) {
-        if (type >= p.layers.size()) continue;
-        const auto& spr = p.layers[type];
+        if (type >= p.dcc.size()) continue;
+        const auto& spr = p.layer(type);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
         blit_dcc_frame(fb, spr.frame(dir, frame), pal, anchor_x, anchor_y);
     }

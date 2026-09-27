@@ -303,7 +303,10 @@ try:
 
     # Leaving camp (default map seed 3: the Blood Moor east of the town,
     # townE1): from the west end of the town's bridge (row 16), walk east
-    # across it into the Blood Moor; its west edge leads back.
+    # across it into the Blood Moor; its west edge leads back. On normal:
+    # the first real save (the last played) may be a Hell character whose
+    # merc and self die to the Fallen before the attack below lands.
+    cmd("debug difficulty 0"); frames(6)
     lv = cmd("debug level").split()
     assert lv[1] == "1", lv
     cmd("debug warp 44.5 16.5"); frames(6)
@@ -331,7 +334,7 @@ try:
         if cur[5].split("/")[0] != cur[5].split("/")[1]:
             break
         cmd(f"cmd skill 0 {cur[1]} {cur[2]} {uid} 1"); frames(20)
-    assert cur[5].split("/")[0] != cur[5].split("/")[1], f"cmd skill didn't hurt {cur}"
+    assert cur[5].split("/")[0] != cur[5].split("/")[1], f"cmd skill didn't hurt {cur}; the player: {cmd('state').splitlines()[0]}; {cmd('debug level')}"
     lv = cmd("debug level").split()
     cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
     assert cmd("debug level").split()[1] == "1"

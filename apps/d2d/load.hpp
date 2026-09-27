@@ -3,6 +3,9 @@
 
 #include "ui.hpp"
 
+#include <atomic>
+#include <thread>
+
 namespace {
 
 // Forward decl — full body lives after Scene{} construction so it can use
@@ -98,7 +101,7 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
             std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%s%s%s%s.dcc)",
                           cc, kLayerCode[L.type], cc, kLayerCode[L.type], code.c_str(),
                           kModeCode[mode], lw.c_str());
-            if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
+            if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
         }
     } catch (const std::exception& e) {
         d2d::log::warn("{}: {}", path, e.what());
@@ -142,7 +145,7 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
             std::snprintf(path, sizeof(path), R"(data\global\%s\%s\%s\%s%s%s%s%s.dcc)",
                           n.root.c_str(), n.code.c_str(), kLayerCode[L.type], n.code.c_str(),
                           kLayerCode[L.type], comp.c_str(), mode.c_str(), lw.c_str());
-            if (auto d = mpqs.try_read(path)) out.layers[L.type] = d2d::dcc::Sprite(*d);
+            if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
         }
     } catch (const std::exception& e) {
         d2d::log::warn("{}: {}", path, e.what());
@@ -397,6 +400,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 for (const char* c : { "SubMissile1", "HitSubMissile1" })
                     if (const std::string n(mt.get(r, c)); !n.empty()) more |= skill_missiles.emplace(n).second;
     }
+    std::vector<std::pair<Scene::MissileInfo*, std::vector<std::byte>>> cels;
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
@@ -422,10 +426,19 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             mi.emax_lev[std::size_t(i)] = g("MaxELev" + std::to_string(i + 1));
         }
         for (int i = 0; i < 3; ++i) mi.elen_lev[std::size_t(i)] = g("ELevLen" + std::to_string(i + 1));
-        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) {
-            try { mi.dcc = d2d::dcc::Sprite(*b); } catch (const std::exception& e) { d2d::log::warn("missile {}: {}", name, e.what()); }
-        }
-        scene.missiles.emplace(name, std::move(mi));
+        auto& slot = scene.missiles.emplace(name, std::move(mi)).first->second;
+        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) cels.emplace_back(&slot, std::move(*b));
+    }
+    // Their DCCs decode on every core (the reads above stay on this thread:
+    // StormLib handles aren't shared).
+    {
+        std::atomic<std::size_t> next = 0;
+        std::vector<std::jthread> pool(std::max(1u, std::thread::hardware_concurrency()));
+        for (auto& t : pool) t = std::jthread([&] {
+            for (std::size_t i; (i = next++) < cels.size();)
+                try { cels[i].first->dcc = d2d::dcc::Sprite(cels[i].second); }
+                catch (const std::exception& e) { d2d::log::warn("missile {}: {}", cels[i].first->name, e.what()); }
+        });
     }
     // SuperUniques.txt: name (string key), Class, minions.
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
