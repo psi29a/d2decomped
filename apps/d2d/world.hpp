@@ -32,6 +32,29 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
     }
 }
 
+// A shadow tile (orientation 13), Blended Shadows on (the Video Options
+// default): through the palette's alpha table 0 (PL2 +0x3500), a quarter
+// of the tile over three quarters of the ground, unlit (driver +0xa4,
+// callback FUN_004f82d0 at alpha 0xc0).
+// ponytail: the mix in RGB, not the table's nearest palette colour.
+void blit_dt1_shadow(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t,
+                     const d2d::palette::Palette& pal, int sx, int sy) {
+    const int th = std::abs(t.height);
+    for (int y = 0; y < th; ++y) {
+        const int py = sy + y;
+        if (py < 0 || py >= int(kH)) continue;
+        const auto* row = t.pixels.data() + std::size_t(y) * t.width;
+        for (int x = 0; x < t.width; ++x) {
+            const std::uint8_t idx = row[x];
+            const int px = sx + x;
+            if (idx == 0 || px < 0 || px >= int(kW)) continue;
+            const auto c = pal[idx];
+            auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            p[0] = std::uint8_t((p[0] * 3 + c.r) / 4); p[1] = std::uint8_t((p[1] * 3 + c.g) / 4); p[2] = std::uint8_t((p[2] * 3 + c.b) / 4);
+        }
+    }
+}
+
 // A frame's light (docs/research/re/lighting.md): the grid round the
 // player and the palette at each of its 32 levels. game.exe shades a
 // tile's 32-pixel blocks between the light at their corners, a subtile's
@@ -125,6 +148,7 @@ struct Unit {
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
+    bool shadow = true;                  // a composite casts one (players, monsters; MonStats2 Shadow), objects don't
 };
 
 // `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque).
@@ -132,6 +156,9 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb, const d2d::dcc::Frame& f,
                     const d2d::palette::Palette& pal, int anchor_x, int anchor_y, int trans = 0);
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
+void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
+                      int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
+
 const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& s, std::uint32_t elapsed) {
     if (s.directions() == 0 || s.frames_per_direction() == 0) return nullptr;
     return &s.frame(0, std::min<std::uint32_t>(elapsed / 40, s.frames_per_direction() - 1));
@@ -203,7 +230,8 @@ void render_world(std::vector<std::uint8_t>& fb,
         const int th = std::abs(t.height);
         const int sx = iso_x - t.width / 2;
         const int sy = iso_y - (th - kIsoH);
-        if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, t.type == 0 || t.type == 13);
+        if (t.type == 13) blit_dt1_shadow(fb, t, pal, sx, sy);
+        else if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, t.type == 0);
         else blit_dt1_tile(fb, t, pal, sx, sy);
     };
 
@@ -253,9 +281,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                     blit_cell(gx, gy, *t);
             }
 
-            // Shadow layer — 50% alpha decals under characters/objects.
-            // For MVP we blit them as regular tiles (index-0 transparent);
-            // proper Pl2 blend50 compositing is a follow-up.
+            // Shadow layer: blended over the floor (blit_dt1_shadow).
             for (const auto& sh : cm.shadows()) {
                 const auto& c = sh.cells[off];
                 if (c.hidden) continue;
@@ -266,6 +292,19 @@ void render_world(std::vector<std::uint8_t>& fb,
         }
     }
 
+    // Units' shadows, on the ground under the walls and units (the floor
+    // pass FUN_004df510 → FUN_004dc7b0).
+    {
+        static std::vector<std::uint16_t> mask(std::size_t(kW) * kH, 0);
+        static std::uint16_t id = 0;
+        for (const auto& u : units) {
+            if (!u.anim || !u.shadow) continue;
+            const auto [ax, ay] = iso_point(u.x, u.y);
+            if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
+            if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
+            shadow_composite(fb, *u.anim, u.dir, std::uint32_t(float(elapsed_ms - u.mode_ms) * u.rate), ax, ay, mask, id);
+        }
+    }
     set_phase(MainPhase::IngameWalls);
     // Walls / trees / roofs — same row-major sweep, per-cell one-pass
     // draw. All non-floor orientation types share the same iso
@@ -412,9 +451,9 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
 // ponytail: COF speed as the rate; AnimData.d2 is authoritative — read it
 // when an animation visibly runs at the wrong pace. No shadow, no
 // transparent-layer draw effects yet (no TN layer sets `transparent`).
-void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
-                    const d2d::palette::Palette& pal, int dir_want,
-                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y) {
+// Each layer's frame of a composite at `elapsed_ms`, in the COF's
+// per-(direction, frame) draw order.
+template <class Fn> void composite_frames(const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms, Fn&& fn) {
     const auto dirs = p.cof.directions();
     const auto fpd  = p.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return;
@@ -426,8 +465,43 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
         if (type >= p.dcc.size()) continue;
         const auto& spr = p.layer(type);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        blit_dcc_frame(fb, spr.frame(dir, frame), pal, anchor_x, anchor_y);
+        fn(spr.frame(dir, frame));
     }
+}
+
+void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+                    const d2d::palette::Palette& pal, int dir_want,
+                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y) {
+    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f) { blit_dcc_frame(fb, f, pal, anchor_x, anchor_y); });
+}
+
+// A unit's shadow (driver +0x90, 0x5122e0 → FUN_00608d60): each frame
+// from its bottom row up, every other row, a row up and a pixel left each
+// time — half as tall, leaning up and left — its pixels darkening the
+// ground through alpha table 0 as T[ground][0]: a quarter of the ground's
+// colour (Blended Shadows on; off it's black). `mask` / `id`: a pixel
+// darkens once however many layers cover it.
+// ponytail: the darkening in RGB, not the table's palette colour.
+void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
+                      int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id) {
+    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f) {
+        const int bottom = f.box_top + f.height - 1;              // the frame's bottom row, from the anchor
+        const int x0 = anchor_x + f.box_left + bottom / 2, y0 = anchor_y + bottom / 2;
+        for (std::int32_t r = 0; r < f.height; r += 2) {          // rows up from the bottom
+            const int py = y0 - r / 2;
+            if (py < 0 || py >= int(kH)) continue;
+            const auto* row = f.pixels.data() + std::size_t(f.height - 1 - r) * f.width;
+            for (std::int32_t x = 0; x < f.width; ++x) {
+                const int px = x0 + x - r / 2;
+                if (row[x] == 0 || px < 0 || px >= int(kW)) continue;
+                auto& m = mask[std::size_t(py) * kW + std::size_t(px)];
+                if (m == id) continue;
+                m = id;
+                auto* q = fb.data() + (std::size_t(py) * kW + std::size_t(px)) * 4;
+                q[0] = std::uint8_t(q[0] / 4); q[1] = std::uint8_t(q[1] / 4); q[2] = std::uint8_t(q[2] / 4);
+            }
+        }
+    });
 }
 
 }  // namespace

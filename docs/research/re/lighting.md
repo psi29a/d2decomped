@@ -107,6 +107,25 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   only. The RGB is for Glide / Direct3D (coloured light is on by default,
   0x712b8c, a debug key toggles it).
 
+## Shadows
+
+- **Options:** Video Options "Blended Shadows" (registry, default on;
+  `FUN_004f5200` sets 0x72da5c) and "Light Quality" (the grid's shadows).
+- **The alpha tables:** PL2 +0x3500, three 256 × 256 tables (D2WinPalette
+  copies them to 0x7ee468.. and hands the driver pointers in that order,
+  `FUN_004fb010`). Table k mixes T[a][b] = a · (1 − w) + b · w with
+  w = 0xbf, 0x7f, 0x3f / 255 (`FUN_00605880`), nearest palette colour.
+- **Tile shadows** (orientation 13): driver +0xa4 (0x512f90) draws each
+  block through callback `FUN_004f82d0` at alpha 0xc0 → table 0 as
+  T[tile][ground]: a quarter of the tile over three quarters of the ground,
+  unlit. With Blended Shadows off, opaque.
+- **Unit shadows:** driver +0x90 (0x5122e0 → `FUN_00601730` →
+  `FUN_00608d60`) draws the frame from its bottom row up, every other row,
+  each output row one up and one left: half as tall, leaning up-left from
+  (x + xoff + yoff / 2, y + yoff / 2). Each pixel becomes T0[ground][0]:
+  a quarter of the ground (black when not blended). MonStats2 Shadow says
+  which monsters cast one (all of them in 1.14d).
+
 ## d2d
 
 - `Day` steps in the World a tick at a time and goes to the client in the
@@ -119,6 +138,10 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   where it crosses the diamond's middle). Units take the level at their
   feet; additive missiles and overlays aren't lit.
 
-ponytail, not yet: shadows (walls blocking light), the light radius
+- Tile shadows blend at a quarter (`blit_dt1_shadow`); players', NPCs'
+  and monsters' composites cast shadows after the floor pass
+  (`shadow_composite`), each pixel once however many layers cover it.
+
+ponytail, not yet: walls blocking light, the light radius
 items give, lights easing to a new radius, Act 3 / 4 days, the Den's
 lighting once it's cleared.

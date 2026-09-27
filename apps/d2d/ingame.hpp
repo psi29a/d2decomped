@@ -67,6 +67,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             static const std::string none;
             units.push_back({ x, y, &anim, st ? st->dir : 0, st && !st->mode.empty() && n.root == "objects" ? &none : &n.name, st ? st->mode_ms : 0, int(i) });
             if (st && st->alert) units.back().overlay = &s.npc_alert;
+            units.back().shadow = n.root != "objects";
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
         // gate, Flavie), as they stand: D2 draws the rooms round the player
@@ -81,6 +82,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                 const float x = n.x + float(nb.dx), y = n.y + float(nb.dy);
                 if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
                 units.push_back({ x, y, &s.npc_anim(n, n.mode), 0, &no_name, 0, -3 });
+                units.back().shadow = n.root != "objects";
             }
         if (merc && merc_state)                    // npc -2: not an NPC-menu unit
             units.push_back({ merc_state->x, merc_state->y,
