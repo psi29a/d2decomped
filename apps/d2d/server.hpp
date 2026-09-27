@@ -336,6 +336,11 @@ struct World {
         cc.selected = c.selected; cc.input_name = c.input_name; cc.hardcore = c.hardcore;
         cc.appearance = c.appearance; cc.items = c.items; cc.stats = c.stats; cc.panel = c.panel;
         cc.expansion = c.expansion; cc.header = c.header;
+        // A new game starts at full life, mana and stamina, whatever the
+        // save held (D2's "save and exit to heal").
+        for (const auto [now, max] : { std::pair{ d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana },
+                                       { d2d::d2s::kStamina, d2d::d2s::kMaxStamina } })
+            cc.stats.v[now] = cc.stats.v[max];
         held.reset();
         store = {};
         spawn_merc();
