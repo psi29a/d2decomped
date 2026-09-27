@@ -101,7 +101,8 @@ jobs:
 
       - name: Install Qt6 (Windows)
         if: runner.os == 'Windows'
-        uses: jurplel/install-qt-action@v4
+        # v4.3.1: v4.4's `uses: $/action` fails the runner's template check.
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.8.*'
           host: 'windows'
@@ -120,6 +121,7 @@ jobs:
         with:
           key: ${{ matrix.os }}
           max-size: 1G
+          verbose: 2          # the stats list why a call wasn't cacheable
 
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'

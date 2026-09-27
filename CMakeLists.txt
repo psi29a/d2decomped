@@ -11,6 +11,9 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# No C++ modules here. Scanning for them (CMake's default at C++20+) puts
+# -fmodules-ts & co. on GCC's compile lines, which ccache won't cache.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -28,7 +31,9 @@ endif()
 # missing-field-initializers flags exactly that idiom. getenv is fine:
 # MSVC's _s variants aren't portable.
 if(MSVC)
-    add_compile_options(/W4 /permissive-)
+    # /bigobj: d2d is one translation unit (main.cpp and every header),
+    # past COFF's default section limit (C1128).
+    add_compile_options(/W4 /permissive- /bigobj)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-missing-field-initializers)
