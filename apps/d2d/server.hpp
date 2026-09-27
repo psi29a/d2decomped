@@ -54,6 +54,13 @@ struct World {
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
     const CharacterStore* characters = nullptr;   // where the character is saved
+    std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
+    int next_item_id = 1;                  // the next item's unit id
+    // Every item of the character has a unit id (new ones get theirs).
+    void item_ids() {
+        for (auto& it : cc.items) if (it.id < 0) it.id = next_item_id++;
+        if (held && held->id < 0) held->id = next_item_id++;
+    }
 
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
@@ -377,6 +384,29 @@ struct World {
             if (p->slot >= 0 && p->slot < 4 && !fight.dead()) fight.drink(p->slot, ms);
             return;
         }
+        // The cursor (cursor.hpp works out which from a click).
+        const auto& t = scene->rules;
+        const int cls = cc.header.cls;
+        if (const auto* p = std::get_if<cmd::ToCursor>(&c)) {
+            const auto it = std::ranges::find(cc.items, p->item, &d2d::d2s::Item::id);
+            if (!held && it != cc.items.end()) d2d::rules::pick_up(cc.items, held, std::size_t(it - cc.items.begin()));
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::ToGrid>(&c)) {
+            const auto* L = p->panel == 1 ? &scene->inv_layout[std::size_t(cls)] : p->panel == 4 ? &scene->cube_layout
+                          : p->panel == 5 ? &scene->stash_layout[cc.expansion ? 1 : 0] : nullptr;
+            if (held && L) d2d::rules::put_in_grid(t, cc.items, held, p->panel, L->cols, L->rows, p->col, p->row);
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::ToBody>(&c)) {
+            if (held && p->slot >= 1 && p->slot <= 10) d2d::rules::equip(t, cc.items, held, p->slot, wearer(cls, cc.items, cc.stats));
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::ToBelt>(&c)) {
+            const auto& B = scene->belts[std::size_t(belt_index(*scene, cc.items))];
+            if (held && p->box >= 0 && p->box < B.boxes) d2d::rules::put_in_belt(t, cc.items, held, p->box, B.boxes);
+            return;
+        }
         if (fight.pmode >= 0) return;
         const bool in_moor = level != &scene->town;
         auto walk_to = [&](float x, float y, bool fresh) {
@@ -444,6 +474,7 @@ struct World {
     // potions and regeneration.
     void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms) {
         const float dt = float(ms - last_ms) / 1000.f;
+        item_ids();
         fight.update_fighters(ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt, minutes; 0 never).

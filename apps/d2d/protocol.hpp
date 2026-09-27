@@ -33,9 +33,19 @@ struct SkillPoint { int skill = 0; };
 struct SelectSkill { int skill = 0; bool left = false; };
 // 0x26: use (drink) the belt's column `slot`.
 struct UseBelt { int slot = 0; };
+// The cursor (the item in hand is the server's): 0x19 / 0x1c / 0x24, an
+// item (by unit id) from the grid, the body or the belt into the hand;
+// 0x18 the hand's item into a grid (panel 1 inventory, 4 cube, 5 stash)
+// at (col, row), swapping with what's there; 0x1a / 0x1d onto a body slot
+// (1..10); 0x23 into a belt box.
+struct ToCursor { int item = -1; };
+struct ToGrid { int panel = 1, col = 0, row = 0; };
+struct ToBody { int slot = 0; };
+struct ToBelt { int box = 0; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
-                             cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt>;
+                             cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt,
+                             cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt>;
 
 }  // namespace

@@ -40,7 +40,7 @@ struct Town {
     std::uint32_t level_ms = 0;            // when the player entered `level`
     bool have_world = false;
     bool  stash_open = false;
-    std::optional<d2d::d2s::Item> held;   // the item on the cursor
+    std::optional<d2d::d2s::Item>& held = world.held;   // the item on the cursor (the World's)
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
@@ -154,10 +154,10 @@ struct Town {
                 d2d::rules::store_sell(scene->rules, store, cc.items.size() - 1, cc.items, cc.stats);
                 item_click = true;
             } else {
-                item_click = item_cursor_click(*scene, cc.items, held, cc.stats,
-                                               int(kUiToSaveClass[std::max(cc.selected, 0)]),
-                                               { inv_open, stash_open, cube_open, belt_open, cc.expansion },
-                                               mouse.x, mouse.y);
+                const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
+                                                    { inv_open, stash_open, cube_open, belt_open, cc.expansion }, mouse.x, mouse.y);
+                if (cl.cmd) queued.push_back(*cl.cmd);
+                item_click = cl.consumed;
             }
         }
         if (mouse.press_this_frame && over_belt && mouse.y >= b0[2] && !item_click) belt_open = !belt_open;

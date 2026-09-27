@@ -2,6 +2,7 @@
 // belt box picks up the item there, or puts the held one down.
 #pragma once
 
+#include "protocol.hpp"
 #include "store.hpp"
 
 namespace {
@@ -27,8 +28,11 @@ d2d::rules::Wearer wearer(int save_cls, const std::vector<d2d::d2s::Item>& items
 // A left click at (mx, my) with the panels in `open`: picks up or puts
 // down. Returns whether the click landed on an item spot (so it doesn't
 // also walk or toggle the belt).
-bool item_cursor_click(const Scene& s, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                       const d2d::d2s::Stats& stats, int save_cls, const OpenPanels& open, int mx, int my) {
+// A click's item action (the client's side): the command for the World
+// (protocol.hpp), and whether the click was the cursor's at all.
+struct CursorClick { bool consumed = false; std::optional<Command> cmd; };
+CursorClick item_cursor_command(const Scene& s, const std::vector<d2d::d2s::Item>& items, const std::optional<d2d::d2s::Item>& held,
+                                int save_cls, const OpenPanels& open, int mx, int my) {
     const auto& t = s.rules;
     auto inside = [&](int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; };
     // Grids: the inventory (panel 1), and the stash (5) or cube (4) on the left.
@@ -46,28 +50,23 @@ bool item_cursor_click(const Scene& s, std::vector<d2d::d2s::Item>& items, std::
             const auto [w, h] = d2d::rules::item_size(t, held->code);
             const int col = int(std::floor((mx - L->grid_x - (w - 1) * L->box_w / 2.f) / float(L->box_w)));
             const int row = int(std::floor((my - L->grid_y - (h - 1) * L->box_h / 2.f) / float(L->box_h)));
-            d2d::rules::put_in_grid(t, items, held, panel, L->cols, L->rows, col, row);
-            return true;
+            return { true, cmd::ToGrid{ panel, col, row } };
         }
-        for (std::size_t i = 0; i < items.size(); ++i) {
-            const auto& it = items[i];
+        for (const auto& it : items) {
             if (it.location != 0 || it.panel != panel) continue;
             const auto r = grid_rect(s, *L, it);
-            if (inside(r[0], r[1], r[2], r[3])) { d2d::rules::pick_up(items, held, i); break; }
+            if (inside(r[0], r[1], r[2], r[3])) return { true, cmd::ToCursor{ it.id } };
         }
-        return true;
+        return { true, {} };
     }
     if (open.inv)
         for (int slot = 1; slot <= 10; ++slot) {
             const auto& r = inv.slots[std::size_t(slot)];
             if (r[2] <= 0 || !inside(r[0], r[1], r[2], r[3])) continue;
-            if (held) {
-                d2d::rules::equip(t, items, held, slot, wearer(save_cls, items, stats));
-            } else {
-                for (std::size_t i = 0; i < items.size(); ++i)
-                    if (items[i].location == 1 && items[i].slot == slot) { d2d::rules::pick_up(items, held, i); break; }
-            }
-            return true;
+            if (held) return { true, cmd::ToBody{ slot } };
+            for (const auto& it : items)
+                if (it.location == 1 && it.slot == slot) return { true, cmd::ToCursor{ it.id } };
+            return { true, {} };
         }
     // Belt boxes: row 1 on the HUD strip, the rest with the popup open.
     const auto& B = s.belts[std::size_t(belt_index(s, items))];
@@ -75,12 +74,12 @@ bool item_cursor_click(const Scene& s, std::vector<d2d::d2s::Item>& items, std::
         if (b > 3 && !open.belt_popup) break;
         const auto& r = B.box[std::size_t(b)];
         if (r[1] <= r[0] || mx < r[0] || mx > r[1] || my < r[2] || my > r[3]) continue;
-        if (held) return d2d::rules::put_in_belt(t, items, held, b, B.boxes);
-        for (std::size_t i = 0; i < items.size(); ++i)
-            if (items[i].location == 2 && items[i].column == b) return d2d::rules::pick_up(items, held, i);
-        return false;                                      // empty box: the strip toggles the popup
+        if (held) return { true, cmd::ToBelt{ b } };
+        for (const auto& it : items)
+            if (it.location == 2 && it.column == b) return { true, cmd::ToCursor{ it.id } };
+        return {};                                         // empty box: the strip toggles the popup
     }
-    return false;
+    return {};
 }
 
 // Puts a held item back when the game is left: the first free inventory

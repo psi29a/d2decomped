@@ -62,6 +62,7 @@ struct Item {
     // bits, a tome's 5 bits (-1 none), the bit after them, durability's
     // extra bit, the set's list flags, where the runeword list starts in
     // `props` and how long each set list is; an ear's class, level and name.
+    int id = -1;                       // the game's unit id while it's in play (not saved)
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, bit_after = 0, dur_extra = 0, set_lists = 0;
     std::size_t main_props = 0;
