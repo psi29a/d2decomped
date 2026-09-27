@@ -310,7 +310,9 @@ struct GameData {
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
                          bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
-                         std::string sub, hit_sub; };
+                         std::string sub, hit_sub;
+                         int trans = 0;   // Trans (record +0x18d): 1 additive, 2 multiply (FUN_004720xx: draw modes 3 / 4)
+                       };
     std::unordered_map<std::string, MissileInfo> missiles;
     std::array<Npc, 2> trap_fires;                         // objects 162 / 160, ON (a chest's traps 5 and 7)
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)

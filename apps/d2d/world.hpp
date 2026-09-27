@@ -64,8 +64,9 @@ struct Unit {
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
 };
 
+// `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque).
 void blit_dcc_frame(std::vector<std::uint8_t>& fb, const d2d::dcc::Frame& f,
-                    const d2d::palette::Palette& pal, int anchor_x, int anchor_y);
+                    const d2d::palette::Palette& pal, int anchor_x, int anchor_y, int trans = 0);
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
 const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& s, std::uint32_t elapsed) {
@@ -239,7 +240,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                 if (dirs == 0 || fpd == 0) continue;
                 const auto frame = (elapsed_ms - u.mode_ms) * std::uint32_t(u.missile->anim_speed) / (40u * 16u)
                                    % std::min<std::uint32_t>(std::uint32_t(u.missile->anim_len), fpd);
-                blit_dcc_frame(fb, spr.frame(std::uint8_t(std::uint32_t(u.dir) % dirs), std::uint8_t(frame)), upal, ax, ay);
+                blit_dcc_frame(fb, spr.frame(std::uint8_t(std::uint32_t(u.dir) % dirs), std::uint8_t(frame)), upal, ax, ay, u.missile->trans);
                 continue;
             }
             if (u.sprite) {
@@ -301,10 +302,14 @@ void render_world(std::vector<std::uint8_t>& fb,
 // y_offset is its BOTTOM row relative to the origin (feet), so the pixel
 // block's top-left is (box_left, box_top). Palette-indexed; index 0 is
 // transparent so limbs compose cleanly over each other and over tiles.
+// Trans 1 / 2 are draw modes 3 / 4, which the software renderer blends
+// through the palette's PL2 tables (FUN_00511d70; D2WinPalette.cpp copies
+// them from PL2 +0x33500 additive and +0x43500 multiply).
+// ponytail: the same sums in RGB, not the tables' nearest palette colours.
 void blit_dcc_frame(std::vector<std::uint8_t>& fb,
                     const d2d::dcc::Frame& f,
                     const d2d::palette::Palette& pal,
-                    int anchor_x, int anchor_y) {
+                    int anchor_x, int anchor_y, int trans) {
     const int dst_x = anchor_x + f.box_left;
     const int dst_y = anchor_y + f.box_top;
     for (std::int32_t y = 0; y < f.height; ++y) {
@@ -318,7 +323,10 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
             if (px < 0 || px >= int(kW)) continue;
             const auto c = pal[idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
-            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = 0xFF;
+            if (trans == 1) { p[0] = std::uint8_t(std::min(255, p[0] + c.r)); p[1] = std::uint8_t(std::min(255, p[1] + c.g)); p[2] = std::uint8_t(std::min(255, p[2] + c.b)); }
+            else if (trans == 2) { p[0] = std::uint8_t(p[0] * c.r / 255); p[1] = std::uint8_t(p[1] * c.g / 255); p[2] = std::uint8_t(p[2] * c.b / 255); }
+            else { p[0] = c.r; p[1] = c.g; p[2] = c.b; }
+            p[3] = 0xFF;
         }
     }
 }

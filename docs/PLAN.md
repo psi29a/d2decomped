@@ -162,12 +162,13 @@ Noted while playing the dev build (2026-09-24):
 
 Noted in a playthrough (2026-09-27), to follow up:
 
-- **Crossing camp → Blood Moor pops.** The view shifts at the crossing
-  and the torches appear at once: a level's objects and NPCs are drawn
-  only while the player is on it, not across the edge from a neighbour
-  (Level::nearby covers tiles and collision only).
-- **Charged Bolt's black box.** Its sprite draws with black round it: the
-  missile's blend (Missiles.txt Trans, additive / alpha) isn't applied.
+- Fixed: **crossing camp → Blood Moor popped** — the neighbour's objects
+  draw across the edge now, and the camera's slide carries across (it
+  snapped). Left: the neighbour's NPCs (they patrol in the World only for
+  the player's level).
+- Fixed: **Charged Bolt's black box** — Missiles.txt Trans 1 / 2 are draw
+  modes 3 / 4, the PL2 additive / multiply tables (world.hpp
+  blit_dcc_frame; in RGB, not the tables).
 
 ## Wilderness plan (from 2026-09-25)
 
@@ -345,7 +346,7 @@ Act 1 levels and rendering
   (LvlWarp ExitWalk).
 - Rendering: shadows not blended, no unit shadows, no lighting / day-night
   / rain, cell-granular wall sorting, no item colour tints on composites,
-  the neighbour level's NPCs not drawn across the edge.
+  the neighbour level's NPCs not drawn across the edge (its objects are).
 
 Town
 - Warriv's "go east", waypoint travel, the hire list's widget and offer

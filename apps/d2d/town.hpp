@@ -559,7 +559,10 @@ struct Town {
                 if (lc->keep_map) automap.open = other_automaps[lc->from->layer].open;
             }
             hovered_npc = -1;
-            prev_x = view.player.x; prev_y = view.player.y;   // no slide across levels
+            // The slide carries on in the new level's cells (a warp's
+            // distance still snaps).
+            prev_x += float(lc->from->world_x - level->world_x);
+            prev_y += float(lc->from->world_y - level->world_y);
             npc_menu = {}; store = {}; speech = {}; waypoint = {};
             level_ms = ms;                                  // its song comes in 3 s later
             return;
