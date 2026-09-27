@@ -354,6 +354,22 @@ try:
 
     cmd("quit")
     assert proc.wait(timeout=10) == 0
+
+    # A new character (the char-create screen, CharStats.txt's start): made
+    # and saved at once; it enters at level 1 and its file is there.
+    proc = subprocess.Popen([d2d, "--headless", "--data", data, "--devctl", sock_path, "--start-screen", "charcreate",
+                             "--start-class", "1", "--start-name", "Newbie", "--scale", "2"], env=env)
+    for _ in range(100):
+        if os.path.exists(sock_path):
+            break
+        time.sleep(0.1)
+    frames(1)
+    cmd("click 690 555"); frames(10)          # OK
+    st = state()
+    assert st["screen"] == "ingame" and st["name"] == "Newbie" and st["level"] == "1", st
+    assert os.path.getsize(os.path.join(saves, "Newbie.d2s")) > 0x2FD
+    cmd("quit")
+    assert proc.wait(timeout=10) == 0
     print("OK")
 finally:
     if proc.poll() is None:

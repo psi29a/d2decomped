@@ -35,6 +35,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
+| `save`                      | `ok` / `err <why>`     | Save the character now (character_store.hpp), as leaving the game does. |
 | `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <item>`, `resurrect`. What a remote client would send. |
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>\t<boss>\t<mods>\tlvl<n>\t<name>\t#<unit>` per monster of the current outdoor level, then `ok` | Cells, feet on screen (while there), life, animation mode; champion / unique / superunique / minion (or -), MonUMod ids, level, name, unit id (what `cmd skill` takes). |

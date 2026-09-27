@@ -74,6 +74,7 @@ struct ItemTables {
     struct Stat { int save_bits = 0, save_add = 0, param_bits = 0, csv_bits = 0; };
     std::vector<Stat> stats;                        // by ItemStatCost ID
     std::unordered_set<std::string> armor, weapons, stackable;
+    std::unordered_set<std::string> compact;        // misc.txt compactsave: written short (simple)
 
     static ItemTables from(const txt::Table& isc, const txt::Table& armor_t,
                            const txt::Table& weapons_t, const txt::Table& misc_t) {
@@ -95,6 +96,7 @@ struct ItemTables {
                 const std::string code(tab.get(r, "code"));
                 into.insert(code);
                 if (tab.get(r, "stackable") == "1") t.stackable.insert(code);
+                if (tab.get(r, "compactsave") == "1") t.compact.insert(code);
             }
         };
         std::unordered_set<std::string> misc;

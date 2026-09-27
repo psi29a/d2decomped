@@ -1387,6 +1387,12 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
                                  per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };
+        auto& cs = scene.class_start[c];
+        cs = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(c, "StartSkill")) };
+        for (int i = 1; i <= 10; ++i)
+            if (const std::string code(charstats.get(c, "item" + std::to_string(i))); !code.empty() && code != "0")
+                cs.items.push_back({ code, std::string(charstats.get(c, "item" + std::to_string(i) + "loc")),
+                                     std::atoi(std::string(charstats.get(c, "item" + std::to_string(i) + "count")).c_str()) });
         auto& g = scene.starting_gear[c];
         g.fill(0xff);
         for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit

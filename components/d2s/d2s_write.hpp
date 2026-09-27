@@ -58,8 +58,10 @@ inline void write_props(BitWriter& w, const ItemTables& t, const ItemProp* p, st
     w.write(0x1ff, 9);
 }
 
-inline void write_item(BitWriter& w, const Item& it, const ItemTables& t) {
+inline void write_item(BitWriter& w, const Item& in, const ItemTables& t) {
     w.write(0x4d4a, 16);
+    Item it = in;
+    if (t.compact.contains(it.code)) it.simple = true;   // potions, scrolls, gems, runes: always short
     const bool ear = it.code == "ear";
     std::uint32_t f = it.flags;
     auto flag = [&](int bit, bool on) { f = on ? f | 1u << bit : f & ~(1u << bit); };

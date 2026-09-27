@@ -39,6 +39,7 @@ Done (2026-09-27, docs/PLAN.md "Networking-shaped core"):
 | Monsters were vector indices | Unit ids (`Monster::id`, `Fight::monster_index`) |
 | Clicks called game code directly | `Command`s (protocol.hpp), applied in the tick; a busy player's dropped, as game.exe's dispatcher does |
 | The World told the client things by poking its fields | `Event`s: level changed, open UI (stash, waypoint, NPC) |
+| Saves were read, never written | The World writes the character through a `CharacterStore` (character_store.hpp: the .d2s via components/d2s/d2s_write.hpp; every real save writes back byte for byte) on leaving the game or quitting; new characters get CharStats' start and are written at once |
 
 Still to change:
 
@@ -49,7 +50,6 @@ Still to change:
 | Objects and ground items named by index | Unit ids |
 | One shared `Rng` for every roll | Server-owned seeds (D2 keeps per-unit and per-room seeds) |
 | Sounds are cued by the World into `Cues`, which the client plays | Events (hit, death, drop); the client picks sounds and effects |
-| Saves are read, never written | The server writes characters (.d2s) through a `CharacterStore` |
 | Monster stats ignore player count | HP / experience / NoDrop scale with players (D2's /players setting) |
 
 ## Decision

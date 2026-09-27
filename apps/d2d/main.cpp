@@ -477,6 +477,26 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 update_button(cc.ok_btn,     mouse, screen, quit);
                 if (!cc.cancel_btn.hovered && !cc.ok_btn.hovered)
                     handle_charcreate_click(cc, mouse, ms);
+                // OK: a new character (CharStats.txt's start), saved at once so
+                // it's on the roster. A name that has a save already is refused.
+                if (screen == Screen::InGame && scene) {
+                    if (fs::exists(characters.path(cc.input_name))) {
+                        d2d::log::info("a character named {} exists already", cc.input_name);
+                        screen = Screen::CharCreate;
+                    } else {
+                        auto n = new_character(*scene, int(kUiToSaveClass[std::size_t(std::max(cc.selected, 0))]), cc.input_name,
+                                               cc.hardcore, cc.expansion, t.rng);
+                        cc.header = std::move(n.header);
+                        cc.stats = n.stats;
+                        cc.items = std::move(n.items);
+                        cc.appearance.reset();
+                        cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
+                        t.spawn_merc();
+                        t.new_game();
+                        t.save();
+                        load_saves(*scene, save_dir);
+                    }
+                }
                 advance_char_states(cc, *scene, ms);
                 render_charcreate(fb, *scene, cc, ms);
                 break;

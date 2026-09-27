@@ -276,6 +276,15 @@ struct Scene {
     // (frame 1 pressed) on PANEL\levelsocket, the PANEL\skillpoints box.
     d2d::dc6::Sprite level_button, level_socket, points_box;
     std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
+    // A new character's start (CharStats.txt): str, dex, int (energy), vit,
+    // stamina, hpadd; item1..10 with their loc and count; StartSkill.
+    struct ClassStart {
+        int str = 0, dex = 0, ene = 0, vit = 0, stamina = 0, hpadd = 0;
+        struct Item { std::string code, loc; int count = 0; };
+        std::vector<Item> items;
+        std::string start_skill;
+    };
+    std::array<ClassStart, 7> class_start{};
     // Skill tree (docs/research/re/skill-tree.md): SPELLS\skltree_<c>_back
     // (frames 0..3 the panel, 4t..4t+3 tab t on top) and <Cl>Skillicon.
     std::array<d2d::dc6::Sprite, 7> skill_tree_bg, skill_icons;   // by d2s class

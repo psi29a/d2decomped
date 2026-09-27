@@ -350,7 +350,11 @@ below, so new features land on the new structure:
    stat / skill points, the store, potions and select-skill edit the
    character or Fight directly; objects and ground items are named by
    index; one shared rng.
-3. `GameSession` with one player and a `.d2s` `CharacterStore` (saving).
+3. Saving: done (2026-09-27). `CharacterStore` (character_store.hpp) writes
+   the .d2s (components/d2s/d2s_write.hpp) when the player leaves the game
+   or quits: parse-back check, temp file + rename, a one-time .d2s.bak; the
+   19 real saves write back byte for byte (test_d2s). New characters get
+   CharStats.txt's stats, start skill and items and are saved at once.
 4. `TcpTransport`, then player-count scaling and party.
 
 ## Next up (as of 2026-09-26)

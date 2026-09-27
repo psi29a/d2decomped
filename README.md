@@ -71,7 +71,9 @@ melee skills, Armageddon and Hurricane, Blade Sentinel and Shield, the
 fire sentries and Death Sentry's blast, the vines, the Druid's spirits,
 Double Throw).
 
-It's all single-player and in memory: saves are read, never written.
+It's single-player for now. Characters are saved when you leave the game or
+quit (the .d2s, as game.exe writes it; the original is kept once as .d2s.bak),
+and new characters start with their class's CharStats gear and are saved at once.
 Not yet: levels past the Blood Moor and the Den, the unique behaviour
 mods' auras, curses and teleport, four magic shrines,
 quests, waypoint and town portal travel, the shapeshifted look. The
