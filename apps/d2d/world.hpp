@@ -32,6 +32,68 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
     }
 }
 
+// A frame's light (docs/research/re/lighting.md): the grid round the
+// player and the palette at each of its 32 levels. game.exe shades a
+// tile's 32-pixel blocks between the light at their corners, a subtile's
+// (FUN_004de260 → FUN_004f84f0) and draws a unit at the light where it
+// stands; here a pixel takes the light bilinear between the subtile
+// corners round where it lies on the ground.
+struct Lighting {
+    d2d::rules::LightGrid grid;
+    const std::array<d2d::palette::Palette, 32>* pal = nullptr;
+    // The light at (x, y), cells, 0..255.
+    [[nodiscard]] int at(float x, float y) const {
+        const float sx = x * 5, sy = y * 5;
+        const int ix = int(std::floor(sx)), iy = int(std::floor(sy));
+        const float fx = sx - float(ix), fy = sy - float(iy);
+        const auto a = float(grid.at(ix, iy)), b = float(grid.at(ix + 1, iy));
+        const auto c = float(grid.at(ix, iy + 1)), d = float(grid.at(ix + 1, iy + 1));
+        return int((a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy);
+    }
+    [[nodiscard]] const d2d::palette::Palette& palette(float x, float y) const { return (*pal)[std::size_t(at(x, y) >> 3)]; }
+};
+
+// A DT1 tile of cell (gx, gy) lit: a floor's pixel by where it lies in the
+// cell's diamond, a wall's column by where it crosses the diamond's middle,
+// between the cell's 6 x 6 subtile corners. One level for the tile when
+// they share it.
+void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, const Lighting& light,
+                       int sx, int sy, int gx, int gy, bool floor) {
+    std::array<float, 36> c{};
+    int lo = 255, hi = 0;
+    for (int j = 0; j < 6; ++j)
+        for (int i = 0; i < 6; ++i) {
+            const int v = light.grid.at(gx * 5 + i, gy * 5 + j);
+            c[std::size_t(j * 6 + i)] = float(v);
+            lo = std::min(lo, v); hi = std::max(hi, v);
+        }
+    const auto& pals = *light.pal;
+    if (lo >> 3 == hi >> 3) { blit_dt1_tile(fb, t, pals[std::size_t(lo >> 3)], sx, sy); return; }
+    auto level = [&](float u, float v) {             // u, v: the cell's diamond, 0..1 each way
+        const float a = std::clamp((u + v) * 5, 0.f, 4.999f), b = std::clamp((v - u) * 5, 0.f, 4.999f);
+        const int i = int(a), j = int(b);
+        const float fa = a - float(i), fb2 = b - float(j);
+        const float* q = &c[std::size_t(j * 6 + i)];
+        return std::size_t(int((q[0] + (q[1] - q[0]) * fa) * (1 - fb2) + (q[6] + (q[7] - q[6]) * fa) * fb2) >> 3);
+    };
+    const int th = std::abs(t.height);
+    for (int y = 0; y < th; ++y) {
+        const int py = sy + y;
+        if (py < 0 || py >= int(kH)) continue;
+        const auto* row = t.pixels.data() + std::size_t(y) * t.width;
+        const float v = floor ? float(y - (th - kIsoH)) / kIsoH : 0.5f;
+        for (int x = 0; x < t.width; ++x) {
+            const std::uint8_t idx = row[x];
+            if (idx == 0) continue;
+            const int px = sx + x;
+            if (px < 0 || px >= int(kW)) continue;
+            const auto col = pals[level(float(x - kIsoW / 2) / kIsoW, v)][idx];
+            auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            p[0] = col.r; p[1] = col.g; p[2] = col.b; p[3] = 0xFF;
+        }
+    }
+}
+
 // Render the loaded DS1 onto the framebuffer around the camera point
 // (cam_x, cam_y), in cells. Draws in D2's back-to-front Z order:
 //   1. All floor tiles (type=0) in row order — the ground plane
@@ -103,7 +165,8 @@ void render_world(std::vector<std::uint8_t>& fb,
                   std::uint32_t elapsed_ms = 0,
                   std::span<const Unit> units = {},
                   int mouse_x = -1, int mouse_y = -1,
-                  std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr) {
+                  std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr,
+                  const Lighting* light = nullptr) {
     const auto& m = L.ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -140,7 +203,8 @@ void render_world(std::vector<std::uint8_t>& fb,
         const int th = std::abs(t.height);
         const int sx = iso_x - t.width / 2;
         const int sy = iso_y - (th - kIsoH);
-        blit_dt1_tile(fb, t, pal, sx, sy);
+        if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, t.type == 0 || t.type == 13);
+        else blit_dt1_tile(fb, t, pal, sx, sy);
     };
 
     auto find_tile = [&](const Level& lv, int style, int seq, int type)
@@ -226,11 +290,12 @@ void render_world(std::vector<std::uint8_t>& fb,
     };
     std::ranges::sort(order, {}, [](const Unit* u) { return u->x + u->y; });
     std::size_t next_unit = 0;
-    const auto& upal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    const auto& upal0 = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     auto draw_units_through = [&](int diag) {
         for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
             const Unit& u = *order[next_unit];
             const auto [ax, ay] = iso_point(u.x, u.y);
+            const auto& upal = light ? light->palette(u.x, u.y) : upal0;
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
             std::array<int, 4> b{};
             if (u.missile) {
@@ -241,7 +306,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                 if (dirs == 0 || fpd == 0) continue;
                 const auto frame = (elapsed_ms - u.mode_ms) * std::uint32_t(u.missile->anim_speed) / (40u * 16u)
                                    % std::min<std::uint32_t>(std::uint32_t(u.missile->anim_len), fpd);
-                blit_dcc_frame(fb, spr.frame(std::uint8_t(std::uint32_t(u.dir) % dirs), std::uint8_t(frame)), upal, ax, ay, u.missile->trans);
+                blit_dcc_frame(fb, spr.frame(std::uint8_t(std::uint32_t(u.dir) % dirs), std::uint8_t(frame)), u.missile->trans ? upal0 : upal, ax, ay, u.missile->trans);
                 continue;
             }
             if (u.sprite) {
@@ -261,7 +326,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             // ponytail: AnimRate read as frames a second; LoopWaitTime
             // (7000) not applied.
             if (u.overlay && u.overlay->directions() && u.overlay->frames_per_direction())
-                blit_dcc_frame(fb, u.overlay->frame(0, std::uint8_t(elapsed_ms / 111 % u.overlay->frames_per_direction())), upal, ax - 5, ay - 7, 1);
+                blit_dcc_frame(fb, u.overlay->frame(0, std::uint8_t(elapsed_ms / 111 % u.overlay->frames_per_direction())), upal0, ax - 5, ay - 7, 1);
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && u.name && !u.name->empty()) {
                 if (mouse_x >= b[0] && mouse_x < b[2] && mouse_y >= b[1] && mouse_y < b[3])
@@ -283,7 +348,8 @@ void render_world(std::vector<std::uint8_t>& fb,
                 // Roof — hoist by the DT1's own roof_height.
                 auto [iso_x, iso_y] = iso(gx, gy);
                 iso_y -= t.roof_height;
-                blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
+                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, false);
+                else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
             };
             if (!lv->picks.empty()) {
                 for (const auto& p : lv->picks[off])

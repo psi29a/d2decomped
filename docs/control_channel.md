@@ -49,6 +49,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug clearinv`            | `ok`                   | Empty the inventory grid (tests that need room, whatever the save carries). |
 | `debug stat <id> <v>`       | `ok`                   | Set character stat 0..15 (12 level, 14 gold, 15 stash gold, ...). |
 | `debug attack`              | `ok dmg=<min>-<max> ar=… def=… block=… dr=…%+… mdr=… res=f/l/c/p cb=… ds=… ow=… ll=… ml=… ias=… wsm=… frw=… fhr=… fbr=… thorns=…+…l cold=… fire=… light=… crit=… def_melee=… def_missile=… dodge=… avoid=… evade=…` | The player as combat sees them (components/rules Fighter). |
+| `debug day [deg]`          | `ok phase= time= intensity=` | The time of day, set to `deg` degrees (0 sunrise, 90 noon, 180 dusk, 270 midnight). |
 | `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's Blood Moor monsters. |
 | `debug skill left\|right <id>` | `ok` / `err not usable` | Put Skills.txt skill id on that button (the picker's rules). |
 | `debug points <id> <n>`    | `ok` / `err not a class skill` | Give the character's class skill `id` n points (for testing a skill a save lacks). |

@@ -24,6 +24,7 @@ Blizzard, and either matched or worked around on purpose.
 | 6 | a1q1.cpp entering the Den (`FUN_00590470`) | The log state is set to 2 before `LAB_0058fc90` marks the flags, so that path always sets bit 4. Bit 3 can only come from the other branch (param +0x14 == 1). | low | match | quests.md |
 | 7 | Sounds.txt `druid_death_2` | Uses the same file as `druid_death_1` (combat\player\druid\death1.wav), where every other class has distinct death sounds. | low | match | 2026-09-27, sound |
 | 8 | d2data: Act1/Town/townN1.ds1 | Its DT1 file list names `.tg1` files (treegroups.tg1, floor.tg1, …) that don't exist; the other three camps list `.dt1`s. Harmless in game.exe, which takes a preset's DT1s from LvlTypes by the LvlPrest Dt1Mask, never from the DS1. | high | n/a (d2d now does the same) | drlg.md "The game's map seed" |
+| 9 | Env.cpp day step (`FUN_0061bee0`) | A phase moves on when `next.start × scale < time`. Phase 2 starts at 0°, so phase 1 (dawn at 340°) moves on at its first frame and the clock snaps to sunrise: the 340°–360° dawn (its (208, 184, 131) colour) never shows, and a day is 24 minutes instead of 31. | medium | match | lighting.md "The day" |
 
 ## How to add one
 

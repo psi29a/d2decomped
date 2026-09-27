@@ -346,8 +346,8 @@ Act 1 levels and rendering
   firebolts and poison (docs/research/re/objects.md). Missing: the unique
   behaviour mods, the other traps; warp arrival spots are a guess
   (LvlWarp ExitWalk).
-- Rendering: shadows not blended, no unit shadows, no lighting / day-night
-  / rain, cell-granular wall sorting, no item colour tints on composites,
+- Rendering: shadows not blended, no unit shadows, lighting without
+  walls casting shadows, no rain, cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs drawn standing at their start.
 
 Town
@@ -460,7 +460,9 @@ standalone server later.
 Blood Moor polish (2026-09-27): ambient events and song resume done
 (sound.md); Act 1's unique mods (Cursed, teleport, auras; monsters.md).
 Storm, Exploding and Poison Shrines (objects.md); the Portal Shrine waits for
-town portals. Next the quest log, lighting.
+town portals. The quest log; the time of day, the light grid and lit
+drawing, night sounds (lighting.md). Each character keeps its map seed
+(drlg.md). Next rain, unit shadows, blended tile shadows.
 
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
 Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't

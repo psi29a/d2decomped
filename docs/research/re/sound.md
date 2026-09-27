@@ -55,7 +55,8 @@ See npc-talk.md: string → sound table at `0x72b0e0` (`FUN_004e0650`).
 
 SoundEnviron.txt's record is 0x58 bytes (`FUN_00481920`): +0 Song, +4 / +8
 Day / Night Ambience, +0xc / +0x10 Day / Night Event, +0x14 Event Delay,
-+0x18 Indoors. Day is time-of-day phases 1..3 (`FUN_0061c220`), else night.
++0x18 Indoors. Day is time-of-day phases 1..3 (`FUN_0061c220` returns the
+phase index), 0° to 180°; else night. d2d plays both (town.hpp).
 
 In sound ticks (25 Hz), with the client's rng (`FUN_004e40a0`;
 `spread(n)` = rand(2n+1) − n, `range(lo, hi)` = rand(hi−lo+1) + lo):

@@ -101,6 +101,38 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // The client (docs/design/multiplayer.md): input, panels, camera,
 // drawing and sound, over a World (server.hpp) it sends commands to. The
 // references below are the World's, for the code that reads them.
+// The frame's light (FUN_00475800): the grid round the player at the
+// level's own light or the day's, then each light stamped. Positions in
+// eighths of a subtile (a cell is 40).
+// ponytail: the player's light is 13 subtiles (FUN_00460930) without the
+// light radius items give; lights don't ease to a new radius.
+Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
+    Lighting l;
+    if (!v.level || s.act1_lit[31].entries().empty()) return l;
+    l.pal = &s.act1_lit;
+    l.grid.reset(int(cam_x * 5), int(cam_y * 5), v.level->light >= 0 ? v.level->light : v.day.intensity());
+    auto stamp = [&](float x, float y, int radius) {
+        if (radius > 0) l.grid.stamp(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
+    };
+    stamp(cam_x, cam_y, 13);
+    static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
+    auto lit = [&](const Npc& n, std::string_view mode) {
+        const auto m = std::ranges::find(kModes, mode.empty() ? std::string_view(n.mode) : mode);
+        return n.root == "objects" && m != kModes.end() ? int(n.lit[std::size_t(m - kModes.begin())]) : 0;
+    };
+    for (std::size_t i = 0; i < v.level->npcs.size(); ++i) {
+        const auto& n = v.level->npcs[i];
+        const auto* st = i < v.npc_states.size() ? &v.npc_states[i] : nullptr;
+        if (st && st->hidden) continue;
+        stamp(st ? st->x : n.x, st ? st->y : n.y, lit(n, st ? st->mode : std::string_view{}));
+    }
+    for (const auto& nb : v.level->nearby)                  // the torches over the level's edge
+        for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}));
+    for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light);
+    for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light);
+    return l;
+}
+
 struct Town {
     const Scene* scene = nullptr;
     CharCreateUI& cc;                      // the in-game character (save, items, stats)
@@ -353,29 +385,34 @@ struct Town {
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.
         if (speech.npc < 0 && audio.voice.src) audio.stop_voice();
-        // The level's SoundEnviron (Levels.txt SoundEnv -> Song, Day
-        // Ambience). ponytail: the Rogue Encampment's, env 1: song
-        // 4673 music_town_1, ambience 70; no night or events yet.
+        // The level's SoundEnviron (Levels.txt SoundEnv -> Song, Day / Night
+        // Ambience, Day / Night Event). Day is the day's phases 1..3
+        // (FUN_004e42e0 via FUN_0061c220), 0° to 180°; else night.
+        const bool day = view.day.phase >= 1 && view.day.phase <= 3;
+        const int amb = day ? level->ambience : level->night_ambience;
         if (audio.music.sound == 0) {
             audio.play_music(*scene, level->song);
-            audio.play(audio.ambience, *scene, level->ambience);
+            audio.play(audio.ambience, *scene, amb);
             if (audio.music.sound == 0) audio.music.sound = -1;   // don't retry every frame
         }
         // Another level's song: game.exe (FUN_004dcaa0) switches 75 sound
         // ticks (3 s) into the new level, so skirting an edge doesn't flip
-        // it, and cross-fades (Audio::crossfade_music).
-        if (audio.music.sound > 0 && level->song > 0 && audio.music.sound != level->song && ms - level_ms >= 75 * 40) {
+        // it, and cross-fades (Audio::crossfade_music). Its ambience then,
+        // and at dusk and dawn.
+        // ponytail: the ambience switches at once; game.exe fades it.
+        if (audio.music.sound > 0 && level->song > 0 && audio.music.sound != level->song && ms - level_ms >= 75 * 40)
             audio.crossfade_music(*scene, level->song);
-            if (audio.ambience.sound != level->ambience) audio.play(audio.ambience, *scene, level->ambience);
+        if (audio.music.sound > 0 && audio.music.sound == level->song && audio.ambience.sound != amb) {
+            audio.play(audio.ambience, *scene, amb);
+            audio.ambience.sound = amb;           // tried: not again every frame
         }
         // Every Event Delay ticks, give or take a third, one of the event
         // sounds from the left or right (x +-450..750, y +-100 in game.exe's
         // units; the first within one gap of arriving).
-        // ponytail: always the day's event (no night yet); x becomes pan
-        // x / 750, y is dropped.
+        // ponytail: x becomes pan x / 750, y is dropped.
         {
             const std::uint32_t tick = ms / 40;
-            const int ev = level->day_event, delay = level->event_delay;
+            const int ev = day ? level->day_event : level->night_event, delay = level->event_delay;
             auto spread = [&](int n) { return sound_rng(2 * n + 1) - n; };
             if (ev != amb_event) {
                 amb_event = ev;
@@ -680,6 +717,7 @@ struct Town {
         std::uint32_t mode_ms = me.mode_ms;
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, ms); rate = 1.f; }   // an SQ skill's frame
+        const auto light = frame_light(*scene, view, cam_x, cam_y);
         render_ingame(fb, *scene, *view.level, ui_cls,
                       view.gfx,
                       cc.input_name, cc.hardcore,
@@ -689,7 +727,7 @@ struct Town {
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra, rate);
+                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr);
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open)

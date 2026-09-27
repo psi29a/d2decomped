@@ -262,6 +262,13 @@ std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& t) {
 
 // A monster unit from its MonStats row and the MonStats2 row its
 // MonStatsEx names (the tables aren't row-aligned: 734 vs 609 rows).
+// A level's own light (FUN_00474550 via FUN_00619d70): when any of Levels.txt
+// Intensity / Red / Green / Blue is set its Intensity replaces the day's.
+int level_light(std::string_view i, std::string_view r, std::string_view g, std::string_view b) {
+    auto n = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
+    return n(i) || n(r) || n(g) || n(b) ? n(i) : -1;
+}
+
 Npc monster_npc(const Scene& scene, const d2d::txt::Table& ms, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row) {
     const auto ex = ms2_rows.find(std::string(ms.get(row, "MonStatsEx")));
@@ -275,6 +282,7 @@ Npc monster_npc(const Scene& scene, const d2d::txt::Table& ms, const d2d::txt::T
     n.base_w = std::string(ms2.get(row2, "BaseW"));
     n.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     n.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
+    n.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
     if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
@@ -437,7 +445,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         Scene::MissileInfo mi;
         mi.name = name;
         mi.vel = g("Vel"); mi.range = g("Range"); mi.src_damage = g("SrcDamage"); mi.min = g("MinDamage"); mi.max = g("MaxDamage");
-        mi.anim_speed = std::max(g("AnimSpeed"), 1); mi.anim_len = std::max(g("AnimLen"), 1); mi.trans = g("Trans");
+        mi.anim_speed = std::max(g("AnimSpeed"), 1); mi.anim_len = std::max(g("AnimLen"), 1); mi.trans = g("Trans"); mi.light = g("Light");
         mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
         mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
         mi.srv_do = g("pSrvDoFunc"); mi.param1 = g("Param1"); mi.param2 = g("Param2"); mi.hit_par2 = g("sHitPar2");
@@ -833,6 +841,7 @@ void add_object(const GameData& scene, const d2d::txt::Table& objects, const std
         if (n.locked) if (auto v = lookup_string(scene, "lockedchest")) n.name = u16_to_latin1(*v);
     }
     n.base_w = "hth";
+    for (std::size_t m = 0; m < 8; ++m) n.lit[m] = std::uint8_t(std::atoi(std::string(objects.get(r, "Lit" + std::to_string(m))).c_str()));
     const bool on = objects.get(r, "Mode2") == "1" && !objects.get(r, "Lit2").empty()
                  && objects.get(r, "Lit2") != "0" && n.operate_fn != 2 && n.operate_fn != 4;   // shrines / chests: NU until used
     n.mode   = on ? "ON" : "NU";
@@ -1269,6 +1278,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (!into) continue;
             into->name = std::string(lv.get(r, "LevelName"));
             into->layer = std::atoi(std::string(lv.get(r, "Layer")).c_str());
+            into->light = level_light(lv.get(r, "Intensity"), lv.get(r, "Red"), lv.get(r, "Green"), lv.get(r, "Blue"));
             const auto env = lv.get(r, "SoundEnv");
             for (std::size_t e = 0; e < se.size(); ++e)
                 if (se.get(e, "Index") == env) {
@@ -2001,6 +2011,7 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
         if (num(b.levels.get(r, "Id")) != id) continue;
         auto g = [&](std::string c) { return b.levels.get(r, c); };
         lv->layer = num(g("Layer"));
+        lv->light = level_light(g("Intensity"), g("Red"), g("Green"), g("Blue"));
         for (std::size_t e = 0; e < b.sound_env.size(); ++e)
             if (b.sound_env.get(e, "Index") == g("SoundEnv")) {
                 lv->song = num(b.sound_env.get(e, "Song"));
@@ -2162,6 +2173,16 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
         }
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);
+    // Its 32 light levels: PL2 +0x400, 256 indices a level, level 31 as is and
+    // 0 black; the software renderer draws a pixel at light v through level
+    // v >> 3 (FUN_004f8050).
+    if (auto lb = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); lb && lb->size() >= 0x400 + 32 * 256)
+        for (std::size_t l = 0; l < 32; ++l) {
+            std::array<d2d::palette::Rgba, 256> e{};
+            for (std::size_t i = 0; i < 256; ++i) e[i] = scene.act1_pal[std::uint8_t((*lb)[0x400 + l * 256 + i])];
+            e[0].a = 0;
+            scene.act1_lit[l] = d2d::palette::Palette(e);
+        }
     d2d::log::info("  World: {} {}x{}, {} of {} tilesets, {} tiles", ds1_path, m.width(), m.height(),
                    scene.town.dt1s.size(), files.size(), scene.town.tile_lookup.size());
 }
@@ -2180,7 +2201,7 @@ void set_map_seed(Scene& scene, std::uint32_t seed) {
     const Level& o = scene.town;
     Level town{ .id = o.id, .name = o.name, .type = o.type, .layer = o.layer, .song = o.song, .ambience = o.ambience,
                 .night_ambience = o.night_ambience, .day_event = o.day_event, .night_event = o.night_event,
-                .event_delay = o.event_delay };
+                .event_delay = o.event_delay, .light = o.light };
     scene.town = std::move(town);
     place_act1(scene, scene.mpqs, *scene.builder->act1, seed);
     scene.shrines.clear();                          // load_npcs reads Shrines.txt again

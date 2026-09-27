@@ -29,6 +29,8 @@ struct Npc {
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
+    int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
+    std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
 
 // One level (Levels.txt row): its DS1, the DT1s it references and a
@@ -43,6 +45,7 @@ struct Level {
     int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
     int song = 0, ambience = 0;                        // SoundEnviron Song / Day Ambience (Sounds.txt)
     int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
+    int light = -1;                                    // Levels.txt Intensity when it has its own light (caves: 0), -1 the day's
     d2d::ds1::Map ds1;
     std::vector<d2d::dt1::Archive> dt1s;
     // Keyed by (style, seq, type) — one map covers floors, walls, trees,
@@ -313,6 +316,7 @@ struct GameData {
                          int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
                          bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
                          std::string sub, hit_sub;
+                         int light = 0;   // Light: its light radius, subtiles
                          int trans = 0;   // Trans (record +0x18d): 1 additive, 2 multiply (FUN_004720xx: draw modes 3 / 4)
                        };
     std::unordered_map<std::string, MissileInfo> missiles;
@@ -429,6 +433,7 @@ struct Scene : GameData {
 
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
+    std::array<d2d::palette::Palette, 32>    act1_lit;   // act1_pal at each light level (PL2 +0x400)
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through

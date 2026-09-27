@@ -58,6 +58,7 @@ struct View {
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
+    d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -173,6 +174,7 @@ struct World {
         v.npc_states = npc_states;
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
+        v.day = day;
         v.has_character = true;
         v.header = cc.header; v.stats = cc.stats; v.items = cc.items; v.held = held;
         if (store.npc >= 0) v.store = store;
@@ -381,6 +383,8 @@ struct World {
 
     void new_game() {
         fight.new_game(cc.header.active_difficulty());
+        day = {};                                 // a new game starts at sunrise
+        day_at = now;
         loot.ground.clear();
         loot.kept.clear();
         loot.ground_level = level;
@@ -724,6 +728,8 @@ struct World {
     // (Fight::world); crossing into the next level or through a warp;
     // potions and regeneration.
     const Level* wanted_near = nullptr;               // whose neighbours were last asked for
+    d2d::rules::Day day;
+    std::uint32_t day_at = 0;                         // when the day last stepped
     void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms) {
         const float dt = float(ms - last_ms) / 1000.f;
         now = ms;
@@ -732,6 +738,9 @@ struct World {
         scene->poll_levels();
         if (level != wanted_near) { want_nearby(*scene, *level); wanted_near = level; }
         item_ids();
+        // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
+        if (ms - day_at > 1000) day_at = ms;
+        for (; ms - day_at >= kTickMs; day_at += kTickMs) day.step();
         fight.update_fighters(ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt, minutes; 0 never).

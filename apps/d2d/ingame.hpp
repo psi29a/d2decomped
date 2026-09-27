@@ -33,7 +33,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    int stat_pressed = -1,
                    const Npc* merc = nullptr, const UnitState* merc_state = nullptr,
                    const std::string* merc_label = nullptr,
-                   std::span<const Unit> extra_units = {}, float player_rate = 1.f) {
+                   std::span<const Unit> extra_units = {}, float player_rate = 1.f,
+                   const Lighting* light = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -87,7 +88,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                               merc_state->dir, merc_label, merc_state->mode_ms, -2 });
         units.insert(units.end(), extra_units.begin(), extra_units.end());
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
-        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered);
+        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
         // ponytail: no highlight tint yet (D2 brightens the unit too).

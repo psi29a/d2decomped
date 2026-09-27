@@ -63,6 +63,8 @@ public:
         }
     }
 
+    explicit Palette(const std::array<Rgba, 256>& e) : entries_(e) {}
+
     [[nodiscard]] Rgba operator[](std::uint8_t idx) const noexcept {
         return entries_[idx];
     }

@@ -193,6 +193,28 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             f.release(std::size_t(best), std::uint32_t(SDL_GetTicks()));
             return std::string("ok ") + std::to_string(f.missiles.size()) + "\n";
         }
+        if (args.size() >= 2 && args[1] == "light") {      // the light grid round the player, a level (0..31) a subtile
+            const auto l = frame_light(*t.scene, t.view, t.cam_x, t.cam_y);
+            std::string out;
+            for (int y = 0; y < d2d::rules::LightGrid::kN; ++y) {
+                for (int x = 0; x < d2d::rules::LightGrid::kN; ++x) out += "0123456789abcdefghijklmnopqrstuv"[l.grid.v[std::size_t(y * 48 + x)] >> 3];
+                out += '\n';
+            }
+            return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + "\n";
+        }
+        if (args.size() >= 2 && args[1] == "day") {        // the time of day: `debug day [degrees]`
+            auto& d = t.world.day;
+            if (args.size() >= 3) {
+                const int deg = ((std::atoi(args[2].c_str()) % 360) + 360) % 360;
+                d.time = deg * d2d::rules::kDayScale;
+                d.phase = 2;                           // the last phase to start by then
+                for (int p = 0; p < 6; ++p) {
+                    const int st = d2d::rules::kDay[std::size_t(p)].start;
+                    if (st <= deg && st > d2d::rules::kDay[std::size_t(d.phase)].start) d.phase = p;
+                }
+            }
+            return "ok phase=" + std::to_string(d.phase) + " time=" + std::to_string(d.time) + " intensity=" + std::to_string(d.intensity()) + "\n";
+        }
         if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
             const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
             for (int i = 0; i < 3; ++i) t.world.cc.header.difficulty[std::size_t(i)] &= 0x7f;   // the World's character
