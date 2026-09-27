@@ -102,6 +102,13 @@ int main() {
         // Fire Enchanted's death blast (FUN_005a2620): max life x CE % (35 in
         // nightmare), less a third; rolled from 60 % up.
         assert((fire_blast(2037, 1) == std::pair{ 285, 475 }) && (fire_blast(100, 0) == std::pair{ 22, 38 }) && fire_blast(800, 2).second == 20);
+        // Aura Enchanted: one of the six below level 20 at mlvl / 5..8;
+        // superunique 37 Fanaticism.
+        for (int seed = 0; seed < 200; ++seed) {
+            const auto au = boss_aura(18, seed, -1);
+            assert(au.skill != 118 && au.level >= 2 && au.level <= 3);
+        }
+        assert(boss_aura(40, 5, 37).skill == 122 && boss_aura(40, 5, 37).level == 5);
     }
     std::puts("ok");
 }

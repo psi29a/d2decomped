@@ -112,6 +112,7 @@ struct Fight {
     void add_monster(Monster m) { m.id = next_id++; monsters.push_back(std::move(m)); }
 
     const Level* mon_level = nullptr;                // whose monsters `monsters` are
+    std::array<std::uint32_t, 2> amplified{};        // the player's / merc's Amplify Damage (a Cursed boss) runs out
     int game_difficulty = 0;                         // new_game's
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
@@ -214,6 +215,7 @@ struct Fight {
         game_difficulty = difficulty;
         monsters.clear();
         mon_level = nullptr;
+        amplified = {};
         kept.clear();
         next_id = 1;
         missiles.clear();
@@ -2830,6 +2832,9 @@ struct Fight {
             std::vector<Foe> foes{ Foe{ player.x, player.y, int(cc.stats.get(d2d::d2s::kLevel)), true, player.walking, pf },
                                    Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
                                         merc && merc->walking, merc_fighter() } };
+            for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
+                if (ms < amplified[k]) foes[k].f.dr_pct -= 100;
+            monster_auras(foes, ms);
             for (const auto& p : pets) foes.push_back(pet_foe(p));
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& m = monsters[i];
@@ -2885,6 +2890,11 @@ struct Fight {
                 if (old == regen.end()) regen.push_back(p);
                 else if (p.life <= old->life) *old = p;
             }
+            for (std::size_t k = 0; k < 2; ++k)                  // a Cursed boss's Amplify Damage: its auralen
+                if (const auto* s = scene->skills.get(66); s && foes[k].amplify > 0) {
+                    amplified[k] = ms + std::uint32_t(std::max(calc(*s, s->auralen, foes[k].amplify), 25)) * 40;
+                    d2d::log::info("{} cursed: Amplify Damage level {}", k ? "the merc" : "the player", foes[k].amplify);
+                }
             if (foe.mana_burn > 0) {                             // Mana Burn
                 cc.stats.v[d2d::d2s::kMana] = std::max<std::int64_t>(cc.stats.v[d2d::d2s::kMana] - (std::int64_t(foe.mana_burn) << 8), 0);
                 d2d::log::info("mana burn: -{} mana", foe.mana_burn);
@@ -2921,6 +2931,52 @@ struct Fight {
                 merc_follow(*level, *merc, player.x, player.y, cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
                 merc_mode = merc->walking ? "WL" : "NU";
             }
+        }
+    }
+    // Bosses' auras (Aura Enchanted), each at its level within its
+    // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
+    // to the monsters there; Conviction cuts the foes' resistances and
+    // defense; Holy Fire, Shock and Freeze strike the foes every perdelay.
+    // ponytail: Fanaticism's attack rate and Holy Freeze's slow aren't
+    // applied; the elements' roll ignores the foes' magic damage reduction.
+    void monster_auras(std::vector<Foe>& foes, std::uint32_t ms) {
+        for (auto& m : monsters) m.aura_dmg = m.aura_th = 0;
+        for (auto& b : monsters) {
+            if (!b.alive() || !b.aura || std::abs(b.u.x - player.x) >= 30 || std::abs(b.u.y - player.y) >= 30) continue;
+            const auto* s = scene->skills.get(b.aura);
+            if (!s) continue;
+            const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, b.st.level, &rng };
+            auto val = [&](const d2d::rules::Calc& c) { return d2d::rules::eval_calc(scene->skills, c, env, s->id, b.aura_lvl); };
+            const float r = float(val(s->aurarange)) / 5;                     // subtiles -> cells
+            auto near = [&](float x, float y) { return std::hypot(x - b.u.x, y - b.u.y) <= r; };
+            if (s->srvdofunc == 65) {
+                for (auto& m : monsters)
+                    if (m.alive() && near(m.u.x, m.u.y))
+                        for (std::size_t i = 0; i < s->aurastat.size(); ++i) {
+                            if (s->aurastat[i] == 25) m.aura_dmg += val(s->aura_calc[i]);     // damagepercent
+                            if (s->aurastat[i] == 119) m.aura_th += val(s->aura_calc[i]);     // item_tohit_percent
+                        }
+                continue;
+            }
+            for (auto& f : foes) {
+                if (!f.alive || !near(f.x, f.y)) continue;
+                for (std::size_t i = 0; i < s->aurastat.size(); ++i) {
+                    const int v = val(s->aura_calc[i]);
+                    switch (s->aurastat[i]) {
+                        case 39: f.f.res[0] += v; break;                         // fireresist
+                        case 41: f.f.res[1] += v; break;                         // lightresist
+                        case 43: f.f.res[2] += v; break;                         // coldresist
+                        case 171: f.f.defense += f.f.defense * v / 100; break;   // skill_armor_percent
+                        default: break;
+                    }
+                }
+            }
+            if (s->etype < 0 || s->etype > 2 || ms < b.aura_next) continue;
+            b.aura_next = ms + std::uint32_t(std::max(s->perdelay, 25)) * 40;
+            const int lo = d2d::rules::elem_damage(scene->skills, *s, env, b.aura_lvl, false) >> 8;
+            const int hi = std::max(d2d::rules::elem_damage(scene->skills, *s, env, b.aura_lvl, true) >> 8, lo);
+            for (auto& f : foes)
+                if (f.alive && near(f.x, f.y)) f.damage += d2d::rules::resisted(rng.range(lo, hi), f.f.res[std::size_t(s->etype)]);
         }
     }
     // The player went to `to`: an outdoor level's monsters come back, the

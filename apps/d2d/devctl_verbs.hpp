@@ -223,6 +223,18 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             for (auto& it : t.world.cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
             return "ok " + std::to_string(d2d::rules::unidentified(t.world.cc.items)) + "\n";
         }
+        if (args.size() >= 3 && args[1] == "boss" && scene) {   // the nearest plain monster: a unique with <mod>...
+            std::vector<int> mods;
+            for (std::size_t k = 2; k < args.size(); ++k) mods.push_back(std::atoi(args[k].c_str()));
+            Monster* best = nullptr;
+            for (auto& m : t.world.fight.monsters)
+                if (m.alive() && m.boss == d2d::rules::Boss::none
+                    && (!best || std::hypot(m.u.x - t.player.x, m.u.y - t.player.y) < std::hypot(best->u.x - t.player.x, best->u.y - t.player.y)))
+                    best = &m;
+            if (!best) return std::string("err no monster\n");
+            make_boss(*scene, *best, d2d::rules::Boss::unique, mods, -1, t.world.rng(0x10000), t.world.cc.header.active_difficulty(), t.world.rng);
+            return std::format("ok #{} {} aura={} lvl={}\n", best->id, best->npc.name, best->aura, best->aura_lvl);
+        }
         if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n> (quests)
             int keep = args.size() >= 3 ? std::atoi(args[2].c_str()) : 0;
             for (auto& m : t.world.fight.monsters)

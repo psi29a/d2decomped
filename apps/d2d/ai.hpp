@@ -194,6 +194,11 @@ struct Monster {
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
+    // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;
+    // and the damage / to-hit % it gets from bosses' auras this frame.
+    int aura = 0, aura_lvl = 0;
+    std::uint32_t aura_next = 0;
+    int aura_dmg = 0, aura_th = 0;
     // Skills' states on it (their auratargetstate): one curse at a time
     // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
     // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
@@ -228,6 +233,7 @@ struct Foe {
     std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
+    int amplify = 0;                          // Amplify Damage cast on it this frame (a Cursed boss): its level
     void take(const d2d::rules::Taken& k) {
         blocked = blocked || k.blocked;
         damage += k.damage;
@@ -368,6 +374,10 @@ void make_boss(const GameData& s, Monster& m, d2d::rules::Boss kind, const std::
         const int base = kind == d2d::rules::Boss::minion ? 16 : kind == d2d::rules::Boss::champion ? 22 : 28;
         m.mana_lo = dm * s.umods.k[std::size_t(base + d)] / 100;
         m.mana_hi = std::max(dm * s.umods.k[std::size_t(base + 3 + d)] / 100, m.mana_lo);
+    }
+    if (std::ranges::contains(mods, d2d::rules::umod::aura)) {
+        const auto a = d2d::rules::boss_aura(m.st.level, name_seed, super);
+        m.aura = a.skill; m.aura_lvl = a.level;
     }
     m.hp = m.st.hp;
     m.last_hp = m.hp;
@@ -527,11 +537,19 @@ bool monster_update(const GameData& s, const Level& L, Monster& m, std::span<Foe
             } else if (foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
-                auto st = m.st;                                  // Weaken, Decrepify, Battle Cry, Taunt: its damage %
-                for (int* d : { &st.a1_min, &st.a1_max }) *d = std::max(*d * (100 + m.dmg_pct) / 100, 0);
+                auto st = m.st;                                  // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
+                for (int* d : { &st.a1_min, &st.a1_max }) *d = std::max(*d * (100 + m.dmg_pct + m.aura_dmg) / 100, 0);
+                st.th += st.th * m.aura_th / 100;
                 const auto k = d2d::rules::monster_blow(foe.f, foe.level, foe.moving, st, false, rng);
                 foe.take(k);
                 if (k.hit && m.mana_hi > 0) foe.mana_burn += rng.range(m.mana_lo, m.mana_hi);   // Mana Burn
+                // Cursed (FUN_005a2530, the hit hook): 3 in 4, Amplify Damage
+                // (skill 66) at level mlvl / 5 + 1.
+                // ponytail: on the one struck, not everyone in the skill's
+                // radius; the monster's rng, not its own seed; melee only.
+                if (k.hit && (m.boss == d2d::rules::Boss::unique || m.boss == d2d::rules::Boss::superunique)
+                    && std::ranges::contains(m.mods, d2d::rules::umod::curse) && rng(4) != 0)
+                    foe.amplify = std::max(foe.amplify, m.st.level / 5 + 1);
                 foe.melee_by.push_back(&m);
                 const auto& res = t.diff[std::size_t(m.difficulty)].res;
                 const int thorns = foe.f.thorns + d2d::rules::resisted(foe.f.thorns_light, res[3]) + k.damage * foe.f.thorns_pct / 100
@@ -554,6 +572,29 @@ bool monster_update(const GameData& s, const Level& L, Monster& m, std::span<Foe
     // Blind (Dim Vision, Cloak of Shadows): it doesn't see past arm's length.
     if (foe.alive && (dist < 8 || (m.aware && dist < 16)) && (ms >= m.blind_until || dist < 1.5f)) {
         m.aware = true;
+        // Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0):
+        // at a think, 40 %, then — under 30 % life, or a shooter with the
+        // foe within 10 subtiles — 15 %: to a free spot in its room, and
+        // hurt, 1 in 4 to heal its level in life.
+        // ponytail: the room as its 8x8-cell block, the spot by 20 tries
+        // (game.exe: FUN_0054dc40); "within 10" read as the foe's distance;
+        // no teleport animation or skill cast.
+        if (ms >= m.next_act && (m.boss == d2d::rules::Boss::unique || m.boss == d2d::rules::Boss::superunique)
+            && std::ranges::contains(m.mods, d2d::rules::umod::teleport) && rng(100) < 40) {
+            const bool low = std::int64_t(m.hp) * 100 < std::int64_t(m.st.hp) * 30;
+            if ((low || (miss != s.missiles.end() && dist * 5 < 10)) && rng(100) < 15) {
+                const float rx = std::floor(u.x / 8) * 8, ry = std::floor(u.y / 8) * 8;
+                for (int tries = 0; tries < 20; ++tries) {
+                    const float nx = rx + float(rng(80)) / 10, ny = ry + float(rng(80)) / 10;
+                    if (L.unit_blocked(nx, ny)) continue;
+                    u.x = nx; u.y = ny; u.walking = false;
+                    if (low && rng(100) < 25) m.hp = std::min(m.st.hp, m.hp + m.st.level);
+                    m.next_act = ms + std::uint32_t(t.diff[std::size_t(m.difficulty)].aidel) * 40;
+                    set_mode(s, m, "NU", ms);
+                    return false;
+                }
+            }
+        }
         if (dist <= kMeleeReach) {
             u.dir = direction16(dx, dy);
             if (ms >= m.next_act) { set_mode(s, m, "A1", ms); m.struck = false; attack_starts(s, m, "A1", rng); }

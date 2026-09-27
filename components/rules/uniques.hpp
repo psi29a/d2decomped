@@ -264,4 +264,24 @@ inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
 // frames longer.
 inline constexpr std::array<int, 5> kSpectralElement{ 0, 1, 4, 2, 3 };
 
+// Aura Enchanted (mod 30, FUN_005a1650): the aura and its level. The
+// table at 0x73bf68 {min monster level, add, mul, div, skill}; the pick
+// is rand(rows the monster's level reaches) on {name seed, 666}
+// (FUN_00650e30 / FUN_0045c390); superunique 37 always takes Fanaticism.
+// Level = (add + mlvl) x mul / div, 1..99.
+struct BossAura { int skill = 0, level = 0; };
+inline BossAura boss_aura(int mlvl, int name_seed, int super) {
+    struct Row { int min_lvl, add, mul, div, skill; };
+    static constexpr Row kRows[7] = { { 0, 0, 1, 6, 98 }, { 0, 0, 1, 6, 102 }, { 0, 0, 1, 5, 108 }, { 0, 0, 1, 7, 114 },
+                                      { 0, 0, 1, 8, 123 }, { 0, 0, 1, 8, 122 }, { 20, 0, 1, 8, 118 } };
+    mlvl = std::max(mlvl, 1);
+    int n = 0;
+    for (const auto& r : kRows) n += r.min_lvl <= mlvl;
+    Rng rng{ std::uint32_t(name_seed) };
+    int pick = rng(std::max(n, 1));
+    if (super == 37) pick = 5;
+    const auto& r = kRows[pick];
+    return { r.skill, std::clamp((r.add + mlvl) * r.mul / r.div, 1, 99) };
+}
+
 }  // namespace d2d::rules

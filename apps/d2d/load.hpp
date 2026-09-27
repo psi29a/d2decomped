@@ -494,7 +494,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     scene.mon_bin = ms_bin;
     scene.mon_is_npc.resize(ms.size());
     for (std::size_t r = 0; r < ms.size(); ++r) scene.mon_is_npc[r] = ms.get(r, "npc") == "1";
-    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: unique mods: auras, teleport, Cursed, thief, poison hit; Charged Bolt's wander");
+    if (!scene.superuniques.empty()) d2d::log::info("  not implemented: unique mods: thief, poison hit (not in Act 1); Charged Bolt's wander");
 }
 
 // Skills (components/rules/skills.hpp): skillcalc.txt's operand names,

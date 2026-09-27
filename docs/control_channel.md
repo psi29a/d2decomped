@@ -57,6 +57,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug release`           | `ok <missiles>` / `err no monster` | Release the held charges on the nearest live monster (FUN_005d5220). |
 | `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
 | `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N` | Quest q's 16 flag bits; `reset` clears them and restarts the game's Den of Evil. |
+| `debug boss <mod>...`       | `ok #<id> <name> aura=<skill> lvl=<n>` | The nearest plain monster becomes a unique with those MonUMod ids (7 cursed, 26 teleport, 30 aura ...). |
 | `debug kill [n]`            | `ok`                   | Kill the level's monsters but n (no experience; for quest tests). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |

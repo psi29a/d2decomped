@@ -167,7 +167,8 @@ handlers do nothing without it, so a unique's minions don't explode.
 | 29 multishot | 5 `FUN_005a3610` | a missile it makes: two more, from the same skill and level, aimed a subtile to either side (flag 0x80 while they're made) |
 | 23 poison hit, 24 thief, 10 / 20 / 31 .. 42 | 0 / 3 / 1 + 2 | not traced (poison clouds, stealing, act bosses' deaths) |
 | 25 mana burn | (spawn) `FUN_005a1f90` | manadrain min / max (stats 62 / 63) = MonLvl damage × `FUN_005a00f0`'s % |
-| 26 teleport, 30 aura | (AI; spawn `FUN_005a1650`) | not traced |
+| 26 teleport | spawn `FUN_005a1600`: skill 184 MonTeleport level 1, AI-control flag 0x20 (`FUN_005dd250`); AI `FUN_005b11f0` | at a think: rand(100) < 40 (its seed), then — life under 30 % (`FUN_00621f20`), or not flagged by `FUN_00457490(class, 1)` (monsters 10 / 0x159 / 0x22d count as flagged) and AI param +0x14 < 10 — rand(100) < 15: a free spot in its room (`FUN_0054dc40`), not in town; under 30 %, rand(100) < 25 and no state 0x34: life + mlvl (stat 6 + mlvl × 256); then cast 184 there |
+| 30 aura | spawn `FUN_005a1650` | the table at 0x73bf68 {min mlvl, add, mul, div, skill}: Might 98 /6, Holy Fire 102 /6, Blessed Aim 108 /5, Holy Freeze 114 /7, Conviction 123 /8, Fanaticism 122 /8, Holy Shock 118 /8 from mlvl 20; pick = rand(rows reached) on {name seed (monster data +0x14), 666}; superunique 37 → Fanaticism; class 0x2c0 → Conviction 20; level = (add + mlvl) × mul / div, 1..99 |
 
 - DifficultyLevels +0x34 / +0x30 (ChampionDamageBonus / UniqueDamageBonus,
   90 / 75 / 66) scale the champion and strong damage and to-hit bonuses.
@@ -185,8 +186,13 @@ multishot and mana-burn hooks sit in `monster_update`.
   Ash Shifter (fire) blew up for 95 + 95; Gray Maim burned 24 mana a hit.
 - Simplified: a hit in GH fires the bolts at once, not 2 frames on; the
   bolts go straight; mana burn's % taken as the enchanted rows'.
-- Not built: Cursed (monsters don't curse the player yet), thief, poison
-  hit, teleport, auras.
+- Built too (2026-09-27): Cursed (Amplify Damage on whoever it hits:
+  damage reduced −100 % for its auralen), teleport (fight.hpp / ai.hpp
+  `monster_update`), Aura Enchanted (`boss_aura`, `Fight::monster_auras`:
+  Might / Blessed Aim / Fanaticism for monsters in range, Conviction on the
+  foes, Holy Fire / Shock / Freeze strike every perdelay).
+- Not built: thief (MonUMod disabled) and poison hit (not a random pick),
+  so neither turns up in Act 1.
 - Not proven against game.exe: the monster's own seed isn't the game's
   (unit creation isn't emulated).
 
