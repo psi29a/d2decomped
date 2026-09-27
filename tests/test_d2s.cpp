@@ -1,6 +1,7 @@
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <mpq.hpp>
 
 #include <cassert>
@@ -136,7 +137,44 @@ int main() {
                     if (it.quality == 5) assert(it.set_id >= 0);
                 }
                 assert(items.size() > 0 && equipped > 0);
+                // Written back (d2s_write.hpp), the same bytes.
+                const auto again = d2d::d2s::write_save(bytes, hdr, st, items, t);
+                if (again.size() != bytes.size() || !std::equal(again.begin(), again.end(), bytes.begin())) {
+                    std::size_t at = 0;
+                    while (at < std::min(again.size(), bytes.size()) && again[at] == bytes[at]) ++at;
+                    std::printf("%s: written back differs at 0x%zx (sizes %zu / %zu)\n", e.path().filename().string().c_str(),
+                                at, again.size(), bytes.size());
+                    assert(false);
+                }
+                // Changed (gold, a level, an item moved, a new one), written
+                // and read back: what was changed, and the rest intact.
+                {
+                    auto h2 = hdr; auto st2 = st; auto items2 = items;
+                    st2.v[d2d::d2s::kGold] = 12345; st2.v[d2d::d2s::kLevel] = h2.level = 97;
+                    d2d::d2s::Item hp; hp.code = "hp1"; hp.simple = hp.identified = true; hp.location = 2; hp.column = 3;
+                    items2.push_back(hp);
+                    const auto w = d2d::d2s::write_save(bytes, h2, st2, items2, t);
+                    const auto back = d2d::d2s::parse_items(w, t);
+                    const auto st3 = d2d::d2s::parse_stats(w, t);
+                    assert(back.size() == items.size() + 1 && back.back().code == "hp1" && back.back().column == 3);
+                    assert(st3.get(d2d::d2s::kGold) == 12345 && d2d::d2s::parse_header(w).level == 97);
+                    assert(d2d::d2s::save_checksum(w) == [&] { std::uint32_t c; std::memcpy(&c, w.data() + 0x0C, 4); return c; }());
+                }
                 ++saves;
+            }
+            // A character made in d2d (no file yet): a fresh header.
+            {
+                d2d::d2s::Header h; h.name = "Fresh"; h.cls = 4; h.level = 1; h.status = 0x20;
+                h.appearance.fill(0xff); h.tints.fill(0xff); h.difficulty = { 0x80, 0, 0 };
+                d2d::d2s::Stats st; st.v[d2d::d2s::kStr] = 30; st.v[d2d::d2s::kLevel] = 1; st.v[d2d::d2s::kLife] = 55 << 8;
+                d2d::d2s::Item axe; axe.code = "hax"; axe.location = 1; axe.slot = 4; axe.quality = 2; axe.ilvl = 1;
+                axe.identified = true; axe.max_durability = axe.durability = 28;
+                const auto w = d2d::d2s::write_save({}, h, st, { axe }, t);
+                const auto h2 = d2d::d2s::parse_header(w);
+                const auto items = d2d::d2s::parse_items(w, t);
+                assert(h2.name == "Fresh" && h2.cls == 4 && h2.expansion() && h2.active_difficulty() == 0);
+                assert(d2d::d2s::parse_stats(w, t).get(d2d::d2s::kStr) == 30);
+                assert(items.size() == 1 && items[0].code == "hax" && items[0].durability == 28 && items[0].slot == 4);
             }
             std::printf("items: %d real saves parsed\n", saves);
             assert(saves > 0);

@@ -56,6 +56,17 @@ struct Item {
     std::vector<ItemProp> props;       // main list, runeword list appended
     std::vector<ItemProp> set_props;   // set bonus lists (active by pieces worn)
     std::vector<Item>     socketed_items;
+    // What the writer needs to put the item back bit for bit (d2s_write.hpp):
+    // the flag word as read (the named flags above win over it), the item
+    // version, the class-specific affix (-1 none), the runeword's 4 extra
+    // bits, a tome's 5 bits (-1 none), the bit after them, durability's
+    // extra bit, the set's list flags, where the runeword list starts in
+    // `props` and how long each set list is; an ear's class, level and name.
+    std::uint32_t flags = 0;
+    int version = 101, class_affix = -1, rw_extra = 0, tome = -1, bit_after = 0, dur_extra = 0, set_lists = 0;
+    std::size_t main_props = 0;
+    std::vector<std::size_t> set_list_sizes;
+    int ear_class = 0, ear_level = 0;
 };
 
 // What the parser needs from the excel tables.
@@ -128,18 +139,19 @@ inline Item item(Bits& bs, const ItemTables& t) {
     if (bs.pos % 8 || bs.read(16) != 0x4d4a) throw std::runtime_error("d2s items: missing JM");
     Item it;
     const std::uint32_t f = bs.read(32);
+    it.flags = f;
     it.identified   = f >> 4 & 1;  it.socketed = f >> 11 & 1;
     const bool ear  = f >> 16 & 1; it.simple   = f >> 21 & 1;
     it.ethereal     = f >> 22 & 1; it.personalized = f >> 24 & 1;
     it.runeword     = f >> 26 & 1;
-    bs.read(10);                                   // item version
+    it.version = int(bs.read(10));
     it.location = int(bs.read(3)); it.slot = int(bs.read(4));
     it.column   = int(bs.read(4)); it.row  = int(bs.read(4)); it.panel = int(bs.read(3));
     int filled = 0;
     if (ear) {
         it.code = "ear";
-        bs.read(3); bs.read(7);                    // class, level
-        while (bs.read(7)) {}                      // owner name
+        it.ear_class = int(bs.read(3)); it.ear_level = int(bs.read(7));
+        while (const auto c = bs.read(7)) it.owner.push_back(char(c));
     } else {
         for (int i = 0; i < 4; ++i) {
             const char c = char(bs.read(8));
@@ -149,7 +161,7 @@ inline Item item(Bits& bs, const ItemTables& t) {
         if (!it.simple) {
             it.uid = bs.read(32); it.ilvl = int(bs.read(7)); it.quality = int(bs.read(4));
             if (bs.read(1)) it.picture = int(bs.read(3));
-            if (bs.read(1)) bs.read(11);           // class-specific auto affix
+            if (bs.read(1)) it.class_affix = int(bs.read(11));   // class-specific auto affix
             switch (it.quality) {
                 case 1: case 3: it.qsub = int(bs.read(3)); break;
                 case 4: it.prefix = int(bs.read(11)); it.suffix = int(bs.read(11)); break;
@@ -161,22 +173,27 @@ inline Item item(Bits& bs, const ItemTables& t) {
                     break;
                 default: break;
             }
-            if (it.runeword) { it.runeword_id = int(bs.read(12)); bs.read(4); }
+            if (it.runeword) { it.runeword_id = int(bs.read(12)); it.rw_extra = int(bs.read(4)); }
             if (it.personalized) while (const auto c = bs.read(7)) it.owner.push_back(char(c));
-            if (it.code == "tbk" || it.code == "ibk") bs.read(5);
-            bs.read(1);
+            if (it.code == "tbk" || it.code == "ibk") it.tome = int(bs.read(5));
+            it.bit_after = int(bs.read(1));
             if (t.armor.contains(it.code)) it.defense = int(bs.read(11)) - 10;
             if (t.armor.contains(it.code) || t.weapons.contains(it.code))
                 if ((it.max_durability = int(bs.read(8)))) {   // max, then current (8 bits + 1 unused)
                     it.durability = int(bs.read(8));
-                    bs.read(1);
+                    it.dur_extra = int(bs.read(1));
                 }
             if (t.stackable.contains(it.code)) it.quantity = int(bs.read(9));
             if (it.socketed) it.sockets = int(bs.read(4));
             int lists = 0;
-            if (it.quality == 5) for (auto sf = bs.read(5); sf; sf &= sf - 1) ++lists;
+            if (it.quality == 5) { it.set_lists = int(bs.read(5)); for (auto sf = it.set_lists; sf; sf &= sf - 1) ++lists; }
             props(bs, t, it.props);
-            for (int i = 0; i < lists; ++i) props(bs, t, it.set_props);
+            it.main_props = it.props.size();
+            for (int i = 0; i < lists; ++i) {
+                const auto n0 = it.set_props.size();
+                props(bs, t, it.set_props);
+                it.set_list_sizes.push_back(it.set_props.size() - n0);
+            }
             if (it.runeword) props(bs, t, it.props);
         }
     }
