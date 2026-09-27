@@ -19,6 +19,8 @@
 //              SH S1..S8), an index into D2's component table (see
 //              components/compcode), 0xff = empty
 //   +0x98 u8   tints[16]: per-layer item colormap, 0xff = none
+//   +0xAB u32  map id: the last game's map seed (a single-player game
+//              reuses it on the difficulty last played, FUN_0056a090)
 //   +0xB1 u16  mercenary dead, +0xB3 u32 its seed (0 = no merc), +0xB7 u16
 //              name index, +0xB9 u16 type (hireling.txt Id), +0xBB u32 exp
 //   +0xA8 u8   difficulty[3]: normal/nightmare/hell; 0x80 = the one the
@@ -62,6 +64,7 @@ struct Header {
     std::array<std::uint8_t, 16> appearance{};
     std::array<std::uint8_t, 16> tints{};
     std::array<std::uint8_t, 3>  difficulty{};
+    std::uint32_t map_id = 0;
     std::array<std::array<std::uint8_t, 96>, 3> quests{};   // zero when the save has none
     // The mercenary: seed 0 = none hired.
     bool merc_dead = false;
@@ -119,6 +122,7 @@ inline Header parse_header(std::span<const std::byte> b) {
     std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
     std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
     auto rd16 = [&](std::size_t off) { std::uint16_t v; std::memcpy(&v, b.data() + off, 2); return v; };
+    h.map_id    = rd32(0xAB);
     h.merc_dead = rd16(0xB1) != 0;
     h.merc_seed = rd32(0xB3);
     h.merc_name = rd16(0xB7);

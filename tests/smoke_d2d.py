@@ -9,6 +9,7 @@ copies every .d2s from $D2_SAVES_DIR when set — then clicks through
 CharSelect -> InGame and pans left (the old infinite-loop direction).
 Skips when the MPQ dir isn't reachable, like the other asset tests.
 """
+import re
 import os, platform, shutil, socket, struct, subprocess, sys, tempfile, time
 
 d2d = sys.argv[1]
@@ -56,7 +57,7 @@ env = dict(os.environ, HOME=home)
 env.pop("D2_MPQ_DIR", None)   # --data wins anyway; keep the env honest
 # --scale 2: every click below is in 800x600 game pixels, so the whole run
 # also checks window<->game coordinate conversion.
-proc = subprocess.Popen([d2d, "--headless", "--data", data, "--devctl", sock_path,
+proc = subprocess.Popen([d2d, "--headless", "--seed", "3", "--data", data, "--devctl", sock_path,
                          "--start-screen", "charselect", "--scale", "2"], env=env)
 
 def cmd(line):
@@ -74,7 +75,7 @@ def cmd(line):
     return out
 
 def state():
-    kv = dict(tok.split("=", 1) for tok in cmd("state").split("\n")[0].split())
+    kv = dict(re.findall(r"(\w+)=(.*?)(?= \w+=|$)", cmd("state").split("\n")[0]))   # a name may hold a space
     print("state:", kv)
     return kv
 
@@ -361,7 +362,7 @@ try:
 
     # A new character (the char-create screen, CharStats.txt's start): made
     # and saved at once; it enters at level 1 and its file is there.
-    proc = subprocess.Popen([d2d, "--headless", "--data", data, "--devctl", sock_path, "--start-screen", "charcreate",
+    proc = subprocess.Popen([d2d, "--headless", "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charcreate",
                              "--start-class", "1", "--start-name", "Newbie", "--scale", "2"], env=env)
     for _ in range(100):
         if os.path.exists(sock_path):

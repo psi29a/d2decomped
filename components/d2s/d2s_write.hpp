@@ -152,6 +152,7 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
     std::memcpy(b.data() + 0x88, h.appearance.data(), 16);
     std::memcpy(b.data() + 0x98, h.tints.data(), 16);
     std::memcpy(b.data() + 0xA8, h.difficulty.data(), 3);
+    w32(0xAB, h.map_id);
     w16(0xB1, h.merc_dead ? 1 : 0); w32(0xB3, h.merc_seed); w16(0xB7, h.merc_name); w16(0xB9, h.merc_type); w32(0xBB, h.merc_exp);
     // Quests and waypoints: their blocks' markers, then the flags.
     std::memcpy(b.data() + 0x14F, "Woo!", 4); w32(0x153, 6); w16(0x157, 298);

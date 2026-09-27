@@ -14,6 +14,21 @@ namespace {
 // the same members without repeating field types.
 void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 
+// Act 1's layout from the map seed picks the town's DS1 (the side the
+// Blood Moor went) and where both sit.
+void place_act1(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::OutdoorAssets& act1, std::uint32_t map_seed) {
+    scene.map_seed = map_seed;
+    const auto layout = d2d::drlg::act1_from_map_seed(d2d::drlg::level_defs(act1.levels), map_seed);
+    static constexpr std::array<const char*, 4> kTown = { R"(data\global\tiles\ACT1\TOWN\townN1.ds1)",
+                                                           R"(data\global\tiles\ACT1\TOWN\townE1.ds1)",
+                                                           R"(data\global\tiles\ACT1\TOWN\townS1.ds1)",
+                                                           R"(data\global\tiles\ACT1\TOWN\townW1.ds1)" };
+    load_world(scene, mpqs, kTown[std::size_t(std::max(0, d2d::drlg::town_file(layout)))]);
+    for (const auto& p : layout)
+        if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
+    scene.act1_layout = layout;
+}
+
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
@@ -1741,21 +1756,9 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         d2d::log::info("  Strings: {} base, {} patch, {} expansion; {} credit lines",
                        scene.strings.size(), scene.patch_strings.size(), scene.exp_strings.size(),
                        scene.credits.size());
-        // Act 1's layout from the map seed picks the town's DS1 (the side
-        // the Blood Moor went) and where both sit.
-        scene.map_seed = map_seed;
         auto act1 = std::make_unique<d2d::drlg::OutdoorAssets>();
         d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& p) { return mpqs.try_read(p); });
-        const auto layout = d2d::drlg::act1_from_map_seed(d2d::drlg::level_defs(act1->levels), map_seed);
-        static constexpr std::array<const char*, 4> kTown = { R"(data\global\tiles\ACT1\TOWN\townN1.ds1)",
-                                                               R"(data\global\tiles\ACT1\TOWN\townE1.ds1)",
-                                                               R"(data\global\tiles\ACT1\TOWN\townS1.ds1)",
-                                                               R"(data\global\tiles\ACT1\TOWN\townW1.ds1)" };
-        const int tf = std::max(0, d2d::drlg::town_file(layout));
-        load_world(scene, mpqs, kTown[std::size_t(tf)]);
-        for (const auto& p : layout)
-            if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
-        scene.act1_layout = layout;
+        place_act1(scene, mpqs, *act1, map_seed);
         // The other levels build when they're first wanted (Scene::level).
         scene.builder = std::make_shared<GameData::LevelBuilder>();
         scene.builder->act1 = std::move(act1);
@@ -2110,11 +2113,30 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     }
     scene.town.id = 1;                                  // ponytail: the only level loaded so far
     scene.town.ds1 = d2d::ds1::Map(*b);
-    scene.town.dt1s.reserve(scene.town.ds1.files().size());
-    for (const auto& f : scene.town.ds1.files()) {
+    // Its DT1s as game.exe lists a preset room's (FUN_0066f240): LvlTypes 1's
+    // files by LvlPrest 1's Dt1Mask, then Blank, InvisWal, Warp — never the
+    // DS1's own list (townN1's names .tg1 files that don't exist).
+    std::vector<std::string> files;
+    auto table = [&](const char* n) {
+        auto t = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
+        return t ? d2d::txt::Table(*t) : d2d::txt::Table{};
+    };
+    const auto types = table("LvlTypes"), prest = table("LvlPrest");
+    std::uint32_t mask = 0;
+    for (std::size_t r = 0; r < prest.size(); ++r)
+        if (prest.get(r, "Def") == "1") mask = std::uint32_t(std::atoll(std::string(prest.get(r, "Dt1Mask")).c_str()));
+    for (std::size_t r = 0; r < types.size(); ++r)
+        if (types.get(r, "Id") == "1")
+            for (int i = 0; i < 32; ++i)
+                if (const auto f = types.get(r, "File " + std::to_string(i + 1)); mask >> i & 1 && f != "0" && !f.empty())
+                    files.push_back("data/global/tiles/" + std::string(f));
+    for (const char* f : { "Act1/Outdoors/Blank.dt1", "Act1/Barracks/InvisWal.dt1", "Act1/Barracks/Warp.dt1" })
+        files.push_back(std::string("data/global/tiles/") + f);
+    scene.town.dt1s.reserve(files.size());
+    for (const auto& f : files) {
         const auto mpq_path = ds1_path_to_mpq(f);
         auto db = mpqs.try_read(mpq_path);
-        if (!db) continue;   // .tg1 or otherwise-missing — silent skip
+        if (!db) continue;
         try {
             scene.town.dt1s.emplace_back(*db);
         } catch (const std::exception& e) {
@@ -2141,7 +2163,28 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);
     d2d::log::info("  World: {} {}x{}, {} of {} tilesets, {} tiles", ds1_path, m.width(), m.height(),
-                   scene.town.dt1s.size(), m.files().size(), scene.town.tile_lookup.size());
+                   scene.town.dt1s.size(), files.size(), scene.town.tile_lookup.size());
 }
 
 }  // namespace
+
+// A game on another map seed: act 1 laid out again, the camp rebuilt with
+// its units, the other levels dropped (they build again when wanted). The
+// World and its Town must enter afterwards; nothing may point into the
+// old levels.
+void set_map_seed(Scene& scene, std::uint32_t seed) {
+    if (seed == scene.map_seed || !scene.builder || !scene.builder->act1) return;
+    for (auto& [id, job] : scene.builder->jobs) job.wait();
+    scene.builder->jobs.clear();
+    scene.levels.clear();
+    const Level& o = scene.town;
+    Level town{ .id = o.id, .name = o.name, .type = o.type, .layer = o.layer, .song = o.song, .ambience = o.ambience,
+                .night_ambience = o.night_ambience, .day_event = o.day_event, .night_event = o.night_event,
+                .event_delay = o.event_delay };
+    scene.town = std::move(town);
+    place_act1(scene, scene.mpqs, *scene.builder->act1, seed);
+    scene.shrines.clear();                          // load_npcs reads Shrines.txt again
+    load_npcs(scene, scene.mpqs);
+    want_nearby(scene, scene.town);
+    d2d::log::info("map seed {:#x}: {}", seed, scene.town.ds1.width() ? "act 1 laid out" : "no town");
+}

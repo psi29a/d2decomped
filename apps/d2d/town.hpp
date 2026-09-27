@@ -206,6 +206,9 @@ struct Town {
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.
     void enter() {
+        automap.cells.clear();                    // a new game: nothing seen yet
+        automap.revealed.clear();
+        other_automaps.clear();
         world.enter(cc);
         skillbar.new_game();
         publish();

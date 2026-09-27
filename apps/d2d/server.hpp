@@ -189,6 +189,7 @@ struct World {
         auto h = cc.header;
         h.level = std::uint8_t(std::clamp<std::int64_t>(cc.stats.get(d2d::d2s::kLevel), 1, 99));
         h.last_played = std::uint32_t(std::time(nullptr));
+        h.map_id = scene->map_seed;
         if (cc.appearance) h.appearance = *cc.appearance;
         const auto err = characters->save(h, cc.stats, cc.items);
         if (err.empty()) cc.header.last_played = h.last_played;
@@ -365,6 +366,12 @@ struct World {
             cc.stats.v[cur] = cc.stats.v[max];
         held.reset();
         store = {};
+        level = &scene->town;                     // a game starts in the camp (set_map_seed may have rebuilt it)
+        npc_states = npc_start(*level);
+        interact_npc = pick_item = take_warp = -1;
+        wanted_near = nullptr;
+        if (level->start.first >= 0) std::tie(player.x, player.y) = level->nearest_free(level->start.first, level->start.second);
+        target_x = player.x; target_y = player.y;
         spawn_merc();
         new_game();
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)

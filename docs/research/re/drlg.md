@@ -18,7 +18,23 @@ once; its low word is kept at act +0x470. A level's seed (+0x1c4) is
 (FUN_00642ae0) and set again just before it's generated (FUN_006424a0),
 so every level's contents depend only on the map seed and its id.
 
-## An act (FUN_00642da0)
+## The game's map seed
+
+- **A new game** (`FUN_0052c280`): the seed is random (QueryPerformanceCounter
+  into the game's seed), unless one was forced (`DAT_00731004`, set by
+  `FUN_0052c320`), which sets game +0x84.
+- **A single-player join** (`FUN_0056a090`): when the game is type 3, the
+  seed wasn't forced, and the save's difficulty byte for this game's
+  difficulty (d2s +0xa8) has 0x80, the game takes the save's map id
+  (d2s +0xab) as its seed. So a character keeps its Act 1 layout (the camp's
+  side, where the Blood Moor goes) game after game on one difficulty.
+- **Saving** (PlrSave2.cpp, `FUN_00568f20`): d2s +0xab = game +0x7c.
+
+d2d: `game_seed` (main.cpp) picks it, `set_map_seed` (load.hpp) lays act 1
+out again and rebuilds the camp, and the World writes it back on saving.
+`--seed` forces one.
+
+
 
 Allocates the act (0x48c bytes), seeds it, then FUN_00641f60,
 FUN_0061b7e0 and **FUN_00678ad0 (act placement, by act 0..4)**. A level's

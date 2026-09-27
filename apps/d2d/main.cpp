@@ -15,6 +15,8 @@
 
 #include "devctl_verbs.hpp"
 
+#include <random>
+
 
 namespace {
 
@@ -30,6 +32,17 @@ static bool        g_start_hardcore = false;
 static bool        g_no_save = false;         // --no-save: nothing is written (scripted tests)
 static int         g_start_cam_x = -1;   // -1 = "use map center"
 static int         g_start_cam_y = -1;
+// A game's map seed (FUN_0052c280): a fixed one if given, else the save's
+// own when it was last played on this difficulty (single player,
+// FUN_0056a090), else a new one — the random one this run started with.
+// ponytail: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
+// means none here.
+static bool          g_seed_fixed = false;  // --seed
+static std::uint32_t g_map_seed = 0;
+static std::uint32_t game_seed(const d2d::d2s::Header& h) {
+    if (!g_seed_fixed && h.difficulty[std::size_t(h.active_difficulty())] & 0x80 && h.map_id) return h.map_id;
+    return g_map_seed;
+}
 static int         g_scale = 1;          // window = game res * g_scale
 
 static Screen parse_screen(std::string_view s) {
@@ -214,7 +227,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     t.world.characters = g_no_save ? nullptr : &characters;
-    if (screen == Screen::InGame && scene) t.enter();   // --start-screen ingame: the class and name given
+    if (screen == Screen::InGame && scene) {
+        set_map_seed(*scene, game_seed(cc.header));
+        t.enter();   // --start-screen ingame: the class and name given
+    }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
 
@@ -439,6 +455,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
                     cc.header = h;
+                    set_map_seed(*scene, game_seed(cc.header));
                     t.enter();                                // the World takes the character
                 }
                 render_charselect(fb, *scene, csu, ms);
@@ -488,6 +505,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         cc.items = std::move(n.items);
                         cc.appearance.reset();
                         cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
+                        set_map_seed(*scene, game_seed(cc.header));
                         t.enter();
                         t.save();
                         load_saves(*scene, save_dir);
@@ -649,7 +667,7 @@ int main(int argc, char** argv) {
     std::string start_name;
     bool        start_hardcore = false;
     bool        no_save = false;
-    std::uint32_t map_seed = 3;  // act layout + levels; 3 puts the Blood Moor east (townE1)
+    std::uint32_t map_seed = std::random_device{}();   // --seed fixes it (3 puts the Blood Moor east, townE1)
 
     CLI::App app{"d2d — Diablo II re-implementation (dev build)"};
     app.add_option("--seed", map_seed, "Map seed (act 1 layout and the Blood Moor)");
@@ -687,14 +705,17 @@ int main(int argc, char** argv) {
     } catch (const CLI::ParseError& e) {
         return app.exit(e);
     }
+    g_seed_fixed = app.count("--seed") > 0;
+    g_map_seed = map_seed;
     data_dir = data_dir_str;
     d2d::log::info("  Data dir: {}", data_dir.string());
 
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
     auto scene = load_scene(data_dir, cfg["patch"], map_seed);   // nullopt if MPQ dir is missing
-    if (scene) want_nearby(*scene, scene->town);        // the Blood Moor builds while the menus run
     if (scene) load_saves(*scene, save_dir);
+    if (scene && !scene->saves.empty()) set_map_seed(*scene, game_seed(scene->saves.front()));   // the likely pick's map
+    if (scene) want_nearby(*scene, scene->town);        // the Blood Moor builds while the menus run
 
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};

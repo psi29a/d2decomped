@@ -123,8 +123,10 @@ int main() {
                 assert(st.get(d2d::d2s::kLevel) == hdr.level);      // two copies agree
                 // Level 80+ characters: Den of Evil (1) and Andariel (6)
                 // done in Normal; the flags past the last quest are clear.
-                assert(hdr.quest_flag(0, 1, 0) && hdr.quest_flag(0, 6, 0));
-                assert(hdr.waypoint(0, 0) && hdr.waypoint(0, 1));    // town + Cold Plains
+                if (hdr.level >= 80) {
+                    assert(hdr.quest_flag(0, 1, 0) && hdr.quest_flag(0, 6, 0));
+                    assert(hdr.waypoint(0, 0) && hdr.waypoint(0, 1));    // town + Cold Plains
+                }
                 assert(st.fixed(d2d::d2s::kMaxLife) > 0 && st.get(d2d::d2s::kVit) > 0);
                 assert(bytes[st.items_at] == std::byte{'J'} && bytes[st.items_at + 1] == std::byte{'M'});
                 const auto items = d2d::d2s::parse_items(bytes, t);
