@@ -336,6 +336,22 @@ try:
     cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
     assert cmd("debug level").split()[1] == "1"
 
+    # Saving (character_store.hpp): gold set, saved, out to the roster and
+    # back in; the gold is still there, the original kept as .d2s.bak.
+    name = state()["name"]
+    cmd("debug stat 14 777"); frames(2)
+    cmd("save")
+    for _ in range(6):
+        if state()["screen"] == "charselect":
+            break
+        cmd("key Escape"); frames(6)
+    st = state()
+    assert st["screen"] == "charselect" and st["save"] == "0", st
+    assert os.path.exists(os.path.join(saves, name + ".d2s.bak")), "no backup of the original save"
+    cmd("click 690 555"); frames(10)
+    st = state()
+    assert st["screen"] == "ingame" and st["name"] == name and st["gold"] == "777", st
+
     cmd("quit")
     assert proc.wait(timeout=10) == 0
     print("OK")

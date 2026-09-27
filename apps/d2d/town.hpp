@@ -70,6 +70,17 @@ struct Town {
         fight.skill_level = [this](int id) { return skillbar.level(id); };
     }
 
+    // Saving the character: the item on the cursor goes back first, the
+    // skill buttons into the header, then the World writes it.
+    // ponytail: the skill choice is set straight on the save; game.exe sends
+    // 0x3c (select skill) to the server.
+    std::string save() {
+        stow_held(*scene, cc.items, held);
+        cc.header.left_skill = std::uint32_t(skillbar.left);
+        cc.header.right_skill = std::uint32_t(skillbar.right);
+        return world.save();
+    }
+
     // devctl: operate object i now, as the server would on arrival.
     void operate(int i, std::uint32_t ms, int force = -1) { world.operate(i, ms, force); }
 
@@ -114,7 +125,7 @@ struct Town {
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (inv_open || char_open || stash_open || cube_open || tree_open)   // then panels
                     inv_open = char_open = stash_open = cube_open = tree_open = false;
-                else { stow_held(*scene, cc.items, held); screen = Screen::CharSelect; }
+                else { save(); screen = Screen::CharSelect; }
             }
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory

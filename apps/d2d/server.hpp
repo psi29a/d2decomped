@@ -9,6 +9,9 @@
 
 #include "protocol.hpp"
 #include "fight.hpp"
+#include "character_store.hpp"
+
+#include <ctime>
 
 namespace {
 
@@ -50,6 +53,7 @@ struct World {
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
+    const CharacterStore* characters = nullptr;   // where the character is saved
 
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
@@ -67,6 +71,21 @@ struct World {
         player.dir = 4;                    // south, facing the viewer
     }
     World(const World&) = delete;
+
+    // The character to the CharacterStore: the save's header with what the
+    // game changed (level, when last played, the gear's look), its stats and
+    // items. "" when it's written, else why not.
+    std::string save() {
+        if (!characters) return "no character store";
+        auto h = cc.header;
+        h.level = std::uint8_t(std::clamp<std::int64_t>(cc.stats.get(d2d::d2s::kLevel), 1, 99));
+        h.last_played = std::uint32_t(std::time(nullptr));
+        if (cc.appearance) h.appearance = *cc.appearance;
+        const auto err = characters->save(h, cc.stats, cc.items);
+        if (err.empty()) cc.header.last_played = h.last_played;
+        d2d::log::info("save {}: {}", h.name, err.empty() ? "written" : err);
+        return err;
+    }
 
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class

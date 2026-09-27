@@ -18,6 +18,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace d2d::d2s {
@@ -46,6 +48,8 @@ inline void write_props(BitWriter& w, const ItemTables& t, const ItemProp* p, st
         const std::size_t run = id == 17 || id == 48 || id == 50 || id == 52 ? 2 : id == 54 || id == 57 ? 3 : 1;
         w.write(std::uint32_t(id), 9);
         for (std::size_t k = 0; k < run && i < n; ++k, ++i) {
+            if (p[i].stat < 0 || std::size_t(p[i].stat) >= t.stats.size() || !t.stats[std::size_t(p[i].stat)].save_bits)
+                throw std::runtime_error("d2s write: stat " + std::to_string(p[i].stat) + " can't be saved");
             const auto& st = t.stats[std::size_t(p[i].stat)];
             if (st.param_bits) w.write(std::uint32_t(p[i].param), st.param_bits);
             w.write(std::uint32_t(p[i].value + st.save_add), st.save_bits);

@@ -53,6 +53,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
     // By value: click_verb is this function's local (a [&] would dangle).
     ch.on("click", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_LEFT); });
     ch.on("rclick", [click_verb](const std::vector<std::string>& a) { return click_verb(a, SDL_BUTTON_RIGHT); });
+    // Save the character now (character_store.hpp), as leaving the game does.
+    ch.on("save", [&](const std::vector<std::string>&) {
+        if (screen != Screen::InGame) return std::string("err not in a game\n");
+        const auto err = t.save();
+        return err.empty() ? std::string("ok\n") : "err " + err + "\n";
+    });
     // A command straight to the World, as a client sends one (protocol.hpp);
     // applied at its next tick.
     ch.on("cmd", [&](const std::vector<std::string>& a) {

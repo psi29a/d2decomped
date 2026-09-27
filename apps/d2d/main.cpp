@@ -59,7 +59,8 @@ inline void pace_frame(std::uint32_t frame_start_ms) {
 }
 
 int run_windowed(std::vector<std::uint8_t>& fb,
-                 const std::optional<Scene>& scene,
+                 std::optional<Scene>& scene,
+                 const fs::path& save_dir,
                  d2d::devctl::Channel& ch,
                  std::atomic<std::uint64_t>& frame_count,
                  std::atomic<bool>& quit) {
@@ -208,6 +209,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
     Town t(scene ? &*scene : nullptr, cc, g_start_cam_x, g_start_cam_y);
+    // The characters' saves (character_store.hpp): the World writes through
+    // it when the player leaves the game or quits; the roster is read again.
+    const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
+    t.world.characters = &characters;
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
 
@@ -444,6 +449,11 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             }
             case Screen::InGame: {
                 t.update(fb, mouse, keys_this_frame, screen, audio, ms, last_ms);
+                if (screen == Screen::CharSelect && scene) {         // left the game (saved): the roster again,
+                    load_saves(*scene, save_dir);                      // the character just played first
+                    csu.selected = scene->saves.empty() ? -1 : 0;
+                    csu.scroll = 0;
+                }
                 break;
             }
             case Screen::CharCreate: {
@@ -556,6 +566,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                             std::memory_order_relaxed);
         pace_frame(frame_start_ms);
     }
+    if (screen == Screen::InGame) t.save();   // quitting from the game saves it
     // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
     // and touch stale pointers.
     watchdog_stop.store(true, std::memory_order_relaxed);
@@ -711,5 +722,5 @@ int main(int argc, char** argv) {
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
         if (!std::getenv("ALSOFT_DRIVERS")) SDL_setenv_unsafe("ALSOFT_DRIVERS", "null", 1);   // openal-soft's silent backend
     }
-    return run_windowed(fb, scene, ch, frame_count, quit);
+    return run_windowed(fb, scene, save_dir, ch, frame_count, quit);
 }
