@@ -20,37 +20,9 @@ struct SkillBar {
     static constexpr int kLeftX = 117, kRightX = int(kW) - 165, kIcon = 48;
 
     [[nodiscard]] int cls() const { return int(kUiToSaveClass[std::max(cc.selected, 0)]); }
-    // Points in a skill: a class skill's from the save's skill bytes (in
-    // Skills.txt order), Attack and a tome's skill (with the tome carried) 1.
-    // ponytail: other general skills (Throw, Unsummon, the left-hand
-    // swings) and item charges aren't offered yet.
-    [[nodiscard]] int base_level(int id) const {
-        const auto& ids = scene->skills.class_ids[std::size_t(cls())];
-        if (const auto it = std::ranges::find(ids, id); it != ids.end()) return cc.stats.skills[std::size_t(it - ids.begin())];
-        if (id == 0) return 1;
-        const auto* s = scene->skills.get(id);
-        if (!s) return 0;
-        const char* tome = s->name == "Book of Townportal" ? "tbk" : s->name == "Book of Identify" ? "ibk" : nullptr;
-        return tome && std::ranges::any_of(cc.items, [&](const d2d::d2s::Item& it) { return it.code == tome && it.location == 0; }) ? 1 : 0;
-    }
-    // The level with item bonuses (worn items and what's socketed in them).
-    // ponytail: charms and set bonuses don't count yet.
-    [[nodiscard]] int level(int id) const {
-        const auto* s = scene->skills.get(id);
-        const int base = base_level(id);
-        if (!s || s->cls.empty()) return base;
-        std::vector<d2d::d2s::ItemProp> props = extra;
-        for (const auto& it : cc.items) {
-            if (it.location != 1 || it.slot < 1 || it.slot > 10) continue;
-            props.insert(props.end(), it.props.begin(), it.props.end());
-            for (const auto& j : it.socketed_items) {
-                const auto sp = socket_props(*scene, it, j);
-                props.insert(props.end(), sp.begin(), sp.end());
-            }
-        }
-        const int bonus = d2d::rules::item_skill_bonus(*s, cls(), props);
-        return base > 0 ? base + bonus : 0;          // bonuses only raise skills that have points
-    }
+    // The skill's level, as the World works it out (fight.hpp skill_level).
+    [[nodiscard]] int base_level(int id) const { return skill_base_level(*scene, cc, id); }
+    [[nodiscard]] int level(int id) const { return skill_level(*scene, cc, id, extra); }
     // Can go on the button: known (a level), not passive, and on the left
     // only when Skills.txt's leftskill allows it.
     [[nodiscard]] bool usable(int id, bool on_left) const {

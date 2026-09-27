@@ -66,8 +66,6 @@ struct Town {
     Town(const Scene* s, CharCreateUI& c, int start_x = -1, int start_y = -1)
         : scene(s), cc(c), world(s, c, start_x, start_y) {
         have_world = level && !level->dt1s.empty();
-        fight.skill_base = [this](int id) { return skillbar.base_level(id); };
-        fight.skill_level = [this](int id) { return skillbar.level(id); };
     }
 
     // Saving the character: the item on the cursor goes back first, then

@@ -51,6 +51,7 @@ struct World {
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     struct Fire { const Level* level; const Npc* npc; float x, y; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
+    std::uint32_t now = 0;                 // the tick's time
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
     const CharacterStore* characters = nullptr;   // where the character is saved
@@ -78,6 +79,15 @@ struct World {
         if (scene) fight.new_game(0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
+        // The character's skill levels for the fight, the skill shrine's
+        // +all skills (item_allskills) while its boost lasts.
+        fight.skill_base = [this](int id) { return skill_base_level(*scene, cc, id); };
+        fight.skill_level = [this](int id) {
+            std::vector<d2d::d2s::ItemProp> extra;
+            if (now < fight.boost.until)
+                for (const auto& [st, v] : fight.boost.stats) if (st == 127) extra.push_back({ .stat = 127, .value = v });
+            return skill_level(*scene, cc, id, extra);
+        };
     }
     World(const World&) = delete;
 
@@ -528,6 +538,7 @@ struct World {
     // potions and regeneration.
     void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms) {
         const float dt = float(ms - last_ms) / 1000.f;
+        now = ms;
         item_ids();
         fight.update_fighters(ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back

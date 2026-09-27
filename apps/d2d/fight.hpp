@@ -97,6 +97,39 @@ inline bool finisher(const d2d::rules::Skill* s) {
     return !s || s->id == 0 || s->srvdofunc == 42 || s->srvdofunc == 50 || s->srvdofunc == 46;
 }
 
+// The character's level in a skill (the World's for the fight, the skill
+// bar's for show): points (a class skill's from the save's skill bytes in
+// Skills.txt order; Attack, and a tome's skill with the tome carried, 1),
+// then with the bonuses of worn items, what's socketed in them and `extra`
+// (the skill shrine's +all skills) — only on skills that have points.
+// ponytail: other general skills, item charges, charms and set bonuses
+// don't count yet.
+inline int skill_base_level(const Scene& s, const CharCreateUI& cc, int id) {
+    const auto& ids = s.skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+    if (const auto it = std::ranges::find(ids, id); it != ids.end()) return cc.stats.skills[std::size_t(it - ids.begin())];
+    if (id == 0) return 1;
+    const auto* k = s.skills.get(id);
+    if (!k) return 0;
+    const char* tome = k->name == "Book of Townportal" ? "tbk" : k->name == "Book of Identify" ? "ibk" : nullptr;
+    return tome && std::ranges::any_of(cc.items, [&](const d2d::d2s::Item& it) { return it.code == tome && it.location == 0; }) ? 1 : 0;
+}
+inline int skill_level(const Scene& s, const CharCreateUI& cc, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
+    const auto* k = s.skills.get(id);
+    const int base = skill_base_level(s, cc, id);
+    if (!k || k->cls.empty()) return base;
+    std::vector<d2d::d2s::ItemProp> props = extra;
+    for (const auto& it : cc.items) {
+        if (it.location != 1 || it.slot < 1 || it.slot > 10) continue;
+        props.insert(props.end(), it.props.begin(), it.props.end());
+        for (const auto& j : it.socketed_items) {
+            const auto sp = socket_props(s, it, j);
+            props.insert(props.end(), sp.begin(), sp.end());
+        }
+    }
+    const int bonus = d2d::rules::item_skill_bonus(*k, int(kUiToSaveClass[std::max(cc.selected, 0)]), props);
+    return base > 0 ? base + bonus : 0;
+}
+
 struct Fight {
     const Scene* scene;
     const Level* const& level;             // Town's: where the player is
