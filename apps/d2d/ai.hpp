@@ -206,7 +206,7 @@ struct Monster {
     std::uint32_t blind_until = 0;
     [[nodiscard]] bool alive() const { return hp > 0; }
     // As a target for the player's (or the merc's) hits.
-    [[nodiscard]] d2d::rules::Target target(const Scene& s) const {
+    [[nodiscard]] d2d::rules::Target target(const GameData& s) const {
         const auto& t = s.monsters.types[std::size_t(type)];
         const auto& p = t.diff[std::size_t(difficulty)];
         auto res = p.res;
@@ -240,7 +240,7 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
 struct Missile {
-    const Scene::MissileInfo* info = nullptr;
+    const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, vx = 0, vy = 0;       // cells, cells/s
     int dir = 0;                              // 0..31, DCC order
     std::uint32_t born = 0, dies = 0;
@@ -310,7 +310,7 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
 // A random unique's name (the client's FUN_004ac870): on {name seed, 666},
 // a suffix then a prefix into string 0x6b9 ("%0 %1"); then rand(100) < 50
 // builds it again, appellation, suffix, prefix, into 0x6ba ("%0 %1 %2").
-std::string unique_name(const Scene& s, int name_seed) {
+std::string unique_name(const GameData& s, int name_seed) {
     const auto& [pre, suf, app] = s.unique_names;
     if (pre.empty() || suf.empty()) return "?";
     auto fill = [](std::string f, std::initializer_list<std::string> args) {   // "%0 %1 %2": positional
@@ -337,7 +337,7 @@ std::string unique_name(const Scene& s, int name_seed) {
 // A champion / unique / superunique / minion (rules/uniques.hpp,
 // FUN_005a2120): a higher level, more life, damage and to-hit,
 // resistances, speed, an element; its name. At full life.
-void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
+void make_boss(const GameData& s, Monster& m, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
                int difficulty, d2d::rules::Rng& rng) {
     const auto& t = s.monsters.types[std::size_t(m.type)];
     const auto b = d2d::rules::boss_stats(s.umods, t, kind, mods, difficulty);
@@ -384,7 +384,7 @@ void make_boss(const Scene& s, Monster& m, d2d::rules::Boss kind, const std::vec
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components
 // and stats rolled (a boss's by make_boss instead: `stats` false).
-Monster make_monster(const Scene& s, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true) {
+Monster make_monster(const GameData& s, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true) {
     const auto& t = s.monsters.types[std::size_t(type)];
     Monster m;
     m.type = type;
@@ -401,7 +401,7 @@ Monster make_monster(const Scene& s, int type, float x, float y, d2d::rules::Rng
     return m;
 }
 
-std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
+std::vector<Monster> spawn_monsters(const GameData& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& sp : level_spawns(s, L, difficulty)) {
         if (sp.type < 0 || std::size_t(sp.type) >= s.mon_npc.size()) continue;
@@ -414,18 +414,18 @@ std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::
     return out;
 }
 
-void set_mode(const Scene& s, Monster& m, std::string_view mode, std::uint32_t ms) {
+void set_mode(const GameData& s, Monster& m, std::string_view mode, std::uint32_t ms) {
     m.mode = mode;
     m.u.mode_ms = ms;
     m.u.walking = mode == "WL";
-    m.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0 : ms + s.npc_anim(m.npc, mode).length_ms();
+    m.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0 : ms + s.npc_timing(m.npc, mode).length_ms();
 }
 
 // Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
 // when the hit takes an eighth of its life or more; either way it notices.
 // True when this killed it.
 // ponytail: the eighth is the commonly given threshold, not traced.
-bool hurt(const Scene& s, Monster& m, int damage, std::uint32_t ms) {
+bool hurt(const GameData& s, Monster& m, int damage, std::uint32_t ms) {
     if (!m.alive() || damage <= 0) return false;
     m.hp -= damage;
     m.aware = true;
@@ -435,8 +435,8 @@ bool hurt(const Scene& s, Monster& m, int damage, std::uint32_t ms) {
 }
 
 // A monster that blocked plays its block (BL), when it has one.
-void block_anim(const Scene& s, Monster& m, std::uint32_t ms) {
-    if (m.alive() && m.mode != "A1" && m.mode != "A2" && s.npc_anim(m.npc, "BL").cof.directions()) set_mode(s, m, "BL", ms);
+void block_anim(const GameData& s, Monster& m, std::uint32_t ms) {
+    if (m.alive() && m.mode != "A1" && m.mode != "A2" && s.npc_timing(m.npc, "BL").directions) set_mode(s, m, "BL", ms);
 }
 
 // One step toward (tx, ty) at `speed` cells/s, straight on; false when
@@ -467,7 +467,7 @@ bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, co
 // by eye; chasing goes straight at the player, sliding to a stop at walls.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
-void attack_starts(const Scene& s, Monster& m, std::string_view mode, d2d::rules::Rng& rng) {
+void attack_starts(const GameData& s, Monster& m, std::string_view mode, d2d::rules::Rng& rng) {
     using d2d::rules::Boss;
     if ((m.boss != Boss::unique && m.boss != Boss::superunique) || !std::ranges::contains(m.mods, d2d::rules::umod::spectralhit)
         || s.monsters.lvl.empty()) return;
@@ -479,7 +479,7 @@ void attack_starts(const Scene& s, Monster& m, std::string_view mode, d2d::rules
 }
 
 // Returns true when the foe's thorns killed it.
-bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
+bool monster_update(const GameData& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t ms, float dt, const Crowd& crowd, std::vector<Missile>& missiles) {
     auto& u = m.u;
     // After the nearest one alive (the player or the merc).
@@ -503,7 +503,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
     const float dx = foe.x - u.x, dy = foe.y - u.y, dist = std::hypot(dx, dy);
     const auto miss = t.miss_a2.empty() ? s.missiles.end() : s.missiles.find(t.miss_a2);
     if (m.mode == "A1" || m.mode == "A2") {
-        if (!m.struck && ms >= u.mode_ms + s.npc_anim(m.npc, m.mode).action_ms()) {
+        if (!m.struck && ms >= u.mode_ms + s.npc_timing(m.npc, m.mode).action_ms()) {
             m.struck = true;
             if (m.mode == "A2" && miss != s.missiles.end()) {         // fire: at the foe, from here
                 const auto& mi = miss->second;
@@ -602,7 +602,7 @@ bool monster_update(const Scene& s, const Level& L, Monster& m, std::span<Foe> f
 // Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
 // the others of its group within 10 cells run for 2-3 s.
 // ponytail: the Fallen think function isn't traced; group = spawn group.
-void fallen_scatter(const Scene& s, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t ms) {
+void fallen_scatter(const GameData& s, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t ms) {
     const auto& d = ms_[dead];
     if (s.monsters.types[std::size_t(d.type)].ai != "Fallen") return;
     for (auto& m : ms_)
@@ -613,7 +613,7 @@ void fallen_scatter(const Scene& s, std::vector<Monster>& ms_, std::size_t dead,
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.
-std::string merc_name(const Scene& s, const Scene::Merc& m, int index) {
+std::string merc_name(const GameData& s, const GameData::Merc& m, int index) {
     const auto& f = m.name_first;
     if (f.size() < 2) return f;
     const int first = std::atoi(f.substr(f.size() - 2).c_str());

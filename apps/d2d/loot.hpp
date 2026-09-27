@@ -8,7 +8,7 @@
 namespace {
 
 struct Loot {
-    const Scene* scene;
+    const GameData* scene;
     const Level* const& level;             // Town's: where drops land
     CharCreateUI& cc;
     UnitState& player;
@@ -76,7 +76,8 @@ struct Loot {
                 const auto lines = item_lines(*scene, g.item, int(cc.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
             }
-            if (!scene->flippy(g.item.code)) return;
+            if (const auto info = scene->rules.item_info.find(g.item.code);
+                info == scene->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
             cues.cue("item_flippy", ms, g.x, g.y);
             if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
                 cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
@@ -112,18 +113,6 @@ struct Loot {
         ground.erase(ground.begin() + std::ptrdiff_t(i));
     }
 
-    // The ground items near (px, py) as units the world draws by depth
-    // (npc -1000 - i: hoverable, labelled in the item's colour).
-    void units(float px, float py, std::vector<Unit>& out) const {
-        for (std::size_t i = 0; i < ground.size(); ++i) {
-            const auto& g = ground[i];
-            if (std::abs(g.x - px) >= 14 || std::abs(g.y - py) >= 14) continue;
-            Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
-            u.sprite = scene->flippy(g.item.code);
-            u.rgb = g.rgb;
-            out.push_back(u);
-        }
-    }
 };
 
 }  // namespace

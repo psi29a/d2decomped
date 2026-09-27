@@ -232,7 +232,9 @@ void render_world(std::vector<std::uint8_t>& fb,
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
             std::array<int, 4> b{};
             if (u.missile) {
-                const auto& spr = *u.missile->dcc;
+                const auto cel = s.missile_cels.find(u.missile->name);
+                if (cel == s.missile_cels.end()) continue;
+                const auto& spr = cel->second;
                 const std::uint32_t dirs = spr.directions(), fpd = std::uint32_t(spr.frames_per_direction());
                 if (dirs == 0 || fpd == 0) continue;
                 const auto frame = (elapsed_ms - u.mode_ms) * std::uint32_t(u.missile->anim_speed) / (40u * 16u)

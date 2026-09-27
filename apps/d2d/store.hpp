@@ -8,7 +8,7 @@ namespace {
 using d2d::rules::Store;
 
 // The store for world NPC npc (stock rolled from rng).
-Store open_store(const Scene& s, const Level& L, int npc, d2d::rules::Rng& rng) {
+Store open_store(const GameData& s, const Level& L, int npc, d2d::rules::Rng& rng) {
     const auto& n = L.npcs[std::size_t(npc)];
     Store st = d2d::rules::open_store(s.rules, n.hc_idx, n.id, rng);
     st.npc = npc;

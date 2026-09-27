@@ -31,7 +31,7 @@ using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 // transport sends them as bytes.
 // ponytail: monsters go whole (the fields a client needs aren't picked yet);
 // the character (cc), the store and the item in hand are still shared with
-// the World; levels are pointers into the shared Scene (the same on every
+// the World; levels are pointers into the shared GameData (the same on every
 // machine, from the map seed).
 struct View {
     const Level* level = nullptr;
@@ -42,13 +42,13 @@ struct View {
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
-    Scene::Appearance gfx{};               // what the character wears
+    GameData::Appearance gfx{};               // what the character wears
     struct Merc { UnitState u; const Npc* npc = nullptr; std::string_view mode; };
     std::optional<Merc> merc;
     struct Pet { Npc npc; UnitState u; std::string_view mode; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Monster> monsters;         // the level's
-    struct Shot { const Scene::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; };
+    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; };
     std::vector<Shot> missiles;
     int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
     std::vector<Loot::GroundItem> ground;  // the level's floor
@@ -81,7 +81,7 @@ struct View {
 constexpr std::uint32_t kTickMs = 40;
 
 struct World {
-    const Scene* scene = nullptr;
+    const GameData* scene = nullptr;
     CharCreateUI cc;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
@@ -118,7 +118,7 @@ struct World {
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
     // tent.
-    World(const Scene* s, int start_x, int start_y) : scene(s), level(s ? &s->town : nullptr) {
+    World(const GameData* s, int start_x, int start_y) : scene(s), level(s ? &s->town : nullptr) {
         const bool have_world = level && !level->dt1s.empty();
         player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
         player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
@@ -159,7 +159,7 @@ struct World {
             // each player). ponytail: a radius of 28 cells, not rooms.
             for (const auto& m : fight.monsters)
                 if (std::abs(m.u.x - player.x) < 28 && std::abs(m.u.y - player.y) < 28) v.monsters.push_back(m);
-            for (const auto& m : fight.missiles) if (m.info && m.info->dcc) v.missiles.push_back({ m.info, m.x, m.y, m.dir, m.born });
+            for (const auto& m : fight.missiles) if (m.info) v.missiles.push_back({ m.info, m.x, m.y, m.dir, m.born });
         }
         if (fight.attack_mon >= 0 && std::size_t(fight.attack_mon) < fight.monsters.size()) v.attack = fight.monsters[std::size_t(fight.attack_mon)].id;
         v.attack_skill = fight.attack_skill;
@@ -649,7 +649,7 @@ struct World {
         const float dt = float(ms - last_ms) / 1000.f;
         now = ms;
         // Levels: finished builds come in; the ones next to the player's
-        // start building when it changes (Scene::level).
+        // start building when it changes (GameData::level).
         scene->poll_levels();
         if (level != wanted_near) { want_nearby(*scene, *level); wanted_near = level; }
         item_ids();

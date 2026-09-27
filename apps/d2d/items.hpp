@@ -42,7 +42,7 @@ std::string d2_format(std::string_view f, std::initializer_list<std::variant<std
 // "+X% Enhanced Damage", as the game hard-codes them.
 // ponytail: no descfunc 17/18 (time-of-day), 22/23 (monster types);
 // charges/skill lines use the skill's string key.
-std::vector<std::string> prop_lines(const Scene& s, std::vector<d2d::d2s::ItemProp> props, int clvl) {
+std::vector<std::string> prop_lines(const GameData& s, std::vector<d2d::d2s::ItemProp> props, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
         const auto v = lookup_string(s, key);
@@ -206,7 +206,7 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // ponytail: no charges/books/ammo branches, automagic affix, durability
 // or the reduced-prices stat.
 
-std::vector<TextLine> item_lines(const Scene& s, const d2d::d2s::Item& it, int clvl) {
+std::vector<TextLine> item_lines(const GameData& s, const d2d::d2s::Item& it, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
         const auto v = lookup_string(s, key);

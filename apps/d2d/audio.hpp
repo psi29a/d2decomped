@@ -118,14 +118,14 @@ struct Audio {
     }
     // A world sound at `gain` (its distance), a random one of its group.
     // ponytail: no stereo panning.
-    void play_sfx(const Scene& s, int index, float gain, int variant) {
+    void play_sfx(const GameData& s, int index, float gain, int variant) {
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size() || gain <= 0.01f) return;
         const int g = s.sounds[std::size_t(index)].group;
         auto& c = sfx[sfx_next++ % sfx.size()];
         play(c, s, g > 1 ? index + variant % g : index);
         if (c.src) alSourcef(c.src, AL_GAIN, c.gain * gain);
     }
-    void play(Channel& c, const Scene& s, int index) {
+    void play(Channel& c, const GameData& s, int index) {
         stop(c);
         if (!ok || index <= 0 || std::size_t(index) >= s.sounds.size()) return;
         const auto& snd = s.sounds[std::size_t(index)];
@@ -136,11 +136,11 @@ struct Audio {
         if (!wav) { d2d::log::warn("sound {}: {} not found", index, snd.file); return; }
         start(c, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
     }
-    void play_voice(const Scene& s, int index) { play(voice, s, index); }
+    void play_voice(const GameData& s, int index) { play(voice, s, index); }
     // Music from its full path, on the worker. `id` identifies it (a
     // Sounds.txt index for level songs, negative for the frontend list).
     bool music_job_loop = true;
-    void play_music_path(const Scene& s, std::string path, int id, float gain, bool loop) {
+    void play_music_path(const GameData& s, std::string path, int id, float gain, bool loop) {
         stop(music);
         if (!ok) return;
         music.sound = id;                        // pending until the job lands
@@ -168,7 +168,7 @@ struct Audio {
     }
     // A new level's song (FUN_004dcaa0): the playing one fades out while
     // this one, once decoded, fades in.
-    void crossfade_music(const Scene& s, int index) {
+    void crossfade_music(const GameData& s, int index) {
         auto fade_of = [&](int i, bool in) {
             if (i <= 0 || std::size_t(i) >= s.sounds.size()) return std::uint64_t(0);
             return std::uint64_t(in ? s.sounds[std::size_t(i)].fade_in : s.sounds[std::size_t(i)].fade_out) * kTickMs;
@@ -183,7 +183,7 @@ struct Audio {
         music_fade_in_ms = fade_of(index, true);
         play_music(s, index);
     }
-    void play_music(const Scene& s, int index) {
+    void play_music(const GameData& s, int index) {
         if (index <= 0 || std::size_t(index) >= s.sounds.size()) { stop(music); return; }
         const auto& snd = s.sounds[std::size_t(index)];
         play_music_path(s, std::string(R"(data\global\music\)") + snd.file, index,
@@ -191,7 +191,7 @@ struct Audio {
     }
     // A fixed-path UI sound (game.exe names these directly, not via
     // Sounds.txt); the file is cached, each play restarts the channel.
-    void play_file(Channel& c, const Scene& s, const std::string& path) {
+    void play_file(Channel& c, const GameData& s, const std::string& path) {
         if (!ok) return;
         auto it = file_cache.find(path);
         if (it == file_cache.end()) {
@@ -275,7 +275,7 @@ struct Audio {
 // from a place: played when due, quieter with distance (silent past 20
 // cells from the listener).
 struct Cues {
-    const Scene* scene = nullptr;
+    const GameData* scene = nullptr;
     struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
     std::vector<Cue> due;
     void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) due.push_back({ at, sound, x, y }); }

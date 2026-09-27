@@ -84,7 +84,7 @@ CursorClick item_cursor_command(const Scene& s, const std::vector<d2d::d2s::Item
 
 // Puts a held item back when the game is left: the first free inventory
 // spot, else it's kept as d2s location 4 (on the cursor) so it isn't lost.
-void stow_held(const Scene& s, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held) {
+void stow_held(const GameData& s, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held) {
     if (!held) return;
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& it : items) if (it.location == 0 && it.panel == 1) inv.push_back(&it);

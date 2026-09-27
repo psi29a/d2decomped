@@ -376,7 +376,22 @@ Goal: Act 1 playable from the camp to Andariel and the way to Act 2, each
 piece from game.exe (no lost bits: checked against it where the emulator
 can, tools/emu). In this order:
 
-**Step 1 — levels on demand; game data apart from graphics** (~1–1.5 days).
+**Step 1 — levels on demand; game data apart from graphics.** *Done
+(2026-09-27):* `GameData::level(id)` builds a level from the map seed the
+first time it's wanted, on one builder thread with its own MPQ handles and
+DRLG tables; the levels next to the player's build ahead (`want_nearby`),
+the Blood Moor while the menus run; monsters populate per level and
+difficulty when first played (`level_spawns`). `Scene : GameData`: the
+World holds a `const GameData*`, so it can't reach sprites, fonts or
+palettes; animation timings come from the COF alone (`npc_timing`,
+`composite_timing`); missile sprites live in `Scene::missile_cels`. Debug
+start 3.8 s → 1.6 s. Left: a Level still decodes its DT1s' pixels (a server
+would too; decode them when first drawn, like the DCC layers); levels 2
+and 8 are the only ones built (`kBuiltLevels`); each level's monster and
+object seeds start from the map seed (the Den's population changed with
+that; neither was checked against game.exe).
+
+Planned as:
 Every level is built at start today (0.1–0.4 s each optimised, monsters
 for all three difficulties); Act 1 has ~30. The same cut serves the
 standalone server later.

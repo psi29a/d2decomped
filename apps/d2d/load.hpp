@@ -68,7 +68,7 @@ constexpr const char* kLayerCode[16] = {
 // applied yet; add the item colormaps when a portrait's colours matter.
 Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                                  const std::vector<d2d::compcode::Entry>& comp,
-                                 int cls, int mode, const Scene::Appearance& gfx) {
+                                 int cls, int mode, const Scene::Appearance& gfx, bool pixels = true) {
     Scene::PlayerAnim out;
     const char* cc = kCharCode[cls];
     std::string wc(comp.empty() ? std::string_view{}
@@ -84,9 +84,11 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
     if (!cof) return out;
     try {
         out.cof = d2d::cof::Cof(*cof);
+        out.cof_speed = out.cof.speed(); out.cof_frames = out.cof.frames_per_direction(); out.directions = out.cof.directions();
         const std::string_view pv(path);
         out.name = std::string(pv.substr(pv.rfind('\\') + 1, pv.rfind('.') - pv.rfind('\\') - 1));
         for (auto& ch : out.name) ch = char(std::toupper(ch));
+        if (!pixels) return out;                          // the timing's: no DCCs
         for (const auto& L : out.cof.layer_defs()) {
             if (L.type >= 16) continue;
             const auto b = gfx[L.type];
@@ -124,7 +126,7 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
 // then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
 // with the recipe's component for that layer ("lit" when blank).
 Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
-                                     const std::string& mode) {
+                                     const std::string& mode, bool pixels = true) {
     Scene::PlayerAnim out;
     char path[256];
     std::snprintf(path, sizeof(path), R"(data\global\%s\%s\COF\%s%s%s.cof)",
@@ -133,9 +135,11 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
     if (!cof) return out;
     try {
         out.cof = d2d::cof::Cof(*cof);
+        out.cof_speed = out.cof.speed(); out.cof_frames = out.cof.frames_per_direction(); out.directions = out.cof.directions();
         const std::string_view pv(path);
         out.name = std::string(pv.substr(pv.rfind('\\') + 1, pv.rfind('.') - pv.rfind('\\') - 1));
         for (auto& ch : out.name) ch = char(std::toupper(ch));
+        if (!pixels) return out;                          // the timing's: no DCCs
         for (const auto& L : out.cof.layer_defs()) {
             if (L.type >= 16) continue;
             std::string comp = n.comp[L.type].empty() ? "lit" : n.comp[L.type];
@@ -150,6 +154,28 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
         d2d::log::warn("{}: {}", path, e.what());
     }
     return out;
+}
+
+// The timing lookups: the COF and animdata only (the World's).
+template <class Key, class Load>
+const GameData::AnimTiming& timing_of(const GameData& g, std::map<Key, GameData::AnimTiming>& cache, const Key& key, Load&& load) {
+    auto it = cache.find(key);
+    if (it == cache.end()) {
+        GameData::AnimTiming t = load();
+        if (const auto a = g.anim_data.find(t.name); a != g.anim_data.end()) std::tie(t.speed, t.frames, t.action) = std::tuple{ a->second.speed, a->second.frames, a->second.action };
+        it = cache.emplace(key, std::move(t)).first;
+    }
+    return it->second;
+}
+const GameData::AnimTiming& GameData::npc_timing(const Npc& n, std::string_view mode) const {
+    auto key = n.root + "/" + n.code + "/" + std::string(mode) + "/" + n.base_w;
+    for (const auto& c : n.comp) key += "/" + c;
+    return timing_of(*this, npc_timings, key, [&] { return GameData::AnimTiming(load_npc_composite(mpqs, n, std::string(mode), false)); });
+}
+const GameData::AnimTiming& GameData::composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 16>& gfx) const {
+    std::array<std::uint8_t, 18> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
+    std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
+    return timing_of(*this, composite_timings, key, [&] { return GameData::AnimTiming(load_composite(mpqs, comp, d2s_class, mode, gfx, false)); });
 }
 
 const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) const {
@@ -384,7 +410,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 for (const char* c : { "SubMissile1", "HitSubMissile1" })
                     if (const std::string n(mt.get(r, c)); !n.empty()) more |= skill_missiles.emplace(n).second;
     }
-    std::vector<std::pair<Scene::MissileInfo*, std::vector<std::byte>>> cels;
+    std::vector<std::pair<d2d::dcc::Sprite*, std::vector<std::byte>>> cels;
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
@@ -410,8 +436,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             mi.emax_lev[std::size_t(i)] = g("MaxELev" + std::to_string(i + 1));
         }
         for (int i = 0; i < 3; ++i) mi.elen_lev[std::size_t(i)] = g("ELevLen" + std::to_string(i + 1));
-        auto& slot = scene.missiles.emplace(name, std::move(mi)).first->second;
-        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) cels.emplace_back(&slot, std::move(*b));
+        scene.missiles.emplace(name, std::move(mi));
+        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*b));
     }
     // Their DCCs decode on every core (the reads above stay on this thread:
     // StormLib handles aren't shared).
@@ -420,8 +446,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         std::vector<std::jthread> pool(std::max(1u, std::thread::hardware_concurrency()));
         for (auto& t : pool) t = std::jthread([&] {
             for (std::size_t i; (i = next++) < cels.size();)
-                try { cels[i].first->dcc = d2d::dcc::Sprite(cels[i].second); }
-                catch (const std::exception& e) { d2d::log::warn("missile {}: {}", cels[i].first->name, e.what()); }
+                try { *cels[i].first = d2d::dcc::Sprite(cels[i].second); }
+                catch (const std::exception& e) { d2d::log::warn("missile cel: {}", e.what()); }
         });
     }
     // SuperUniques.txt: name (string key), Class, minions.
@@ -483,7 +509,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
 // ponytail: each level's rooms in cell order, on a game seed from the map
 // seed; game.exe populates a room when it first comes up, in whatever order
 // the player brings them, each level's region seeded when it's made.
-const std::vector<d2d::rules::Spawn>& level_spawns(const Scene& scene, const Level& L, int d) {
+const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& L, int d) {
     d = std::clamp(d, 0, 2);
     if (L.spawns[std::size_t(d)]) return *L.spawns[std::size_t(d)];
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
@@ -674,7 +700,7 @@ void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs) {
 // ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
 // The level builder (Scene::builder): one build at a time, on its own MPQ
 // handles and its own DRLG tables (the generator caches DT1 heads in them).
-struct Scene::LevelBuilder {
+struct GameData::LevelBuilder {
     std::mutex m;                                       // held for a whole build; `mpqs` and `act1` are its
     std::optional<d2d::mpq::Stack> mpqs;
     std::unique_ptr<d2d::drlg::OutdoorAssets> act1;     // the act's DRLG tables (load_scene's, handed over)
@@ -705,7 +731,7 @@ void stamp_footprints(Level& lv) {
 // A type-2 object at subtile (sx, sy): objects.txt Id `oid` (through
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock. `rgn`: the game's object seed (FUN_00546fa0).
-void add_object(const Scene& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
+void add_object(const GameData& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int sx, int sy, d2d::rules::Rng& rgn) {
     const auto it = obj_row.find(std::to_string(oid));
     if (oid == 0 || it == obj_row.end()) return;
@@ -1534,53 +1560,53 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         if (!title) title = mpqs.try_read(R"(data\global\ui\FrontEnd\TitleScreen.DC6)");
         if (!title) throw std::runtime_error("no title screen asset");
 
-        Scene scene = Scene{
-            // Sky = title/credits (game.exe hardcodes palette\sky\pal.pl2 in
-            // 5 sites of the menu loader — docs/research/re/frontend-menu-table.md).
-            .pal            = d2d::palette::Palette(mpqs.read(
-                                R"(data\global\palette\Sky\pal.dat)")),
-            // fechar = "Front End CHARacter", the char-select/creation palette.
-            // game.exe's FUN_00435580 (char-select init) loads it right after
-            // the char-select asset loader (FUN_004326f0). Firelit warm tones
-            // — night camp scene lit by the campfire the classes stand around.
-            .charselect_pal = d2d::palette::Palette(mpqs.read(
-                                R"(data\global\palette\fechar\pal.dat)")),
-            .sky_pl2        = d2d::palette::Pl2(mpqs.read(
-                                R"(data\global\palette\Sky\Pal.PL2)")),
-            .fechar_pl2     = d2d::palette::Pl2(mpqs.read(
-                                R"(data\global\palette\fechar\Pal.PL2)")),
-            .bg          = d2d::dc6::Sprite(*title),
-            .logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)")),
-            .logo_bl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)")),
-            .logo_br     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)")),
-            .logo_fl     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireLeft.DC6)")),
-            .logo_fr     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireRight.DC6)")),
-            .btn_wide    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank.dc6)")),
-            .btn_wide2   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank02.dc6)")),
-            .btn_narrow  = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\NarrowButtonBlank.dc6)")),
-            .btn_short   = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\ShortButtonBlank.dc6)")),
-            .credits_bg  = [&] {
+        Scene scene;
+        // Sky = title/credits (game.exe hardcodes palette\sky\pal.pl2 in
+        // 5 sites of the menu loader — docs/research/re/frontend-menu-table.md).
+        scene.pal = d2d::palette::Palette(mpqs.read(
+                                R"(data\global\palette\Sky\pal.dat)"));
+        // fechar = "Front End CHARacter", the char-select/creation palette.
+        // game.exe's FUN_00435580 (char-select init) loads it right after
+        // the char-select asset loader (FUN_004326f0). Firelit warm tones
+        // — night camp scene lit by the campfire the classes stand around.
+        scene.charselect_pal = d2d::palette::Palette(mpqs.read(
+                                R"(data\global\palette\fechar\pal.dat)"));
+        scene.sky_pl2 = d2d::palette::Pl2(mpqs.read(
+                                R"(data\global\palette\Sky\Pal.PL2)"));
+        scene.fechar_pl2 = d2d::palette::Pl2(mpqs.read(
+                                R"(data\global\palette\fechar\Pal.PL2)"));
+        scene.bg = d2d::dc6::Sprite(*title);
+        scene.logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)"));
+        scene.logo_bl = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)"));
+        scene.logo_br = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)"));
+        scene.logo_fl = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireLeft.DC6)"));
+        scene.logo_fr = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoFireRight.DC6)"));
+        scene.btn_wide = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank.dc6)"));
+        scene.btn_wide2 = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\WideButtonBlank02.dc6)"));
+        scene.btn_narrow = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\NarrowButtonBlank.dc6)"));
+        scene.btn_short = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\ShortButtonBlank.dc6)"));
+        scene.credits_bg = [&] {
                 // creditsbckgexpand.dc6 (LoD) → creditsbckg.dc6 (classic).
                 auto b = mpqs.try_read(R"(data\global\ui\CharSelect\creditsbckgexpand.dc6)");
                 if (!b) b = mpqs.read(R"(data\global\ui\CharSelect\creditsbckg.dc6)");
                 return d2d::dc6::Sprite(*b);
-            }(),
-            .charcreate_bg = [&] {
+            }();
+        scene.charcreate_bg = [&] {
                 auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\charactercreationscreenEXP.dc6)");
                 if (!b) b = mpqs.read(R"(data\global\ui\FrontEnd\CharacterCreate.dc6)");
                 return d2d::dc6::Sprite(*b);
-            }(),
-            .fire       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)")),
-            .medium_button     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)")),
-            .medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)")),
-            .textbox           = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)")),
-            .clickbox          = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)")),
-            .charselect_bg     = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\characterselectscreenEXP.dc6)")),
-            .charselect_box    = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)")),
-            .charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)")),
-            .tall_button       = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)")),
-            .cursor            = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)")),
-            .class_anims = [&] {
+            }();
+        scene.fire = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)"));
+        scene.medium_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)"));
+        scene.medium_sel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumSelButtonBlank.dc6)"));
+        scene.textbox = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\textbox.dc6)"));
+        scene.clickbox = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\clickbox.dc6)"));
+        scene.charselect_bg = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\characterselectscreenEXP.dc6)"));
+        scene.charselect_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)"));
+        scene.charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)"));
+        scene.tall_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)"));
+        scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
+        scene.class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
                 struct C { const char* dir; const char* prefix; };
@@ -1605,35 +1631,34 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                     }
                 }
                 return out;
-            }(),
-            .font        = d2d::font::Font(
+            }();
+        scene.font = d2d::font::Font(
                              mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
-                             d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)"))),
-            .credits     = [&] {
+                             d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)")));
+        scene.credits = [&] {
                 auto b = mpqs.try_read(R"(data\local\UI\ENG\ExpansionCredits.txt)");
                 if (!b) b = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
                 return b ? parse_credits_utf16(*b) : std::vector<std::string>{};
-            }(),
-            // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
-            // string.tbl per probe. patchstring.tbl (826 entries) overrides
-            // specific IDs when Blizzard shipped patches; expansionstring.tbl
-            // (2788 entries) carries LoD-specific additions. For MVP we use
-            // string.tbl directly; when a subsystem needs a patch-shifted
-            // entry, load all three and query in order (patch → expansion →
-            // base).
-            .strings     = [&] {
+            }();
+        // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
+        // string.tbl per probe. patchstring.tbl (826 entries) overrides
+        // specific IDs when Blizzard shipped patches; expansionstring.tbl
+        // (2788 entries) carries LoD-specific additions. For MVP we use
+        // string.tbl directly; when a subsystem needs a patch-shifted
+        // entry, load all three and query in order (patch → expansion →
+        // base).
+        scene.strings = [&] {
                 auto b = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
                 return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
-            }(),
-            .patch_strings = [&] {
+            }();
+        scene.patch_strings = [&] {
                 auto b = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
                 return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
-            }(),
-            .exp_strings = [&] {
+            }();
+        scene.exp_strings = [&] {
                 auto b = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
                 return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
-            }(),
-        };
+            }();
         // Rogue-camp world data — separate call so a DS1/DT1 miss doesn't
         // nuke the whole scene; the InGame screen falls back to the credits
         // placeholder when world is empty.
@@ -1657,7 +1682,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
             if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
         scene.act1_layout = layout;
         // The other levels build when they're first wanted (Scene::level).
-        scene.builder = std::make_shared<Scene::LevelBuilder>();
+        scene.builder = std::make_shared<GameData::LevelBuilder>();
         scene.builder->act1 = std::move(act1);
         load_composite_data(scene, mpqs);
         load_npcs(scene, mpqs);
@@ -1824,7 +1849,7 @@ std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const 
 
 // An outdoor level of the act (the Blood Moor): drlg generate_outdoor
 // where the act's layout put it, on its level seed.
-bool build_outdoor(const Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv) {
+bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv) {
     const auto L = d2d::drlg::outdoor_level(a.levels, scene.act1_layout, lv.id);
     if (L.rect.w == 0) { d2d::log::warn("{}: the layout didn't place it", lv.name); return false; }
     const auto dt1s = load_level_dt1s(lv, mpqs, a, lv.type);
@@ -1847,7 +1872,7 @@ bool build_outdoor(const Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoor
 // A maze level (the Den of Evil): drlg generate_maze from its level seed,
 // its preset rooms' tiles picked as game.exe picks them. It sits apart
 // from the act's outdoor levels; its warps lead out.
-bool build_maze(const Scene& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv, std::size_t row) {
+bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv, std::size_t row) {
     d2d::drlg::MazeDef m;
     for (std::size_t r = 0; r < a.lvl_maze.size(); ++r)
         if (d2d::drlg::to_int(a.lvl_maze.get(r, "Level"), -1) == lv.id) {
@@ -1880,7 +1905,7 @@ constexpr std::array kBuiltLevels{ 2, 8 };
 // Level `id` built from the map seed: its tiles and walk grid, warps, the
 // objects and NPCs its DS1s place, its sound, automap layer and monster
 // columns. On the builder thread; reads the Scene's tables only.
-std::unique_ptr<Level> build_level(const Scene& scene, Scene::LevelBuilder& b, int id) {
+std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& b, int id) {
     const auto t0 = d2d::log::ms();
     std::lock_guard lk(b.m);
     if (!b.mpqs) b.mpqs = scene.mpqs.reopen();
@@ -1937,7 +1962,7 @@ std::unique_ptr<Level> build_level(const Scene& scene, Scene::LevelBuilder& b, i
 
 // A finished build into Scene::levels (nullptr: tried, not built); an act
 // level is linked with the act levels already there, both ways.
-void install_level(const Scene& s, int id, std::unique_ptr<Level> lv) {
+void install_level(const GameData& s, int id, std::unique_ptr<Level> lv) {
     auto in_act = [&](int i) { return std::ranges::any_of(s.act1_layout, [&](const auto& p) { return p.level == i; }); };
     if (lv && in_act(id)) {
         std::vector<const Level*> others;
@@ -1956,13 +1981,13 @@ std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int 
     catch (const std::exception& e) { d2d::log::warn("level {}: {}", id, e.what()); return nullptr; }
 }
 
-void Scene::want_level(int id) const {
+void GameData::want_level(int id) const {
     if (!builder || !builder->act1 || id == town.id || levels.contains(id) || builder->jobs.contains(id)
         || !std::ranges::contains(kBuiltLevels, id)) return;
     builder->jobs.emplace(id, std::async(std::launch::async, [this, id] { return build_level(*this, *builder, id); }));
 }
 
-void Scene::poll_levels() const {
+void GameData::poll_levels() const {
     if (!builder) return;
     for (auto it = builder->jobs.begin(); it != builder->jobs.end();)
         if (it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
@@ -1971,7 +1996,7 @@ void Scene::poll_levels() const {
         } else ++it;
 }
 
-const Level* Scene::level(int id) const {
+const Level* GameData::level(int id) const {
     if (id == town.id) return &town;
     if (const auto it = levels.find(id); it != levels.end()) return it->second.get();
     want_level(id);
@@ -1985,7 +2010,7 @@ const Level* Scene::level(int id) const {
 
 // The levels a player on `l` may reach next: the act's levels touching
 // it, and where its warps lead.
-void want_nearby(const Scene& s, const Level& l) {
+void want_nearby(const GameData& s, const Level& l) {
     const auto me = std::ranges::find(s.act1_layout, l.id, &d2d::drlg::Placed::level);
     if (me != s.act1_layout.end())
         for (const auto& p : s.act1_layout)

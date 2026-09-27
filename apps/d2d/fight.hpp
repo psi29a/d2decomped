@@ -1,52 +1,12 @@
 // Fighting: the Blood Moor's monsters and missiles, the player's combat
 // modes (swing, flinch, block, death) and Fighter (components/rules/
 // combat.hpp), hits and kills, damage over time, the merc in a fight,
-// potions and regeneration, monster sounds, the monster life bar.
+// potions and regeneration, monster sounds.
 #pragma once
 
 #include "loot.hpp"
 
 namespace {
-
-// The hovered monster's name on its life bar, top centre: a dark red bar
-// as wide as the name plus a margin, filled by its share of life left.
-// ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
-// font and per-type colours) isn't traced; this is its look by eye.
-void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m) {
-    const auto& name = m.npc.name;
-    if (name.empty() || !m.alive()) return;
-    const int w = std::max(s.font.measure(name) + 20, 120), h = s.font.line_height() + 4;
-    const int x0 = int(kW) / 2 - w / 2, y0 = 10;
-    const int filled = w * std::clamp(m.hp, 0, m.st.hp) / std::max(m.st.hp, 1);
-    for (int y = y0; y < y0 + h; ++y)
-        for (int x = x0; x < x0 + w; ++x) {
-            auto* p = fb.data() + (std::size_t(y) * kW + std::size_t(x)) * 4;
-            const bool on = x - x0 < filled;
-            p[0] = on ? 0x88 : 0x20; p[1] = on ? 0x08 : 0x10; p[2] = on ? 0x08 : 0x10;
-        }
-    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-    s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
-    // The label under it (uniques and minions, d2d::rules::kUModLabel):
-    // Demon / Undead, then its mods; a minion's "Minion". Champions have
-    // none: their name says it.
-    std::string label;
-    using d2d::rules::Boss;
-    const auto& t = s.monsters.types[std::size_t(m.type)];
-    const std::uint16_t lead = t.demon ? d2d::rules::kDemonLabel : t.undead ? d2d::rules::kUndeadLabel : 0;
-    if (lead) label = string_id(s, lead);
-    if (m.boss == Boss::minion)
-        label = (lead ? label + string_id(s, d2d::rules::kMinionSpace) : "") + string_id(s, d2d::rules::kMinionLabel);
-    else if (m.boss == Boss::unique || m.boss == Boss::superunique)
-        for (const int id : m.mods) {
-            if (id < 0 || std::size_t(id) >= d2d::rules::kUModLabel.size() || !d2d::rules::kUModLabel[std::size_t(id)]) continue;
-            const auto next = label + (label.empty() ? "" : " ") + string_id(s, d2d::rules::kUModLabel[std::size_t(id)]);
-            if (s.font.measure(next) > 480) break;
-            label = next;
-        }
-    else label.clear();
-    if (!label.empty())
-        s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(label) / 2, y0 + h + 2, label);
-}
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
 // the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
@@ -104,7 +64,7 @@ inline bool finisher(const d2d::rules::Skill* s) {
 // (the skill shrine's +all skills) — only on skills that have points.
 // ponytail: other general skills, item charges, charms and set bonuses
 // don't count yet.
-inline int skill_base_level(const Scene& s, const CharCreateUI& cc, int id) {
+inline int skill_base_level(const GameData& s, const CharCreateUI& cc, int id) {
     const auto& ids = s.skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
     if (const auto it = std::ranges::find(ids, id); it != ids.end()) return cc.stats.skills[std::size_t(it - ids.begin())];
     if (id == 0) return 1;
@@ -113,7 +73,7 @@ inline int skill_base_level(const Scene& s, const CharCreateUI& cc, int id) {
     const char* tome = k->name == "Book of Townportal" ? "tbk" : k->name == "Book of Identify" ? "ibk" : nullptr;
     return tome && std::ranges::any_of(cc.items, [&](const d2d::d2s::Item& it) { return it.code == tome && it.location == 0; }) ? 1 : 0;
 }
-inline int skill_level(const Scene& s, const CharCreateUI& cc, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
+inline int skill_level(const GameData& s, const CharCreateUI& cc, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
     const auto* k = s.skills.get(id);
     const int base = skill_base_level(s, cc, id);
     if (!k || k->cls.empty()) return base;
@@ -131,7 +91,7 @@ inline int skill_level(const Scene& s, const CharCreateUI& cc, int id, const std
 }
 
 struct Fight {
-    const Scene* scene;
+    const GameData* scene;
     const Level* const& level;             // Town's: where the player is
     CharCreateUI& cc;
     UnitState& player;
@@ -347,11 +307,11 @@ struct Fight {
         }
     }
     // What the character wears (the save's appearance, else the class's starting gear).
-    [[nodiscard]] const Scene::Appearance& gfx() const {
+    [[nodiscard]] const GameData::Appearance& gfx() const {
         return cc.appearance ? *cc.appearance : scene->starting_gear[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
     }
-    [[nodiscard]] const Scene::PlayerAnim& player_anim(int mode) const {
-        return scene->composite(kUiToSaveClass[std::max(cc.selected, 0)], mode, gfx());
+    [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const {
+        return scene->composite_timing(kUiToSaveClass[std::max(cc.selected, 0)], mode, gfx());
     }
     // A swing takes attack_ticks for the item attack speed and weapon
     // speed; get-hit and block recover faster with FHR / FBR (their
@@ -1250,7 +1210,7 @@ struct Fight {
     }
     // A row with no Skill: its own element at level lvl, the weapon at its
     // SrcDamage.
-    [[nodiscard]] static d2d::rules::MissileDamage row_damage(const Scene::MissileInfo& mi, int lvl) {
+    [[nodiscard]] static d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& mi, int lvl) {
         auto md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
         md.srcdam = mi.src_damage;
         return md;
@@ -1287,7 +1247,7 @@ struct Fight {
         const auto env = calc_env();
         const auto& mname = count <= 1 ? s.srvmissilea : count == 2 ? s.srvmissileb : s.srvmissilec;
         const auto mit = scene->missiles.find(mname);
-        const Scene::MissileInfo* mi = mit == scene->missiles.end() ? nullptr : &mit->second;
+        const GameData::MissileInfo* mi = mit == scene->missiles.end() ? nullptr : &mit->second;
         int r = d2d::rules::eval_calc(scene->skills, s.prgcalc[std::size_t(count - 1)], env, s.id, lvl);
         if (r == 0) r = d2d::rules::eval_calc(scene->skills, s.prgcalc[0], env, s.id, lvl);
         if (func == 38) {
@@ -1487,7 +1447,7 @@ struct Fight {
         const auto set = [&](std::string_view mode) {
             merc_mode = mode; u.mode_ms = ms; u.walking = mode == "WL";
             u.path.clear();
-            merc_until = mode == "NU" || mode == "WL" ? 0 : ms + scene->npc_anim(*merc_npc, mode).length_ms();
+            merc_until = mode == "NU" || mode == "WL" ? 0 : ms + scene->npc_timing(*merc_npc, mode).length_ms();
         };
         if (merc_mode == "DT") {
             if (ms >= merc_until) { merc.reset(); cc.header.merc_dead = true; d2d::log::info("the merc died"); }
@@ -1497,7 +1457,7 @@ struct Fight {
         const bool archer = merc_npc && merc_npc->id == "roguehire";
         const float reach = archer ? 6.f : kMeleeReach;
         if (merc_mode == "A1") {
-            if (!merc_struck && merc_target >= 0 && ms >= u.mode_ms + scene->npc_anim(*merc_npc, "A1").action_ms()) {
+            if (!merc_struck && merc_target >= 0 && ms >= u.mode_ms + scene->npc_timing(*merc_npc, "A1").action_ms()) {
                 merc_struck = true;
                 auto& m = monsters[std::size_t(merc_target)];
                 const float dx = m.u.x - u.x, dy = m.u.y - u.y, d = std::max(std::hypot(dx, dy), 0.01f);
@@ -1714,7 +1674,7 @@ struct Fight {
     // carries the skill's damage (Skill) or none (the weapon's at
     // SrcDamage: Multiple Shot, Strafe); its hit functions: `burst`.
     // `any_owner`: a trap's shot, whose row names the player's skill.
-    [[nodiscard]] const Scene::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
+    [[nodiscard]] const GameData::MissileInfo* skill_missile(const d2d::rules::Skill& s, bool any_owner = false) const {
         static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19, 73, 80, 117, 118, 123, 43, 48, 68, 75, 44, 125, 95 };
         static constexpr int kSt[] = { 0, 4, 8, 11, 26, 33 };
         const bool plain = (s.srvstfunc == 0 || s.srvstfunc == 4) && s.srvdofunc == 0;
@@ -1750,7 +1710,7 @@ struct Fight {
     }
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
-    Missile& launch(const Scene::MissileInfo& mi, const d2d::rules::Skill& s, int lvl, float x, float y, float dx, float dy,
+    Missile& launch(const GameData::MissileInfo& mi, const d2d::rules::Skill& s, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t ms) {
         const float v = cells_per_sec(float(mi.vel)), d = std::max(std::hypot(dx, dy), 0.01f);
         Missile a{ &mi, x, y, dx / d * v, dy / d * v, direction32(dx, dy), ms, ms + std::uint32_t(std::max(range, 1)) * 40, {} };
@@ -1885,7 +1845,7 @@ struct Fight {
     }
     // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
     // down at its target: its range is the frames to get there.
-    [[nodiscard]] static int land_range(const Scene::MissileInfo& mi, float dx, float dy) {
+    [[nodiscard]] static int land_range(const GameData::MissileInfo& mi, float dx, float dy) {
         const float per_frame = cells_per_sec(float(std::max(mi.vel, 1))) * 0.04f;
         return std::max(int(std::hypot(dx, dy) / per_frame), 1);
     }
@@ -2425,7 +2385,7 @@ struct Fight {
     // variant (+0xf of its monster data) to it: necromage1..4.
     // ponytail: the variant is rolled at the raise; where game.exe sets it
     // isn't traced.
-    [[nodiscard]] const Scene::MissileInfo* pet_missile(const d2d::rules::Skill& k, int variant = 0) const {
+    [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& k, int variant = 0) const {
         std::string n = k.srvmissile.empty() ? k.srvmissilea : k.srvmissile;
         if (k.srvdofunc == 149 && !n.empty() && n.back() == '1') n.back() = char('1' + std::clamp(variant, 0, 3));
         const auto it = scene->missiles.find(n);
@@ -2704,7 +2664,7 @@ struct Fight {
                 }
             }
             if (m.mode == "A1") {
-                if (!m.struck && p.target >= 0 && ms >= u.mode_ms + scene->npc_anim(m.npc, "A1").action_ms()) {
+                if (!m.struck && p.target >= 0 && ms >= u.mode_ms + scene->npc_timing(m.npc, "A1").action_ms()) {
                     m.struck = true;
                     const auto i = std::size_t(p.target);
                     if (const auto* mi = p.ranged >= 0 ? pet_missile(*scene->skills.get(p.ranged), p.variant) : nullptr; mi && monsters[i].alive()) {
@@ -2749,7 +2709,7 @@ struct Fight {
                 if (p.target >= 0 && ms >= m.next_act) {
                     const auto& o = monsters[std::size_t(p.target)];
                     u.dir = direction16(o.u.x - u.x, o.u.y - u.y);
-                    set_mode(*scene, m, scene->npc_anim(m.npc, "A1").cof.directions() ? "A1" : "NU", ms);
+                    set_mode(*scene, m, scene->npc_timing(m.npc, "A1").directions ? "A1" : "NU", ms);
                     m.struck = false;
                     m.next_act = ms + std::uint32_t(std::max(scene->monsters.types[std::size_t(m.type)].diff[std::size_t(m.difficulty)].aidel, 15)) * 40;
                 }
@@ -2910,7 +2870,7 @@ struct Fight {
                 const auto mode = merc_life <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_st.life ? std::string_view("GH") : merc_mode;
                 if (mode != merc_mode) {
                     merc_mode = mode; u.mode_ms = ms; u.walking = false; u.path.clear();
-                    merc_until = ms + scene->npc_anim(*merc_npc, mode).length_ms();
+                    merc_until = ms + scene->npc_timing(*merc_npc, mode).length_ms();
                 }
             }
             for (auto& m : monsters)
@@ -2981,40 +2941,6 @@ struct Fight {
         missiles.clear();
         attack_mon = merc_target = -1;
         for (auto& p : pets) p.target = -1;
-    }
-    // Monsters, missiles and the merc as units the world draws by depth.
-    void units(const std::string* merc_label, std::vector<Unit>& out) const {
-        if (merc && merc_npc)                          // npc -2: the merc, hoverable, no NPC menu
-            out.push_back({ merc->x, merc->y, &scene->npc_anim(*merc_npc, merc_mode), merc->dir,
-                            merc_mode == "DT" ? nullptr : merc_label, merc->mode_ms, -2 });
-        for (const auto& p : pets)
-            if (p.where == level)
-                out.push_back({ p.m.u.x, p.m.u.y, &scene->npc_anim(p.m.npc, p.m.mode), p.m.u.dir, nullptr, p.m.u.mode_ms, -3 });
-        if (level != mon_level) return;
-        for (const auto& mi : missiles)
-            if (mi.info->dcc) {
-                Unit u{ mi.x, mi.y, nullptr, mi.dir, nullptr, mi.born, -1 };
-                u.missile = mi.info;
-                out.push_back(u);
-            }
-        for (std::size_t i = 0; i < monsters.size(); ++i) {
-            const auto& m = monsters[i];
-            if (m.corpse_used) continue;
-            if (std::abs(m.u.x - player.x) >= 14 || std::abs(m.u.y - player.y) >= 14) continue;
-            out.push_back({ m.u.x, m.u.y, &scene->npc_anim(m.npc, m.mode), m.u.dir,
-                            m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
-        }
-    }
-    // Over the world: the hovered (else attacked) monster's life bar, the
-    // death message.
-    void overlays(std::vector<std::uint8_t>& fb, int hovered) const {
-        if (hovered >= 0) draw_monster_bar(fb, *scene, monsters[std::size_t(hovered)]);
-        else if (attack_mon >= 0) draw_monster_bar(fb, *scene, monsters[std::size_t(attack_mon)]);
-        if (pmode == kModeDD) {                    // ponytail: D2's death screen text isn't traced
-            const std::string msg = "You have died.  Click or press Esc to continue.";
-            const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
-            scene->font.draw_tinted(fb, kW, kH, pal, int(kW) / 2 - scene->font.measure(msg) / 2, int(kH) / 2 - 60, msg, 220, 60, 60);
-        }
     }
 };
 

@@ -265,7 +265,7 @@ void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vect
 
 // The equipped belt's belts.txt index (armor.txt `belt`), 2 ("default":
 // one row) without one — as the popup code picks it (0x49906b).
-int belt_index(const Scene& s, const std::vector<d2d::d2s::Item>& items) {
+int belt_index(const GameData& s, const std::vector<d2d::d2s::Item>& items) {
     for (const auto& it : items)
         if (it.location == 1 && it.slot == 8)
             if (const auto i = s.rules.item_info.find(it.code); i != s.rules.item_info.end() && i->second.belt >= 0

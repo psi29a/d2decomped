@@ -53,10 +53,10 @@ Still to change:
 | One shared `Rng` for every roll | Server-owned seeds (D2 keeps per-unit and per-room seeds) |
 | Sounds are cued by the World into `Cues`, which the client plays | Events (hit, death, drop); the client picks sounds and effects |
 | Monster stats ignore player count | HP / experience / NoDrop scale with players (D2's /players setting) |
-| The World reads everything through `Scene` (tables and graphics) | `GameData` for the World, `Assets` for the client, so a standalone server loads no graphics (PLAN.md "Road to a whole Act 1", step 1) |
 
-These wait until Act 1 plays through (PLAN.md), except the `GameData`
-split, which comes first.
+These wait until Act 1 plays through (PLAN.md). Done ahead of them: the
+World holds a `const GameData*` (tables, levels, timings); the client's
+`Scene` adds the graphics, so a standalone server needs no sprites.
 
 ## Decision
 

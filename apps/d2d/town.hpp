@@ -8,6 +8,47 @@
 
 namespace {
 
+// The hovered monster's name on its life bar, top centre: a dark red bar
+// as wide as the name plus a margin, filled by its share of life left.
+// ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
+// font and per-type colours) isn't traced; this is its look by eye.
+void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m) {
+    const auto& name = m.npc.name;
+    if (name.empty() || !m.alive()) return;
+    const int w = std::max(s.font.measure(name) + 20, 120), h = s.font.line_height() + 4;
+    const int x0 = int(kW) / 2 - w / 2, y0 = 10;
+    const int filled = w * std::clamp(m.hp, 0, m.st.hp) / std::max(m.st.hp, 1);
+    for (int y = y0; y < y0 + h; ++y)
+        for (int x = x0; x < x0 + w; ++x) {
+            auto* p = fb.data() + (std::size_t(y) * kW + std::size_t(x)) * 4;
+            const bool on = x - x0 < filled;
+            p[0] = on ? 0x88 : 0x20; p[1] = on ? 0x08 : 0x10; p[2] = on ? 0x08 : 0x10;
+        }
+    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+    s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(name) / 2, y0 + 2, name);
+    // The label under it (uniques and minions, d2d::rules::kUModLabel):
+    // Demon / Undead, then its mods; a minion's "Minion". Champions have
+    // none: their name says it.
+    std::string label;
+    using d2d::rules::Boss;
+    const auto& t = s.monsters.types[std::size_t(m.type)];
+    const std::uint16_t lead = t.demon ? d2d::rules::kDemonLabel : t.undead ? d2d::rules::kUndeadLabel : 0;
+    if (lead) label = string_id(s, lead);
+    if (m.boss == Boss::minion)
+        label = (lead ? label + string_id(s, d2d::rules::kMinionSpace) : "") + string_id(s, d2d::rules::kMinionLabel);
+    else if (m.boss == Boss::unique || m.boss == Boss::superunique)
+        for (const int id : m.mods) {
+            if (id < 0 || std::size_t(id) >= d2d::rules::kUModLabel.size() || !d2d::rules::kUModLabel[std::size_t(id)]) continue;
+            const auto next = label + (label.empty() ? "" : " ") + string_id(s, d2d::rules::kUModLabel[std::size_t(id)]);
+            if (s.font.measure(next) > 480) break;
+            label = next;
+        }
+    else label.clear();
+    if (!label.empty())
+        s.font.draw(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(label) / 2, y0 + h + 2, label);
+}
+
+
 // The client's drawing of what the World told it (View): the ground
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
 // units the world draws by depth (npc -2 the merc, -3 pets, -10 - i

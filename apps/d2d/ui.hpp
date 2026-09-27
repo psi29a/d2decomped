@@ -145,14 +145,14 @@ void blit_button_chrome(std::vector<std::uint8_t>& fb,
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
 // Is item type `t` (or an Equiv ancestor) `want`?
-bool type_is(const Scene& s, const std::string& t, std::string_view want) {
+bool type_is(const GameData& s, const std::string& t, std::string_view want) {
     return d2d::rules::type_is(s.rules, t, want);
 }
 
 // What a filled socket adds to `parent`: a jewel's own properties, or the
 // gem/rune's gems.txt bonus for the parent's kind (weapon, shield, else
 // helm/armour).
-std::vector<d2d::d2s::ItemProp> socket_props(const Scene& s, const d2d::d2s::Item& parent,
+std::vector<d2d::d2s::ItemProp> socket_props(const GameData& s, const d2d::d2s::Item& parent,
                                              const d2d::d2s::Item& filled) {
     auto out = filled.props;
     const auto g = s.gem_props.find(filled.code);
@@ -175,7 +175,7 @@ struct PanelStats {
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
 };
 
-PanelStats panel_stats(const Scene& s, const d2d::d2s::Header& h,
+PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
                        const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st,
                        const std::vector<d2d::rules::PassiveStat>* passives = nullptr) {
     PanelStats p;
@@ -245,7 +245,7 @@ struct NpcMenuState {
     }
 };
 
-std::string string_id(const Scene& s, std::uint16_t id) {
+std::string string_id(const GameData& s, std::uint16_t id) {
     const auto v = lookup_string(s, id);
     return v ? u16_to_latin1(*v) : std::string{};
 }
