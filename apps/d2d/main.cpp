@@ -213,6 +213,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     t.world.characters = &characters;
+    if (screen == Screen::InGame && scene) t.enter();   // --start-screen ingame: the class and name given
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
 
@@ -437,12 +438,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
                     cc.header = h;
-                    t.spawn_merc();
-                    t.new_game();
-                    // Quest-gated NPCs (Cain after Act 1 quest 4).
-                    for (std::size_t i = 0; i < t.level->npcs.size() && i < t.npc_states.size(); ++i)
-                        if (const int q = t.level->npcs[i].quest)
-                            t.npc_states[i].hidden = !h.quest_flag(h.active_difficulty(), q, 0);
+                    t.enter();                                // the World takes the character
                 }
                 render_charselect(fb, *scene, csu, ms);
                 break;
@@ -491,8 +487,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         cc.items = std::move(n.items);
                         cc.appearance.reset();
                         cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
-                        t.spawn_merc();
-                        t.new_game();
+                        t.enter();
                         t.save();
                         load_saves(*scene, save_dir);
                     }

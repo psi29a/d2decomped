@@ -57,6 +57,16 @@ struct View {
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
+    // The player's own character (what only its owner is told): header,
+    // stats, items with their unit ids, the item in hand; the open store's
+    // stock and the hire list.
+    bool has_character = false;
+    d2d::d2s::Header header;
+    d2d::d2s::Stats stats;
+    std::vector<d2d::d2s::Item> items;
+    std::optional<d2d::d2s::Item> held;
+    std::optional<Store> store;
+    std::vector<d2d::rules::MercOffer> hire_offers;
     // A monster by unit id: its index in `monsters`, or -1.
     [[nodiscard]] int monster(int id) const {
         const auto it = std::ranges::find(monsters, id, &Monster::id);
@@ -70,7 +80,7 @@ constexpr std::uint32_t kTickMs = 40;
 
 struct World {
     const Scene* scene = nullptr;
-    CharCreateUI& cc;
+    CharCreateUI cc;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
     std::optional<UnitState> merc;          // the save's mercenary, following
@@ -106,7 +116,7 @@ struct World {
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
     // tent.
-    World(const Scene* s, CharCreateUI& c, int start_x, int start_y) : scene(s), cc(c), level(s ? &s->town : nullptr) {
+    World(const Scene* s, int start_x, int start_y) : scene(s), level(s ? &s->town : nullptr) {
         const bool have_world = level && !level->dt1s.empty();
         player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
         player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
@@ -153,6 +163,10 @@ struct World {
         v.npc_states = npc_states;
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
+        v.has_character = true;
+        v.header = cc.header; v.stats = cc.stats; v.items = cc.items; v.held = held;
+        if (store.npc >= 0) v.store = store;
+        v.hire_offers = hire_offers;
         return v;
     }
 
@@ -161,6 +175,7 @@ struct World {
     // items. "" when it's written, else why not.
     std::string save() {
         if (!characters) return "no character store";
+        stow_held(*scene, cc.items, held);                  // the item in hand goes back first
         auto h = cc.header;
         h.level = std::uint8_t(std::clamp<std::int64_t>(cc.stats.get(d2d::d2s::kLevel), 1, 99));
         h.last_played = std::uint32_t(std::time(nullptr));
@@ -309,6 +324,22 @@ struct World {
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
+    // A player enters with their character (a save loaded, or made): the
+    // World takes its copy, the merc comes along, a fresh game; the Act 1
+    // quest-gated NPCs (Cain) are there once their quest is done.
+    void enter(const CharCreateUI& c) {
+        cc.selected = c.selected; cc.input_name = c.input_name; cc.hardcore = c.hardcore;
+        cc.appearance = c.appearance; cc.items = c.items; cc.stats = c.stats; cc.panel = c.panel;
+        cc.expansion = c.expansion; cc.header = c.header;
+        held.reset();
+        store = {};
+        spawn_merc();
+        new_game();
+        for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
+            if (const int q = level->npcs[i].quest)
+                npc_states[i].hidden = !cc.header.quest_flag(cc.header.active_difficulty(), q, 0);
+    }
+
     void new_game() {
         fight.new_game(cc.header.active_difficulty());
         loot.ground.clear();

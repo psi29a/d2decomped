@@ -8,6 +8,8 @@
 
 #include "server.hpp"
 
+#include <d2s_write.hpp>
+
 #include <unordered_set>
 
 namespace {
@@ -38,6 +40,27 @@ inline UnitState unit(In& in) {
     u.mode_ms = in.get<std::uint32_t>();
     u.mode = intern(in.str());
     return u;
+}
+// Items as their save form (d2s_write.hpp), then their unit ids.
+inline void items(Out& o, const std::vector<d2d::d2s::Item>& list, const d2d::d2s::ItemTables& t) {
+    d2d::d2s::detail::BitWriter w;
+    for (const auto& it : list) d2d::d2s::detail::write_item(w, it, t);
+    o.u16(int(list.size())).u32(std::uint32_t(w.out.size()));
+    for (const auto b : w.out) o.u8(int(b));
+    for (const auto& it : list) o.i32(it.id);
+}
+inline std::vector<d2d::d2s::Item> items(In& in, const d2d::d2s::ItemTables& t) {
+    const int n = in.get<std::uint16_t>();
+    const std::size_t bytes = in.get<std::uint32_t>();
+    std::vector<d2d::d2s::Item> out;
+    if (!in.ok || in.at + bytes > in.b.size()) { in.ok = false; return out; }
+    try {
+        d2d::d2s::detail::Bits bs{ std::as_bytes(in.b.subspan(in.at, bytes)), 0 };
+        for (int i = 0; i < n; ++i) out.push_back(d2d::d2s::detail::item(bs, t));
+    } catch (const std::exception&) { in.ok = false; return out; }
+    in.at += bytes;
+    for (auto& it : out) it.id = in.get<std::int32_t>();
+    return out;
 }
 }  // namespace wire
 
@@ -83,6 +106,31 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v) {
     o.u16(int(v.boost.size()));
     for (const auto& [st, val] : v.boost) o.i32(st).i32(val);
     o.i32(v.aura);
+    // The owner's character: its save form (header, stats, skills), then its
+    // items and the item in hand; the store's stock; the hire list.
+    std::vector<std::byte> save;
+    if (s.item_tables)
+        try { save = d2d::d2s::write_save({}, v.header, v.stats, {}, *s.item_tables); }
+        catch (const std::exception& e) { d2d::log::warn("the character didn't encode: {}", e.what()); }
+    o.u32(std::uint32_t(save.size()));
+    for (const auto b : save) o.u8(int(b));
+    if (!save.empty()) {
+        wire::items(o, v.items, *s.item_tables);
+        o.u8(v.held.has_value());
+        if (v.held) wire::items(o, { *v.held }, *s.item_tables);
+        o.u8(v.store.has_value());
+        if (v.store) {
+            const auto& st = *v.store;
+            o.i32(st.npc).i32(st.vendor).i32(st.hc_idx).str(st.npc_id).u8(st.gamble);
+            o.u16(int(st.perm.size()));
+            for (const auto& p : st.perm) o.str(p);
+            for (const auto& tab : st.tabs) wire::items(o, tab, *s.item_tables);
+        }
+    }
+    o.u16(int(v.hire_offers.size()));
+    for (const auto& h : v.hire_offers)
+        o.i32(h.id).i32(h.level).i32(h.life).i32(h.str).i32(h.dex).i32(h.cost).i32(h.def).i32(h.dmg_min).i32(h.dmg_max)
+         .u32(h.exp).u32(h.seed).i32(h.name);
     return o.b;
 }
 
@@ -146,6 +194,31 @@ inline std::optional<View> decode_view(const Scene& s, std::span<const std::uint
     for (int n = u16(); n > 0 && in.ok; --n) v.npc_states.push_back(wire::unit(in));
     for (int n = u16(); n > 0 && in.ok; --n) { const int st = i32(); v.boost.emplace_back(st, i32()); }
     v.aura = i32();
+    if (const std::size_t n = u32(); n > 0 && in.ok && in.at + n <= b.size() && s.item_tables) {
+        const auto save = std::as_bytes(b.subspan(in.at, n));
+        try {
+            v.header = d2d::d2s::parse_header(save);
+            v.stats = d2d::d2s::parse_stats(save, *s.item_tables);
+        } catch (const std::exception&) { return std::nullopt; }
+        v.has_character = true;
+        in.at += n;
+        v.items = wire::items(in, *s.item_tables);
+        if (u8()) if (auto h = wire::items(in, *s.item_tables); h.size() == 1) v.held = std::move(h[0]);
+        if (u8()) {
+            Store st;
+            st.npc = i32(); st.vendor = i32(); st.hc_idx = i32(); st.npc_id = in.str(); st.gamble = u8();
+            for (int k = u16(); k > 0 && in.ok; --k) st.perm.push_back(in.str());
+            for (auto& tab : st.tabs) tab = wire::items(in, *s.item_tables);
+            st.header = v.header;
+            v.store = std::move(st);
+        }
+    } else if (n > 0) return std::nullopt;
+    for (int k = u16(); k > 0 && in.ok; --k) {
+        d2d::rules::MercOffer h;
+        h.id = i32(); h.level = i32(); h.life = i32(); h.str = i32(); h.dex = i32(); h.cost = i32(); h.def = i32();
+        h.dmg_min = i32(); h.dmg_max = i32(); h.exp = u32(); h.seed = u32(); h.name = i32();
+        v.hire_offers.push_back(h);
+    }
     if (!in.ok || in.at != b.size() || !v.level) return std::nullopt;
     return v;
 }

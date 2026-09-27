@@ -90,18 +90,18 @@ struct Town {
     std::uint32_t level_ms = 0;            // when the player entered `level`
     bool have_world = false;
     bool  stash_open = false;
-    std::optional<d2d::d2s::Item>& held = world.held;   // the item on the cursor (the World's)
+    std::optional<d2d::d2s::Item> held;   // the item on the cursor (the View's)
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     int   tree_tab = 1;                    // 1..3, bottom tab first (0x724bec starts at 1)
     int   skill_pressed = -1;              // skill icon held down
-    std::vector<d2d::rules::MercOffer>& hire_offers = world.hire_offers;   // Kashya's list while it's open (the World's)
+    std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open (the View's)
     std::string merc_label;
     bool  belt_open = false;               // belt popup (` key or a click on the belt)
     bool  cube_open = false;               // right-click the Horadric Cube item
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
     Automap automap;                       // Tab
-    Store& store = world.store;            // an open vendor store (npc < 0: none; the World's stock)
+    Store store;                           // an open vendor store (npc < 0: none): the View's stock, the client's tab and buttons
     WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
@@ -115,24 +115,48 @@ struct Town {
     bool  char_open = false;  // 'C' — character panel
 
     Town(const Scene* s, CharCreateUI& c, int start_x = -1, int start_y = -1)
-        : scene(s), cc(c), world(s, c, start_x, start_y) {
+        : scene(s), cc(c), world(s, start_x, start_y) {
         have_world = level && !level->dt1s.empty();
         view = world.view();
     }
 
-    // What the World tells the client: its View, over as bytes too.
+    // What the World tells the client: its View, over as bytes too. The
+    // character in it becomes the client's (the panels draw it); the store
+    // keeps the client's tab and buttons.
     void publish() {
         net.to_client = encode_view(*scene, world.view());
         if (auto v = decode_view(*scene, net.to_client)) view = std::move(*v);
-        else d2d::log::warn("a View didn't decode ({} bytes)", net.to_client.size());
+        else { d2d::log::warn("a View didn't decode ({} bytes)", net.to_client.size()); return; }
+        if (!view.has_character) return;
+        cc.header = view.header; cc.stats = view.stats; cc.items = view.items;
+        cc.expansion = view.header.expansion();
+        cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
+        held = view.held;
+        if (view.store) {
+            const auto keep = store;
+            store = *view.store;
+            if (keep.npc == store.npc) { store.tab = keep.tab; store.mode = keep.mode; store.pressed = keep.pressed; }
+        } else {
+            store = {};
+        }
+        hire_offers = view.hire_offers;
+        if (const auto m = scene->mercs.find(cc.header.merc_type); view.merc && m != scene->mercs.end())
+            merc_label = merc_name(*scene, m->second, cc.header.merc_name);
+    }
+
+    // Into the game with the character the client has (a save loaded, or
+    // made): the World takes it.
+    void enter() {
+        world.enter(cc);
+        skillbar.new_game();
+        if (const auto m = scene->mercs.find(cc.header.merc_type); merc && m != scene->mercs.end())
+            merc_label = merc_name(*scene, m->second, cc.header.merc_name);
+        publish();
     }
 
     // Saving the character: the item on the cursor goes back first, then
     // the World writes it.
-    std::string save() {
-        stow_held(*scene, cc.items, held);
-        return world.save();
-    }
+    std::string save() { return world.save(); }
 
     // devctl: operate object i now, as the server would on arrival.
     void operate(int i, std::uint32_t ms, int force = -1) { world.operate(i, ms, force); }
@@ -142,13 +166,6 @@ struct Town {
     void new_game() {
         world.new_game();
         skillbar.new_game();
-    }
-
-    // The character's merc (cc.header) next to the player, if alive.
-    void spawn_merc() {
-        world.spawn_merc();
-        if (const auto m = scene->mercs.find(cc.header.merc_type); merc && m != scene->mercs.end())
-            merc_label = merc_name(*scene, m->second, cc.header.merc_name);
     }
 
     // One InGame frame: keys, panels, clicks, walking, NPCs, then the render.
@@ -465,11 +482,13 @@ struct Town {
             prev_x = view.player.x; prev_y = view.player.y;
             world.tick(net.receive(), world_ms + kTickMs, world_ms);
             world_ms += kTickMs;
-            for (const auto& e : world.events) handle(e, ms);
-            world.events.clear();
             ticked = true;
         }
         if (ticked || view.level != level) publish();
+        // What the World said, handled once the View it goes with is here
+        // (the hire list's offers come in the View).
+        for (const auto& e : world.events) handle(e, ms);
+        world.events.clear();
         if (ms - world_ms >= kTickMs) world_ms = ms - (ms - world_ms) % kTickMs;
     }
 

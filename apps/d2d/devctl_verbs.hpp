@@ -158,12 +158,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             const int i = std::atoi(args[2].c_str());
             if (i < 0 || std::size_t(i) >= t.level->npcs.size()) return std::string("err no such object\n");
             t.operate(i, t.now_ms, args.size() >= 4 ? std::atoi(args[3].c_str()) : -1);
-            return std::format("ok life={} mana={} boost={}\n", t.cc.stats.fixed(d2d::d2s::kLife), t.cc.stats.fixed(d2d::d2s::kMana), t.fight.boost.shrine);
+            return std::format("ok life={} mana={} boost={}\n", t.world.cc.stats.fixed(d2d::d2s::kLife), t.world.cc.stats.fixed(d2d::d2s::kMana), t.fight.boost.shrine);
         }
         if (args.size() >= 4 && args[1] == "stat") {       // set character stat <id 0..15> to <value>
             const int id = std::atoi(args[2].c_str());
             if (id < 0 || id > 15) return std::string("err stat 0..15\n");
-            cc.stats.v[std::size_t(id)] = std::atoll(args[3].c_str());
+            t.world.cc.stats.v[std::size_t(id)] = std::atoll(args[3].c_str());   // the World's character: the client's follows
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "attack") {      // the player's attack as combat sees it
@@ -195,33 +195,34 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         }
         if (args.size() >= 3 && args[1] == "difficulty") { // play on difficulty d: a new game's monsters
             const int d = std::clamp(std::atoi(args[2].c_str()), 0, 2);
-            for (int i = 0; i < 3; ++i) cc.header.difficulty[std::size_t(i)] &= 0x7f;
-            cc.header.difficulty[std::size_t(d)] |= 0x80;
+            for (int i = 0; i < 3; ++i) t.world.cc.header.difficulty[std::size_t(i)] &= 0x7f;   // the World's character
+            t.world.cc.header.difficulty[std::size_t(d)] |= 0x80;
             t.new_game();
             return std::string("ok\n");
         }
         if (args.size() >= 3 && args[1] == "quest") {      // mark Act quest <q> done (bit 0), active difficulty
             const int q = std::atoi(args[2].c_str()), n = q * 16;
             if (q < 0 || q >= 48) return std::string("err quest 0..47\n");
-            cc.header.quests[std::size_t(cc.header.active_difficulty())][std::size_t(n >> 3)] |= std::uint8_t(1 << (n & 7));
+            auto& h = t.world.cc.header;
+            h.quests[std::size_t(h.active_difficulty())][std::size_t(n >> 3)] |= std::uint8_t(1 << (n & 7));
             for (std::size_t i = 0; i < t.level->npcs.size() && i < t.npc_states.size(); ++i)
                 if (const int g = t.level->npcs[i].quest)
-                    t.npc_states[i].hidden = !cc.header.quest_flag(cc.header.active_difficulty(), g, 0);
+                    t.npc_states[i].hidden = !h.quest_flag(h.active_difficulty(), g, 0);
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "unid") {       // unidentify every carried item
-            for (auto& it : cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
-            return "ok " + std::to_string(d2d::rules::unidentified(cc.items)) + "\n";
+            for (auto& it : t.world.cc.items) if (it.location == 0 && it.panel == 1) it.identified = false;
+            return "ok " + std::to_string(d2d::rules::unidentified(t.world.cc.items)) + "\n";
         }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
-            for (auto& it : cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
+            for (auto& it : t.world.cc.items) if (it.location == 1) it.durability = d2d::rules::max_durability(it) / 2;
             return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)
             const auto& ids = scene->skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
             const auto it = std::ranges::find(ids, std::atoi(args[2].c_str()));
             if (it == ids.end()) return std::string("err not a class skill\n");
-            cc.stats.skills[std::size_t(it - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
+            t.world.cc.stats.skills[std::size_t(it - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "passives" && scene) {   // the passives' stats: stat=value[/itype]
@@ -269,7 +270,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             return std::string("ok\n");
         }
         if (args.size() >= 3 && (args[1] == "statpts" || args[1] == "skillpts")) {   // grant unspent points
-            cc.stats.v[args[1] == "statpts" ? d2d::d2s::kStatPts : d2d::d2s::kSkillPts] = std::atoi(args[2].c_str());
+            t.world.cc.stats.v[args[1] == "statpts" ? d2d::d2s::kStatPts : d2d::d2s::kSkillPts] = std::atoi(args[2].c_str());
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
