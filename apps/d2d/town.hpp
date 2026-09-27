@@ -70,14 +70,10 @@ struct Town {
         fight.skill_level = [this](int id) { return skillbar.level(id); };
     }
 
-    // Saving the character: the item on the cursor goes back first, the
-    // skill buttons into the header, then the World writes it.
-    // ponytail: the skill choice is set straight on the save; game.exe sends
-    // 0x3c (select skill) to the server.
+    // Saving the character: the item on the cursor goes back first, then
+    // the World writes it.
     std::string save() {
         stow_held(*scene, cc.items, held);
-        cc.header.left_skill = std::uint32_t(skillbar.left);
-        cc.header.right_skill = std::uint32_t(skillbar.right);
         return world.save();
     }
 
@@ -116,7 +112,7 @@ struct Town {
             if (k == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (k == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = false; }
             if (k == SDLK_ESCAPE && fight.dead()) { if (fight.pmode == kModeDD) world.respawn(ms); continue; }
-            if (k >= SDLK_1 && k <= SDLK_4) fight.drink(int(k - SDLK_1), ms);
+            if (k >= SDLK_1 && k <= SDLK_4) queued.push_back(cmd::UseBelt{ int(k - SDLK_1) });
             if (k == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             if (k == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
@@ -176,8 +172,7 @@ struct Town {
                     && d2d::rules::can_learn(scene->rules, cls, sk, cc.stats.skills, int(cc.stats.get(d2d::d2s::kLevel))) ? sk : -1;
             }
             if (mouse.release_this_frame) {
-                if (skill_pressed >= 0 && sk == skill_pressed)
-                    d2d::rules::learn_skill(scene->rules, cls, sk, cc.stats.skills, cc.stats);
+                if (skill_pressed >= 0 && sk == skill_pressed) queued.push_back(cmd::SkillPoint{ sk });
                 skill_pressed = -1;
             }
         }
@@ -189,8 +184,7 @@ struct Town {
             if (mouse.release_this_frame) {
                 if (stat_pressed >= 0 && sb == stat_pressed) {
                     const int n = (SDL_GetModState() & SDL_KMOD_SHIFT) ? int(cc.stats.get(d2d::d2s::kStatPts)) : 1;
-                    d2d::rules::spend_stat_points(cc.stats, kStatButtons[std::size_t(sb)].stat, n,
-                        scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])]);
+                    queued.push_back(cmd::StatPoint{ kStatButtons[std::size_t(sb)].stat, n });
                 }
                 stat_pressed = -1;
             }
@@ -421,10 +415,11 @@ struct Town {
     // The game this frame: what the player asks for (input), the World's
     // step, then what it told the client (events).
     void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, std::uint32_t last_ms) {
-        // An aura on the right button is on (a Paladin's; D2 runs the right
-        // skill's aura).
-        // ponytail: set straight on the World; game.exe sends 0x3c (select skill).
-        if (const auto* ra = scene->skills.get(skillbar.right)) fight.aura = ra->aura ? skillbar.right : 0;
+        // The skill buttons: a change goes to the World (0x3c), which runs a
+        // right-button aura (a Paladin's).
+        if (std::uint32_t(skillbar.left) != cc.header.left_skill) queued.push_back(cmd::SelectSkill{ skillbar.left, true });
+        if (std::uint32_t(skillbar.right) != cc.header.right_skill || (fight.aura != 0) != (scene->skills.get(skillbar.right) && scene->skills.get(skillbar.right)->aura))
+            queued.push_back(cmd::SelectSkill{ skillbar.right, false });
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
         if (ms < fight.boost.until)

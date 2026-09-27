@@ -355,6 +355,28 @@ struct World {
     // A command from the player, checked and applied. A busy player's
     // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).
     void apply(const Command& c, std::uint32_t ms) {
+        // The character's own: through whatever the player's doing.
+        if (const auto* p = std::get_if<cmd::StatPoint>(&c)) {
+            if (p->stat < 0 || p->stat > 3 || p->count < 1) return;
+            d2d::rules::spend_stat_points(cc.stats, p->stat, std::min<int>(p->count, int(cc.stats.get(d2d::d2s::kStatPts))),
+                                          scene->class_gains[std::size_t(cc.header.cls)]);
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::SkillPoint>(&c)) {
+            if (cc.stats.get(d2d::d2s::kSkillPts) > 0
+                && d2d::rules::can_learn(scene->rules, cc.header.cls, p->skill, cc.stats.skills, int(cc.stats.get(d2d::d2s::kLevel))))
+                d2d::rules::learn_skill(scene->rules, cc.header.cls, p->skill, cc.stats.skills, cc.stats);
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::SelectSkill>(&c)) {
+            (p->left ? cc.header.left_skill : cc.header.right_skill) = std::uint32_t(p->skill);
+            if (!p->left) if (const auto* s = scene->skills.get(p->skill)) fight.aura = s->aura ? p->skill : 0;
+            return;
+        }
+        if (const auto* p = std::get_if<cmd::UseBelt>(&c)) {
+            if (p->slot >= 0 && p->slot < 4 && !fight.dead()) fight.drink(p->slot, ms);
+            return;
+        }
         if (fight.pmode >= 0) return;
         const bool in_moor = level != &scene->town;
         auto walk_to = [&](float x, float y, bool fresh) {

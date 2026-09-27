@@ -24,8 +24,18 @@ struct Interact { int npc = -1; };
 struct Pickup { int item = -1; };
 // 0x41: back in town after dying (let through only when dead).
 struct Resurrect {};
+// 0x3a: spend `count` stat points on a stat (0 str, 1 energy, 2 dex, 3 vit).
+struct StatPoint { int stat = 0, count = 1; };
+// 0x3b: spend a skill point on the class's skill `skill` (its index 0..29,
+// the save's order; game.exe's packet names the Skills.txt id).
+struct SkillPoint { int skill = 0; };
+// 0x3c: put a skill on the left or right button (a right-button aura runs).
+struct SelectSkill { int skill = 0; bool left = false; };
+// 0x26: use (drink) the belt's column `slot`.
+struct UseBelt { int slot = 0; };
 }  // namespace cmd
 
-using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect>;
+using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
+                             cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt>;
 
 }  // namespace
