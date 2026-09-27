@@ -124,3 +124,13 @@ ponytail: not built yet:
 - the "!" marker;
 - the Den's lighting change;
 - Akara's respec menu entry (quest 41).
+
+## The balloon over an NPC (npcalert)
+
+`FUN_00544590` asks each of the NPC's act quests (+0xec; a1q1:
+`FUN_005905b0`). When one says yes, the player is sent 0x80d and the NPC
+shows Overlay.txt `npcalert`: NPCSpeechBalloon.dcc, 16 frames drawn about
+100 px above the anchor, Xoffset −5, Yoffset −7, Trans 3.
+
+d2d: `DenQuest::alert` → `UnitState::alert` (replicated) → `Unit::overlay`
+(world.hpp, drawn additive).

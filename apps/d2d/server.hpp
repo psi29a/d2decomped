@@ -797,6 +797,8 @@ struct World {
             if (!player.walking) player.path.clear();
         }
         npc_patrol(*level, npc_states, talking, ms, dt, crowd);
+        for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, ms, dt, crowd);
         den_count(ms);
         use_warp();

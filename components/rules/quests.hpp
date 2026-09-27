@@ -80,6 +80,13 @@ struct DenQuest {
         for (const auto& e : kBlocks[block]) if (e.npc == npc) out.push_back({ e.string, e.greet });
         return out;
     }
+    // Whether `npc` has something to say about it — the balloon over its
+    // head (FUN_005905b0, asked per NPC by FUN_00544590): Akara, before
+    // she's given it or while the reward is due.
+    [[nodiscard]] bool alert(const QuestBits& f, int npc) const {
+        if (npc != kAkara || qbit(f, kQuest, 0)) return false;
+        return (state == 1 && !qbit(f, kQuest, 1)) || qbit(f, kQuest, 1);
+    }
     // A monster died; `remaining` are the Den's left (level +0x2cc - +0x2d0)
     // (FUN_00590260). 0: cleared — the reward's due (FUN_005455f0, bits 13
     // and 1) unless it's been had.

@@ -440,6 +440,7 @@ struct Scene : GameData {
     std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
     std::unordered_map<std::string, d2d::dcc::Sprite> missile_cels;   // a missile's CelFile DCC, by Missiles.txt row name
+    d2d::dcc::Sprite npc_alert;                        // Overlay.txt npcalert: NPCSpeechBalloon.dcc
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
     const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;

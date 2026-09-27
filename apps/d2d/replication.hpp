@@ -31,12 +31,12 @@ inline Npc npc(In& in) {
     return n;
 }
 inline void unit(Out& o, const UnitState& u) {
-    o.f32(u.x).f32(u.y).u8(u.dir).u8(u.walking).u8(u.hidden).u32(u.mode_ms).str(u.mode);
+    o.f32(u.x).f32(u.y).u8(u.dir).u8(u.walking).u8(u.hidden).u8(u.alert).u32(u.mode_ms).str(u.mode);
 }
 inline UnitState unit(In& in) {
     UnitState u;
     u.x = in.get<float>(); u.y = in.get<float>();
-    u.dir = in.get<std::uint8_t>(); u.walking = in.get<std::uint8_t>(); u.hidden = in.get<std::uint8_t>();
+    u.dir = in.get<std::uint8_t>(); u.walking = in.get<std::uint8_t>(); u.hidden = in.get<std::uint8_t>(); u.alert = in.get<std::uint8_t>();
     u.mode_ms = in.get<std::uint32_t>();
     u.mode = intern(in.str());
     return u;

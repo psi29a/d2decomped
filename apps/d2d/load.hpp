@@ -439,6 +439,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.missiles.emplace(name, std::move(mi));
         if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*b));
     }
+    if (auto b = mpqs.try_read(R"(data\global\overlays\NPCSpeechBalloon.dcc)")) cels.emplace_back(&scene.npc_alert, std::move(*b));
     // Their DCCs decode on every core (the reads above stay on this thread:
     // StormLib handles aren't shared).
     {

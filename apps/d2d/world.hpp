@@ -62,6 +62,7 @@ struct Unit {
     // at AnimSpeed/16 a tick from mode_ms.
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
+    const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
 };
 
 // `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque).
@@ -254,6 +255,13 @@ void render_world(std::vector<std::uint8_t>& fb,
                 draw_composite(fb, *u.anim, upal, u.dir, el, ax, ay);
                 if (hovered && u.name && !u.name->empty()) b = composite_bounds(*u.anim, u.dir, el, ax, ay);
             }
+            // Its overlay (npcalert: Xoffset -5, Yoffset -7, the NPCs'
+            // OverlayHeight row 0; Trans 3, draw mode 3 additive), 16
+            // frames at AnimRate 9.
+            // ponytail: AnimRate read as frames a second; LoopWaitTime
+            // (7000) not applied.
+            if (u.overlay && u.overlay->directions() && u.overlay->frames_per_direction())
+                blit_dcc_frame(fb, u.overlay->frame(0, std::uint8_t(elapsed_ms / 111 % u.overlay->frames_per_direction())), upal, ax - 5, ay - 7, 1);
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && u.name && !u.name->empty()) {
                 if (mouse_x >= b[0] && mouse_x < b[2] && mouse_y >= b[1] && mouse_y < b[3])

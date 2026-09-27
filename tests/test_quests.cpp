@@ -12,6 +12,7 @@ int main() {
     DenQuest q;
     auto akara = [&] { return q.talk(f, 148); };
 
+    assert(q.alert(f, 148) && !q.alert(f, 150));
     // Not given: Akara greets with it; the others say nothing.
     assert(akara().size() == 1 && akara()[0].string == 64 && akara()[0].greet);
     assert(q.talk(f, 150).empty());
@@ -38,7 +39,7 @@ int main() {
     assert(q.talk(f, 147)[0].string == 79);
     assert(q.said(f, 148, 76) && qbit(f, 1, 0) && !qbit(f, 1, 1) && !qbit(f, 1, 4));
     assert(qbit(f, 41, 1) && qbit(f, 41, 13));
-    assert(!q.said(f, 148, 76) && akara().empty());
+    assert(!q.said(f, 148, 76) && akara().empty() && !q.alert(f, 148));
 
     // Cleared without talking to her first: still her reward.
     QuestBits g{};

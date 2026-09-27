@@ -65,6 +65,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
             const auto& anim = s.npc_anim(n, st && st->walking ? std::string_view("WL") : st && !st->mode.empty() ? st->mode : std::string_view(n.mode));
             static const std::string none;
             units.push_back({ x, y, &anim, st ? st->dir : 0, st && !st->mode.empty() && n.root == "objects" ? &none : &n.name, st ? st->mode_ms : 0, int(i) });
+            if (st && st->alert) units.back().overlay = &s.npc_alert;
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
         // gate, Flavie), as they stand: D2 draws the rooms round the player
