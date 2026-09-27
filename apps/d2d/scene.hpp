@@ -38,6 +38,7 @@ struct Npc {
 // Empty when the assets aren't found (headless / bad data dir).
 struct Level {
     int id = 0;                                        // Levels.txt Id (1: the Rogue Encampment)
+    std::string name;                                  // Levels.txt LevelName
     int type = 1;                                      // its LevelType (AutoMap.txt rules)
     int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
     int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
@@ -60,11 +61,11 @@ struct Level {
     std::vector<std::uint8_t> walk;
     std::vector<Npc> npcs;                             // what its DS1 places (and Cain)
     // The levels next to it in the act, (dx, dy) = their origin minus
-    // ours, in cells (link_levels). Past this map's edge, collision and
+    // ours, in cells. Past this map's edge, collision and
     // the renderer use theirs — the way D2 walks and draws across rooms
     // of neighbouring levels.
     struct Near { const Level* level; int dx, dy; };
-    std::vector<Near> nearby;
+    mutable std::vector<Near> nearby;                  // linked as neighbours get built (install_level)
     [[nodiscard]] bool inside(float x, float y) const {
         return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
     }
@@ -119,8 +120,11 @@ struct Level {
     // what populating them spawned (subtiles, level-relative).
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
-    std::array<std::vector<d2d::rules::Spawn>, 3> spawns;   // by difficulty
-    std::array<std::vector<int>, 3> region;                 // its monster region's MonStats rows, by difficulty (trap 8)
+    // What populating it spawns at a difficulty, made the first time it's
+    // played at that difficulty (level_spawns), and its monster region's
+    // MonStats rows (trap 8).
+    mutable std::array<std::optional<std::vector<d2d::rules::Spawn>>, 3> spawns;
+    mutable std::array<std::vector<int>, 3> region;
 };
 
 struct Scene {
@@ -317,9 +321,16 @@ struct Scene {
 
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
     d2d::palette::Palette                    act1_pal;
-    Level town;                                        // the Rogue Encampment
-    Level moor;                                        // the Blood Moor, generated from map_seed
-    Level den;                                         // the Den of Evil (maze), from map_seed
+    Level town;                                        // the Rogue Encampment, built at start
+    // Every other level: built from the map seed the first time it's
+    // wanted (the same on every machine), then kept. `level` builds it or
+    // waits for its build; `want_level` starts one on the builder thread
+    // (the levels next to the player's); `poll_levels` takes in finished
+    // builds and links outdoor neighbours (Level::nearby). load.hpp.
+    mutable std::map<int, std::unique_ptr<Level>> levels;
+    const Level* level(int id) const;
+    void want_level(int id) const;
+    void poll_levels() const;
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
     struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc; };
@@ -401,6 +412,13 @@ struct Scene {
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
+    std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)
+    std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
+    // The level builder: its own MPQ handles, the DRLG tables and the
+    // tables a build reads. Last, so it's torn down first: a build in
+    // flight reads the rest of the Scene.
+    struct LevelBuilder;
+    std::shared_ptr<LevelBuilder> builder;
 };
 
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.

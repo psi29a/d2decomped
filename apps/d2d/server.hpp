@@ -449,7 +449,7 @@ struct World {
             return;
         }
         take_warp = -1;
-        const Level* to = w.to == 1 ? &scene->town : w.to == 2 ? &scene->moor : w.to == 8 ? &scene->den : nullptr;
+        const Level* to = scene->level(w.to);                               // built by now, or waited for
         if (!to || to->ds1.width() == 0) {
             d2d::log::info("not implemented: level {} (a warp from level {})", w.to, level->id);
             return;
@@ -644,9 +644,14 @@ struct World {
     // arrival); NPCs patrol; the merc follows; the monsters and missiles
     // (Fight::world); crossing into the next level or through a warp;
     // potions and regeneration.
+    const Level* wanted_near = nullptr;               // whose neighbours were last asked for
     void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms) {
         const float dt = float(ms - last_ms) / 1000.f;
         now = ms;
+        // Levels: finished builds come in; the ones next to the player's
+        // start building when it changes (Scene::level).
+        scene->poll_levels();
+        if (level != wanted_near) { want_nearby(*scene, *level); wanted_near = level; }
         item_ids();
         fight.update_fighters(ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back

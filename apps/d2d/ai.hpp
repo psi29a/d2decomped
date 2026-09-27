@@ -403,7 +403,7 @@ Monster make_monster(const Scene& s, int type, float x, float y, d2d::rules::Rng
 
 std::vector<Monster> spawn_monsters(const Scene& s, const Level& L, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
-    for (const auto& sp : L.spawns[std::size_t(std::clamp(difficulty, 0, 2))]) {
+    for (const auto& sp : level_spawns(s, L, difficulty)) {
         if (sp.type < 0 || std::size_t(sp.type) >= s.mon_npc.size()) continue;
         const bool boss = sp.boss != d2d::rules::Boss::none;
         auto m = make_monster(s, sp.type, (float(sp.x) + 0.5f) / 5, (float(sp.y) + 0.5f) / 5, rng, difficulty, !boss);

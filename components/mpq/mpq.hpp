@@ -194,9 +194,17 @@ private:
 class Stack {
 public:
     // Highest priority first. D2 pushes patch_d2.mpq before base archives.
-    void push(const std::filesystem::path& p) { archives_.emplace_back(p); }
+    void push(const std::filesystem::path& p) { archives_.emplace_back(p); sources_.emplace_back(p, false); }
     void push_installer(const std::filesystem::path& p) {
         archives_.push_back(Archive::installer(p));
+        sources_.emplace_back(p, true);
+    }
+    // The same archives opened again: handles for another thread
+    // (StormLib's aren't shared across threads).
+    [[nodiscard]] Stack reopen() const {
+        Stack s;
+        for (const auto& [p, inst] : sources_) inst ? s.push_installer(p) : s.push(p);
+        return s;
     }
 
     [[nodiscard]] bool empty() const noexcept { return archives_.empty(); }
@@ -243,6 +251,7 @@ public:
 
 private:
     std::vector<Archive> archives_;
+    std::vector<std::pair<std::filesystem::path, bool>> sources_;   // what was pushed: path, installer
 };
 
 }  // namespace d2d::mpq

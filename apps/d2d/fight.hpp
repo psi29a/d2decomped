@@ -152,6 +152,7 @@ struct Fight {
     void add_monster(Monster m) { m.id = next_id++; monsters.push_back(std::move(m)); }
 
     const Level* mon_level = nullptr;                // whose monsters `monsters` are
+    int game_difficulty = 0;                         // new_game's
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     std::vector<Missile> missiles;         // in flight in the Blood Moor
@@ -250,12 +251,11 @@ struct Fight {
 
     // A fresh game at `difficulty`: its monsters, nothing in flight.
     void new_game(int difficulty) {
-        monsters = spawn_monsters(*scene, scene->moor, rng, difficulty);
-        mon_level = &scene->moor;
+        game_difficulty = difficulty;
+        monsters.clear();
+        mon_level = nullptr;
         kept.clear();
-        kept[&scene->den] = spawn_monsters(*scene, scene->den, rng, difficulty);
         next_id = 1;
-        for (auto* v : { &monsters, &kept[&scene->den] }) for (auto& m : *v) m.id = next_id++;
         missiles.clear();
         regen.clear();
         charges.clear();
@@ -2965,10 +2965,18 @@ struct Fight {
     }
     // The player went to `to`: an outdoor level's monsters come back, the
     // last one's are kept as they were; nothing in flight follows.
+    // A level's monsters appear the first time the player comes (game.exe
+    // populates rooms as they come up).
     void enter(const Level* to) {
         if (to == &scene->town || to == mon_level) return;
-        kept[mon_level] = std::move(monsters);
-        monsters = std::move(kept[to]);
+        if (mon_level) kept[mon_level] = std::move(monsters);
+        if (const auto k = kept.find(to); k != kept.end()) {
+            monsters = std::move(k->second);
+            kept.erase(k);
+        } else {
+            monsters = spawn_monsters(*scene, *to, rng, game_difficulty);
+            for (auto& m : monsters) m.id = next_id++;
+        }
         mon_level = to;
         missiles.clear();
         attack_mon = merc_target = -1;

@@ -693,7 +693,7 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
     for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
     auto scene = load_scene(data_dir, cfg["patch"], map_seed);   // nullopt if MPQ dir is missing
-    if (scene) link_levels(*scene);
+    if (scene) want_nearby(*scene, scene->town);        // the Blood Moor builds while the menus run
     if (scene) load_saves(*scene, save_dir);
 
     std::atomic<std::uint64_t> frame_count{0};

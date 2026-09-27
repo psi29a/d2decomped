@@ -65,10 +65,7 @@ inline std::vector<d2d::d2s::Item> items(In& in, const d2d::d2s::ItemTables& t) 
 }  // namespace wire
 
 // The Scene's level with Levels.txt id `id`.
-inline const Level* level_of(const Scene& s, int id) {
-    for (const Level* l : { &s.town, &s.moor, &s.den }) if (l->id == id) return l;
-    return nullptr;
-}
+inline const Level* level_of(const Scene& s, int id) { return s.level(id); }
 
 // What one client was last sent (the server keeps one per client): each
 // section's bytes, each monster's look and state, each NPC's state. A
