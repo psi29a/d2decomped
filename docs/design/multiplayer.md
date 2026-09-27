@@ -38,6 +38,7 @@ Done (2026-09-27, docs/PLAN.md "Networking-shaped core"):
 | `Town` mixed input, UI, simulation and drawing | `World` (server.hpp: levels, units, monsters, missiles, ground items, objects, rng) and `Town`, its client |
 | Monsters and ground items were vector indices | Unit ids (`Monster::id`, `GroundItem::id`, the character's items' runtime `Item::id`); objects and NPCs by their level index (the same list on every machine) |
 | Clicks called game code directly | `Command`s (protocol.hpp), applied in the tick; a busy player's movement and skills dropped, as game.exe's dispatcher does. Movement, skills, interact, pick-up, resurrect; stat / skill points, select skill, belt potions; the cursor (item moves); NPC deals (trade, gamble, buy, sell, repair, identify, hire) |
+| The client read the World's state to draw (monsters, the player, the ground, the character) | The World fills a `View` after each tick (server.hpp: units, missiles, ground, fires, NPC states, the player's mode and look, its own character in its save form with unit ids, the item in hand, the store's stock, the hire list, sounds, events); it crosses as bytes (replication.hpp) and the client reads nothing else. The World owns its own character copy (`World::enter`) |
 | Commands were C++ values handed across | They cross as bytes (a codec with game.exe's packet ids where they match, float32 positions) through a `LocalTransport`; test_protocol round-trips every one |
 | The World told the client things by poking its fields | `Event`s: level changed, open UI (stash, waypoint, NPC) |
 | Saves were read, never written | The World writes the character through a `CharacterStore` (character_store.hpp: the .d2s via components/d2s/d2s_write.hpp; every real save writes back byte for byte) on leaving the game or quitting; new characters get CharStats' start and are written at once |
@@ -47,8 +48,7 @@ Still to change:
 | Today | For multiplayer |
 |---|---|
 | One player, one merc (`Foe` array of two, `cc` the character) | N players and mercs; monster targeting, party experience, loot ownership |
-| The client reads the World's state directly (monsters, the player, the ground, the character) to draw | State replicated to each client: snapshots of the units near it, its own character; the client draws from those |
-| The client tells the World which NPCs have its window open (`talking`) | Start / end NPC chat commands (0x2f / 0x30) |
+| Whole Views every tick (monsters' look as strings, the character as its save form) | Deltas, what's near each player, compact unit records |
 | One shared `Rng` for every roll | Server-owned seeds (D2 keeps per-unit and per-room seeds) |
 | Sounds are cued by the World into `Cues`, which the client plays | Events (hit, death, drop); the client picks sounds and effects |
 | Monster stats ignore player count | HP / experience / NoDrop scale with players (D2's /players setting) |

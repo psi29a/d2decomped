@@ -360,10 +360,13 @@ below, so new features land on the new structure:
    character's items have unit ids; the World works out skill levels;
    commands cross as bytes through a `LocalTransport` (protocol.hpp,
    test_protocol).
-5. Next: replication (the World sends each client what it needs to
-   draw; the client stops reading the World), a World with N players
-   (Fight's player state per player), then `TcpTransport`, player-count
-   scaling and party.
+5. Replication: done (2026-09-27). The World fills a `View` after each
+   tick; it crosses as bytes (replication.hpp) and the client draws and
+   clicks from it alone; the World owns its own character, the client's
+   is the View's; run / walk, talking, sounds and events go over too.
+6. Next: a World with N players (Fight's player state per player), then
+   `TcpTransport` (a second d2d joins), player-count scaling and party.
+   Later: Views as deltas of what's near each player.
 
 ## Next up (as of 2026-09-26)
 
