@@ -2856,6 +2856,12 @@ struct Fight {
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& m = monsters[i];
                     if (!m.alive() || std::hypot(m.u.x - a.x, m.u.y - a.y) > 0.5f) continue;
+                    if (a.row) {                             // a shrine's potion: everyone in its burst
+                        for (std::size_t j = 0; j < monsters.size(); ++j)
+                            if (monsters[j].alive() && std::hypot(monsters[j].u.x - a.x, monsters[j].u.y - a.y) * 5 <= float(std::max(a.burst, 1)))
+                                land(j, d2d::rules::missile_blow(*a.row, target_of(j), {}, rng), true, ms);
+                        return true;
+                    }
                     if (a.skill >= 0) {
                         if (std::ranges::contains(*a.struck, int(i))) continue;
                         if (skill_missile_hits(a, i, ms)) return true;
@@ -2977,6 +2983,38 @@ struct Fight {
             const int hi = std::max(d2d::rules::elem_damage(scene->skills, *s, env, b.aura_lvl, true) >> 8, lo);
             for (auto& f : foes)
                 if (f.alive && near(f.x, f.y)) f.damage += d2d::rules::resisted(rng.range(lo, hi), f.f.res[std::size_t(s->etype)]);
+        }
+    }
+    // A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
+    // Storm Shrine's 16 fireballs (FUN_00582da0, missile 62) toward x = +-5k
+    // subtiles (k 1..4, + for odd k), y 5, -10, 15, -20; the Exploding and
+    // Poison Shrines' 6 potions (FUN_005830e0 / FUN_00583410, missiles 45 /
+    // 48) toward (-6, 6), (-6, -6), (0, 6), (0, -6), (6, 6), (6, -6).
+    // ponytail: they hit monsters only (game.exe's are the shrine's own and
+    // may hit players too); the poison potion's cloud is a burst of its
+    // row's poison.
+    void shrine_missiles(int code, float x, float y, int clvl, std::uint32_t ms) {
+        const int lvl = std::clamp(clvl / 5, 1, 8);
+        if (code == 19) {
+            const auto m = scene->missiles.find("fireball");
+            const auto k = scene->skills.by_name.find("Fire Ball");
+            if (m == scene->missiles.end() || k == scene->skills.by_name.end()) return;
+            for (int ring = 1; ring <= 4; ++ring)
+                for (const int ty : { 5, -10, 15, -20 }) {
+                    const float tx = float(ring % 2 ? 5 * ring : -5 * ring);
+                    launch(m->second, *scene->skills.get(k->second), lvl, x, y, tx / 5, float(ty) / 5, m->second.range, ms);
+                }
+            return;
+        }
+        const auto m = scene->missiles.find(code == 21 ? "explosivepotion" : "chokinggaspoition");
+        if (m == scene->missiles.end()) return;
+        const auto& mi = m->second;
+        const auto md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
+        for (const auto [dx, dy] : { std::pair{ -6, 6 }, { -6, -6 }, { 0, 6 }, { 0, -6 }, { 6, 6 }, { 6, -6 } }) {
+            const float fx = float(dx) / 5, fy = float(dy) / 5, v = cells_per_sec(float(mi.vel)), d = std::hypot(fx, fy);
+            Missile a{ &mi, x, y, fx / d * v, fy / d * v, direction32(fx, fy), ms, ms + std::uint32_t(std::max(mi.range, 1)) * 40, {} };
+            a.friendly = true; a.row = md; a.burst = mi.hit_par1;
+            pending.push_back(a);
         }
     }
     // The player went to `to`: an outdoor level's monsters come back, the

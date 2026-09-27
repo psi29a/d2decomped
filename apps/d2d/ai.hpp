@@ -255,6 +255,10 @@ struct Missile {
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
     bool fx = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
+    // A shrine's thrown potion: its Missiles.txt row damage, bursting over
+    // `burst` subtiles where it lands (sHitPar1).
+    std::optional<d2d::rules::MissileDamage> row;
+    int burst = 0;
     // Monsters a flying-on missile already hit; a nova's missiles share
     // theirs (one hit a monster). -1: an explosion is under way.
     std::shared_ptr<std::vector<int>> struck = std::make_shared<std::vector<int>>();

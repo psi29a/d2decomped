@@ -235,6 +235,23 @@ struct World {
         if (s.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(scene->rules, cc.items, rng); !code.empty())
                 loot.put({ .code = code }, player.x, player.y, 1, ms);
+        // Storm (FUN_00582da0): everyone about loses Arg0 % of their life.
+        // ponytail: "about" as within 30 cells (game.exe's unit search
+        // over Arg1 isn't traced).
+        if (s.code == 19) {
+            v[kLife] -= v[kLife] * s.arg0 / 100;
+            fight.merc_life -= fight.merc_life * s.arg0 / 100;
+            if (fight.mon_level == level)
+                for (auto& m : fight.monsters)
+                    if (m.alive() && std::abs(m.u.x - o.x) < 30 && std::abs(m.u.y - o.y) < 30) m.hp -= m.hp * s.arg0 / 100;
+        }
+        // Exploding / Poison: Arg0 .. Arg1 - 1 exploding (opm) / choking gas
+        // (gpm) potions at the player's feet (FUN_005830e0 / FUN_00583410).
+        if (s.code == 21 || s.code == 22)
+            for (int n = s.arg0 + rng(std::max(s.arg1 - s.arg0, 0)); n > 0; --n)
+                loot.put({ .code = s.code == 21 ? "opm" : "gpm" }, player.x, player.y, 1, ms);
+        if ((s.code == 19 || s.code == 21 || s.code == 22) && fight.mon_level == level)
+            fight.shrine_missiles(s.code, o.x, o.y, int(cc.stats.get(kLevel)), ms);
         if (s.code == 20 && fight.mon_level == level) {   // warping (FUN_00583050): the nearest plain monster turns boss
             // ponytail: FUN_00582750's filter read as alive, not a boss, not
             // an NPC; FUN_0065a800's search range isn't traced.
@@ -252,7 +269,7 @@ struct World {
                 d2d::log::info("warping shrine: {} is now a {}", m.npc.name, b.kind == d2d::rules::Boss::champion ? "champion" : "unique");
             }
         }
-        d2d::log::info("shrine {} (code {}){}", row, s.code, s.code >= 16 && s.code != 18 && s.code != 20 ? ", not built" : "");
+        d2d::log::info("shrine {} (code {}){}", row, s.code, s.code == 16 || s.code == 17 ? ", not built" : "");
     }
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md

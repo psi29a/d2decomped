@@ -456,7 +456,8 @@ standalone server later.
 
 Blood Moor polish (2026-09-27): ambient events and song resume done
 (sound.md); Act 1's unique mods (Cursed, teleport, auras; monsters.md).
-Next the shrines, the quest log, lighting.
+Storm, Exploding and Poison Shrines (objects.md); the Portal Shrine waits for
+town portals. Next the quest log, lighting.
 
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
 Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't

@@ -198,3 +198,21 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.
+
+## Magic shrines (2026-09-27)
+
+The shrine effect table at 0x6e1850 has 12-byte entries {fn, stat, state},
+indexed by Shrines.txt Code, run from `FUN_00583c70`.
+
+- 17 portal: `FUN_00582a30` opens a portal to town. Not built, because d2d has no town portals yet.
+- 19 storm: `FUN_00582da0`. Every player and monster found by the unit search over Arg1 (2000) loses Arg0 % (50) of its current life. Then 16 missile 62 (fireball) shots at level clvl / 5 (1..8):
+  - x offset ±5k subtiles for k = 1..4 (+ when k is odd);
+  - y offset 5, −10, 15, −20.
+- 21 exploding / 22 poison: `FUN_005830e0` / `FUN_00583410`.
+  - Arg0 + rand(Arg1 − Arg0) potions (`opm` exploding / `gpm` choking gas), each with quantity 1 (stat 70), drop at the operator.
+  - Then 6 missiles, 45 explosivepotion / 48 chokinggaspoition, fly at offsets (±6 / 0, ±6) at level clvl / 5.
+
+d2d: `World::operate` and `Fight::shrine_missiles`. The potions are
+friendly missiles that burst their row damage over sHitPar1 subtiles.
+ponytail: the missiles hit monsters only, the poison cloud is a single
+burst, and "everyone" means everyone within 30 cells.
