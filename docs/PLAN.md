@@ -4,6 +4,18 @@ Reverse-engineer Diablo II (2000, LoD 2001) into a cross-platform, modern
 C++26 engine. Ghidra drives decompilation; reference implementations
 (OpenD2, OpenDiablo2, AbyssEngine) guide file-format work.
 
+## Goals
+
+- **A drop-in replacement for game.exe.** Everything a player or a mod
+  passes to Diablo II 1.14d still works: its command-line switches
+  (`-w`, `-ns`, `-direct`, `-txt`, `-seed`, `-act`, `-skiptobnet`,
+  `-gamma`, `-vsync`, `-lq`, `-nofixaspect`, the class ones like `-ama`,
+  ...), with game.exe's meaning and spelling (one dash). d2d's own
+  options may add to them, never clash. Research: game.exe's switch table
+  (the strings sit together in .rdata) and what each one sets.
+- Act 1, then the rest, playable from game.exe's own rules (Road to a
+  whole Act 1, below).
+
 ## Non-goals
 
 - Ship a game with Blizzard assets. Users bring their own ISOs.

@@ -5,6 +5,9 @@ driven by a Ghidra decompilation of the 1.14d `game.exe`.
 
 **Not affiliated with Blizzard.** You bring your own game data.
 
+Aim: a drop-in replacement for `game.exe`, down to the command-line
+switches it takes (`-w`, `-ns`, `-direct`, `-txt`, `-seed`, ...).
+
 See [`docs/PLAN.md`](docs/PLAN.md) for the roadmap, known issues and
 what's next; RE notes live in [`docs/research/re/`](docs/research/re/).
 
