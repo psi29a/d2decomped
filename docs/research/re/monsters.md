@@ -190,6 +190,70 @@ multishot and mana-burn hooks sit in `monster_update`.
 - Not proven against game.exe: the monster's own seed isn't the game's
   (unit creation isn't emulated).
 
+## Preset units on the server — FUN_00555910 → FUN_005557d0 → FUN_0054e600
+
+When a room comes up, each unit in its list (the DRLG's, docs/research/re/
+drlg.md "Preset units") is spawned at the room's origin plus its subtile
+(FUN_00555910 → FUN_005557d0; type 1 → FUN_0054e600, type 2 objects →
+FUN_0054f490 above id 0x23d, else FUN_00555230). FUN_0054e600(game, room,
+id, x, y, mode) — fastcall, id / x / y / mode on the stack:
+
+- **MonStats row** (id < rows): FUN_0054e490, that monster at (x, y)
+  (FUN_005b2f20 → FUN_005b2a00, radius −1 = the point, then radius 4 if
+  it's taken, unless FUN_0054e3a0 says no: rows 0xe5, 0x11c..0x120,
+  0x188, 0x189 stay put). Flag 8 when MonStats +0xe & [0x6ce270] (not
+  traced). A few ids are swapped first: 0x1f2 / 0x205 with quest 0x1f in
+  level 0x6e (act 5), 0x1c5 / 0x211 skipped in level 0x6e past normal.
+- **Superunique** (id − rows < superunique count): FUN_005a49b0, below.
+- **MonPlace** (the rest; MonPlace.txt is only codes, the meaning is this
+  switch on `index − 2`, byte table 0x54eb30 into jumps at 0x54eb0c):
+
+| Index | Code | What spawns |
+|---|---|---|
+| 0x02 | place_unique_pack | a type from the level's unique list (FUN_005bde80 unique flag), then FUN_005a43e0 with (0, 0): a **random spot in the room** (FUN_0054dc40), not the marker; mods and minions as a random unique |
+| 0x03 | place_champion | a type from the unique list at the marker, made a champion (FUN_005a48c0 mod 16), then FUN_0054e1e0: `rand(3) + 1` more champions of it, radius 4 (the monster's own seed) |
+| 0x04 | place_rogue_warner | MonStats 0x10a (Flavie) |
+| 0x05 | place_bloodraven | MonStats 0x10b (Blood Raven) |
+| 0x08 | place_tightspotboss | MonStats 0x11c, flag 8 |
+| 0x0a / 0x0b | place_tentacle_ns / _ew | FUN_0054da60: MonStats 0x105's chain by the level (act 3) |
+| 0x11, 0x12 | place_fallen, place_fallenshaman | one monster at the marker: base 0x13 (fallen1) / 0x3a (fallenshaman1) → the level's own (FUN_0063ec70) → FUN_0054e2a0 |
+| 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); the dead ones spawn in mode 12 (dead) |
+| 0x18, 0x1a | place_impgroup, place_miniongroup | FUN_0054e090 (act 5, not traced) |
+| 0x00, 0x06, 0x07, 0x09, 0x0c..0x10, 0x13..0x15, 0x21..0x24 | nothing, the river monsters, amphibian, fallennest, fetishnest, talking / dumb guards, maggots, mosquitonest, **group25..group100** | **nothing** (the default; group ids 0x21..0x24 are past the table: `index − 2 > 0x1e`) |
+
+- **The level's own monster** (FUN_0063ec70(room, base)): the Levels.bin
+  record's monster list (+0x33 count, +0x36 u16 MonStats rows): the first
+  whose family base (MonStats +2) is the base's wins. Else the family's
+  chain (MonStats +4, next in class) is walked while the next one's level
+  (MonStats +0xaa) stays within the level's +0x16 + 1.
+- **FUN_0054e2a0**: fallen1 in level 6 (Black Marsh) → 0x14 (fallen2); in
+  7, 12, 16 (Tamoe Highland, the Pit) → 0x15 (fallen3). fallenshaman1 in
+  6 / 7 → 0x3b; 12 / 16 → 0x3c.
+- **Superuniques** (FUN_005a49b0(game, room, x, y, index)): once a game —
+  a bit per superunique at game +0x1d30, unless the record's +0x26 lets
+  it come back (a guard returns for difficulty > 2). At the marker, or a
+  random spot when the record's +0x24 is set
+  (FUN_005a09e0: (0, 0) → FUN_0054dc40). Flagged unique (+0x16 |= 2),
+  mods as in "Champions and uniques", then per SuperUniques Class (the
+  record's +8) a few specials (the Countess, the Smith, Griswold's …:
+  cases 6, 10, 0x1a..0x1d, 0x24..0x27, 0x2a..0x2d, 0x3c, 0x3e — spawn
+  their company or set quest state; not traced one by one), and MonUMod 22
+  (questcomplete) for all. **Minions** (FUN_005a2120 → FUN_005a0c00):
+  `MinGrp + rand(MaxGrp − MinGrp + 1)` of MonStats minion1 (+0x26, else
+  its own type), MinGrp and MaxGrp each + difficulty when both are set; a
+  random unique's are the fixed 3..6. Each is placed by FUN_005b23c0 →
+  FUN_005b2a00 at radius 3 round the leader (rings of 3 subtiles, see Room
+  population) and flagged minion (+0x16 |= 0x10).
+- **Act 1's presets** use (tools survey of every Act 1 LvlPrest file):
+  place_fallen 76, place_fallenshaman 118 (the Blood Moor's Fallen Camp 1 /
+  2 and Tree Fill, cave themes, cottages, the ruin), place_champion 16,
+  place_unique_pack 27, place_bloodraven 1, place_nothing 8,
+  place_fallennest 1, place_group25 / 50 / 75 / 100 (3 / 10 / 2 / 13: the
+  Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2); superuniques
+  Bishibosh, Rakanishu, Griswold, Treehead, Coldcrow, Bonebreak, Boneash,
+  Pitspawn, Corpsefire, the Countess, the Smith, the Cow King; monsters
+  gargoyletrap 17, Andariel, chickens, cows, rogues, the town NPCs.
+
 ## Not yet traced / approximated
 
 - Room activation order (game.exe populates when a room first becomes

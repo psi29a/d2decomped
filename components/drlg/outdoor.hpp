@@ -971,7 +971,6 @@ inline Outdoor generate_outdoor(const OutdoorData& d, const OutdoorLevel& L, d2d
                 if (!p) { g.note("drlg: LvlPrest def " + std::to_string(def) + " missing"); continue; }
                 (void)g.seed(p->files);                   // FUN_00666ed0: rolled, then replaced
                 const int file = int((f >> 16) & 0xf);
-                if (p->scan || p->pops) g.note("drlg: preset units (FUN_00667620: the preset DS1s' monsters and objects) not placed");
                 for (int ty = 0; ty < p->h; ty += 8)
                     for (int tx = 0; tx < p->w; tx += 8)
                         out.rooms.push_back({ cx * 8 + tx, cy * 8 + ty, alloc().low, 8, 8, 2, def, int((f >> 16) & 0xf), cx * 8, cy * 8 });

@@ -148,6 +148,15 @@ Noted while playing the dev build (2026-09-24):
   - quest topics and the extra entries (Kashya's hire, Warriv's "go
     east") come from the game server (docs/research/re/npc-talk.md).
 
+Noted in a playthrough (2026-09-27), to follow up:
+
+- **Crossing camp → Blood Moor pops.** The view shifts at the crossing
+  and the torches appear at once: a level's objects and NPCs are drawn
+  only while the player is on it, not across the edge from a neighbour
+  (Level::nearby covers tiles and collision only).
+- **Charged Bolt's black box.** Its sprite draws with black round it: the
+  missile's blend (Missiles.txt Trans, additive / alpha) isn't applied.
+
 ## Wilderness plan (from 2026-09-25)
 
 Goal: walk out of the Rogue Encampment into a Blood Moor laid out the way
