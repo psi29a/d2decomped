@@ -78,6 +78,7 @@ struct Town {
     float& target_y = world.target_y;
     LocalTransport net;                    // the commands to the World, as their wire form (single player)
     View view;                             // what the World told the client after its last tick
+    ViewEncoder view_enc;                  // the host's memory of what this client was sent
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
@@ -126,9 +127,14 @@ struct Town {
         world.cues.due.clear();
         out.events = std::move(world.events);
         world.events.clear();
-        net.to_client = encode_view(*scene, out);
-        if (auto v = decode_view(*scene, net.to_client)) view = std::move(*v);
-        else { d2d::log::warn("a View didn't decode ({} bytes)", net.to_client.size()); return; }
+        net.to_client = encode_view(*scene, out, view_enc);
+        // D2D_VIEW_STATS=1: each View's size in the log (the replication budget).
+        if (std::getenv("D2D_VIEW_STATS")) d2d::log::info("VIEWSTAT total={} monsters={} ground={} items={}", net.to_client.size(), out.monsters.size(), out.ground.size(), out.items.size());
+        if (!apply_view(*scene, net.to_client, view)) {         // lost track: the next one is whole
+            d2d::log::warn("a View didn't apply ({} bytes)", net.to_client.size());
+            view_enc.reset();
+            return;
+        }
         level = view.level;
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
         if (!view.has_character) return;

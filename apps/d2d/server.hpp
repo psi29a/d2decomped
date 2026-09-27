@@ -155,7 +155,10 @@ struct World {
         if (merc && merc_npc) v.merc = View::Merc{ *merc, merc_npc, fight.merc_mode };
         for (const auto& p : fight.pets) if (p.where == level) v.pets.push_back({ p.m.npc, p.m.u, p.m.mode });
         if (level == fight.mon_level) {
-            v.monsters = fight.monsters;
+            // What's near the player (D2 sends the units of the rooms round
+            // each player). ponytail: a radius of 28 cells, not rooms.
+            for (const auto& m : fight.monsters)
+                if (std::abs(m.u.x - player.x) < 28 && std::abs(m.u.y - player.y) < 28) v.monsters.push_back(m);
             for (const auto& m : fight.missiles) if (m.info && m.info->dcc) v.missiles.push_back({ m.info, m.x, m.y, m.dir, m.born });
         }
         if (fight.attack_mon >= 0 && std::size_t(fight.attack_mon) < fight.monsters.size()) v.attack = fight.monsters[std::size_t(fight.attack_mon)].id;

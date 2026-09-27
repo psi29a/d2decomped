@@ -256,7 +256,7 @@ try:
 
         # Cain once rescued: identify items.
         cmd("debug quest 4")
-        cmd("debug unid")
+        cmd("debug unid"); frames(3)          # the World's items; the client's follow on its next tick
         assert state()["unid"] != "0"
         near("Deckard Cain")
         pick("identify items")

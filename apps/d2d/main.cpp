@@ -27,6 +27,7 @@ static fs::path    g_user_dir;
 static int         g_start_class = 0;
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
+static bool        g_no_save = false;         // --no-save: nothing is written (scripted tests)
 static int         g_start_cam_x = -1;   // -1 = "use map center"
 static int         g_start_cam_y = -1;
 static int         g_scale = 1;          // window = game res * g_scale
@@ -212,7 +213,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // The characters' saves (character_store.hpp): the World writes through
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
-    t.world.characters = &characters;
+    t.world.characters = g_no_save ? nullptr : &characters;
     if (screen == Screen::InGame && scene) t.enter();   // --start-screen ingame: the class and name given
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
@@ -647,6 +648,7 @@ int main(int argc, char** argv) {
     int         start_class = 0;
     std::string start_name;
     bool        start_hardcore = false;
+    bool        no_save = false;
     std::uint32_t map_seed = 3;  // act layout + levels; 3 puts the Blood Moor east (townE1)
 
     CLI::App app{"d2d — Diablo II re-implementation (dev build)"};
@@ -671,6 +673,8 @@ int main(int argc, char** argv) {
                    "Preload character name");
     app.add_flag  ("--start-hardcore", start_hardcore,
                    "Preload the Hardcore checkbox");
+    app.add_flag  ("--no-save", no_save,
+                   "Never write character saves (scripted tests)");
     bool no_video = false;
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int start_cam_x = -1, start_cam_y = -1;
@@ -720,6 +724,7 @@ int main(int argc, char** argv) {
     g_start_class    = start_class;
     g_start_name     = start_name;
     g_start_hardcore = start_hardcore;
+    g_no_save        = no_save;
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked

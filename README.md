@@ -127,6 +127,7 @@ Useful flags:
 - `--start-screen ingame` jumps straight into the game.
 - `--headless --devctl <socket>` runs without a window, driven over a
   Unix socket ([`docs/control_channel.md`](docs/control_channel.md)).
+- `--no-save` never writes character saves (scripted tests use it).
 
 Keys in town:
 
