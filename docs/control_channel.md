@@ -52,6 +52,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug die`                 | `ok`                   | The player dies where they stand (death penalty, then a corpse). |
 | `debug corpses`             | `<level>\t<x>\t<y>\t<items>` per corpse, `ok` | The player's corpses. |
 | `debug rain [state]`       | `ok state= density= drops= splashes= wind=` | The weather; with a state (0 clear, 1 rising, 2 full, 3 falling) it starts that state next tick. |
+| `debug walls <x> <y>`      | `ok w<type>...`        | The current level's wall tiles at cell (x, y): each wall layer's orientation (h: hidden), or layer:orientation of the tiles game.exe picked. |
 | `debug alt on\|off`         | `ok`                   | Hold "Show Items" (Alt): every ground item's label. |
 | `debug day [deg]`          | `ok phase= time= intensity=` | The time of day, set to `deg` degrees (0 sunrise, 90 noon, 180 dusk, 270 midnight). |
 | `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's Blood Moor monsters. |

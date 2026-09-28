@@ -92,6 +92,10 @@ struct Lighting {
         return int((a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy);
     }
     [[nodiscard]] const d2d::palette::Palette& palette(float x, float y) const { return (*pal)[std::size_t(at(x, y) >> 3)]; }
+    // A unit's light: its own subtile's entry (FUN_00475aa0; the unit's path
+    // keeps the byte, FUN_00620100), not a blend. A blend would pull in the
+    // dark subtiles of a wall it stands against.
+    [[nodiscard]] int unit_at(float x, float y) const { return grid.at(int(std::floor(x * 5)), int(std::floor(y * 5))); }
 };
 
 // A DT1 tile of cell (gx, gy), its top corner on screen at (top_x, top_y),
@@ -113,7 +117,7 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, c
             lo = std::min(lo, v); hi = std::max(hi, v);
         }
     const auto& pals = *light.pal;
-    if (lo >> 3 == hi >> 3) { blit_dt1_tile(fb, t, pals[std::size_t(lo >> 3)], sx, sy); return; }
+    if (lo >> 3 == hi >> 3) { blit_dt1_tile(fb, t, pals[std::size_t(lo >> 3)], sx, sy, alpha_all, hole); return; }
     // Screen offset from the top corner → subtiles into the cell: dx - dy =
     // x / 80 cells, dx + dy = y / 40.
     auto level = [&](int ox, int oy) {
@@ -422,8 +426,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             // 0x40..0xff (FUN_00471ec0).
             // ponytail: objects also switch to draw mode 7 there, untraced.
             const auto& lpal = !light ? upal0
-                             : u.highlight ? (*light->pal)[std::size_t(std::clamp(light->at(u.x, u.y) * 2, 0x40, 0xff) >> 3)]
-                                           : light->palette(u.x, u.y);
+                             : (*light->pal)[std::size_t((u.highlight ? std::clamp(light->unit_at(u.x, u.y) * 2, 0x40, 0xff) : light->unit_at(u.x, u.y)) >> 3)];
             // A state's colour shift wins over the unit's own colour
             // (a monster's palshift / RandTransforms, an item's colormap).
             const auto* umap = u.shift ? u.shift : u.cmap;

@@ -212,6 +212,17 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             for (const auto& c : t.world.corpses) out += std::format("{}\t{:.1f}\t{:.1f}\t{}\n", c.level ? c.level->id : -1, c.x, c.y, c.items.size());
             return out + std::format("ok view={} gfx_tr={}\n", t.view.corpses.size(), int(t.view.gfx[1]));
         }
+        if (args.size() >= 4 && args[1] == "walls") {      // a cell's wall tiles: `debug walls <x> <y>` -> layer:orientation ...
+            const int x = std::atoi(args[2].c_str()), y = std::atoi(args[3].c_str());
+            const auto& lv = *t.level;
+            std::string out = "ok";
+            if (x >= 0 && y >= 0 && x < int(lv.ds1.width()) && y < int(lv.ds1.height())) {
+                const auto off = std::size_t(y) * std::size_t(lv.ds1.width()) + std::size_t(x);
+                if (!lv.picks.empty()) for (const auto& p : lv.picks[off]) out += std::format(" {}:{}", int(p.layer), int(p.orient));
+                else for (const auto& wl : lv.ds1.walls()) out += std::format(" w{}{}", wl.cells[off].wall_type, wl.cells[off].hidden ? "h" : "");
+            }
+            return out + "\n";
+        }
         if (args.size() >= 2 && args[1] == "alt") {        // hold "Show Items" (Alt) as if pressed: `debug alt on|off`
             t.alt_held = args.size() >= 3 && args[2] == "on";
             return std::string("ok\n");
