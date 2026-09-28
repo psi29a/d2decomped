@@ -17,4 +17,6 @@ target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
 d2d_check_headers(d2d_headers LINK
     game mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} PkgConfig::FFMPEG)
-target_include_directories(d2d_headers SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+if(TARGET d2d_headers)
+    target_include_directories(d2d_headers SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
+endif()
