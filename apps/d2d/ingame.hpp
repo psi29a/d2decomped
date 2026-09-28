@@ -59,7 +59,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const std::string* merc_label = nullptr,
                    std::span<const Unit> extra_units = {}, float player_rate = 1.f,
                    const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true,
-                   const Unit* player_look = nullptr) {   // its states' colour shift and overlays
+                   const Unit* player_look = nullptr,     // its states' colour shift and overlays
+                   bool show_items = false) {             // Alt held: every ground item's name
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -121,9 +122,43 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (hovered_npc && *hovered_npc != -1)            // last frame's: brighter (render_world)
             for (auto& u : units) if (u.npc == *hovered_npc && u.name) u.highlight = true;
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
-        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain);
+        std::vector<std::pair<const Unit*, std::array<int, 4>>> items;
+        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
         if (rain) draw_rain(fb, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
+        // Alt ("Show Items"): each ground item's name in a dark box over it,
+        // nudged up clear of the ones already placed; the label under the
+        // mouse is the item it points at (a click picks it up).
+        // ponytail: game.exe's label layout isn't traced (box padding, the
+        // stacking order, the hovered label's own colour).
+        if (show_items) {
+            const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
+            std::ranges::sort(items, {}, [](const auto& e) { return -e.second[3]; });   // nearest the bottom first
+            std::vector<std::array<int, 4>> placed;
+            const int lh = s.font.line_height();
+            for (const auto& [u, b] : items) {
+                if (!u->name || u->name->empty()) continue;
+                const int w = s.font.measure(*u->name) + 8;
+                std::array<int, 4> r{ (b[0] + b[2]) / 2 - w / 2, b[1] - lh - 4, 0, 0 };
+                r[2] = r[0] + w; r[3] = r[1] + lh + 2;
+                for (bool moved = true; moved;) {
+                    moved = false;
+                    for (const auto& p : placed)
+                        if (r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3]) { const int dy = r[3] - p[1]; r[1] -= dy; r[3] -= dy; moved = true; }
+                }
+                placed.push_back(r);
+                for (int y = std::max(r[1], 0); y < std::min(r[3], int(kH)); ++y)
+                    for (int x = std::max(r[0], 0); x < std::min(r[2], int(kW)); ++x) {
+                        auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
+                        p[0] = std::uint8_t(p[0] / 4); p[1] = std::uint8_t(p[1] / 4); p[2] = std::uint8_t(p[2] / 4);
+                    }
+                s.font.draw_tinted(fb, kW, kH, pal, r[0] + 4, r[1] + 1, *u->name, u->rgb[0], u->rgb[1], u->rgb[2]);
+                if (mouse_x >= r[0] && mouse_x < r[2] && mouse_y >= r[1] && mouse_y < r[3]) {
+                    if (hovered_npc) *hovered_npc = u->npc;
+                    hovered = { nullptr, {} };              // the label names it: no second name
+                }
+            }
+        }
         // Name over whatever the cursor points at, centred above it.
         if (hovered.first && (hovered.first->npc > -10 || hovered.first->npc <= -1000)) {   // monsters: their bar at the top
             const auto& nm = *hovered.first->name;

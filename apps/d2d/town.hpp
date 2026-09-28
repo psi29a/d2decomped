@@ -292,6 +292,7 @@ struct Town {
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
+    bool alt_held = false;                 // devctl `debug alt on`: "Show Items" held
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
     std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
@@ -925,7 +926,7 @@ struct Town {
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look);
+                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0);   // D2's "Show Items" (Alt)
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open

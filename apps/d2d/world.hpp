@@ -214,7 +214,8 @@ void render_world(std::vector<std::uint8_t>& fb,
                   std::span<const Unit> units = {},
                   int mouse_x = -1, int mouse_y = -1,
                   std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr,
-                  const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr) {
+                  const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr,
+                  std::vector<std::pair<const Unit*, std::array<int, 4>>>* items = nullptr) {   // each ground item drawn, its box
     const auto& m = L.ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -383,9 +384,9 @@ void render_world(std::vector<std::uint8_t>& fb,
     // time), and each unit is drawn once its own cell's diagonal is done:
     // a tent north of the player stays behind them, one south of them
     // covers them. Units on the same diagonal go in screen-y order.
-    // ponytail: cell-granular; D2 sorts units and walls by subtile and
-    // wall orientation, which matters once units stand inside a cell's
-    // wall line.
+    // game.exe buckets tiles by cell too (FUN_004dd7c0: FUN_00643340 gives
+    // the tile's cell of the screen grid, each cell a slot of lists).
+    // ponytail: how it interleaves units with a cell's walls isn't traced.
     std::vector<const Unit*> order;
     for (const auto& u : units) if (u.anim || u.sprite || u.missile) order.push_back(&u);
     auto diag_of = [&](const Unit* u) {
@@ -441,6 +442,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                 blit_at_anchor(fb, *f, u.cmap ? Scene::mapped(upal, u.cmap) : upal, ax, ay);
                 b = { ax + f->offset_x, ay + f->offset_y - int(f->height) + 1,
                       ax + f->offset_x + int(f->width), ay + f->offset_y + 1 };
+                if (items) items->push_back({ &u, b });
             } else {
                 const auto el = std::uint32_t(float(elapsed_ms - u.mode_ms) * u.rate);
                 draw_composite(fb, *u.anim, upal, u.dir, el, ax, ay);
