@@ -54,9 +54,9 @@ int main() {
     for (int row = 1; row < 6; ++row) rows[std::size_t(row)] = { .code = row, .effectclass = row == 4 ? 2 : row == 5 ? 3 : 4, .level_min = row == 3 ? 99 : 1 };
     rows[2].effectclass = 2;
     for (int i = 0; i < 200; ++i) {
-        Rng object_rng{ std::uint32_t(i) }, game_rng{ std::uint32_t(i * 3) };
-        assert(roll_shrine(rows, 1, 2, object_rng, game_rng) == 2);                      // health: 2, or 4 -> 2
-        const int any = roll_shrine(rows, 0, 2, object_rng, game_rng);
+        Rng object_rng{ std::uint32_t(i) };
+        assert(roll_shrine(rows, 1, 2, object_rng) == 2);                                // health: 2, or 4 -> 2
+        const int any = roll_shrine(rows, 0, 2, object_rng);
         assert(any >= 1 && any <= 3);
     }
     // Chests: traps and locks by the classic area level; a locked chest

@@ -515,7 +515,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
     std::unordered_map<std::string, std::size_t> obj_row;
     for (std::size_t row_index = 0; row_index < objects.size(); ++row_index) obj_row.emplace(std::string(objects.get(row_index, "Id")), row_index);
-    d2d::rules::Rng rgn(game_data.map_seed);            // the game's object seed (FUN_00546fa0)
+    auto rgn = object_seed(game_data.map_seed);
     auto add = [&](Level& into, int oid, int spot_x, int spot_y) { add_object(game_data, objects, obj_row, into, oid, spot_x, spot_y, rgn); };
     {                                               // a chest trap's fires (5 / 7: objects 162 and 160)
         Level tmp;

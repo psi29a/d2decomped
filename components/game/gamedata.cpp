@@ -347,7 +347,10 @@ void stamp_footprints(Level& level) {
 
 // A type-2 object at subtile (sx, sy): objects.txt Id `oid` (through
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
-// a chest's trap and lock. `rgn`: the game's object seed (FUN_00546fa0).
+// a chest's trap and lock, then (FUN_0054f5d0) a PreOperate object starts
+// opened (ON) one time in 14. `rgn`: the game's object seed (FUN_00546fa0).
+// ponytail: the unit flag 0x80 FUN_0054f5d0 checks before the PreOperate
+// roll is taken as clear; what sets it isn't traced.
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn) {
     const auto found = obj_row.find(std::to_string(oid));
@@ -359,23 +362,20 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.operate_fn = std::atoi(std::string(objects.get(row, "OperateFn")).c_str());
     if (objects.get(row, "Mode1") == "1") npc.op_frames = std::atoi(std::string(objects.get(row, "FrameCnt1")).c_str());
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
-        // ponytail: seeded from the level and spot — game.exe rolls the
-        // object's own seed and the game's object seed (not emulated).
-        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ game_data.map_seed);
-        npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, obj, rgn);
+        npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, rgn);
     }
     if (objects.get(row, "InitFn") == "3") {      // a chest: its trap and lock (FUN_0054fcb0)
-        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ game_data.map_seed);   // ponytail: as the shrines'
         const auto& area_levels = game_data.area_level;
         const int mlvl1 = std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1;
-        const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", obj);
+        const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", rgn);
         npc.trap = chest.trap; npc.locked = chest.locked;
         if (npc.locked) if (auto locked_name = lookup_string(game_data, "lockedchest")) npc.name = u16_to_latin1(*locked_name);
     }
+    npc.preoperated = objects.get(row, "PreOperate") == "1" && rgn(14) == 0;
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
-    const bool lit_mode = objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
-                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4;   // shrines / chests: NU until used
+    const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
+                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4);   // shrines / chests: NU until used
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.
@@ -595,8 +595,9 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // Its preset units (Level::units): objects, and monsters MonStats marks
     // as NPCs (Flavie by the Blood Moor's way in). Unit ids are game.exe's:
     // MonStats rows without its Expansion row.
-    // ponytail: the object seed starts from the map seed in every level.
-    d2d::rules::Rng rgn(game_data.map_seed);
+    // ponytail: each level starts from the game's object seed as made
+    // (object_seed); game.exe has one for the game, drawn as rooms come up.
+    auto rgn = object_seed(game_data.map_seed);
     for (const auto& unit : level->units) {
         if (unit.type == 2) add_object(game_data, builder.objects, builder.obj_row, *level, unit.id, unit.x, unit.y, rgn);
         if (unit.type != 1 || unit.id < 0 || std::size_t(unit.id) >= game_data.mon_bin.size()) continue;

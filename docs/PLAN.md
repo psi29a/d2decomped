@@ -467,9 +467,9 @@ palettes; animation timings come from the COF alone (`npc_timing`,
 `composite_timing`); missile sprites live in `Scene::missile_cels`. Debug
 start 3.8 s → 1.6 s. Since: a server's levels hold no tile pixels; the
 monster regions match game.exe (every level's at game start on one seed,
-monsters.md). Left: levels 2 and 8 are the only ones built
-(`kBuiltLevels`); every level's object seed starts from the map seed (not
-checked against game.exe).
+monsters.md); the object seed is game.exe's (objects.md; d2d restarts it
+per level, game.exe draws it across the game). Left: levels 2 and 8 are
+the only ones built (`kBuiltLevels`).
 
 Planned as:
 Every level is built at start today (0.1–0.4 s each optimised, monsters

@@ -36,15 +36,24 @@ Start mode in d2d: ON when the object has a light in ON (`Mode2` and
 
 ## Shrines and chests
 
+**The seed.** Every InitFn draws from the game's object seed: the
+dispatcher (`FUN_0054f5d0`, table 0x731bc0 by objects.txt InitFn) hands
+them `{game, unit, room, FUN_00546fa0()'s rng, objects record, ...}`.
+That rng is objrgn.cpp's (`FUN_00546c60`, game +0x10f0), seeded at game
+start with `{the game seed's second step, 666}`; the first made the
+monster regions (monsters.md). One for the game, drawn as objects come up.
+After the InitFn, a PreOperate object (record +0x13d) draws `rand(14)`
+and starts in mode 2 (ON, already opened) on 0, unless the unit's flag
+0x80 is set (not traced).
+
 **Which shrine** (InitFn 1, `FUN_0054f9d0`): objects.txt Parm0 (+0x178).
 
-- 0: any Shrines.txt row, `1 + rand(count - 1)` on the object's seed.
+- 0: any Shrines.txt row, `1 + rand(count - 1)`.
 - 1: a health shrine (effectclass 2); 2: mana (3).
-- else: one step of the object's seed, `% 10 == 0` magic (1), else a boost (4).
+- else: one step, `% 10 == 0` magic (1), else a boost (4).
 
 A class picks `rand(n)` of its rows in row order (`FUN_0054f770`, lists from
-`FUN_00546c60`) on the *game's* object seed (`FUN_00546fa0`), not the
-object's. Both paths re-roll (8 tries at most) while the level id is under
+`FUN_00546c60`). Both paths re-roll (8 tries at most) while the level id is under
 the row's LevelMin. Then 5 → 3, 4 → 2 (the exchanges are never placed) and
 16 → 18 (Enirhs becomes a gem shrine).
 
@@ -63,7 +72,7 @@ the row's LevelMin. Then 5 → 3, 4 → 2 (the exchanges are never placed) and
 
 Shrines reset after Shrines.txt "reset time in minutes" (0: never).
 
-**Chest init** (InitFn 3, `FUN_0054fcb0`, on the object's seed), stored in
+**Chest init** (InitFn 3, `FUN_0054fcb0`), stored in
 the object's flag byte:
 
 - First the trap (`FUN_0054fbb0`, also InitFn 2): `rand(100) < MonLvl1 / 8
@@ -177,8 +186,9 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 
 - Proven: the tables and branches above, read from the decompile. Not
   emulator-checked.
-- Seeds: the object's and the game's object seed aren't emulated, so which
-  shrine a spot gets differs from game.exe.
+- Seeds: the object seed starts as game.exe's, but d2d starts it afresh
+  per level and draws in DS1 order; game.exe draws one rng across the
+  game as rooms come up, so which shrine a spot gets can still differ.
 - Built: every recharge and boost shrine (the skill shrine as
   item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
   first inventory gem with a misc.txt BetterGem goes up one, else a

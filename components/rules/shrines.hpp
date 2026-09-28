@@ -20,14 +20,16 @@ namespace d2d::rules {
 // A Shrines.txt row (its index is the shrine's id).
 struct ShrineRow { int code = 0, arg0 = 0, arg1 = 0, duration = 0, reset = 0, effectclass = 0, level_min = 0; };
 
-// FUN_0054f9d0: which shrine an objects.txt shrine is. Parm0 0: any row
-// (1 + rand(count - 1), on `obj`, the object's seed); 1 health (class 2),
-// 2 mana (class 3); else a step of `obj`, one in ten magic (1), the rest
-// boosts (4). A class picks rand(n) of its rows (FUN_0054f770, on `rgn`,
-// the game's object seed; FUN_00546c60 lists them in row order). Both
-// re-roll, 8 tries at most, while `level_id` is under the row's LevelMin.
-// The exchanges become boosts (5 -> 3, 4 -> 2), Enirhs a gem shrine.
-inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_id, Rng& obj, Rng& rgn) {
+// FUN_0054f9d0: which shrine an objects.txt shrine is, on the game's
+// object seed (`rgn`, as every InitFn: FUN_0054f5d0 hands them
+// FUN_00546fa0's). Parm0 0: any row (1 + rand(count - 1)); 1 health
+// (class 2), 2 mana (class 3); else a step, one in ten magic (1), the rest
+// boosts (4). A class picks rand(n) of its rows (FUN_0054f770;
+// FUN_00546c60 lists them in row order). Both re-roll, 8 tries at most,
+// while `level_id` is under the row's LevelMin. The exchanges become
+// boosts (5 -> 3, 4 -> 2), Enirhs a gem shrine.
+inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_id, Rng& rgn) {
+    Rng& obj = rgn;
     if (rows.size() < 2) return 0;
     auto low = [&](int id) { return level_id < rows[std::size_t(id)].level_min; };
     int id = 0;
@@ -105,8 +107,8 @@ inline std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int 
     static constexpr const char* kDifficultySuffix[3] = { "", " (N)", " (H)" };
     return std::format("Act {}{} Chest {}", std::clamp(act, 0, 4) + 1, kDifficultySuffix[std::clamp(difficulty, 0, 2)], char('A' + cls));
 }
-// A chest as its init makes it (InitFn 3, FUN_0054fcb0, on the object's
-// seed): first the trap (FUN_0054fbb0: rand(100) < MonLvl1 / 8 + 5, then
+// A chest as its init makes it (InitFn 3, FUN_0054fcb0, on the game's
+// object seed): first the trap (FUN_0054fbb0: rand(100) < MonLvl1 / 8 + 5, then
 // a type 1..8, FUN_004bc500), then objects.txt Lockable chests lock at
 // rand(100) < MonLvl1 / 2 + 8 (flag 0x80); one more step. MonLvl1: the
 // classic normal column (Levels +0x10), whatever the difficulty.

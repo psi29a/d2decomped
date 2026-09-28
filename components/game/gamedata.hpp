@@ -67,6 +67,7 @@ struct Npc {
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
+    bool preoperated = false;            // a PreOperate object that starts opened (ON)
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
     bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
@@ -595,6 +596,14 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row);
 const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, const Level& level, int difficulty);
 void stamp_footprints(Level& level);
+// The game's object seed: {the game seed's second step, 666}
+// (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
+inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
+    d2d::rules::Rng game{ map_seed };
+    game.next();
+    return d2d::rules::Rng{ game.next() };
+}
+
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn);
 void finish_level(Level& level);

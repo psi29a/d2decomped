@@ -715,7 +715,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            const bool usable = (npc.operate_fn == 2 || npc.operate_fn == 4) && !operated.contains({ level, interact->npc });
+            const bool usable = (npc.operate_fn == 2 || npc.operate_fn == 4) && !npc.preoperated && !operated.contains({ level, interact->npc });
             if (npc.operate_fn == 32 || npc.operate_fn == 23 || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
