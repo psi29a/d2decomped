@@ -440,6 +440,7 @@ void finish_level(Level& level) {
                 const auto& cell = layer.cells[off];
                 if (cell.hidden || cell.wall_type == 0 || cell.wall_type == 13 || cell.wall_type == 15) continue;
                 stamp(cell_x, cell_y, cell.style, cell.sequence, cell.wall_type);
+                if (cell.wall_type == 3) stamp(cell_x, cell_y, cell.style, cell.sequence, 4);   // a corner's second tile (FUN_0066e9b0)
             }
         }
 }

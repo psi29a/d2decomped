@@ -432,6 +432,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 if (type == 0) continue;         // floor marker in wall stream
                 if (type == 13) continue;        // shadow (drawn above)
                 if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, type)) draw_wall(type, *tile, wall_index);
+                // A corner (3) is two tiles: the second picked with orientation 4 (FUN_0066e9b0).
+                if (type == 3) if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, 4)) draw_wall(4, *tile, wall_index);
             }
         }
     }
