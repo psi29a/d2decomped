@@ -854,6 +854,14 @@ struct World {
             if (!held && it != cc.items.end()) d2d::rules::pick_up(cc.items, held, std::size_t(it - cc.items.begin()));
             return;
         }
+        if (const auto* p = std::get_if<cmd::Drop>(&c)) {           // FUN_0054ab40: the item in hand, not while dead
+            if (held && held->id == p->item && !fight.dead()) {
+                loot.enter(level);
+                loot.place(std::move(*held), player.x, player.y, ms);
+                held.reset();
+            }
+            return;
+        }
         if (const auto* p = std::get_if<cmd::ToGrid>(&c)) {
             const auto* L = p->panel == 1 ? &scene->inv_layout[std::size_t(cls)] : p->panel == 4 ? &scene->cube_layout
                           : p->panel == 5 ? &scene->stash_layout[cc.expansion ? 1 : 0] : nullptr;

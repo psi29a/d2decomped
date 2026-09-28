@@ -116,7 +116,7 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
     auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
-        if (!in_view(g.x, g.y) || v.level == &s.town) continue;
+        if (!in_view(g.x, g.y)) continue;
         Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
         u.sprite = s.flippy(g.item.code);
         u.cmap = s.item_map(g.item, false);   // FUN_00471ec0: the character's colours
@@ -755,9 +755,11 @@ struct Town {
             }
             if (on_cancel && mouse.release_this_frame) waypoint = {};
         }
-        // Holding an item, the world doesn't take clicks.
-        // ponytail: D2 drops it on the ground; no ground items yet.
+        // Holding an item, a click on the world drops it (C→S 0x17).
         const bool bar_click = skillbar.click(mouse);
+        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click
+            && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
+            net.send(cmd::Drop{ held->id });
         const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
         if (have_world) walk(mouse, over_ui, ms, last_ms);
         cues.play(audio, view.player.x, view.player.y, rng, ms);

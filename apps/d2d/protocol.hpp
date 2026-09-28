@@ -48,6 +48,7 @@ struct UseBelt { int slot = 0; };
 // at (col, row), swapping with what's there; 0x1a / 0x1d onto a body slot
 // (1..10); 0x23 into a belt box.
 struct ToCursor { int item = -1; };
+struct Drop { int item = -1; };                    // the item in hand onto the ground at the player's feet (C→S 0x17)
 struct UseItem { int item = -1; };                 // right-click an item: a potion's drunk (C→S 0x20 / 0x26)
 struct ToGrid { int panel = 1, col = 0, row = 0; };
 struct ToBody { int slot = 0; };
@@ -81,7 +82,7 @@ struct QuestMessage { int npc = -1, string = 0; };
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
-                             cmd::ToCursor, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
+                             cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade, cmd::Respec,
                              cmd::Run, cmd::Chat, cmd::QuestMessage>;
 
@@ -147,6 +148,7 @@ inline std::vector<std::uint8_t> encode(const Command& c) {
         else if constexpr (std::is_same_v<T, cmd::UseBelt>) o.u8(0x26).i32(m.slot);
         else if constexpr (std::is_same_v<T, cmd::UseItem>) o.u8(0x20).i32(m.item);
         else if constexpr (std::is_same_v<T, cmd::ToCursor>) o.u8(0x19).i32(m.item);
+        else if constexpr (std::is_same_v<T, cmd::Drop>) o.u8(0x17).i32(m.item);
         else if constexpr (std::is_same_v<T, cmd::ToGrid>) o.u8(0x18).i32(m.panel).i32(m.col).i32(m.row);
         else if constexpr (std::is_same_v<T, cmd::ToBody>) o.u8(0x1a).i32(m.slot);
         else if constexpr (std::is_same_v<T, cmd::ToBelt>) o.u8(0x23).i32(m.box);
@@ -188,6 +190,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
         case 0x26: c = cmd::UseBelt{ i32() }; break;
         case 0x20: c = cmd::UseItem{ i32() }; break;
         case 0x19: c = cmd::ToCursor{ i32() }; break;
+        case 0x17: c = cmd::Drop{ i32() }; break;
         case 0x18: { const int p = i32(), col = i32(); c = cmd::ToGrid{ p, col, i32() }; break; }
         case 0x1a: c = cmd::ToBody{ i32() }; break;
         case 0x23: c = cmd::ToBelt{ i32() }; break;

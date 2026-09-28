@@ -65,7 +65,7 @@ and agrees.
 | 13 | 9 | 0x54aa90 ✓ | interact with unit (type ≤ 5, id) |
 | 14, 15 | var | 0x54a290, 0x54a5d0 | overhead / chat message |
 | 16 | 13 | 0x54aad0 ✓ | pick up item (type, id, action) |
-| 17 | 5 | 0x54ab40 | drop item |
+| 17 | 5 | 0x54ab40 | drop item: the cursor's item (its id at +1) at the nearest free spot to the player (`FUN_00563c00` → `FUN_00555da0`); refused while dead or trading. d2d: `cmd::Drop` |
 | 18..1f | | 0x54abb0.. | item to buffer / body / swap / switch |
 | 20 | 13 | 0x54b1e0 | use item |
 | 21..26 | | | stack; belt: to, remove, switch, use |

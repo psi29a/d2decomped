@@ -76,14 +76,30 @@ struct Loot {
                 const auto lines = item_lines(*scene, g.item, int(cc.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
             }
-            if (const auto info = scene->rules.item_info.find(g.item.code);
-                info == scene->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
-            cues.cue("item_flippy", ms, g.x, g.y);
-            if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
-                cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
-            g.id = next_id++;
-            ground.push_back(std::move(g));
+            land(std::move(g), ms);
         }
+    }
+    // An item the player drops (C→S 0x17, FUN_00563c00): at the nearest
+    // free spot to (x, y) (FUN_00555da0), named as its tooltip names it.
+    void place(d2d::d2s::Item it, float x, float y, std::uint32_t ms) {
+        GroundItem g;
+        std::tie(g.x, g.y) = level->nearest_free(x, y);
+        g.ms = ms;
+        const auto lines = item_lines(*scene, it, int(cc.stats.get(d2d::d2s::kLevel)));
+        if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
+        g.item = std::move(it);
+        g.item.location = 3;                 // on the ground
+        land(std::move(g), ms);
+    }
+    // Onto the floor: its flippy plays and its drop sound at its drop frame.
+    void land(GroundItem g, std::uint32_t ms) {
+        if (const auto info = scene->rules.item_info.find(g.item.code);
+            info == scene->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
+        cues.cue("item_flippy", ms, g.x, g.y);
+        if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
+            cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
+        g.id = next_id++;
+        ground.push_back(std::move(g));
     }
 
     // Picking up: gold into the purse (up to 10000 per character level),
