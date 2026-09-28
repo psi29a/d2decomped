@@ -33,9 +33,9 @@ d2d copies.
 | 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
 | 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | Not built (no such light in the Blood Moor) | not yet | lighting.md |
 | 6 | Ambience at dusk and dawn | Fades across (`FUN_004e42e0`) | Switches at once | yes, briefly | town.hpp |
+| 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
 | 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | Nearest free spot 0.6 cells south of the player | slightly | server.hpp `open_portal` |
 | 9 | COF draw effects 0..2 | Driver alpha modes (which of 25 / 50 / 75 % each is, untraced) | Read as a quarter, half, three quarters | only on layers that use them | world.hpp `layer_trans` |
-| 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
 
 About 200 smaller shortcuts are marked `ponytail:` in the code; this table
 holds the ones a player could notice or a test could trip on.
