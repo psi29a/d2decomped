@@ -498,8 +498,8 @@ struct Scene : GameData {
         for (std::size_t i = 0; i < 256; ++i) e[i] = base[i == 0 ? 0 : map[i]];
         return d2d::palette::Palette(e);
     }
-    [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& it, const d2d::palette::Palette& pal) const {
-        return mapped(pal, item_map(it, true));
+    [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& it, const d2d::palette::Palette& base) const {
+        return mapped(base, item_map(it, true));
     }
     std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
     d2d::dc6::Sprite popbelt;                          // PANEL\ctrlpnl_popbelt
