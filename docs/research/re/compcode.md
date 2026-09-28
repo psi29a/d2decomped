@@ -67,3 +67,22 @@ token maps to the same id through `{code, n}` pairs at 0x72ef68 and
   0x72e04c: AM SO NE PA BA DZ AI RO RH RH O1..), modes (count 20: DT NU
   WL RN GH TN TW A1 ..), layers (HD TR LG RA LA RH LH SH S1..S8), armour
   tiers (lit med hvy), weapon classes (count 15).
+
+## The look from what's worn
+
+The header's 16 bytes follow from the worn items (body locations 1 head,
+3 torso, 4 right hand, 5 left hand), each through its armor / weapons /
+misc.txt `component` column (0 HD, 1 TR, 5 RH, 6 LH, 7 SH, 10 S3 for a
+necromancer's head, 16 none):
+- a helm, weapon, shield or head: its graphic's index in this table
+  (alternategfx, else code); a one-hand weapon (component 5) in the left
+  hand goes on LH; bows are component 6 (LH) wherever they're held;
+  circlets aren't drawn (0xff);
+- body armour: TR LG RA LA S1 S2 = 1 (lit) + its Torso, Legs, rArm, lArm,
+  rSPad, lSPad tier (0..2);
+- nothing worn: TR LG RA LA S1 S2 lit, the rest 0xff.
+
+Checked against all 20 real saves (test_d2s). d2d rebuilds the look each
+tick (`GameData::look_of`), so equipping changes it.
+ponytail: the 16 tint bytes (+0x98, item colours) aren't worked out yet.
+

@@ -3,6 +3,7 @@
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <mpq.hpp>
+#include <compcode.hpp>
 
 #include <cassert>
 #include <cstdio>
@@ -112,6 +113,8 @@ int main() {
             };
             const auto t = d2d::d2s::ItemTables::from(tab("ItemStatCost"), tab("armor"),
                                                       tab("weapons"), tab("misc"));
+            const auto comp = d2d::compcode::build(tab("ItemTypes"), tab("weapons"), tab("armor"), tab("misc"));
+            const auto pcs = d2d::compcode::pieces(tab("weapons"), tab("armor"), tab("misc"));
             int saves = 0;
             for (const auto& e : fs::directory_iterator(sd)) {
                 if (e.path().extension() != ".d2s") continue;
@@ -130,6 +133,12 @@ int main() {
                 assert(st.fixed(d2d::d2s::kMaxLife) > 0 && st.get(d2d::d2s::kVit) > 0);
                 assert(bytes[st.items_at] == std::byte{'J'} && bytes[st.items_at + 1] == std::byte{'M'});
                 const auto items = d2d::d2s::parse_items(bytes, t);
+                // The look, from what's worn, is the header's (compcode::look).
+                {
+                    std::vector<d2d::compcode::Worn> worn;
+                    for (const auto& it : items) if (it.location == 1) worn.push_back({ it.slot, it.code });
+                    assert(d2d::compcode::look(comp, pcs, worn) == hdr.appearance);
+                }
                 int equipped = 0;
                 for (const auto& it : items) {
                     assert(!it.code.empty());

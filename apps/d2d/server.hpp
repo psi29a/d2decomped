@@ -640,10 +640,6 @@ struct World {
         if (held) { c.items.push_back(std::move(*held)); c.items.back().location = 1; held.reset(); }   // ponytail: the held item's slot
         if (corpses.size() >= 16) corpses.erase(corpses.begin());
         corpses.push_back(std::move(c));
-        GameData::Appearance naked;                   // nothing worn: the class's lit pieces
-        naked.fill(0xff);
-        for (int l : { 1, 2, 3, 4, 8, 9 }) naked[std::size_t(l)] = 1;
-        cc.appearance = naked;
     }
     // Taking one's corpse (FUN_0057fb70): its experience back, each item to
     // its slot when that's free (FUN_00562f30; its requirements met), else to
@@ -669,7 +665,6 @@ struct World {
             ++it;
         }
         if (c.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(k));
-        if (!cc.items.empty()) cc.appearance = c.gfx;   // ponytail: the look the corpse had, not rebuilt from what's worn
         cues.cue("item_pickup", ms, player.x, player.y);
     }
 
@@ -933,6 +928,8 @@ struct World {
     void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms) {
         const float dt = float(ms - last_ms) / 1000.f;
         now = ms;
+        // The look follows what's worn (compcode::look, the save header's bytes).
+        if (!scene->item_pieces.empty() && !scene->comp.empty()) cc.appearance = scene->look_of(cc.items);
         // Levels: finished builds come in; the ones next to the player's
         // start building when it changes (GameData::level).
         scene->poll_levels();

@@ -26,7 +26,7 @@ d2d_add_test(test_devctl devctl)
 d2d_add_test(test_screenshot screenshot)   # zlib transitive via screenshot
 d2d_add_test(test_palette mpq palette)
 d2d_add_test(test_font mpq font)
-d2d_add_test(test_d2s d2s mpq)
+d2d_add_test(test_d2s d2s mpq compcode)
 d2d_add_test(test_protocol)
 target_include_directories(test_protocol PRIVATE ${CMAKE_SOURCE_DIR}/apps/d2d)
 d2d_add_test(test_userdir userdir)

@@ -170,6 +170,12 @@ struct GameData {
     std::unordered_map<std::string, AnimInfo> anim_data;
     using Appearance = std::array<std::uint8_t, 16>;
     std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
+    std::unordered_map<std::string, d2d::compcode::Piece> item_pieces;   // item code -> its layer, graphic, armour tiers
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items) const {   // the look of what's worn (compcode::look)
+        std::vector<d2d::compcode::Worn> worn;
+        for (const auto& it : items) if (it.location == 1) worn.push_back({ it.slot, it.code });
+        return d2d::compcode::look(comp, item_pieces, worn);
+    }
     std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
     // Kept open for lazy loads after startup.
     d2d::mpq::Stack mpqs;

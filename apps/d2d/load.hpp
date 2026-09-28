@@ -988,6 +988,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                misc = txt("misc"), charstats = txt("CharStats");
     if (types.size() == 0 || weapons.size() == 0) return;
     scene.comp = d2d::compcode::build(types, weapons, armor, misc);
+    scene.item_pieces = d2d::compcode::pieces(weapons, armor, misc);
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.

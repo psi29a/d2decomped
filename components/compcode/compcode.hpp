@@ -192,4 +192,64 @@ inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& ta
     return kWClass[std::size_t(id)];
 }
 
+// What each wearable draws as: armor / weapons / misc.txt `component` (the
+// layer: 0 HD, 1 TR, 5 RH, 6 LH, 7 SH, 10 S3, 16 none), its graphic code
+// (alternategfx, else code), and body armour's lit / med / hvy tiers
+// (Torso, Legs, rArm, lArm, rSPad, lSPad: 0..2).
+struct Piece { std::string gfx; int component = 16; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
+inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, const txt::Table& armor, const txt::Table& misc) {
+    std::unordered_map<std::string, Piece> out;
+    for (const txt::Table* t : { &weapons, &armor, &misc })
+        for (std::size_t r = 0; r < t->size(); ++r) {
+            const std::string code(t->get(r, "code"));
+            if (code.empty()) continue;
+            Piece p;
+            p.gfx = std::string(t->get(r, "alternategfx"));
+            if (p.gfx.empty()) p.gfx = code;
+            const auto c = t->get(r, "component");
+            p.component = c.empty() ? 16 : std::atoi(std::string(c).c_str());
+            if (t->get(r, "type") == "circ") p.component = 16;   // circlets aren't drawn (compcode.md)
+            int k = 0;
+            for (const char* col : { "Torso", "Legs", "rArm", "lArm", "rSPad", "lSPad" }) {
+                const auto v = t->get(r, col);
+                p.tiers[std::size_t(k++)] = v.empty() ? -1 : std::atoi(std::string(v).c_str());
+            }
+            out.emplace(code, std::move(p));
+        }
+    return out;
+}
+
+// A character's look (the d2s header's 16 appearance bytes) from what it
+// wears: body locations 1 head, 3 torso, 4 right hand, 5 left hand. Each
+// item goes on its component's layer as its graphic's table index (a one-
+// hand weapon in the left hand on LH); body armour sets TR LG RA LA S1 S2 to
+// lit + its tiers. Unworn: TR LG RA LA S1 S2 lit, the rest empty (0xff).
+// Checked against the real saves (test_compcode).
+struct Worn { int slot; std::string code; };
+inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const std::unordered_map<std::string, Piece>& pcs,
+                                         const std::vector<Worn>& worn) {
+    std::array<std::uint8_t, 16> a;
+    a.fill(0xff);
+    for (int l : { 1, 2, 3, 4, 8, 9 }) a[std::size_t(l)] = 1;
+    auto index = [&](const std::string& gfx) -> std::uint8_t {
+        for (std::size_t i = 1; i < table.size() && i < 0xff; ++i) if (table[i].code == gfx) return std::uint8_t(i);
+        return 0xff;
+    };
+    for (const auto& w : worn) {
+        if (w.slot != 1 && w.slot != 3 && w.slot != 4 && w.slot != 5) continue;
+        const auto p = pcs.find(w.code);
+        if (p == pcs.end() || p->second.component >= 16) continue;
+        if (p->second.component == 1) {
+            static constexpr int kLayer[6] = { 1, 2, 3, 4, 8, 9 };   // TR LG RA LA S1 S2
+            for (int k = 0; k < 6; ++k)
+                if (p->second.tiers[std::size_t(k)] >= 0) a[std::size_t(kLayer[k])] = std::uint8_t(1 + p->second.tiers[std::size_t(k)]);
+            continue;
+        }
+        int layer = p->second.component;
+        if (layer == 5 && w.slot == 5) layer = 6;
+        a[std::size_t(layer)] = index(p->second.gfx);
+    }
+    return a;
+}
+
 }  // namespace d2d::compcode
