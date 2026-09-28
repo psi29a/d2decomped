@@ -84,5 +84,15 @@ necromancer's head, 16 none):
 
 Checked against all 20 real saves (test_d2s). d2d rebuilds the look each
 tick (`GameData::look_of`), so equipping changes it.
-ponytail: the 16 tint bytes (+0x98, item colours) aren't worked out yet.
+### Tints (+0x98, not built yet)
+
+From the 20 real saves, for a drawn layer's item with a colour:
+tint = ((its armor / weapons.txt Transform x 32) + 1 + colour) & 0xff,
+colour the Colors.txt row (0 whit .. 20 bwht). Transform 0 (paladin
+shields), and items without a colour, give 0xff. The colour: a unique's
+UniqueItems chrtransform, a set item's SetItems chrtransform (all such
+items in the saves fit). Transform 8 wraps past the byte (uld white → 0x01,
+uth dark purple → 0x13): bugs.md #12. Rares don't take their affixes'
+transformcolor (7o7 with a dark green prefix is 0x4f, dark yellow); their
+colour's source isn't traced. Magic items: no drawn example in the saves.
 

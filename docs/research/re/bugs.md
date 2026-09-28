@@ -28,6 +28,7 @@ Blizzard, and either matched or worked around on purpose.
 | 9 | Env.cpp day step (`FUN_0061bee0`) | A phase moves on when `next.start × scale < time`. Phase 2 starts at 0°, so phase 1 (dawn at 340°) moves on at its first frame and the clock snaps to sunrise: the 340°–360° dawn (its (208, 184, 131) colour) never shows, and a day is 24 minutes instead of 31. | medium | match | lighting.md "The day" |
 | 10 | Rain splashes (`FUN_00472da0`) | The spot is the tile's top corner x + rand(the row's width), with no half-width back: splashes land up to half a tile right of the water they belong to. | medium | match | weather.md "Splashes" |
 | 11 | The light grid (0x7b0e68, `FUN_00475800`) | Only 48 × 48 subtiles round the player: a light more than 24 subtiles off lights nothing, and the view's corners at 800 × 600 (about 31 subtiles out) read the grid's clamped edge. Likely sized for 640 × 480. | medium | work around (deviations.md #1) | lighting.md |
+| 12 | A composite layer's tint byte (d2s +0x98) | Holds Transform x 32 + 1 + colour in a byte, so Transform 8 items (tower shields, some armour) wrap to Transform 0's range: uld white saves 0x01, uth dark purple 0x13. How the drawing reads it back isn't traced; it may lose the colormap. | low | n/a (tints not built) | compcode.md "Tints" |
 
 ## How to add one
 
