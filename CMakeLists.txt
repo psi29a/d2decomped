@@ -34,8 +34,8 @@ endif()
 # with a newer compiler that finds new ones.
 option(D2D_WERROR "Treat compiler warnings as errors" ON)
 if(MSVC)
-    # /bigobj: d2d is one translation unit (main.cpp and every header),
-    # past COFF's default section limit (C1128).
+    # /bigobj: d2d's translation units are large (each includes the app's
+    # headers), past COFF's default section limit (C1128).
     add_compile_options(/W4 /permissive- /bigobj)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     if(D2D_WERROR)

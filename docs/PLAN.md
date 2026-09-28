@@ -90,7 +90,30 @@ them to input, units and drawing.
 | The game server: levels, units, commands, the 25 Hz tick | — | `server.hpp` (`World`), `protocol.hpp` (`Command`) |
 | The client: input, panels, camera, drawing | — | `town.hpp` (`Town`) |
 | Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
-| World sounds | — | `audio.hpp` (`Cues`) |
+| World sounds | — | `cues.hpp` (`Cues`, queued by the World), `audio.hpp` (`play_cues`) |
+
+**The two halves of `apps/d2d`.** The World's headers see only
+`game.hpp` (data components, logging, std), `gamedata.hpp` (`GameData`,
+`Level`, `Npc`, the rules' shared helpers), `character.hpp`
+(`Character`: what a save holds), `item_text.hpp`, `inventory.hpp` and
+`cues.hpp`: no SDL, sound, pixels or fonts. The client adds `common.hpp`
+(SDL, OpenAL, blits), `scene.hpp` (`Scene : GameData`: sprites, fonts,
+palettes) and the screens. A World header must not include a client one.
+
+**Translation units.** Headers declare; bodies live in:
+
+| .cpp | What |
+|---|---|
+| `gamedata.cpp` | levels built on demand, spawns, COF timings |
+| `world.cpp` | the AI, `Fight`, `World` |
+| `load.cpp` | loading the Scene at start |
+| `render.cpp` | drawing and the screens (common, ui, world, items, panels, skilltree, store, cursor, ingame, frontend, window) |
+| `town.cpp` | the in-game client (`Town`) |
+| `main.cpp` | `main`, the devctl channel |
+
+A class's methods are defined out of line as `auto Class::name(params) ->
+Ret { ... }` (the trailing return type resolves the class's own types).
+A global in a header is `inline`.
 
 `World` (server.hpp) owns the game's state (level, player, merc, NPCs,
 rng) and hands references to its subsystems (`Fight`, `Loot`); the client
