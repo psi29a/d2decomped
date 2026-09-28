@@ -22,7 +22,7 @@ d2d copies.
 |---|---|---|---|---|---|---|
 | 1 | The light grid's size | 48 × 48 subtiles round the player (±24): a light further off adds nothing, and at 800 × 600 the view's corners read the grid's clamped edge (bugs.md #11) | Sized to the view's corners plus the widest light (18 subtiles) | Lights stay lit wherever they are on screen, at any resolution | yes: torches glow from the screen's edges | light.hpp `LightGrid`, town.hpp `frame_light`, lighting.md |
 | 2 | A save's map id of 0 | Reused as the seed (a map from seed 0) | Treated as "none": the run's random seed | d2d's early saves wrote 0 | only for those saves | main.cpp `game_seed`, drlg.md |
-| 3 | A wrapped tint byte (Transform 8, bugs.md #12) | Untraced how a header tint below 0x20 is read back (the character select screen draws from it); it may draw untinted | Read back as Transform 8: 0 is never a tint's Transform, so the byte is unambiguous | The character looks the same in the menu as in play | perhaps: tower shields and some armour | compcode.hpp `tint_of` |
+| 3 | A wrapped tint byte (Transform 8) | Read back as Transform 8 (`FUN_005038d0`) | The same | — | no | matched since ab51cf0: not a deviation after all (bugs.md #12) |
 
 ## Approximations
 

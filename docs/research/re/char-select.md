@@ -70,7 +70,12 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 - Portrait: per-char composite `FUN_005066c0(class, mode, appearance,
   tints)` from the .d2s appearance bytes (0x88/0x98), drawn at
   (slot x + 30, slot bottom - 13). Mode TN, NU for living hardcore; dead
-  hardcore uses ghost class 8 (female) / 9 (male).
+  hardcore uses ghost class 8 (female: Amazon, Sorceress, Assassin) / 9
+  (male), both token RH in the class token table (0x72e050: AM SO NE PA
+  BA DZ AI RO RH RH ...); past class 6 the root is `monsters`, so the
+  ghost is `monsters\RH\COF\RHTNHTH.cof`: one TR layer (lit), 16
+  frames, one direction. `FUN_005066c0` stores the tint bytes minus one
+  (compcode.md "Tints").
 - Order: newest first — inserted by last-played time, descending.
 
 ## Scrollbar geometry (`FUN_005084f0` / draw `FUN_00508370`)

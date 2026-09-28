@@ -316,7 +316,7 @@ struct Colours {
 
 // Each layer's tint (the d2s header's 16 bytes at 0x98): (Transform x 32
 // + colour + 1) & 0xff, 0xff with no colour or Transform 0, 3 or 4.
-// Transform 8 wraps below 0x20 (bugs.md #12); tint_of reads it back.
+// Transform 8 wraps below 0x20; tint_of reads it back as game.exe does.
 inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn) {
     std::array<std::uint8_t, 16> a;
     a.fill(0xff);
@@ -326,12 +326,13 @@ inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, 
     });
     return a;
 }
-// A tint byte's colormap set and colour; false for none.
+// A tint byte's colormap set and colour; false for none (FUN_005038d0:
+// byte - 1, Transform 0 is Transform 8's colormaps).
 struct Tint { int transform = 0, colour = 0; };
 inline bool tint_of(std::uint8_t b, Tint& t) {
     if (b == 0xff || b == 0) return false;
     t.transform = (b - 1) >> 5; t.colour = (b - 1) & 31;
-    if (t.transform == 0) t.transform = 8;   // the wrap (bugs.md #12)
+    if (t.transform == 0) t.transform = 8;   // the wrap
     return t.colour < 21;
 }
 

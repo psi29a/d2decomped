@@ -164,9 +164,14 @@ void render_charselect(std::vector<std::uint8_t>& fb,
         // from the save's appearance bytes; FUN_004380f0 parks it at slot
         // x + 30, slot bottom - 13). Town-neutral, or NU for a living
         // LoD hardcore character. Direction 0 (FUN_005051a0(anim, 0)).
-        // ponytail: dead hardcore should use the ghost class (8/9).
-        {
-            const bool nu = h.hardcore() && !h.died() && (h.expansion() || h.cls < 5);
+        // A dead hardcore one is the ghost: class 8 (female) / 9 (male),
+        // both token RH in 0x72e050, and past class 6 the root is monsters:
+        // monsters\RH, TN, one TR layer.
+        if (h.hardcore() && h.died()) {
+            static const Npc ghost = [] { Npc n; n.root = "monsters"; n.code = "RH"; n.base_w = "HTH"; n.comp[1] = "lit"; return n; }();
+            draw_composite(fb, s.npc_anim(ghost, "TN"), pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
+        } else {
+            const bool nu = h.hardcore() && (h.expansion() || h.cls < 5);
             draw_composite(fb, s.composite(h.cls, nu ? kModeNU : kModeTN, h.look()),
                            pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
         }

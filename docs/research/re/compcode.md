@@ -102,7 +102,10 @@ no colour or Transform 0, 3 or 4. The colour (FUN_0062c100):
   no worn item holds a gem.
 
 Transform 8 wraps past the byte (uld white → 0x01, uth dark purple →
-0x13): bugs.md #12. All 20 real saves' tints match (test_d2s,
+0x13), on purpose: the reader, `FUN_005038d0`, takes byte − 1, colour =
+the low 5 bits, and sends Transform 0 to Transform 8's colormaps (bugs.md
+#12, not a bug). `FUN_005066c0` (character select) stores the tints as
+byte − 1 the same way. All 20 real saves' tints match (test_d2s,
 `compcode::tints`).
 
 The automod id is 1-based into AutoMagic (FUN_00633ee0 looks every

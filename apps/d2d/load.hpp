@@ -80,8 +80,8 @@ constexpr const char* kLayerCode[16] = {
 // D2 would reject the combination). Empty body layers wear "lit" (a bare
 // head under a circlet, say); empty RH/LH/SH draw nothing.
 // Each layer's tint (gfx[16 + layer]) maps its pixels through the item
-// colormap first (compcode.md "Tints").
-// ponytail: the dead-hardcore ghost isn't applied.
+// colormap first (compcode.md "Tints"). A dead hardcore character's ghost
+// is monsters\RH (frontend.hpp).
 Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                                  const std::vector<d2d::compcode::Entry>& comp,
                                  const std::array<std::vector<std::uint8_t>, 9>& colormaps,
