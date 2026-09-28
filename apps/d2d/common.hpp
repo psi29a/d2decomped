@@ -76,6 +76,13 @@
 #include <tuple>
 #include <vector>
 
+// windef.h (through SDL / OpenAL on Windows) defines near and far as
+// empty macros; they'd eat any name spelled so (MSVC C2513).
+#ifdef _WIN32
+#undef near
+#undef far
+#endif
+
 namespace fs = std::filesystem;
 
 // Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.

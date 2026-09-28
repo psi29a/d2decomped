@@ -2971,10 +2971,10 @@ struct Fight {
             const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, b.st.level, &rng };
             auto val = [&](const d2d::rules::Calc& c) { return d2d::rules::eval_calc(scene->skills, c, env, s->id, b.aura_lvl); };
             const float r = float(val(s->aurarange)) / 5;                     // subtiles -> cells
-            auto near = [&](float x, float y) { return std::hypot(x - b.u.x, y - b.u.y) <= r; };
+            auto in_range = [&](float x, float y) { return std::hypot(x - b.u.x, y - b.u.y) <= r; };
             if (s->srvdofunc == 65) {
                 for (auto& m : monsters)
-                    if (m.alive() && near(m.u.x, m.u.y))
+                    if (m.alive() && in_range(m.u.x, m.u.y))
                         for (std::size_t i = 0; i < s->aurastat.size(); ++i) {
                             if (s->aurastat[i] == 25) m.aura_dmg += val(s->aura_calc[i]);     // damagepercent
                             if (s->aurastat[i] == 119) m.aura_th += val(s->aura_calc[i]);     // item_tohit_percent
@@ -2982,7 +2982,7 @@ struct Fight {
                 continue;
             }
             for (auto& f : foes) {
-                if (!f.alive || !near(f.x, f.y)) continue;
+                if (!f.alive || !in_range(f.x, f.y)) continue;
                 for (std::size_t i = 0; i < s->aurastat.size(); ++i) {
                     const int v = val(s->aura_calc[i]);
                     switch (s->aurastat[i]) {
@@ -2999,7 +2999,7 @@ struct Fight {
             const int lo = d2d::rules::elem_damage(scene->skills, *s, env, b.aura_lvl, false) >> 8;
             const int hi = std::max(d2d::rules::elem_damage(scene->skills, *s, env, b.aura_lvl, true) >> 8, lo);
             for (auto& f : foes)
-                if (f.alive && near(f.x, f.y)) f.damage += d2d::rules::resisted(rng.range(lo, hi), f.f.res[std::size_t(s->etype)]);
+                if (f.alive && in_range(f.x, f.y)) f.damage += d2d::rules::resisted(rng.range(lo, hi), f.f.res[std::size_t(s->etype)]);
         }
     }
     // A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
@@ -3027,7 +3027,7 @@ struct Fight {
         if (m == scene->missiles.end()) return;
         const auto& mi = m->second;
         const auto md = d2d::rules::row_damage(mi.etype, mi.emin, mi.emax, mi.emin_lev, mi.emax_lev, mi.hitshift, mi.elen, mi.elen_lev, lvl);
-        for (const auto [dx, dy] : { std::pair{ -6, 6 }, { -6, -6 }, { 0, 6 }, { 0, -6 }, { 6, 6 }, { 6, -6 } }) {
+        for (const auto& [dx, dy] : { std::pair{ -6, 6 }, { -6, -6 }, { 0, 6 }, { 0, -6 }, { 6, 6 }, { 6, -6 } }) {
             const float fx = float(dx) / 5, fy = float(dy) / 5, v = cells_per_sec(float(mi.vel)), d = std::hypot(fx, fy);
             Missile a{ &mi, x, y, fx / d * v, fy / d * v, direction32(fx, fy), ms, ms + std::uint32_t(std::max(mi.range, 1)) * 40, {} };
             a.friendly = true; a.row = md; a.burst = mi.hit_par1;
