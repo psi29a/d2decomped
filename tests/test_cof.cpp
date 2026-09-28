@@ -64,7 +64,7 @@ int main() {
         assert(before(6, kRightHand, kTorso));
         assert(before(4, kTorso, kRightHand));
         std::array<bool, 16> seen{};
-        for (std::size_t dir = 0; dir < 16; ++dir) seen[d2d::cof::Cof::priority_row(dir, 16)] = true;
+        for (std::size_t direction = 0; direction < 16; ++direction) seen[d2d::cof::Cof::priority_row(direction, 16)] = true;
         assert(std::ranges::all_of(seen, [](bool hit) { return hit; }));
     }
 

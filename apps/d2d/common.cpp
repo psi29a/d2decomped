@@ -4,8 +4,6 @@
 #include <dc6.hpp>
 #include <palette.hpp>
 
-#include <_stdio.h>
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
