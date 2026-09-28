@@ -53,7 +53,8 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
 // units the world draws by depth (npc -2 the merc, -3 pets, -10 - i
 // monster i of the View, -1000 - i ground item i).
-void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out) {
+void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out,
+                std::span<const View::Shot> fx = {}) {
     auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
@@ -68,11 +69,13 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         out.push_back({ v.merc->u.x, v.merc->u.y, &s.npc_anim(*v.merc->npc, v.merc->mode), v.merc->u.dir,
                         v.merc->mode == "DT" ? nullptr : merc_label, v.merc->u.mode_ms, -2 });
     for (const auto& p : v.pets) out.push_back({ p.u.x, p.u.y, &s.npc_anim(p.npc, p.mode), p.u.dir, nullptr, p.u.mode_ms, -3 });
-    for (const auto& m : v.missiles) {
+    auto shot = [&](const View::Shot& m) {
         Unit u{ m.x, m.y, nullptr, m.dir, nullptr, m.born, -1 };
         u.missile = m.info;
         out.push_back(u);
-    }
+    };
+    for (const auto& m : v.missiles) shot(m);
+    for (const auto& m : fx) shot(m);                 // the client's own (the Den's light beams)
     for (std::size_t i = 0; i < v.monsters.size(); ++i) {
         const auto& m = v.monsters[i];
         if (m.corpse_used || !in_view(m.u.x, m.u.y)) continue;
@@ -107,7 +110,7 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // ponytail: the player's light is 13 subtiles (FUN_00460930) without the
 // light radius items give; lights don't ease to a new radius; light quality
 // is taken as high (2: shadows on).
-Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
+Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1) {
     Lighting l;
     if (!v.level || s.act1_lit[31].entries().empty()) return l;
     l.pal = &s.act1_lit;
@@ -115,7 +118,8 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
     // plus half the height over 40, halved, in subtiles) and the widest light
     // (18) past them, not game.exe's 48 (bugs.md #11).
     const int half = (int(kW) / 2 / (kIsoW / 2) + (int(kH) / 2 + kIsoH) / (kIsoH / 2)) * 5 / 2 + 18 + 1;
-    l.grid.reset(int(cam_x * 5), int(cam_y * 5), v.level->light >= 0 ? v.level->light : v.day.intensity(), half * 2);
+    if (ambient < 0) ambient = v.level->light >= 0 ? v.level->light : v.day.intensity();
+    l.grid.reset(int(cam_x * 5), int(cam_y * 5), ambient, half * 2);
     for (int j = 0; j < l.grid.n; ++j)                            // what walls light (FUN_004756d0)
         for (int i = 0; i < l.grid.n; ++i)
             l.grid.blocked[std::size_t(j * l.grid.n + i)] =
@@ -143,6 +147,7 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
         for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}), true);
     for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light, false);
     for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light, false);
+    for (const auto& m : fx) if (m.info) stamp(m.x, m.y, m.info->light, false);
     return l;
 }
 
@@ -432,6 +437,7 @@ struct Town {
         // (FUN_004e42e0).
         if (ms - rain_ms > 1000) rain_ms = ms;
         for (; ms - rain_ms >= 40; rain_ms += 40) {
+            den_tick(ms);
             const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
             rain_cam_x = cam_x; rain_cam_y = cam_y;
             if (!level->rain) { rain.drops.clear(); rain.splashes.clear(); }
@@ -715,6 +721,37 @@ struct Town {
     std::uint32_t rain_ms = 0;
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     int rain_vol = 0;                              // the rain sound's volume 0..255
+    // The Den of Evil cleared (docs/research/re/quests.md "The Den lights
+    // up"): S→C 0x2d event 0 starts a count (FUN_0046b0c0); for 30 frames
+    // the Den's ambient falls from 80 (FUN_0046bd50), then its rooms get
+    // light beams, missile denofevillight, three to a room at free spots
+    // (FUN_0046b0d0 / FUN_0046af70), and keep them (client func 23).
+    int den_flash = -1;
+    bool den_seen = false, den_lit = false;
+    std::vector<View::Shot> den_beams;
+    [[nodiscard]] int den_ambient() const {
+        if (!level || level->id != d2d::rules::DenQuest::kDen || !view.den_cleared || den_lit) return -1;
+        return den_flash < 0 ? 80 : int(d2d::rules::cos512(den_flash * 128 / 30) * 80.0f);
+    }
+    void den_tick(std::uint32_t ms) {
+        if (view.den_cleared && !den_seen && level && level->id == d2d::rules::DenQuest::kDen) den_flash = 0;
+        den_seen = view.den_cleared;
+        if (!view.den_cleared) { den_flash = -1; den_lit = false; den_beams.clear(); return; }
+        if (!den_lit && den_flash >= 0 && ++den_flash > 29) den_lit = true;
+        if (!level || level->id != d2d::rules::DenQuest::kDen) { den_beams.clear(); return; }
+        if (!den_lit || !den_beams.empty()) return;
+        const auto m = scene->missiles.find("denofevillight");
+        if (m == scene->missiles.end()) return;
+        for (const auto& rm : level->rooms)
+            for (int tries = 0, made = 0; tries < 25 && made < 3; ++tries) {
+                const int sx = rm.x * 5 + rain.rng(rm.w * 5), sy = rm.y * 5 + rain.rng(rm.h * 5);
+                const float x = (float(sx) + 0.5f) / 5, y = (float(sy) + 0.5f) / 5;
+                if (level->blocked_here(x, y, 0x05)) continue;
+                den_beams.push_back({ &m->second, x, y, 0, ms });
+                ++made;
+            }
+        d2d::log::info("Den of Evil: {} light beams in {} rooms", den_beams.size(), level->rooms.size());
+    }
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc) {
@@ -750,7 +787,7 @@ struct Town {
         const bool jump = std::hypot(me.x - prev_x, me.y - prev_y) > 2.f;
         cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
         cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra);
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];
@@ -759,7 +796,7 @@ struct Town {
         std::uint32_t mode_ms = me.mode_ms;
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, ms); rate = 1.f; }   // an SQ skill's frame
-        const auto light = frame_light(*scene, view, cam_x, cam_y);
+        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient());
         render_ingame(fb, *scene, *view.level, ui_cls,
                       view.gfx,
                       cc.input_name, cc.hardcore,

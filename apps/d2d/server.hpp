@@ -59,6 +59,7 @@ struct View {
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
+    bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -175,6 +176,7 @@ struct World {
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
         v.day = day;
+        v.den_cleared = den.state >= 4;
         v.has_character = true;
         v.header = cc.header; v.stats = cc.stats; v.items = cc.items; v.held = held;
         if (store.npc >= 0) v.store = store;

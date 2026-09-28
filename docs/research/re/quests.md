@@ -121,7 +121,30 @@ This is the order of `<class>_act1_complete_*` in Sounds.txt.
 ponytail: not built yet:
 - the timing of the quest log's "Return to Akara" state (8 ticks after clearing);
 - parties and late joiners;
-- the Den's lighting change;
+
+## The Den lights up
+
+Clearing the Den of Evil lights it, in this game only (the client's quest
+states for the game come in S→C 0x02, 37 bytes, `FUN_004b92b0` → 0x7c0ea4;
+a new game's Den is dark again).
+- **The event:** S→C 0x2d `{0x2d, event}` (`FUN_004b9330` →
+  `FUN_0046b630`) runs the client's quest event table 0x7129d8; event 0
+  (`FUN_0046b0c0`) starts a count at 0x7129cc.
+- **The flash** (`FUN_0046bd50`, as the Den's own light, `FUN_0046bdd0`):
+  while the Den's quest is done in this game and the beams aren't up, its
+  ambient is 80, or with the count running int(cos(count × 128 / 30) × 80)
+  (the 512-step table), (255, 64, 48). The count steps a client frame
+  (`FUN_0046beb0`); past 29 the beams come.
+- **The beams** (`FUN_0046b0d0` → `FUN_0046af70`, and `FUN_0046be60` for
+  a Den room brought up later): in each room, up to 25 tries at a random
+  subtile of it whose collision lacks 5, three client missiles
+  `denofevillight` (287: LightBeams, light radius 10, additive). Its client
+  function 23 (`FUN_004d4b80`) tops its life back to 500 below 100: they
+  stay. The Den's ambient goes back to its own (0).
+
+d2d: `Town::den_tick` / `den_ambient` (the View's `den_cleared`, the
+DenQuest state ≥ 4); the beams are client missiles drawn and lit like the
+World's.
 
 ## The balloon over an NPC (npcalert)
 

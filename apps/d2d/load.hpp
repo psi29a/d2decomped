@@ -437,7 +437,7 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (std::size_t r = 0; r < mt.size(); ++r) {
         auto g = [&](std::string c) { return num(mt.get(r, c)); };
         const std::string name(mt.get(r, "Missile"));
-        bool used = name == "arrow" || skill_missiles.contains(name)    // the rogue merc's, skills',
+        bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
         for (const auto& t : M.types) used = used || t.miss_a2 == name;
