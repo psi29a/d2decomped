@@ -2865,6 +2865,7 @@ struct Fight {
             buff_events(foes[0], ms);
             buff_tick(ms);
             aura_pulse(ms);
+            for (auto& m : monsters) m.in_aura = m.alive() && in_aura(m);   // its auratargetstate shows (states.md)
             for (std::size_t k = 0; k < pets.size(); ++k) pet_hurt(pets[k], foes[2 + k].damage, ms);
             pets_turn(ms, dt, crowd);
             missile_tick(ms);

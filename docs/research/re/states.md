@@ -46,8 +46,8 @@ tint byte, so a save's tints leave it out.
 
 ## Not yet
 
-- An overlay's light (Radius) isn't stamped into the light grid;
-  LoopWaitTime isn't applied.
+- LoopWaitTime isn't applied.
 - The player's own chill and poison aren't modelled by the fight, so
-  they don't show; the states a player's aura puts on monsters
-  (auratargetstate: convicted, ...) aren't drawn.
+  they don't show.
+- An overlay's light is stamped at Radius at once, not grown from
+  InitRadius (`FUN_00474290`).

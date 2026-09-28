@@ -210,6 +210,7 @@ struct Monster {
     // (Iron Maiden), and until when it can't see (Dim Vision, Cloak).
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
     std::uint32_t blind_until = 0;
+    bool in_aura = false;                     // within the player's aura (its auratargetstate: Conviction's convicted ...)
     [[nodiscard]] bool alive() const { return hp > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& s) const {

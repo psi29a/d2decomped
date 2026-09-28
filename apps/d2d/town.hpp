@@ -88,7 +88,7 @@ inline void dress(const Scene& s, Unit& u, int key, std::span<const std::string_
     }
 }
 // The states on a monster and on the player, by States.txt name.
-inline std::vector<std::string_view> monster_states(const Scene& s, const Monster& m, std::uint32_t now) {
+inline std::vector<std::string_view> monster_states(const Scene& s, const Monster& m, std::uint32_t now, int player_aura = 0) {
     std::vector<std::string_view> out;
     if (!m.alive()) return out;
     if (now < m.poison_until) out.push_back("poison");
@@ -99,6 +99,8 @@ inline std::vector<std::string_view> monster_states(const Scene& s, const Monste
             if (const auto* sk = s.skills.get(k.skill)) out.push_back(sk->auratarget);
     if (m.aura > 0)
         if (const auto* sk = s.skills.get(m.aura)) out.push_back(sk->aurastate);
+    if (m.in_aura && player_aura > 0)
+        if (const auto* sk = s.skills.get(player_aura)) out.push_back(sk->auratarget);
     return out;
 }
 inline std::vector<std::string_view> player_states(const Scene& s, const View& v) {
@@ -153,7 +155,7 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         if (m.corpse_used || !in_view(m.u.x, m.u.y)) continue;
         out.push_back({ m.u.x, m.u.y, &s.npc_anim(m.npc, m.mode), m.u.dir, m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
         out.back().overlay_class = m.npc.overlay_class;
-        dress(s, out.back(), m.id, monster_states(s, m, now_ms), clk);
+        dress(s, out.back(), m.id, monster_states(s, m, now_ms, v.aura), clk);
     }
 }
 // Over the world: the hovered (else attacked) monster's life bar, the
@@ -183,7 +185,8 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // eighths of a subtile (a cell is 40).
 // ponytail: lights don't ease to a new radius (8 eighths a frame); light
 // quality is taken as high (2: shadows on).
-Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1) {
+Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1,
+                     std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0) {
     Lighting l;
     if (!v.level || s.act1_lit[31].entries().empty()) return l;
     l.pal = &s.act1_lit;
@@ -222,6 +225,16 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
     for (const auto& p : v.portals) stamp(p.x, p.y, int(s.town_portal.lit[2]), true);   // Lit2 19 (ON); ponytail: Lit1 18 while opening
     for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light, false);
     for (const auto& m : fx) if (m.info) stamp(m.x, m.y, m.info->light, false);
+    // States' overlays light their unit (Overlay.txt Radius, FUN_00474160).
+    // ponytail: at Radius at once (FUN_00474290 grows it from InitRadius);
+    // a plain light, its colour dropped like every light's here.
+    auto overs = [&](const Unit& u, float x, float y) {
+        for (const auto& o : u.overs)
+            if (o.o->radius > 0 && (!o.once || (now - o.start) * std::uint32_t(std::max(o.o->rate, 1)) / 640 < std::uint32_t(o.o->frames)))
+                stamp(x, y, o.o->radius, false);
+    };
+    for (const auto& u : units) overs(u, u.x, u.y);
+    if (player_look) overs(*player_look, cam_x, cam_y);
     return l;
 }
 
@@ -900,7 +913,7 @@ struct Town {
         std::uint32_t mode_ms = me.mode_ms;
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, ms); rate = 1.f; }   // an SQ skill's frame
-        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient());
+        const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient(), extra, &player_look, ms);
         render_ingame(fb, *scene, *view.level, ui_cls,
                       view.gfx,
                       cc.input_name, cc.hardcore,
