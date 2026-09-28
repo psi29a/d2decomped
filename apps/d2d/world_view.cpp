@@ -181,7 +181,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, int alpha = 255) {
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
-        const int screen_x = iso_x - tile.width / 2;
+        const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
         const int screen_y = iso_y - (tile_height - kIsoH);
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, iso_x, iso_y, layer == 1, alpha);
@@ -414,8 +414,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 // A roof is flat: lit like a floor, where each pixel lies on
                 // the roof's plane (its top corner at the hoisted iso_y).
                 const Hole* cutout = g_roof_cutout ? &hole : nullptr;
-                if (light) blit_dt1_tile_lit(framebuffer, tile, *light, iso_x - tile.width / 2, iso_y - (std::abs(tile.height) - kIsoH), cell_x, cell_y, iso_x, iso_y, true, 255, cutout);
-                else blit_dt1_tile(framebuffer, tile, pal, iso_x - tile.width / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
+                if (light) blit_dt1_tile_lit(framebuffer, tile, *light, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), cell_x, cell_y, iso_x, iso_y, true, 255, cutout);
+                else blit_dt1_tile(framebuffer, tile, pal, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
             };
             if (!cell_level->picks.empty()) {
                 int wall_index = 0;
