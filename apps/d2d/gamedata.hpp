@@ -5,6 +5,9 @@
 
 #include "game.hpp"
 
+#include <future>
+#include <mutex>
+
 namespace d2d::app {
 
 
@@ -490,9 +493,89 @@ constexpr const char* kLayerCode[16] = {
     "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
 };
 
-// A level's population for a difficulty, and the levels next to one
-// (load.hpp builds them).
+// Loading and building (gamedata.cpp).
+// Translate a DS1-embedded tileset path (e.g.
+// "\d2\data\global\tiles\act1\town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
+// DS1 files store paths as they were on Blizzard's build box, with a
+// leading "\d2\" prefix and forward slashes never — normalize both.
+[[nodiscard]] inline std::string ds1_path_to_mpq(std::string_view s) {
+    if (s.size() > 4 && (s.starts_with("\\d2\\") || s.starts_with("/d2/")))
+        s.remove_prefix(4);
+    else if (!s.empty() && (s[0] == '\\' || s[0] == '/'))
+        s.remove_prefix(1);
+    std::string out(s);
+    for (auto& c : out) if (c == '/') c = '\\';
+    return out;
+}
+
+// MonStats2 layer variants ("lit,med": quoted lists), HDv..S8v.
+constexpr const char* kVariant[16] = {
+    "HDv", "TRv", "LGv", "RAv", "LAv", "RHv", "LHv", "SHv",
+    "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
+};
+
+// The level builder (Scene::builder): one build at a time, on its own MPQ
+// handles and its own DRLG tables (the generator caches DT1 heads in them).
+struct GameData::LevelBuilder {
+    std::mutex m;                                       // held for a whole build; `mpqs` and `act1` are its
+    std::optional<d2d::mpq::Stack> mpqs;
+    std::unique_ptr<d2d::drlg::OutdoorAssets> act1;     // the act's DRLG tables (load_scene's, handed over)
+    // What load_npcs read that a build needs: objects.txt (and its rows by
+    // Id), Levels.txt, SoundEnviron.txt.
+    d2d::txt::Table objects, levels, sound_env;
+    std::unordered_map<std::string, std::size_t> obj_row;
+    std::map<int, std::future<std::unique_ptr<Level>>> jobs;   // the main thread's: builds under way
+};
+
+// Encode (style, sequence, type) into a single lookup key. Style + sequence
+// are DS1-record bytes; type is the DT1 orientation code (0..16 per D2's
+// tile-type table). 24 bits × 24 bits × 16 bits comfortably fits u64.
+[[nodiscard]] inline std::uint64_t tile_key(int style, int seq, int type) {
+    return (std::uint64_t(std::uint32_t(style)) << 40)
+         | (std::uint64_t(std::uint32_t(seq  )) << 16)
+         |  std::uint64_t(std::uint16_t(type ));
+}
+
+// The Blood Moor from the map seed (components/drlg): act 1's layout
+// places it against the town, the generator fills it, its tiles come from
+// the Act 1 wilderness DT1s (LvlTypes).
+// A generated level's DT1s: the headers its rooms' picks read (LvlTypes
+// files of its type by mask bit, then Blank, InvisWal, Warp) and the
+// archives drawn from, loaded into the level.
+struct LevelDt1s {
+    d2d::drlg::RoomDt1s heads;
+    std::unordered_map<const d2d::drlg::Dt1File*, const d2d::dt1::Archive*> archive;
+};
+
+// The levels d2d builds so far (the rest of Act 1 comes with its research).
+constexpr std::array kBuiltLevels{ 2, 8 };
+
+// A composite's COF and timing (the World's part of a composite).
+struct CofAnim { d2d::cof::Cof cof; GameData::AnimTiming timing; std::string path; bool ok = false; };
+CofAnim open_cof(const d2d::mpq::Stack& mpqs, const std::string& path);
+CofAnim player_cof(const d2d::mpq::Stack& mpqs, const std::vector<d2d::compcode::Entry>& comp, int cls, int mode,
+                   const std::array<std::uint8_t, 32>& gfx);
+CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& n, std::string_view mode);
+
+std::vector<std::string> split_variants(std::string_view v);
+std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& t);
+int level_light(std::string_view i, std::string_view r, std::string_view g, std::string_view b);
+Npc monster_npc(const GameData& scene, const d2d::txt::Table& ms, const d2d::txt::Table& ms2,
+                const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row);
 const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& L, int d);
+void stamp_footprints(Level& lv);
+void add_object(const GameData& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
+                Level& into, int oid, int sx, int sy, d2d::rules::Rng& rgn);
+void finish_level(Level& L);
+LevelDt1s load_level_dt1s(Level& lv, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, int type);
+std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const LevelDt1s& d,
+                            const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
+                            std::vector<std::string>& notes);
+bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv);
+bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv, std::size_t row);
+std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& b, int id);
+void install_level(const GameData& s, int id, std::unique_ptr<Level> lv);
+std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& s, const Level& l);
 
 }  // namespace d2d::app

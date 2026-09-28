@@ -7,7 +7,7 @@ find_package(OpenAL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
 
-add_executable(d2d main.cpp)
+add_executable(d2d main.cpp gamedata.cpp)
 target_link_libraries(d2d PRIVATE
     mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} PkgConfig::FFMPEG)
