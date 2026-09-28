@@ -696,8 +696,11 @@ int main(int argc, char** argv) {
                    "Preload the Hardcore checkbox");
     app.add_flag  ("--no-save", no_save,
                    "Never write character saves (scripted tests)");
-    bool no_video = false, vanilla_roofs = false;
-    app.add_flag  ("--vanilla-roofs", vanilla_roofs, "Draw roofs whole over the player, as game.exe does (no cut-out)");
+    bool no_video = false;
+    // d2d's own changes to game.exe (deviations.md), each on by default:
+    // --toggle trans_roof=off,... Names in kToggles.
+    std::string toggles;
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
@@ -745,7 +748,25 @@ int main(int argc, char** argv) {
 
     g_start_screen   = start_screen;
     g_video          = !no_video && cfg["video"] != "0";
-    g_roof_cutout    = !vanilla_roofs && cfg["roof_cutout"] != "0";
+    {
+        static const std::pair<std::string_view, bool*> kToggles[] = {
+            { "trans_roof", &g_roof_cutout },   // the see-through circle in roofs round the player
+        };
+        std::string_view rest = toggles;
+        while (!rest.empty()) {
+            const auto comma = rest.find(',');
+            const auto item = rest.substr(0, comma);
+            rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
+            const auto eq = item.find('=');
+            const auto name = item.substr(0, eq), value = eq == std::string_view::npos ? std::string_view("on") : item.substr(eq + 1);
+            const auto t = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
+            if (t == std::end(kToggles) || (value != "on" && value != "off")) {
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof; values on|off)", std::string(item));
+                continue;
+            }
+            *t->second = value == "on";
+        }
+    }
     g_user_dir       = user_dir;
     g_start_class    = start_class;
     g_start_name     = start_name;

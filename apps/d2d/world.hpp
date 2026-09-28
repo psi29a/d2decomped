@@ -13,7 +13,7 @@ namespace {
 // clipped rather than skipped so the compositor can walk the whole grid.
 // d2d's roof cut-out (deviations.md): roofs see-through in a soft circle
 // round the player, so a player under a roof stays in sight. game.exe
-// draws roofs whole (walls.md). Off: --vanilla-roofs or cfg roof_cutout = 0.
+// draws roofs whole (walls.md). Off: --toggle trans_roof=off.
 inline bool g_roof_cutout = true;
 struct Hole {
     int x = 0, y = 0, r = 0;                   // screen centre and radius, pixels
