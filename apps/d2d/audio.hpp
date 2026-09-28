@@ -40,7 +40,7 @@ struct Audio {
     bool ok = false;
     ALCdevice* dev = nullptr;
     ALCcontext* ctx = nullptr;
-    Channel voice, music, ambience, ui;
+    Channel voice, music, ambience, ui, rain;
     std::array<Channel, 12> sfx;                 // world sounds, oldest reused first
     std::size_t sfx_next = 0;
     Channel music_old;                           // the previous song, fading out under `music`
@@ -67,7 +67,7 @@ struct Audio {
     }
     ~Audio() {
         video_stop();
-        for (auto* c : { &voice, &music, &music_old, &ambience, &ui }) stop(*c);
+        for (auto* c : { &voice, &music, &music_old, &ambience, &ui, &rain }) stop(*c);
         for (auto& c : sfx) stop(c);
         if (music_job.valid()) music_job.wait();
         alcMakeContextCurrent(nullptr);
@@ -294,7 +294,7 @@ struct Audio {
             c->fade_t1 = 0;
             if (c == &music_old) stop(music_old);
         }
-        for (auto* c : { &voice, &ui, &ambience, &music, &music_old }) {
+        for (auto* c : { &voice, &ui, &ambience, &rain, &music, &music_old }) {
             if (!c->src) continue;
             ALint state = 0;
             alGetSourcei(c->src, AL_SOURCE_STATE, &state);

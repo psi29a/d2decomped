@@ -406,6 +406,24 @@ struct Town {
             audio.play(audio.ambience, *scene, amb);
             audio.ambience.sound = amb;           // tried: not again every frame
         }
+        // The weather, a client frame at a time where it rains (FUN_00473f50;
+        // leaving, the drops go and the cycle waits), and its sound: Sounds.txt
+        // 64 scene_rain at the density's volume, easing 6 a tick
+        // (FUN_004e42e0).
+        if (ms - rain_ms > 1000) rain_ms = ms;
+        for (; ms - rain_ms >= 40; rain_ms += 40) {
+            const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
+            rain_cam_x = cam_x; rain_cam_y = cam_y;
+            if (!level->rain) { rain.drops.clear(); rain.splashes.clear(); }
+            else rain.tick(rain.rng, int(kW), int(kH), int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))),
+                           d2d::rules::kDay[std::size_t(view.day.phase)].type);
+            const int want = level->rain ? int(rain.volume() * 255.f) : 0;
+            rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
+        }
+        if (rain_vol > 0 && audio.rain.sound != 64) audio.play(audio.rain, *scene, 64);
+        if (rain_vol == 0 && audio.rain.sound) audio.stop(audio.rain);
+        if (audio.rain.src && scene->sounds.size() > 64)
+            audio.set_gain(audio.rain, float(scene->sounds[64].volume) / 255.f * float(rain_vol) / 255.f);
         // Every Event Delay ticks, give or take a third, one of the event
         // sounds from the left or right (x +-450..750, y +-100 in game.exe's
         // units; the first within one gap of arriving).
@@ -673,6 +691,10 @@ struct Town {
         open_menu(ui.npc);
     }
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
+    d2d::rules::Rain rain;                         // the weather (its state lasts the session, like game.exe's)
+    std::uint32_t rain_ms = 0;
+    float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
+    int rain_vol = 0;                              // the rain sound's volume 0..255
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc) {
@@ -727,7 +749,7 @@ struct Town {
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr);
+                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr);
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open)

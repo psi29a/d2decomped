@@ -463,6 +463,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
         if (auto b = mpqs.try_read(R"(data\global\missiles\)" + std::string(mt.get(r, "CelFile")) + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*b));
     }
     if (auto b = mpqs.try_read(R"(data\global\overlays\NPCSpeechBalloon.dcc)")) cels.emplace_back(&scene.npc_alert, std::move(*b));
+    for (std::size_t i = 0; i < 4; ++i)                // the rain's splashes (FUN_00472890)
+        if (auto b = mpqs.try_read(R"(data\global\UncompOverlays\Rain)" + std::to_string(i + 1) + ".dc6")) scene.rain_splash[i] = d2d::dc6::Sprite(*b);
     // Their DCCs decode on every core (the reads above stay on this thread:
     // StormLib handles aren't shared).
     {
@@ -1279,6 +1281,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             into->name = std::string(lv.get(r, "LevelName"));
             into->layer = std::atoi(std::string(lv.get(r, "Layer")).c_str());
             into->light = level_light(lv.get(r, "Intensity"), lv.get(r, "Red"), lv.get(r, "Green"), lv.get(r, "Blue"));
+            into->rain = lv.get(r, "Rain") == "1";
             const auto env = lv.get(r, "SoundEnv");
             for (std::size_t e = 0; e < se.size(); ++e)
                 if (se.get(e, "Index") == env) {
@@ -2012,6 +2015,7 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
         auto g = [&](std::string c) { return b.levels.get(r, c); };
         lv->layer = num(g("Layer"));
         lv->light = level_light(g("Intensity"), g("Red"), g("Green"), g("Blue"));
+        lv->rain = g("Rain") == "1";
         for (std::size_t e = 0; e < b.sound_env.size(); ++e)
             if (b.sound_env.get(e, "Index") == g("SoundEnv")) {
                 lv->song = num(b.sound_env.get(e, "Song"));
@@ -2201,7 +2205,7 @@ void set_map_seed(Scene& scene, std::uint32_t seed) {
     const Level& o = scene.town;
     Level town{ .id = o.id, .name = o.name, .type = o.type, .layer = o.layer, .song = o.song, .ambience = o.ambience,
                 .night_ambience = o.night_ambience, .day_event = o.day_event, .night_event = o.night_event,
-                .event_delay = o.event_delay, .light = o.light };
+                .event_delay = o.event_delay, .light = o.light, .rain = o.rain };
     scene.town = std::move(town);
     place_act1(scene, scene.mpqs, *scene.builder->act1, seed);
     scene.shrines.clear();                          // load_npcs reads Shrines.txt again

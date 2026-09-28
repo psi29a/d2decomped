@@ -132,10 +132,11 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   View; `frame_light` fills a `LightGrid` round the player with the
   level's light or the day's, and stamps the player (13), objects (Lit by
   mode), monsters and missiles.
-- `render_world` draws floors and walls through `blit_dt1_tile_lit`: the
-  cell's 36 corners, one level when they share it, else each pixel
-  bilinear between the corners of the subtile it lies on (a wall's column
-  where it crosses the diamond's middle). Units take the level at their
+- `render_world` draws floors and walls through `blit_dt1_tile_lit`: each
+  pixel bilinear between the subtile corners round the ground it's over,
+  found from its screen position (floor tiles are 128 tall and reach past
+  their own cell); a wall's column where it crosses the cell's middle. One
+  level for a tile when all the corners it reaches share it. Units take the level at their
   feet; additive missiles and overlays aren't lit.
 
 - Tile shadows blend at a quarter (`blit_dt1_shadow`); players', NPCs'

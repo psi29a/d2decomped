@@ -26,6 +26,7 @@
 #include <shrines.hpp>
 #include <quests.hpp>
 #include <light.hpp>
+#include <weather.hpp>
 #include <skills.hpp>
 #include <sequences.hpp>
 #include <userdir.hpp>

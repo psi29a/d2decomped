@@ -202,6 +202,12 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             }
             return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + "\n";
         }
+        if (args.size() >= 2 && args[1] == "rain") {       // the weather: `debug rain [state]` (0 clear .. 3 falling) starts that state next tick
+            auto& r = t.rain;
+            if (args.size() >= 3) { r.state = (std::atoi(args[2].c_str()) + 3) % 4; r.left = 0; }
+            return "ok state=" + std::to_string(r.state) + " density=" + std::to_string(r.density) + " drops=" + std::to_string(r.drops.size())
+                 + " splashes=" + std::to_string(r.splashes.size()) + " wind=" + std::to_string(r.wind) + "\n";
+        }
         if (args.size() >= 2 && args[1] == "day") {        // the time of day: `debug day [degrees]`
             auto& d = t.world.day;
             if (args.size() >= 3) {

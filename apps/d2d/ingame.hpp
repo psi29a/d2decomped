@@ -5,6 +5,30 @@
 
 namespace {
 
+// The rain over the world (FUN_00473910 → FUN_00473470): each drop a line
+// along the wind, cut where it lands, a landed one a dot; the day's drops
+// half see-through. Nothing over the bottom panel (47 pixels).
+void draw_rain(std::vector<std::uint8_t>& fb, const d2d::rules::Rain& rain) {
+    const int bottom = int(kH) - 47;
+    for (const auto& d : rain.drops) {
+        int dx = 0, dy = 0;
+        if (!d.landed) {
+            dx = int(d2d::rules::cos512(rain.wind) * float(d.len));
+            dy = int(d2d::rules::sin512(rain.wind) * float(d.len));
+            if (const int room = d.bottom - d.y; room < dy) { dx = dy ? room * dx / dy : 0; dy = room; }
+        }
+        const auto rgb = d2d::rules::rain_rgb(d.kind, d.tone);
+        const bool half = d.kind == 0;
+        const int n = std::max({ std::abs(dx), std::abs(dy), 1 });
+        for (int k = 0; k <= n; ++k) {
+            const int x = d.x + dx * k / n, y = d.y + dy * k / n;
+            if (x < 0 || y < 0 || x >= int(kW) || y >= bottom) continue;
+            auto* p = fb.data() + (std::size_t(y) * kW + std::size_t(x)) * 4;
+            for (int c = 0; c < 3; ++c) p[c] = half ? std::uint8_t((p[c] + rgb[std::size_t(c)]) / 2) : rgb[std::size_t(c)];
+        }
+    }
+}
+
 void render_ingame(std::vector<std::uint8_t>& fb,
                    const Scene& s,
                    const Level& L,
@@ -34,7 +58,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Npc* merc = nullptr, const UnitState* merc_state = nullptr,
                    const std::string* merc_label = nullptr,
                    std::span<const Unit> extra_units = {}, float player_rate = 1.f,
-                   const Lighting* light = nullptr) {
+                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -90,7 +114,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                               merc_state->dir, merc_label, merc_state->mode_ms, -2 });
         units.insert(units.end(), extra_units.begin(), extra_units.end());
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
-        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light);
+        render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain);
+        if (rain) draw_rain(fb, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
         // ponytail: no highlight tint yet (D2 brightens the unit too).

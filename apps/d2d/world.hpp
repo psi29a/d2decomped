@@ -76,41 +76,48 @@ struct Lighting {
     [[nodiscard]] const d2d::palette::Palette& palette(float x, float y) const { return (*pal)[std::size_t(at(x, y) >> 3)]; }
 };
 
-// A DT1 tile of cell (gx, gy) lit: a floor's pixel by where it lies in the
-// cell's diamond, a wall's column by where it crosses the diamond's middle,
-// between the cell's 6 x 6 subtile corners. One level for the tile when
-// they share it.
+// A DT1 tile of cell (gx, gy), its top corner on screen at (top_x, top_y),
+// lit: a floor pixel by where it lies on the ground (the inverse of the
+// iso projection), a wall's column where it crosses the cell's middle,
+// bilinear between the cell's 6 x 6 subtile corners. One level for the tile
+// when they share it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, const Lighting& light,
-                       int sx, int sy, int gx, int gy, bool floor) {
-    std::array<float, 36> c{};
+                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor) {
+    // The subtile corners round the cell: a tile's pixels reach up to 6
+    // subtiles before its top corner (tall floors) and 8 past.
+    constexpr int kP = 16, kO = 6;
+    std::array<float, kP * kP> c{};
     int lo = 255, hi = 0;
-    for (int j = 0; j < 6; ++j)
-        for (int i = 0; i < 6; ++i) {
-            const int v = light.grid.at(gx * 5 + i, gy * 5 + j);
-            c[std::size_t(j * 6 + i)] = float(v);
+    for (int j = 0; j < kP; ++j)
+        for (int i = 0; i < kP; ++i) {
+            const int v = light.grid.at(gx * 5 - kO + i, gy * 5 - kO + j);
+            c[std::size_t(j * kP + i)] = float(v);
             lo = std::min(lo, v); hi = std::max(hi, v);
         }
     const auto& pals = *light.pal;
     if (lo >> 3 == hi >> 3) { blit_dt1_tile(fb, t, pals[std::size_t(lo >> 3)], sx, sy); return; }
-    auto level = [&](float u, float v) {             // u, v: the cell's diamond, 0..1 each way
-        const float a = std::clamp((u + v) * 5, 0.f, 4.999f), b = std::clamp((v - u) * 5, 0.f, 4.999f);
+    // Screen offset from the top corner → subtiles into the cell: dx - dy =
+    // x / 80 cells, dx + dy = y / 40.
+    auto level = [&](int ox, int oy) {
+        const float p = float(ox) / (kIsoW / 2), q = float(oy) / (kIsoH / 2);
+        const float a = std::clamp((q + p) * 2.5f + kO, 0.f, kP - 1.001f), b = std::clamp((q - p) * 2.5f + kO, 0.f, kP - 1.001f);
         const int i = int(a), j = int(b);
         const float fa = a - float(i), fb2 = b - float(j);
-        const float* q = &c[std::size_t(j * 6 + i)];
-        return std::size_t(int((q[0] + (q[1] - q[0]) * fa) * (1 - fb2) + (q[6] + (q[7] - q[6]) * fa) * fb2) >> 3);
+        const float* e = &c[std::size_t(j * kP + i)];
+        return std::size_t(int((e[0] + (e[1] - e[0]) * fa) * (1 - fb2) + (e[kP] + (e[kP + 1] - e[kP]) * fa) * fb2) >> 3);
     };
     const int th = std::abs(t.height);
     for (int y = 0; y < th; ++y) {
         const int py = sy + y;
         if (py < 0 || py >= int(kH)) continue;
         const auto* row = t.pixels.data() + std::size_t(y) * t.width;
-        const float v = floor ? float(y - (th - kIsoH)) / kIsoH : 0.5f;
         for (int x = 0; x < t.width; ++x) {
             const std::uint8_t idx = row[x];
             if (idx == 0) continue;
             const int px = sx + x;
             if (px < 0 || px >= int(kW)) continue;
-            const auto col = pals[level(float(x - kIsoW / 2) / kIsoW, v)][idx];
+            const auto lvl = level(px - top_x, floor ? py - top_y : kIsoH / 2);
+            const auto col = pals[lvl][idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
             p[0] = col.r; p[1] = col.g; p[2] = col.b; p[3] = 0xFF;
         }
@@ -193,7 +200,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                   std::span<const Unit> units = {},
                   int mouse_x = -1, int mouse_y = -1,
                   std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr,
-                  const Lighting* light = nullptr) {
+                  const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr) {
     const auto& m = L.ds1;
     if (m.width() == 0 || m.height() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
@@ -225,13 +232,14 @@ void render_world(std::vector<std::uint8_t>& fb,
     // Blit a single tile at cell (gx, gy)'s iso position, honouring the
     // 80-tall-diamond-at-bottom convention shared by floor/wall pixel
     // buffers.
-    auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t) {
+    // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
+    auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t, int layer) {
         const auto [iso_x, iso_y] = iso(gx, gy);
         const int th = std::abs(t.height);
         const int sx = iso_x - t.width / 2;
         const int sy = iso_y - (th - kIsoH);
-        if (t.type == 13) blit_dt1_shadow(fb, t, pal, sx, sy);
-        else if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, t.type == 0);
+        if (layer == 2) blit_dt1_shadow(fb, t, pal, sx, sy);
+        else if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, iso_x, iso_y, layer == 1);
         else blit_dt1_tile(fb, t, pal, sx, sy);
     };
 
@@ -253,6 +261,7 @@ void render_world(std::vector<std::uint8_t>& fb,
         return { nullptr, 0 };
     };
 
+    const auto& upal_splash = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     // Row-major sweep so back rows render first. dy increases downward
     // in screen space, so we iterate low→high dy for back-to-front.
     for (int dy = -kR; dy <= kR; ++dy) {
@@ -262,10 +271,15 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [lv, off] = at(gx, gy);
             if (!lv) continue;
             const auto& cm = lv->ds1;
+            // A floor whose DT1 material flags have 2 may splash in the rain
+            // (FUN_004de410, as the tile's drawn).
+            auto splash = [&](const d2d::dt1::Tile& t) {
+                if (rain && (t.material_flags & 2)) { const auto [x, y] = iso(gx, gy); rain->floor(rain->rng, x, y); }
+            };
             if (!lv->picks.empty()) {                   // the tiles game.exe picked: floors, then shadows
                 for (const int layer : { 1, 2 })
                     for (const auto& p : lv->picks[off])
-                        if (p.layer == layer) blit_cell(gx, gy, *p.tile);
+                        if (p.layer == layer) { blit_cell(gx, gy, *p.tile, layer); if (layer == 1) splash(*p.tile); }
                 continue;
             }
 
@@ -277,8 +291,10 @@ void render_world(std::vector<std::uint8_t>& fb,
                 // A floor is there when prop1 bit 2 says so (FUN_0066e9b0);
                 // (0, 0, 0) with it is the grass tile, without it nothing.
                 if (c.hidden || !(c.prop1 & 2)) continue;
-                if (auto* t = find_tile(*lv, c.style, c.sequence, /*type=*/0))
-                    blit_cell(gx, gy, *t);
+                if (auto* t = find_tile(*lv, c.style, c.sequence, /*type=*/0)) {
+                    blit_cell(gx, gy, *t, 1);
+                    splash(*t);
+                }
             }
 
             // Shadow layer: blended over the floor (blit_dt1_shadow).
@@ -287,11 +303,17 @@ void render_world(std::vector<std::uint8_t>& fb,
                 if (c.hidden) continue;
                 if (c.style == 0 && c.sequence == 0 && c.wall_type == 0) continue;
                 if (auto* t = find_tile(*lv, c.style, c.sequence, /*type=*/13))
-                    blit_cell(gx, gy, *t);
+                    blit_cell(gx, gy, *t, 2);
             }
         }
     }
 
+    // The rain's splashes on the floor (FUN_00473c00 → FUN_00473a70: draw
+    // mode 3, additive).
+    if (rain)
+        for (const auto& sp : rain->splashes)
+            if (const auto fr = s.rain_splash[std::size_t(sp.kind)].frames(); sp.frame < int(fr.size()))
+                blit_additive(fb, fr[std::size_t(sp.frame)], upal_splash, nullptr, sp.x, sp.y);
     // Units' shadows, on the ground under the walls and units (the floor
     // pass FUN_004df510 → FUN_004dc7b0).
     {
@@ -383,11 +405,11 @@ void render_world(std::vector<std::uint8_t>& fb,
             if (!lv) continue;
             const auto& cm = lv->ds1;
             auto draw_wall = [&](int type, const d2d::dt1::Tile& t) {
-                if (type != 15) { blit_cell(gx, gy, t); return; }
+                if (type != 15) { blit_cell(gx, gy, t, 0); return; }
                 // Roof — hoist by the DT1's own roof_height.
                 auto [iso_x, iso_y] = iso(gx, gy);
                 iso_y -= t.roof_height;
-                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, false);
+                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, iso_x, iso_y + t.roof_height, false);
                 else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
             };
             if (!lv->picks.empty()) {
