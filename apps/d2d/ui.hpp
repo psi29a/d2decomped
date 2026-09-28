@@ -460,6 +460,7 @@ struct CharCreateUI {
     std::optional<std::array<std::uint8_t, 16>> appearance;
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
     d2d::d2s::Stats stats;               // ... and attributes
+    std::vector<d2d::d2s::Item> corpse;  // ... and its corpse's items (d2s corpse list)
     PanelStats panel;                    // ... and what the char panel computes
     bool expansion = true;               // the save's expansion flag (stash size)
     d2d::d2s::Header header;             // the loaded save's header (quest flags ...)

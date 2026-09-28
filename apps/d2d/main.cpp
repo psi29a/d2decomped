@@ -452,6 +452,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                    : std::vector<d2d::d2s::Item>{};
                     cc.stats = csu.selected < int(scene->save_stats.size())
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
+                    cc.corpse = csu.selected < int(scene->save_corpses.size())
+                                    ? scene->save_corpses[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
                     cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
                     cc.expansion = h.expansion();
                     cc.header = h;
@@ -503,6 +505,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                         cc.header = std::move(n.header);
                         cc.stats = n.stats;
                         cc.items = std::move(n.items);
+                        cc.corpse.clear();
                         cc.appearance.reset();
                         cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
                         set_map_seed(*scene, game_seed(cc.header));

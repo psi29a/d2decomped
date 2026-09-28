@@ -452,7 +452,7 @@ standalone server later.
    the quest log panel, the "!" marker, Akara's respec (quest 41).
 6. Andariel (her AI, poison) and Warriv's way east: the end of Act 1.
 7. Alongside: the remaining unique mods (Cursed, thief, poison hit,
-   teleport, auras), town portals, the corpse on death.
+   teleport, auras), town portals, the corpse on death — all built.
 
 **Step 3 — networking** (the deferred item 7 above).
 

@@ -59,6 +59,9 @@ struct View {
     // 1: its twin in town), leading to level `to`.
     struct Portal { float x = 0, y = 0; int to = 0; std::uint32_t born = 0; int which = 0; };
     std::vector<Portal> portals;
+    // The player's corpses where they stand: their look when they fell.
+    struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
+    std::vector<Corpse> corpses;
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
@@ -115,6 +118,14 @@ struct World {
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
     std::array<Portal, 2> portal{};
     int take_portal = -1;                  // the portal (0 / 1) the player is walking to
+    // The player's corpses (FUN_0057f700): where they fell, what they wore
+    // and had in hand, 75% of the experience the death took; at most 16.
+    struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;
+                    std::int64_t exp = 0; GameData::Appearance gfx{}; };
+    std::vector<Corpse> corpses;
+    int take_corpse = -1;                  // the corpse the player is walking to
+    int last_pmode = -1;                   // the player's mode at the last tick (death's stages)
+    std::int64_t exp_lost = 0;             // what the last death took
     std::uint32_t now = 0;                 // the tick's time
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
@@ -184,6 +195,8 @@ struct World {
         v.attack_skill = fight.attack_skill;
         if (loot.ground_level == level) v.ground = loot.ground;
         for (const auto& f : fires) if (f.level == level) v.fires.push_back({ f.x, f.y, f.npc });
+        for (std::size_t k = 0; k < corpses.size(); ++k)
+            if (corpses[k].level == level) v.corpses.push_back({ corpses[k].x, corpses[k].y, corpses[k].dir, corpses[k].gfx, int(k) });
         for (int k = 0; k < 2; ++k)
             if (portal[std::size_t(k)].level == level)
                 v.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
@@ -216,7 +229,10 @@ struct World {
         h.last_played = std::uint32_t(std::time(nullptr));
         h.map_id = scene->map_seed;
         if (cc.appearance) h.appearance = *cc.appearance;
-        const auto err = characters->save(h, cc.stats, cc.items);
+        // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
+        // ponytail: game.exe's pick among several isn't traced.
+        const std::vector<d2d::d2s::Item> no_corpse;
+        const auto err = characters->save(h, cc.stats, cc.items, corpses.empty() ? &no_corpse : &corpses.back().items);
         if (err.empty()) cc.header.last_played = h.last_played;
         d2d::log::info("save {}: {}", h.name, err.empty() ? "written" : err);
         return err;
@@ -385,6 +401,16 @@ struct World {
         cc.selected = c.selected; cc.input_name = c.input_name; cc.hardcore = c.hardcore;
         cc.appearance = c.appearance; cc.items = c.items; cc.stats = c.stats; cc.panel = c.panel;
         cc.expansion = c.expansion; cc.header = c.header;
+        // A corpse in the save (its corpse list, FUN_00533850) lies by the
+        // camp's start.
+        // ponytail: where game.exe puts it isn't traced; the save's x / y
+        // aren't read.
+        corpses.clear();
+        if (!c.corpse.empty() && scene) {
+            const auto& t = scene->town;
+            const auto [x, y] = t.nearest_free(t.start.first + 1.f, t.start.second + 1.f);
+            corpses.push_back({ &t, x, y, 4, c.corpse, 0, c.appearance ? *c.appearance : scene->starting_gear[std::size_t(c.header.cls % 7)] });
+        }
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
         for (const auto& [cur, max] : { std::pair{ d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana },
@@ -421,6 +447,8 @@ struct World {
         fires.clear();
         portal = {};
         take_portal = -1;
+        take_corpse = -1;
+        last_pmode = -1;
         pick_item = -1;
     }
 
@@ -567,6 +595,82 @@ struct World {
         interact_npc = pick_item = take_warp = take_portal = -1;
         if (level->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through {} from {}", level_name(*level), px, py, how, level_name(*from));
+    }
+
+    // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
+    // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the
+    //   level's span (0 / 5 / 10), never below the level's start + 1;
+    // - gold (FUN_005357d0): min(level, 20) % of carried and stashed gold,
+    //   in single player at most what leaves level x 500, and only from the
+    //   purse; the rest of the purse falls where the player dies
+    //   (FUN_00535510), the purse is emptied, goldlost (175) is set.
+    // ponytail: the pile isn't split into FUN_0055a090's piles; goldlost
+    // isn't kept.
+    void death_penalty(std::uint32_t ms) {
+        using namespace d2d::d2s;
+        auto& v = cc.stats.v;
+        const int lvl = int(v[kLevel]);
+        const int d = cc.header.active_difficulty();
+        static constexpr int kDeathExp[3] = { 0, 5, 10 };
+        exp_lost = 0;
+        if (lvl > 1 && std::size_t(lvl) < scene->exp_next.size()) {
+            const auto lo = scene->exp_next[std::size_t(lvl - 1)], hi = scene->exp_next[std::size_t(lvl)];
+            if (const auto loss = kDeathExp[std::clamp(d, 0, 2)] * (hi - lo) / 100; loss > 0) {
+                const auto to = std::max(v[kExp] - loss, lo + 1);
+                exp_lost = std::max<std::int64_t>(v[kExp] - to, 0);
+                v[kExp] = to;
+            }
+        }
+        const std::int64_t purse = v[kGold], total = purse + v[kGoldBank];
+        std::int64_t lost = std::min(lvl, 20) * total / 100;
+        if (total - lost < std::int64_t(lvl) * 500) lost = std::max<std::int64_t>(0, total - std::int64_t(lvl) * 500);
+        lost = std::min(lost, purse);
+        if (purse - lost > 0) loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, ms);
+        v[kGold] = 0;
+        d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", exp_lost, lost, purse - lost);
+    }
+    // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
+    // corpse where the player lies with what they wore and held, and 75% of
+    // the experience lost. They go on without it.
+    void make_corpse() {
+        Corpse c{ level, player.x, player.y, player.dir, {}, exp_lost * 75 / 100, fight.gfx() };
+        for (auto it = cc.items.begin(); it != cc.items.end();)
+            if (it->location == 1) { c.items.push_back(std::move(*it)); it = cc.items.erase(it); }
+            else ++it;
+        if (held) { c.items.push_back(std::move(*held)); c.items.back().location = 1; held.reset(); }   // ponytail: the held item's slot
+        if (corpses.size() >= 16) corpses.erase(corpses.begin());
+        corpses.push_back(std::move(c));
+        GameData::Appearance naked;                   // nothing worn: the class's lit pieces
+        naked.fill(0xff);
+        for (int l : { 1, 2, 3, 4, 8, 9 }) naked[std::size_t(l)] = 1;
+        cc.appearance = naked;
+    }
+    // Taking one's corpse (FUN_0057fb70): its experience back, each item to
+    // its slot when that's free (FUN_00562f30; its requirements met), else to
+    // the inventory; what doesn't fit stays on it. It goes once it's empty.
+    // ponytail: requirements aren't checked; two-handed / quiver pairing
+    // (FUN_0055f2d0) isn't.
+    void take_corpse_items(std::size_t k, std::uint32_t ms) {
+        using namespace d2d::d2s;
+        auto& c = corpses[k];
+        cc.stats.v[kExp] += c.exp;
+        c.exp = 0;
+        const auto& L = scene->inv_layout[std::size_t(cc.header.cls % 7)];
+        for (auto it = c.items.begin(); it != c.items.end();) {
+            const bool worn = std::ranges::any_of(cc.items, [&](const Item& i) { return i.location == 1 && i.slot == it->slot; });
+            if (!worn && it->slot >= 1 && it->slot <= 12) { cc.items.push_back(std::move(*it)); it = c.items.erase(it); continue; }
+            std::optional<Item> held_item = *it;
+            held_item->location = 0;
+            std::vector<const Item*> inv;
+            for (const auto& x : cc.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+            const auto [w, h] = d2d::rules::item_size(scene->rules, held_item->code);
+            if (const auto [x, y] = d2d::rules::free_spot(scene->rules, inv, L.cols, L.rows, w, h); x >= 0
+                && d2d::rules::put_in_grid(scene->rules, cc.items, held_item, 1, L.cols, L.rows, x, y)) { it = c.items.erase(it); continue; }
+            ++it;
+        }
+        if (c.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(k));
+        if (!cc.items.empty()) cc.appearance = c.gfx;   // ponytail: the look the corpse had, not rebuilt from what's worn
+        cues.cue("item_pickup", ms, player.x, player.y);
     }
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
@@ -749,7 +853,7 @@ struct World {
             target_x = x; target_y = y;
             player.walking = true;
             interact_npc = -1;
-            if (fresh) take_portal = -1;
+            if (fresh) take_portal = take_corpse = -1;
             if (!fresh) return;
             fight.attack_mon = pick_item = -1;
             take_warp = -1;                                                  // a click on a warp: go through it
@@ -765,6 +869,13 @@ struct World {
             return;
         }
         if (const auto* in = std::get_if<cmd::Interact>(&c)) {               // walk to it; operate or talk on arrival
+            if (in->npc <= -3000 && in->npc > -3000 - int(corpses.size())) {   // one's corpse (-3000 - k)
+                const auto& c = corpses[std::size_t(-3000 - in->npc)];
+                if (c.level != level) return;
+                walk_to(c.x, c.y, true);
+                take_corpse = -3000 - in->npc;
+                return;
+            }
             if (in->npc <= -2000 && in->npc > -2002) {                       // a town portal (the client names them -2000 - k)
                 const auto& p = portal[std::size_t(-2000 - in->npc)];
                 if (p.level != level) return;
@@ -860,6 +971,11 @@ struct World {
         });
         const bool resurrect = std::ranges::any_of(cmds, [](const Command& c) { return std::holds_alternative<cmd::Resurrect>(c); });
         if (fight.player_modes(button, ms, dt) && resurrect) respawn(ms);
+        if (fight.pmode != last_pmode) {                 // death's stages: the penalty as it starts, the corpse as it ends
+            if (fight.pmode == kModeDT) death_penalty(ms);
+            if (fight.pmode == kModeDD) make_corpse();
+            last_pmode = fight.pmode;
+        }
         if (!fight.dead()) {
         const bool busy = fight.pmode >= 0;
         for (const auto& c : cmds) if (!std::holds_alternative<cmd::Resurrect>(c)) apply(c, ms);
@@ -932,6 +1048,11 @@ struct World {
         if (den_log_at && ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         use_warp();
         if (fight.portal_due) { fight.portal_due = false; open_portal(ms); }
+        if (take_corpse >= 0 && std::size_t(take_corpse) < corpses.size() && corpses[std::size_t(take_corpse)].level == level) {
+            const auto& c = corpses[std::size_t(take_corpse)];
+            if (std::hypot(c.x - player.x, c.y - player.y) < 2.f) { take_corpse_items(std::size_t(take_corpse), ms); take_corpse = -1; }
+            else if (!player.walking) take_corpse = -1;
+        }
         use_portal(ms);
         }
         cross_level();

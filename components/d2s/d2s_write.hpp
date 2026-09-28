@@ -132,8 +132,11 @@ inline std::uint32_t save_checksum(std::span<const std::byte> b) {
 
 // The whole file. `original`: the save as read (empty for a character made
 // in d2d); its unknown header bytes and trailing lists are kept.
+// `corpse`: the corpse's items to write in the corpse list (an empty vector:
+// none), or nullptr to keep the original's.
 inline std::vector<std::byte> write_save(std::span<const std::byte> original, const Header& h, const Stats& st,
-                                         const std::vector<Item>& items, const ItemTables& t) {
+                                         const std::vector<Item>& items, const ItemTables& t,
+                                         const std::vector<Item>* corpse = nullptr) {
     constexpr std::size_t kGf = 0x2FD;
     std::vector<std::byte> b(kGf, std::byte{ 0 });
     const bool has_template = original.size() >= kGf;
@@ -199,9 +202,29 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
             tail = bs.pos / 8;
         } catch (const std::runtime_error&) { tail = original.size(); }   // a header-only template: nothing after it
     }
-    if (tail < original.size()) b.insert(b.end(), original.begin() + std::ptrdiff_t(tail), original.end());
-    else {                                                   // fresh: no corpse; no merc items; no golem
-        for (const char c : { 'J', 'M', '\0', '\0' }) b.push_back(std::byte(c));
+    auto corpse_list = [&] {                                 // "JM" <count>, then 12 bytes and its items
+        b.push_back(std::byte{ 'J' }); b.push_back(std::byte{ 'M' });
+        b.push_back(std::byte(corpse->empty() ? 0 : 1)); b.push_back(std::byte{ 0 });
+        if (corpse->empty()) return;
+        for (int i = 0; i < 12; ++i) b.push_back(std::byte{ 0 });
+        b.push_back(std::byte{ 'J' }); b.push_back(std::byte{ 'M' });
+        b.push_back(std::byte(corpse->size() & 0xff)); b.push_back(std::byte(corpse->size() >> 8));
+        detail::BitWriter cw;
+        for (const auto& it : *corpse) detail::write_item(cw, it, t);
+        b.insert(b.end(), cw.out.begin(), cw.out.end());
+    };
+    if (tail < original.size() && corpse) {                 // the corpse list anew, the rest as it was
+        std::size_t after = tail;
+        try {
+            const auto cl = parse_corpse(original, t);
+            after = cl.end;
+        } catch (const std::runtime_error&) {}
+        corpse_list();
+        b.insert(b.end(), original.begin() + std::ptrdiff_t(after), original.end());
+    } else if (tail < original.size()) b.insert(b.end(), original.begin() + std::ptrdiff_t(tail), original.end());
+    else {                                                   // fresh: no merc items; no golem
+        if (corpse) corpse_list();
+        else for (const char c : { 'J', 'M', '\0', '\0' }) b.push_back(std::byte(c));
         if (h.expansion()) {
             b.push_back(std::byte{ 'j' }); b.push_back(std::byte{ 'f' });
             if (h.merc_seed) for (const char c : { 'J', 'M', '\0', '\0' }) b.push_back(std::byte(c));

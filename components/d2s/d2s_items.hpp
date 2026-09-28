@@ -259,4 +259,32 @@ inline std::vector<Item> parse_items(std::span<const std::byte> save, const Item
     return out;
 }
 
+// The corpse list after the player's items (PlrSave2.cpp; read back by
+// FUN_00533850): "JM" <u16 corpses>, then per corpse 12 bytes (u32 ?,
+// u32 x, u32 y) and its own "JM" item list. `end`: the byte after it.
+// A save has at most one corpse.
+struct CorpseList { std::size_t begin = 0, end = 0; std::vector<Item> items; bool has = false; };
+inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables& t) {
+    CorpseList c;
+    const auto at = parse_stats(save, t).items_at;
+    const int n = int(std::uint8_t(save[at + 2])) | int(std::uint8_t(save[at + 3])) << 8;
+    detail::Bits bs{ save, (at + 4) * 8 };
+    for (int i = 0; i < n; ++i) detail::item(bs, t);
+    c.begin = c.end = bs.pos / 8;
+    if (c.begin + 4 > save.size() || save[c.begin] != std::byte{'J'} || save[c.begin + 1] != std::byte{'M'}) return c;
+    const int corpses = int(std::uint8_t(save[c.begin + 2])) | int(std::uint8_t(save[c.begin + 3])) << 8;
+    std::size_t p = c.begin + 4;
+    for (int k = 0; k < corpses; ++k) {
+        p += 12;
+        if (p + 4 > save.size() || save[p] != std::byte{'J'}) throw std::runtime_error("d2s: corpse without items");
+        const int m = int(std::uint8_t(save[p + 2])) | int(std::uint8_t(save[p + 3])) << 8;
+        detail::Bits cb{ save, (p + 4) * 8 };
+        for (int i = 0; i < m; ++i) c.items.push_back(detail::item(cb, t));
+        p = cb.pos / 8;
+        c.has = true;
+    }
+    c.end = p;
+    return c;
+}
+
 }  // namespace d2d::d2s

@@ -118,6 +118,11 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                           cc, kLayerCode[L.type], cc, kLayerCode[L.type], code.c_str(),
                           kModeCode[mode], lw.c_str());
             if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
+            else if (code != "LIT") {                     // no such piece in this mode (death has only LIT's): the lit one
+                std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%sLIT%s%s.dcc)",
+                              cc, kLayerCode[L.type], cc, kLayerCode[L.type], kModeCode[mode], lw.c_str());
+                if (auto d2 = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d2);
+            }
         }
     } catch (const std::exception& e) {
         d2d::log::warn("{}: {}", path, e.what());
@@ -1569,7 +1574,7 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // Headers (and items) of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
 void load_saves(Scene& scene, const fs::path& dir) {
-    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; };
+    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse; };
     std::vector<Entry> out;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
@@ -1583,6 +1588,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
                 try {
                     en.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
                     en.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
+                    en.corpse = d2d::d2s::parse_corpse(bytes, *scene.item_tables).items;
                 }
                 catch (const std::exception& ex) {
                     d2d::log::warn("{} items: {}", e.path().string(), ex.what());
@@ -1601,10 +1607,11 @@ void load_saves(Scene& scene, const fs::path& dir) {
         return std::tie(b.header.last_played, a.header.name)
              < std::tie(a.header.last_played, b.header.name);
     });
-    scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear();
+    scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear();
     for (auto& en : out) {
         scene.saves.push_back(std::move(en.header));
         scene.save_items.push_back(std::move(en.items));
+        scene.save_corpses.push_back(std::move(en.corpse));
         scene.save_stats.push_back(en.stats);
     }
     d2d::log::info("Characters: {} in {}", scene.saves.size(), dir.string());

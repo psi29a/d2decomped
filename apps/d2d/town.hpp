@@ -55,7 +55,7 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // monster i of the View, -1000 - i ground item i).
 constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;
 void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out,
-                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0) {
+                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0) {
     auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
@@ -66,6 +66,12 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         out.push_back(u);
     }
     for (const auto& f : v.fires) out.push_back({ f.x, f.y, &s.npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
+    // The player's corpses: lying (DT's last frame, as the dead player is
+    // drawn), in what they wore; named by the player (-3000 - which).
+    for (const auto& k : v.corpses) {
+        const auto& anim = s.composite(cls, kModeDT, k.gfx);
+        out.push_back({ k.x, k.y, &anim, k.dir, corpse_name, now_ms - (anim.length_ms() - 1), -3000 - k.which });
+    }
     // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
     // 768 ms), then ON; named by where they lead (-2000 - which).
     for (const auto& p : v.portals) {
@@ -659,7 +665,8 @@ struct Town {
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, view.monsters[std::size_t(hm)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2002)) out.push_back(cmd::Interact{ hovered_npc });
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2002) || (hovered_npc <= -3000 && hovered_npc > -3016))
+                out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ wx, wy, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
             if (const int am = view.monster(view.attack); am >= 0 && view.monsters[std::size_t(am)].alive())
@@ -821,7 +828,7 @@ struct Town {
         const bool jump = std::hypot(me.x - prev_x, me.y - prev_y) > 2.f;
         cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
         cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms);
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms, &cc.input_name, int(kUiToSaveClass[std::max(cc.selected, 0)]));
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];
@@ -840,7 +847,8 @@ struct Town {
                       char_open ? &cc.stats : nullptr, &cc.stats, &cc.panel, mode_ms, &cc.items,
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr);
+                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
+                      !(pmode == kModeDD && !view.corpses.empty()));   // dead, the corpse lies there instead
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open

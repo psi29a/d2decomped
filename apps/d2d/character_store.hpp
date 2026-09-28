@@ -22,7 +22,8 @@ struct CharacterStore {
     [[nodiscard]] std::filesystem::path path(const std::string& name) const { return dir / (name + ".d2s"); }
 
     // Writes the character; "" when it's done, else why not (nothing written).
-    std::string save(const d2d::d2s::Header& h, const d2d::d2s::Stats& st, const std::vector<d2d::d2s::Item>& items) const {
+    std::string save(const d2d::d2s::Header& h, const d2d::d2s::Stats& st, const std::vector<d2d::d2s::Item>& items,
+                     const std::vector<d2d::d2s::Item>* corpse = nullptr) const {
         namespace fs = std::filesystem;
         if (!tables) return "no item tables";
         if (h.name.empty() || h.name.find_first_of("/\\.") != std::string::npos) return "bad name";
@@ -31,7 +32,7 @@ struct CharacterStore {
         if (std::ifstream in(file, std::ios::binary); in) raw.assign(std::istreambuf_iterator<char>(in), {});
         std::vector<std::byte> out;
         try {
-            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), h, st, items, *tables);
+            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), h, st, items, *tables, corpse);
             const auto back = d2d::d2s::parse_header(out);
             const auto bst = d2d::d2s::parse_stats(out, *tables);
             const auto bitems = d2d::d2s::parse_items(out, *tables);

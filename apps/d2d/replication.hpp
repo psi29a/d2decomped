@@ -162,6 +162,11 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
         for (const auto& f : v.fires) c.f32(f.x).f32(f.y).u8(f.npc == &s.trap_fires[1]);
         c.u16(int(v.portals.size()));
         for (const auto& p : v.portals) c.f32(p.x).f32(p.y).i32(p.to).u32(p.born).u8(p.which);
+        c.u16(int(v.corpses.size()));
+        for (const auto& k : v.corpses) {
+            c.f32(k.x).f32(k.y).u8(k.dir).u8(k.which);
+            for (const auto g : k.gfx) c.u8(g);
+        }
         wire::section(o, enc.section[4], std::move(c.b));
     }
     // The owner's character: 5 its header (in its save form), 7 its stats
@@ -340,6 +345,13 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
             View::Portal p{};
             p.x = f32(); p.y = f32(); p.to = i32(); p.born = u32(); p.which = u8();
             v.portals.push_back(p);
+        }
+        v.corpses.clear();
+        for (int n = u16(); n > 0 && in.ok; --n) {
+            View::Corpse k{};
+            k.x = f32(); k.y = f32(); k.dir = u8(); k.which = u8();
+            for (auto& g : k.gfx) g = std::uint8_t(u8());
+            v.corpses.push_back(k);
         }
     });
     body([&] {

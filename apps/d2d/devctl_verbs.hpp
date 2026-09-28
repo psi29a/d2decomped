@@ -202,6 +202,16 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             }
             return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + " bonus=" + std::to_string(t.view.light_bonus) + "\n";
         }
+        if (args.size() >= 2 && args[1] == "die") {        // the player dies where they stand
+            t.world.cc.stats.v[d2d::d2s::kLife] = 0;
+            t.world.fight.set_pmode(kModeDT, t.world.now);
+            return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "corpses") {    // the player's corpses: level, cell, items
+            std::string out;
+            for (const auto& c : t.world.corpses) out += std::format("{}\t{:.1f}\t{:.1f}\t{}\n", c.level ? c.level->id : -1, c.x, c.y, c.items.size());
+            return out + std::format("ok view={} gfx_tr={}\n", t.view.corpses.size(), int(t.view.gfx[1]));
+        }
         if (args.size() >= 2 && args[1] == "rain") {       // the weather: `debug rain [state]` (0 clear .. 3 falling) starts that state next tick
             auto& r = t.rain;
             if (args.size() >= 3) { r.state = (std::atoi(args[2].c_str()) + 3) % 4; r.left = 0; }

@@ -58,7 +58,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Npc* merc = nullptr, const UnitState* merc_state = nullptr,
                    const std::string* merc_label = nullptr,
                    std::span<const Unit> extra_units = {}, float player_rate = 1.f,
-                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr) {
+                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -76,7 +76,7 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         // class's starting gear.
         std::vector<Unit> units;
         units.reserve(L.npcs.size() + 1);
-        if (class_idx >= 0 && class_idx < 7)
+        if (player_visible && class_idx >= 0 && class_idx < 7)
             units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
                               player_dir, nullptr, player_mode_ms });
         if (!units.empty()) units.back().rate = player_rate;

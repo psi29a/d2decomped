@@ -126,3 +126,42 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
   DamageRegen), set bonuses in the stat sums, the weapon swap, cold slowing
   the player, poison length reduction, champions/uniques.
+
+## Death
+
+- **As the player dies** (the death mode, `FUN_00580ec0` → `FUN_00535ab0`;
+  a monster's kill):
+  - experience (`FUN_005359f0`): DifficultyLevels DeathExpPenalty (0 / 5 /
+    10) % of the level's span, exp_next[level] − exp_next[level − 1] (the
+    Experience.txt thresholds, `FUN_00611800`), never below the level's
+    start + 1;
+  - gold (`FUN_005357d0`): min(level, 20) % of the purse and the stash
+    together; in single player (game type 3) no more than what leaves level
+    × 500, and only from the purse; the rest of the purse falls where the
+    player dies (`FUN_00535510`, split into piles by `FUN_0055a090`); the
+    purse goes to 0 and goldlost (stat 175) holds the loss.
+- **When the death has played** (mode 0x11: `FUN_00581020` →
+  `FUN_0057fca0` → `FUN_0057f700`, PlrModes.cpp): a corpse unit, the
+  player's class in mode 0x11, at most 16 a player. Everything worn (body
+  locations 1..12) and the item in hand go onto it; its experience stat is
+  75% of what the death took.
+- **Resurrecting** (C → S 0x41, `FUN_0054c0e0`): hardcore ends the game;
+  otherwise life, mana and stamina full, and the player goes to the act's
+  town at its start.
+- **Taking one's corpse** (`FUN_0057fb70`): its experience back to the
+  player; each item (`FUN_00562f30`) to its body location when that's free
+  and its requirements are met, else to the inventory; the corpse goes
+  when nothing's left on it.
+- **Saving:** the d2s keeps a corpse list after the player's items ("JM",
+  count, then 12 bytes and an item list each; `FUN_00533850` makes them
+  again on joining).
+- **The look:** a death COF has only a TR layer and only LIT pieces (no
+  BATRHVYDTHTH); a composite piece missing in a mode is drawn as LIT.
+
+d2d: `World::death_penalty` / `make_corpse` / `take_corpse_items`
+(server.hpp), the View's `corpses` (drawn lying, clickable as -3000 - k),
+d2s `parse_corpse` / `write_save(..., corpse)`.
+ponytail: the gold pile isn't split; requirements aren't checked when
+items go back; a saved corpse lies by the camp's start (the save's x / y
+aren't read); goldlost isn't kept.
+

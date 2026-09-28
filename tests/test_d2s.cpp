@@ -148,6 +148,21 @@ int main() {
                                 at, again.size(), bytes.size());
                     assert(false);
                 }
+                // A corpse holding the worn items, written and read back; and
+                // taken away again: the save as it was.
+                {
+                    const auto had = d2d::d2s::parse_corpse(bytes, t);
+                    std::vector<d2d::d2s::Item> worn;
+                    for (const auto& it : items) if (it.location == 1) worn.push_back(it);
+                    const auto with = d2d::d2s::write_save(bytes, hdr, st, items, t, &worn);
+                    const auto cl = d2d::d2s::parse_corpse(with, t);
+                    assert(cl.has == !worn.empty() && cl.items.size() == worn.size());
+                    for (std::size_t k = 0; k < worn.size(); ++k) assert(cl.items[k].code == worn[k].code);
+                    const std::vector<d2d::d2s::Item> none;
+                    const auto without = d2d::d2s::write_save(with, hdr, st, items, t, had.has ? &had.items : &none);
+                    assert(without.size() == bytes.size() && std::equal(without.begin(), without.end(), bytes.begin()));
+                    assert(d2d::d2s::parse_items(with, t).size() == items.size());
+                }
                 // Changed (gold, a level, an item moved, a new one), written
                 // and read back: what was changed, and the rest intact.
                 {
