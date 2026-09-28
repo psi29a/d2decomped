@@ -21,12 +21,13 @@ inline std::string_view intern(std::string s) {
     return *pool.insert(std::move(s)).first;
 }
 inline void npc(Out& o, const Npc& n) {
-    o.str(n.root).str(n.code).str(n.base_w).str(n.name);
+    o.str(n.root).str(n.code).str(n.base_w).str(n.name).i32(n.light).i32(n.overlay_class).i32(n.colour);
     for (const auto& c : n.comp) o.str(c);
 }
 inline Npc npc(In& in) {
     Npc n;
     n.root = in.str(); n.code = in.str(); n.base_w = in.str(); n.name = in.str();
+    n.light = in.get<std::int32_t>(); n.overlay_class = in.get<std::int32_t>(); n.colour = in.get<std::int32_t>();
     for (auto& c : n.comp) c = in.str();
     return n;
 }

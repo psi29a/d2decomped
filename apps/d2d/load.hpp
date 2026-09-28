@@ -134,6 +134,16 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
     return out;
 }
 
+const std::uint8_t* Scene::monster_map(const Npc& n) const {
+    if (n.colour >= 8 && n.colour < 38) return rand_transforms.size() >= std::size_t(n.colour - 7) * 256 ? rand_transforms.data() + (n.colour - 8) * 256 : nullptr;
+    if (n.colour < 2 || n.colour > 7 || n.code.empty()) return nullptr;
+    auto [it, fresh] = palshifts.try_emplace(n.code);
+    if (fresh)
+        if (auto b = mpqs.try_read(R"(data\global\monsters\)" + n.code + R"(\COF\palshift.dat)"))
+            it->second.assign(reinterpret_cast<const std::uint8_t*>(b->data()), reinterpret_cast<const std::uint8_t*>(b->data()) + b->size());
+    return it->second.size() >= std::size_t(n.colour + 1) * 256 ? it->second.data() + n.colour * 256 : nullptr;
+}
+
 const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& o) const {
     auto [it, fresh] = overlay_sprites.try_emplace(&o);
     if (fresh)
@@ -301,6 +311,10 @@ Npc monster_npc(const Scene& scene, const d2d::txt::Table& ms, const d2d::txt::T
     n.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
     n.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
     n.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
+    n.trans_lvl = std::atoi(std::string(ms.get(row, "TransLvl")).c_str());
+    n.no_unique_shift = ms2.get(row2, "noUniqueShift") == "1";
+    n.utrans = { std::atoi(std::string(ms2.get(row2, "Utrans")).c_str()), std::atoi(std::string(ms2.get(row2, "Utrans(N)")).c_str()),
+                 std::atoi(std::string(ms2.get(row2, "Utrans(H)")).c_str()) };
     if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
@@ -506,7 +520,8 @@ void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs) {
             for (const char* c : { "Mod1", "Mod2", "Mod3" }) if (const int md = num(su.get(r, c)); md > 0) mods.push_back(md);
             scene.superuniques.push_back({ v ? u16_to_latin1(*v) : key, row(su.get(r, "Class")), num(su.get(r, "MinGrp")),
                                            num(su.get(r, "MaxGrp")), mods,
-                                           { std::string(su.get(r, "TC")), std::string(su.get(r, "TC(N)")), std::string(su.get(r, "TC(H)")) } });
+                                           { std::string(su.get(r, "TC")), std::string(su.get(r, "TC(N)")), std::string(su.get(r, "TC(H)")) },
+                                           { num(su.get(r, "Utrans")), num(su.get(r, "Utrans(N)")), num(su.get(r, "Utrans(H)")) } });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
@@ -1048,6 +1063,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             for (std::size_t c = 0; c < scene.item_colours.codes.size(); ++c) if (!trans.empty() && scene.item_colours.codes[c] == trans) i.item_colour = int(c);
             scene.states.emplace(std::string(st.get(r, "state")), std::move(i));
         }
+    if (auto rb = mpqs.try_read(R"(data\global\monsters\RandTransforms.dat)"))
+        scene.rand_transforms.assign(reinterpret_cast<const std::uint8_t*>(rb->data()), reinterpret_cast<const std::uint8_t*>(rb->data()) + rb->size());
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); pb && pb->size() >= 0x53500 + 111 * 256) {
         const auto* p = reinterpret_cast<const std::uint8_t*>(pb->data()) + 0x53500;
         scene.colour_shifts.assign(p, p + 111 * 256);

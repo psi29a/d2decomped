@@ -30,6 +30,10 @@ struct Npc {
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
+    int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
+    bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
+    std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
+    int colour = 0;                      // the colour it's drawn in (FUN_00466360; Scene::monster_map), 0/1 none
     int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
@@ -316,7 +320,8 @@ struct GameData {
     void poll_levels() const;
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
-    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc; };
+    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc;
+                         std::array<int, 3> utrans{}; };   // Utrans by difficulty: its colour
     std::vector<SuperUnique> superuniques;
     d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
     std::array<std::vector<std::string>, 3> unique_names;   // UniquePrefix / Suffix / Appellation, resolved
@@ -538,6 +543,11 @@ struct Scene : GameData {
     std::array<d2d::dc6::Sprite, 4> rain_splash;       // UncompOverlays\Rain1..4 (Rain3 / 4 splash where drops fall)
     d2d::dcc::Sprite npc_alert;                        // Overlay.txt npcalert: NPCSpeechBalloon.dcc
     mutable std::unordered_map<const OverlayInfo*, d2d::dcc::Sprite> overlay_sprites;   // loaded when first drawn
+    // A monster's colour (FUN_00477530): 2..7 its graphic's
+    // COF\palshift.dat table, 8..29 RandTransforms.dat's table - 8; else none.
+    mutable std::unordered_map<std::string, std::vector<std::uint8_t>> palshifts;   // by monster code, loaded when first drawn
+    std::vector<std::uint8_t> rand_transforms;         // Monsters\RandTransforms.dat: 30 x 256
+    const std::uint8_t* monster_map(const Npc& n) const;
     const d2d::dcc::Sprite* overlay_sprite(const OverlayInfo& o) const;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;

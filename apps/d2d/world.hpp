@@ -424,8 +424,11 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto& lpal = !light ? upal0
                              : u.highlight ? (*light->pal)[std::size_t(std::clamp(light->at(u.x, u.y) * 2, 0x40, 0xff) >> 3)]
                                            : light->palette(u.x, u.y);
-            const auto spal = u.shift ? Scene::mapped(lpal, u.shift) : d2d::palette::Palette{};
-            const auto& upal = u.shift ? spal : lpal;
+            // A state's colour shift wins over the unit's own colour
+            // (a monster's palshift / RandTransforms, an item's colormap).
+            const auto* umap = u.shift ? u.shift : u.cmap;
+            const auto spal = umap ? Scene::mapped(lpal, umap) : d2d::palette::Palette{};
+            const auto& upal = umap ? spal : lpal;
             // Its overlays: PreDraw ones behind it, the rest in front
             // (FUN_00470390: AnimRate x 16 / 256 frames a tick).
             auto draw_overs = [&](bool pre) {
@@ -458,7 +461,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             if (u.sprite) {
                 const auto* f = flippy_frame(*u.sprite, elapsed_ms - u.mode_ms);
                 if (!f) continue;
-                blit_at_anchor(fb, *f, u.cmap ? Scene::mapped(upal, u.cmap) : upal, ax, ay);
+                blit_at_anchor(fb, *f, upal, ax, ay);
                 b = { ax + f->offset_x, ay + f->offset_y - int(f->height) + 1,
                       ax + f->offset_x + int(f->width), ay + f->offset_y + 1 };
                 if (items) items->push_back({ &u, b });

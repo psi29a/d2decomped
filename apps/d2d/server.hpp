@@ -173,6 +173,24 @@ struct World {
     World(const World&) = delete;
 
     // What the client is told (View).
+    // A monster's colour as the client picks it (FUN_00466360): its
+    // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
+    // its seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
+    // difficulty; a superunique's own Utrans; 30 and up fall back to 2.
+    // ponytail: the roll is on the unit id, not the unit's seed (the same
+    // odds, not the same colour as game.exe's for a given monster); Utrans
+    // 0xff's pick (FUN_004791b0) is taken as 1.
+    [[nodiscard]] int monster_colour(const Monster& m) const {
+        const auto& n = m.npc;
+        const int d = std::clamp(m.difficulty, 0, 2);
+        int c = n.trans_lvl < 8 ? n.trans_lvl + 2 : 2;
+        if ((m.boss == d2d::rules::Boss::unique || m.boss == d2d::rules::Boss::superunique) && !n.no_unique_shift)
+            c = int(std::uint32_t(m.id) * 2654435761u % 30u) + 9;
+        if (const int u = n.utrans[std::size_t(d)]; u != 0) c = u == 255 ? 1 : u;
+        if (m.boss == d2d::rules::Boss::superunique && m.super >= 0 && std::size_t(m.super) < scene->superuniques.size())
+            if (const int u = scene->superuniques[std::size_t(m.super)].utrans[std::size_t(d)]; u != 0) c = u;
+        return c >= 30 ? 2 : c;
+    }
     [[nodiscard]] View view() const {
         View v;
         v.level = level;
@@ -189,7 +207,10 @@ struct World {
             // What's near the player (D2 sends the units of the rooms round
             // each player). ponytail: a radius of 28 cells, not rooms.
             for (const auto& m : fight.monsters)
-                if (std::abs(m.u.x - player.x) < 28 && std::abs(m.u.y - player.y) < 28) v.monsters.push_back(m);
+                if (std::abs(m.u.x - player.x) < 28 && std::abs(m.u.y - player.y) < 28) {
+                    v.monsters.push_back(m);
+                    v.monsters.back().npc.colour = monster_colour(m);
+                }
             for (const auto& m : fight.missiles) if (m.info) v.missiles.push_back({ m.info, m.x, m.y, m.dir, m.born });
         }
         if (fight.attack_mon >= 0 && std::size_t(fight.attack_mon) < fight.monsters.size()) v.attack = fight.monsters[std::size_t(fight.attack_mon)].id;

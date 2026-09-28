@@ -271,3 +271,24 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 - The monster's component roll and stat init.
 
 Seed 3's Blood Moor: 155 monsters (107 fallen1, 24 quillrat1, 24 zombie1).
+
+## Colours (FUN_00466360, FUN_00477530)
+
+The client picks a monster's colour index as it makes the unit:
+1. MonStats `TransLvl` + 2 (TransLvl 8 and up: 2);
+2. a unique (monster flag 8; superuniques too), unless MonStats2
+   `noUniqueShift`: `rand(30) + 9` on the unit's seed (`FUN_00477620`);
+3. MonStats2 `Utrans` for the difficulty, when set (0xff: `FUN_004791b0`);
+4. a superunique's own SuperUniques `Utrans` for the difficulty, when set;
+5. 30 and up: 2.
+
+Drawn (`FUN_00477530`, the palette the unit draw passes): 0 and 1 none
+(but for monster types 0x16b / 0x16c); 2..7 the table of the graphic's
+`Data\Global\Monsters\<code>\COF\palshift.dat` (8 x 256: tables 0..2
+plain, 3..6 Carver, Devilkin, ... colours); 8..29 `RandTransforms.dat`
+table - 8 (30 x 256: reds, oranges, greens, teals, blues, purples). A
+second set (+0x800) is used when a setting (+0x11c) is 2; untraced.
+
+d2d: `World::monster_colour` (the roll on the unit id: same odds, not
+game.exe's colour for that monster), `Scene::monster_map`. A state's
+colour shift (states.md) replaces it while it lasts.

@@ -155,6 +155,7 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         if (m.corpse_used || !in_view(m.u.x, m.u.y)) continue;
         out.push_back({ m.u.x, m.u.y, &s.npc_anim(m.npc, m.mode), m.u.dir, m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
         out.back().overlay_class = m.npc.overlay_class;
+        out.back().cmap = s.monster_map(m.npc);
         dress(s, out.back(), m.id, monster_states(s, m, now_ms, v.aura), clk);
     }
 }
