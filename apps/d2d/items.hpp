@@ -4,6 +4,9 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <cstdint>
+#include <vector>
+
 namespace d2d::client {
 
 // Hover text box: lines centred over [x0, x1], bottom on `bottom` (below

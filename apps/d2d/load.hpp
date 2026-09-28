@@ -4,10 +4,15 @@
 #include "common.hpp"
 #include "scene.hpp"
 
-#include <atomic>
-#include <future>
-#include <mutex>
-#include <thread>
+#include <compcode.hpp>
+#include <mpq.hpp>
+
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace d2d::client {
 

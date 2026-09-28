@@ -4,10 +4,12 @@
 // FUN_0067d2d0). docs/research/re/drlg.md "Outdoor levels".
 #pragma once
 
-#include <drlg.hpp>
+#include "drlg.hpp"
+#include "tile_pick.hpp"
+#include "units.hpp"
+
 #include <ds1.hpp>
-#include <tile_pick.hpp>
-#include <units.hpp>
+#include <rules.hpp>
 
 #include <algorithm>
 #include <array>
@@ -15,6 +17,7 @@
 #include <cstdlib>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace d2d::drlg {

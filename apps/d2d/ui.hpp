@@ -4,6 +4,21 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <dc6.hpp>
+#include <palette.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <span>
+#include <string>
+#include <vector>
+
 namespace d2d::client {
 
 // --- Screen state machine + mouse routing ---------------------------------

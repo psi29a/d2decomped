@@ -3,15 +3,25 @@
 // and the tests hand it their MPQ stack).
 #pragma once
 
-#include <drlg.hpp>
-#include <outdoor.hpp>
-#include <room_tiles.hpp>
+#include "drlg.hpp"
+#include "outdoor.hpp"
+#include "room_tiles.hpp"
+#include "tile_pick.hpp"
+
+#include <ds1.hpp>
+#include <rules.hpp>
 #include <txt.hpp>
 
+#include <array>
+#include <cctype>
 #include <charconv>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace d2d::drlg {
 

@@ -5,8 +5,43 @@
 
 #include "game.hpp"
 
+#include <cof.hpp>
+#include <compcode.hpp>
+#include <d2s_items.hpp>
+#include <drlg.hpp>
+#include <ds1.hpp>
+#include <dt1.hpp>
+#include <monsters.hpp>
+#include <montypes.hpp>
+#include <mpq.hpp>
+#include <outdoor.hpp>
+#include <outdoor_data.hpp>
+#include <rules.hpp>
+#include <shrines.hpp>
+#include <skills.hpp>
+#include <tbl.hpp>
+#include <tile_pick.hpp>
+#include <txt.hpp>
+#include <uniques.hpp>
+#include <units.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <future>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::game {
 

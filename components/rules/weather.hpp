@@ -5,10 +5,12 @@
 // lightning a skill sets off (FUN_00472c50) aren't here.
 #pragma once
 
-#include <rules.hpp>
+#include "rules.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 

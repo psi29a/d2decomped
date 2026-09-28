@@ -4,9 +4,11 @@
 #include <tbl.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <string_view>
 
 namespace fs = std::filesystem;
 

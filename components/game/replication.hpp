@@ -8,14 +8,30 @@
 
 #include "ai.hpp"
 #include "gamedata.hpp"
+#include "inventory.hpp"
 #include "log.hpp"
 #include "loot.hpp"
 #include "protocol.hpp"
 #include "world.hpp"
 
+#include <d2s.hpp>
+#include <d2s_items.hpp>
 #include <d2s_write.hpp>
+#include <uniques.hpp>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <span>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace d2d::game {
 

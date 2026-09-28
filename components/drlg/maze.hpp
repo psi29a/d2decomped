@@ -5,13 +5,16 @@
 // rooms (FUN_00673a60 -> FUN_00667ed0). docs/research/re/drlg.md "Maze levels".
 #pragma once
 
-#include <drlg.hpp>
-#include <outdoor.hpp>
+#include "outdoor.hpp"
+
+#include <rules.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace d2d::drlg {

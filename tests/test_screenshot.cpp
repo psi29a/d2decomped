@@ -4,6 +4,7 @@
 // zlib-decode the IDAT stream back to the same pixel bytes.
 #include <screenshot.hpp>
 
+#include <zconf.h>
 #include <zlib.h>
 
 #include <cassert>
@@ -12,8 +13,11 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <iterator>
 #include <random>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace fs = std::filesystem;

@@ -6,12 +6,26 @@
 #include "audio.hpp"
 #include "common.hpp"
 #include "panels.hpp"
+#include "platform.hpp"
 #include "scene.hpp"
 #include "skillbar.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
 
-#include "platform.hpp"
+#include <d2s_items.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+#include <weather.hpp>
+
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

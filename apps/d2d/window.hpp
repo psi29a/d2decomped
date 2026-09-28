@@ -2,9 +2,14 @@
 #pragma once
 
 #include "common.hpp"
+#include "platform.hpp"
 #include "ui.hpp"
 
-#include "platform.hpp"
+#include <log.hpp>
+
+#include <atomic>
+#include <string>
+#include <vector>
 
 namespace d2d::client {
 

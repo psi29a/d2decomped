@@ -5,6 +5,11 @@
 
 #include "gamedata.hpp"
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace d2d::game {
 
 struct Cues {

@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 
 namespace fs = std::filesystem;

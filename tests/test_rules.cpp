@@ -1,8 +1,16 @@
 // Store rules over hand-made tables: prices, buy/sell gold, placement, stock.
+#include <d2s.hpp>
+#include <d2s_items.hpp>
 #include <rules.hpp>
 
+#include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <optional>
+#include <utility>
+#include <vector>
 
 using namespace d2d::rules;
 using d2d::d2s::Item;

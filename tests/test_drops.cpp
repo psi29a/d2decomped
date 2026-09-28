@@ -1,11 +1,15 @@
 // Drops over hand-made tables: auto weapN classes, gold (and its
 // multiplier), NoDrop odds, quality rolls (rings at least magic, potions
 // plain).
+#include <d2s_items.hpp>
 #include <drops.hpp>
+#include <rules.hpp>
 #include <shrines.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace d2d::rules;
 

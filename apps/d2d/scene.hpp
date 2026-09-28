@@ -3,6 +3,27 @@
 
 #include "common.hpp"
 
+#include <cof.hpp>
+#include <compcode.hpp>
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <dc6.hpp>
+#include <dcc.hpp>
+#include <font.hpp>
+#include <log.hpp>
+#include <palette.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
 namespace d2d::client {
 // All the client draws and plays: GameData, plus the pixels, fonts and
 // palettes. The frontend's come from FUN_0042e6d0 (main-menu loader) —

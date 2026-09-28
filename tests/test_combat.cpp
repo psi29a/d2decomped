@@ -3,9 +3,15 @@
 // resistances, crits, crushing blow, leech), experience and levels, the
 // merc's stats.
 #include <combat.hpp>
+#include <d2s_items.hpp>
+#include <monsters.hpp>
+#include <rules.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
+#include <utility>
+#include <vector>
 
 using namespace d2d::rules;
 

@@ -7,6 +7,15 @@
 #include "ui.hpp"
 #include "world_view.hpp"
 
+#include <d2s_items.hpp>
+#include <weather.hpp>
+
+#include <cstdint>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace d2d::client {
 
 // The rain over the world (FUN_00473910 → FUN_00473470): each drop a line

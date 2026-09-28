@@ -1,17 +1,25 @@
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
+#include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <mpq.hpp>
-#include <compcode.hpp>
+#include <txt.hpp>
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iterator>
+#include <span>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {

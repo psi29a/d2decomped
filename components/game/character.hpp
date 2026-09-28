@@ -5,6 +5,20 @@
 
 #include "gamedata.hpp"
 
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <rules.hpp>
+#include <skills.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace d2d::game {
 
 // Is item type `t` (or an Equiv ancestor) `want`?

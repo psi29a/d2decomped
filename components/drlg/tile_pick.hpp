@@ -5,7 +5,6 @@
 
 #include <rules.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>

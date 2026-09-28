@@ -1,11 +1,13 @@
 // The in-game client (town.hpp): Town, the view to units, the frame's
 // light, the HUD overlays.
 #include "town.hpp"
+
 #include "audio.hpp"
 #include "common.hpp"
 #include "cursor.hpp"
 #include "ingame.hpp"
 #include "panels.hpp"
+#include "platform.hpp"
 #include "scene.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
@@ -13,7 +15,27 @@
 #include "ui.hpp"
 #include "world_view.hpp"
 
-#include "platform.hpp"
+#include <d2s_items.hpp>
+#include <light.hpp>
+#include <log.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+#include <uniques.hpp>
+#include <weather.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <span>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace d2d::client {
 

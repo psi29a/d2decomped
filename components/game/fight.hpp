@@ -10,6 +10,25 @@
 #include "gamedata.hpp"
 #include "loot.hpp"
 
+#include <combat.hpp>
+#include <d2s_items.hpp>
+#include <rules.hpp>
+#include <sequences.hpp>
+#include <skills.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 namespace d2d::game {
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):

@@ -19,6 +19,7 @@
 #include "devctl_verbs.hpp"
 #include "frontend.hpp"
 #include "load.hpp"
+#include "platform.hpp"
 #include "scene.hpp"
 #include "town.hpp"
 #include "ui.hpp"
@@ -27,10 +28,38 @@
 #include "window.hpp"
 #include "world_view.hpp"
 
-#include <CLI/CLI.hpp>
-#include "platform.hpp"
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <devctl.hpp>
+#include <log.hpp>
+#include <mpq.hpp>
+#include <screenshot.hpp>
+#include <userdir.hpp>
 
+#include <CLI/CLI.hpp>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <ios>
+#include <iterator>
+#include <optional>
 #include <random>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <thread>
+#include <utility>
+#include <vector>
 
 using namespace d2d::client;
 

@@ -4,6 +4,25 @@
 #include "game.hpp"
 #include "gamedata.hpp"
 
+#include <combat.hpp>
+#include <monsters.hpp>
+#include <rules.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 namespace d2d::game {
 
 // Where each world NPC is right now (index-aligned with Level::npcs):

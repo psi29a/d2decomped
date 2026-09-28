@@ -1,9 +1,11 @@
 // The command codec (apps/d2d/protocol.hpp): every command survives its
 // wire form, and malformed messages are refused.
-#include "protocol.hpp"
+#include <protocol.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace d2d::game;
 

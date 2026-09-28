@@ -9,12 +9,30 @@
 #include "common.hpp"
 #include "frontend.hpp"
 #include "panels.hpp"
+#include "platform.hpp"
 #include "scene.hpp"
 #include "town.hpp"
 #include "ui.hpp"
 #include "window.hpp"
 
-#include "platform.hpp"
+#include <d2s_items.hpp>
+#include <devctl.hpp>
+#include <light.hpp>
+#include <rules.hpp>
+#include <skills.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <format>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <vector>
 
 namespace d2d::client {
 

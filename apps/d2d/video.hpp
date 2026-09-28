@@ -11,6 +11,11 @@
 
 #include <mpq.hpp>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdio>
+#include <utility>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -22,7 +27,6 @@ extern "C" {
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <vector>
 
 namespace d2d::video {

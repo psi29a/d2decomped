@@ -4,6 +4,24 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <cof.hpp>
+#include <dc6.hpp>
+#include <dcc.hpp>
+#include <dt1.hpp>
+#include <light.hpp>
+#include <palette.hpp>
+#include <weather.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace d2d::client {
 
 // Blit one DT1 tile's pre-decoded palette-indexed pixels through `pal`.

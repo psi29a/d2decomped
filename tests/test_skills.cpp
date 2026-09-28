@@ -1,12 +1,16 @@
 // Skills over hand-made rows: the calc compiler on expressions from
 // Skills.txt, ln / dm, the level brackets, elemental damage with a synergy,
 // mana cost, item skill bonuses.
+#include <d2s_items.hpp>
 #include <sequences.hpp>
 #include <skills.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdio>
+#include <string_view>
+#include <vector>
 
 using namespace d2d::rules;
 

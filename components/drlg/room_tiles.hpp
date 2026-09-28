@@ -10,14 +10,20 @@
 // walks them in.
 #pragma once
 
-#include <outdoor.hpp>
-#include <tile_pick.hpp>
-#include <units.hpp>
+#include "outdoor.hpp"
+#include "tile_pick.hpp"
+#include "units.hpp"
 
-#include <map>
+#include <ds1.hpp>
+#include <rules.hpp>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace d2d::drlg {

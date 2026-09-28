@@ -7,10 +7,19 @@
 #pragma once
 
 #include "common.hpp"
+#include "platform.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
-#include "platform.hpp"
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

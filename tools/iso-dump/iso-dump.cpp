@@ -6,11 +6,14 @@
 
 #include <iso9660.hpp>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <string>
+#include <system_error>
 
 int main(int argc, char** argv) {
     if (argc < 3) {

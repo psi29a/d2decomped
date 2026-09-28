@@ -2,8 +2,25 @@
 #pragma once
 
 #include "common.hpp"
-
 #include "platform.hpp"
+
+#include <log.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <future>
+#include <optional>
+#include <span>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

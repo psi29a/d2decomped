@@ -4,8 +4,11 @@
 
 #include "rules.hpp"
 
+#include <d2s_items.hpp>
+
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <string>

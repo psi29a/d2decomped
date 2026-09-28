@@ -1,5 +1,6 @@
 // Definitions for ingame.hpp: the in-game frame and the rain.
 #include "ingame.hpp"
+
 #include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
@@ -7,6 +8,23 @@
 #include "ui.hpp"
 #include "watchdog.hpp"
 #include "world_view.hpp"
+
+#include <d2s_items.hpp>
+#include <rules.hpp>
+#include <weather.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

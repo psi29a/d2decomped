@@ -60,6 +60,7 @@
 // indices; index 0 is transparent.
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>

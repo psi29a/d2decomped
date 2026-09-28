@@ -1,5 +1,6 @@
 // Definitions for world.hpp: the World, the game server and its 25 Hz tick.
 #include "world.hpp"
+
 #include "ai.hpp"
 #include "character.hpp"
 #include "fight.hpp"
@@ -8,6 +9,32 @@
 #include "log.hpp"
 #include "npc_menu.hpp"
 #include "protocol.hpp"
+
+#include <combat.hpp>
+#include <d2s_items.hpp>
+#include <drops.hpp>
+#include <monsters.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+#include <shrines.hpp>
+#include <skills.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <ctime>
+#include <format>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace d2d::game {
 

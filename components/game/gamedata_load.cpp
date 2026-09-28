@@ -1,6 +1,39 @@
 // Definitions for gamedata_load.hpp: GameData from the MPQs.
 #include "gamedata_load.hpp"
+
+#include "gamedata.hpp"
 #include "log.hpp"
+
+#include <compcode.hpp>
+#include <d2s_items.hpp>
+#include <drlg.hpp>
+#include <drops.hpp>
+#include <dt1.hpp>
+#include <mpq.hpp>
+#include <obj_preset.hpp>
+#include <outdoor_data.hpp>
+#include <rules.hpp>
+#include <shrines.hpp>
+#include <skills.hpp>
+#include <txt.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <filesystem>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace d2d::game {
 

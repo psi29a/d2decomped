@@ -62,6 +62,7 @@
 #include <cstring>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace d2d::dt1 {

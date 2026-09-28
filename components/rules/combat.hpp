@@ -6,8 +6,13 @@
 #pragma once
 
 #include "monsters.hpp"
+#include "rules.hpp"
 
+#include <d2s_items.hpp>
+
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <tuple>
 #include <utility>

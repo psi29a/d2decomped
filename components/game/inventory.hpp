@@ -4,6 +4,14 @@
 
 #include "gamedata.hpp"
 
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <cstddef>
+#include <optional>
+#include <utility>
+#include <vector>
+
 namespace d2d::game {
 
 using d2d::rules::Store;

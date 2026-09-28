@@ -3,6 +3,7 @@
 #include <drlg.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 
 using namespace d2d::drlg;

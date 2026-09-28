@@ -96,7 +96,7 @@ and sound.
 **The game and the client.** The game is `components/game`, namespace
 `d2d::game`: a library that `test_game` links alone, so nothing there may
 reach the client. It holds no SDL, sound, pixels or fonts. Its base is
-`game.hpp` (the standard library, the data components, the iso geometry);
+`game.hpp` (the `fs` alias and the iso geometry);
 `gamedata.hpp` (`GameData`, `Level`, `Npc`), `gamedata_load.hpp`
 (`load_game_data`), `character.hpp` (`Character`: what a save holds), `world.hpp` (`World`), `protocol.hpp` (`Command`) and
 `replication.hpp` (the `View` as bytes) are its main headers. A game
@@ -105,7 +105,7 @@ header never includes a client one.
 The client is `apps/d2d`, namespace `d2d::client`. It sees the game
 through `game_api.hpp`: the game's headers plus a `using game::Name;` for
 each game name it uses, so the list is the client's whole view of the
-game. `common.hpp` is its base (game_api, the graphics components, blits),
+game. `common.hpp` is its base (game_api, screen size, blits),
 `platform.hpp` brings SDL and OpenAL to the headers that need them, and
 `scene.hpp` holds `Scene : GameData` (sprites, fonts, palettes).
 
@@ -121,8 +121,9 @@ The game loads its own data: `load_game_data` (gamedata_load.hpp) reads
 the MPQs, strings, tables, Act 1 and the camp; the client's `load_scene`
 takes that GameData and adds sprites, fonts and palettes. `test_game`
 loads GameData and plays a character with no client code.
-ponytail: the standard library and the data components come in through
-the base headers (game.hpp, common.hpp) rather than per file. A level's
+Every file includes the standard and component headers it uses itself
+(clang-tidy's misc-include-cleaner found them); game.hpp and common.hpp
+carry only their own. A level's
 tiles decode their pixels only when the client asks (`load_game_data(...,
 tile_pixels)`, dt1::Pixels): a headless server keeps their headers and
 walk flags.

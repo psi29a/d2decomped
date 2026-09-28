@@ -1,11 +1,14 @@
 // Load font16 (metrics + glyph sheet) and verify glyph lookup + measure.
+#include <dc6.hpp>
 #include <font.hpp>
 #include <mpq.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <utility>
 
 namespace fs = std::filesystem;
 

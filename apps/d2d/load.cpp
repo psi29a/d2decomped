@@ -1,8 +1,42 @@
 // Definitions for load.hpp: the Scene: GameData (gamedata_load.hpp) plus sprites, fonts, palettes, saves.
 #include "load.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
+
+#include <compcode.hpp>
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <dcc.hpp>
+#include <log.hpp>
+#include <mpq.hpp>
+#include <palette.hpp>
+#include <txt.hpp>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <ios>
+#include <iterator>
+#include <optional>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <thread>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

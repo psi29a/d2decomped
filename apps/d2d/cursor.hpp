@@ -4,6 +4,12 @@
 
 #include "scene.hpp"
 
+#include <d2s_items.hpp>
+
+#include <cstdint>
+#include <optional>
+#include <vector>
+
 namespace d2d::client {
 
 // Which panels are open, for hit-testing.

@@ -8,9 +8,9 @@
 #include <cstring>
 #include <deque>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
-#include <span>
 #include <type_traits>
 #include <variant>
 #include <vector>

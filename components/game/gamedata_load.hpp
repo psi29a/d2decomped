@@ -5,6 +5,10 @@
 
 #include "gamedata.hpp"
 
+#include <cstdint>
+#include <filesystem>
+#include <optional>
+
 namespace d2d::game {
 
 // The MPQs in data_dir (the 1.14d patch: patch_d2.mpq, else the

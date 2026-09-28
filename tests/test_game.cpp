@@ -2,13 +2,17 @@
 // (apps/d2d: SDL, sound, sprites, fonts), so a standalone server links
 // just this library. With the game's MPQs (D2_MPQ_DIR, as test_outdoor)
 // it loads GameData and plays a new character for a second.
-#include "character_store.hpp"
-#include "gamedata_load.hpp"
-#include "world.hpp"
+#include <character.hpp>
+#include <character_store.hpp>
+#include <gamedata_load.hpp>
+#include <rules.hpp>
+#include <world.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 
 using namespace d2d::game;
 

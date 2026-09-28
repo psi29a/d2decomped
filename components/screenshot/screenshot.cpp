@@ -1,10 +1,15 @@
 #include "screenshot.hpp"
 
+#include <zconf.h>
 #include <zlib.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <ios>
+#include <span>
 #include <stdexcept>
 #include <vector>
 

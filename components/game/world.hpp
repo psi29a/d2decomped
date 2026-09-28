@@ -17,7 +17,25 @@
 #include "loot.hpp"
 #include "protocol.hpp"
 
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <light.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+#include <sequences.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <ctime>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace d2d::game {
 

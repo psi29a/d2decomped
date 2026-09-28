@@ -3,10 +3,14 @@
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.
 // A trailing `tiles` adds every room's tiles (as drlg.py <seed> <level> tiles).
 #include <maze.hpp>
-#include <outdoor_data.hpp>
 #include <mpq.hpp>
+#include <outdoor.hpp>
+#include <outdoor_data.hpp>
+#include <room_tiles.hpp>
+#include <tile_pick.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -14,6 +18,8 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::drlg;

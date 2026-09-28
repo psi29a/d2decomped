@@ -6,10 +6,12 @@
 #include <txt.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <span>
 
 namespace fs = std::filesystem;
 

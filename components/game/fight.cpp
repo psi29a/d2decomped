@@ -1,9 +1,35 @@
 // Definitions for fight.hpp: Fight, the combat subsystem the World owns.
 #include "fight.hpp"
+
 #include "ai.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
+
+#include <combat.hpp>
+#include <d2s_items.hpp>
+#include <monsters.hpp>
+#include <rules.hpp>
+#include <sequences.hpp>
+#include <skills.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <format>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::game {
 

@@ -1,8 +1,22 @@
 // Definitions for skilltree.hpp: the skill tree panel.
 #include "skilltree.hpp"
+
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
+
+#include <d2s_items.hpp>
+#include <dc6.hpp>
+#include <font.hpp>
+#include <rules.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

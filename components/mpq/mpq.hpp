@@ -12,9 +12,10 @@
 // needs it — StormLib's SFileFindFirstFile/Next is straightforward.
 #pragma once
 
-#include <StormLib.h>
-
 #include "bnpatch.hpp"
+
+#include <StormLib.h>
+#include <StormPort.h>
 
 #include <algorithm>
 #include <cctype>

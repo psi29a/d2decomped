@@ -1,8 +1,18 @@
 // Definitions for cursor.hpp: the item in hand and panel clicks.
 #include "cursor.hpp"
+
 #include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
+
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <vector>
 
 namespace d2d::client {
 

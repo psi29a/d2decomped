@@ -1,7 +1,12 @@
 // Definitions for window.hpp: SDL events.
 #include "window.hpp"
+
 #include "platform.hpp"
 #include "ui.hpp"
+
+#include <atomic>
+#include <string>
+#include <vector>
 
 namespace d2d::client {
 

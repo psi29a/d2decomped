@@ -4,11 +4,13 @@
 #include "game_api.hpp"
 
 #include <dc6.hpp>
-#include <dcc.hpp>
-#include <devctl.hpp>
-#include <font.hpp>
 #include <palette.hpp>
-#include <screenshot.hpp>
+
+#include <csignal>
+#include <cstdint>
+#include <filesystem>
+#include <string_view>
+#include <vector>
 
 // Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.
 // Declared at global scope because std::signal handlers must have C

@@ -1,6 +1,8 @@
 // The rain's cycle and drops against game.exe's numbers.
+#include <rules.hpp>
 #include <weather.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 

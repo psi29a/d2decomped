@@ -5,6 +5,7 @@
 
 #include <iso9660.hpp>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>

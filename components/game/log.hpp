@@ -9,7 +9,9 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <mutex>
+#include <ostream>
 #include <string>
 
 namespace d2d::log {

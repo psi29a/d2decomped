@@ -6,8 +6,10 @@
 #include <rules.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace d2d::drlg {

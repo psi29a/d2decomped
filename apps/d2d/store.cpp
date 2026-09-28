@@ -1,10 +1,21 @@
 // Definitions for store.hpp: the store panel.
 #include "store.hpp"
+
 #include "common.hpp"
 #include "items.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
+
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace d2d::client {
 

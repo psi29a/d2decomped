@@ -8,14 +8,19 @@
 #include "combat.hpp"
 #include "rules.hpp"
 
+#include <d2s_items.hpp>
+
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace d2d::rules {

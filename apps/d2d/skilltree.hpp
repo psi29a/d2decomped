@@ -3,6 +3,14 @@
 
 #include "scene.hpp"
 
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <array>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 namespace d2d::client {
 
 // The right panel's right edge and bottom at 800x600 (game.exe works from

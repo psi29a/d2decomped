@@ -8,7 +8,6 @@
 // Dumped verbatim (NPCs with topics only) — see docs/research/re/npc-talk.md.
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <vector>
 

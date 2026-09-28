@@ -1,6 +1,20 @@
 // Definitions for common.hpp: the data dir, sprite blits, the test pattern.
 #include "common.hpp"
 
+#include <dc6.hpp>
+#include <palette.hpp>
+
+#include <_stdio.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <string_view>
+#include <vector>
+
 namespace d2d::client {
 
 fs::path default_data_dir(std::string_view cfg_data) {

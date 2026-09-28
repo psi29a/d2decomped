@@ -4,6 +4,21 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <dc6.hpp>
+#include <quests.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 namespace d2d::client {
 
 // The inventory panel (inventory.txt "<Class>2" layout, invchar6.dc6):

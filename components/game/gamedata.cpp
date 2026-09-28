@@ -2,9 +2,42 @@
 // their populations, the COF timings the World reads. A translation unit
 // of its own; load.hpp fills GameData at start.
 #include "gamedata.hpp"
+
 #include "log.hpp"
 
+#include <compcode.hpp>
+#include <dt1.hpp>
+#include <maze.hpp>
+#include <monsters.hpp>
+#include <mpq.hpp>
+#include <outdoor.hpp>
+#include <outdoor_data.hpp>
+#include <room_tiles.hpp>
+#include <rules.hpp>
+#include <shrines.hpp>
+#include <tile_pick.hpp>
+#include <txt.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <format>
+#include <future>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::game {
 

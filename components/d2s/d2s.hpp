@@ -37,10 +37,12 @@
 // 0x2FD; parse them when gameplay needs more than what char-select shows.
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <_string.h>
+
 #include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <span>
 #include <stdexcept>

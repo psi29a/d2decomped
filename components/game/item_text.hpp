@@ -6,6 +6,23 @@
 #include "character.hpp"
 #include "gamedata.hpp"
 
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
+
 namespace d2d::game {
 
 // An item's hover text, top line first, in D2's quality colours. Name IDs

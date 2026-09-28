@@ -4,6 +4,13 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <d2s_items.hpp>
+#include <rules.hpp>
+
+#include <array>
+#include <cstdint>
+#include <vector>
+
 namespace d2d::client {
 
 // The hire list (FUN_004b5c60): a 490x350 NPC text window, header

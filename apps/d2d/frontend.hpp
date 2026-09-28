@@ -4,6 +4,14 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <d2s.hpp>
+
+#include <array>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <vector>
+
 namespace d2d::client {
 
 void render_title(std::vector<std::uint8_t>& framebuffer,

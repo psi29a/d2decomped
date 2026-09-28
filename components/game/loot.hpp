@@ -10,6 +10,21 @@
 #include "item_text.hpp"
 #include "log.hpp"
 
+#include <d2s_items.hpp>
+#include <drops.hpp>
+#include <rules.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 namespace d2d::game {
 
 struct Loot {

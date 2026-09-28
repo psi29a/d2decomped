@@ -1,8 +1,26 @@
 // Definitions for world_view.hpp: drawing the world: tiles, walls, units, lights.
 #include "world_view.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
 #include "watchdog.hpp"
+
+#include <cof.hpp>
+#include <dc6.hpp>
+#include <dt1.hpp>
+#include <palette.hpp>
+#include <weather.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <span>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

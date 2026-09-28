@@ -1,6 +1,27 @@
 // Definitions for ai.hpp: monsters, NPCs and the merc: spawning, paths, the AI step.
 #include "ai.hpp"
+
 #include "gamedata.hpp"
+
+#include <combat.hpp>
+#include <monsters.hpp>
+#include <rules.hpp>
+#include <uniques.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <format>
+#include <initializer_list>
+#include <span>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 namespace d2d::game {
 

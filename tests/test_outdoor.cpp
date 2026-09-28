@@ -1,15 +1,22 @@
 // The Blood Moor from real game data over many map seeds: a closed
 // border, one Den of Evil, roads, grass everywhere else, and the same
 // level from the same seed. Prints one level's cells.
+#include <drlg.hpp>
 #include <maze.hpp>
-#include <outdoor_data.hpp>
 #include <mpq.hpp>
+#include <outdoor.hpp>
+#include <outdoor_data.hpp>
+#include <room_tiles.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::drlg;

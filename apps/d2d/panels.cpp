@@ -1,9 +1,27 @@
 // Definitions for panels.hpp: inventory, character, HUD, automap, waypoint panels.
 #include "panels.hpp"
+
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
+
+#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <font.hpp>
+#include <quests.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

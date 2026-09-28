@@ -2,7 +2,11 @@
 
 #include <cstdio>
 #include <exception>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace d2d::devctl {
 

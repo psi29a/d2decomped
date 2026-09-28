@@ -2,7 +2,6 @@
 // read them (split from monsters.hpp so uniques.hpp can use them too).
 #pragma once
 
-#include "rules.hpp"
 
 #include <algorithm>
 #include <array>

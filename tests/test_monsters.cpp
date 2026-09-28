@@ -2,9 +2,15 @@
 // every listed type once, rooms fill by density, Fallen come as a leader
 // with a party, nothing lands on a blocked subtile or by the entrance.
 #include <monsters.hpp>
+#include <montypes.hpp>
+#include <rules.hpp>
+#include <uniques.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
+#include <utility>
+#include <vector>
 
 using namespace d2d::rules;
 

@@ -1,9 +1,20 @@
 // Definitions for frontend.hpp: title, character select, cinematics screens.
 #include "frontend.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
+
+#include <d2s.hpp>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

@@ -1,7 +1,13 @@
 // Definitions for items.hpp: the hover text of items.
 #include "items.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace d2d::client {
 

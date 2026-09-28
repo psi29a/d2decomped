@@ -2,10 +2,15 @@
 #include <mpq.hpp>
 #include <palette.hpp>
 
+#include <array>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <stdexcept>
+#include <vector>
 
 namespace fs = std::filesystem;
 

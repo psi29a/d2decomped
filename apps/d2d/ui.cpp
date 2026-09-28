@@ -1,7 +1,24 @@
 // Definitions for ui.hpp: buttons, NPC menus and speech.
 #include "ui.hpp"
+
 #include "common.hpp"
 #include "scene.hpp"
+
+#include <dc6.hpp>
+#include <palette.hpp>
+#include <quests.hpp>
+#include <rules.hpp>
+
+#include <algorithm>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace d2d::client {
 

@@ -1,7 +1,22 @@
 // Definitions for scene.hpp: the Scene's sprites loaded on first use.
 #include "scene.hpp"
+
 #include "common.hpp"
 #include "load.hpp"
+
+#include <d2s_items.hpp>
+#include <dc6.hpp>
+#include <dcc.hpp>
+#include <log.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <string_view>
+#include <tuple>
+#include <vector>
 
 namespace d2d::client {
 

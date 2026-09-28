@@ -8,11 +8,24 @@
 
 #include "gamedata.hpp"
 
+#include <d2s.hpp>
+#include <d2s_items.hpp>
 #include <d2s_write.hpp>
+#include <rules.hpp>
 
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <iterator>
+#include <span>
 #include <string>
+#include <system_error>
+#include <utility>
 #include <vector>
 
 namespace d2d::game {
