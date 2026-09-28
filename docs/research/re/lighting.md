@@ -154,6 +154,8 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; two static ones type 2
   (0x4bc5bc, 0x4d6f85: cached shadows, `FUN_004750f0`).
 
-ponytail, not yet: type 2's cached shadows, the light radius
-items give, lights easing to a new radius, Act 3 / 4 days, the Den's
+- The player's radius is 13 + item_lightradius (stat 89) summed over what's
+  worn, charms and sockets (the View's `light_bonus`), capped at 18.
+
+ponytail, not yet: type 2's cached shadows, lights easing to a new radius, Act 3 / 4 days, the Den's
 lighting once it's cleared.

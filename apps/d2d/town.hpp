@@ -107,9 +107,8 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // The frame's light (FUN_00475800): the grid round the player at the
 // level's own light or the day's, then each light stamped. Positions in
 // eighths of a subtile (a cell is 40).
-// ponytail: the player's light is 13 subtiles (FUN_00460930) without the
-// light radius items give; lights don't ease to a new radius; light quality
-// is taken as high (2: shadows on).
+// ponytail: lights don't ease to a new radius (8 eighths a frame); light
+// quality is taken as high (2: shadows on).
 Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1) {
     Lighting l;
     if (!v.level || s.act1_lit[31].entries().empty()) return l;
@@ -131,7 +130,7 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
         if (shadowed) l.grid.stamp_shadowed(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
         else l.grid.stamp(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
     };
-    stamp(cam_x, cam_y, 13, true);
+    stamp(cam_x, cam_y, std::max(0, 13 + v.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
     static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
     auto lit = [&](const Npc& n, std::string_view mode) {
         const auto m = std::ranges::find(kModes, mode.empty() ? std::string_view(n.mode) : mode);

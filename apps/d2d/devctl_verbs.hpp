@@ -200,7 +200,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
                 for (int x = 0; x < l.grid.n; ++x) out += "0123456789abcdefghijklmnopqrstuv"[l.grid.v[std::size_t(y * l.grid.n + x)] >> 3];
                 out += '\n';
             }
-            return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + "\n";
+            return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + " bonus=" + std::to_string(t.view.light_bonus) + "\n";
         }
         if (args.size() >= 2 && args[1] == "rain") {       // the weather: `debug rain [state]` (0 clear .. 3 falling) starts that state next tick
             auto& r = t.rain;

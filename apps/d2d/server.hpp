@@ -60,6 +60,7 @@ struct View {
     int aura = 0;                          // the aura that's on
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
+    int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -177,6 +178,11 @@ struct World {
         v.aura = fight.aura;
         v.day = day;
         v.den_cleared = den.state >= 4;
+        {
+            d2d::rules::StatSum sum{};
+            (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
+            v.light_bonus = sum.size() > 89 ? int(sum[89]) : 0;
+        }
         v.has_character = true;
         v.header = cc.header; v.stats = cc.stats; v.items = cc.items; v.held = held;
         if (store.npc >= 0) v.store = store;
