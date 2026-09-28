@@ -7,9 +7,15 @@
 // store still edit it client-side; the rng is shared too.
 #pragma once
 
-#include "protocol.hpp"
-#include "fight.hpp"
+#include "ai.hpp"
+#include "character.hpp"
 #include "character_store.hpp"
+#include "cues.hpp"
+#include "fight.hpp"
+#include "gamedata.hpp"
+#include "inventory.hpp"
+#include "loot.hpp"
+#include "protocol.hpp"
 
 #include <ctime>
 

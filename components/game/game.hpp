@@ -27,10 +27,6 @@
 #include <userdir.hpp>
 #include <obj_preset.hpp>
 
-#include "log.hpp"
-#include "npc_menu.hpp"
-#include "npc_talk.hpp"
-
 #include <algorithm>
 #include <array>
 #include <atomic>

@@ -1,7 +1,9 @@
 // Sound output (OpenAL): voice, music, ambience and UI channels.
 #pragma once
 
-#include "frontend.hpp"
+#include "common.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
 

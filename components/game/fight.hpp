@@ -4,6 +4,10 @@
 // potions and regeneration, monster sounds.
 #pragma once
 
+#include "ai.hpp"
+#include "character.hpp"
+#include "cues.hpp"
+#include "gamedata.hpp"
 #include "loot.hpp"
 
 namespace d2d::game {

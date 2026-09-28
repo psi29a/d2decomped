@@ -13,15 +13,28 @@
 //   --scale <n>       window = 800x600 * n, SDL zooms (also `scale` in d2d.cfg)
 //   --seed <n>        map seed: act 1's layout and the Blood Moor
 
+#include "audio.hpp"
+#include "common.hpp"
+#include "cursor.hpp"
 #include "devctl_verbs.hpp"
+#include "frontend.hpp"
+#include "load.hpp"
+#include "scene.hpp"
+#include "town.hpp"
+#include "ui.hpp"
+#include "video.hpp"
+#include "watchdog.hpp"
+#include "window.hpp"
+#include "world_view.hpp"
+
+#include <CLI/CLI.hpp>
+#include "platform.hpp"
 
 #include <random>
 
 using namespace d2d::client;
 
-
 namespace {
-
 
 // Set by main() before entering the loop — a lazy way to plumb --start-*
 // through without threading extra parameters everywhere.

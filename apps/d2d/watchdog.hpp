@@ -1,7 +1,8 @@
 // Main-loop phase tracking for the hang watchdog.
 #pragma once
 
-#include "load.hpp"
+#include <atomic>
+#include <cstdint>
 
 namespace d2d::client {
 

@@ -3,7 +3,22 @@
 // A new name the client needs goes on this list.
 #pragma once
 
+#include "ai.hpp"
+#include "character.hpp"
+#include "character_store.hpp"
+#include "cues.hpp"
+#include "fight.hpp"
+#include "game.hpp"
+#include "gamedata.hpp"
+#include "inventory.hpp"
+#include "item_text.hpp"
+#include "log.hpp"
+#include "loot.hpp"
+#include "npc_menu.hpp"
+#include "npc_talk.hpp"
+#include "protocol.hpp"
 #include "replication.hpp"
+#include "world.hpp"
 
 namespace d2d::client {
 

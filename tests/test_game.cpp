@@ -1,7 +1,7 @@
 // The game links on its own: components/game needs nothing from the
 // client (apps/d2d: SDL, sound, sprites, fonts). A standalone server would
 // link just this library.
-#include "server.hpp"
+#include "world.hpp"
 
 #include <cstdio>
 

@@ -50,6 +50,7 @@ endif()
 
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(HeaderCheck)
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)

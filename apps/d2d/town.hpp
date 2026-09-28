@@ -3,8 +3,15 @@
 // movement, NPCs, then the render.
 #pragma once
 
-#include "window.hpp"
+#include "audio.hpp"
+#include "common.hpp"
+#include "panels.hpp"
+#include "scene.hpp"
 #include "skillbar.hpp"
+#include "ui.hpp"
+#include "world_view.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
 
@@ -13,7 +20,6 @@ namespace d2d::client {
 // ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
 // font and per-type colours) isn't traced; this is its look by eye.
 void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m);
-
 
 // The client's drawing of what the World told it (View): the ground
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
@@ -86,7 +92,7 @@ void view_overlays(std::vector<std::uint8_t>& fb, const Scene& s, const View& v,
 std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, std::uint32_t ms);
 
 // The client (docs/design/multiplayer.md): input, panels, camera,
-// drawing and sound, over a World (server.hpp) it sends commands to. The
+// drawing and sound, over a World (world.hpp) it sends commands to. The
 // references below are the World's, for the code that reads them.
 // The frame's light (FUN_00475800): the grid round the player at the
 // level's own light or the day's, then each light stamped. Positions in

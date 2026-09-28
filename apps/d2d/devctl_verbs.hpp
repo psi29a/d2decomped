@@ -5,7 +5,16 @@
 // main.cpp.
 #pragma once
 
+#include "audio.hpp"
+#include "common.hpp"
+#include "frontend.hpp"
+#include "panels.hpp"
+#include "scene.hpp"
 #include "town.hpp"
+#include "ui.hpp"
+#include "window.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
 

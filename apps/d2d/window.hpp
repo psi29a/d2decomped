@@ -1,10 +1,12 @@
 // SDL window/renderer and SDL event -> Mouse/text translation.
 #pragma once
 
-#include "audio.hpp"
+#include "common.hpp"
+#include "ui.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
-
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.

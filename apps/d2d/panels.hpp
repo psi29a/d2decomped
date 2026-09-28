@@ -1,7 +1,8 @@
 // In-game panels: inventory, character, HUD, stash/cube, belt, automap, waypoints.
 #pragma once
 
-#include "items.hpp"
+#include "common.hpp"
+#include "scene.hpp"
 
 namespace d2d::client {
 
@@ -75,7 +76,6 @@ std::array<int, 4> grid_rect(const Scene& s, const Scene::InvLayout& L, const d2
 void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& L, int panel,
                   int mx, int my, int clvl);
-
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the

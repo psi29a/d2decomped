@@ -76,54 +76,53 @@ cmake/          shared CMake modules
 
 ## Where code goes
 
-Game rules stay testable and free of assets and screens; the app wires
-them to input, units and drawing.
+Rules stay testable and free of assets and screens; the game applies
+them to levels and units; the client wires the game to input, drawing
+and sound.
 
-| Area | Rules (`components/rules`, tested) | App (`apps/d2d`) |
-|---|---|---|
-| Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
-| Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `load.hpp` (`load_monsters`), `ai.hpp` (units, AI, missiles) |
-| Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) |
-| Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) |
-| Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | `skillbar.hpp` (HUD buttons, picker, hotkeys); skill use in `fight.hpp` |
-| Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `load.hpp` (`load_wilderness`) |
-| The game server: levels, units, commands, the 25 Hz tick | — | `server.hpp` (`World`), `protocol.hpp` (`Command`) |
-| The client: input, panels, camera, drawing | — | `town.hpp` (`Town`) |
-| Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
-| World sounds | — | `cues.hpp` (`Cues`, queued by the World), `audio.hpp` (`play_cues`) |
+| Area | Rules (`components/rules`, tested) | Game (`components/game`) | Client (`apps/d2d`) |
+|---|---|---|---|
+| Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `inventory.hpp`, `item_text.hpp` | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
+| Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `ai.hpp` (units, AI, missiles) | `load.hpp` (`load_monsters`) |
+| Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) | |
+| Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) | |
+| Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | skill use in `fight.hpp` | `skillbar.hpp` (HUD buttons, picker, hotkeys) |
+| Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `gamedata.hpp` (`build_level`, `build_outdoor`) | |
+| The game server: levels, units, commands, the 25 Hz tick | | `world.hpp` (`World`), `protocol.hpp` (`Command`), `replication.hpp` (`View`) | |
+| The client: input, panels, camera, drawing | | | `town.hpp` (`Town`), `world_view.hpp` (drawing the level and units) |
+| Scripted-test verbs | | | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
+| World sounds | | `cues.hpp` (`Cues`, queued by the World) | `audio.hpp` (`play_cues`) |
 
 **The game and the client.** The game is `components/game`, namespace
-`d2d::game` (a library; `test_game` links it alone, so nothing there may reach the
-client). Its headers see only
-`game.hpp` (data components, logging, std), `gamedata.hpp` (`GameData`,
-`Level`, `Npc`, the rules' shared helpers), `character.hpp`
-(`Character`: what a save holds), `item_text.hpp`, `inventory.hpp` and
-`cues.hpp`: no SDL, sound, pixels or fonts. The client adds `common.hpp`
-(SDL, OpenAL, blits), `scene.hpp` (`Scene : GameData`: sprites, fonts,
-palettes) and the screens. A game header must not include a client one.
-The client (`apps/d2d`, namespace `d2d::client`) sees the game through
-`game_api.hpp`: the game's headers plus a `using game::Name;` for each
-name it uses.
+`d2d::game`: a library that `test_game` links alone, so nothing there may
+reach the client. It holds no SDL, sound, pixels or fonts. Its base is
+`game.hpp` (the standard library, the data components, the iso geometry);
+`gamedata.hpp` (`GameData`, `Level`, `Npc`), `character.hpp` (`Character`:
+what a save holds), `world.hpp` (`World`), `protocol.hpp` (`Command`) and
+`replication.hpp` (the `View` as bytes) are its main headers. A game
+header never includes a client one.
 
-**Translation units.** Headers declare; bodies live in:
+The client is `apps/d2d`, namespace `d2d::client`. It sees the game
+through `game_api.hpp`: the game's headers plus a `using game::Name;` for
+each game name it uses, so the list is the client's whole view of the
+game. `common.hpp` is its base (game_api, the graphics components, blits),
+`platform.hpp` brings SDL and OpenAL to the headers that need them, and
+`scene.hpp` holds `Scene : GameData` (sprites, fonts, palettes).
 
-| .cpp | What |
-|---|---|
-| `components/game/gamedata.cpp` | levels built on demand, spawns, COF timings |
-| `components/game/world.cpp` | the AI, `Fight`, `World` |
-| `load.cpp` | loading the Scene at start |
-| `render.cpp` | drawing and the screens (common, ui, world, items, panels, skilltree, store, cursor, ingame, frontend, window) |
-| `town.cpp` | the in-game client (`Town`) |
-| `main.cpp` | `main`, the devctl channel |
+**Files.** A header declares; its bodies live in the `.cpp` of the same
+name (`fight.hpp` / `fight.cpp`). A file includes the headers whose names
+it uses, not whatever happens to bring them in: every header compiles on
+its own (`d2d_check_headers`, cmake/HeaderCheck.cmake, built with the rest;
+`-DD2D_CHECK_HEADERS=OFF` skips it). A class's methods are defined out of
+line as `auto Class::name(params) -> Ret { ... }` (the trailing return type
+resolves the class's own types); short accessors may stay in the class. A
+global in a header is `inline`.
+ponytail: the standard library and the data components come in through
+the base headers (game.hpp, common.hpp) rather than per file. The World
+still carries DT1 pixels in its levels (Level::dt1s); GameData is filled
+by the client's load.cpp (load_scene), not by the World.
 
-A class's methods are defined out of line as `auto Class::name(params) ->
-Ret { ... }` (the trailing return type resolves the class's own types).
-A global in a header is `inline`.
-ponytail: the World still carries DT1 pixels in its levels (Level::dt1s);
-GameData is filled by the
-client's load.cpp (load_scene), not by the World.
-
-`World` (server.hpp) owns the game's state (level, player, merc, NPCs,
+`World` (world.hpp) owns the game's state (level, player, merc, NPCs,
 rng) and hands references to its subsystems (`Fight`, `Loot`); the client
 (`Town`) only sends it commands (protocol.hpp) and reacts to its events
 (docs/design/multiplayer.md). A new game system goes into the World or a
@@ -200,7 +199,7 @@ Noted in a playthrough (2026-09-27), to follow up:
   and NPCs draw across the edge now (NPCs at their start), and the
   camera's slide carries across (it snapped).
 - Fixed: **Charged Bolt's black box** — Missiles.txt Trans 1 / 2 are draw
-  modes 3 / 4, the PL2 additive / multiply tables (world.hpp
+  modes 3 / 4, the PL2 additive / multiply tables (world_view.hpp
   blit_dcc_frame; in RGB, not the tables).
 
 ## Wilderness plan (from 2026-09-25)
@@ -395,7 +394,7 @@ below, so new features land on the new structure:
 1. Research: done, `docs/research/re/network.md` (C → S sizes
    0x730dc0 and handlers 0x6e0d18; S → C table 0x7114d0; game frames
    at 1000 / fps in FUN_0052fc20 → FUN_0052d870, flush every 40 ms).
-2. The split: done (2026-09-27). `World` (server.hpp) owns the game and
+2. The split: done (2026-09-27). `World` (world.hpp) owns the game and
    steps at 25 Hz; `Town` is its client: input → `Command` (protocol.hpp:
    Move, UseSkill, Interact, Pickup, Resurrect), `Event`s back (level
    changed, open UI); monsters have unit ids; the camera slides between

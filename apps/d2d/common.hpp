@@ -3,85 +3,12 @@
 
 #include "game_api.hpp"
 
-
-#include <mpq.hpp>
-#include <cof.hpp>
-#include <compcode.hpp>
 #include <dc6.hpp>
 #include <dcc.hpp>
 #include <devctl.hpp>
-#include <d2s.hpp>
-#include <d2s_items.hpp>
-#include <ds1.hpp>
-#include <maze.hpp>
-#include <outdoor_data.hpp>
-#include <dt1.hpp>
 #include <font.hpp>
 #include <palette.hpp>
 #include <screenshot.hpp>
-#include <tbl.hpp>
-#include <txt.hpp>
-#include <rules.hpp>
-#include <monsters.hpp>
-#include <combat.hpp>
-#include <drops.hpp>
-#include <shrines.hpp>
-#include <quests.hpp>
-#include <light.hpp>
-#include <weather.hpp>
-#include <skills.hpp>
-#include <sequences.hpp>
-#include <userdir.hpp>
-
-
-#include "speech_sound.hpp"
-#include "video.hpp"
-#include <obj_preset.hpp>
-
-#include <SDL3/SDL.h>
-
-#if __has_include(<AL/al.h>)
-#  include <AL/al.h>
-#  include <AL/alc.h>
-#else
-#  include <OpenAL/al.h>
-#  include <OpenAL/alc.h>
-#endif
-#include <CLI/CLI.hpp>
-#include <csignal>
-#include <unordered_map>
-#include <format>
-#include <unordered_set>
-#include <variant>
-
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <filesystem>
-#include <map>
-#include <fstream>
-#include <functional>
-#include <future>
-#include <optional>
-#include <span>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <tuple>
-#include <vector>
-
-// windef.h (through SDL / OpenAL on Windows) defines near and far as
-// empty macros; they'd eat any name spelled so (MSVC C2513).
-#ifdef _WIN32
-#undef near
-#undef far
-#endif
-
 
 // Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.
 // Declared at global scope because std::signal handlers must have C
@@ -90,13 +17,11 @@ extern volatile std::sig_atomic_t g_sigint_quit;
 
 namespace d2d::client {
 
-
 // D2 LoD 800×600 mode dimensions — matches TitleScreen.DC6, which ships
 // pre-sliced into a 4×3 grid of sub-frames adding up to exactly 800×600
 // (columns 256/256/256/32, rows 256/256/88).
 constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
-
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;

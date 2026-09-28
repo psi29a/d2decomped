@@ -1,10 +1,10 @@
 // Vendor store: stock, buy/sell, panel and gold readouts.
 #pragma once
 
-#include "skilltree.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
 
 namespace d2d::client {
-
 
 // The hire list (FUN_004b5c60): a 490x350 NPC text window, header
 // "Your Gold: %d     Hire which Mercenary?" (0xd24, carried + stash gold)

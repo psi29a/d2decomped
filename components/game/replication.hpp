@@ -6,7 +6,12 @@
 // ponytail: whole views every tick (no deltas); a unit's look as strings.
 #pragma once
 
-#include "server.hpp"
+#include "ai.hpp"
+#include "gamedata.hpp"
+#include "log.hpp"
+#include "loot.hpp"
+#include "protocol.hpp"
+#include "world.hpp"
 
 #include <d2s_write.hpp>
 

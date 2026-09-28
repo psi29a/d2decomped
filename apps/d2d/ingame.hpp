@@ -1,7 +1,11 @@
 // render_ingame: world + every in-game panel composed per frame.
 #pragma once
 
-#include "cursor.hpp"
+#include "common.hpp"
+#include "panels.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
+#include "world_view.hpp"
 
 namespace d2d::client {
 

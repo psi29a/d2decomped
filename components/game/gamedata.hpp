@@ -10,7 +10,6 @@
 
 namespace d2d::game {
 
-
 // Things the DS1 places (its object list): NPCs (type 1, from
 // data\global\monsters) and objects (type 2 — torches, fires, the
 // waypoint..., from data\global\objects). Both are composites.
@@ -142,7 +141,7 @@ struct Level {
 };
 
 // What the game's rules read: the tables, the levels, animation timings,
-// string tables, the MPQs. The World (server.hpp) sees only this, so a
+// string tables, the MPQs. The World (world.hpp) sees only this, so a
 // standalone server loads no graphics beyond the levels' tiles.
 // ponytail: a Level still carries its DT1s' pixels next to its walk grid.
 struct GameData {
@@ -413,7 +412,6 @@ inline std::string u16_to_latin1(std::u16string_view s) {
     return out;
 }
 
-
 // TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
 // matching how the game resolves any string ID/key at runtime.
 inline std::optional<std::u16string_view>
@@ -436,7 +434,6 @@ lookup_string(const GameData& s, std::uint16_t id) {
     if (auto v = t.get(local); v && !v->empty()) return v;
     return std::nullopt;
 }
-
 
 inline std::string string_id(const GameData& s, std::uint16_t id) {
     const auto v = lookup_string(s, id);

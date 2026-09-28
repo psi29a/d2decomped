@@ -2,6 +2,7 @@
 // their populations, the COF timings the World reads. A translation unit
 // of its own; load.hpp fills GameData at start.
 #include "gamedata.hpp"
+#include "log.hpp"
 
 #include <mutex>
 
@@ -289,7 +290,6 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const 
     return spawns;
 }
 
-
 // Footprints into the walk grid, centred on each unit's subtile.
 // (Quest-gated units like Cain stay out of it: they're not always there.)
 // ponytail: static — fine while NPCs only idle; moving units need a
@@ -358,7 +358,6 @@ void add_object(const GameData& scene, const d2d::txt::Table& objects, const std
     n.y = (float(sy) + 0.5f) / 5;
     into.npcs.push_back(std::move(n));
 }
-
 
 // A level's tile lookup and collision grid, once its ds1 and dt1s are in.
 void finish_level(Level& L) {
@@ -520,7 +519,6 @@ bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoor
                    lv.rooms.size(), lv.dt1s.size(), placed, lv.warps.size());
     return true;
 }
-
 
 // Level `id` built from the map seed: its tiles and walk grid, warps, the
 // objects and NPCs its DS1s place, its sound, automap layer and monster

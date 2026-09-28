@@ -4,7 +4,11 @@
 #pragma once
 
 #include "ai.hpp"
-#include "inventory.hpp"
+#include "character.hpp"
+#include "cues.hpp"
+#include "gamedata.hpp"
+#include "item_text.hpp"
+#include "log.hpp"
 
 namespace d2d::game {
 

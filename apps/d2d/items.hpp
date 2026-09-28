@@ -1,7 +1,8 @@
 // Item hover text drawn (the lines: item_text.hpp).
 #pragma once
 
-#include "world.hpp"
+#include "common.hpp"
+#include "scene.hpp"
 
 namespace d2d::client {
 

@@ -6,6 +6,8 @@
 // d2d writes over a save it didn't make, the original is kept as .d2s.bak.
 #pragma once
 
+#include "gamedata.hpp"
+
 #include <d2s_write.hpp>
 
 #include <filesystem>

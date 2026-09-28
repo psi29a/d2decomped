@@ -4,6 +4,7 @@
 #pragma once
 
 #include "character.hpp"
+#include "gamedata.hpp"
 
 namespace d2d::game {
 

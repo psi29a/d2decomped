@@ -2,7 +2,7 @@
 // sees, the belt in use, a held item put away, a vendor's store.
 #pragma once
 
-#include "item_text.hpp"
+#include "gamedata.hpp"
 
 namespace d2d::game {
 

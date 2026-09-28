@@ -6,7 +6,11 @@
 // item bonuses (components/rules/skills.hpp).
 #pragma once
 
-#include "window.hpp"
+#include "common.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
 

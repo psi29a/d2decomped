@@ -1,10 +1,10 @@
 // Menu screens: title, credits, char-select, char-create, cinematics.
 #pragma once
 
-#include "ingame.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
 
 namespace d2d::client {
-
 
 void render_title(std::vector<std::uint8_t>& fb,
                   const Scene& s,

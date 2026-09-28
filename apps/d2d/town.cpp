@@ -1,10 +1,22 @@
 // The in-game client (town.hpp): Town, the view to units, the frame's
 // light, the HUD overlays.
 #include "town.hpp"
+#include "audio.hpp"
+#include "common.hpp"
+#include "cursor.hpp"
+#include "ingame.hpp"
+#include "panels.hpp"
+#include "scene.hpp"
+#include "skilltree.hpp"
+#include "speech_sound.hpp"
+#include "store.hpp"
+#include "ui.hpp"
+#include "world_view.hpp"
+
+#include "platform.hpp"
 
 namespace d2d::client {
 
-// town.hpp
 void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m) {
     const auto& name = m.npc.name;
     if (name.empty() || !m.alive()) return;
@@ -210,7 +222,6 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
     std::erase_if(eases, [&](const auto& e) { return now - e.second.seen > 2000; });
     return l;
 }
-
 
 // Town
 auto Town::publish() -> void {

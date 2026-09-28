@@ -1,7 +1,7 @@
 // The skill tree panel ('T'): docs/research/re/skill-tree.md.
 #pragma once
 
-#include "panels.hpp"
+#include "scene.hpp"
 
 namespace d2d::client {
 

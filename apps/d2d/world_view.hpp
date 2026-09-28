@@ -1,10 +1,10 @@
 // World rendering: DT1 tiles, depth-sorted units, DCC composites.
 #pragma once
 
-#include "watchdog.hpp"
+#include "common.hpp"
+#include "scene.hpp"
 
 namespace d2d::client {
-
 
 // Blit one DT1 tile's pre-decoded palette-indexed pixels through `pal`.
 // The tile's pixel buffer is (tile.width x abs(tile.height)); index 0 is
@@ -210,5 +210,10 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
+
+// Draws a composite frame, feet at the anchor.
+void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+                    const d2d::palette::Palette& pal, int dir_want,
+                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 
 }  // namespace d2d::client

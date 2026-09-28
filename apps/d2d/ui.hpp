@@ -1,6 +1,7 @@
 // Frontend widgets: screen enum, buttons, mouse, NPC menus + speech, char-create state.
 #pragma once
 
+#include "common.hpp"
 #include "scene.hpp"
 
 namespace d2d::client {
@@ -47,7 +48,6 @@ constexpr const char* kClassKey[7] = {
     "Barbarian", "Necromancer", "Paladin", "Amazon",
     "Sorceress", "Druid",       "Assassin",
 };
-
 
 // D2's frontend records store (x, y, w, h) with y = the BOTTOM row
 // (bottom-left anchor, like its DC6 blits): the full-screen BG record is
@@ -148,7 +148,6 @@ struct NpcMenuState {
         return -1;
     }
 };
-
 
 void layout_npc_menu(const Scene& s, NpcMenuState& m, int screen_x, int screen_y);
 
