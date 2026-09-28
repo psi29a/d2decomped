@@ -1029,12 +1029,12 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
                            col("MagicPrefix", "transformcolor", true), col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true),
                            d2d::compcode::gem_colours(types, misc, txt("gems")), col("UniqueItems", "invtransform", false),
                            col("SetItems", "invtransform", false) };
-    int t = 1;
+    int transform = 1;
     for (const char* n : { "grey", "grey2", "gold", "brown", "greybrown", "invgrey", "invgrey2", "invgreybrown" })
         if (auto b = mpqs.try_read(std::string(R"(data\global\items\palette\)") + n + ".dat"); b && b->size() >= 21 * 256) {
             const auto* p = reinterpret_cast<const std::uint8_t*>(b->data());
-            scene.colormaps[std::size_t(t++)].assign(p, p + 21 * 256);
-        } else ++t;
+            scene.colormaps[std::size_t(transform++)].assign(p, p + 21 * 256);
+        } else ++transform;
     scene.item_types.emplace(types);
     if (const auto ov = txt("Overlay"); ov.size() > 0)
         for (std::size_t r = 0; r < ov.size(); ++r) {

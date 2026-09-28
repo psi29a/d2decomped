@@ -492,10 +492,10 @@ struct Scene : GameData {
         return c < 0 || c >= 21 ? nullptr : colormaps[std::size_t(t)].data() + c * 256;
     }
     // pal through a colormap (null: pal itself).
-    [[nodiscard]] static d2d::palette::Palette mapped(const d2d::palette::Palette& pal, const std::uint8_t* map) {
-        if (!map) return pal;
+    [[nodiscard]] static d2d::palette::Palette mapped(const d2d::palette::Palette& base, const std::uint8_t* map) {
+        if (!map) return base;
         std::array<d2d::palette::Rgba, 256> e;
-        for (std::size_t i = 0; i < 256; ++i) e[i] = pal[i == 0 ? 0 : map[i]];
+        for (std::size_t i = 0; i < 256; ++i) e[i] = base[i == 0 ? 0 : map[i]];
         return d2d::palette::Palette(e);
     }
     [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& it, const d2d::palette::Palette& pal) const {

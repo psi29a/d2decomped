@@ -30,13 +30,22 @@ endif()
 # initialized with only their leading fields ({ x, y, ... }); -Wextra's
 # missing-field-initializers flags exactly that idiom. getenv is fine:
 # MSVC's _s variants aren't portable.
+# Warnings are errors (D2D_WERROR, on by default): switch it off to build
+# with a newer compiler that finds new ones.
+option(D2D_WERROR "Treat compiler warnings as errors" ON)
 if(MSVC)
     # /bigobj: d2d is one translation unit (main.cpp and every header),
     # past COFF's default section limit (C1128).
     add_compile_options(/W4 /permissive- /bigobj)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    if(D2D_WERROR)
+        add_compile_options(/WX)
+    endif()
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-missing-field-initializers)
+    if(D2D_WERROR)
+        add_compile_options(-Werror)
+    endif()
 endif()
 
 # Our find modules (FindOpenAL: Homebrew openal-soft first, as ../thirdeye).
