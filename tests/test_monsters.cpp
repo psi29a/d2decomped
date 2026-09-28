@@ -17,15 +17,15 @@ using namespace d2d::rules;
 int main() {
     Monsters monsters;
     MonType zombie;
-    zombie.id = "zombie1"; zombie.enabled = true; zombie.base = 5;
+    zombie.id = "zombie1"; zombie.spawnable = true; zombie.base = 5;
     zombie.min_grp = 1; zombie.max_grp = 2; zombie.rarity = 2; zombie.level = { 1, 36, 67 };
     zombie.diff[0] = { .min_hp = 101, .max_hp = 181, .armor_class = 84, .exp = 111, .a1_min = 51, .a1_max = 151, .a1_th = 101 };
     MonType fallen;
-    fallen.id = "fallen1"; fallen.enabled = true; fallen.base = 19;
+    fallen.id = "fallen1"; fallen.spawnable = true; fallen.base = 19;
     fallen.min_grp = 2; fallen.max_grp = 3; fallen.party_min = 2; fallen.party_max = 3; fallen.rarity = 2;
     fallen.minion = { 1, -1 };
     MonType off;
-    off.id = "off"; off.rarity = 5;                               // not enabled: never in a region
+    off.id = "off"; off.rarity = 5;                               // not isSpawn: never in a region
     monsters.types = { zombie, fallen, off };
     for (std::size_t i = 0; i < monsters.types.size(); ++i) monsters.by_id[monsters.types[i].id] = int(i);
     monsters.lvl.resize(2);

@@ -122,12 +122,8 @@ void place_act1(GameData& game_data, d2d::mpq::Stack& mpqs, const d2d::drlg::Out
     game_data.act1_layout = layout;
 }
 
-// Monster tables (MonStats, MonStats2, MonLvl), the Blood Moor's Levels.txt
-// monster columns, and its rooms populated (components/rules/monsters.hpp).
-// ponytail: every room at load, in cell order, normal difficulty — game.exe
-// populates a room when it first activates (so the game seed's order
-// follows the player) and knows the game's difficulty; the game seed is
-// the map seed here.
+// Monster tables (MonStats, MonStats2, MonLvl), unique names and mods, and
+// every level's Levels.txt monster columns (components/rules/monsters.hpp).
 void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
@@ -138,7 +134,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     const auto ms2_rows = id_rows(ms2);
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     auto& monsters = game_data.monsters;
-    for (std::size_t row = 0; row < monstats.size(); ++row) monsters.by_id.emplace(std::string(monstats.get(row, "Id")), int(row));
+    // An Id names the row at its place among the distinct Ids, as game.exe's
+    // compiled tables resolve them: after MonStats' second cr_lancer8 every
+    // later Id lands one row early (docs/research/re/bugs.md).
+    for (std::size_t row = 0; row < monstats.size(); ++row) monsters.by_id.emplace(std::string(monstats.get(row, "Id")), int(monsters.by_id.size()));
     auto row = [&](std::string_view id) { return id.empty() ? -1 : monsters.row(std::string(id)); };
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
     monsters.types.resize(monstats.size());
@@ -153,7 +152,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
-        type_info.enabled = text("enabled") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
+        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
         type_info.miss_a2 = text("MissA2");
         type_info.undead = text("hUndead") == "1" || text("lUndead") == "1"; type_info.demon = text("demon") == "1";
         for (int element = 0; element < 3; ++element) {
@@ -193,8 +192,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1);
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
-            for (std::size_t layer = 0; layer < 16; ++layer)
-                if (ms2.get(monstats2_row, kLayerCode[layer]) == "1") type_info.parts[layer] = split_variants(ms2.get(monstats2_row, kVariant[layer]));
+            for (std::size_t layer = 0; layer < 16; ++layer) {
+                auto variants = split_variants(ms2.get(monstats2_row, kVariant[layer]));
+                type_info.choices[layer] = std::uint8_t(variants.size());
+                if (ms2.get(monstats2_row, kLayerCode[layer]) == "1") type_info.parts[layer] = std::move(variants);
+            }
         }
         game_data.mon_npc[row_index] = monster_npc(game_data, monstats, ms2, ms2_rows, row_index);
     }
@@ -321,6 +323,26 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                          std::string(umod_table.get(row_index, "exclude2")), { number("cpick"), number("cpick (N)"), number("cpick (H)") },
                                          { number("upick"), number("upick (N)"), number("upick (H)") } });
         }
+
+    // Every level's Levels.txt monster columns, by Id: their regions roll
+    // one after another (rules::monster_region).
+    for (std::size_t row_index = 0; row_index < levels_table.size(); ++row_index) {
+        auto text = [&](const std::string& column) { return levels_table.get(row_index, column); };
+        const int id = num(text("Id"));
+        if (id <= 0 || id > 1000) continue;
+        if (std::size_t(id) >= game_data.level_mon.size()) game_data.level_mon.resize(std::size_t(id) + 1);
+        auto& level_mon = game_data.level_mon[std::size_t(id)];
+        level_mon.density = { num(text("MonDen")), num(text("MonDen(N)")), num(text("MonDen(H)")) };
+        level_mon.umin = { num(text("MonUMin")), num(text("MonUMin(N)")), num(text("MonUMin(H)")) };
+        level_mon.umax = { num(text("MonUMax")), num(text("MonUMax(N)")), num(text("MonUMax(H)")) };
+        level_mon.wander = text("MonWndr") == "1";
+        level_mon.ranged_first = text("rangedspawn") == "1";
+        level_mon.num_mon = num(text("NumMon"));
+        for (int i = 1; i <= 25; ++i) {
+            if (const int monstats_row = row(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
+            if (const int monstats_row = row(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
+        }
+    }
 
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());

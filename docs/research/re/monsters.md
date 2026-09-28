@@ -22,9 +22,31 @@ One region per level (0x2e4 bytes, `MonsterRegion.cpp:0x87`): density
 MonWndr (`+0x2be`), monster level (`+0x2dc`, MonLvl or MonLvlEx).
 FUN_005475e0 draws `min(NumMon, 13, list size)` types without replacement
 from mon1.. (normal) or nmon1.. (NM/hell), keeping each whose MonStats
-flag (`+0xc`) allows it as `{row, rarity}` (0x34-byte entries from `+0x14`,
-count `+0x12`, rarity sum `+0x11`). The seed is one step of the game seed
-(FUN_00547d20).
+flag bit 0 (`+0xc`, the isSpawn column) is set as `{row, rarity}`
+(0x34-byte entries from `+0x14`, count `+0x12`, rarity sum `+0x11`). With
+Levels rangedspawn (level def `+0x31`; Act 5 only) the first draw is
+redrawn up to 20 times until it's a rangedtype (flag `+0xf` & 0x10).
+
+Every level's region is made at game start, levels 1 up in Levels order,
+on one seed: `{one step of the game seed, 666}` (FUN_00547d20 →
+FUN_005479c0). With a fixed seed (-seed) the game seed is `{map seed, 666}`
+(FUN_0052c280; otherwise QueryPerformanceCounter, and the map seed is
+drawn from it), and nothing in game creation draws from it before.
+
+After the draws, each type rolls up to 3 component sets on the same seed
+(FUN_005bdb20, `+3` count, 16 bytes each from `+4`): a set is a pick per
+layer among MonStats2's HDv..S8v (their list lengths are MonStats2
+`+0x15`). The first rolls every layer with 2+ choices; the next ones copy
+it and reroll layers a and b — `i = rand(n)` over the n varied layers,
+a = L[i], L[i] = L[n-1], b = L[rand(n-1)] (a = b when n = 1) — up to 3
+tries not to repeat a set. The cap is `1 << MonStats2 +0x25`: 1 set when no
+layer varies, 2 when the only one has 2 choices, else 3 (true of all 609
+rows).
+
+Checked: `tools/emu/regions.py <seed> <difficulty>` runs FUN_005479c0; d2d
+matches it on all 125 levels, 5 seeds, 3 difficulties (test_game keeps
+seed 0x1234). A level-list name is the row at its place among MonStats'
+distinct Ids (bugs.md #13).
 
 ## Room population — FUN_0054ec90
 
@@ -263,12 +285,11 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 ## Not yet traced / approximated
 
 - Room activation order (game.exe populates when a room first becomes
-  active; we do every room at load in cell order) and the game seed itself
-  (we use the map seed).
+  active; we do every room at load in cell order).
 - The seed at `+0x20` used for party and group counts (we use the room's).
-- The `spawn` replacement, level def
-  `+0x31`'s first-pick retry.
-- The monster's component roll and stat init.
+- The `spawn` replacement.
+- Which of its type's region component sets a monster takes (we roll
+  our own per layer, ai.cpp), and its stat init.
 
 Seed 3's Blood Moor: 155 monsters (107 fallen1, 24 quillrat1, 24 zombie1).
 

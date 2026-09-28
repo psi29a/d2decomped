@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -22,7 +23,8 @@ struct MonType {
     std::array<int, 2> minion{ -1, -1 };        // minion1/2 rows
     std::array<int, 3> level{};                 // Level, Level(N), Level(H)
     int velocity = 0, run = 0;
-    bool enabled = false, killable = false, melee = false;
+    bool spawnable = false, killable = false, melee = false;   // isSpawn (MonStats flag bit 0), killable, isMelee
+    bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
     std::string sound;                          // MonSound: its MonSounds.txt row
@@ -47,6 +49,7 @@ struct MonType {
     int size = 2;                               // SizeX
     std::string base_w;                         // BaseW
     std::array<std::vector<std::string>, 16> parts;   // HDv..S8v components, per layer present
+    std::array<std::uint8_t, 16> choices{};     // HDv..S8v list lengths, every layer (MonStats2 +0x15)
 };
 
 // MonLvl.txt, by level: the base values MonStats' percentages apply to.
@@ -72,6 +75,7 @@ struct LevelMon {
     std::array<int, 3> umin{}, umax{};          // MonUMin/Max (normal has none in 1.14d act 1)
     bool wander = false;                        // MonWndr
     int num_mon = 0;                            // NumMon
+    bool ranged_first = false;                  // rangedspawn (level def +0x31)
     std::vector<int> mon, nmon;                 // mon1.., nmon1.. rows (normal / NM+hell)
 };
 

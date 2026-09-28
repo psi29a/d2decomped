@@ -173,9 +173,10 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
 // first time the level is played at `d`, then kept (Level::spawns).
 // Every difficulty is its own game: its own region, density and (in
 // nightmare and hell) champions and uniques (MonUMin / MonUMax).
-// ponytail: each level's rooms in cell order, on a game seed from the map
-// seed; game.exe populates a room when it first comes up, in whatever order
-// the player brings them, each level's region seeded when it's made.
+// The game seed: with a fixed seed (-seed, our --seed) game.exe's is
+// {map seed, 666} (FUN_0052c280).
+// ponytail: each level's rooms in cell order; game.exe populates a room
+// when it first comes up, in whatever order the player brings them.
 const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, const Level& level, int difficulty) {
     difficulty = std::clamp(difficulty, 0, 2);
     if (level.spawns[std::size_t(difficulty)]) return *level.spawns[std::size_t(difficulty)];
@@ -184,8 +185,12 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, co
     d2d::rules::Rng game{ game_data.map_seed };
     if (level.rooms.empty() || level.walk.empty()) return level.spawns[std::size_t(difficulty)].emplace();
     auto& spawns = level.spawns[std::size_t(difficulty)].emplace();
+    // The regions: one step of the game seed, then levels 1 up in order on
+    // it (FUN_00547d20, FUN_005479c0); this level's is the last made.
     d2d::rules::Rng region_seed{ game.next() };
-    const auto region = d2d::rules::monster_region(monsters, level.mon, difficulty, region_seed);
+    d2d::rules::Region region;
+    for (std::size_t id = 1; id <= std::size_t(level.id) && id < game_data.level_mon.size(); ++id)
+        region = d2d::rules::monster_region(monsters, game_data.level_mon[id], difficulty, region_seed);
     for (const auto& [row, rarity] : region.types) level.region[std::size_t(difficulty)].push_back(row);
     d2d::rules::Population pop{ 0, int(level.rooms.size()), 0, level.mon.umin[std::size_t(difficulty)], level.mon.umax[std::size_t(difficulty)], difficulty, &game_data.umods };
     // Not within WarpDist (2025 = 45^2 subtiles) of where players come
@@ -585,18 +590,8 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
                 level->night_event = num(builder.sound_env.get(env_row, "Night Event"));
                 level->event_delay = num(builder.sound_env.get(env_row, "Event Delay"));
             }
-        auto mon = [&](std::string_view monster_id) { return monster_id.empty() ? -1 : game_data.monsters.row(std::string(monster_id)); };
-        auto& level_mon = level->mon;
-        level_mon.density = { num(text("MonDen")), num(text("MonDen(N)")), num(text("MonDen(H)")) };
-        level_mon.umin = { num(text("MonUMin")), num(text("MonUMin(N)")), num(text("MonUMin(H)")) };
-        level_mon.umax = { num(text("MonUMax")), num(text("MonUMax(N)")), num(text("MonUMax(H)")) };
-        level_mon.wander = text("MonWndr") == "1";
-        level_mon.num_mon = num(text("NumMon"));
-        for (int i = 1; i <= 25; ++i) {
-            if (const int monstats_row = mon(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
-            if (const int monstats_row = mon(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
-        }
     }
+    if (std::size_t(id) < game_data.level_mon.size()) level->mon = game_data.level_mon[std::size_t(id)];
     // Its preset units (Level::units): objects, and monsters MonStats marks
     // as NPCs (Flavie by the Blood Moor's way in). Unit ids are game.exe's:
     // MonStats rows without its Expansion row.

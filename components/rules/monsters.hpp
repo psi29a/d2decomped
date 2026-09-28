@@ -12,33 +12,79 @@
 #include <array>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace d2d::rules {
 
-// The level's monster region (FUN_005479c0 / FUN_005475e0): up to NumMon
-// (at most 13) types drawn without replacement from the difficulty's
-// list, each kept with its rarity when MonStats enables it.
-// ponytail: Levels.txt's "must pick a flagged monster first" retry
-// (level def +0x31) isn't mapped to a column; act 1 wilderness doesn't set it.
+// A type's component sets (FUN_005bdb20): each layer's pick among
+// MonStats2's HDv..S8v. The first rolls every layer with a choice; the
+// others are the first with one or two layers rerolled, up to 3 tries not
+// to repeat a set. 1 set when no layer has a choice, 2 when the only one
+// has 2, else 3 (MonStats2 +0x25 as 1 << bits; checked on all 609 rows).
+using Components = std::array<std::uint8_t, 16>;
+inline std::vector<Components> roll_components(const Components& choices, Rng& rng) {
+    std::vector<int> varied;
+    for (int layer = 0; layer < 16; ++layer) if (choices[std::size_t(layer)] > 1) varied.push_back(layer);
+    const std::size_t sets_max = varied.empty() ? 1 : varied.size() == 1 && choices[std::size_t(varied[0])] == 2 ? 2 : 3;
+    Components first{};
+    for (std::size_t layer = 0; layer < 16; ++layer) first[layer] = std::uint8_t(choices[layer] < 2 ? 0 : rng(choices[layer]));
+    std::vector<Components> sets{ first };
+    if (sets_max == 1) return sets;
+    int layer_a = varied[0], layer_b = varied[0];
+    if (varied.size() > 1) {
+        const int count = int(varied.size());
+        const int pick = rng(count);
+        layer_a = varied[std::size_t(pick)];
+        varied[std::size_t(pick)] = varied.back();
+        layer_b = varied[std::size_t(rng(count - 1))];
+    }
+    while (sets.size() < sets_max) {
+        Components next = first;
+        for (int tries = 3;;) {
+            next[std::size_t(layer_a)] = std::uint8_t(rng(choices[std::size_t(layer_a)]));
+            if (layer_b != layer_a) next[std::size_t(layer_b)] = std::uint8_t(rng(choices[std::size_t(layer_b)]));
+            bool repeat = false;
+            for (const auto& set : sets) if (set == next) { --tries; repeat = true; }
+            if (!repeat || tries == 0) break;
+        }
+        sets.push_back(next);
+    }
+    return sets;
+}
+
+// The level's monster region (FUN_005475e0): up to NumMon (at most 13)
+// types drawn without replacement from the difficulty's list, each kept
+// with its rarity and component sets when MonStats isSpawn. With
+// rangedspawn the first draw retries up to 20 times for a rangedtype.
+// game.exe makes every level's region at game start on one seed
+// (FUN_005479c0, levels 1 up): pass the same `seed` level after level.
 struct Region {
     std::vector<std::pair<int, int>> types;     // (MonStats row, rarity)
+    std::vector<std::vector<Components>> components;   // per type
     int total = 0;                              // rarity sum
 };
 inline Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int difficulty, Rng& seed) {
     Region region;
     auto list = difficulty == 0 ? level_mon.mon : level_mon.nmon;
+    auto type_at = [&](int row) { return row >= 0 && std::size_t(row) < monsters.types.size() ? &monsters.types[std::size_t(row)] : nullptr; };
     const int picks = std::min<int>(std::min(level_mon.num_mon, 13), int(list.size()));
     for (int i = 0; i < picks && !list.empty(); ++i) {
-        const int pick = seed(int(list.size()));
+        int pick = seed(int(list.size()));
+        for (int retry = 0; i == 0 && level_mon.ranged_first && retry < 20; ++retry) {
+            if (const auto* type = type_at(list[std::size_t(pick)]); type && type->ranged) break;
+            pick = seed(int(list.size()));
+        }
         const int row = list[std::size_t(pick)];
         list.erase(list.begin() + pick);
-        if (row < 0 || std::size_t(row) >= monsters.types.size() || !monsters.types[std::size_t(row)].enabled) continue;
-        region.types.emplace_back(row, monsters.types[std::size_t(row)].rarity);
-        region.total += monsters.types[std::size_t(row)].rarity;
+        if (const auto* type = type_at(row); type && type->spawnable) {
+            region.types.emplace_back(row, type->rarity);
+            region.total += type->rarity;
+        }
     }
+    for (const auto& [row, rarity] : region.types) region.components.push_back(roll_components(monsters.types[std::size_t(row)].choices, seed));
     return region;
 }
 

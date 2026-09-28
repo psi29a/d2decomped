@@ -369,6 +369,7 @@ struct GameData {
     std::array<std::string, 2> unique_formats;         // strings 0x6b9 ("%0 %1"), 0x6ba ("%0 %1 %2")
     std::vector<d2d::rules::ShrineRow> shrines;        // Shrines.txt
     std::vector<std::array<int, 4>> area_level;        // Levels.txt MonLvl1Ex..3Ex, then classic MonLvl1, by Id
+    std::vector<d2d::rules::LevelMon> level_mon;       // Levels.txt monster columns, by Id
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the
