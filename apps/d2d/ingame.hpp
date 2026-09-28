@@ -118,12 +118,13 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                               &s.npc_anim(*merc, merc_state->walking ? std::string_view("WL") : std::string_view("NU")),
                               merc_state->dir, merc_label, merc_state->mode_ms, -2 });
         units.insert(units.end(), extra_units.begin(), extra_units.end());
+        if (hovered_npc && *hovered_npc != -1)            // last frame's: brighter (render_world)
+            for (auto& u : units) if (u.npc == *hovered_npc && u.name) u.highlight = true;
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         render_world(fb, s, L, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain);
         if (rain) draw_rain(fb, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // Name over whatever the cursor points at, centred above it.
-        // ponytail: no highlight tint yet (D2 brightens the unit too).
         if (hovered.first && (hovered.first->npc > -10 || hovered.first->npc <= -1000)) {   // monsters: their bar at the top
             const auto& nm = *hovered.first->name;
             const auto& b  = hovered.second;

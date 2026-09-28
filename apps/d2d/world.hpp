@@ -162,6 +162,7 @@ struct Unit {
     const std::uint8_t* shift = nullptr;
     struct Over { const GameData::OverlayInfo* o = nullptr; std::uint32_t start = 0; bool once = false; };
     std::vector<Over> overs;
+    bool highlight = false;              // under the cursor: drawn at twice its light (FUN_00471ec0)
     int overlay_class = 0;               // Overlay.txt's Height: FUN_006223a0 (players 1, monsters OverlayHeight - 1)
     bool shadow = true;                  // a composite casts one (players, monsters; MonStats2 Shadow), objects don't
 };
@@ -365,7 +366,12 @@ void render_world(std::vector<std::uint8_t>& fb,
         for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
             const Unit& u = *order[next_unit];
             const auto [ax, ay] = iso_point(u.x, u.y);
-            const auto& lpal = light ? light->palette(u.x, u.y) : upal0;
+            // The unit under the cursor (FUN_00467a10) at twice its light,
+            // 0x40..0xff (FUN_00471ec0).
+            // ponytail: objects also switch to draw mode 7 there, untraced.
+            const auto& lpal = !light ? upal0
+                             : u.highlight ? (*light->pal)[std::size_t(std::clamp(light->at(u.x, u.y) * 2, 0x40, 0xff) >> 3)]
+                                           : light->palette(u.x, u.y);
             const auto spal = u.shift ? Scene::mapped(lpal, u.shift) : d2d::palette::Palette{};
             const auto& upal = u.shift ? spal : lpal;
             // Its overlays: PreDraw ones behind it, the rest in front

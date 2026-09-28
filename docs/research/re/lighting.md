@@ -161,3 +161,15 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 
 ponytail, not yet: type 2's cached shadows, lights easing to a new radius,
 Act 3 / 4 days.
+
+## The unit under the cursor
+
+`FUN_00471ec0` (the unit draw): when the unit is the one under the cursor
+(`FUN_00467a10`), its light is doubled and held to 0x40..0xff before it's
+drawn, so a hovered monster stands out in the dark. Objects then also
+draw in mode 7 instead of 5 (3 / 4 by their draw type); mode 7's table
+isn't traced. d2d: `Unit::highlight`, last frame's hovered unit.
+
+Found on the way: `FUN_00476ea0` loads `Data\Global\Monsters\RandTransforms.dat`
+(0x1e00: 30 colour tables for monsters) and `GreenBlood.dat` (256, the
+censored blood, when a unit's +0x1a2 is set and a setting file says '1').
