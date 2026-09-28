@@ -122,7 +122,8 @@ the MPQs, strings, tables, Act 1 and the camp; the client's `load_scene`
 takes that GameData and adds sprites, fonts and palettes. `test_game`
 loads GameData and plays a character with no client code.
 Every file includes the standard and component headers it uses itself
-(clang-tidy's misc-include-cleaner found them); game.hpp and common.hpp
+(clang-tidy's misc-include-cleaner, checked in CI; apps/d2d/.clang-tidy
+exempts the game headers game_api.hpp brings); game.hpp and common.hpp
 carry only their own. A level's
 tiles decode their pixels only when the client asks (`load_game_data(...,
 tile_pixels)`, dt1::Pixels): a headless server keeps their headers and

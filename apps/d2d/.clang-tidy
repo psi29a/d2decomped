@@ -1,0 +1,5 @@
+# The client reaches the game only through common.hpp / game_api.hpp, so a
+# game header isn't one to include here (log.hpp is the exception).
+InheritParentConfig: true
+CheckOptions:
+  misc-include-cleaner.IgnoreHeaders: 'SDL3/.*;AL/.*;CLI/.*;libav.*/.*;libsw.*/.*;[^/]*\.h;platform\.hpp;game_api\.hpp;common\.hpp;ai\.hpp;character\.hpp;character_store\.hpp;cues\.hpp;fight\.hpp;game\.hpp;gamedata\.hpp;gamedata_load\.hpp;inventory\.hpp;item_text\.hpp;loot\.hpp;npc_menu\.hpp;npc_talk\.hpp;protocol\.hpp;replication\.hpp;world\.hpp'

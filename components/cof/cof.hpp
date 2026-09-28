@@ -84,10 +84,10 @@ public:
     // the table at 0x6e55a0 (FUN_00600e20) and reads it with FUN_004db110;
     // the DCC frames use 0x6e45a0. These tables are that pair's composition.
     [[nodiscard]] static std::size_t priority_row(std::size_t dir, std::size_t directions) {
-        static constexpr std::uint8_t k8[8] = { 1, 3, 5, 7, 0, 2, 4, 6 };
-        static constexpr std::uint8_t k16[16] = { 2, 6, 10, 14, 0, 4, 8, 12, 1, 3, 5, 7, 9, 11, 13, 15 };
-        if (directions == 8 && dir < 8) return k8[dir];
-        if (directions == 16 && dir < 16) return k16[dir];
+        static constexpr std::uint8_t kRow8[8] = { 1, 3, 5, 7, 0, 2, 4, 6 };
+        static constexpr std::uint8_t kRow16[16] = { 2, 6, 10, 14, 0, 4, 8, 12, 1, 3, 5, 7, 9, 11, 13, 15 };
+        if (directions == 8 && dir < 8) return kRow8[dir];
+        if (directions == 16 && dir < 16) return kRow16[dir];
         return dir;
     }
 

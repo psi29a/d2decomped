@@ -161,9 +161,10 @@ jobs:
         # -k 0: keep going past the first failure so one run shows every error.
         run: cmake --build build --config Release -- -k 0
 
-      # Names say what they hold (docs/PLAN.md "Code style"): .clang-tidy's
-      # identifier-length check over every source of ours.
-      - name: Names (Linux)
+      # Names say what they hold and files include what they use (docs/PLAN.md
+      # "Code style"): .clang-tidy's identifier-length and include-cleaner
+      # checks over every source of ours.
+      - name: Names and includes (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |

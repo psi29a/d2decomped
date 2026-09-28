@@ -1,6 +1,7 @@
 # Names say what they hold (docs/PLAN.md "Code style"): no one- or two-letter
-# variables or parameters beyond the conventional few. CI runs this on Linux.
-Checks: '-*,readability-identifier-length'
+# variables or parameters beyond the conventional few. Every file includes
+# the headers it uses, no more (misc-include-cleaner). CI runs this on Linux.
+Checks: '-*,readability-identifier-length,misc-include-cleaner'
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(apps|components|tests|tools)/'
 CheckOptions:
@@ -11,3 +12,7 @@ CheckOptions:
   readability-identifier-length.IgnoredVariableNames: '^(x|y|dx|dy|id|ok)$'
   readability-identifier-length.IgnoredParameterNames: '^(x|y|dx|dy|id)$'
   readability-identifier-length.IgnoredLoopCounterNames: '^[ijkxy]$'
+  # OS and C headers (their symbols move between headers per platform),
+  # libraries reached through one umbrella header, and the client's two
+  # boundary headers (apps/d2d/.clang-tidy adds the game's headers).
+  misc-include-cleaner.IgnoreHeaders: 'SDL3/.*;AL/.*;CLI/.*;libav.*/.*;libsw.*/.*;[^/]*\.h;platform\.hpp;game_api\.hpp'

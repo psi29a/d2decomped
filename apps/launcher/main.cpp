@@ -33,12 +33,21 @@
 #include <QWizard>
 #include <QWizardPage>
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // helpers
