@@ -43,7 +43,7 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
         auto dt1_bytes = mpqs.try_read(mpq_path);
         if (!dt1_bytes) continue;
         try {
-            game_data.town.dt1s.emplace_back(*dt1_bytes);
+            game_data.town.dt1s.emplace_back(*dt1_bytes, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
         } catch (const std::exception& error) {
             d2d::log::warn("world: {}: {}", mpq_path, error.what());
         }
@@ -1059,7 +1059,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
 }  // namespace
 
-std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed) {
+std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
+                                       bool tile_pixels) {
     const auto d2data = data_dir / "d2data.mpq";
     if (!fs::exists(d2data)) {
         d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
@@ -1110,6 +1111,7 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
             if (fs::exists(data_dir / name)) push(data_dir / name);
 
         GameData game_data;
+        game_data.tile_pixels = tile_pixels;
         // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
         // string.tbl per probe. patchstring.tbl (826 entries) overrides
         // specific IDs when Blizzard shipped patches; expansionstring.tbl

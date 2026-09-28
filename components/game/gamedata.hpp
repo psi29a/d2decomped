@@ -143,7 +143,7 @@ struct Level {
 // What the game's rules read: the tables, the levels, animation timings,
 // string tables, the MPQs. The World (world.hpp) sees only this, so a
 // standalone server loads no graphics beyond the levels' tiles.
-// ponytail: a Level still carries its DT1s' pixels next to its walk grid.
+// A Level's DT1s carry pixels only when GameData::tile_pixels (the client).
 struct GameData {
     // A mode's timing, all the World needs of an animation: its COF name
     // ("AITW1HS"), animdata.d2's rate (256 = a frame per tick), frames per
@@ -241,6 +241,9 @@ struct GameData {
     // is the CD's (826 entries), whose IDs don't match what 1.14d code asks
     // for (10832 is "CREATE NEW" in 1.14d, "Bonus to Attack Rating" on CD).
     bool patched = false;
+    // Decode the levels' tile pixels (the client draws them); a headless
+    // server keeps only the tiles' headers and walk flags.
+    bool tile_pixels = false;
     std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
     std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
@@ -559,7 +562,7 @@ void stamp_footprints(Level& level);
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn);
 void finish_level(Level& level);
-LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type);
+LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type, d2d::dt1::Pixels pixels);
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);

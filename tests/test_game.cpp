@@ -21,6 +21,9 @@ int main() {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    // A server's GameData keeps the tiles' walk flags, not their pixels.
+    for (const auto& archive : data->town.dt1s)
+        for (const auto& tile : archive.tiles()) assert(tile.pixels.empty());
 
     d2d::rules::Rng rng(7);
     constexpr int kBarbarian = 4;

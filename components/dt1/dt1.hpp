@@ -51,6 +51,7 @@
 //     pair are 0, advance to next scanline (x=0, y++).
 //
 // Output: each tile gets a width × abs(height) row-major byte buffer with
+// (none with Pixels::skip: headers and subtile flags only)
 // palette indices; index 0 is transparent. Blocks with negative y are
 // shifted by |height| so all row indices are non-negative.
 #pragma once
@@ -80,10 +81,14 @@ struct Tile {
     std::vector<std::uint8_t> pixels;   // width * abs(height), 0=transparent
 };
 
+// Whether an archive decodes its tiles' pixels. A headless game server
+// needs only the headers and subtile flags (walkability).
+enum class Pixels { decode, skip };
+
 class Archive {
 public:
     Archive() = default;
-    explicit Archive(std::span<const std::byte> bytes) { parse(bytes); }
+    explicit Archive(std::span<const std::byte> bytes, Pixels pixels = Pixels::decode) { parse(bytes, pixels); }
 
     [[nodiscard]] std::span<const Tile> tiles() const noexcept { return tiles_; }
     [[nodiscard]] std::size_t size() const noexcept { return tiles_.size(); }
@@ -99,7 +104,7 @@ private:
         std::int32_t value; std::memcpy(&value, source, 4); return value;
     }
 
-    void parse(std::span<const std::byte> bytes) {
+    void parse(std::span<const std::byte> bytes, Pixels pixels) {
         if (bytes.size() < 0x114) throw std::runtime_error("DT1: truncated header");
 
         const auto major = rd_i32(bytes.data());
@@ -143,8 +148,9 @@ private:
             // h + 84: 12 bytes padding
             block_ptrs[i]          = {blkHdrPtr, numBlocks};
 
-            allocate_pixels(tile);
+            if (pixels == Pixels::decode) allocate_pixels(tile);
         }
+        if (pixels == Pixels::skip) return;
 
         // Pass 2: block headers + decode into each tile's pixel buffer.
         // Y-shift is computed from actual block Y positions (per OpenDiablo2's

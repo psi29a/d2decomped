@@ -122,9 +122,10 @@ the MPQs, strings, tables, Act 1 and the camp; the client's `load_scene`
 takes that GameData and adds sprites, fonts and palettes. `test_game`
 loads GameData and plays a character with no client code.
 ponytail: the standard library and the data components come in through
-the base headers (game.hpp, common.hpp) rather than per file. A Level
-still carries its DT1s' pixels (Level::dt1s) next to its walk grid: a
-headless server loads tile graphics it never draws.
+the base headers (game.hpp, common.hpp) rather than per file. A level's
+tiles decode their pixels only when the client asks (`load_game_data(...,
+tile_pixels)`, dt1::Pixels): a headless server keeps their headers and
+walk flags.
 
 `World` (world.hpp) owns the game's state (level, player, merc, NPCs,
 rng) and hands references to its subsystems (`Fight`, `Loot`); the client

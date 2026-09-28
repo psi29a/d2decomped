@@ -406,7 +406,7 @@ void finish_level(Level& level) {
         }
 }
 
-LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type) {
+LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type, d2d::dt1::Pixels pixels) {
     LevelDt1s dt1s;
     dt1s.heads = d2d::drlg::load_room_dt1s(assets, [&](const std::string& path) { return mpqs.try_read(path); }, type);
     std::vector<std::pair<const d2d::drlg::Dt1File*, std::string>> files;
@@ -420,7 +420,7 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
     for (const auto& [file_key, file] : files) {
         auto bytes = mpqs.try_read(R"(data\global\tiles\)" + ds1_path_to_mpq(file));
         if (!bytes) continue;
-        try { dt1s.archive[file_key] = &level.dt1s.emplace_back(*bytes); } catch (const std::exception& error) { d2d::log::warn("level {}: {}: {}", level.id, file, error.what()); }
+        try { dt1s.archive[file_key] = &level.dt1s.emplace_back(*bytes, pixels); } catch (const std::exception& error) { d2d::log::warn("level {}: {}: {}", level.id, file, error.what()); }
     }
     return dt1s;
 }
@@ -473,7 +473,7 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level) {
     const auto outdoor_level = d2d::drlg::outdoor_level(assets.levels, game_data.act1_layout, level.id);
     if (outdoor_level.rect.width == 0) { d2d::log::warn("{}: the layout didn't place it", level.name); return false; }
-    const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type);
+    const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     assets.data.dt1s = &dt1s.heads;                          // stamps pick their shadows as they go (game.exe's rolls)
     auto outdoor = d2d::drlg::generate_outdoor(assets.data, outdoor_level, d2d::drlg::level_seed(game_data.map_seed, level.id));
     assets.data.dt1s = nullptr;
@@ -511,7 +511,7 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
     level.ds1 = d2d::ds1::Map(width, height, 4, 2);
     level.world_x = d2d::drlg::to_int(assets.levels.get(row, "OffsetX"));
     level.world_y = d2d::drlg::to_int(assets.levels.get(row, "OffsetY"));
-    const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type);
+    const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     const auto placed = set_level_tiles(level, assets, dt1s, made, {}, notes);
     level.rooms = std::move(made);
     for (const auto& note : notes) d2d::log::info("  not implemented: {}", note);

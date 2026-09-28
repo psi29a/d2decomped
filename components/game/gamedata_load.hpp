@@ -11,7 +11,9 @@ namespace d2d::game {
 // LODPatch_114d.exe installer at patch_installer or next to the MPQs),
 // every table and string, and Act 1 for map_seed. nullopt: no d2data.mpq
 // there, or a file failed to load (logged).
-std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed);
+// tile_pixels: decode the levels' tile graphics (GameData::tile_pixels).
+std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
+                                       bool tile_pixels = false);
 
 // A game on another map seed: act 1 laid out again, the camp rebuilt with
 // its units, the other levels dropped (they build again when wanted). The

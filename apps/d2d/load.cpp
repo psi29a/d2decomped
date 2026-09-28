@@ -268,7 +268,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
 }
 
 std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed) {
-    auto data = game::load_game_data(data_dir, patch_installer, map_seed);
+    auto data = game::load_game_data(data_dir, patch_installer, map_seed, /*tile_pixels=*/true);
     if (!data) return std::nullopt;
     const auto start_ms = d2d::log::ms();
     try {
