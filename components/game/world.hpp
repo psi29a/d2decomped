@@ -247,7 +247,7 @@ struct World {
     void respawn(std::uint32_t now_ms);
 
     // Leaving the level: past its edge, collision and drawing already
-    // use the level next to it in the act (Level::near), so the player
+    // use the level next to it in the act (Level::nearby), so the player
     // walks straight on; once they stand outside this map they belong to
     // that level — everything moves by the offset between the two. A
     // click toward a level the layout placed but d2d doesn't build yet

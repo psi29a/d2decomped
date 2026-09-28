@@ -224,15 +224,15 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         return found == tile_level.tile_lookup.end() ? nullptr : found->second;
     };
     // Cell (gx, gy) of this level or, past its edge, of the level next to
-    // it in the act (Level::near): D2 draws the neighbour's rooms too.
+    // it in the act (Level::nearby): D2 draws the neighbour's rooms too.
     auto cell_at = [&](int cell_x, int cell_y) -> std::pair<const Level*, std::size_t> {
         auto inside = [](const Level& tile_level, int x, int y) {
             return x >= 0 && y >= 0 && x < tile_level.ds1.width() && y < tile_level.ds1.height();
         };
         if (inside(level, cell_x, cell_y)) return { &level, std::size_t(cell_y) * std::size_t(map_width) + std::size_t(cell_x) };
-        for (const auto& near : level.nearby)
-            if (inside(*near.level, cell_x - near.dx, cell_y - near.dy))
-                return { near.level, std::size_t(cell_y - near.dy) * std::size_t(near.level->ds1.width()) + std::size_t(cell_x - near.dx) };
+        for (const auto& neighbour : level.nearby)
+            if (inside(*neighbour.level, cell_x - neighbour.dx, cell_y - neighbour.dy))
+                return { neighbour.level, std::size_t(cell_y - neighbour.dy) * std::size_t(neighbour.level->ds1.width()) + std::size_t(cell_x - neighbour.dx) };
         return { nullptr, 0 };
     };
 

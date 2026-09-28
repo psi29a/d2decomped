@@ -221,8 +221,8 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
         if (state && state->hidden) continue;
         lamp(2ull << 32 | i, state ? state->x : npc.x, state ? state->y : npc.y, lit(npc, state ? state->mode : std::string_view{}), true);
     }
-    for (const auto& near : view.level->nearby)                  // the torches over the level's edge
-        for (const auto& npc : near.level->npcs) stamp(npc.x + float(near.dx), npc.y + float(near.dy), lit(npc, {}), true);
+    for (const auto& neighbour : view.level->nearby)                  // the torches over the level's edge
+        for (const auto& npc : neighbour.level->npcs) stamp(npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), lit(npc, {}), true);
     for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x, monster.unit.y, monster.npc.light, false);
     for (const auto& portal : view.portals)                        // Lit1 (OP) while it opens, then Lit2 (ON)
         lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(scene.town_portal.lit[now - portal.born < kPortalOpenMs ? 1 : 2]), true);
@@ -437,9 +437,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
         bool menu_click = false;
         const auto& unit = view.player;
         automap_reveal(*scene, *level, automap, unit.x, unit.y);
-        for (const auto& near : level->nearby)                   // what's in view across the edge
-            if (near.level->layer == level->layer)
-                automap_reveal(*scene, *near.level, automap, unit.x - float(near.dx), unit.y - float(near.dy));
+        for (const auto& neighbour : level->nearby)                   // what's in view across the edge
+            if (neighbour.level->layer == level->layer)
+                automap_reveal(*scene, *neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy));
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.
         if (speech.npc < 0 && audio.voice.src) audio.stop_voice();

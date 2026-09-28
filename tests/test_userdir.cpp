@@ -34,7 +34,7 @@ int main() {
 #if defined(__APPLE__)
     assert(user.parent_path().filename() == "Preferences");
 #elif !defined(_WIN32)
-    assert(u.parent_path().filename() == ".config");
+    assert(user.parent_path().filename() == ".config");
 #endif
     std::printf("user dir: %s\nOK\n", user.string().c_str());
     return 0;

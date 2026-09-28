@@ -350,7 +350,7 @@ auto World::respawn(std::uint32_t now_ms) -> void {
 auto World::cross_level() -> void {
         const float world_x = float(level->world_x) + target_x, world_y = float(level->world_y) + target_y;
         bool known = level->inside(target_x, target_y);
-        for (const auto& near : level->nearby) known = known || near.level->inside(target_x - float(near.dx), target_y - float(near.dy));
+        for (const auto& neighbour : level->nearby) known = known || neighbour.level->inside(target_x - float(neighbour.dx), target_y - float(neighbour.dy));
         if (!known)
             for (const auto& placement : game_data->act1_layout)
                 if (world_x >= float(placement.x) && world_y >= float(placement.y) && world_x < float(placement.x + placement.width) && world_y < float(placement.y + placement.height)
@@ -359,9 +359,9 @@ auto World::cross_level() -> void {
                     d2d::log::info("not implemented: level {} (the player headed there from level {})", placement.level, level->id);
                 }
         if (level->inside(player.x, player.y)) return;
-        for (const auto& near : level->nearby) {
-            if (!near.level->inside(player.x - float(near.dx), player.y - float(near.dy))) continue;
-            const float dx = float(near.dx), dy = float(near.dy);
+        for (const auto& neighbour : level->nearby) {
+            if (!neighbour.level->inside(player.x - float(neighbour.dx), player.y - float(neighbour.dy))) continue;
+            const float dx = float(neighbour.dx), dy = float(neighbour.dy);
             auto shift = [&](UnitState& unit) {
                 unit.x -= dx; unit.y -= dy;
                 unit.goal_x -= dx; unit.goal_y -= dy;
@@ -370,9 +370,9 @@ auto World::cross_level() -> void {
             shift(player);
             target_x -= dx; target_y -= dy;
             if (merc) shift(*merc);
-            fight.pets_cross(level, near.level, dx, dy);
+            fight.pets_cross(level, neighbour.level, dx, dy);
             events.push_back(ev::LevelChanged{ level, true });
-            level = near.level;
+            level = neighbour.level;
             fight.enter(level);
             loot.enter(level);
             npc_states = npc_start(*level);

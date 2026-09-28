@@ -126,10 +126,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // crossing (the World steps only the player's level); quest-gated
         // ones (Cain) left out.
         static const std::string no_name;
-        for (const auto& near : level.nearby)
-            for (const auto& npc : near.level->npcs) {
+        for (const auto& neighbour : level.nearby)
+            for (const auto& npc : neighbour.level->npcs) {
                 if (npc.quest) continue;
-                const float x = npc.x + float(near.dx), y = npc.y + float(near.dy);
+                const float x = npc.x + float(neighbour.dx), y = npc.y + float(neighbour.dy);
                 if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
                 units.push_back({ x, y, &scene.npc_anim(npc, npc.mode), 0, &no_name, 0, -3 });
                 units.back().shadow = npc.root != "objects";

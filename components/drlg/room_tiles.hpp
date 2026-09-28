@@ -68,19 +68,19 @@ inline constexpr std::array<int, 42> kOrientMerge = { 0, 1, 3, 3, 4, 1, 3, 1, 1,
 // wholly left of or above the one before it moves ahead.
 inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, std::size_t self) {
     const auto& room = rooms[self];
-    std::vector<std::size_t> near;
+    std::vector<std::size_t> close_rooms;
     for (std::size_t i = 0; i < rooms.size(); ++i) {
         const auto& other = rooms[i];
         const int gap_x = room.x < other.x ? other.x - room.width - room.x : room.x - other.width - other.x;
         const int gap_y = room.y < other.y ? other.y - room.height - room.y : room.y - other.height - other.y;
-        if (gap_x < 6 && gap_y < 6) near.push_back(i);
+        if (gap_x < 6 && gap_y < 6) close_rooms.push_back(i);
     }
-    for (std::size_t k = near.size() ? near.size() - 1 : 0; k > 0; --k)
-        for (std::size_t i = 0; i + 1 < near.size(); ++i) {
-            const auto &first = rooms[near[i]], &second = rooms[near[i + 1]];
-            if (second.x + second.width <= first.x || second.y + second.height <= first.y) std::swap(near[i], near[i + 1]);
+    for (std::size_t k = close_rooms.size() ? close_rooms.size() - 1 : 0; k > 0; --k)
+        for (std::size_t i = 0; i + 1 < close_rooms.size(); ++i) {
+            const auto &first = rooms[close_rooms[i]], &second = rooms[close_rooms[i + 1]];
+            if (second.x + second.width <= first.x || second.y + second.height <= first.y) std::swap(close_rooms[i], close_rooms[i + 1]);
         }
-    return near;
+    return close_rooms;
 }
 
 }  // namespace room_tiles_detail

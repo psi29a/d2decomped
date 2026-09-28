@@ -150,7 +150,9 @@ parameters, and misc-include-cleaner keeps every file including what it
 uses; CI runs both on Linux (clang-tidy -p build on every source). Fields
 are held to the same rule by review. A header must not name a
 platform-private header (`<_string.h>`, `<bits/...>`): include the
-standard one.
+standard one. Don't name anything `near` or `far`: windows.h defines them
+as empty macros. Code under `#ifdef _WIN32` / `__linux__` isn't seen by the
+macOS build or Linux clang-tidy; CI's other jobs are its only check.
 
 **Namespaces say which part.** The file formats are `d2d::mpq`, `d2d::dcc`,
 `d2d::ds1` ... (components/<format>), the game's rules `d2d::rules`, the

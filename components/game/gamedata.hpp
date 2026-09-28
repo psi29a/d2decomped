@@ -122,8 +122,8 @@ struct Level {
     // camp's, let them by).
     [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
         if (!inside(x, y))
-            for (const auto& near : nearby)
-                if (near.level->inside(x - float(near.dx), y - float(near.dy))) return near.level->blocked_here(x - float(near.dx), y - float(near.dy), mask);
+            for (const auto& neighbour : nearby)
+                if (neighbour.level->inside(x - float(neighbour.dx), y - float(neighbour.dy))) return neighbour.level->blocked_here(x - float(neighbour.dx), y - float(neighbour.dy), mask);
         return blocked_here(x, y, mask);
     }
     [[nodiscard]] bool blocked_here(float x, float y, std::uint8_t mask = 0x09) const {

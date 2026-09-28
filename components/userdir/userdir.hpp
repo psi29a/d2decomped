@@ -53,8 +53,8 @@ inline fs::path user_dir(std::string_view app) {
 
 inline fs::path global_dir(std::string_view app) {
 #if defined(_WIN32)
-    const char* pf = std::getenv("ProgramFiles");
-    return fs::path(pf ? pf : ".") / app;
+    const char* program_files = std::getenv("ProgramFiles");
+    return fs::path(program_files ? program_files : ".") / app;
 #elif defined(__APPLE__)
     return fs::path("/Library/Preferences") / app;
 #else
