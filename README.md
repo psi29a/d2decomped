@@ -11,6 +11,23 @@ switches it takes (`-w`, `-ns`, `-direct`, `-txt`, `-seed`, ...).
 See [`docs/PLAN.md`](docs/PLAN.md) for the roadmap, known issues and
 what's next; RE notes live in [`docs/research/re/`](docs/research/re/).
 
+## Ground truth
+
+game.exe 1.14d is the reference: behaviour comes from tracing it in
+Ghidra, and where it can, from running its own code as an oracle
+([`tools/emu`](tools/emu), game.exe under unicorn). Other projects
+(OpenDiablo2, OpenD2, community specs) only check our reading. What
+still rests on them is tagged `// unverified (source: …)` in the code and
+listed in [`unverified.md`](docs/research/re/unverified.md). Bugs found in
+the original are kept in [`bugs.md`](docs/research/re/bugs.md), and
+where d2d differs on purpose in
+[`deviations.md`](docs/research/re/deviations.md).
+
+Checked against game.exe's own code: the Blood Moor and Den of Evil
+layouts and tiles (thousands of seeds), every level's monster region
+(all 125 levels, several seeds, three difficulties), the camp's wall
+tiles, the monster and object seeds.
+
 ## Status
 
 The core loop (phase 5) covers Act 1's start, and combat (phase 6) is
@@ -19,7 +36,8 @@ implemented. You can:
 - **Frontend**: startup cinematics, title, credits, Cinematics menu,
   character select with your real `.d2s` saves, character create.
 - **Rogue Encampment**: rendered town with objects and patrolling NPCs,
-  walk/run animations, town music and ambience, automap (Tab).
+  walk/run animations, town music and ambience, automap (Tab), day and
+  night lighting and rain.
 - **Panels**: inventory, character stats (spend stat points), skill
   tree (spend skill points), belt, stash, Horadric Cube, with item
   tooltips (names, affixes, sets, uniques, runewords, durability).
@@ -43,9 +61,9 @@ implemented. You can:
   units are in: Corpsefire and his minions, Flavie, shrines, chests,
   torches. The merc and your pets come along, music and automap follow.
 - **Shrines and chests**: shrines refill or boost you (armor, combat,
-  resists, mana regen, stamina, skills, experience), upgrade a gem or
-  turn the nearest monster into a champion or unique, and reset on their
-  timer. Chests open and drop their act's chest treasure class; some are
+  resists, mana regen, stamina, skills, experience), upgrade a gem, turn
+  the nearest monster into a champion or unique, storm, or drop exploding
+  or gas potions, and reset on their timer. Chests open and drop their act's chest treasure class; some are
   locked (bring a key) and some are trapped: lightning, fire bolts, a
   poison nova, a lightning nova, fire, or undead rising.
 - **Combat**: the Blood Moor's monsters spawn by game.exe's rules and
@@ -59,6 +77,8 @@ implemented. You can:
   bolts, cold enchanted ones leave a frost nova, mana burn drains you,
   spectral hit and multishot work; superuniques (Corpsefire) get their fixed mods. The
   merc fights, and you die and respawn in camp.
+- **Quests**: the Den of Evil, from Akara's request to her reward, with
+  the quest log. Town portals and the corpse on death work.
 - **Skills**: every one of the 210 class skills has an implementation
   path, each built from the game.exe function behind it: melee and kicks, charge-ups and their
   releases, passives and masteries, missiles (with explosions, chains,
@@ -77,10 +97,10 @@ Double Throw).
 It's single-player for now. Characters are saved when you leave the game or
 quit (the .d2s, as game.exe writes it; the original is kept once as .d2s.bak),
 and new characters start with their class's CharStats gear and are saved at once.
-Not yet: levels past the Blood Moor and the Den, the unique behaviour
-mods' auras, curses and teleport, four magic shrines,
-quests, waypoint and town portal travel, the shapeshifted look. The
-full list, ranked, is in [`docs/PLAN.md`](docs/PLAN.md) "Next up".
+Not yet: levels past the Blood Moor and the Den (next: Cold Plains), the
+other five Act 1 quests, waypoint travel, the Portal Shrine, the thief and
+poison-hit unique mods, the shapeshifted look. The road and what's open
+are in [`docs/PLAN.md`](docs/PLAN.md) "Road to a whole Act 1".
 
 ## Build
 
@@ -134,6 +154,8 @@ Useful flags:
 - `--headless --devctl <socket>` runs without a window, driven over a
   Unix socket ([`docs/control_channel.md`](docs/control_channel.md)).
 - `--no-save` never writes character saves (scripted tests use it).
+- `--seed N` fixes the map seed (like game.exe's `-seed`): the same camp,
+  Blood Moor and monsters every run. Without it each game rolls its own.
 
 Keys in town:
 
@@ -159,14 +181,28 @@ when it's missing. Set these to run them:
 
 `tests/smoke_d2d.py <d2d>` drives a headless game end to end:
 character select, stash, Warriv's speech, the waypoint, camera pan.
+`test_game` loads the game with no client code and plays a character; it
+also checks every level's monster region against game.exe's.
+
+The oracle: `tools/emu` (a uv project) runs game.exe's own functions.
+`diff_drlg.py <seeds> <level> [tiles]` diffs our level generator against
+it, `regions.py <seed>` prints game.exe's monster regions.
+
+CI builds on Linux (GCC), macOS (Clang) and Windows (MSVC) with warnings
+as errors, compiles every header on its own, and runs clang-tidy on
+Linux: descriptive names, and every file includes what it uses
+(`.clang-tidy`; docs/PLAN.md "Code style").
 
 ## Layout
 
 ```
-apps/        d2d (the game), launcher (Qt6 installer)
-components/  format libraries: mpq, dc6, dcc, cof, ds1, dt1, tbl, txt,
-             d2s, font, palette, iso9660, devctl, userdir, ...
+apps/        d2d (the client, d2d::client), launcher (Qt6 installer)
+components/  game (the game server, d2d::game), rules (game.exe's rules,
+             tested), drlg (level generator), and the formats: mpq, dc6,
+             dcc, cof, ds1, dt1, tbl, txt, d2s, font, palette, iso9660,
+             devctl, userdir, ...
 tests/       one test per subject, plus the smoke test
-tools/       Ghidra scripts and project, ISO dump helper
+tools/       Ghidra scripts, emu (game.exe as an oracle), drlg-dump,
+             mpq-cat, ISO dump helper
 docs/        plan, control channel, research/re notes
 ```

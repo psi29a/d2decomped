@@ -50,6 +50,11 @@
 //     pixels, then runLen palette-index bytes follow. When both bytes of the
 //     pair are 0, advance to next scanline (x=0, y++).
 //
+// Block x counts from the cell's left corner in a 160-wide frame, whatever
+// the tile's width: draw a tile at the cell's left corner, not centred
+// (1677 of the tiles are narrower; every block of every DT1 lies in
+// [0, width)).
+//
 // Output: each tile gets a width × abs(height) row-major byte buffer with
 // (none with Pixels::skip: headers and subtile flags only)
 // palette indices; index 0 is transparent. Blocks with negative y are

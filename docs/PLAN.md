@@ -1,8 +1,9 @@
 # D2Decomp — Plan
 
 Reverse-engineer Diablo II (2000, LoD 2001) into a cross-platform, modern
-C++26 engine. Ghidra drives decompilation; reference implementations
-(OpenD2, OpenDiablo2, AbyssEngine) guide file-format work.
+C++26 engine. game.exe 1.14d is the ground truth: Ghidra and an emulator
+of its own code (tools/emu) drive the work; other projects only check our
+reading ("Reference projects" below).
 
 ## Goals
 
@@ -25,7 +26,7 @@ C++26 engine. Ghidra drives decompilation; reference implementations
 
 ## Phases
 
-Status as of 2026-09-26.
+Status as of 2026-09-28.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -53,7 +54,8 @@ Status as of 2026-09-26.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
    render tiles. *Done for Act 1's start:* frontend, town, NPCs, panels,
    trade and waypoints (no travel yet); leaving camp into a generated
-   Blood Moor. Left: the other Act 1 levels, waypoint travel, saving.
+   Blood Moor and the Den of Evil, saving. Left: the other Act 1 levels,
+   waypoint travel.
 6. **Combat + AI**: actor state machine, packet-equivalent events,
    monster AI from game.exe. *Implemented:* monsters and their fights,
    gear in combat, drops, experience, the merc, and the skills (phases 0–6
@@ -144,8 +146,11 @@ are the conventional ones: `i`, `j`, `k` as loop counters, `x`, `y`,
 `dx`, `dy` for coordinates, `id`, `ok`; and a colour's `r`, `g`, `b`, `a`
 (`palette::Rgba`). Constants are `kCamelCase`. `.clang-tidy`
 (readability-identifier-length) enforces this for variables and
-parameters; CI runs it on Linux (clang-tidy -p build on every source).
-Fields are held to the same rule by review.
+parameters, and misc-include-cleaner keeps every file including what it
+uses; CI runs both on Linux (clang-tidy -p build on every source). Fields
+are held to the same rule by review. A header must not name a
+platform-private header (`<_string.h>`, `<bits/...>`): include the
+standard one.
 
 **Namespaces say which part.** The file formats are `d2d::mpq`, `d2d::dcc`,
 `d2d::ds1` ... (components/<format>), the game's rules `d2d::rules`, the
@@ -190,7 +195,8 @@ used and listed in `docs/research/re/unverified.md` until it is.
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
-combat and skills). Next: more of Act 1 (Cold Plains, the Den of Evil).
+combat and skills) and the Den of Evil. Next: Cold Plains and the rest
+of Act 1.
 
 ## Open questions
 
@@ -228,6 +234,18 @@ Noted in a playthrough (2026-09-27), to follow up:
 - Fixed: **Charged Bolt's black box** — Missiles.txt Trans 1 / 2 are draw
   modes 3 / 4, the PL2 additive / multiply tables (world_view.hpp
   blit_dcc_frame; in RGB, not the tables).
+
+Noted in a playthrough (2026-09-28), fixed:
+
+- **Click on an NPC's menu walked the player there**: a press that
+  starts on the UI stays the UI's until the button comes up.
+- **The weapon drew over the torso facing north**: the COF's draw-order
+  row is picked through the compass order, not the DCC's
+  (docs/research/re/cof-draw-order.md).
+- **Gaps in the camp's fence, wagons and trees**: a corner (orientation 3)
+  is two tiles, the second picked with orientation 4 (FUN_0066e9b0), and
+  a wall tile's block x counts from its cell's left corner whatever the
+  tile's width; narrower tiles drew shifted right.
 
 ## Wilderness plan (from 2026-09-25)
 
@@ -506,11 +524,30 @@ standalone server later.
    Sisters to the Slaughter), and their superuniques.
    *Den of Evil built (2026-09-27, docs/research/re/quests.md):* Akara
    gives it, the Den counts down, clearing it is announced in the class's
-   voice, Akara's reward is a skill point; the flags are game.exe's. Left:
-   the quest log panel, the "!" marker, Akara's respec (quest 41).
+   voice, Akara's reward is a skill point; the flags are game.exe's; the
+   quest log. Left: the "!" marker, Akara's respec (quest 41).
 6. Andariel (her AI, poison) and Warriv's way east: the end of Act 1.
 7. Alongside: the remaining unique mods (Cursed, thief, poison hit,
    teleport, auras), town portals, the corpse on death — all built.
+
+**Checkpoint 2026-09-28.** The groundwork for the rest is in: the game
+library (`d2d::game`) builds and plays without the client; descriptive
+names and per-file includes, checked in CI; the monster regions, game
+seed and object seed traced and matching game.exe (monsters.md,
+objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
+`diff_drlg.py 1-10 <level>` over Act 1: the Blood Moor and the Den match
+game.exe on every seed, the 36 other levels on none yet (our generator
+covers only the paths those two take). Next, in order:
+1. Cold Plains (level 3), then the other outdoor levels that share its
+   generator (Stony Field, Dark Wood, Black Marsh, Tamoe Highland); each
+   joins `kBuiltLevels` once `diff_drlg` matches.
+2. The caves and crypts on the Den's maze generator, with the cave theme
+   rooms (FUN_006735f0).
+3. The presets: Tristram, the Monastery, the Catacombs.
+Still open in the Blood Moor: rooms populate at load, not on first
+activation; which region component set a monster takes; the Portal
+Shrine; warp arrival spots (a guess); the camp's hidden river-edge walls
+(game.exe keeps them as wall tiles; drawn or only blocking isn't traced).
 
 **Step 3 — networking** (the deferred item 7 above).
 
