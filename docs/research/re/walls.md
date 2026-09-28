@@ -29,3 +29,6 @@ Roofs never fade and aren't hidden by where the player stands: the roof
 draw (`FUN_004dedf0`) skips only tiles flagged 0x400 (alpha 0) or 8
 (hidden in the DS1: tile word bit 31); its timer that would set 8 (tile
 +0x24 bit 2) is never armed in 1.14d. A player under a roof stays under it.
+
+d2d cuts a see-through circle in roofs round the player by default
+(deviations.md improvement 4; `--vanilla-roofs` for game.exe's).

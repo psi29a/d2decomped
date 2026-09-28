@@ -696,7 +696,8 @@ int main(int argc, char** argv) {
                    "Preload the Hardcore checkbox");
     app.add_flag  ("--no-save", no_save,
                    "Never write character saves (scripted tests)");
-    bool no_video = false;
+    bool no_video = false, vanilla_roofs = false;
+    app.add_flag  ("--vanilla-roofs", vanilla_roofs, "Draw roofs whole over the player, as game.exe does (no cut-out)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
@@ -744,6 +745,7 @@ int main(int argc, char** argv) {
 
     g_start_screen   = start_screen;
     g_video          = !no_video && cfg["video"] != "0";
+    g_roof_cutout    = !vanilla_roofs && cfg["roof_cutout"] != "0";
     g_user_dir       = user_dir;
     g_start_class    = start_class;
     g_start_name     = start_name;

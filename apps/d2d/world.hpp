@@ -11,10 +11,25 @@ namespace {
 // transparent. Screen position is the buffer's top-left; caller does the
 // iso math to place it. Bounds-checked per-pixel — off-screen tiles are
 // clipped rather than skipped so the compositor can walk the whole grid.
+// d2d's roof cut-out (deviations.md): roofs see-through in a soft circle
+// round the player, so a player under a roof stays in sight. game.exe
+// draws roofs whole (walls.md). Off: --vanilla-roofs or cfg roof_cutout = 0.
+inline bool g_roof_cutout = true;
+struct Hole {
+    int x = 0, y = 0, r = 0;                   // screen centre and radius, pixels
+    // The alpha a pixel at (px, py) keeps: 0x40 in the inner half, rising to
+    // 0xff at the rim.
+    [[nodiscard]] int alpha(int px, int py, int a) const {
+        const int dx = px - x, dy = py - y, d2 = dx * dx + dy * dy;
+        if (d2 >= r * r) return a;
+        const float t = std::clamp((std::sqrt(float(d2)) - float(r) / 2) / (float(r) / 2), 0.f, 1.f);
+        return std::min(a, 0x40 + int(float(0xff - 0x40) * t));
+    }
+};
 void blit_dt1_tile(std::vector<std::uint8_t>& fb,
                    const d2d::dt1::Tile& t,
                    const d2d::palette::Palette& pal,
-                   int sx, int sy, int alpha = 255) {
+                   int sx, int sy, int alpha_all = 255, const Hole* hole = nullptr) {
     const int th = std::abs(t.height);
     for (int y = 0; y < th; ++y) {
         const int py = sy + y;
@@ -27,6 +42,7 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
             if (px < 0 || px >= int(kW)) continue;
             const auto c = pal[idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            const int alpha = hole ? hole->alpha(px, py, alpha_all) : alpha_all;
             if (alpha >= 255) { p[0] = c.r; p[1] = c.g; p[2] = c.b; }
             else { p[0] = std::uint8_t((p[0] * (255 - alpha) + c.r * alpha) / 255); p[1] = std::uint8_t((p[1] * (255 - alpha) + c.g * alpha) / 255); p[2] = std::uint8_t((p[2] * (255 - alpha) + c.b * alpha) / 255); }
             p[3] = 0xFF;
@@ -84,7 +100,7 @@ struct Lighting {
 // bilinear between the cell's 6 x 6 subtile corners. One level for the tile
 // when they share it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, const Lighting& light,
-                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor, int alpha = 255) {
+                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor, int alpha_all = 255, const Hole* hole = nullptr) {
     // The subtile corners round the cell: a tile's pixels reach up to 6
     // subtiles before its top corner (tall floors) and 8 past.
     constexpr int kP = 16, kO = 6;
@@ -121,6 +137,7 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, c
             const auto lvl = level(px - top_x, floor ? py - top_y : kIsoH / 2);
             const auto col = pals[lvl][idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
+            const int alpha = hole ? hole->alpha(px, py, alpha_all) : alpha_all;
             if (alpha >= 255) { p[0] = col.r; p[1] = col.g; p[2] = col.b; }
             else { p[0] = std::uint8_t((p[0] * (255 - alpha) + col.r * alpha) / 255); p[1] = std::uint8_t((p[1] * (255 - alpha) + col.g * alpha) / 255); p[2] = std::uint8_t((p[2] * (255 - alpha) + col.b * alpha) / 255); }
             p[3] = 0xFF;
@@ -267,6 +284,8 @@ void render_world(std::vector<std::uint8_t>& fb,
     struct Fade { int from = 255, to = 255; std::uint32_t at = 0; };
     static std::unordered_map<std::uint64_t, Fade> fades;
     const int pcx = int(std::floor(cam_x)), pcy = int(std::floor(cam_y));
+    const auto [hole_x, hole_y] = iso_point(cam_x, cam_y);
+    const Hole hole{ hole_x, hole_y - 40, 70 };           // round the player's body
     auto wall_alpha = [&](const void* lv, int off, int type, int k, int gx, int gy) {
         static constexpr std::uint16_t kX = 1 << 1 | 1 << 4 | 1 << 5 | 1 << 7 | 1 << 8 | 1 << 10 | 1 << 12;
         static constexpr std::uint16_t kY = 1 << 2 | 1 << 3 | 1 << 6 | 1 << 7 | 1 << 9 | 1 << 11 | 1 << 12;
@@ -479,8 +498,9 @@ void render_world(std::vector<std::uint8_t>& fb,
                 iso_y -= t.roof_height;
                 // A roof is flat: lit like a floor, where each pixel lies on
                 // the roof's plane (its top corner at the hoisted iso_y).
-                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, iso_x, iso_y, true);
-                else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
+                const Hole* h = g_roof_cutout ? &hole : nullptr;
+                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, iso_x, iso_y, true, 255, h);
+                else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), 255, h);
             };
             if (!lv->picks.empty()) {
                 int k = 0;
