@@ -62,6 +62,7 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         if (!in_view(g.x, g.y) || v.level == &s.town) continue;
         Unit u{ g.x, g.y, nullptr, 0, &g.label, g.ms, -1000 - int(i) };
         u.sprite = s.flippy(g.item.code);
+        u.cmap = s.item_map(g.item, false);   // FUN_00471ec0: the character's colours
         u.rgb = g.rgb;
         out.push_back(u);
     }

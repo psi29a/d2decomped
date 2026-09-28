@@ -104,7 +104,7 @@ void draw_held(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::It
     if (!spr || spr->frames_per_direction() == 0) return;
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const auto& f = spr->frame(0, 0);
-    blit_sprite(fb, f, pal, mx - int(f.width) / 2, my - int(f.height) / 2);
+    blit_sprite(fb, f, s.item_pal(it, pal), mx - int(f.width) / 2, my - int(f.height) / 2);
 }
 
 }  // namespace

@@ -196,8 +196,9 @@ inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& ta
 // layer: 0 HD, 1 TR, 5 RH, 6 LH, 7 SH, 10 S3, 16 none), its graphic code
 // (alternategfx, else code), and body armour's lit / med / hvy tiers
 // (Torso, Legs, rArm, lArm, rSPad, lSPad: 0..2).
-// Transform: the colormap set its tint uses (compcode.md "Tints").
-struct Piece { std::string gfx; int component = 16, transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
+// Transform / InvTrans: the colormap sets its tint uses on the character /
+// in the inventory (compcode.md "Tints").
+struct Piece { std::string gfx; int component = 16, transform = 0, inv_transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
 inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, const txt::Table& armor, const txt::Table& misc) {
     std::unordered_map<std::string, Piece> out;
     for (const txt::Table* t : { &weapons, &armor, &misc })
@@ -210,6 +211,7 @@ inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, 
             const auto c = t->get(r, "component");
             p.component = c.empty() ? 16 : std::atoi(std::string(c).c_str());
             p.transform = std::atoi(std::string(t->get(r, "Transform")).c_str());
+            p.inv_transform = std::atoi(std::string(t->get(r, "InvTrans")).c_str());
             if (t->get(r, "type") == "circ") p.component = 16;   // circlets aren't drawn (compcode.md)
             int k = 0;
             for (const char* col : { "Torso", "Legs", "rArm", "lArm", "rSPad", "lSPad" }) {
@@ -292,16 +294,18 @@ struct Colours {
     std::vector<std::string> codes;                            // Colors.txt Code, by index
     std::vector<std::string> unique, set, prefix, suffix, automod;
     std::unordered_map<std::string, int> gem;                  // gem code -> gems.txt transform (gem types only)
+    std::vector<std::string> unique_inv, set_inv;              // invtransform: a unique's / set item's colour in the inventory
     [[nodiscard]] int at(const std::vector<std::string>& v, int row) const {
         if (row < 0 || std::size_t(row) >= v.size() || v[std::size_t(row)].empty()) return -1;
         for (std::size_t i = 0; i < codes.size(); ++i) if (codes[i] == v[std::size_t(row)]) return int(i);
         return -1;
     }
-    // socket: the first socketed item's code, if the item is socketed.
+    // socket: the first socketed item's code, if the item is socketed;
+    // inv: the inventory's colour (FUN_0062c100's last argument).
     [[nodiscard]] int of(int quality, int unique_id, int set_id, int pre, int suf, const std::array<int, 6>& rare, int class_affix,
-                         const std::string& socket = {}) const {
-        if (quality == 7) return at(unique, unique_id);
-        if (quality == 5) return at(set, set_id);
+                         const std::string& socket = {}, bool inv = false) const {
+        if (quality == 7) return at(inv ? unique_inv : unique, unique_id);
+        if (quality == 5) return at(inv ? set_inv : set, set_id);
         if (quality != 4 && quality != 6) {
             if (const auto g = gem.find(socket); g != gem.end() && g->second >= 0 && g->second < 21) return g->second;
             return at(automod, class_affix - 1);
@@ -314,6 +318,9 @@ struct Colours {
     }
 };
 
+// A colormap set exists for Transform 1, 2 and 5..8 (FUN_00600c20).
+[[nodiscard]] inline bool tints_with(int t) { return t > 0 && t <= 8 && t != 3 && t != 4; }
+
 // Each layer's tint (the d2s header's 16 bytes at 0x98): (Transform x 32
 // + colour + 1) & 0xff, 0xff with no colour or Transform 0, 3 or 4.
 // Transform 8 wraps below 0x20; tint_of reads it back as game.exe does.
@@ -322,7 +329,7 @@ inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, 
     a.fill(0xff);
     each_layer(pcs, worn, [&](int layer, const Worn& w, const Piece& p) {
         const int t = p.transform;
-        a[std::size_t(layer)] = w.colour < 0 || t <= 0 || t == 3 || t == 4 || t > 8 ? 0xff : std::uint8_t((t * 32 + w.colour + 1) & 0xff);
+        a[std::size_t(layer)] = w.colour < 0 || !tints_with(t) ? 0xff : std::uint8_t((t * 32 + w.colour + 1) & 0xff);
     });
     return a;
 }

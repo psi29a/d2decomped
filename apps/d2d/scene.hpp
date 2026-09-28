@@ -433,6 +433,28 @@ struct Scene : GameData {
     // An item's inventory graphic: the unique's/set item's own invfile,
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
     const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;
+    // The item's colormap (256 entries), or null (FUN_0062c100): inv, the
+    // inventory's (InvTrans, invtransform); else the character's and the
+    // ground's (Transform, chrtransform).
+    [[nodiscard]] const std::uint8_t* item_map(const d2d::d2s::Item& it, bool inv) const {
+        const auto p = item_pieces.find(it.code);
+        if (p == item_pieces.end()) return nullptr;
+        const int t = inv ? p->second.inv_transform : p->second.transform;
+        if (!d2d::compcode::tints_with(t) || colormaps[std::size_t(t)].size() < 21 * 256) return nullptr;
+        const int c = item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
+                                      it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{}, inv);
+        return c < 0 || c >= 21 ? nullptr : colormaps[std::size_t(t)].data() + c * 256;
+    }
+    // pal through a colormap (null: pal itself).
+    [[nodiscard]] static d2d::palette::Palette mapped(const d2d::palette::Palette& pal, const std::uint8_t* map) {
+        if (!map) return pal;
+        std::array<d2d::palette::Rgba, 256> e;
+        for (std::size_t i = 0; i < 256; ++i) e[i] = pal[i == 0 ? 0 : map[i]];
+        return d2d::palette::Palette(e);
+    }
+    [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& it, const d2d::palette::Palette& pal) const {
+        return mapped(pal, item_map(it, true));
+    }
     std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
     d2d::dc6::Sprite popbelt;                          // PANEL\ctrlpnl_popbelt
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;

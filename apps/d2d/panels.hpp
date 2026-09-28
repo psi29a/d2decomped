@@ -9,7 +9,8 @@ namespace {
 // grid items (panel 1) centred in their w x h cell block, equipped items
 // centred in their body slot's box. Palette: the act's, like the world.
 // The item under (mx, my) gets its hover text.
-// ponytail: no colour tints (item transform colormaps), cube.
+// Items draw through their inventory colormap (Scene::item_pal).
+// ponytail: no cube.
 void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
                     const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr) {
@@ -27,7 +28,7 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
         const auto* spr = s.item_sprite(it);
         if (!spr || spr->frames_per_direction() == 0) return;
         const auto& f = spr->frame(0, 0);
-        blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
+        blit_sprite(fb, f, s.item_pal(it, pal), x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
     };
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
@@ -256,7 +257,7 @@ void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vect
         const auto [x, y, w, h] = grid_rect(s, L, it);
         if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
             const auto& f = spr->frame(0, 0);
-            blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
+            blit_sprite(fb, f, s.item_pal(it, pal), x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
         }
         if (mx >= x && mx < x + w && my >= y && my < y + h) { hover = &it; hb = { x, y, w, h }; }
     }
@@ -298,7 +299,7 @@ void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<
         if (b[1] <= b[0]) continue;
         if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
             const auto& f = spr->frame(0, 0);
-            blit_sprite(fb, f, pal, b[0] + (b[1] - b[0] + 1 - int(f.width)) / 2,
+            blit_sprite(fb, f, s.item_pal(it, pal), b[0] + (b[1] - b[0] + 1 - int(f.width)) / 2,
                         b[2] + (b[3] - b[2] + 1 - int(f.height)) / 2);
         }
         if (mx >= b[0] && mx <= b[1] && my >= b[2] && my <= b[3]) { hover = &it; hb = b; }

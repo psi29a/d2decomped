@@ -122,3 +122,10 @@ Drawing (FUN_00600c20): the layer's pixels go through colormap
 8 invgreybrown. d2d remaps a layer's pixels once when it's decoded
 (`PlayerAnim::layer`); the look carries the tints as bytes 16..31.
 
+The same colour, with `inv` set, tints an item's picture in the inventory,
+stash, store, belt and cursor: InvTrans (armor/weapons/misc) for the
+colormap set, a unique's / set item's `invtransform` for its colour
+(FUN_0062c100's last argument picks +0x142 / +0x39 / +0x41). Items on
+the ground are drawn by the unit draw (`FUN_00471ec0`, unit type 4) with
+the character's colours (Transform, chrtransform). d2d: `Scene::item_map`.
+

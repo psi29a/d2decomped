@@ -149,6 +149,7 @@ struct Unit {
     // An item on the ground instead of a composite: its flippy DC6, played
     // once from mode_ms (a frame a tick), then held on the last frame.
     const d2d::dc6::Sprite* sprite = nullptr;
+    const std::uint8_t* cmap = nullptr;  // ... through the item's colormap (Scene::item_map)
     std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };   // hover label colour
     // A missile: its DCC in direction `dir` (0..31), looping AnimLen frames
     // at AnimSpeed/16 a tick from mode_ms.
@@ -373,7 +374,7 @@ void render_world(std::vector<std::uint8_t>& fb,
             if (u.sprite) {
                 const auto* f = flippy_frame(*u.sprite, elapsed_ms - u.mode_ms);
                 if (!f) continue;
-                blit_at_anchor(fb, *f, upal, ax, ay);
+                blit_at_anchor(fb, *f, u.cmap ? Scene::mapped(upal, u.cmap) : upal, ax, ay);
                 b = { ax + f->offset_x, ay + f->offset_y - int(f->height) + 1,
                       ax + f->offset_x + int(f->width), ay + f->offset_y + 1 };
             } else {

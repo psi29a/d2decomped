@@ -117,7 +117,7 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
         const auto [x, y, w, h] = grid_rect(s, L, it);
         if (const auto* spr = s.item_sprite(it); spr && spr->frames_per_direction() > 0) {
             const auto& f = spr->frame(0, 0);
-            blit_sprite(fb, f, pal, x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
+            blit_sprite(fb, f, s.item_pal(it, pal), x + (w - int(f.width)) / 2, y + (h - int(f.height)) / 2);
         }
         if (mx >= x && mx < x + w && my >= y && my < y + h) { hover = &it; hb = { x, y, w, h }; }
     }
