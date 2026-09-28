@@ -4,8 +4,8 @@
 // as "JM" <u16 count>, then `count` items. Each item is an LSB-first
 // bitstream starting with its own "JM", padded to a byte; items with
 // filled sockets are followed by those socketed items (not counted).
-// Layout per the community d2s spec, confirmed against 19 real 1.14d
-// saves (every list ends exactly on the next "JM" — test_d2s):
+// unverified (source: the community d2s spec): the layout; the data agrees
+// (19 real 1.14d saves, every list ends exactly on the next "JM" — test_d2s):
 //   16 "JM" | 32 flags (bit 4 identified, 11 socketed, 16 ear, 21 simple,
 //   22 ethereal, 24 personalized, 26 runeword) | 10 version | 3 location
 //   (0 stored, 1 equipped, 2 belt, 4 cursor, 6 socketed) | 4 body slot |

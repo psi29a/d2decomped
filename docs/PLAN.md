@@ -167,8 +167,11 @@ level generator `d2d::drlg`, the game server `d2d::game`
 - **AbyssEngine** — C, successor to OpenDiablo2 by same author. Sabbat-era
   design; uses Lua for game code.
 
-Inspiration only. We do not copy code — we read, understand, cite in
-`docs/research/`, and write our own.
+Verification only. game.exe 1.14d is the ground truth: behaviour comes
+from tracing it. We do not copy code, and we don't take behaviour from
+these projects on trust; we use them to check our reading. Anything not
+yet traced in game.exe is marked `// unverified (source: ...)` where it's
+used and listed in `docs/research/re/unverified.md` until it is.
 
 ## Ghidra workflow
 

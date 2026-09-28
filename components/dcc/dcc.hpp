@@ -6,8 +6,10 @@
 // diff against the previous frame, and a 4-way palette mask packs common
 // pixel values.
 //
-// This is a port of the format spec (see references in OpenDiablo2 and
-// Necrolis' notes); we do not copy any implementation code.
+// This is a port of the format spec; we do not copy any implementation code.
+// unverified (source: OpenDiablo2's reader, Necrolis' notes): the format as a
+// whole; the data agrees — every character, monster and missile DCC in the
+// MPQs decodes and draws as game.exe shows it. game.exe's decoder not traced.
 //
 // Format outline (all little-endian, bit-packed after the file header):
 //

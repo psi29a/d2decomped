@@ -48,8 +48,8 @@ TCP / Battle.net game uses.
   Unit types: 0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp.
   Handlers refuse a type over 5 or a wrong length (return 2 / 3).
 
-Names: the community's (d2-clientless, D2MOO); ✓ = the handler was read
-and agrees.
+Names: the community's (d2-clientless, D2MOO) — unverified labels
+(re/unverified.md); ✓ = the handler was read and agrees.
 
 | Id | Size | Handler | What |
 |---|---|---|---|

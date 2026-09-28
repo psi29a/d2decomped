@@ -1,8 +1,9 @@
 // D2Decomp .d2s character-save header parser.
 //
 // Reads only the fixed header the char-select screen needs: name, class,
-// level, status flags. Layout per the Phrozen Keep d2s spec, stable from
-// 1.09 (version 92) through 1.14d (version 96):
+// level, status flags. Stable from 1.09 (version 92) through 1.14d (96).
+// unverified (source: the Phrozen Keep d2s spec): the layout; the data
+// agrees (19 real 1.14d saves, test_d2s). game.exe's reader not traced.
 //   +0x00 u32  magic 0xAA55AA55
 //   +0x04 u32  version
 //   +0x08 u32  file size

@@ -30,8 +30,9 @@ class Palette {
 public:
     Palette() = default;
 
-    // Accepts a 768-byte pal.dat (BGR triples — confirmed via OpenDiablo2's
-    // d2dat.Load) or a .PL2 (RGBA at offset 0). Auto-detects layout from
+    // Accepts a 768-byte pal.dat (BGR triples; unverified (source:
+    // OpenDiablo2's d2dat.Load); the data agrees — the colours match
+    // game.exe's screens) or a .PL2 (RGBA at offset 0). Auto-detects layout from
     // total size: exactly 768 → BGR-packed DAT; 4-byte stride → RGBA PL2.
     // Larger DAT-style buffers are truncated; short buffers throw.
     explicit Palette(std::span<const std::byte> bytes) {
@@ -53,7 +54,7 @@ public:
         if (bytes.size() < kNeed)
             throw std::runtime_error("palette: need 768 bytes, got fewer");
         for (std::size_t i = 0; i < 256; ++i) {
-            // DAT layout is (B, G, R) per index — see OpenDiablo2 dat.go.
+            // DAT layout is (B, G, R) per index (unverified, see above).
             entries_[i] = Rgba{
                 std::uint8_t(bytes[i * 3 + 2]),   // R
                 std::uint8_t(bytes[i * 3 + 1]),   // G

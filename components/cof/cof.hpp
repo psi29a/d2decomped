@@ -79,7 +79,10 @@ public:
     // from south, while DCC directions (and the direction a unit is given)
     // are D2's interleaved order (8: 0 SW, 1 NW, 2 NE, 3 SE, 4 S, 5 W, 6 N,
     // 7 E; 16 adds 8..15 between them). The row for DCC direction `dir`.
-    // (OpenDiablo2's cof/dcc direction tables, after Necrolis.)
+    // game.exe (docs/research/re/cof-draw-order.md): the unit draw
+    // (FUN_00470ec0) turns the unit's 64-step direction into the row through
+    // the table at 0x6e55a0 (FUN_00600e20) and reads it with FUN_004db110;
+    // the DCC frames use 0x6e45a0. These tables are that pair's composition.
     [[nodiscard]] static std::size_t priority_row(std::size_t dir, std::size_t directions) {
         static constexpr std::uint8_t k8[8] = { 1, 3, 5, 7, 0, 2, 4, 6 };
         static constexpr std::uint8_t k16[16] = { 2, 6, 10, 14, 0, 4, 8, 12, 1, 3, 5, 7, 9, 11, 13, 15 };

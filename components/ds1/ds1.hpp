@@ -29,7 +29,8 @@
 // The (style, sequence) pair (plus the wall type from the orientation
 // stream) is what the renderer feeds into a DT1 tile lookup.
 //
-// Layer stream ORDER (per Blizzard's writer, per OpenDiablo2's reader):
+// Layer stream ORDER. unverified (source: OpenDiablo2's reader); the data
+// agrees (every DS1 in the MPQs parses to its exact size):
 //   for each wall i:   wall_i dword, then orientation_i dword
 //   for each floor i:  floor_i dword
 //   if shadows > 0:    shadow dword

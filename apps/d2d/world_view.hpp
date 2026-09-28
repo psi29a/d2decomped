@@ -175,8 +175,7 @@ inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& anim, std::uint
 // A transparent COF layer's draw effect as blit_dcc_frame's mode: the
 // driver's draw modes 0..2 (a quarter, half, three quarters of the layer),
 // 3 additive, 4 multiply (like Missiles.txt Trans 1 / 2), else opaque.
-// ponytail: which alpha each of 0..2 is follows OpenDiablo2's naming, not
-// traced.
+// unverified (source: OpenDiablo2's naming): which alpha each of 0..2 is.
 inline int draw_mode(int effect) {
     switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
 }

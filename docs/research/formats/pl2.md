@@ -56,7 +56,8 @@ mid-tone between whatever entry 0 renders as and `i`, not `i` itself.
 
 ## Full layout (not yet parsed)
 
-Per OpenDiablo2's `d2pl2` and empirical probing of `menu1/Pal.PL2`:
+unverified (source: OpenDiablo2's `d2pl2`), with empirical probing of
+`menu1/Pal.PL2` (re/unverified.md):
 
 - `0x000000..0x000400`  BasePalette (parsed)
 - `0x000400..?`         LightLevelVariations, InvColorVariations, TextColors,

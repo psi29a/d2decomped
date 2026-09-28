@@ -153,8 +153,9 @@ private:
         if (pixels == Pixels::skip) return;
 
         // Pass 2: block headers + decode into each tile's pixel buffer.
-        // Y-shift is computed from actual block Y positions (per OpenDiablo2's
-        // renderer): tileYOffset = max(0, -min(block.y)). Blocks whose
+        // Y-shift is computed from actual block Y positions:
+        // tileYOffset = max(0, -min(block.y)).
+        // unverified (source: OpenDiablo2's renderer): the y-shift. Blocks whose
         // shifted rows still fall outside the buffer get silently clipped by
         // put_pixel — that matches D2's behaviour on odd tiles.
         constexpr std::size_t kBlockHdr = 20;

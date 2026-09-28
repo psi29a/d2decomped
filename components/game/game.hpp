@@ -59,7 +59,8 @@ namespace fs = std::filesystem;
 
 // D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
 // step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
-// See OpenDiablo2's mapengine for the same convention.
+// unverified (source: OpenDiablo2's mapengine): the projection; the data
+// agrees (DT1 floor tiles are 160x80 diamonds and the camp's tiles meet).
 constexpr int kIsoW = 160;
 constexpr int kIsoH = 80;
 
