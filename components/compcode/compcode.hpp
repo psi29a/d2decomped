@@ -198,7 +198,7 @@ inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& ta
 // (Torso, Legs, rArm, lArm, rSPad, lSPad: 0..2).
 // Transform / InvTrans: the colormap sets its tint uses on the character /
 // in the inventory (compcode.md "Tints").
-struct Piece { std::string gfx; int component = 16, transform = 0, inv_transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
+struct Piece { std::string gfx, type, type2; int component = 16, transform = 0, inv_transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
 inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, const txt::Table& armor, const txt::Table& misc) {
     std::unordered_map<std::string, Piece> out;
     for (const txt::Table* t : { &weapons, &armor, &misc })
@@ -208,6 +208,7 @@ inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, 
             Piece p;
             p.gfx = std::string(t->get(r, "alternategfx"));
             if (p.gfx.empty()) p.gfx = code;
+            p.type = std::string(t->get(r, "type")); p.type2 = std::string(t->get(r, "type2"));
             const auto c = t->get(r, "component");
             p.component = c.empty() ? 16 : std::atoi(std::string(c).c_str());
             p.transform = std::atoi(std::string(t->get(r, "Transform")).c_str());

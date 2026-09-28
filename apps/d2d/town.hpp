@@ -53,9 +53,64 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
 // units the world draws by depth (npc -2 the merc, -3 pets, -10 - i
 // monster i of the View, -1000 - i ground item i).
+//
+// A unit's states' look (Scene::StateInfo) onto it: the colour shift of
+// the one with the highest colorpri, each one's overlays while it lasts,
+// its cast overlay once from when the client first saw it (StateClock).
+// ponytail: an overlay's light (Radius) isn't stamped; LoopWaitTime isn't
+// applied.
+struct StateClock {
+    struct Seen { std::uint32_t start = 0, last = 0; };
+    std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
+    std::uint32_t now = 0;
+};
+inline void dress(const Scene& s, Unit& u, int key, std::span<const std::string_view> names, StateClock* clk) {
+    int pri = -1;
+    for (const auto name : names) {
+        const auto it = s.states.find(std::string(name));
+        if (name.empty() || it == s.states.end()) continue;
+        const auto& st = it->second;
+        // colorshift counts from 1: "blue" (108) is table 107, blue; 108
+        // is purple. "red" (100) → 99 red, "poison" (104) → 103 green.
+        if (st.shift >= 1 && st.shift <= 111 && st.pri > pri && s.colour_shifts.size() >= 111 * 256) {
+            pri = st.pri;
+            u.shift = s.colour_shifts.data() + (st.shift - 1) * 256;
+        }
+        std::uint32_t start = 0;
+        if (clk) {
+            auto [e, fresh] = clk->seen.try_emplace({ key, &st }, StateClock::Seen{ clk->now, clk->now });
+            if (!fresh && clk->now - e->second.last > 200) e->second.start = clk->now;   // gone a while: a new one
+            e->second.last = clk->now;
+            start = e->second.start;
+        }
+        for (const auto* o : st.over) if (o) u.overs.push_back({ o, start, false });
+        if (st.cast) u.overs.push_back({ st.cast, start, true });
+    }
+}
+// The states on a monster and on the player, by States.txt name.
+inline std::vector<std::string_view> monster_states(const Scene& s, const Monster& m, std::uint32_t now) {
+    std::vector<std::string_view> out;
+    if (!m.alive()) return out;
+    if (now < m.poison_until) out.push_back("poison");
+    if (now < m.chill_until) out.push_back("cold");
+    if (now < m.stun_until) out.push_back("stunned");
+    for (const auto& k : { m.curse, m.cry })
+        if (k.skill >= 0 && now < k.until)
+            if (const auto* sk = s.skills.get(k.skill)) out.push_back(sk->auratarget);
+    if (m.aura > 0)
+        if (const auto* sk = s.skills.get(m.aura)) out.push_back(sk->aurastate);
+    return out;
+}
+inline std::vector<std::string_view> player_states(const Scene& s, const View& v) {
+    std::vector<std::string_view> out;
+    for (const int k : v.buffs) if (const auto* sk = s.skills.get(k)) out.push_back(sk->aurastate);
+    if (v.aura > 0) if (const auto* sk = s.skills.get(v.aura)) out.push_back(sk->aurastate);
+    return out;
+}
 constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;
 void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out,
-                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0) {
+                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0,
+                StateClock* clk = nullptr) {
     auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
@@ -97,6 +152,8 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         const auto& m = v.monsters[i];
         if (m.corpse_used || !in_view(m.u.x, m.u.y)) continue;
         out.push_back({ m.u.x, m.u.y, &s.npc_anim(m.npc, m.mode), m.u.dir, m.alive() ? &m.npc.name : nullptr, m.u.mode_ms, -10 - int(i) });
+        out.back().overlay_class = m.npc.overlay_class;
+        dress(s, out.back(), m.id, monster_states(s, m, now_ms), clk);
     }
 }
 // Over the world: the hovered (else attacked) monster's life bar, the
@@ -222,6 +279,7 @@ struct Town {
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
+    StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
     std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
     bool  inv_open = false;   // 'I' — inventory panel
@@ -829,7 +887,11 @@ struct Town {
         const bool jump = std::hypot(me.x - prev_x, me.y - prev_y) > 2.f;
         cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
         cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms, &cc.input_name, int(kUiToSaveClass[std::max(cc.selected, 0)]));
+        state_clock.now = ms;
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms, &cc.input_name, int(kUiToSaveClass[std::max(cc.selected, 0)]), &state_clock);
+        std::erase_if(state_clock.seen, [&](const auto& e) { return ms - e.second.last > 5000; });
+        Unit player_look{};
+        dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];
@@ -849,7 +911,8 @@ struct Town {
                       &hovered_npc, stash_open || cube_open ? &cc.items : nullptr, cc.expansion, belt_open,
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
-                      !(pmode == kModeDD && !view.corpses.empty()));   // dead, the corpse lies there instead
+                      !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
+                      &player_look);
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open

@@ -30,6 +30,7 @@ struct Npc {
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
+    int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
 
@@ -172,14 +173,54 @@ struct GameData {
     std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
     std::unordered_map<std::string, d2d::compcode::Piece> item_pieces;
     d2d::compcode::Colours item_colours;
+    std::optional<d2d::compcode::Types> item_types;    // ItemTypes' hierarchy (a state's itemtype)
+    // Overlay.txt (FUN_00470390; record 0x84): the DCC in
+    // data\global\overlays, its frames, drawn before the unit (PreDraw), the
+    // offset, the height by the unit's class (Height1..4; class -1: +75),
+    // AnimRate (x 16 / 256 frames a tick), its draw mode (Trans, as a COF
+    // layer's draw effect), its light (InitRadius / Radius, RGB).
+    struct OverlayInfo {
+        std::string file;
+        int frames = 1, x = 0, y = 0, rate = 16, trans = 3, radius = 0;
+        bool predraw = false;
+        std::array<int, 4> height{};
+        [[nodiscard]] int dy(int cls) const { return y + (cls >= 0 && cls < 4 ? height[std::size_t(cls)] : 75); }
+    };
+    std::unordered_map<std::string, OverlayInfo> overlays;
+    // States.txt's look: the colour shift that wins by colorpri (PL2's
+    // colour shift tables, +0x53500, colorshift - 1), overlays while it lasts
+    // (overlay1..4) and once as it starts (castoverlay); the colour worn
+    // items of itemtype take (itemtrans).
+    struct StateInfo {
+        int pri = 0, shift = -1, item_colour = -1;
+        std::string item_type;
+        std::array<const OverlayInfo*, 4> over{};
+        const OverlayInfo* cast = nullptr;
+    };
+    std::unordered_map<std::string, StateInfo> states;
+    std::vector<std::uint8_t> colour_shifts;           // ACT1 PL2 +0x53500: 111 x 256
     // Items\Palette\<transform>.dat by Transform 1..8: 21 colours x 256.
     std::array<std::vector<std::uint8_t>, 9> colormaps;   // item code -> its layer, graphic, armour tiers
-    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items) const {   // the look of what's worn (compcode::look)
+    // The look of what's worn (compcode::look). A state on the player with
+    // an itemtrans colours worn items of its itemtype (FUN_0062c100's first
+    // loop: Enchant's red weapons, Venom Claws' green).
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> on = {}) const {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& it : items)
-            if (it.location == 1)
-                worn.push_back({ it.slot, it.code, item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
-                                                        it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{}) });
+            if (it.location == 1) {
+                int c = item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
+                                        it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{});
+                if (const auto p = item_pieces.find(it.code); p != item_pieces.end() && item_types)
+                    for (const auto name : on)
+                        if (const auto st = states.find(std::string(name)); st != states.end() && st->second.item_colour >= 0) {
+                            const int want = item_types->index(st->second.item_type);
+                            if (item_types->isa(item_types->index(p->second.type), want) || item_types->isa(item_types->index(p->second.type2), want)) {
+                                c = st->second.item_colour;
+                                break;
+                            }
+                        }
+                worn.push_back({ it.slot, it.code, c });
+            }
         const auto l = d2d::compcode::look(comp, item_pieces, worn), t = d2d::compcode::tints(item_pieces, worn);
         Appearance a;
         std::copy(l.begin(), l.end(), a.begin());
@@ -496,6 +537,8 @@ struct Scene : GameData {
     std::unordered_map<std::string, d2d::dcc::Sprite> missile_cels;   // a missile's CelFile DCC, by Missiles.txt row name
     std::array<d2d::dc6::Sprite, 4> rain_splash;       // UncompOverlays\Rain1..4 (Rain3 / 4 splash where drops fall)
     d2d::dcc::Sprite npc_alert;                        // Overlay.txt npcalert: NPCSpeechBalloon.dcc
+    mutable std::unordered_map<const OverlayInfo*, d2d::dcc::Sprite> overlay_sprites;   // loaded when first drawn
+    const d2d::dcc::Sprite* overlay_sprite(const OverlayInfo& o) const;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
     const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;

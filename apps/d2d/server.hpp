@@ -65,6 +65,7 @@ struct View {
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
+    std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
@@ -203,6 +204,7 @@ struct World {
         v.npc_states = npc_states;
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
+        for (const auto& st : fight.self_states) v.buffs.push_back(st.skill);
         v.day = day;
         v.den_cleared = den.state >= 4;
         v.den_state = den.state; v.den_log = den.log; v.den_left = std::max(den_left, 0);
@@ -228,7 +230,8 @@ struct World {
         h.level = std::uint8_t(std::clamp<std::int64_t>(cc.stats.get(d2d::d2s::kLevel), 1, 99));
         h.last_played = std::uint32_t(std::time(nullptr));
         h.map_id = scene->map_seed;
-        if (cc.appearance) h.set_look(*cc.appearance);
+        if (cc.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
+            h.set_look(scene->item_pieces.empty() || scene->comp.empty() ? *cc.appearance : scene->look_of(cc.items));
         // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
         // ponytail: game.exe's pick among several isn't traced.
         const std::vector<d2d::d2s::Item> no_corpse;
@@ -929,7 +932,11 @@ struct World {
         const float dt = float(ms - last_ms) / 1000.f;
         now = ms;
         // The look follows what's worn (compcode::look, the save header's bytes).
-        if (!scene->item_pieces.empty() && !scene->comp.empty()) cc.appearance = scene->look_of(cc.items);
+        if (!scene->item_pieces.empty() && !scene->comp.empty()) {
+            std::vector<std::string_view> on;
+            for (const auto& st : fight.self_states) if (const auto* k = scene->skills.get(st.skill)) on.push_back(k->aurastate);
+            cc.appearance = scene->look_of(cc.items, on);
+        }
         // Levels: finished builds come in; the ones next to the player's
         // start building when it changes (GameData::level).
         scene->poll_levels();

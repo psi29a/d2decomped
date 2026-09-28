@@ -156,6 +156,13 @@ struct Unit {
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
+    // Its states' look (Scene::StateInfo): the colour shift (256, before
+    // the light) and overlays, each from when it started; `once` plays a
+    // cast overlay through a single time.
+    const std::uint8_t* shift = nullptr;
+    struct Over { const GameData::OverlayInfo* o = nullptr; std::uint32_t start = 0; bool once = false; };
+    std::vector<Over> overs;
+    int overlay_class = 0;               // Overlay.txt's Height: FUN_006223a0 (players 1, monsters OverlayHeight - 1)
     bool shadow = true;                  // a composite casts one (players, monsters; MonStats2 Shadow), objects don't
 };
 
@@ -193,6 +200,7 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
     return r;
 }
 
+inline int draw_mode(int effect);
 void render_world(std::vector<std::uint8_t>& fb,
                   const Scene& s,
                   const Level& L,
@@ -357,7 +365,25 @@ void render_world(std::vector<std::uint8_t>& fb,
         for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
             const Unit& u = *order[next_unit];
             const auto [ax, ay] = iso_point(u.x, u.y);
-            const auto& upal = light ? light->palette(u.x, u.y) : upal0;
+            const auto& lpal = light ? light->palette(u.x, u.y) : upal0;
+            const auto spal = u.shift ? Scene::mapped(lpal, u.shift) : d2d::palette::Palette{};
+            const auto& upal = u.shift ? spal : lpal;
+            // Its overlays: PreDraw ones behind it, the rest in front
+            // (FUN_00470390: AnimRate x 16 / 256 frames a tick).
+            auto draw_overs = [&](bool pre) {
+                for (const auto& ov : u.overs) {
+                    if (ov.o->predraw != pre) continue;
+                    const auto* spr = s.overlay_sprite(*ov.o);
+                    if (!spr || elapsed_ms < ov.start) continue;
+                    const auto n = std::uint32_t(std::min(ov.o->frames, int(spr->frames_per_direction())));
+                    auto f = (elapsed_ms - ov.start) * std::uint32_t(std::max(ov.o->rate, 1)) / 640;
+                    if (ov.once && f >= n) continue;
+                    f %= n;
+                    blit_dcc_frame(fb, spr->frame(std::uint8_t(std::uint32_t(u.dir) % spr->directions()), std::int32_t(f)), upal0,
+                                   ax + ov.o->x, ay + ov.o->dy(u.overlay_class), draw_mode(ov.o->trans));
+                }
+            };
+            draw_overs(true);
             if (ax < -200 || ax > int(kW) + 200 || ay < -100 || ay > int(kH) + 300) continue;
             std::array<int, 4> b{};
             if (u.missile) {
@@ -382,6 +408,7 @@ void render_world(std::vector<std::uint8_t>& fb,
                 draw_composite(fb, *u.anim, upal, u.dir, el, ax, ay);
                 if (hovered && u.name && !u.name->empty()) b = composite_bounds(*u.anim, u.dir, el, ax, ay);
             }
+            draw_overs(false);
             // Its overlay (npcalert: Xoffset -5, Yoffset -7, the NPCs'
             // OverlayHeight row 0; Trans 3, draw mode 3 additive), 16
             // frames at AnimRate 9.
@@ -490,10 +517,10 @@ inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& p, std::uint8_t
 // 3 additive, 4 multiply (like Missiles.txt Trans 1 / 2), else opaque.
 // ponytail: which alpha each of 0..2 is follows OpenDiablo2's naming, not
 // traced.
-inline int layer_trans(const d2d::cof::Layer* l) {
-    if (!l || !l->transparent) return 0;
-    switch (l->draw_effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
+inline int draw_mode(int effect) {
+    switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
 }
+inline int layer_trans(const d2d::cof::Layer* l) { return l && l->transparent ? draw_mode(l->draw_effect) : 0; }
 template <class Fn> void composite_frames(const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms, Fn&& fn) {
     const auto dirs = p.cof.directions();
     const auto fpd  = p.cof.frames_per_direction();

@@ -134,6 +134,14 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
     return out;
 }
 
+const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& o) const {
+    auto [it, fresh] = overlay_sprites.try_emplace(&o);
+    if (fresh)
+        if (auto b = mpqs.try_read(R"(data\global\overlays\)" + o.file + ".dcc"))
+            try { it->second = d2d::dcc::Sprite(*b); } catch (const std::exception& e) { d2d::log::warn("overlay {}: {}", o.file, e.what()); }
+    return it->second.directions() && it->second.frames_per_direction() ? &it->second : nullptr;
+}
+
 const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appearance& gfx) const {
     std::array<std::uint8_t, 34> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
     std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
@@ -292,6 +300,7 @@ Npc monster_npc(const Scene& scene, const d2d::txt::Table& ms, const d2d::txt::T
     n.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     n.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
     n.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
+    n.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
     if (const auto v = ms.get(row, "Velocity"); !v.empty()) n.velocity = float(std::atoi(std::string(v).c_str()));
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
@@ -1011,6 +1020,38 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             const auto* p = reinterpret_cast<const std::uint8_t*>(b->data());
             scene.colormaps[std::size_t(t++)].assign(p, p + 21 * 256);
         } else ++t;
+    scene.item_types.emplace(types);
+    if (const auto ov = txt("Overlay"); ov.size() > 0)
+        for (std::size_t r = 0; r < ov.size(); ++r) {
+            auto n = [&](const char* c) { return std::atoi(std::string(ov.get(r, c)).c_str()); };
+            Scene::OverlayInfo o;
+            o.file = std::string(ov.get(r, "Filename"));
+            o.frames = std::max(n("Frames"), 1); o.x = n("Xoffset"); o.y = n("Yoffset"); o.rate = n("AnimRate");
+            o.trans = n("Trans"); o.radius = n("Radius"); o.predraw = n("PreDraw") != 0;
+            o.height = { n("Height1"), n("Height2"), n("Height3"), n("Height4") };
+            scene.overlays.emplace(std::string(ov.get(r, "overlay")), std::move(o));
+        }
+    auto overlay = [&](std::string_view name) -> const Scene::OverlayInfo* {
+        const auto it = scene.overlays.find(std::string(name));
+        return it == scene.overlays.end() || it->second.file.empty() || it->second.file == "null" ? nullptr : &it->second;
+    };
+    if (const auto st = txt("States"); st.size() > 0)
+        for (std::size_t r = 0; r < st.size(); ++r) {
+            Scene::StateInfo i;
+            const auto shift = st.get(r, "colorshift");
+            i.shift = shift.empty() ? -1 : std::atoi(std::string(shift).c_str());
+            i.pri = std::atoi(std::string(st.get(r, "colorpri")).c_str());
+            for (int k = 0; k < 4; ++k) i.over[std::size_t(k)] = overlay(st.get(r, ("overlay" + std::to_string(k + 1)).c_str()));
+            i.cast = overlay(st.get(r, "castoverlay"));
+            i.item_type = std::string(st.get(r, "itemtype"));
+            const std::string trans(st.get(r, "itemtrans"));
+            for (std::size_t c = 0; c < scene.item_colours.codes.size(); ++c) if (!trans.empty() && scene.item_colours.codes[c] == trans) i.item_colour = int(c);
+            scene.states.emplace(std::string(st.get(r, "state")), std::move(i));
+        }
+    if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); pb && pb->size() >= 0x53500 + 111 * 256) {
+        const auto* p = reinterpret_cast<const std::uint8_t*>(pb->data()) + 0x53500;
+        scene.colour_shifts.assign(p, p + 111 * 256);
+    }
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.

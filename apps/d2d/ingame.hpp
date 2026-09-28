@@ -58,7 +58,8 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Npc* merc = nullptr, const UnitState* merc_state = nullptr,
                    const std::string* merc_label = nullptr,
                    std::span<const Unit> extra_units = {}, float player_rate = 1.f,
-                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true) {
+                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true,
+                   const Unit* player_look = nullptr) {   // its states' colour shift and overlays
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -79,7 +80,11 @@ void render_ingame(std::vector<std::uint8_t>& fb,
         if (player_visible && class_idx >= 0 && class_idx < 7)
             units.push_back({ cam_x, cam_y, &s.composite(kUiToSaveClass[class_idx], player_mode, gfx),
                               player_dir, nullptr, player_mode_ms });
-        if (!units.empty()) units.back().rate = player_rate;
+        if (!units.empty()) {
+            units.back().rate = player_rate;
+            units.back().overlay_class = 1;                 // FUN_006223a0: a player's Height2
+            if (player_look) { units.back().shift = player_look->shift; units.back().overs = player_look->overs; }
+        }
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < L.npcs.size(); ++i) {
             const auto& n = L.npcs[i];

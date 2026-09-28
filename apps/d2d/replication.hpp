@@ -102,10 +102,15 @@ inline void monster_look(In& in, Monster& m) {
 inline void monster_state(Out& o, const Monster& m) {
     o.i32(m.hp).u8(m.corpse_used).str(m.mode);
     unit(o, m.u);
+    // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
+    o.u32(m.poison_until).u32(m.chill_until).u32(m.stun_until).i32(m.curse.skill).u32(m.curse.until).i32(m.cry.skill).u32(m.cry.until).i32(m.aura);
 }
 inline void monster_state(In& in, Monster& m) {
     m.hp = in.get<std::int32_t>(); m.corpse_used = in.get<std::uint8_t>(); m.mode = intern(in.str());
     m.u = unit(in);
+    m.poison_until = in.get<std::uint32_t>(); m.chill_until = in.get<std::uint32_t>(); m.stun_until = in.get<std::uint32_t>();
+    m.curse.skill = in.get<std::int32_t>(); m.curse.until = in.get<std::uint32_t>();
+    m.cry.skill = in.get<std::int32_t>(); m.cry.until = in.get<std::uint32_t>(); m.aura = in.get<std::int32_t>();
 }
 }  // namespace wire
 
@@ -133,6 +138,8 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
         c.i32(v.attack).i32(v.attack_skill).i32(v.aura).i32(v.day.phase).i32(v.day.time).u8(v.den_cleared).i32(v.light_bonus).i32(v.den_state).i32(v.den_log).i32(v.den_left);
         c.u16(int(v.boost.size()));
         for (const auto& [st, val] : v.boost) c.i32(st).i32(val);
+        c.u16(int(v.buffs.size()));
+        for (const int k : v.buffs) c.i32(k);
         wire::section(o, enc.section[0], std::move(c.b));
     }
     // 1: pets, 2: missiles.
@@ -306,6 +313,8 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
         v.attack = i32(); v.attack_skill = i32(); v.aura = i32(); v.day.phase = i32(); v.day.time = i32(); v.den_cleared = u8() != 0; v.light_bonus = i32(); v.den_state = i32(); v.den_log = i32(); v.den_left = i32();
         v.boost.clear();
         for (int n = u16(); n > 0 && in.ok; --n) { const int st = i32(); v.boost.emplace_back(st, i32()); }
+        v.buffs.clear();
+        for (int n = u16(); n > 0 && in.ok; --n) v.buffs.push_back(i32());
     });
     body([&] {
         v.pets.clear();
