@@ -326,6 +326,13 @@ struct Town {
             }
         }
         if (mouse.press_this_frame && over_belt && mouse.y >= b0[2] && !item_click) belt_open = !belt_open;
+        // A right-click on a carried item uses it: a potion in the inventory,
+        // stash or belt is drunk.
+        if (mouse.rpress_this_frame && !held && store.npc < 0 && npc_menu.npc < 0 && speech.npc < 0) {
+            const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
+                                                { inv_open, stash_open, cube_open, belt_open, cc.expansion }, mouse.x, mouse.y);
+            if (const auto* p = cl.cmd ? std::get_if<cmd::ToCursor>(&*cl.cmd) : nullptr) net.send(cmd::UseItem{ p->item });
+        }
         // Quest log: a tab picks the act, an icon the quest.
         if (quest_log.open && mouse.press_this_frame) {
             if (const int a = quest_tab_at(mouse.x, mouse.y); a >= 0) { quest_log.act = a; quest_log.slot = -1; }

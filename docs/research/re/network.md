@@ -172,3 +172,6 @@ third; the table beyond 0xae holds other data.
   applied inside the frame; outgoing updates are flushed after it.
 - Not taken: the byte-exact layouts, Warden, the save upload. Those belong
   to a later D2GS codec.
+
+d2d's `cmd::UseItem` is 0x20 (use an inventory item); right-clicking a
+belt potion sends it too, where game.exe sends 0x26 with the item's id.

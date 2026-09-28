@@ -634,6 +634,10 @@ struct World {
             if (!p->left) if (const auto* s = scene->skills.get(p->skill)) fight.aura = s->aura ? p->skill : 0;
             return;
         }
+        if (const auto* p = std::get_if<cmd::UseItem>(&c)) {
+            fight.drink_item(p->item, ms);
+            return;
+        }
         if (const auto* p = std::get_if<cmd::UseBelt>(&c)) {
             if (p->slot >= 0 && p->slot < 4 && !fight.dead()) fight.drink(p->slot, ms);
             return;

@@ -250,9 +250,13 @@ struct Fight {
     // rejuvenation its percentages at once.
     // ponytail: no class potion bonus (CharStats HealthPotionPercent).
     void drink(int col, std::uint32_t ms) {
+        if (!dead()) potion(d2d::rules::drink_belt(scene->rules, cc.items, col), ms);
+    }
+    void drink_item(int id, std::uint32_t ms) {
+        if (!dead()) potion(d2d::rules::drink_item(scene->rules, cc.items, id), ms);
+    }
+    void potion(const std::string& code, std::uint32_t ms) {
         using namespace d2d::d2s;
-        if (dead()) return;
-        const auto code = d2d::rules::drink_belt(scene->rules, cc.items, col);
         if (code.empty()) return;
         const auto& p = scene->rules.potions.at(code);
         if (p.percent) {
