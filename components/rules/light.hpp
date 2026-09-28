@@ -83,10 +83,10 @@ struct LightGrid {
     // 0.96 · the longer side + 0.4 · the shorter, in 1/1024ths).
     void stamp(int x, int y, int r, int i) {
         if (r < 1 || r > 255) return;
-        const int step = (i << 16) / r, n = r * 2 >> 3;   // n: the light's square
+        const int step = (i << 16) / r, side = r * 2 >> 3;   // the light's square
         const int sx = (x - (x & 7)) - r, sy = (y - (y & 7)) - r;
-        for (int row = 0; row <= n; ++row)
-            for (int col = 0; col <= n; ++col) {
+        for (int row = 0; row <= side; ++row)
+            for (int col = 0; col <= side; ++col) {
                 const int cx = sx + col * 8, cy = sy + row * 8;
                 const int dx = std::abs(x - cx), dy = std::abs(y - cy);
                 const int d = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
@@ -104,9 +104,9 @@ struct LightGrid {
         if (r < 1 || r > 255) return;
         constexpr int kT = 64, kC = 32;
         std::vector<int> B(kT * kT, 0), A(kT * kT, 0);
-        const int lx = x >> 3, ly = y >> 3, rc = r >> 3, n = r * 2 >> 3;   // n: the light's square, not the grid's
-        for (int row = 0; row <= n; ++row)
-            for (int col = 0; col <= n; ++col)
+        const int lx = x >> 3, ly = y >> 3, rc = r >> 3, side = r * 2 >> 3;   // the light's square
+        for (int row = 0; row <= side; ++row)
+            for (int col = 0; col <= side; ++col)
                 B[std::size_t((kC - rc + row) * kT + kC - rc + col)] = is_blocked(lx - rc + col, ly - rc + row) ? 16 : 0;
         auto cell = [&](int idx) { return B[std::size_t(idx)] ? B[std::size_t(idx)] : A[std::size_t(idx)]; };
         auto shade = [&](int px, int py, int row, int col) {
@@ -135,8 +135,8 @@ struct LightGrid {
             }
         const int step = (i << 16) / r;
         const int sx0 = (x - (x & 7)) - r, sy0 = (y - (y & 7)) - r;
-        for (int row = 0; row <= n; ++row)
-            for (int col = 0; col <= n; ++col) {
+        for (int row = 0; row <= side; ++row)
+            for (int col = 0; col <= side; ++col) {
                 const int a = A[std::size_t((kC - rc + row) * kT + kC - rc + col)];
                 if (a >= 16) continue;
                 const int cx = sx0 + col * 8, cy = sy0 + row * 8;

@@ -865,9 +865,9 @@ struct World {
         }
         if (const auto* in = std::get_if<cmd::Interact>(&c)) {               // walk to it; operate or talk on arrival
             if (in->npc <= -3000 && in->npc > -3000 - int(corpses.size())) {   // one's corpse (-3000 - k)
-                const auto& c = corpses[std::size_t(-3000 - in->npc)];
-                if (c.level != level) return;
-                walk_to(c.x, c.y, true);
+                const auto& body = corpses[std::size_t(-3000 - in->npc)];
+                if (body.level != level) return;
+                walk_to(body.x, body.y, true);
                 take_corpse = -3000 - in->npc;
                 return;
             }
