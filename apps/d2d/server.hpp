@@ -61,6 +61,7 @@ struct View {
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
+    int den_state = 1, den_log = 0, den_left = 0;   // the Den quest's record: state, log state, monsters left (the quest log)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -115,6 +116,7 @@ struct World {
     int next_item_id = 1;                  // the next item's unit id
     d2d::rules::DenQuest den;              // this game's Den of Evil
     int den_left = -1;                     // its monsters alive when last counted
+    std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests() { return cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))]; }
     // Every item of the character has a unit id (new ones get theirs).
@@ -178,6 +180,7 @@ struct World {
         v.aura = fight.aura;
         v.day = day;
         v.den_cleared = den.state >= 4;
+        v.den_state = den.state; v.den_log = den.log; v.den_left = std::max(den_left, 0);
         {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
@@ -400,6 +403,7 @@ struct World {
         den = {};
         den.join(quests());
         den_left = -1;
+        den_log_at = 0;
         operated.clear();
         fires.clear();
         pick_item = -1;
@@ -489,6 +493,7 @@ struct World {
             if (k == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
             if (k == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
+                den_log_at = ms + 8 * kTickMs;     // the log's "Return to Akara" 8 ticks on (LAB_00590230)
                 static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
                 if (d2d::rules::qbit(quests(), 1, 13) && cc.header.cls < 7)
                     cues.cue(std::format("{}_act1_complete_den", kClass[cc.header.cls]), ms, player.x, player.y);
@@ -852,6 +857,7 @@ struct World {
             npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, ms, dt, crowd);
         den_count(ms);
+        if (den_log_at && ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         use_warp();
         }
         cross_level();

@@ -130,7 +130,7 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
         if (v.merc) for (const auto& [k, m] : s.mercs) if (&m.npc == v.merc->npc) merc_type = std::to_string(k);
         c.u8(v.merc && !merc_type.empty());
         if (v.merc && !merc_type.empty()) { c.str(merc_type).str(v.merc->mode); wire::unit(c, v.merc->u); }
-        c.i32(v.attack).i32(v.attack_skill).i32(v.aura).i32(v.day.phase).i32(v.day.time).u8(v.den_cleared).i32(v.light_bonus);
+        c.i32(v.attack).i32(v.attack_skill).i32(v.aura).i32(v.day.phase).i32(v.day.time).u8(v.den_cleared).i32(v.light_bonus).i32(v.den_state).i32(v.den_log).i32(v.den_left);
         c.u16(int(v.boost.size()));
         for (const auto& [st, val] : v.boost) c.i32(st).i32(val);
         wire::section(o, enc.section[0], std::move(c.b));
@@ -296,7 +296,7 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
             const auto u = wire::unit(in);
             if (const auto it = s.mercs.find(std::atoi(type.c_str())); it != s.mercs.end()) v.merc = View::Merc{ u, &it->second.npc, mode };
         }
-        v.attack = i32(); v.attack_skill = i32(); v.aura = i32(); v.day.phase = i32(); v.day.time = i32(); v.den_cleared = u8() != 0; v.light_bonus = i32();
+        v.attack = i32(); v.attack_skill = i32(); v.aura = i32(); v.day.phase = i32(); v.day.time = i32(); v.den_cleared = u8() != 0; v.light_bonus = i32(); v.den_state = i32(); v.den_log = i32(); v.den_left = i32();
         v.boost.clear();
         for (int n = u16(); n > 0 && in.ok; --n) { const int st = i32(); v.boost.emplace_back(st, i32()); }
     });

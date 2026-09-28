@@ -119,7 +119,6 @@ This is the order of `<class>_act1_complete_*` in Sounds.txt.
 - `cmd::QuestMessage` (0x31) is checked against what that NPC has.
 
 ponytail: not built yet:
-- the timing of the quest log's "Return to Akara" state (8 ticks after clearing);
 - parties and late joiners;
 
 ## The Den lights up
@@ -205,7 +204,20 @@ then.
   state the server sends. Each record is the name, a message to replay,
   then {string, message} per log state.
 
-d2d: `draw_quest_log` in panels.hpp, opened with Q. ponytail: the Den's
-lines from its flags (`quest_line`), no monsters-remaining count, no
-completion animation, no questdone plate, and the two buttons (close,
-questlast) aren't drawn.
+- **The Den's record** (0x7237a4, the table's +4): name 3714, the message
+  to replay 76, then {string, message} a log state, state s at [2s + 1]:
+  1 3735, 2 3736, 3 3737 (empty), 4 3738 "Monsters remaining: " + the
+  count (3739 "One monster left." for one), 5 3740; 11 3728 (done in a
+  previous game), 12 3727 (another player's), 13 3726 (done).
+- **The done animation:** a finished quest whose bit 12 is clear plays
+  frames 0..24, one a 100 ms (`GetTickCount`), cursor_questdone (Sounds.txt
+  14) at frame 1; then bit 12 is set in the client's copy of the flags
+  (0x4a3943), which the server doesn't save: once a game.
+- **Buttons** (bottoms 58 above the screen's, panel y + 422): close, the
+  store buttons' frames 10 / 11 at x 0x116 (hit 0x24 x 0x22); questlast at
+  0xe2 (hit from 0xe6, 0x1e x 0x21), which plays the quest's message again.
+
+d2d: `draw_quest_log` / `quest_text` / `quest_button_at` in panels.hpp,
+opened with Q; the View carries the Den's state, log state and count.
+ponytail: the Den's record only; the questdone plate and the buttons'
+hover text aren't drawn.

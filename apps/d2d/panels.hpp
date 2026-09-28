@@ -529,26 +529,54 @@ inline constexpr std::array<QuestEntry, 27> kQuestLog = { {
 // (0x724210..0x724218).
 inline constexpr std::array<std::pair<int, int>, 6> kQuestSlot = { { { 26, 121 }, { 123, 121 }, { 220, 121 }, { 26, 218 }, { 123, 218 }, { 220, 218 } } };
 inline constexpr std::array<int, 6> kQuestTabX = { 5, 0x43, 0x81, 0xbf, 0xfd, 0x13b };
-struct QuestLog { bool open = false; int act = 0, slot = -1; };
+// The log's state per quest (client side): which is open, and each finished
+// quest's done animation (frames 1..24, 100 ms each, cursor_questdone at
+// the first) — shown once a game: its end sets the client's copy of the
+// quest's bit 12 (0x4a3943), which the server never saves.
+struct QuestLog {
+    bool open = false; int act = 0, slot = -1;
+    std::array<int, 41> frame{};
+    std::array<std::uint32_t, 41> frame_ms{};
+    std::array<bool, 41> seen{};
+    bool close_down = false, last_down = false;
+};
 
 // An icon's frame: 26 not started, 0 under way (25 while selected), 24 done
 // (frames 1..24 are the done animation, played once the quest completes).
-// ponytail: under way = any flag bit but 0 set; the animation and the
-// questdone plate for a selected finished quest aren't drawn.
+// ponytail: under way = any flag bit but 0 set; the questdone plate for a
+// selected finished quest isn't drawn.
 inline int quest_icon_frame(const d2d::rules::QuestBits& f, int quest, bool selected) {
     if (d2d::rules::qbit(f, quest, 0)) return 24;
     for (int b = 1; b < 16; ++b) if (d2d::rules::qbit(f, quest, b)) return selected ? 25 : 0;
     return 26;
 }
-// What the log says about quest `quest` (the Den of Evil's lines, qstsa1q1x;
-// FUN_004a1950 picks them from the flags and the server's log state).
-// ponytail: the Den only; its "Monsters remaining" count isn't sent yet.
-inline int quest_line(const d2d::rules::QuestBits& f, int quest) {
+// What the log says about a quest (FUN_004a1950): its record (the Den's at
+// 0x7237a4: name, the message to replay, then {string, message} a log state:
+// state s at [2s + 1], [2s + 2]), by the log state the server keeps, or 13
+// done here, 11 done in a previous game, 12 another player's. State 4 adds
+// the count ("Monsters remaining: " N, 3739 for one).
+// ponytail: the Den's record only.
+inline constexpr std::array<std::uint16_t, 29> kDenLog = { 3714, 76, 4, 3735, 64, 3736, 64, 3737, 64, 3738, 64, 3740, 64,
+    3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3740, 64, 3728, 3725, 3727, 3725, 3726, 64 };
+struct QuestText { int string = 0, count = -1, speech = 0; };
+struct QuestState { int den_state = 1, den_log = 0, den_left = 0; };
+inline QuestText quest_text(const d2d::rules::QuestBits& f, int quest, const QuestState& st) {
     using d2d::rules::qbit;
-    if (quest != 1 || qbit(f, 1, 0)) return 0;
-    if (qbit(f, 1, 1)) return 3740;                      // Return to Akara for a reward.
-    if (qbit(f, 1, 3) || qbit(f, 1, 4)) return 3736;     // Kill all the monsters in the Den.
-    if (qbit(f, 1, 2)) return 3735;                      // Look for the Den in the wilderness ...
+    if (quest != 1) return {};
+    const int s = qbit(f, 1, 0) ? (st.den_state == 5 ? 13 : 11) : qbit(f, 1, 14) ? 12 : st.den_log;
+    if (s < 1 || std::size_t(2 * s + 2) >= kDenLog.size()) return {};
+    QuestText t{ kDenLog[std::size_t(2 * s + 1)], -1, kDenLog[std::size_t(2 * s + 2)] };
+    if (s == 4) { if (st.den_left == 1) t.string = 3739; else t.count = st.den_left; }
+    return t;
+}
+// Its buttons on the bottom line (FUN_004a34f0): close (the store buttons'
+// frames 10 / 11) at x 0x116 and questlast (replay the quest's message) at
+// 0xe2, their bottoms 58 above the screen's; hit boxes 0x24 x 0x22 and
+// 0x1e x 0x21. 0: none, 1 close, 2 questlast.
+inline int quest_button_at(int mx, int my) {
+    const int bx = mx - kCharPanelX, by = my - kCharPanelY;
+    if (bx >= 0x116 && bx < 0x116 + 0x24 && by >= 422 - 0x22 && by < 422) return 1;
+    if (bx >= 0xe6 && bx < 0xe6 + 0x1e && by >= 422 - 0x21 && by < 422) return 2;
     return 0;
 }
 inline int quest_tab_at(int mx, int my) {
@@ -565,9 +593,13 @@ inline int quest_slot_at(const Scene& s, int mx, int my) {
     }
     return -1;
 }
-void draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, const QuestLog& q, const d2d::rules::QuestBits& f) {
+// Returns true when a done animation starts (the caller plays
+// cursor_questdone, Sounds.txt 14).
+bool draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, QuestLog& q, const d2d::rules::QuestBits& f,
+                    const QuestState& st, std::uint32_t ms) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int px = kCharPanelX, py = kCharPanelY;
+    bool sound = false;
     auto bottom = [&](const d2d::dc6::Sprite& sp, std::uint32_t frame, int x, int y) {   // DC6s draw up from their bottom-left
         if (frame >= sp.frames_per_direction()) return;
         const auto& fr = sp.frame(0, frame);
@@ -582,14 +614,28 @@ void draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, const QuestLo
         const auto [x, y] = kQuestSlot[std::size_t(e.slot)];
         const bool on = e.slot == q.slot;
         if (on) sel = &e;
-        bottom(s.quest_icons[std::size_t(e.icon)], std::uint32_t(quest_icon_frame(f, e.quest, on)), x, y);
+        int frame = quest_icon_frame(f, e.quest, on);
+        const auto k = std::size_t(e.quest);
+        if (frame == 24 && k < q.seen.size() && !q.seen[k] && !d2d::rules::qbit(f, e.quest, 12)) {   // the done animation
+            if (!q.frame_ms[k]) q.frame_ms[k] = ms;
+            if (ms - q.frame_ms[k] > 100) {
+                q.frame_ms[k] = ms;
+                if (++q.frame[k] == 1) sound = true;
+            }
+            if (q.frame[k] > 24) { q.frame[k] = 24; q.seen[k] = true; }
+            frame = q.frame[k];
+        }
+        bottom(s.quest_icons[std::size_t(e.icon)], std::uint32_t(frame), x, y);
         bottom(s.quest_sockets, on ? 1u : 0u, x - 4, y + 5);
     }
-    if (!sel) return;
+    if (std::uint32_t(11) < s.store_buttons.frames_per_direction()) bottom(s.store_buttons, q.close_down ? 11u : 10u, 0x116, 422);
+    bottom(s.quest_last, q.last_down ? 1u : 0u, 0xe2, 422);
+    if (!sel) return sound;
     auto centred = [&](const std::string& t, int y) { s.font.draw(fb, kW, kH, pal, px + (320 - s.font.measure(t)) / 2, py + y - s.font.line_height(), t); };
     centred(string_id(s, std::uint16_t(sel->name)), 248);
-    if (const int line = quest_line(f, sel->quest)) {          // word-wrapped to 270 px (FUN_00502970(0x10e))
-        std::string text = string_id(s, std::uint16_t(line)), row;
+    if (const auto qt = quest_text(f, sel->quest, st); qt.string) {   // word-wrapped to 270 px (FUN_00502970(0x10e))
+        std::string text = string_id(s, std::uint16_t(qt.string)), row;
+        if (qt.count >= 0) text += std::to_string(qt.count);
         int y = 270;
         std::size_t a = 0;
         while (a < text.size()) {
@@ -601,6 +647,7 @@ void draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, const QuestLo
         }
         if (!row.empty()) centred(row, y);
     }
+    return sound;
 }
 
 }  // namespace

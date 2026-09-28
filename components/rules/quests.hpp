@@ -93,7 +93,10 @@ struct DenQuest {
     enum class Kill { none, few, cleared };
     Kill killed(QuestBits& f, int remaining) {
         if (state >= 4) return Kill::none;        // its callback's gone once cleared
-        if (remaining > 0) return remaining < 6 ? Kill::few : Kill::none;
+        if (remaining > 0) {
+            if (remaining < 6) log = 4;            // "Monsters remaining: N"
+            return remaining < 6 ? Kill::few : Kill::none;
+        }
         state = 4;
         if (!qbit(f, kQuest, 0) && !qbit(f, kQuest, 1)) { qset(f, kQuest, 13); qset(f, kQuest, 1); }
         return Kill::cleared;

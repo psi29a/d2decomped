@@ -29,8 +29,9 @@ int main() {
     again.join(f);
     assert(again.state == 3 && again.log == 2);
 
-    assert(q.killed(f, 9) == DenQuest::Kill::none);
-    assert(q.killed(f, 5) == DenQuest::Kill::few);
+    assert(q.killed(f, 9) == DenQuest::Kill::none && q.log == 2);
+    assert(q.killed(f, 5) == DenQuest::Kill::few && q.log == 4);         // "Monsters remaining"
+
     assert(q.killed(f, 0) == DenQuest::Kill::cleared && q.state == 4);
     assert(qbit(f, 1, 1) && qbit(f, 1, 13) && q.killed(f, 0) == DenQuest::Kill::none);
 

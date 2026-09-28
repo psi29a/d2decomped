@@ -258,6 +258,7 @@ struct Town {
         automap.cells.clear();                    // a new game: nothing seen yet
         automap.revealed.clear();
         other_automaps.clear();
+        quest_log = {};                           // done animations play again in a new game
         world.enter(cc);
         skillbar.new_game();
         publish();
@@ -351,6 +352,21 @@ struct Town {
             if (const auto* p = cl.cmd ? std::get_if<cmd::ToCursor>(&*cl.cmd) : nullptr) net.send(cmd::UseItem{ p->item });
         }
         // Quest log: a tab picks the act, an icon the quest.
+        // Its buttons: close; questlast plays the selected quest's message again.
+        if (quest_log.open) {
+            const int b = quest_button_at(mouse.x, mouse.y);
+            if (mouse.press_this_frame) { quest_log.close_down = b == 1; quest_log.last_down = b == 2; }
+            if (mouse.release_this_frame) {
+                if (quest_log.close_down && b == 1) quest_log.open = false;
+                if (quest_log.last_down && b == 2)
+                    for (const auto& e : kQuestLog)
+                        if (e.act == quest_log.act && e.slot == quest_log.slot)
+                            if (const auto t = quest_text(cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))], e.quest,
+                                                          { view.den_state, view.den_log, view.den_left }); t.speech)
+                                replay_speech = t.speech;
+                quest_log.close_down = quest_log.last_down = false;
+            }
+        }
         if (quest_log.open && mouse.press_this_frame) {
             if (const int a = quest_tab_at(mouse.x, mouse.y); a >= 0) { quest_log.act = a; quest_log.slot = -1; }
             if (const int k = quest_slot_at(*scene, mouse.x, mouse.y); k >= 0) quest_log.slot = k;
@@ -468,6 +484,12 @@ struct Town {
                 amb_last = tick;
                 amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
             }
+        }
+        if (questdone_sound) { questdone_sound = false; audio.play_sfx(*scene, 14, 1.f, 0); }
+        if (replay_speech) {
+            const auto v = std::ranges::find_if(kSpeechSound, [&](const auto& e) { return e.first == replay_speech; });
+            if (v != kSpeechSound.end()) audio.play_voice(*scene, v->second);
+            replay_speech = 0;
         }
         if (speech.npc >= 0 && speech.voice == 0) {
             speech.voice = -1;
@@ -716,6 +738,8 @@ struct Town {
         open_menu(ui.npc);
     }
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
+    bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
+    int replay_speech = 0;                         // questlast: a quest message to play again
     d2d::rules::Rain rain;                         // the weather (its state lasts the session, like game.exe's)
     std::uint32_t rain_ms = 0;
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
@@ -808,8 +832,10 @@ struct Town {
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr);
         view_overlays(fb, *scene, view, hovered_monster());
         skillbar.draw(fb, held ? -1 : mouse.x, held ? -1 : mouse.y);
-        if (quest_log.open)
-            draw_quest_log(fb, *scene, quest_log, cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))]);
+        if (quest_log.open
+            && draw_quest_log(fb, *scene, quest_log, cc.header.quests[std::size_t(std::clamp(cc.header.active_difficulty(), 0, 2))],
+                              { view.den_state, view.den_log, view.den_left }, ms))
+            questdone_sound = true;                    // cursor_questdone
         if (tree_open)
             draw_skill_tree(fb, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, cc.stats.skills, cc.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
