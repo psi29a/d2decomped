@@ -55,6 +55,10 @@ struct View {
     std::vector<Loot::GroundItem> ground;  // the level's floor
     struct Fire { float x, y; const Npc* npc; };
     std::vector<Fire> fires;
+    // The player's town portal where they stand (which 0: where it was cast,
+    // 1: its twin in town), leading to level `to`.
+    struct Portal { float x = 0, y = 0; int to = 0; std::uint32_t born = 0; int which = 0; };
+    std::vector<Portal> portals;
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
@@ -106,6 +110,11 @@ struct World {
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     struct Fire { const Level* level; const Npc* npc; float x, y; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
+    // The player's town portal: [0] where it was cast, [1] its twin in town
+    // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair.
+    struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
+    std::array<Portal, 2> portal{};
+    int take_portal = -1;                  // the portal (0 / 1) the player is walking to
     std::uint32_t now = 0;                 // the tick's time
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
@@ -175,6 +184,9 @@ struct World {
         v.attack_skill = fight.attack_skill;
         if (loot.ground_level == level) v.ground = loot.ground;
         for (const auto& f : fires) if (f.level == level) v.fires.push_back({ f.x, f.y, f.npc });
+        for (int k = 0; k < 2; ++k)
+            if (portal[std::size_t(k)].level == level)
+                v.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
         v.npc_states = npc_states;
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
@@ -246,6 +258,7 @@ struct World {
         d2d::rules::shrine_recharge(s, v[kLife], v[kMaxLife], v[kMana], v[kMaxMana]);
         if (auto b = d2d::rules::shrine_boost(s, fight.pf.ar); !b.empty())
             fight.boost = { row, std::move(b), ms + std::uint32_t(s.duration) * 40u };
+        if (s.code == 17) open_portal_at(player.x + 1, player.y + 1, ms);   // portal (FUN_00582a30): 5 subtiles on each axis
         if (s.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(scene->rules, cc.items, rng); !code.empty())
                 loot.put({ .code = code }, player.x, player.y, 1, ms);
@@ -406,6 +419,8 @@ struct World {
         den_log_at = 0;
         operated.clear();
         fires.clear();
+        portal = {};
+        take_portal = -1;
         pick_item = -1;
     }
 
@@ -527,6 +542,12 @@ struct World {
         const auto back = std::ranges::find(to->warps, level->id, &Level::Warp::to);
         const float ax = back == to->warps.end() ? float(to->ds1.width()) / 2 : back->x + back->exit_x;
         const float ay = back == to->warps.end() ? float(to->ds1.height()) / 2 : back->y + back->exit_y;
+        arrive(to, ax, ay, "a warp");
+    }
+
+    // Into level `to` near (ax, ay): everything with the player (merc, pets)
+    // comes along; the automap and monsters are the new level's.
+    void arrive(const Level* to, float ax, float ay, const char* how) {
         const auto [px, py] = to->nearest_free(ax, ay);
         const float dx = player.x - px, dy = player.y - py;
         fight.pets_cross(level, to, dx, dy);
@@ -543,9 +564,50 @@ struct World {
         fight.enter(level);
         loot.enter(level);
         npc_states = npc_start(*level);
-        interact_npc = pick_item = -1;
+        interact_npc = pick_item = take_warp = take_portal = -1;
         if (level->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
-        d2d::log::info("level: {} at ({:.1f}, {:.1f}), through a warp from {}", level_name(*level), px, py, level_name(*from));
+        d2d::log::info("level: {} at ({:.1f}, {:.1f}), through {} from {}", level_name(*level), px, py, how, level_name(*from));
+    }
+
+    // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
+    // item): Skills.txt 219 / 220 cast (srvdofunc 113), not in town (checkfunc
+    // 5); the scroll's used up, the tome's quantity goes down.
+    void read_portal(std::vector<d2d::d2s::Item>::iterator it, std::uint32_t ms) {
+        if (level == &scene->town || fight.dead() || fight.pmode >= 0) return;
+        const bool book = it->code == "tbk";
+        if (book && it->quantity <= 0) return;
+        if (!fight.cast_scroll(book ? 220 : 219, ms)) return;
+        if (book) --it->quantity;
+        else cc.items.erase(it);
+        cues.cue("player_townportal_cast", ms, player.x, player.y);
+    }
+    // Town Portal's action frame: a portal by the player and its twin at the
+    // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11),
+    // each at the nearest free spot; the old pair goes.
+    // ponytail: "by the player" is the nearest free spot 0.6 cells south;
+    // game.exe searches from the caster with collision 0x3e01, size 3.
+    void open_portal(std::uint32_t ms) { open_portal_at(player.x, player.y + 0.6f, ms); }
+    void open_portal_at(float px, float py, std::uint32_t ms) {
+        const auto& t = scene->town;
+        if (level == &t || t.portal_spot.first < 0) return;
+        const auto [x, y] = level->nearest_free(px, py);
+        const auto [tx, ty] = t.nearest_free(t.portal_spot.first, t.portal_spot.second);
+        portal = { Portal{ level, x, y, ms }, Portal{ &t, tx, ty, ms } };
+        cues.cue("object_townportal", ms, x, y);
+        d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), x, y, tx, ty);
+    }
+    // Walking into one: out by the other (OperateFn 15, FUN_00584870).
+    void use_portal(std::uint32_t ms) {
+        if (take_portal < 0 || !portal[0].level) return;
+        const auto& p = portal[std::size_t(take_portal)];
+        if (p.level != level || std::hypot(p.x - player.x, p.y - player.y) > 2.f) {
+            if (!player.walking) take_portal = -1;
+            return;
+        }
+        const auto& o = portal[std::size_t(1 - take_portal)];
+        take_portal = -1;
+        cues.cue("player_townportal_enter", ms, player.x, player.y);
+        arrive(o.level, o.x, o.y + 0.6f, "a town portal");
     }
 
     // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
@@ -648,7 +710,9 @@ struct World {
             return;
         }
         if (const auto* p = std::get_if<cmd::UseItem>(&c)) {
-            fight.drink_item(p->item, ms);
+            const auto it = std::ranges::find(cc.items, p->item, &d2d::d2s::Item::id);
+            if (it != cc.items.end() && (it->code == "tsc" || it->code == "tbk")) read_portal(it, ms);
+            else fight.drink_item(p->item, ms);
             return;
         }
         if (const auto* p = std::get_if<cmd::UseBelt>(&c)) {
@@ -685,6 +749,7 @@ struct World {
             target_x = x; target_y = y;
             player.walking = true;
             interact_npc = -1;
+            if (fresh) take_portal = -1;
             if (!fresh) return;
             fight.attack_mon = pick_item = -1;
             take_warp = -1;                                                  // a click on a warp: go through it
@@ -700,6 +765,13 @@ struct World {
             return;
         }
         if (const auto* in = std::get_if<cmd::Interact>(&c)) {               // walk to it; operate or talk on arrival
+            if (in->npc <= -2000 && in->npc > -2002) {                       // a town portal (the client names them -2000 - k)
+                const auto& p = portal[std::size_t(-2000 - in->npc)];
+                if (p.level != level) return;
+                walk_to(p.x, p.y, true);
+                take_portal = -2000 - in->npc;
+                return;
+            }
             if (std::size_t(in->npc) >= level->npcs.size()) return;
             const auto& o = level->npcs[std::size_t(in->npc)];
             const auto& st = npc_states[std::size_t(in->npc)];
@@ -859,6 +931,8 @@ struct World {
         den_count(ms);
         if (den_log_at && ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         use_warp();
+        if (fight.portal_due) { fight.portal_due = false; open_portal(ms); }
+        use_portal(ms);
         }
         cross_level();
         if (!fight.dead()) fight.apply_regen(ms, last_ms);

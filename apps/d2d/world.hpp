@@ -460,6 +460,10 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
             if (trans == 1) { p[0] = std::uint8_t(std::min(255, p[0] + c.r)); p[1] = std::uint8_t(std::min(255, p[1] + c.g)); p[2] = std::uint8_t(std::min(255, p[2] + c.b)); }
             else if (trans == 2) { p[0] = std::uint8_t(p[0] * c.r / 255); p[1] = std::uint8_t(p[1] * c.g / 255); p[2] = std::uint8_t(p[2] * c.b / 255); }
+            else if (trans >= 3 && trans <= 5) {                       // a quarter, half, three quarters of the layer
+                const int a = trans - 2;
+                p[0] = std::uint8_t((p[0] * (4 - a) + c.r * a) / 4); p[1] = std::uint8_t((p[1] * (4 - a) + c.g * a) / 4); p[2] = std::uint8_t((p[2] * (4 - a) + c.b * a) / 4);
+            }
             else { p[0] = c.r; p[1] = c.g; p[2] = c.b; }
             p[3] = 0xFF;
         }
@@ -475,6 +479,20 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
 // transparent-layer draw effects yet (no TN layer sets `transparent`).
 // Each layer's frame of a composite at `elapsed_ms`, in the COF's
 // per-(direction, frame) draw order.
+// The layer's COF record (its draw effect, whether it casts a shadow).
+inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& p, std::uint8_t type) {
+    for (const auto& l : p.cof.layer_defs()) if (l.type == type) return &l;
+    return nullptr;
+}
+// A transparent COF layer's draw effect as blit_dcc_frame's mode: the
+// driver's draw modes 0..2 (a quarter, half, three quarters of the layer),
+// 3 additive, 4 multiply (like Missiles.txt Trans 1 / 2), else opaque.
+// ponytail: which alpha each of 0..2 is follows OpenDiablo2's naming, not
+// traced.
+inline int layer_trans(const d2d::cof::Layer* l) {
+    if (!l || !l->transparent) return 0;
+    switch (l->draw_effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
+}
 template <class Fn> void composite_frames(const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms, Fn&& fn) {
     const auto dirs = p.cof.directions();
     const auto fpd  = p.cof.frames_per_direction();
@@ -487,14 +505,16 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& p, int dir_wa
         if (type >= p.dcc.size()) continue;
         const auto& spr = p.layer(type);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        fn(spr.frame(dir, frame));
+        fn(spr.frame(dir, frame), cof_layer(p, type));
     }
 }
 
 void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
                     const d2d::palette::Palette& pal, int dir_want,
                     std::uint32_t elapsed_ms, int anchor_x, int anchor_y) {
-    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f) { blit_dcc_frame(fb, f, pal, anchor_x, anchor_y); });
+    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f, const d2d::cof::Layer* l) {
+        blit_dcc_frame(fb, f, pal, anchor_x, anchor_y, layer_trans(l));
+    });
 }
 
 // A unit's shadow (driver +0x90, 0x5122e0 → FUN_00608d60): each frame
@@ -506,7 +526,8 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id) {
-    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f) {
+    composite_frames(p, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& f, const d2d::cof::Layer* l) {
+        if (l && !l->shadow) return;                               // the COF says this layer casts none
         const int bottom = f.box_top + f.height - 1;              // the frame's bottom row, from the anchor
         const int x0 = anchor_x + f.box_left + bottom / 2, y0 = anchor_y + bottom / 2;
         for (std::int32_t r = 0; r < f.height; r += 2) {          // rows up from the bottom

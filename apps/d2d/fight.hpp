@@ -1544,7 +1544,9 @@ struct Fight {
         } else if (pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!pstruck && ms >= player.mode_ms + player_anim(kModeSC).action_ms()) {
                 pstruck = true;
-                if (const auto* s = scene->skills.get(swing_skill); s && missile_skill(*s)) {
+                if (const auto* s = scene->skills.get(swing_skill); s && s->srvdofunc == 113) {
+                    portal_due = true;                         // Town Portal (FUN_005bf3d0): the World opens it
+                } else if (s && missile_skill(*s)) {
                     fire(*s, ms);
                 } else if (s && spot_skill(*s)) {
                     spot(*s, ms);
@@ -2748,6 +2750,17 @@ struct Fight {
     // ponytail: the aura events (+0x84) and the passive part
     // (FUN_005c6dc0) aren't read; cast rate (FCR) isn't applied; a shield
     // is assumed (itypea1 shie isn't checked).
+    // Reading a scroll or a tome (Skills.txt 219 / 220): its skill cast,
+    // no mana, anywhere but in town (checkfunc 5).
+    bool portal_due = false;                       // Town Portal's action frame came
+    bool cast_scroll(int skill, std::uint32_t ms) {
+        if (dead() || pmode >= 0) return false;
+        swing_skill = skill;
+        attack_mon = -1;
+        set_pmode(kModeSC, ms);
+        pstruck = false;
+        return true;
+    }
     bool cast(int skill, std::uint32_t ms) {
         using namespace d2d::d2s;
         const auto* s = scene->skills.get(skill);

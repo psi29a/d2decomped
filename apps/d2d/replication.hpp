@@ -160,6 +160,8 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
         wire::Out c;
         c.u16(int(v.fires.size()));
         for (const auto& f : v.fires) c.f32(f.x).f32(f.y).u8(f.npc == &s.trap_fires[1]);
+        c.u16(int(v.portals.size()));
+        for (const auto& p : v.portals) c.f32(p.x).f32(p.y).i32(p.to).u32(p.born).u8(p.which);
         wire::section(o, enc.section[4], std::move(c.b));
     }
     // The owner's character: 5 its header (in its save form), 7 its stats
@@ -332,6 +334,12 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
         for (int n = u16(); n > 0 && in.ok; --n) {
             const float x = f32(), y = f32();
             v.fires.push_back({ x, y, &s.trap_fires[u8() ? 1 : 0] });
+        }
+        v.portals.clear();
+        for (int n = u16(); n > 0 && in.ok; --n) {
+            View::Portal p{};
+            p.x = f32(); p.y = f32(); p.to = i32(); p.born = u32(); p.which = u8();
+            v.portals.push_back(p);
         }
     });
     body([&] {

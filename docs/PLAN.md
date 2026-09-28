@@ -458,8 +458,8 @@ standalone server later.
 
 Blood Moor polish (2026-09-27): ambient events and song resume done
 (sound.md); Act 1's unique mods (Cursed, teleport, auras; monsters.md).
-Storm, Exploding and Poison Shrines (objects.md); the Portal Shrine waits for
-town portals. The quest log; the time of day, the light grid and lit
+Storm, Exploding and Poison Shrines (objects.md); town portals and the
+Portal Shrine. The quest log; the time of day, the light grid and lit
 drawing, night sounds (lighting.md). Each character keeps its map seed
 (drlg.md). Blended tile shadows and unit shadows; rain (weather.md).
 

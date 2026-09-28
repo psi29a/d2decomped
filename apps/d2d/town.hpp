@@ -53,8 +53,9 @@ void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monst
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
 // units the world draws by depth (npc -2 the merc, -3 pets, -10 - i
 // monster i of the View, -1000 - i ground item i).
+constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;
 void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out,
-                std::span<const View::Shot> fx = {}) {
+                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0) {
     auto in_view = [&](float x, float y) { return std::abs(x - cx) < 14 && std::abs(y - cy) < 14; };
     for (std::size_t i = 0; i < v.ground.size(); ++i) {
         const auto& g = v.ground[i];
@@ -65,6 +66,15 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
         out.push_back(u);
     }
     for (const auto& f : v.fires) out.push_back({ f.x, f.y, &s.npc_anim(*f.npc, f.npc->mode), 0, nullptr, 0, -2 });
+    // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
+    // 768 ms), then ON; named by where they lead (-2000 - which).
+    for (const auto& p : v.portals) {
+        const Level* to = s.level(p.to);
+        const bool opening = now_ms - p.born < kPortalOpenMs;
+        out.push_back({ p.x, p.y, &s.npc_anim(s.town_portal, opening ? "OP" : "ON"), 0, to ? &to->name : nullptr,
+                        opening ? p.born : p.born + kPortalOpenMs, -2000 - p.which });
+        out.back().shadow = false;
+    }
     if (v.merc)
         out.push_back({ v.merc->u.x, v.merc->u.y, &s.npc_anim(*v.merc->npc, v.merc->mode), v.merc->u.dir,
                         v.merc->mode == "DT" ? nullptr : merc_label, v.merc->u.mode_ms, -2 });
@@ -145,6 +155,7 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
     for (const auto& nb : v.level->nearby)                  // the torches over the level's edge
         for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}), true);
     for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light, false);
+    for (const auto& p : v.portals) stamp(p.x, p.y, int(s.town_portal.lit[2]), true);   // Lit2 19 (ON); ponytail: Lit1 18 while opening
     for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light, false);
     for (const auto& m : fx) if (m.info) stamp(m.x, m.y, m.info->light, false);
     return l;
@@ -648,7 +659,7 @@ struct Town {
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, wx, wy, view.monsters[std::size_t(hm)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0) out.push_back(cmd::Interact{ hovered_npc });
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2002)) out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ wx, wy, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
             if (const int am = view.monster(view.attack); am >= 0 && view.monsters[std::size_t(am)].alive())
@@ -810,7 +821,7 @@ struct Town {
         const bool jump = std::hypot(me.x - prev_x, me.y - prev_y) > 2.f;
         cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
         cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams);
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];

@@ -193,8 +193,7 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   the fires last until a new game; trap 8's monsters stand up aware,
   without mode 8, one step apart; the variant comes from the level's
   region rows (Levels' mon list and `FUN_006510c0` not read).
-- Not built: magic shrines 17 (portal), 19 (storm), 21 (exploding), 22
-  (poison); chest 397's table.
+- Not built: chest 397's table.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.
@@ -204,7 +203,7 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 The shrine effect table at 0x6e1850 has 12-byte entries {fn, stat, state},
 indexed by Shrines.txt Code, run from `FUN_00583c70`.
 
-- 17 portal: `FUN_00582a30` opens a portal to town. Not built, because d2d has no town portals yet.
+- 17 portal: `FUN_00582a30` opens a town portal (`FUN_0056d130`, object 0x3b) from the nearest free spot to the player + 5 subtiles on each axis (collision 0x1c09, size 3). Built (server.hpp `open_portal_at`).
 - 19 storm: `FUN_00582da0`. Every player and monster found by the unit search over Arg1 (2000) loses Arg0 % (50) of its current life. Then 16 missile 62 (fireball) shots at level clvl / 5 (1..8):
   - x offset ±5k subtiles for k = 1..4 (+ when k is odd);
   - y offset 5, −10, 15, −20.
@@ -216,3 +215,31 @@ d2d: `World::operate` and `Fight::shrine_missiles`. The potions are
 friendly missiles that burst their row damage over sHitPar1 subtiles.
 ponytail: the missiles hit monsters only, the poison cloud is a single
 burst, and "everyone" means everyone within 30 cells.
+
+## Town portals
+
+- **Reading one:** a Scroll of Town Portal (tsc) or a Tome's charge (tbk
+  quantity) casts Skills.txt 219 / 220: anim SC, srvdofunc 113
+  (`FUN_005bf3d0`), not in town (checkfunc 5). Sounds:
+  player_townportal_cast (2230) on casting, object_townportal (2633) as it
+  opens, player_townportal_enter (2231) going through.
+- **Opening** (`FUN_0056d130`): a Portal object (objects.txt 59, TP) at the
+  nearest free spot from the caster (collision 0x3e01, size 3), then its twin
+  in the act's town at spawn index 11 — the town DS1's special tile 33, +3
+  subtiles — at the nearest free spot (`FUN_0056cf40`, mask 0xbe11); each
+  unit linked to the other (`FUN_00621ce0`), the portal's +4 byte the other's
+  level. A player's new portal closes their old pair.
+- **The object:** OP 15 frames at FrameDelta 200 (768 ms), then ON looping
+  (CycleAnim2); Lit1 18 / Lit2 19, (120, 120, 255); its COF's HD layer is
+  transparent with draw effect 3 (additive), TR opaque. OperateRange 2.
+- **Going through** (OperateFn 15, `FUN_00584870`): out by the linked portal.
+  Refused within 5 s of the player's hostility time (player data +0x160; not
+  in single player) and to other parties' portals.
+
+d2d: `World::read_portal` / `open_portal_at` / `use_portal` (server.hpp),
+the View's `portals`, drawn and lit as object 59 (town.hpp `view_units`,
+`frame_light`); the client names them -2000 - which for Interact.
+ponytail: the caster-side spot is the nearest free 0.6 cells south of the
+player, not game.exe's search; hover names are the destination level's
+name (untraced); Lit1 while opening isn't used.
+

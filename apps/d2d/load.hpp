@@ -936,6 +936,9 @@ void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs) {
         add(tmp, 162, 0, 0);
         add(tmp, 160, 0, 0);
         for (std::size_t k = 0; k < tmp.npcs.size() && k < 2; ++k) scene.trap_fires[k] = std::move(tmp.npcs[k]);
+        Level tp;
+        add(tp, 59, 0, 0);                          // the town portal
+        if (!tp.npcs.empty()) scene.town_portal = std::move(tp.npcs[0]);
     }
     for (const auto& o : scene.town.ds1.objects())
         if (o.type == 2 && o.id >= 0 && o.id < 150) add(scene.town, kObjPreset[0][std::size_t(o.id)], o.x, o.y);   // act 1
@@ -2175,6 +2178,11 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
                 scene.town.start = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
                                      (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
         }
+    for (const auto& L : m.walls())                      // 33: where town portals open (index 11)
+        for (std::size_t i = 0; i < L.cells.size(); ++i)
+            if (const auto& t = L.cells[i]; (t.wall_type == 10 || t.wall_type == 11) && t.style == 33 && scene.town.portal_spot.first < 0)
+                scene.town.portal_spot = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
+                                           (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
     if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
         scene.act1_pal = d2d::palette::Palette(*pb);
     // Its 32 light levels: PL2 +0x400, 256 indices a level, level 31 as is and

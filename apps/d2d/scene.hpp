@@ -111,6 +111,7 @@ struct Level {
         return { x, y };
     }
     std::pair<float, float> start{ -1.f, -1.f };            // cells: where a player joining arrives; see load_world
+    std::pair<float, float> portal_spot{ -1.f, -1.f };      // cells: a town's portal arrival (DS1 special 33, spawn index 11)
     // Its warps (the units its hidden warp tiles make): cell, the level
     // it leads to (Levels.txt Vis), and where someone arriving through it
     // stands (its LvlWarp ExitWalk, subtiles from the cell).
@@ -322,6 +323,7 @@ struct GameData {
                        };
     std::unordered_map<std::string, MissileInfo> missiles;
     std::array<Npc, 2> trap_fires;                         // objects 162 / 160, ON (a chest's traps 5 and 7)
+    Npc town_portal;                                       // object 59 (TP): a town portal's look and light
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)
     std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
