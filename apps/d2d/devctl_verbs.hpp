@@ -196,8 +196,8 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
         if (args.size() >= 2 && args[1] == "light") {      // the light grid round the player, a level (0..31) a subtile
             const auto l = frame_light(*t.scene, t.view, t.cam_x, t.cam_y);
             std::string out;
-            for (int y = 0; y < d2d::rules::LightGrid::kN; ++y) {
-                for (int x = 0; x < d2d::rules::LightGrid::kN; ++x) out += "0123456789abcdefghijklmnopqrstuv"[l.grid.v[std::size_t(y * 48 + x)] >> 3];
+            for (int y = 0; y < l.grid.n; ++y) {
+                for (int x = 0; x < l.grid.n; ++x) out += "0123456789abcdefghijklmnopqrstuv"[l.grid.v[std::size_t(y * l.grid.n + x)] >> 3];
                 out += '\n';
             }
             return out + "ok " + std::to_string(l.grid.x0) + " " + std::to_string(l.grid.y0) + "\n";

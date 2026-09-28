@@ -11,7 +11,8 @@ Blizzard, and either matched or worked around on purpose.
 
 **d2d** says what we do about it:
 - *match*: do what game.exe does;
-- *work around*: do the evidently intended thing, with a ponytail note;
+- *work around*: do the evidently intended thing, listed in
+  deviations.md;
 - *n/a*: it has no effect.
 
 | # | Where | What | Confidence | d2d | Found in |
@@ -26,6 +27,7 @@ Blizzard, and either matched or worked around on purpose.
 | 8 | d2data: Act1/Town/townN1.ds1 | Its DT1 file list names `.tg1` files (treegroups.tg1, floor.tg1, …) that don't exist; the other three camps list `.dt1`s. Harmless in game.exe, which takes a preset's DT1s from LvlTypes by the LvlPrest Dt1Mask, never from the DS1. | high | n/a (d2d now does the same) | drlg.md "The game's map seed" |
 | 9 | Env.cpp day step (`FUN_0061bee0`) | A phase moves on when `next.start × scale < time`. Phase 2 starts at 0°, so phase 1 (dawn at 340°) moves on at its first frame and the clock snaps to sunrise: the 340°–360° dawn (its (208, 184, 131) colour) never shows, and a day is 24 minutes instead of 31. | medium | match | lighting.md "The day" |
 | 10 | Rain splashes (`FUN_00472da0`) | The spot is the tile's top corner x + rand(the row's width), with no half-width back: splashes land up to half a tile right of the water they belong to. | medium | match | weather.md "Splashes" |
+| 11 | The light grid (0x7b0e68, `FUN_00475800`) | Only 48 × 48 subtiles round the player: a light more than 24 subtiles off lights nothing, and the view's corners at 800 × 600 (about 31 subtiles out) read the grid's clamped edge. Likely sized for 640 × 480. | medium | work around (deviations.md #1) | lighting.md |
 
 ## How to add one
 

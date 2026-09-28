@@ -111,10 +111,14 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
     Lighting l;
     if (!v.level || s.act1_lit[31].entries().empty()) return l;
     l.pal = &s.act1_lit;
-    l.grid.reset(int(cam_x * 5), int(cam_y * 5), v.level->light >= 0 ? v.level->light : v.day.intensity());
-    for (int j = 0; j < d2d::rules::LightGrid::kN; ++j)           // what walls light (FUN_004756d0)
-        for (int i = 0; i < d2d::rules::LightGrid::kN; ++i)
-            l.grid.blocked[std::size_t(j * d2d::rules::LightGrid::kN + i)] =
+    // The grid covers the view's corners (half the width in cells over 80
+    // plus half the height over 40, halved, in subtiles) and the widest light
+    // (18) past them, not game.exe's 48 (bugs.md #11).
+    const int half = (int(kW) / 2 / (kIsoW / 2) + (int(kH) / 2 + kIsoH) / (kIsoH / 2)) * 5 / 2 + 18 + 1;
+    l.grid.reset(int(cam_x * 5), int(cam_y * 5), v.level->light >= 0 ? v.level->light : v.day.intensity(), half * 2);
+    for (int j = 0; j < l.grid.n; ++j)                            // what walls light (FUN_004756d0)
+        for (int i = 0; i < l.grid.n; ++i)
+            l.grid.blocked[std::size_t(j * l.grid.n + i)] =
                 v.level->blocked((float(l.grid.x0 + i) + 0.5f) / 5, (float(l.grid.y0 + j) + 0.5f) / 5, 0x22);
     // Type 0 lights (the player's, objects') are shadowed by walls; type 1
     // (monsters', missiles') aren't (FUN_004755a0).

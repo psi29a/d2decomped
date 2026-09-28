@@ -44,7 +44,7 @@ int main() {
     // it lit, in front of it lit as before.
     LightGrid w;
     w.reset(100, 100, 0);
-    for (int y = 97; y <= 103; ++y) w.blocked[std::size_t((y - w.y0) * LightGrid::kN + (104 - w.x0))] = 1;
+    for (int y = 97; y <= 103; ++y) w.blocked[std::size_t((y - w.y0) * w.n + (104 - w.x0))] = 1;
     w.stamp_shadowed(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255);
     LightGrid open;
     open.reset(100, 100, 0);
@@ -52,5 +52,10 @@ int main() {
     assert(w.at(102, 100) == open.at(102, 100) && w.at(104, 100) == open.at(104, 100));   // up to and on the wall
     assert(w.at(107, 100) == 0 && open.at(107, 100) > 0);                                 // behind it
     assert(w.at(100, 108) == open.at(100, 108));                                          // off to the side
+    // A bigger grid: a light 40 subtiles off still lands; game.exe's size loses it.
+    LightGrid big, game;
+    big.reset(100, 100, 0, 120); game.reset(100, 100, 0);
+    big.stamp(140 * 8 + 4, 100 * 8 + 4, 18 * 8, 255); game.stamp(140 * 8 + 4, 100 * 8 + 4, 18 * 8, 255);
+    assert(big.at(140, 100) > 240 && game.at(140, 100) < 60);   // game.exe's reads its clamped edge
     std::puts("test_light: ok");
 }

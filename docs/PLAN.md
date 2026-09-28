@@ -463,6 +463,9 @@ town portals. The quest log; the time of day, the light grid and lit
 drawing, night sounds (lighting.md). Each character keeps its map seed
 (drlg.md). Blended tile shadows and unit shadows; rain (weather.md).
 
+deviations.md lists where d2d differs from game.exe on purpose (the
+companion of bugs.md).
+
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
 Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't
 traced); a Debug build loads ~2.5x slower than RelWithDebInfo.

@@ -128,6 +128,8 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 
 ## d2d
 
+- The grid is sized to the view plus the widest light, not 48 (bugs.md
+  #11, deviations.md #1).
 - `Day` steps in the World a tick at a time and goes to the client in the
   View; `frame_light` fills a `LightGrid` round the player with the
   level's light or the day's, and stamps the player (13), objects (Lit by

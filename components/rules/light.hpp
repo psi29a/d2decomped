@@ -43,40 +43,47 @@ struct Day {
     }
 };
 
-// The client's light grid (0x7b0e68): 48 x 48 subtiles around the player
+// The client's light grid (0x7b0e68): subtiles around the player
 // (FUN_00475800), an intensity each. Positions are in eighths of a
 // subtile, the way lights hold them (unit position >> 13, + 4).
+// game.exe's is 48 x 48 (±24 subtiles): a light further off adds nothing
+// and the view's corners at 800 x 600 read the clamped edge (bugs.md #11).
+// d2d sizes it to the view plus the widest light instead (kGame for
+// game.exe's).
 struct LightGrid {
-    static constexpr int kN = 48;
+    static constexpr int kGame = 48;
+    int n = kGame;                             // entries a side
     int x0 = 0, y0 = 0;                        // the subtile of entry (0, 0)
-    std::array<std::uint8_t, kN * kN> v{};
-    std::array<std::uint8_t, kN * kN> blocked{};   // subtiles whose collision has 0x22 (FUN_004756d0)
+    std::vector<std::uint8_t> v = std::vector<std::uint8_t>(std::size_t(kGame * kGame));
+    std::vector<std::uint8_t> blocked = std::vector<std::uint8_t>(std::size_t(kGame * kGame));   // subtiles whose collision has 0x22 (FUN_004756d0)
     [[nodiscard]] bool is_blocked(int sx, int sy) const {   // FUN_00474a30: off the grid counts as blocked
         const int cx = sx - x0, cy = sy - y0;
-        return cx < 0 || cy < 0 || cx >= kN || cy >= kN || blocked[std::size_t(cy * kN + cx)];
+        return cx < 0 || cy < 0 || cx >= n || cy >= n || blocked[std::size_t(cy * n + cx)];
     }
     // Centred on the player's subtile, all at the ambient (FUN_004744b0).
-    void reset(int px, int py, int ambient) {
-        x0 = px - kN / 2; y0 = py - kN / 2;
-        v.fill(std::uint8_t(std::clamp(ambient, 0, 255)));
+    void reset(int px, int py, int ambient, int size = kGame) {
+        n = size;
+        x0 = px - n / 2; y0 = py - n / 2;
+        v.assign(std::size_t(n * n), std::uint8_t(std::clamp(ambient, 0, 255)));
+        blocked.assign(std::size_t(n * n), 0);
     }
     // FUN_00475aa0: the entry for subtile (sx, sy), clamped to the edge.
     [[nodiscard]] int at(int sx, int sy) const {
-        return v[std::size_t(std::clamp(sy - y0, 0, kN - 1) * kN + std::clamp(sx - x0, 0, kN - 1))];
+        return v[std::size_t(std::clamp(sy - y0, 0, n - 1) * n + std::clamp(sx - x0, 0, n - 1))];
     }
     // FUN_004747c0: a light's share into the entry at (x, y), capped at 255.
-    void add(int x, int y, int n) {
+    void add(int x, int y, int amount) {
         const int cx = (x >> 3) - x0, cy = (y >> 3) - y0;
-        if (cx < 0 || cy < 0 || cx >= kN || cy >= kN) return;
-        auto& e = v[std::size_t(cy * kN + cx)];
-        e = std::uint8_t(std::min(255, e + n));
+        if (cx < 0 || cy < 0 || cx >= n || cy >= n) return;
+        auto& e = v[std::size_t(cy * n + cx)];
+        e = std::uint8_t(std::min(255, e + amount));
     }
     // A light at (x, y), radius r, intensity i (FUN_004748d0): each entry
     // of its square takes (r − d) · i / r, d the distance (FUN_004740d0:
     // 0.96 · the longer side + 0.4 · the shorter, in 1/1024ths).
     void stamp(int x, int y, int r, int i) {
         if (r < 1 || r > 255) return;
-        const int step = (i << 16) / r, n = r * 2 >> 3;
+        const int step = (i << 16) / r, n = r * 2 >> 3;   // n: the light's square
         const int sx = (x - (x & 7)) - r, sy = (y - (y & 7)) - r;
         for (int row = 0; row <= n; ++row)
             for (int col = 0; col <= n; ++col) {
@@ -97,7 +104,7 @@ struct LightGrid {
         if (r < 1 || r > 255) return;
         constexpr int kT = 64, kC = 32;
         std::vector<int> B(kT * kT, 0), A(kT * kT, 0);
-        const int lx = x >> 3, ly = y >> 3, rc = r >> 3, n = r * 2 >> 3;
+        const int lx = x >> 3, ly = y >> 3, rc = r >> 3, n = r * 2 >> 3;   // n: the light's square, not the grid's
         for (int row = 0; row <= n; ++row)
             for (int col = 0; col <= n; ++col)
                 B[std::size_t((kC - rc + row) * kT + kC - rc + col)] = is_blocked(lx - rc + col, ly - rc + row) ? 16 : 0;
