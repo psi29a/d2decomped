@@ -14,7 +14,7 @@ namespace {
 void blit_dt1_tile(std::vector<std::uint8_t>& fb,
                    const d2d::dt1::Tile& t,
                    const d2d::palette::Palette& pal,
-                   int sx, int sy) {
+                   int sx, int sy, int alpha = 255) {
     const int th = std::abs(t.height);
     for (int y = 0; y < th; ++y) {
         const int py = sy + y;
@@ -27,7 +27,9 @@ void blit_dt1_tile(std::vector<std::uint8_t>& fb,
             if (px < 0 || px >= int(kW)) continue;
             const auto c = pal[idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
-            p[0] = c.r; p[1] = c.g; p[2] = c.b; p[3] = 0xFF;
+            if (alpha >= 255) { p[0] = c.r; p[1] = c.g; p[2] = c.b; }
+            else { p[0] = std::uint8_t((p[0] * (255 - alpha) + c.r * alpha) / 255); p[1] = std::uint8_t((p[1] * (255 - alpha) + c.g * alpha) / 255); p[2] = std::uint8_t((p[2] * (255 - alpha) + c.b * alpha) / 255); }
+            p[3] = 0xFF;
         }
     }
 }
@@ -82,7 +84,7 @@ struct Lighting {
 // bilinear between the cell's 6 x 6 subtile corners. One level for the tile
 // when they share it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, const Lighting& light,
-                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor) {
+                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor, int alpha = 255) {
     // The subtile corners round the cell: a tile's pixels reach up to 6
     // subtiles before its top corner (tall floors) and 8 past.
     constexpr int kP = 16, kO = 6;
@@ -119,7 +121,9 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, c
             const auto lvl = level(px - top_x, floor ? py - top_y : kIsoH / 2);
             const auto col = pals[lvl][idx];
             auto* p = fb.data() + (std::size_t(py) * kW + px) * 4;
-            p[0] = col.r; p[1] = col.g; p[2] = col.b; p[3] = 0xFF;
+            if (alpha >= 255) { p[0] = col.r; p[1] = col.g; p[2] = col.b; }
+            else { p[0] = std::uint8_t((p[0] * (255 - alpha) + col.r * alpha) / 255); p[1] = std::uint8_t((p[1] * (255 - alpha) + col.g * alpha) / 255); p[2] = std::uint8_t((p[2] * (255 - alpha) + col.b * alpha) / 255); }
+            p[3] = 0xFF;
         }
     }
 }
@@ -243,14 +247,42 @@ void render_world(std::vector<std::uint8_t>& fb,
     // 80-tall-diamond-at-bottom convention shared by floor/wall pixel
     // buffers.
     // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
-    auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t, int layer) {
+    auto blit_cell = [&](int gx, int gy, const d2d::dt1::Tile& t, int layer, int alpha = 255) {
         const auto [iso_x, iso_y] = iso(gx, gy);
         const int th = std::abs(t.height);
         const int sx = iso_x - t.width / 2;
         const int sy = iso_y - (th - kIsoH);
         if (layer == 2) blit_dt1_shadow(fb, t, pal, sx, sy);
-        else if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, iso_x, iso_y, layer == 1);
-        else blit_dt1_tile(fb, t, pal, sx, sy);
+        else if (light) blit_dt1_tile_lit(fb, t, *light, sx, sy, gx, gy, iso_x, iso_y, layer == 1, alpha);
+        else blit_dt1_tile(fb, t, pal, sx, sy, alpha);
+    };
+    // Walls in front of the player see-through (FUN_004dd060 /
+    // FUN_004dd180): a wall 1..3 cells past the player's cell in x
+    // (orientations 1 4 5 7 8 10 12) or in y (2 3 6 7 9 11 12) fades to
+    // alpha 0x80 over 500 ms, and back to 0xff once it isn't. Roofs (15)
+    // and lower walls (16..19) never fade.
+    // ponytail: the blend is linear in RGB, not the driver's alpha table;
+    // game.exe's room-based mode (DAT_0072a968) isn't built.
+    struct Fade { int from = 255, to = 255; std::uint32_t at = 0; };
+    static std::unordered_map<std::uint64_t, Fade> fades;
+    const int pcx = int(std::floor(cam_x)), pcy = int(std::floor(cam_y));
+    auto wall_alpha = [&](const void* lv, int off, int type, int k, int gx, int gy) {
+        static constexpr std::uint16_t kX = 1 << 1 | 1 << 4 | 1 << 5 | 1 << 7 | 1 << 8 | 1 << 10 | 1 << 12;
+        static constexpr std::uint16_t kY = 1 << 2 | 1 << 3 | 1 << 6 | 1 << 7 | 1 << 9 | 1 << 11 | 1 << 12;
+        const bool see = type < 16 && ((gx > pcx && gx < pcx + 4 && (kX >> type & 1)) || (gy > pcy && gy < pcy + 4 && (kY >> type & 1)));
+        const int want = see ? 0x80 : 0xff;
+        const auto key = std::uint64_t(reinterpret_cast<std::uintptr_t>(lv)) * 1000003u ^ (std::uint64_t(off) << 12 | std::uint64_t(type) << 6 | std::uint64_t(k));
+        auto it = fades.find(key);
+        if (it == fades.end()) { if (!see) return 255; it = fades.emplace(key, Fade{ 255, 255, elapsed_ms }).first; }
+        auto& f = it->second;
+        const auto now_a = [&] {                // 0x7f every 500 ms, from where it was
+            const int step = int(std::min<std::uint32_t>(elapsed_ms - f.at, 1000)) * 0x7f / 500;
+            return f.to > f.from ? std::min(f.to, f.from + step) : std::max(f.to, f.from - step);
+        };
+        if (f.to != want) { f.from = now_a(); f.to = want; f.at = elapsed_ms; }
+        const int a = now_a();
+        if (a >= 255 && !see) fades.erase(it);
+        return a;
     };
 
     auto find_tile = [&](const Level& lv, int style, int seq, int type)
@@ -438,8 +470,8 @@ void render_world(std::vector<std::uint8_t>& fb,
             const auto [lv, off] = at(gx, gy);
             if (!lv) continue;
             const auto& cm = lv->ds1;
-            auto draw_wall = [&](int type, const d2d::dt1::Tile& t) {
-                if (type != 15) { blit_cell(gx, gy, t, 0); return; }
+            auto draw_wall = [&](int type, const d2d::dt1::Tile& t, int k) {
+                if (type != 15) { blit_cell(gx, gy, t, 0, wall_alpha(lv, int(off), type, k, gx, gy)); return; }
                 // Roof — hoist by the DT1's own roof_height.
                 auto [iso_x, iso_y] = iso(gx, gy);
                 iso_y -= t.roof_height;
@@ -447,17 +479,20 @@ void render_world(std::vector<std::uint8_t>& fb,
                 else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
             };
             if (!lv->picks.empty()) {
+                int k = 0;
                 for (const auto& p : lv->picks[off])
-                    if (p.layer == 0 && p.orient != 13) draw_wall(p.orient, *p.tile);
+                    if (p.layer == 0 && p.orient != 13) draw_wall(p.orient, *p.tile, k++);
                 continue;
             }
+            int k = 0;
             for (const auto& wl : cm.walls()) {
                 const auto& c = wl.cells[off];
+                ++k;
                 if (c.hidden) continue;
                 const int type = c.wall_type;
                 if (type == 0) continue;         // floor marker in wall stream
                 if (type == 13) continue;        // shadow (drawn above)
-                if (auto* t = find_tile(*lv, c.style, c.sequence, type)) draw_wall(type, *t);
+                if (auto* t = find_tile(*lv, c.style, c.sequence, type)) draw_wall(type, *t, k);
             }
         }
     }
