@@ -388,7 +388,8 @@ Combat
 
 Spawning
 - Rooms populate at load in cell order (game.exe: on first activation);
-  the game seed is the map seed; the +0x20 seed for group counts.
+  the +0x20 seed for group counts; which region component set a monster
+  takes. (The game seed, regions and object seed match game.exe.)
 
 Act 1 levels and rendering
 - Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
