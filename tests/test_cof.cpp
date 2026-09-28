@@ -2,6 +2,8 @@
 #include <cof.hpp>
 #include <mpq.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -44,6 +46,25 @@ int main() {
         // Priority lookup for (dir 0, frame 0) returns `layers` bytes.
         const auto pri = cof.priority(0, 0);
         assert(pri.size() == cof.layers());
+    }
+
+    // The priority rows go round the compass, DCC directions don't: a
+    // Barbarian in town holding a hand axe (RH) draws it behind his torso
+    // facing north (DCC 6) and in front of it facing the viewer (DCC 4).
+    {
+        const auto raw = archive.read(R"(data\global\CHARS\BA\COF\BATN1HS.COF)");
+        d2d::cof::Cof cof(raw);
+        assert(cof.directions() == 16);
+        auto before = [&](std::size_t dir, std::uint8_t first, std::uint8_t second) {
+            const auto row = cof.priority(d2d::cof::Cof::priority_row(dir, cof.directions()), 0);
+            return std::ranges::find(row, first) < std::ranges::find(row, second);
+        };
+        constexpr std::uint8_t kTorso = 1, kRightHand = 5;
+        assert(before(6, kRightHand, kTorso));
+        assert(before(4, kTorso, kRightHand));
+        std::array<bool, 16> seen{};
+        for (std::size_t dir = 0; dir < 16; ++dir) seen[d2d::cof::Cof::priority_row(dir, 16)] = true;
+        assert(std::ranges::all_of(seen, [](bool hit) { return hit; }));
     }
 
     // Barbarian throw with crossbow — different weapon class.

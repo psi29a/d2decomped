@@ -189,7 +189,7 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir
     // 25 ticks/s; each tick advances speed/256 frames.
     const auto ms_per_frame = anim.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
-    for (const auto type : anim.cof.priority(dir, frame)) {
+    for (const auto type : anim.cof.priority(d2d::cof::Cof::priority_row(dir, dirs), frame)) {
         if (type >= anim.dcc.size()) continue;
         const auto& spr = anim.layer(type);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;

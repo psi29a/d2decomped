@@ -75,6 +75,19 @@ public:
         return {priorities_.data() + off, stride};
     }
 
+    // The priority table's rows run round the compass one step at a time
+    // from south, while DCC directions (and the direction a unit is given)
+    // are D2's interleaved order (8: 0 SW, 1 NW, 2 NE, 3 SE, 4 S, 5 W, 6 N,
+    // 7 E; 16 adds 8..15 between them). The row for DCC direction `dir`.
+    // (OpenDiablo2's cof/dcc direction tables, after Necrolis.)
+    [[nodiscard]] static std::size_t priority_row(std::size_t dir, std::size_t directions) {
+        static constexpr std::uint8_t k8[8] = { 1, 3, 5, 7, 0, 2, 4, 6 };
+        static constexpr std::uint8_t k16[16] = { 2, 6, 10, 14, 0, 4, 8, 12, 1, 3, 5, 7, 9, 11, 13, 15 };
+        if (directions == 8 && dir < 8) return k8[dir];
+        if (directions == 16 && dir < 16) return k16[dir];
+        return dir;
+    }
+
 private:
     void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kHdr = 25;
