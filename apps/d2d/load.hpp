@@ -8,7 +8,7 @@
 #include <mutex>
 #include <thread>
 
-namespace d2d::app {
+namespace d2d::client {
 
 // Forward decl — full body lives after Scene{} construction so it can use
 // the same members without repeating field types.
@@ -96,4 +96,4 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
 // old levels.
 void set_map_seed(Scene& scene, std::uint32_t seed);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

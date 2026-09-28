@@ -1,7 +1,7 @@
 // Shared includes, screen/iso constants, data-dir lookup, blit helpers.
 #pragma once
 
-#include "game.hpp"
+#include "game_api.hpp"
 
 
 #include <mpq.hpp>
@@ -33,10 +33,7 @@
 #include <sequences.hpp>
 #include <userdir.hpp>
 
-#include "log.hpp"
 
-#include "npc_menu.hpp"
-#include "npc_talk.hpp"
 #include "speech_sound.hpp"
 #include "video.hpp"
 #include <obj_preset.hpp>
@@ -85,14 +82,14 @@
 #undef far
 #endif
 
-namespace fs = std::filesystem;
 
 // Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.
 // Declared at global scope because std::signal handlers must have C
 // linkage. Defined further below.
 extern volatile std::sig_atomic_t g_sigint_quit;
 
-namespace d2d::app {
+namespace d2d::client {
+
 
 // D2 LoD 800×600 mode dimensions — matches TitleScreen.DC6, which ships
 // pre-sliced into a 4×3 grid of sub-frames adding up to exactly 800×600
@@ -166,4 +163,4 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
 // how fast we happen to be rendering (60 Hz, 120 Hz, headless, whatever).
 constexpr std::uint32_t kBaseFrameMs = 40;   // 1000 / 25
 
-}  // namespace d2d::app
+}  // namespace d2d::client

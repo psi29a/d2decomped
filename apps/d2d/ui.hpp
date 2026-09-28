@@ -2,9 +2,8 @@
 #pragma once
 
 #include "scene.hpp"
-#include "character.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
@@ -244,4 +243,4 @@ bool update_button(Button& b, const Mouse& m, Screen& current_screen,
 // as-is (renderer decides whether to style them).
 std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

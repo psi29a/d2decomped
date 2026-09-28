@@ -4,10 +4,9 @@
 #pragma once
 
 #include "window.hpp"
-#include "replication.hpp"
 #include "skillbar.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // The hovered monster's name on its life bar, top centre: a dark red bar
 // as wide as the name plus a margin, filled by its share of life left.
@@ -234,4 +233,4 @@ struct Town {
     void draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t ms);
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::client

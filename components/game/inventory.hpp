@@ -4,7 +4,7 @@
 
 #include "item_text.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 using d2d::rules::Store;
 
@@ -58,4 +58,4 @@ inline Store open_store(const GameData& s, const Level& L, int npc, d2d::rules::
     return st;
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::game

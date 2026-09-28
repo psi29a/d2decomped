@@ -2,9 +2,8 @@
 #pragma once
 
 #include "frontend.hpp"
-#include "cues.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // Sound output: OpenAL (openal-soft, as ../thirdeye), one source + buffer
 // per channel: the NPC voice, the level's song, its ambience and UI
@@ -334,4 +333,4 @@ inline void play_cues(Cues& cues, Audio& audio, float lx, float ly, d2d::rules::
     });
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::client

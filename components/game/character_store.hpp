@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace d2d::app {
+namespace d2d::game {
 
 struct CharacterStore {
     std::filesystem::path dir;
@@ -102,4 +102,4 @@ inline NewCharacter new_character(const GameData& s, int cls, const std::string&
     return n;
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::game

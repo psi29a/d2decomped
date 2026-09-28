@@ -2,7 +2,7 @@
 // light, the HUD overlays.
 #include "town.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // town.hpp
 void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m) {
@@ -816,4 +816,4 @@ auto Town::draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t
             draw_waypoints(fb, *scene, waypoint, cc.header, cc.expansion, 1, mouse.x, mouse.y);
     }
 
-}  // namespace d2d::app
+}  // namespace d2d::client

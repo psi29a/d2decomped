@@ -3,7 +3,7 @@
 
 #include "cursor.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // The rain over the world (FUN_00473910 → FUN_00473470): each drop a line
 // along the wind, cut where it lands, a landed one a dot; the day's drops
@@ -43,4 +43,4 @@ void render_ingame(std::vector<std::uint8_t>& fb,
                    const Unit* player_look = nullptr,     // its states' colour shift and overlays
                    bool show_items = false);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

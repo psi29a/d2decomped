@@ -2,9 +2,8 @@
 #pragma once
 
 #include "skilltree.hpp"
-#include "inventory.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 
 // The hire list (FUN_004b5c60): a 490x350 NPC text window, header
@@ -43,4 +42,4 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
 // ponytail: the coin button doesn't click (no gold drop/withdraw yet).
 void draw_gold(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st, bool store);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

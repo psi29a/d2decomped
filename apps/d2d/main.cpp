@@ -17,7 +17,7 @@
 
 #include <random>
 
-using namespace d2d::app;
+using namespace d2d::client;
 
 
 namespace {

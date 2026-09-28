@@ -6,7 +6,7 @@
 #include "ai.hpp"
 #include "inventory.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 struct Loot {
     const GameData* scene;
@@ -132,4 +132,4 @@ struct Loot {
 
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::game

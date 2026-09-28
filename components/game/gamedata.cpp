@@ -5,7 +5,7 @@
 
 #include <mutex>
 
-namespace d2d::app {
+namespace d2d::game {
 
 // A composite's COF, the World's part of loading it: the file, its name
 // (animdata's key) and timing.
@@ -645,4 +645,4 @@ void want_nearby(const GameData& s, const Level& l) {
     for (const auto& w : l.warps) s.want_level(w.to);
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::game

@@ -3,7 +3,7 @@
 
 #include "panels.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // The right panel's right edge and bottom at 800x600 (game.exe works from
 // W - panel x and panel y + H - 480).
@@ -46,4 +46,4 @@ const std::vector<TreeLabel> kTreeTabs[7] = {
 void draw_skill_tree(std::vector<std::uint8_t>& fb, const Scene& s, int cls, int tab,
                      const std::array<std::uint8_t, 30>& lv, const d2d::d2s::Stats& st, int pressed, int mx, int my);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

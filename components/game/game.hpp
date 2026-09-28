@@ -57,9 +57,9 @@
 #include <variant>
 #include <vector>
 
-namespace fs = std::filesystem;
+namespace d2d::game {
 
-namespace d2d::app {
+namespace fs = std::filesystem;
 
 // D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
 // step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
@@ -67,4 +67,4 @@ namespace d2d::app {
 constexpr int kIsoW = 160;
 constexpr int kIsoH = 80;
 
-}  // namespace d2d::app
+}  // namespace d2d::game

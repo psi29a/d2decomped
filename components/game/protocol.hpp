@@ -15,7 +15,7 @@
 #include <variant>
 #include <vector>
 
-namespace d2d::app {
+namespace d2d::game {
 
 namespace cmd {
 // 0x01 / 0x03: walk or run to (x, y) cells. `fresh`: a new click, not a
@@ -231,4 +231,4 @@ struct LocalTransport {
     }
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::game

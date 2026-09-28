@@ -5,7 +5,7 @@
 
 #include "character.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 // An item's hover text, top line first, in D2's quality colours. Name IDs
 // resolve as verified against 19 real saves (test data): unique/set ID =
@@ -288,4 +288,4 @@ inline std::vector<TextLine> item_lines(const GameData& s, const d2d::d2s::Item&
     return out;
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::game

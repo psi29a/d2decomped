@@ -2,9 +2,8 @@
 #pragma once
 
 #include "items.hpp"
-#include "inventory.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // The inventory panel (inventory.txt "<Class>2" layout, invchar6.dc6):
 // grid items (panel 1) centred in their w x h cell block, equipped items
@@ -233,4 +232,4 @@ inline int quest_slot_at(const Scene& s, int mx, int my) {
 bool draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, QuestLog& q, const d2d::rules::QuestBits& f,
                     const QuestState& st, std::uint32_t ms);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

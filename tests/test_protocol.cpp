@@ -5,7 +5,7 @@
 #include <cassert>
 #include <cstdio>
 
-using namespace d2d::app;
+using namespace d2d::game;
 
 int main() {
     const std::vector<Command> all{

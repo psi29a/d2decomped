@@ -1,11 +1,11 @@
-// The World links on its own: components/world needs nothing from the
+// The game links on its own: components/game needs nothing from the
 // client (apps/d2d: SDL, sound, sprites, fonts). A standalone server would
 // link just this library.
 #include "server.hpp"
 
 #include <cstdio>
 
-using namespace d2d::app;
+using namespace d2d::game;
 
 int main() {
     // Taking these pulls world.cpp and gamedata.cpp into the link.

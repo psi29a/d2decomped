@@ -92,22 +92,25 @@ them to input, units and drawing.
 | Scripted-test verbs | — | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
 | World sounds | — | `cues.hpp` (`Cues`, queued by the World), `audio.hpp` (`play_cues`) |
 
-**The World and the client.** The World is `components/world` (a
-library; `test_world` links it alone, so nothing there may reach the
+**The game and the client.** The game is `components/game`, namespace
+`d2d::game` (a library; `test_game` links it alone, so nothing there may reach the
 client). Its headers see only
 `game.hpp` (data components, logging, std), `gamedata.hpp` (`GameData`,
 `Level`, `Npc`, the rules' shared helpers), `character.hpp`
 (`Character`: what a save holds), `item_text.hpp`, `inventory.hpp` and
 `cues.hpp`: no SDL, sound, pixels or fonts. The client adds `common.hpp`
 (SDL, OpenAL, blits), `scene.hpp` (`Scene : GameData`: sprites, fonts,
-palettes) and the screens. A World header must not include a client one.
+palettes) and the screens. A game header must not include a client one.
+The client (`apps/d2d`, namespace `d2d::client`) sees the game through
+`game_api.hpp`: the game's headers plus a `using game::Name;` for each
+name it uses.
 
 **Translation units.** Headers declare; bodies live in:
 
 | .cpp | What |
 |---|---|
-| `components/world/gamedata.cpp` | levels built on demand, spawns, COF timings |
-| `components/world/world.cpp` | the AI, `Fight`, `World` |
+| `components/game/gamedata.cpp` | levels built on demand, spawns, COF timings |
+| `components/game/world.cpp` | the AI, `Fight`, `World` |
 | `load.cpp` | loading the Scene at start |
 | `render.cpp` | drawing and the screens (common, ui, world, items, panels, skilltree, store, cursor, ingame, frontend, window) |
 | `town.cpp` | the in-game client (`Town`) |
@@ -116,8 +119,8 @@ palettes) and the screens. A World header must not include a client one.
 A class's methods are defined out of line as `auto Class::name(params) ->
 Ret { ... }` (the trailing return type resolves the class's own types).
 A global in a header is `inline`.
-ponytail: the World still carries DT1 pixels in its levels (Level::dt1s)
-and its code lives in namespace d2d::app; GameData is filled by the
+ponytail: the World still carries DT1 pixels in its levels (Level::dt1s);
+GameData is filled by the
 client's load.cpp (load_scene), not by the World.
 
 `World` (server.hpp) owns the game's state (level, player, merc, NPCs,

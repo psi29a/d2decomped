@@ -3,7 +3,7 @@
 
 #include "ingame.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 
 void render_title(std::vector<std::uint8_t>& fb,
@@ -137,4 +137,4 @@ void render_cinematics(std::vector<std::uint8_t>& fb, const Scene& s, const Cine
 
 TitleUI title_ui(const Scene& s);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

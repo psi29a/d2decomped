@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace d2d::game {
+
 struct TalkTopic { std::uint16_t string; std::uint8_t quest_gated; std::uint32_t quest_state, quest, cls; };
 struct NpcTalk { int hc_idx; int act; bool no_intro; std::vector<TalkTopic> topics; };
 
@@ -60,3 +62,5 @@ inline const std::vector<NpcTalk> kNpcTalk = {
     { 538, 4, false, { { 20014, 0, 1, 28, 7 }, { 20014, 0, 1, 28, 7 }, { 20015, 0, 1, 28, 7 }, { 20016, 0, 1, 28, 7 }, { 20017, 0, 1, 28, 7 }, { 20018, 0, 1, 28, 7 }, { 20019, 0, 1, 28, 7 }, { 20020, 0, 1, 28, 7 }, { 20021, 0, 1, 28, 7 }, { 20022, 0, 1, 28, 7 }, { 20023, 0, 1, 28, 7 }, { 20024, 0, 1, 28, 7 } } },   // ancientstatue2
     { 539, 4, false, { { 20014, 0, 1, 28, 7 }, { 20014, 0, 1, 28, 7 }, { 20015, 0, 1, 28, 7 }, { 20016, 0, 1, 28, 7 }, { 20017, 0, 1, 28, 7 }, { 20018, 0, 1, 28, 7 }, { 20019, 0, 1, 28, 7 }, { 20020, 0, 1, 28, 7 }, { 20021, 0, 1, 28, 7 }, { 20022, 0, 1, 28, 7 }, { 20023, 0, 1, 28, 7 }, { 20024, 0, 1, 28, 7 } } },   // ancientstatue3
 };
+
+}  // namespace d2d::game

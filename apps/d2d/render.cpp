@@ -2,7 +2,7 @@
 // skilltree, store, cursor, ingame, frontend and window declare.
 #include "window.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // common.hpp
 fs::path default_data_dir(std::string_view cfg_data) {
@@ -2484,4 +2484,4 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
 }
 
 
-}  // namespace d2d::app
+}  // namespace d2d::client

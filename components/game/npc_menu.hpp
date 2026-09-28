@@ -10,6 +10,8 @@
 #include <array>
 #include <cstdint>
 
+namespace d2d::game {
+
 struct NpcMenu { int hc_idx; std::array<std::uint16_t, 4> entries; };   // 0 = unused
 
 inline const std::array<NpcMenu, 48> kNpcMenus = {{
@@ -62,3 +64,5 @@ inline const std::array<NpcMenu, 48> kNpcMenus = {{
     { 538, { 0xd35 } },   // ancientstatue2
     { 539, { 0xd35 } },   // ancientstatue3
 }};
+
+}  // namespace d2d::game

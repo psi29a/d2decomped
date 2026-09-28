@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <utility>
 
+namespace d2d::client {
+
 inline constexpr std::array<std::pair<std::uint16_t, std::uint16_t>, 864> kSpeechSound = {{
     { 14, 3488 }, { 15, 3489 }, { 16, 3490 }, { 17, 3491 }, { 18, 3492 }, { 19, 3493 },
     { 20, 3494 }, { 21, 3495 }, { 22, 3496 }, { 23, 3497 }, { 13, 3498 }, { 11, 3499 },
@@ -154,3 +156,5 @@ inline constexpr std::array<std::pair<std::uint16_t, std::uint16_t>, 864> kSpeec
     { 20168, 4528 }, { 20170, 4445 }, { 20171, 4485 }, { 20172, 4529 }, { 20173, 4416 }, { 20174, 4601 },
     { 20177, 4446 }, { 20178, 4486 }, { 20179, 4530 }, { 20176, 4417 }, { 20180, 4602 }, { 20175, 4611 },
 }};
+
+}  // namespace d2d::client

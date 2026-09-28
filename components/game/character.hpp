@@ -5,7 +5,7 @@
 
 #include "gamedata.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 // Is item type `t` (or an Equiv ancestor) `want`?
 inline bool type_is(const GameData& s, const std::string& t, std::string_view want) {
@@ -121,4 +121,4 @@ struct Character {
     bool hardcore = false;
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::game

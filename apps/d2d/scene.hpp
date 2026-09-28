@@ -2,9 +2,8 @@
 #pragma once
 
 #include "common.hpp"
-#include "gamedata.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 // All the client draws and plays: GameData, plus the pixels, fonts and
 // palettes. The frontend's come from FUN_0042e6d0 (main-menu loader) —
 // see docs/research/re/frontend-menu-table.md.
@@ -167,4 +166,4 @@ struct Scene : GameData {
 
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::client

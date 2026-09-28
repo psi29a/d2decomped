@@ -8,7 +8,7 @@
 #include <future>
 #include <mutex>
 
-namespace d2d::app {
+namespace d2d::game {
 
 
 // Things the DS1 places (its object list): NPCs (type 1, from
@@ -578,4 +578,4 @@ void install_level(const GameData& s, int id, std::unique_ptr<Level> lv);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& s, const Level& l);
 
-}  // namespace d2d::app
+}  // namespace d2d::game

@@ -2,14 +2,12 @@
 #pragma once
 
 #include "world.hpp"
-#include "ai.hpp"
-#include "item_text.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // Hover text box: lines centred over [x0, x1], bottom on `bottom` (below
 // `top` instead when it would leave the screen), on a darkened backdrop.
 void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<TextLine>& lines,
                      int x0, int x1, int top, int bottom);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

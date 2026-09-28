@@ -5,7 +5,7 @@
 
 #include "gamedata.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 struct Cues {
     const GameData* scene = nullptr;
@@ -17,4 +17,4 @@ struct Cues {
     }
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::game

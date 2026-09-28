@@ -3,7 +3,7 @@
 
 #include "audio.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
@@ -63,4 +63,4 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,
                        std::vector<SDL_Keycode>& keys, std::atomic<bool>& quit);
 
-}  // namespace d2d::app
+}  // namespace d2d::client

@@ -2,7 +2,7 @@
 // World's methods (fight.hpp, server.hpp declare them).
 #include "server.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 // ai.hpp
 std::vector<std::pair<float, float>> walk_path(const Level& L, float x, float y, float gx, float gy,
@@ -3798,4 +3798,4 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32
         if (!fight.dead()) fight.apply_regen(ms, last_ms);
     }
 
-}  // namespace d2d::app
+}  // namespace d2d::game

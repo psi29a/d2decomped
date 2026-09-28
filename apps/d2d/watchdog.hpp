@@ -3,7 +3,7 @@
 
 #include "load.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 // Watchdog — a background thread that fires a diagnostic when the main
 // thread stops advancing its heartbeat. This is our only visibility
@@ -56,4 +56,4 @@ inline void set_phase(MainPhase p) {
                                    std::memory_order_relaxed);
 }
 
-}  // namespace d2d::app
+}  // namespace d2d::client

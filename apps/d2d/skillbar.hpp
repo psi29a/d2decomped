@@ -7,9 +7,8 @@
 #pragma once
 
 #include "window.hpp"
-#include "fight.hpp"
 
-namespace d2d::app {
+namespace d2d::client {
 
 struct SkillBar {
     const Scene* scene;
@@ -146,4 +145,4 @@ struct SkillBar {
     }
 };
 
-}  // namespace d2d::app
+}  // namespace d2d::client

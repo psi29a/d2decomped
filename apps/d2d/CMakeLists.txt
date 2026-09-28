@@ -9,6 +9,6 @@ pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavut
 
 add_executable(d2d main.cpp load.cpp render.cpp town.cpp)
 target_link_libraries(d2d PRIVATE
-    world mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
+    game mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} PkgConfig::FFMPEG)
 target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})

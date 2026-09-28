@@ -5,7 +5,7 @@
 #include "character.hpp"
 #include "cues.hpp"
 
-namespace d2d::app {
+namespace d2d::game {
 
 // Where each world NPC is right now (index-aligned with Level::npcs):
 // patrolling NPCs walk their DS1 path, pausing at each point.
@@ -288,4 +288,4 @@ void fallen_scatter(const GameData& s, std::vector<Monster>& ms_, std::size_t de
 // MercX101, ...) counted on by the save's name index.
 std::string merc_name(const GameData& s, const GameData::Merc& m, int index);
 
-}  // namespace d2d::app
+}  // namespace d2d::game
