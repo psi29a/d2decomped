@@ -74,8 +74,7 @@ inline NewCharacter new_character(const Scene& s, int cls, const std::string& na
     h.level = 1;
     h.status = std::uint8_t((hardcore ? 0x04 : 0) | (expansion ? 0x20 : 0));
     h.hotkeys.fill(0xffff);
-    h.appearance = s.starting_gear[c];
-    h.tints.fill(0xff);
+    h.set_look(s.starting_gear[c]);
     h.difficulty = { 0x80, 0, 0 };
     auto& st = n.stats;
     st.v[kStr] = cs.str; st.v[kDex] = cs.dex; st.v[kEne] = cs.ene; st.v[kVit] = cs.vit;

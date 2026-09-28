@@ -115,6 +115,15 @@ int main() {
                                                       tab("weapons"), tab("misc"));
             const auto comp = d2d::compcode::build(tab("ItemTypes"), tab("weapons"), tab("armor"), tab("misc"));
             const auto pcs = d2d::compcode::pieces(tab("weapons"), tab("armor"), tab("misc"));
+            auto col = [&](const char* n, const char* c, bool all) {
+                std::vector<std::string> v;
+                const d2d::txt::Table tb(stack.read(std::string(R"(data\global\excel\)") + n + ".txt"), all);
+                for (std::size_t r = 0; r < tb.size(); ++r) v.emplace_back(tb.get(r, c));
+                return v;
+            };
+            const d2d::compcode::Colours colours{ col("Colors", "Code", false), col("UniqueItems", "chrtransform", false),
+                col("SetItems", "chrtransform", false), col("MagicPrefix", "transformcolor", true),
+                col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true) };
             int saves = 0;
             for (const auto& e : fs::directory_iterator(sd)) {
                 if (e.path().extension() != ".d2s") continue;
@@ -136,8 +145,15 @@ int main() {
                 // The look, from what's worn, is the header's (compcode::look).
                 {
                     std::vector<d2d::compcode::Worn> worn;
-                    for (const auto& it : items) if (it.location == 1) worn.push_back({ it.slot, it.code });
+                    for (const auto& it : items)
+                        if (it.location == 1)
+                            worn.push_back({ it.slot, it.code, colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix) });
                     assert(d2d::compcode::look(comp, pcs, worn) == hdr.appearance);
+                    // The tints too (compcode::tints).
+                    const auto tn = d2d::compcode::tints(pcs, worn);
+                    for (std::size_t l = 0; l < 16; ++l)
+                        if (tn[l] != hdr.tints[l]) std::printf("tint %s layer %zu: %02x, save %02x\n", e.path().filename().string().c_str(), l, tn[l], hdr.tints[l]);
+                    assert(tn == hdr.tints);
                 }
                 int equipped = 0;
                 for (const auto& it : items) {

@@ -84,15 +84,26 @@ necromancer's head, 16 none):
 
 Checked against all 20 real saves (test_d2s). d2d rebuilds the look each
 tick (`GameData::look_of`), so equipping changes it.
-### Tints (+0x98, not built yet)
+### Tints (+0x98)
 
-From the 20 real saves, for a drawn layer's item with a colour:
-tint = ((its armor / weapons.txt Transform x 32) + 1 + colour) & 0xff,
-colour the Colors.txt row (0 whit .. 20 bwht). Transform 0 (paladin
-shields), and items without a colour, give 0xff. The colour: a unique's
-UniqueItems chrtransform, a set item's SetItems chrtransform (all such
-items in the saves fit). Transform 8 wraps past the byte (uld white → 0x01,
-uth dark purple → 0x13): bugs.md #12. Rares don't take their affixes'
-transformcolor (7o7 with a dark green prefix is 0x4f, dark yellow); their
-colour's source isn't traced. Magic items: no drawn example in the saves.
+Each drawn layer's tint = ((its armor / weapons.txt Transform x 32) + 1 +
+colour) & 0xff, colour the Colors.txt row (0 whit .. 20 bwht); 0xff for
+no colour or Transform 0, 3 or 4. The colour (FUN_0062c100):
+- unique: UniqueItems chrtransform (by row without separators);
+- set item: SetItems chrtransform;
+- magic, rare, crafted: the first suffix with a transformcolor (item data
+  +0x3e..0x42), else the first prefix (+0x38..0x3c), else the class
+  automod (+0x36, AutoMagic). Affix ids index the raw MagicPrefix /
+  MagicSuffix rows, separators included (the save's ids).
+
+Transform 8 wraps past the byte (uld white → 0x01, uth dark purple →
+0x13): bugs.md #12. All 20 real saves' tints match (test_d2s,
+`compcode::tints`); the automod's row offset has no worn example.
+
+Drawing (FUN_00600c20): the layer's pixels go through colormap
+0x8adbb8 + (Transform x 105 + colour) x 256 before the palette: the files
+`Data\Global\Items\Palette\<name>.dat`, 21 x 256 each, by Transform
+1 grey, 2 grey2, 3 gold, 4 brown, 5 greybrown, 6 invgrey, 7 invgrey2,
+8 invgreybrown. d2d remaps a layer's pixels once when it's decoded
+(`PlayerAnim::layer`); the look carries the tints as bytes 16..31.
 

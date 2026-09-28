@@ -79,10 +79,12 @@ constexpr const char* kLayerCode[16] = {
 // the hand/shield bytes (compcode::weapon_class, falling back to hth when
 // D2 would reject the combination). Empty body layers wear "lit" (a bare
 // head under a circlet, say); empty RH/LH/SH draw nothing.
-// ponytail: tints (appearance+16) and the dead-hardcore ghost aren't
-// applied yet; add the item colormaps when a portrait's colours matter.
+// Each layer's tint (gfx[16 + layer]) maps its pixels through the item
+// colormap first (compcode.md "Tints").
+// ponytail: the dead-hardcore ghost isn't applied.
 Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                                  const std::vector<d2d::compcode::Entry>& comp,
+                                 const std::array<std::vector<std::uint8_t>, 9>& colormaps,
                                  int cls, int mode, const Scene::Appearance& gfx, bool pixels = true) {
     Scene::PlayerAnim out;
     const char* cc = kCharCode[cls];
@@ -117,6 +119,8 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
             std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%s%s%s%s.dcc)",
                           cc, kLayerCode[L.type], cc, kLayerCode[L.type], code.c_str(),
                           kModeCode[mode], lw.c_str());
+            if (d2d::compcode::Tint tn; d2d::compcode::tint_of(gfx[16 + L.type], tn) && colormaps[std::size_t(tn.transform)].size() >= 21 * 256)
+                out.tint[L.type] = colormaps[std::size_t(tn.transform)].data() + tn.colour * 256;
             if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
             else if (code != "LIT") {                     // no such piece in this mode (death has only LIT's): the lit one
                 std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%sLIT%s%s.dcc)",
@@ -131,11 +135,11 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
 }
 
 const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appearance& gfx) const {
-    std::array<std::uint8_t, 18> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
+    std::array<std::uint8_t, 34> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
     std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
     auto it = composites.find(key);
     if (it == composites.end()) {
-        it = composites.emplace(key, load_composite(mpqs, comp, d2s_class, mode, gfx)).first;
+        it = composites.emplace(key, load_composite(mpqs, comp, colormaps, d2s_class, mode, gfx)).first;
         if (const auto a = anim_data.find(it->second.name); a != anim_data.end())
             std::tie(it->second.speed, it->second.frames, it->second.action) = std::tuple{ a->second.speed, a->second.frames, a->second.action };
     }
@@ -192,10 +196,10 @@ const GameData::AnimTiming& GameData::npc_timing(const Npc& n, std::string_view 
     for (const auto& c : n.comp) key += "/" + c;
     return timing_of(*this, npc_timings, key, [&] { return GameData::AnimTiming(load_npc_composite(mpqs, n, std::string(mode), false)); });
 }
-const GameData::AnimTiming& GameData::composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 16>& gfx) const {
+const GameData::AnimTiming& GameData::composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 32>& gfx) const {
     std::array<std::uint8_t, 18> key{ std::uint8_t(d2s_class), std::uint8_t(mode) };
-    std::copy(gfx.begin(), gfx.end(), key.begin() + 2);
-    return timing_of(*this, composite_timings, key, [&] { return GameData::AnimTiming(load_composite(mpqs, comp, d2s_class, mode, gfx, false)); });
+    std::copy(gfx.begin(), gfx.begin() + 16, key.begin() + 2);
+    return timing_of(*this, composite_timings, key, [&] { return GameData::AnimTiming(load_composite(mpqs, comp, {}, d2s_class, mode, gfx, false)); });
 }
 
 const Scene::PlayerAnim& Scene::npc_anim(const Npc& n, std::string_view mode) const {
@@ -989,6 +993,22 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (types.size() == 0 || weapons.size() == 0) return;
     scene.comp = d2d::compcode::build(types, weapons, armor, misc);
     scene.item_pieces = d2d::compcode::pieces(weapons, armor, misc);
+    auto col = [&](const char* n, const char* c, bool all) {
+        std::vector<std::string> v;
+        if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
+            const d2d::txt::Table t(*b, all);
+            for (std::size_t r = 0; r < t.size(); ++r) v.emplace_back(t.get(r, c));
+        }
+        return v;
+    };
+    scene.item_colours = { col("Colors", "Code", false), col("UniqueItems", "chrtransform", false), col("SetItems", "chrtransform", false),
+                           col("MagicPrefix", "transformcolor", true), col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true) };
+    int t = 1;
+    for (const char* n : { "grey", "grey2", "gold", "brown", "greybrown", "invgrey", "invgrey2", "invgreybrown" })
+        if (auto b = mpqs.try_read(std::string(R"(data\global\items\palette\)") + n + ".dat"); b && b->size() >= 21 * 256) {
+            const auto* p = reinterpret_cast<const std::uint8_t*>(b->data());
+            scene.colormaps[std::size_t(t++)].assign(p, p + 21 * 256);
+        } else ++t;
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.

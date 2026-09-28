@@ -163,18 +163,27 @@ struct GameData {
     mutable std::map<std::string, AnimTiming> npc_timings;
     mutable std::map<std::array<std::uint8_t, 18>, AnimTiming> composite_timings;
     const AnimTiming& npc_timing(const Npc& n, std::string_view mode) const;
-    const AnimTiming& composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 16>& gfx) const;
+    const AnimTiming& composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 32>& gfx) const;   // tints ignored
     // data\global\animdata.d2 by COF name: the game's rate source (COFs of
     // walk/run modes store 0), frames per direction and the event frame.
     struct AnimInfo { std::uint32_t speed = 0, frames = 0; int action = -1; };
     std::unordered_map<std::string, AnimInfo> anim_data;
-    using Appearance = std::array<std::uint8_t, 16>;
+    using Appearance = std::array<std::uint8_t, 32>;   // the save's 16 layer graphics, then their 16 tints
     std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
-    std::unordered_map<std::string, d2d::compcode::Piece> item_pieces;   // item code -> its layer, graphic, armour tiers
+    std::unordered_map<std::string, d2d::compcode::Piece> item_pieces;
+    d2d::compcode::Colours item_colours;
+    // Items\Palette\<transform>.dat by Transform 1..8: 21 colours x 256.
+    std::array<std::vector<std::uint8_t>, 9> colormaps;   // item code -> its layer, graphic, armour tiers
     [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items) const {   // the look of what's worn (compcode::look)
         std::vector<d2d::compcode::Worn> worn;
-        for (const auto& it : items) if (it.location == 1) worn.push_back({ it.slot, it.code });
-        return d2d::compcode::look(comp, item_pieces, worn);
+        for (const auto& it : items)
+            if (it.location == 1)
+                worn.push_back({ it.slot, it.code, item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix) });
+        const auto l = d2d::compcode::look(comp, item_pieces, worn), t = d2d::compcode::tints(item_pieces, worn);
+        Appearance a;
+        std::copy(l.begin(), l.end(), a.begin());
+        std::copy(t.begin(), t.end(), a.begin() + 16);
+        return a;
     }
     std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
     // Kept open for lazy loads after startup.
@@ -385,9 +394,11 @@ struct Scene : GameData {
         // reads only the COF and timings (a mode's length, its hit frame).
         mutable std::array<std::vector<std::byte>, 16> dcc;
         mutable std::array<d2d::dcc::Sprite, 16>       decoded;
+        std::array<const std::uint8_t*, 16>            tint{};   // each layer's colormap (256), null: none
         [[nodiscard]] const d2d::dcc::Sprite& layer(std::size_t t) const {
             if (!dcc[t].empty()) {
-                try { decoded[t] = d2d::dcc::Sprite(dcc[t]); } catch (const std::exception& e) { d2d::log::warn("{} layer {}: {}", name, t, e.what()); }
+                try { decoded[t] = d2d::dcc::Sprite(dcc[t]); if (tint[t]) decoded[t].remap(tint[t]); }
+                catch (const std::exception& e) { d2d::log::warn("{} layer {}: {}", name, t, e.what()); }
                 dcc[t] = {};
             }
             return decoded[t];
@@ -395,7 +406,7 @@ struct Scene : GameData {
     };
     // Loaded on first use and kept — decoding every composite up front
     // doubled startup. `mutable` so the const Scene renderers can fill it.
-    mutable std::map<std::array<std::uint8_t, 18>, PlayerAnim> composites;
+    mutable std::map<std::array<std::uint8_t, 34>, PlayerAnim> composites;
     // Class animations — 7 classes × 5 states, per the RE'd class table at
     // 0x00708a00. State order matches D2's suffix scheme: nu1, nu2, fw,
     // nu3, bw. Class order (rows in the table): assassin, druid, amazon,

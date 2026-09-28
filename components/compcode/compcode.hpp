@@ -196,7 +196,8 @@ inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& ta
 // layer: 0 HD, 1 TR, 5 RH, 6 LH, 7 SH, 10 S3, 16 none), its graphic code
 // (alternategfx, else code), and body armour's lit / med / hvy tiers
 // (Torso, Legs, rArm, lArm, rSPad, lSPad: 0..2).
-struct Piece { std::string gfx; int component = 16; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
+// Transform: the colormap set its tint uses (compcode.md "Tints").
+struct Piece { std::string gfx; int component = 16, transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
 inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, const txt::Table& armor, const txt::Table& misc) {
     std::unordered_map<std::string, Piece> out;
     for (const txt::Table* t : { &weapons, &armor, &misc })
@@ -208,6 +209,7 @@ inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, 
             if (p.gfx.empty()) p.gfx = code;
             const auto c = t->get(r, "component");
             p.component = c.empty() ? 16 : std::atoi(std::string(c).c_str());
+            p.transform = std::atoi(std::string(t->get(r, "Transform")).c_str());
             if (t->get(r, "type") == "circ") p.component = 16;   // circlets aren't drawn (compcode.md)
             int k = 0;
             for (const char* col : { "Torso", "Legs", "rArm", "lArm", "rSPad", "lSPad" }) {
@@ -219,13 +221,31 @@ inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, 
     return out;
 }
 
+// A worn item: its body location, code and colour (Colours::of).
+struct Worn { int slot; std::string code; int colour = -1; };
+
+// The layers each worn item draws on, with its piece (look's placement).
+template <class F> void each_layer(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn, F&& f) {
+    for (const auto& w : worn) {
+        if (w.slot != 1 && w.slot != 3 && w.slot != 4 && w.slot != 5) continue;
+        const auto p = pcs.find(w.code);
+        if (p == pcs.end() || p->second.component >= 16) continue;
+        if (p->second.component == 1) {
+            static constexpr int kLayer[6] = { 1, 2, 3, 4, 8, 9 };   // TR LG RA LA S1 S2
+            for (int k = 0; k < 6; ++k)
+                if (p->second.tiers[std::size_t(k)] >= 0) f(kLayer[k], w, p->second);
+            continue;
+        }
+        f(p->second.component == 5 && w.slot == 5 ? 6 : p->second.component, w, p->second);
+    }
+}
+
 // A character's look (the d2s header's 16 appearance bytes) from what it
 // wears: body locations 1 head, 3 torso, 4 right hand, 5 left hand. Each
 // item goes on its component's layer as its graphic's table index (a one-
 // hand weapon in the left hand on LH); body armour sets TR LG RA LA S1 S2 to
 // lit + its tiers. Unworn: TR LG RA LA S1 S2 lit, the rest empty (0xff).
 // Checked against the real saves (test_compcode).
-struct Worn { int slot; std::string code; };
 inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const std::unordered_map<std::string, Piece>& pcs,
                                          const std::vector<Worn>& worn) {
     std::array<std::uint8_t, 16> a;
@@ -235,21 +255,59 @@ inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const 
         for (std::size_t i = 1; i < table.size() && i < 0xff; ++i) if (table[i].code == gfx) return std::uint8_t(i);
         return 0xff;
     };
-    for (const auto& w : worn) {
-        if (w.slot != 1 && w.slot != 3 && w.slot != 4 && w.slot != 5) continue;
-        const auto p = pcs.find(w.code);
-        if (p == pcs.end() || p->second.component >= 16) continue;
-        if (p->second.component == 1) {
-            static constexpr int kLayer[6] = { 1, 2, 3, 4, 8, 9 };   // TR LG RA LA S1 S2
-            for (int k = 0; k < 6; ++k)
-                if (p->second.tiers[std::size_t(k)] >= 0) a[std::size_t(kLayer[k])] = std::uint8_t(1 + p->second.tiers[std::size_t(k)]);
-            continue;
-        }
-        int layer = p->second.component;
-        if (layer == 5 && w.slot == 5) layer = 6;
-        a[std::size_t(layer)] = index(p->second.gfx);
-    }
+    each_layer(pcs, worn, [&](int layer, const Worn&, const Piece& p) {
+        if (p.component == 1) {
+            static constexpr int kTier[10] = { 0, 0, 1, 2, 3, 0, 0, 0, 4, 5 };   // TR LG RA LA .. S1 S2
+            a[std::size_t(layer)] = std::uint8_t(1 + p.tiers[std::size_t(kTier[layer])]);
+        } else a[std::size_t(layer)] = index(p.gfx);
+    });
     return a;
+}
+
+// An item's colour, a Colors.txt index or -1 (FUN_0062c100): a unique's
+// UniqueItems chrtransform, a set item's SetItems chrtransform; magic, rare
+// and crafted items the first suffix with a transformcolor, else the first
+// prefix, else the class automod (AutoMagic). Uniques and sets by row
+// without separators, affixes by raw row (the save's ids).
+struct Colours {
+    std::vector<std::string> codes;                            // Colors.txt Code, by index
+    std::vector<std::string> unique, set, prefix, suffix, automod;
+    [[nodiscard]] int at(const std::vector<std::string>& v, int row) const {
+        if (row < 0 || std::size_t(row) >= v.size() || v[std::size_t(row)].empty()) return -1;
+        for (std::size_t i = 0; i < codes.size(); ++i) if (codes[i] == v[std::size_t(row)]) return int(i);
+        return -1;
+    }
+    [[nodiscard]] int of(int quality, int unique_id, int set_id, int pre, int suf, const std::array<int, 6>& rare, int class_affix) const {
+        if (quality == 7) return at(unique, unique_id);
+        if (quality == 5) return at(set, set_id);
+        if (quality != 4 && quality != 6 && quality != 8) return -1;
+        const std::array<int, 3> sufs = quality == 4 ? std::array<int, 3>{ suf, 0, 0 } : std::array<int, 3>{ rare[1], rare[3], rare[5] };
+        const std::array<int, 3> pres = quality == 4 ? std::array<int, 3>{ pre, 0, 0 } : std::array<int, 3>{ rare[0], rare[2], rare[4] };
+        for (int s : sufs) if (s > 0) if (const int c = at(suffix, s); c >= 0) return c;
+        for (int p : pres) if (p > 0) if (const int c = at(prefix, p); c >= 0) return c;
+        return at(automod, class_affix);   // ponytail: row = the save's class affix id, untested (no worn example)
+    }
+};
+
+// Each layer's tint (the d2s header's 16 bytes at 0x98): (Transform x 32
+// + colour + 1) & 0xff, 0xff with no colour or Transform 0, 3 or 4.
+// Transform 8 wraps below 0x20 (bugs.md #12); tint_of reads it back.
+inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn) {
+    std::array<std::uint8_t, 16> a;
+    a.fill(0xff);
+    each_layer(pcs, worn, [&](int layer, const Worn& w, const Piece& p) {
+        const int t = p.transform;
+        a[std::size_t(layer)] = w.colour < 0 || t <= 0 || t == 3 || t == 4 || t > 8 ? 0xff : std::uint8_t((t * 32 + w.colour + 1) & 0xff);
+    });
+    return a;
+}
+// A tint byte's colormap set and colour; false for none.
+struct Tint { int transform = 0, colour = 0; };
+inline bool tint_of(std::uint8_t b, Tint& t) {
+    if (b == 0xff || b == 0) return false;
+    t.transform = (b - 1) >> 5; t.colour = (b - 1) & 31;
+    if (t.transform == 0) t.transform = 8;   // the wrap (bugs.md #12)
+    return t.colour < 21;
 }
 
 }  // namespace d2d::compcode

@@ -457,7 +457,7 @@ struct CharCreateUI {
     int selected = -1;           // index of currently-selected class or -1
     // Gear the in-game character wears: a loaded save's appearance bytes,
     // or unset for a fresh character (starting gear).
-    std::optional<std::array<std::uint8_t, 16>> appearance;
+    std::optional<std::array<std::uint8_t, 32>> appearance;   // + the tints
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
     d2d::d2s::Stats stats;               // ... and attributes
     std::vector<d2d::d2s::Item> corpse;  // ... and its corpse's items (d2s corpse list)

@@ -167,7 +167,7 @@ void render_charselect(std::vector<std::uint8_t>& fb,
         // ponytail: dead hardcore should use the ghost class (8/9).
         {
             const bool nu = h.hardcore() && !h.died() && (h.expansion() || h.cls < 5);
-            draw_composite(fb, s.composite(h.cls, nu ? kModeNU : kModeTN, h.appearance),
+            draw_composite(fb, s.composite(h.cls, nu ? kModeNU : kModeTN, h.look()),
                            pal, 0, elapsed_ms, x + 30, y + kSlotH - 1 - 13);
         }
         const int ci = kSaveClassToUi[h.cls];

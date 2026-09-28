@@ -228,7 +228,7 @@ struct World {
         h.level = std::uint8_t(std::clamp<std::int64_t>(cc.stats.get(d2d::d2s::kLevel), 1, 99));
         h.last_played = std::uint32_t(std::time(nullptr));
         h.map_id = scene->map_seed;
-        if (cc.appearance) h.appearance = *cc.appearance;
+        if (cc.appearance) h.set_look(*cc.appearance);
         // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
         // ponytail: game.exe's pick among several isn't traced.
         const std::vector<d2d::d2s::Item> no_corpse;

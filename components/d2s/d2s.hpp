@@ -38,6 +38,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <span>
@@ -63,6 +64,17 @@ struct Header {
     std::uint32_t left_skill = 0, right_skill = 0, left_swap = 0, right_swap = 0;
     std::array<std::uint8_t, 16> appearance{};
     std::array<std::uint8_t, 16> tints{};
+    // Both as one: the look d2d draws (0x88..0xa7).
+    [[nodiscard]] std::array<std::uint8_t, 32> look() const {
+        std::array<std::uint8_t, 32> a{};
+        std::copy(appearance.begin(), appearance.end(), a.begin());
+        std::copy(tints.begin(), tints.end(), a.begin() + 16);
+        return a;
+    }
+    void set_look(const std::array<std::uint8_t, 32>& a) {
+        std::copy(a.begin(), a.begin() + 16, appearance.begin());
+        std::copy(a.begin() + 16, a.end(), tints.begin());
+    }
     std::array<std::uint8_t, 3>  difficulty{};
     std::uint32_t map_id = 0;
     std::array<std::array<std::uint8_t, 96>, 3> quests{};   // zero when the save has none

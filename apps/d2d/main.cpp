@@ -446,7 +446,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     cc.selected   = kSaveClassToUi[h.cls];
                     cc.input_name = h.name;
                     cc.hardcore   = h.hardcore();
-                    cc.appearance = h.appearance;
+                    cc.appearance = h.look();
                     cc.items = csu.selected < int(scene->save_items.size())
                                    ? scene->save_items[std::size_t(csu.selected)]
                                    : std::vector<d2d::d2s::Item>{};

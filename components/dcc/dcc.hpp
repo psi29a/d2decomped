@@ -90,6 +90,10 @@ public:
         return frames_[std::size_t(dir) * frames_per_dir_ + idx];
     }
     [[nodiscard]] std::span<const Frame> frames() const noexcept { return frames_; }
+    // Every pixel through a 256-entry map (an item colormap); 0 stays clear.
+    void remap(const std::uint8_t* map) {
+        for (auto& f : frames_) for (auto& p : f.pixels) if (p) p = map[p];
+    }
 
 private:
     // Per-cell 4x4 (or smaller edge) block within a direction canvas.
