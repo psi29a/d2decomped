@@ -186,7 +186,7 @@ try:
                     return int(p[1]), int(p[2])
         x, y = menu_line("talk")
         cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
-        assert state()["menu"] == "4", "talk submenu did not open"
+        assert menu_line("introduction"), "talk submenu did not open"   # 4 lines, more with quest topics
         x, y = menu_line("introduction")
         cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
         assert state()["speech"] != "0", "no speech"

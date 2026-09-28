@@ -11,9 +11,5 @@
 #  include <OpenAL/alc.h>
 #endif
 
-// windef.h (through SDL / OpenAL on Windows) defines near and far as
-// empty macros; they'd eat any name spelled so (MSVC C2513).
-#ifdef _WIN32
-#undef near
-#undef far
-#endif
+// windef.h (through SDL / OpenAL on Windows) defines near and far as empty
+// macros, and the SDK's later headers need them (FAR): name nothing so.
