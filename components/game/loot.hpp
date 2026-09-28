@@ -121,7 +121,7 @@ struct Loot {
             cues.cue("item_gold", 0, player.x, player.y);
             if ((g.gold -= int(n)) > 0) { g.label = std::to_string(g.gold) + " Gold"; return; }
         } else {
-            const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+            const auto& lay = scene->inv_layout[std::size_t(std::max(cc.character_class, 0))];
             std::vector<const Item*> inv;
             for (const auto& x : cc.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
             const auto [w, h] = d2d::rules::item_size(scene->rules, g.item.code);

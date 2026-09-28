@@ -97,8 +97,8 @@ and sound.
 `d2d::game`: a library that `test_game` links alone, so nothing there may
 reach the client. It holds no SDL, sound, pixels or fonts. Its base is
 `game.hpp` (the standard library, the data components, the iso geometry);
-`gamedata.hpp` (`GameData`, `Level`, `Npc`), `character.hpp` (`Character`:
-what a save holds), `world.hpp` (`World`), `protocol.hpp` (`Command`) and
+`gamedata.hpp` (`GameData`, `Level`, `Npc`), `gamedata_load.hpp`
+(`load_game_data`), `character.hpp` (`Character`: what a save holds), `world.hpp` (`World`), `protocol.hpp` (`Command`) and
 `replication.hpp` (the `View` as bytes) are its main headers. A game
 header never includes a client one.
 
@@ -117,10 +117,14 @@ its own (`d2d_check_headers`, cmake/HeaderCheck.cmake, built with the rest;
 line as `auto Class::name(params) -> Ret { ... }` (the trailing return type
 resolves the class's own types); short accessors may stay in the class. A
 global in a header is `inline`.
+The game loads its own data: `load_game_data` (gamedata_load.hpp) reads
+the MPQs, strings, tables, Act 1 and the camp; the client's `load_scene`
+takes that GameData and adds sprites, fonts and palettes. `test_game`
+loads GameData and plays a character with no client code.
 ponytail: the standard library and the data components come in through
-the base headers (game.hpp, common.hpp) rather than per file. The World
-still carries DT1 pixels in its levels (Level::dt1s); GameData is filled
-by the client's load.cpp (load_scene), not by the World.
+the base headers (game.hpp, common.hpp) rather than per file. A Level
+still carries its DT1s' pixels (Level::dt1s) next to its walk grid: a
+headless server loads tile graphics it never draws.
 
 `World` (world.hpp) owns the game's state (level, player, merc, NPCs,
 rng) and hands references to its subsystems (`Fight`, `Loot`); the client

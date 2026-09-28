@@ -96,7 +96,7 @@ inline PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
 }
 
 struct Character {
-    int selected = -1;           // index of currently-selected class or -1
+    int character_class = -1;    // the save's class (0 Amazon .. 6 Assassin, d2s order), -1 none yet
     // Gear the in-game character wears: a loaded save's appearance bytes,
     // or unset for a fresh character (starting gear).
     std::optional<std::array<std::uint8_t, 32>> appearance;   // + the tints
@@ -106,19 +106,7 @@ struct Character {
     PanelStats panel;                    // ... and what the char panel computes
     bool expansion = true;               // the save's expansion flag (stash size)
     d2d::d2s::Header header;             // the loaded save's header (quest flags ...)
-    // Name entry — SDL text-input feeds this buffer, capped at 15 chars
-    // to match D2's char-name limit (per D2's actual character record
-    // struct). Left/right arrows and non-printable keys are ignored.
-    std::string input_name;
-    // Hardcore checkbox — the char-create master-table record at 0x70b0b0
-    // (kind=6 button, x=319, y=560, w=15, h=16, handle=DAT_007797c0
-    // (clickbox.dc6), on_click=FUN_00430730 which sets bit 0x04 of the
-    // character-struct flags word at [0x7795d4]+0x1ef — that's the D2S
-    // "Character Status" hardcore bit). Label from patchstring.tbl id
-    // 0x1406 ("Hardcore"). See docs/research/re/char-create-table.md for
-    // the full 33-record breakdown, including the Ladder (bit 0x40) and
-    // Expansion (bit 0x20) checkbox records also present in the table.
-    bool hardcore = false;
+    std::string name;                    // the character's name
 };
 
 }  // namespace d2d::game

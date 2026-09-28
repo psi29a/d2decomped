@@ -116,11 +116,11 @@ auto Fight::monster_sounds(Monster& m, std::uint32_t ms) -> void {
     }
 
 auto Fight::gfx() const -> const GameData::Appearance& {
-        return cc.appearance ? *cc.appearance : scene->starting_gear[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+        return cc.appearance ? *cc.appearance : scene->starting_gear[std::size_t(std::max(cc.character_class, 0))];
     }
 
 auto Fight::player_anim(int mode) const -> const GameData::AnimTiming& {
-        return scene->composite_timing(kUiToSaveClass[std::max(cc.selected, 0)], mode, gfx());
+        return scene->composite_timing(std::max(cc.character_class, 0), mode, gfx());
     }
 
 auto Fight::set_pmode(int mode, std::uint32_t ms) -> void {
@@ -195,7 +195,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         }
         if (sum_out) *sum_out = sum;
         const auto& r = cc.panel.res;                        // panel: fire, cold, lightning, poison
-        const auto& gains = scene->class_gains[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+        const auto& gains = scene->class_gains[std::size_t(std::max(cc.character_class, 0))];
         const std::array<int, 4> res{ int(r[0]), int(r[2]), int(r[1]), int(r[3]) };
         auto f = d2d::rules::make_fighter(scene->rules, weapon, shield, sum, weapon_sum, cc.stats, gains,
                                           int(cc.panel.defense), res, boots);
@@ -328,7 +328,7 @@ auto Fight::start_sequence(std::uint32_t ms) -> void {
 auto Fight::start_move(const d2d::rules::Skill& s, std::uint32_t ms) -> void {
         smove = {};
         seq_loop = false;
-        const auto cls = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto cls = std::size_t(std::max(cc.character_class, 0));
         if (s.srvdofunc == 76) {
             smove = { move_x, move_y, cells_per_sec(float(scene->walk_velocity[cls])), true, false };
             seq_loop = true;
@@ -1103,7 +1103,7 @@ auto Fight::fire_blast(const Monster& m, std::span<Foe> foes, std::uint32_t ms) 
 
 auto Fight::killed(std::size_t i, std::uint32_t ms) -> void {
         const auto& m = monsters[i];
-        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto sc = std::size_t(std::max(cc.character_class, 0));
         auto exp = d2d::rules::kill_exp(m.st.exp, int(cc.stats.get(d2d::d2s::kLevel)), m.st.level);
         exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
         const int up = d2d::rules::gain_exp(cc.stats, exp, scene->exp_next, scene->class_gains[sc]);
@@ -1160,7 +1160,7 @@ auto Fight::merc_turn(std::uint32_t ms, float dt, const Crowd& crowd) -> void {
                 if (((m.aware && dp < 6) || dm < 3) && dm < best) { best = dm; merc_target = int(i); }
             }
         }
-        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto sc = std::size_t(std::max(cc.character_class, 0));
         const float speed = cells_per_sec(float(scene->run_velocity[sc])) * 1.1f;
         if (merc_target >= 0 && std::hypot(u.x - player.x, u.y - player.y) < 10) {
             const auto& m = monsters[std::size_t(merc_target)];
@@ -2142,7 +2142,7 @@ auto Fight::pet_aura(Pet& p, std::uint32_t ms) -> void {
 
 auto Fight::pets_turn(std::uint32_t ms, float dt, const Crowd& crowd) -> void {
         std::erase_if(pets, [&](const Pet& p) { return !p.m.alive() && p.m.mode == "DT" && ms >= p.m.mode_until; });
-        const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+        const auto sc = std::size_t(std::max(cc.character_class, 0));
         for (auto& p : pets) {
             auto& m = p.m;
             auto& u = m.u;
@@ -2432,7 +2432,7 @@ auto Fight::world(bool in_moor, std::uint32_t ms, float dt, const Crowd& crowd) 
             }
         }
         if (!in_moor) {                                      // pets follow the player about camp
-            const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+            const auto sc = std::size_t(std::max(cc.character_class, 0));
             for (auto& p : pets)
                 if (p.where == level && p.m.alive()) {
                     merc_follow(*level, p.m.u, player.x, player.y, cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
@@ -2442,7 +2442,7 @@ auto Fight::world(bool in_moor, std::uint32_t ms, float dt, const Crowd& crowd) 
         if (merc && merc_npc) {
             if (in_moor) merc_turn(ms, dt, crowd);
             else {
-                const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+                const auto sc = std::size_t(std::max(cc.character_class, 0));
                 merc_follow(*level, *merc, player.x, player.y, cells_per_sec(float(scene->run_velocity[sc])) * 1.1f, ms, dt, crowd);
                 merc_mode = merc->walking ? "WL" : "NU";
             }

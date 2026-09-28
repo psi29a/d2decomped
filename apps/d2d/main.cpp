@@ -183,8 +183,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                 &scene->medium_sel_button,
                                 Screen::InGame, /*do_switch=*/false };
         // Preload class/name if --start-screen ingame was given.
-        if (g_start_class >= 0 && g_start_class < 7) cc.selected = g_start_class;
-        if (!g_start_name.empty()) cc.input_name = g_start_name;
+        if (g_start_class >= 0 && g_start_class < 7) { cc.selected = g_start_class; cc.character_class = kUiToSaveClass[g_start_class]; }
+        if (!g_start_name.empty()) cc.name = g_start_name;
         cc.hardcore = g_start_hardcore;
     }
 
@@ -459,7 +459,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     // Load the picked save into the in-game character.
                     const auto& h = scene->saves[std::size_t(csu.selected)];
                     cc.selected   = kSaveClassToUi[h.cls];
-                    cc.input_name = h.name;
+                    cc.character_class = h.cls;
+                    cc.name = h.name;
                     cc.hardcore   = h.hardcore();
                     cc.appearance = h.look();
                     cc.items = csu.selected < int(scene->save_items.size())
@@ -495,15 +496,15 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // character-record name limit).
                 if (!text_this_frame.empty()) {
                     for (char c : text_this_frame) {
-                        if (cc.input_name.size() < 15) cc.input_name.push_back(c);
+                        if (cc.name.size() < 15) cc.name.push_back(c);
                     }
                 }
-                if (backspace_this_frame && !cc.input_name.empty())
-                    cc.input_name.pop_back();
+                if (backspace_this_frame && !cc.name.empty())
+                    cc.name.pop_back();
 
                 // OK is only enabled once a class is picked and a name is
                 // entered — mirrors D2's OK-button gating.
-                cc.ok_btn.do_switch = (cc.selected >= 0 && !cc.input_name.empty());
+                cc.ok_btn.do_switch = (cc.selected >= 0 && !cc.name.empty());
                 update_button(cc.cancel_btn, mouse, screen, quit);
                 update_button(cc.ok_btn,     mouse, screen, quit);
                 if (!cc.cancel_btn.hovered && !cc.ok_btn.hovered)
@@ -511,11 +512,12 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // OK: a new character (CharStats.txt's start), saved at once so
                 // it's on the roster. A name that has a save already is refused.
                 if (screen == Screen::InGame && scene) {
-                    if (fs::exists(characters.path(cc.input_name))) {
-                        d2d::log::info("a character named {} exists already", cc.input_name);
+                    if (fs::exists(characters.path(cc.name))) {
+                        d2d::log::info("a character named {} exists already", cc.name);
                         screen = Screen::CharCreate;
                     } else {
-                        auto n = new_character(*scene, int(kUiToSaveClass[std::size_t(std::max(cc.selected, 0))]), cc.input_name,
+                        cc.character_class = kUiToSaveClass[std::size_t(std::max(cc.selected, 0))];
+                        auto n = new_character(*scene, cc.character_class, cc.name,
                                                cc.hardcore, cc.expansion, t.rng);
                         cc.header = std::move(n.header);
                         cc.stats = n.stats;

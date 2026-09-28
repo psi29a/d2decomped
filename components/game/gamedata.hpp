@@ -36,7 +36,7 @@ struct Npc {
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
     bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
     std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
-    int colour = 0;                      // the colour it's drawn in (FUN_00466360; Scene::monster_map), 0/1 none
+    int colour = 0;                      // the colour it's drawn in (FUN_00466360; the client's Scene::monster_map), 0/1 none
     int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
@@ -371,7 +371,7 @@ struct GameData {
     // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
     // its first hit; else flies through), Pierce (may fly on, stat 328 %),
     // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
-    struct MissileInfo { std::string name; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+    struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          bool to_hit = false, collide_kill = true, pierce = false;
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
@@ -394,7 +394,7 @@ struct GameData {
     std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
     // The level builder: its own MPQ handles, the DRLG tables and the
     // tables a build reads. Last, so it's torn down first: a build in
-    // flight reads the rest of the Scene.
+    // flight reads the rest of GameData.
     struct LevelBuilder;
     std::shared_ptr<LevelBuilder> builder;
 };
@@ -439,11 +439,6 @@ inline std::string string_id(const GameData& s, std::uint16_t id) {
     const auto v = lookup_string(s, id);
     return v ? u16_to_latin1(*v) : std::string{};
 }
-
-// .d2s class id (AM SO NE PA BA DZ AS) -> our visual-order index
-// (BA NE PA AM SO DZ AS, see kClassKey).
-constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
-constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
 
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
 // dev codename), D2 mode ids we use, and layer names by COF type.
@@ -511,7 +506,7 @@ constexpr const char* kVariant[16] = {
     "S1v", "S2v", "S3v", "S4v", "S5v", "S6v", "S7v", "S8v",
 };
 
-// The level builder (Scene::builder): one build at a time, on its own MPQ
+// The level builder (GameData::builder): one build at a time, on its own MPQ
 // handles and its own DRLG tables (the generator caches DT1 heads in them).
 struct GameData::LevelBuilder {
     std::mutex m;                                       // held for a whole build; `mpqs` and `act1` are its

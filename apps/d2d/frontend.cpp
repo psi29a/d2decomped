@@ -425,12 +425,12 @@ void render_charcreate(std::vector<std::uint8_t>& fb,
                            nprompt, 200, 200, 200);
         blit_sprite(fb, s.textbox.frame(0, 0), pal, 319, kNameTop);
         // Typed name over the box.
-        const int nw = s.font.measure(ui.input_name);
+        const int nw = s.font.measure(ui.name);
         const int nlh = s.font.line_height();
         s.font.draw_tinted(fb, kW, kH, pal,
                            319 + (169 - nw) / 2,
                            kNameTop + (26 - nlh) / 2,
-                           ui.input_name, 255, 208, 80);
+                           ui.name, 255, 208, 80);
         // Simple blinking cursor after the last char (D2 uses a blinking
         // underline; we use a solid "|" for now).
         if (((elapsed_ms / 500) & 1) == 0) {

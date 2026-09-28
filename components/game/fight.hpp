@@ -69,7 +69,7 @@ inline bool finisher(const d2d::rules::Skill* s) {
 // ponytail: other general skills, item charges, charms and set bonuses
 // don't count yet.
 inline int skill_base_level(const GameData& s, const Character& cc, int id) {
-    const auto& ids = s.skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+    const auto& ids = s.skills.class_ids[std::size_t(std::max(cc.character_class, 0))];
     if (const auto it = std::ranges::find(ids, id); it != ids.end()) return cc.stats.skills[std::size_t(it - ids.begin())];
     if (id == 0) return 1;
     const auto* k = s.skills.get(id);
@@ -90,7 +90,7 @@ inline int skill_level(const GameData& s, const Character& cc, int id, const std
             props.insert(props.end(), sp.begin(), sp.end());
         }
     }
-    const int bonus = d2d::rules::item_skill_bonus(*k, int(kUiToSaveClass[std::max(cc.selected, 0)]), props);
+    const int bonus = d2d::rules::item_skill_bonus(*k, std::max(cc.character_class, 0), props);
     return base > 0 ? base + bonus : 0;
 }
 

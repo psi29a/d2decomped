@@ -1,7 +1,7 @@
 // The View on the wire (the S -> C side, docs/design/multiplayer.md): what
-// a client draws, as bytes. Everything that points into the Scene goes as
+// a client draws, as bytes. Everything that points into GameData goes as
 // its key there (the level's id, a missile's name, the merc's hireling
-// type, a fire's index) — the Scene is the same data on every machine.
+// type, a fire's index) — GameData is the same on every machine.
 // Decoded animation modes are interned, so the views stay valid.
 // ponytail: whole views every tick (no deltas); a unit's look as strings.
 #pragma once
@@ -70,7 +70,7 @@ inline std::vector<d2d::d2s::Item> items(In& in, const d2d::d2s::ItemTables& t) 
 }
 }  // namespace wire
 
-// The Scene's level with Levels.txt id `id`.
+// GameData's level with Levels.txt id `id`.
 inline const Level* level_of(const GameData& s, int id) { return s.level(id); }
 
 // What one client was last sent (the server keeps one per client): each

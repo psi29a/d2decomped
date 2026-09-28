@@ -10,6 +10,7 @@
 #include "fight.hpp"
 #include "game.hpp"
 #include "gamedata.hpp"
+#include "gamedata_load.hpp"
 #include "inventory.hpp"
 #include "item_text.hpp"
 #include "log.hpp"
@@ -66,12 +67,10 @@ using game::kModeTW;
 using game::kModeWL;
 using game::kNpcMenus;
 using game::kNpcTalk;
-using game::kSaveClassToUi;
 using game::kTickMs;
 using game::kTxtBlue;
 using game::kTxtGrey;
 using game::kTxtWhite;
-using game::kUiToSaveClass;
 using game::kVariant;
 using game::level_light;
 using game::player_cof;

@@ -312,7 +312,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
             return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)
-            const auto& ids = scene->skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+            const auto& ids = scene->skills.class_ids[std::size_t(std::max(cc.character_class, 0))];
             const auto it = std::ranges::find(ids, std::atoi(args[2].c_str()));
             if (it == ids.end()) return std::string("err not a class skill\n");
             t.world.cc.stats.skills[std::size_t(it - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
@@ -451,7 +451,7 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
              + " scroll=" + std::to_string(csu.scroll)
              + " class=" + std::to_string(cc.selected)
              + " name=" + (screen == Screen::CharSelect && scene && csu.selected >= 0 && std::size_t(csu.selected) < scene->saves.size()
-                           ? std::string(scene->saves[std::size_t(csu.selected)].name) : cc.input_name)
+                           ? std::string(scene->saves[std::size_t(csu.selected)].name) : cc.name)
              + " hardcore=" + (cc.hardcore ? "1" : "0")
              + " cam=" + std::format("{:.2f},{:.2f}", t.player.x, t.player.y)
              + " walking=" + (t.player.walking ? "1" : "0") + " dir=" + std::to_string(t.player.dir)

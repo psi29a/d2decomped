@@ -48,6 +48,10 @@ constexpr const char* kClassKey[7] = {
     "Barbarian", "Necromancer", "Paladin", "Amazon",
     "Sorceress", "Druid",       "Assassin",
 };
+// The screen's class order (kClassKey) <-> the .d2s class id (AM SO NE
+// PA BA DZ AS: Character::character_class).
+constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
+constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
 
 // D2's frontend records store (x, y, w, h) with y = the BOTTOM row
 // (bottom-left anchor, like its DC6 blits): the full-screen BG record is
@@ -216,7 +220,20 @@ void draw_speech(std::vector<std::uint8_t>& fb, const Scene& s, const Speech& sp
 void draw_npc_menu(std::vector<std::uint8_t>& fb, const Scene& s, const NpcMenuState& m,
                    int mx, int my, std::uint32_t ms);
 
+// The character-creation screen over the Character it makes; name entry
+// (SDL text input) fills Character::name, capped at 15 chars like D2's
+// character record; left/right arrows and non-printable keys are ignored.
 struct CharCreateUI : Character {
+    int selected = -1;           // the class picked, in the screen's order (kSaveClassToUi), -1 none
+    // Hardcore checkbox — the char-create master-table record at 0x70b0b0
+    // (kind=6 button, x=319, y=560, w=15, h=16, handle=DAT_007797c0
+    // (clickbox.dc6), on_click=FUN_00430730 which sets bit 0x04 of the
+    // character-struct flags word at [0x7795d4]+0x1ef — that's the D2S
+    // "Character Status" hardcore bit). Label from patchstring.tbl id
+    // 0x1406 ("Hardcore"). See docs/research/re/char-create-table.md for
+    // the full 33-record breakdown, including the Ladder (bit 0x40) and
+    // Expansion (bit 0x20) checkbox records also present in the table.
+    bool hardcore = false;
     std::array<ClassUI, 7> classes{};
     Button ok_btn{};
     Button cancel_btn{};

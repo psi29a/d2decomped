@@ -306,7 +306,7 @@ auto Town::update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector
             }
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
-        const auto& lay = scene->inv_layout[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
+        const auto& lay = scene->inv_layout[std::size_t(std::max(cc.character_class, 0))];
         const bool over_panel =
             (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
             (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
@@ -333,7 +333,7 @@ auto Town::update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector
                 net.send(cmd::Sell{ held->id });
                 item_click = true;
             } else {
-                const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
+                const auto cl = item_cursor_command(*scene, cc.items, held, std::max(cc.character_class, 0),
                                                     { inv_open, stash_open, cube_open, belt_open, cc.expansion }, mouse.x, mouse.y);
                 if (cl.cmd) net.send(*cl.cmd);
                 item_click = cl.consumed;
@@ -343,7 +343,7 @@ auto Town::update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector
         // A right-click on a carried item uses it: a potion in the inventory,
         // stash or belt is drunk.
         if (mouse.rpress_this_frame && !held && store.npc < 0 && npc_menu.npc < 0 && speech.npc < 0) {
-            const auto cl = item_cursor_command(*scene, cc.items, held, int(kUiToSaveClass[std::max(cc.selected, 0)]),
+            const auto cl = item_cursor_command(*scene, cc.items, held, std::max(cc.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_open, cc.expansion }, mouse.x, mouse.y);
             if (const auto* p = cl.cmd ? std::get_if<cmd::ToCursor>(&*cl.cmd) : nullptr) net.send(cmd::UseItem{ p->item });
         }
@@ -370,7 +370,7 @@ auto Town::update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector
         // Skill tree: tabs switch on press; a skill icon pressed and
         // released spends a point (FUN_004ab7e0 / FUN_004abc30).
         if (tree_open) {
-            const int cls = int(kUiToSaveClass[std::max(cc.selected, 0)]);
+            const int cls = std::max(cc.character_class, 0);
             const int sk = skill_at(*scene, cls, tree_tab, mouse.x, mouse.y);
             if (mouse.press_this_frame) {
                 if (const int t = skill_tab_at(mouse.x, mouse.y); t > 0) tree_tab = t;
@@ -530,7 +530,7 @@ auto Town::update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector
             } else if (action == NpcMenuState::kIntro || action == NpcMenuState::kGossip) {
                 const auto t = std::ranges::find_if(kNpcTalk, [&](const NpcTalk& e) { return e.hc_idx == n.hc_idx; });
                 if (t != kNpcTalk.end() && !t->topics.empty()) {
-                    const int cls = int(kUiToSaveClass[std::max(cc.selected, 0)]);
+                    const int cls = std::max(cc.character_class, 0);
                     if (gossip_pick.size() != level->npcs.size()) gossip_pick.assign(level->npcs.size(), -1);
                     int topic;
                     auto done = [&](int q) { return cc.header.quest_flag(cc.header.active_difficulty(), q, 0); };
@@ -778,7 +778,7 @@ auto Town::draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t
             player_walked = me.walking; player_ran = m; walk_ms = ms;
         }
         if (pmode < 0) me.mode_ms = std::max(me.mode_ms, walk_ms);     // a swing's end restarts it too
-        const int ui_cls = std::max(cc.selected, 0);
+        const int ui_cls = kSaveClassToUi[std::max(cc.character_class, 0)];
         // Monsters in view, as units the world draws by depth.
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
@@ -789,13 +789,13 @@ auto Town::draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t
         cam_x = jump ? me.x : prev_x + (me.x - prev_x) * a;
         cam_y = jump ? me.y : prev_y + (me.y - prev_y) * a;
         state_clock.now = ms;
-        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms, &cc.input_name, int(kUiToSaveClass[std::max(cc.selected, 0)]), &state_clock);
+        view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, ms, &cc.name, std::max(cc.character_class, 0), &state_clock);
         std::erase_if(state_clock.seen, [&](const auto& e) { return ms - e.second.last > 5000; });
         Unit player_look{};
         dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
         const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
-        const auto cls = kUiToSaveClass[std::max(cc.selected, 0)];
+        const auto cls = std::max(cc.character_class, 0);
         if (pmode == kModeDD) me.mode_ms = ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);
         int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : me.walking ? (view.running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         std::uint32_t mode_ms = me.mode_ms;
@@ -804,7 +804,7 @@ auto Town::draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t
         const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient(), extra, &player_look, ms);
         render_ingame(fb, *scene, *view.level, ui_cls,
                       view.gfx,
-                      cc.input_name, cc.hardcore,
+                      cc.name, cc.hardcore,
                       cam_x, cam_y, mode,
                       me.dir, ms, held ? -1 : mouse.x, held ? -1 : mouse.y, view.npc_states,
                       inv_open ? &cc.items : nullptr,

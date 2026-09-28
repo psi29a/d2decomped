@@ -1,4 +1,4 @@
-// Asset loading: composites, NPCs, saves, load_scene, DS1/DT1 world.
+// Loading the Scene: composites, saves, and load_scene.
 #pragma once
 
 #include "common.hpp"
@@ -10,14 +10,6 @@
 #include <thread>
 
 namespace d2d::client {
-
-// Forward decl — full body lives after Scene{} construction so it can use
-// the same members without repeating field types.
-void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
-
-// Act 1's layout from the map seed picks the town's DS1 (the side the
-// Blood Moor went) and where both sit.
-void place_act1(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::OutdoorAssets& act1, std::uint32_t map_seed);
 
 // Load one composite: COF <CC><mode><wclass>, then per COF layer the DCC
 // <CC><LY><component><mode><layer wclass>. The weapon class comes from
@@ -38,45 +30,12 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
 Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
                                      const std::string& mode);
 
-// Monster tables (MonStats, MonStats2, MonLvl), the Blood Moor's Levels.txt
-// monster columns, and its rooms populated (components/rules/monsters.hpp).
-// ponytail: every room at load, in cell order, normal difficulty — game.exe
-// populates a room when it first activates (so the game seed's order
-// follows the player) and knows the game's difficulty; the game seed is
-// the map seed here.
-void load_monsters(Scene& scene, const d2d::mpq::Stack& mpqs);
-
-void load_skills(Scene& scene, const d2d::mpq::Stack& mpqs);
-
-// Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
-// (Act 1 rows) Place -> MonStats row (by Id) -> its MonStatsEx's MonStats2
-// row (monster_npc).
-// Positions are in subtiles; a unit stands at its subtile's centre.
-// ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
-
-void load_npcs(Scene& scene, const d2d::mpq::Stack& mpqs);
-
-// Excel tables + the derived composite data: the component table and each
-// class's starting-gear appearance (CharStats.txt item1..: "rarm" item in
-// the right hand, a "larm" shield on the shield layer; body parts "lit").
-void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs);
-
 // Headers (and items) of every valid .d2s in `dir`, most recently played first. Bad files are
 // logged and skipped — saves are user-supplied.
 void load_saves(Scene& scene, const fs::path& dir);
 
+// GameData (load_game_data), then the frontend's, the panels' and the
+// world's sprites, fonts and palettes. nullopt: no game data.
 std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed);
-
-// Load one DS1 + every DT1 it references (silently skips missing ones —
-// some rogue-camp DS1s reference .tg1 tile-group files, which aren't
-// present in 1.14d). Populates the level's ds1, dt1s, tile_lookup, walk
-// and act1_pal on the scene. Idempotent, called once during load_scene.
-void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path);
-
-// A game on another map seed: act 1 laid out again, the camp rebuilt with
-// its units, the other levels dropped (they build again when wanted). The
-// World and its Town must enter afterwards; nothing may point into the
-// old levels.
-void set_map_seed(Scene& scene, std::uint32_t seed);
 
 }  // namespace d2d::client

@@ -240,7 +240,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t ms) 
     }
 
 auto World::enter(const Character& c) -> void {
-        cc.selected = c.selected; cc.input_name = c.input_name; cc.hardcore = c.hardcore;
+        cc.character_class = c.character_class; cc.name = c.name;
         cc.appearance = c.appearance; cc.items = c.items; cc.stats = c.stats; cc.panel = c.panel;
         cc.expansion = c.expansion; cc.header = c.header;
         // A corpse in the save (its corpse list, FUN_00533850) lies by the
@@ -830,7 +830,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32
                 player.path = walk_path(*level, player.x, player.y, target_x, target_y, crowd, &player);
                 player.goal_x = target_x; player.goal_y = target_y;
             }
-            const auto sc = std::size_t(kUiToSaveClass[std::max(cc.selected, 0)]);
+            const auto sc = std::size_t(std::max(cc.character_class, 0));
             // Faster run/walk: its effective % (150 x v / (150 + v)) on velocity.
             const float vel = float(running ? scene->run_velocity[sc] : scene->walk_velocity[sc])
                             * float(100 + d2d::rules::effective_speed(fight.pf.frw, 150)) / 100.f;

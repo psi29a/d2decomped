@@ -23,7 +23,7 @@ struct SkillBar {
 
     static constexpr int kLeftX = 117, kRightX = int(kW) - 165, kIcon = 48;
 
-    [[nodiscard]] int cls() const { return int(kUiToSaveClass[std::max(cc.selected, 0)]); }
+    [[nodiscard]] int cls() const { return std::max(cc.character_class, 0); }
     // The skill's level, as the World works it out (fight.hpp skill_level).
     [[nodiscard]] int base_level(int id) const { return skill_base_level(*scene, cc, id); }
     [[nodiscard]] int level(int id) const { return skill_level(*scene, cc, id, extra); }

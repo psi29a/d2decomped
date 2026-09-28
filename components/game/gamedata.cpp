@@ -522,7 +522,7 @@ bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoor
 
 // Level `id` built from the map seed: its tiles and walk grid, warps, the
 // objects and NPCs its DS1s place, its sound, automap layer and monster
-// columns. On the builder thread; reads the Scene's tables only.
+// columns. On the builder thread; reads GameData's tables only.
 std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& b, int id) {
     const auto t0 = d2d::log::ms();
     std::lock_guard lk(b.m);
@@ -584,7 +584,7 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
     return lv;
 }
 
-// A finished build into Scene::levels (nullptr: tried, not built); an act
+// A finished build into GameData::levels (nullptr: tried, not built); an act
 // level is linked with the act levels already there, both ways.
 void install_level(const GameData& s, int id, std::unique_ptr<Level> lv) {
     auto in_act = [&](int i) { return std::ranges::any_of(s.act1_layout, [&](const auto& p) { return p.level == i; }); };
