@@ -319,9 +319,10 @@ try:
         if lv[1] == "2":
             break
     assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
-    # The Blood Moor's monsters (seed 3: 155), alive and at full life.
+    # The Blood Moor's monsters so far (its rooms populate as they come
+    # into play round the player), alive and at full life.
     mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
-    assert len(mons) > 50 and {m[0] for m in mons} == {"zombie1", "fallen1", "quillrat1"}, mons[:3]
+    assert mons and {m[0] for m in mons} <= {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
     # Through the protocol alone (`cmd`: what a remote client sends the
     # World): walk a few cells east, then attack a monster until it's hurt.

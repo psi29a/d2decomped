@@ -262,7 +262,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // and stats rolled (a boss's by make_boss instead: `stats` false).
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true);
 
-std::vector<Monster> spawn_monsters(const GameData& game_data, const Level& level, d2d::rules::Rng& rng, int difficulty);
+std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, d2d::rules::Rng& rng, int difficulty);
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 

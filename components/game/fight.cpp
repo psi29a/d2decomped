@@ -50,6 +50,7 @@ auto Fight::own_stats() const -> d2d::d2s::Stats {
 
 auto Fight::new_game(int difficulty) -> void {
         game_difficulty = difficulty;
+        spawning = start_spawning(*game_data, difficulty);
         monsters.clear();
         mon_level = nullptr;
         amplified = {};
@@ -2544,17 +2545,24 @@ auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t 
 auto Fight::enter(const Level* destination) -> void {
         if (destination == &game_data->town || destination == mon_level) return;
         if (mon_level) kept[mon_level] = std::move(monsters);
+        monsters.clear();
         if (const auto found = kept.find(destination); found != kept.end()) {
             monsters = std::move(found->second);
             kept.erase(found);
-        } else {
-            monsters = spawn_monsters(*game_data, *destination, rng, game_difficulty);
-            for (auto& monster : monsters) monster.id = next_id++;
         }
         mon_level = destination;
         missiles.clear();
         attack_mon = merc_target = -1;
         for (auto& pet : pets) pet.target = -1;
+    }
+
+auto Fight::rooms_up(const Level& at, float x, float y, bool arrived) -> void {
+        for (const auto& [grown, from] : player_moved(*game_data, spawning, at, x, y, arrived)) {
+            const auto& spawns = spawning.levels[grown].spawns;
+            auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), rng, game_difficulty);
+            auto& into = grown == mon_level ? monsters : kept[grown];
+            for (auto& monster : made) { monster.id = next_id++; into.push_back(std::move(monster)); }
+        }
     }
 
 }  // namespace d2d::game

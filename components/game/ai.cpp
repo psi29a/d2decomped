@@ -77,9 +77,9 @@ std::string unique_name(const GameData& game_data, int name_seed) {
     return name;
 }
 
-std::vector<Monster> spawn_monsters(const GameData& game_data, const Level& level, d2d::rules::Rng& rng, int difficulty) {
+std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
-    for (const auto& spawn : level_spawns(game_data, level, difficulty)) {
+    for (const auto& spawn : spawns) {
         if (spawn.type < 0 || std::size_t(spawn.type) >= game_data.mon_npc.size()) continue;
         const bool boss = spawn.boss != d2d::rules::Boss::none;
         auto monster = make_monster(game_data, spawn.type, (float(spawn.x) + 0.5f) / 5, (float(spawn.y) + 0.5f) / 5, rng, difficulty, !boss);

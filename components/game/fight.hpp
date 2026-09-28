@@ -135,6 +135,7 @@ struct Fight {
     int game_difficulty = 0;                         // new_game's
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
+    Spawning spawning;                                   // the game's rooms in play and what they spawned (new_game)
     std::vector<Missile> missiles;         // in flight in the Blood Moor
     std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
     std::vector<std::pair<int, std::uint32_t>> strafe;   // Strafe's arrows to come: target, when
@@ -780,9 +781,12 @@ struct Fight {
     void shrine_missiles(int code, float x, float y, int clvl, std::uint32_t now_ms);
     // The player went to `to`: an outdoor level's monsters come back, the
     // last one's are kept as they were; nothing in flight follows.
-    // A level's monsters appear the first time the player comes (game.exe
-    // populates rooms as they come up).
+    // Its monsters come as its rooms come into play (rooms_up).
     void enter(const Level* destination);
+    // The player at (x, y) in `at`: the rooms coming into play round the
+    // player populate (player_moved), their monsters joining `monsters`
+    // or the level's `kept`. `arrived`: just came in through a warp.
+    void rooms_up(const Level& at, float x, float y, bool arrived);
 };
 
 }  // namespace d2d::game

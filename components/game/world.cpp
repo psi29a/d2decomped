@@ -437,6 +437,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             std::tie(merc->x, merc->y) = level->nearest_free(free_x + 1, free_y + 1);
         }
         fight.enter(level);
+        fight.rooms_up(*level, player.x, player.y, true);
         loot.enter(level);
         npc_states = npc_start(*level);
         interact_npc = pick_item = take_warp = take_portal = -1;
@@ -880,6 +881,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         use_portal(now_ms);
         }
         cross_level();
+        fight.rooms_up(*level, player.x, player.y, false);
         if (!fight.dead()) fight.apply_regen(now_ms, last_ms);
     }
 

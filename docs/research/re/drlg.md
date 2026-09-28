@@ -610,6 +610,7 @@ values (seed 3) so a regression shows without the emulator.
 | Every room's tiles | Den of Evil | 1–1000 |
 | Every room's units (room +0x5c, list order): preset monsters, superuniques (Corpsefire), objects (shrines, torches, chests), LvlSub stamp objects, Flavie at the border opening, warp units | Blood Moor | 1–1500, 0xfffffe00–0xffffffff |
 | Every room's units | Den of Evil | 1–1500 |
+| Every room's room1 seed (room1 +0x6c: the tiles' seed stepped once, what population rolls) | Blood Moor, Den of Evil | 1–300 |
 
 Conditions those results hold under, so they aren't overstated:
 

@@ -48,6 +48,48 @@ matches it on all 125 levels, 5 seeds, 3 difficulties (test_game keeps
 seed 0x1234). A level-list name is the row at its place among MonStats'
 distinct Ids (bugs.md #13).
 
+## When a room populates
+
+- **Game creation** (FUN_00530930) steps the game seed four times after
+  seeding it (FUN_0052c280): the regions (FUN_00547d20), the object seed
+  (FUN_00546c60), sunitproxy (FUN_00536070), quests (FUN_00545d80). Nothing
+  else steps it inline; after that only room population (FUN_0054ec90)
+  rolls it.
+- **A room comes into play** when the player's room changes
+  (FUN_0061a110 → FUN_0061b6f0 → FUN_0061b490 / FUN_0061b390): the new
+  room's near list (room2 +8, count +0x2c) is walked three deep, depth
+  first, each room's counters at +0xc (a u16 per depth) bumped and its
+  status (+0x44) moved by the callbacks at 0x744384. Depth 1 (the near
+  list itself) runs FUN_0061b2d0: no room1 yet (+0x30) → FUN_0061b190
+  builds its tiles (FUN_0066ee40 / FUN_0066ee70) and its room1
+  (FUN_006422a0 → FUN_00619890), put at the **head** of the act's room
+  list (act +0x10, next +0x7c) and the act marked (+0x54). Depth 2 / 3
+  only load tiles and presets (FUN_0061bb10, FUN_0061b320).
+- **The near list** (FUN_0066c370): the level's rooms under 6 tiles apart
+  on both axes, in the level's list order, itself included, bubble-sorted
+  (FUN_0066bbc0); then, for a room flagged for a level next door (+0x28
+  bits 0x10..0x800, one per Levels.txt Vis slot), that level's close,
+  flagged rooms (FUN_0066be80), or with a warp between them the other
+  side's first flagged room (FUN_0066be10); each appended and the list
+  sorted again (FUN_0066bda0). So the camp's edge rooms bring up the
+  Blood Moor's, and the Den's mouth room brings up the Den's first room.
+- **Populating** (FUN_0052d160, each game tick while an act is marked):
+  the act's room list from the head (newest first), every room1 without
+  flag 1 (+0x34): its presets (FUN_005559a0), FUN_00542b40, FUN_00552610,
+  then FUN_0054ec90, and the flag set. A player arriving through a warp
+  (FUN_0056cf40) has the landing room made and populated at once
+  (FUN_0052d0f0) before the rest.
+- **The room seed** population rolls is the room1's (+0x6c, `{s, 666}`):
+  FUN_006422a0 steps the room2's seed (+0x14/+0x18) once after its tiles
+  were picked and takes the low word. Proven: `diff_drlg.py <range> 2|8
+  seeds` (300 seeds each, the Blood Moor and the Den, rooms brought up in
+  list order).
+
+d2d: `Spawning` (components/game/gamedata.hpp, `start_spawning`,
+`player_moved`), run by `Fight::rooms_up` every tick and on arrival. The
+camp's rooms are 8×8 splits row by row (their order isn't traced), and
+closeness stands in for the border flags.
+
 ## Room population — FUN_0054ec90
 
 Per room rect (tiles × 5 = subtiles), `(h/3)·(w/3)` rolls of the **game**
@@ -284,8 +326,9 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 
 ## Not yet traced / approximated
 
-- Room activation order (game.exe populates when a room first becomes
-  active; we do every room at load in cell order).
+- Tiles still come up in list order at load (drlg.md): in game.exe they
+  come up with the room1, as the player walks, so edge-shared tiles (and
+  the room1 seeds after them) can differ from ours off that order.
 - The seed at `+0x20` used for party and group counts (we use the room's).
 - The `spawn` replacement.
 - Which of its type's region component sets a monster takes (we roll

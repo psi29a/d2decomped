@@ -1,6 +1,6 @@
 """Diff our level generator against game.exe's over a range of map seeds.
 
-    uv run python diff_drlg.py 1-3000 [level] [tiles|units]     # level defaults to 2 (the Blood Moor)
+    uv run python diff_drlg.py 1-3000 [level] [tiles|units|seeds]     # level defaults to 2 (the Blood Moor)
 
 Runs build/tools/drlg-dump for the range, game.exe's generator in the
 emulator for the same seeds, and prints how many match plus the first
@@ -19,7 +19,7 @@ import emu
 def main():
     first, last = (int(v, 0) for v in sys.argv[1].split("-"))
     lid = int(sys.argv[2]) if len(sys.argv) > 2 else 2
-    tiles = sys.argv[-1] in ("tiles", "units")
+    tiles = sys.argv[-1] in ("tiles", "units", "seeds")
     what = sys.argv[-1]
     env = dict(os.environ)
     env.setdefault("D2_PATCH_INSTALLER", str(Path.home() / "Downloads/Diablo II + LoD/patch/LODPatch_114d.exe"))
@@ -33,7 +33,7 @@ def main():
             game = drlg.level_dump(e, seed, lid).splitlines()
             if tiles:
                 t = drlg.tiles_dump(e, drlg._last_level)
-                game += (t if what == "tiles" else drlg.units_dump(e, drlg._last_level)).splitlines()
+                game += (t if what == "tiles" else drlg.units_dump(e, drlg._last_level) if what == "units" else drlg.seeds_dump(e, drlg._last_level)).splitlines()
             ours = Path(out, f"{seed}.txt").read_text().splitlines()
             if game != ours:
                 bad.append(seed)

@@ -133,6 +133,17 @@ def units_dump(e, lvl):
     return "\n".join(f"units {x},{y}: {us}" for y, x, us in sorted(rooms))
 
 
+def seeds_dump(e, lvl):
+    """Each room's room1 seed (room +0x30 -> +0x6c) once rooms are up (tiles_dump brings them)."""
+    x0, y0 = e.s32(lvl + 0x1c), e.s32(lvl + 0x20)
+    rooms = []
+    r = e.r32(lvl + 0x10)
+    while r:
+        rooms.append((e.s32(r + 0x38) - y0, e.s32(r + 0x34) - x0, e.r32(e.r32(r + 0x30) + 0x6c)))
+        r = e.r32(r + 0x24)
+    return "\n".join(f"room1 {x},{y} seed {s:08x}" for y, x, s in sorted(rooms))
+
+
 def level_dump(e, seed, lid):
     act = alloc_act(e, 0, seed, lid)
     lvl = find_level(e, act, lid)

@@ -55,6 +55,10 @@ struct BuiltRoom {
     bool upper = false;
     const PlainRoom* plain = nullptr;
     const Outdoor::RoomSeed* seed = nullptr;
+    // The seed its room1 gets as it comes into play (FUN_006422a0: the
+    // tiles' seed stepped once more; room1 +0x6c, {this, 666}): what
+    // populating the room rolls.
+    std::uint32_t room1_seed = 0;
 };
 
 namespace room_tiles_detail {
@@ -271,6 +275,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     word(plain_room.wall[std::size_t(y * 9 + x)], int(plain_room.orient[std::size_t(y * 9 + x)] & 0xff), room.x + x, room.y + y, false);
             for (int y = 0; y < 9; ++y)
                 for (int x = 0; x < 9; ++x) word(plain_room.floor[std::size_t(y * 9 + x)], 0, room.x + x, room.y + y, false);
+            room.room1_seed = rng.next();
             continue;
         }
         // A preset room (FUN_006667d0 then FUN_00666ac0): its 9x9 slice of each
@@ -317,6 +322,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             edges(words, 0x84);
             walk(words, nullptr, false);
         }
+        room.room1_seed = rng.next();
     }
     return rooms;
 }

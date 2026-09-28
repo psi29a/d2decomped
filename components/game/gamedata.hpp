@@ -165,14 +165,14 @@ struct Level {
     // game.exe): level-relative subtiles; load_npcs / load_monsters make
     // them objects, NPCs and monsters.
     std::vector<d2d::drlg::Unit> units;
-    // Monsters: its Levels.txt columns, the rooms the generator made and
-    // what populating them spawned (subtiles, level-relative).
+    // Monsters: its Levels.txt columns, the rooms the generator made (in
+    // that order) and the seed each room's room1 gets (drlg BuiltRoom::
+    // room1_seed, proven against game.exe), what populating it rolls.
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
-    // What populating it spawns at a difficulty, made the first time it's
-    // played at that difficulty (level_spawns), and its monster region's
-    // MonStats rows (trap 8).
-    mutable std::array<std::optional<std::vector<d2d::rules::Spawn>>, 3> spawns;
+    std::vector<std::uint32_t> room1_seeds;            // by `rooms` index
+    // Its monster region's MonStats rows by difficulty (trap 8), set when a
+    // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
 };
 
@@ -594,7 +594,32 @@ std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& tabl
 int level_light(std::string_view intensity, std::string_view red, std::string_view green, std::string_view blue);
 Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row);
-const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, const Level& level, int difficulty);
+// A game's monster spawning (docs/research/re/monsters.md "When a room
+// populates"). game.exe populates a room once, the tick after it first
+// comes into play (FUN_0052d160): the rooms one step from the player's in
+// its near list, across a level's edge and a warp too. Every level's
+// region is made at game start; the game seed then takes three more steps
+// (the object seed, sunitproxy, quests) before the first room rolls on it.
+struct Spawning {
+    struct LevelState {
+        d2d::rules::Population pop;
+        std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
+        std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+    };
+    int difficulty = 0;
+    d2d::rules::Rng game;
+    std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
+    std::unordered_map<const Level*, LevelState> levels;
+    const Level* room_level = nullptr;                     // the player's room
+    int room = -1;
+};
+Spawning start_spawning(const GameData& game_data, int difficulty);
+// The player at (x, y), cells, in `level`: rooms coming into play round
+// the player's room populate, newest first. `arrived`: the player just
+// came in, and its own room populates first (FUN_0056cf40). Returns each
+// level whose spawns grew, with its first new spawn's index.
+std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
+                                                                 float x, float y, bool arrived);
 void stamp_footprints(Level& level);
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).

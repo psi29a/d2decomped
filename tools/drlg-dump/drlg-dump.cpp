@@ -25,6 +25,7 @@ namespace fs = std::filesystem;
 using namespace d2d::drlg;
 
 static bool g_units = false;                            // print rooms' units instead of their tiles
+static bool g_seeds = false;                            // print rooms' room1 seeds instead of their tiles
 
 static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id, const RoomDt1s* dt1s = nullptr) {
     std::ostringstream out;
@@ -52,6 +53,10 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
         if (dt1s) {
             auto built = level_room_tiles(rooms, {}, assets.data, *dt1s, id, warp_slots(assets, id), notes);
             std::ranges::sort(built, {}, [](const auto& room) { return std::tuple(room.y, room.x); });
+            if (g_seeds) {
+                for (const auto& room : built) pf("room1 %d,%d seed %08x\n", room.x, room.y, room.room1_seed);
+                built.clear();
+            }
             if (g_units) {
                 for (const auto& room : built) {
                     if (room.units.empty()) continue;
@@ -97,6 +102,10 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
     if (dt1s) {                                         // plain rooms' tiles, as tools/emu/drlg.py tiles
         auto built = level_room_tiles(outdoor.rooms, outdoor.plain, assets.data, *dt1s, id, warp_slots(assets, id), notes);
         std::ranges::sort(built, {}, [](const auto& room) { return std::tuple(room.y, room.x); });
+        if (g_seeds) {
+            for (const auto& room : built) pf("room1 %d,%d seed %08x\n", room.x, room.y, room.room1_seed);
+            built.clear();
+        }
         if (g_units) {
             for (const auto& room : built) {
                 if (room.units.empty()) continue;
@@ -135,7 +144,8 @@ int main(int argc, char** argv) {
     OutdoorAssets assets;                                    // not const: load_room_dt1s adds to it
     load_outdoor_assets(assets, [&](const std::string& path) { return mpqs.try_read(path); });
     g_units = argc > 4 && std::string(argv[argc - 1]) == "units";
-    const bool tiles = argc > 4 && (std::string(argv[argc - 1]) == "tiles" || g_units);
+    g_seeds = argc > 4 && std::string(argv[argc - 1]) == "seeds";
+    const bool tiles = argc > 4 && (std::string(argv[argc - 1]) == "tiles" || g_units || g_seeds);
     RoomDt1s dt1s;
     if (tiles) {
         const auto row = level_row(assets.levels, id);
