@@ -462,6 +462,8 @@ Storm, Exploding and Poison Shrines (objects.md); town portals and the
 Portal Shrine. The quest log; the time of day, the light grid and lit
 drawing, night sounds (lighting.md). Each character keeps its map seed
 (drlg.md). Blended tile shadows and unit shadows; rain (weather.md).
+Death (the corpse, penalties); the look follows what's worn, item colour
+tints (compcode.md); the dead-hardcore ghost (char-select.md).
 
 deviations.md lists where d2d differs from game.exe on purpose (the
 companion of bugs.md).
