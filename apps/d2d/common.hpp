@@ -90,7 +90,7 @@ namespace fs = std::filesystem;
 // linkage. Defined further below.
 extern volatile std::sig_atomic_t g_sigint_quit;
 
-namespace {
+namespace d2d::app {
 
 // D2 LoD 800×600 mode dimensions — matches TitleScreen.DC6, which ships
 // pre-sliced into a 4×3 grid of sub-frames adding up to exactly 800×600
@@ -275,4 +275,4 @@ void blit_dc6_grid(std::vector<std::uint8_t>& fb,
 // how fast we happen to be rendering (60 Hz, 120 Hz, headless, whatever).
 constexpr std::uint32_t kBaseFrameMs = 40;   // 1000 / 25
 
-}  // namespace
+}  // namespace d2d::app

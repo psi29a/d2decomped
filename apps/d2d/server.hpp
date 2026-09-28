@@ -13,7 +13,7 @@
 
 #include <ctime>
 
-namespace {
+namespace d2d::app {
 
 // What the server tells the client (the S -> C side, network.md).
 namespace ev {
@@ -1098,4 +1098,4 @@ struct World {
 
 };
 
-}  // namespace
+}  // namespace d2d::app

@@ -8,7 +8,7 @@
 #include <mutex>
 #include <thread>
 
-namespace {
+namespace d2d::app {
 
 // Forward decl — full body lives after Scene{} construction so it can use
 // the same members without repeating field types.
@@ -2292,8 +2292,6 @@ void load_world(Scene& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
                    scene.town.dt1s.size(), files.size(), scene.town.tile_lookup.size());
 }
 
-}  // namespace
-
 // A game on another map seed: act 1 laid out again, the camp rebuilt with
 // its units, the other levels dropped (they build again when wanted). The
 // World and its Town must enter afterwards; nothing may point into the
@@ -2314,3 +2312,5 @@ void set_map_seed(Scene& scene, std::uint32_t seed) {
     want_nearby(scene, scene.town);
     d2d::log::info("map seed {:#x}: {}", seed, scene.town.ds1.width() ? "act 1 laid out" : "no town");
 }
+
+}  // namespace d2d::app

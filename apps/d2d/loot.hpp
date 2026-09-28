@@ -5,7 +5,7 @@
 
 #include "window.hpp"
 
-namespace {
+namespace d2d::app {
 
 struct Loot {
     const GameData* scene;
@@ -131,4 +131,4 @@ struct Loot {
 
 };
 
-}  // namespace
+}  // namespace d2d::app

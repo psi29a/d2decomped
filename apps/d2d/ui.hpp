@@ -3,7 +3,7 @@
 
 #include "scene.hpp"
 
-namespace {
+namespace d2d::app {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
@@ -545,4 +545,4 @@ std::vector<std::string> parse_credits_utf16(std::span<const std::byte> b) {
     return out;
 }
 
-}  // namespace
+}  // namespace d2d::app

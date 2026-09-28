@@ -3,7 +3,7 @@
 
 #include "panels.hpp"
 
-namespace {
+namespace d2d::app {
 
 // The right panel's right edge and bottom at 800x600 (game.exe works from
 // W - panel x and panel y + H - 480).
@@ -112,4 +112,4 @@ void draw_skill_tree(std::vector<std::uint8_t>& fb, const Scene& s, int cls, int
     }
 }
 
-}  // namespace
+}  // namespace d2d::app

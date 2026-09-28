@@ -3,7 +3,7 @@
 
 #include "world.hpp"
 
-namespace {
+namespace d2d::app {
 
 // Where each world NPC is right now (index-aligned with Level::npcs):
 // patrolling NPCs walk their DS1 path, pausing at each point.
@@ -669,4 +669,4 @@ std::string merc_name(const GameData& s, const GameData::Merc& m, int index) {
     return v ? u16_to_latin1(*v) : key;
 }
 
-}  // namespace
+}  // namespace d2d::app

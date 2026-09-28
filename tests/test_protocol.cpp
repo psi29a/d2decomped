@@ -5,6 +5,8 @@
 #include <cassert>
 #include <cstdio>
 
+using namespace d2d::app;
+
 int main() {
     const std::vector<Command> all{
         cmd::Move{ 12.5f, 3.25f, true }, cmd::UseSkill{ 36, 1.f, 2.f, 77, true }, cmd::UseSkill{ 0, 4.f, 5.f, -1, false },

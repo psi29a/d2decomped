@@ -7,7 +7,7 @@
 
 #include "town.hpp"
 
-namespace {
+namespace d2d::app {
 
 // A screen's name in `state` replies.
 const char* screen_name(Screen s) {
@@ -483,4 +483,4 @@ void register_game_verbs(d2d::devctl::Channel& ch, Window& win, Screen& screen, 
     });
 }
 
-}  // namespace
+}  // namespace d2d::app

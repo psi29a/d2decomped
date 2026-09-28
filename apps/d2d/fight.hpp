@@ -6,7 +6,7 @@
 
 #include "loot.hpp"
 
-namespace {
+namespace d2d::app {
 
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
 // the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
@@ -3078,4 +3078,4 @@ struct Fight {
     }
 };
 
-}  // namespace
+}  // namespace d2d::app

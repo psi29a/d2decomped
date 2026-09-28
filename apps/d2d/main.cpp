@@ -17,6 +17,8 @@
 
 #include <random>
 
+using namespace d2d::app;
+
 
 namespace {
 

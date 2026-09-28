@@ -3,7 +3,7 @@
 
 #include "watchdog.hpp"
 
-namespace {
+namespace d2d::app {
 
 
 // Blit one DT1 tile's pre-decoded palette-indexed pixels through `pal`.
@@ -646,4 +646,4 @@ void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
     });
 }
 
-}  // namespace
+}  // namespace d2d::app

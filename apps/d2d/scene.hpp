@@ -5,7 +5,7 @@
 
 #include "common.hpp"
 
-namespace {
+namespace d2d::app {
 
 // Things the DS1 places (its object list): NPCs (type 1, from
 // data\global\monsters) and objects (type 2 — torches, fires, the
@@ -595,4 +595,4 @@ lookup_string(const GameData& s, std::uint16_t id) {
     return std::nullopt;
 }
 
-}  // namespace
+}  // namespace d2d::app

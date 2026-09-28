@@ -3,7 +3,7 @@
 
 #include "skilltree.hpp"
 
-namespace {
+namespace d2d::app {
 
 using d2d::rules::Store;
 
@@ -155,4 +155,4 @@ void draw_gold(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::St
     text(278 - s.font.measure(n), 434, n);
 }
 
-}  // namespace
+}  // namespace d2d::app

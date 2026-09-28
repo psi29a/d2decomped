@@ -6,7 +6,7 @@
 #include "replication.hpp"
 #include "skillbar.hpp"
 
-namespace {
+namespace d2d::app {
 
 // The hovered monster's name on its life bar, top centre: a dark red bar
 // as wide as the name plus a margin, filled by its share of life left.
@@ -998,4 +998,4 @@ struct Town {
     }
 };
 
-}  // namespace
+}  // namespace d2d::app

@@ -8,7 +8,7 @@
 
 #include "fight.hpp"
 
-namespace {
+namespace d2d::app {
 
 struct SkillBar {
     const Scene* scene;
@@ -145,4 +145,4 @@ struct SkillBar {
     }
 };
 
-}  // namespace
+}  // namespace d2d::app

@@ -5,7 +5,7 @@
 #include "protocol.hpp"
 #include "store.hpp"
 
-namespace {
+namespace d2d::app {
 
 // Which panels are open, for hit-testing.
 struct OpenPanels { bool inv = false, stash = false, cube = false, belt_popup = false, expansion = true; };
@@ -107,4 +107,4 @@ void draw_held(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::It
     blit_sprite(fb, f, s.item_pal(it, pal), mx - int(f.width) / 2, my - int(f.height) / 2);
 }
 
-}  // namespace
+}  // namespace d2d::app

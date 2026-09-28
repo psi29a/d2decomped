@@ -3,7 +3,7 @@
 
 #include "items.hpp"
 
-namespace {
+namespace d2d::app {
 
 // The inventory panel (inventory.txt "<Class>2" layout, invchar6.dc6):
 // grid items (panel 1) centred in their w x h cell block, equipped items
@@ -665,4 +665,4 @@ bool draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, QuestLog& q, 
     return sound;
 }
 
-}  // namespace
+}  // namespace d2d::app

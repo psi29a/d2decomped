@@ -3,7 +3,7 @@
 
 #include "frontend.hpp"
 
-namespace {
+namespace d2d::app {
 
 // Sound output: OpenAL (openal-soft, as ../thirdeye), one source + buffer
 // per channel: the NPC voice, the level's song, its ambience and UI
@@ -343,4 +343,4 @@ struct Cues {
     }
 };
 
-}  // namespace
+}  // namespace d2d::app

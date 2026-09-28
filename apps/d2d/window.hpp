@@ -3,7 +3,7 @@
 
 #include "audio.hpp"
 
-namespace {
+namespace d2d::app {
 
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
@@ -124,4 +124,4 @@ void handle_sdl_events(SDL_Event& ev, Mouse& m, Screen& current_screen,
     }
 }
 
-}  // namespace
+}  // namespace d2d::app

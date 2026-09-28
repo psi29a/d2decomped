@@ -3,7 +3,7 @@
 
 #include "ai.hpp"
 
-namespace {
+namespace d2d::app {
 
 // An item's hover text, top line first, in D2's quality colours. Name IDs
 // resolve as verified against 19 real saves (test data): unique/set ID =
@@ -312,4 +312,4 @@ void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::v
     }
 }
 
-}  // namespace
+}  // namespace d2d::app

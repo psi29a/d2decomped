@@ -3,7 +3,7 @@
 
 #include "ingame.hpp"
 
-namespace {
+namespace d2d::app {
 
 
 void render_title(std::vector<std::uint8_t>& fb,
@@ -680,4 +680,4 @@ TitleUI title_ui(const Scene& s) {
     return ui;
 }
 
-}  // namespace
+}  // namespace d2d::app

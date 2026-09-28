@@ -12,7 +12,7 @@
 
 #include <unordered_set>
 
-namespace {
+namespace d2d::app {
 
 namespace wire {
 // A stable home for decoded mode names (the units keep string_views).
@@ -451,4 +451,4 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
     return in.ok && in.at == b.size() && v.level;
 }
 
-}  // namespace
+}  // namespace d2d::app
