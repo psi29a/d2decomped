@@ -224,6 +224,23 @@ inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, 
 // A worn item: its body location, code and colour (Colours::of).
 struct Worn { int slot; std::string code; int colour = -1; };
 
+// Colours::gem from gems.txt, keeping the codes whose misc.txt type is a
+// "gem" (ItemTypes 20: not runes or jewels).
+inline std::unordered_map<std::string, int> gem_colours(const txt::Table& itemtypes, const txt::Table& misc, const txt::Table& gems) {
+    const Types types(itemtypes);
+    const int g = types.index("gem");
+    std::unordered_map<std::string, std::string> type;
+    for (std::size_t r = 0; r < misc.size(); ++r) type.emplace(misc.get(r, "code"), misc.get(r, "type"));
+    std::unordered_map<std::string, int> out;
+    for (std::size_t r = 0; r < gems.size(); ++r) {
+        const std::string code(gems.get(r, "code"));
+        const auto t = type.find(code);
+        if (t != type.end() && types.isa(types.index(t->second), g))
+            out.emplace(code, std::atoi(std::string(gems.get(r, "transform")).c_str()));
+    }
+    return out;
+}
+
 // The layers each worn item draws on, with its piece (look's placement).
 template <class F> void each_layer(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn, F&& f) {
     for (const auto& w : worn) {
@@ -265,27 +282,35 @@ inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const 
 }
 
 // An item's colour, a Colors.txt index or -1 (FUN_0062c100): a unique's
-// UniqueItems chrtransform, a set item's SetItems chrtransform; magic, rare
-// and crafted items the first suffix with a transformcolor, else the first
-// prefix, else the class automod (AutoMagic). Uniques and sets by row
-// without separators, affixes by raw row (the save's ids).
+// UniqueItems chrtransform, a set item's SetItems chrtransform; magic and
+// rare items the first suffix with a transformcolor, else the first prefix,
+// else the class automod (AutoMagic row id - 1). Any other (crafted too):
+// its first socketed item's gems.txt transform if that's a gem, else the
+// automod. Uniques and sets by row without separators, affixes by raw row
+// (the save's ids).
 struct Colours {
     std::vector<std::string> codes;                            // Colors.txt Code, by index
     std::vector<std::string> unique, set, prefix, suffix, automod;
+    std::unordered_map<std::string, int> gem;                  // gem code -> gems.txt transform (gem types only)
     [[nodiscard]] int at(const std::vector<std::string>& v, int row) const {
         if (row < 0 || std::size_t(row) >= v.size() || v[std::size_t(row)].empty()) return -1;
         for (std::size_t i = 0; i < codes.size(); ++i) if (codes[i] == v[std::size_t(row)]) return int(i);
         return -1;
     }
-    [[nodiscard]] int of(int quality, int unique_id, int set_id, int pre, int suf, const std::array<int, 6>& rare, int class_affix) const {
+    // socket: the first socketed item's code, if the item is socketed.
+    [[nodiscard]] int of(int quality, int unique_id, int set_id, int pre, int suf, const std::array<int, 6>& rare, int class_affix,
+                         const std::string& socket = {}) const {
         if (quality == 7) return at(unique, unique_id);
         if (quality == 5) return at(set, set_id);
-        if (quality != 4 && quality != 6 && quality != 8) return -1;
+        if (quality != 4 && quality != 6) {
+            if (const auto g = gem.find(socket); g != gem.end() && g->second >= 0 && g->second < 21) return g->second;
+            return at(automod, class_affix - 1);
+        }
         const std::array<int, 3> sufs = quality == 4 ? std::array<int, 3>{ suf, 0, 0 } : std::array<int, 3>{ rare[1], rare[3], rare[5] };
         const std::array<int, 3> pres = quality == 4 ? std::array<int, 3>{ pre, 0, 0 } : std::array<int, 3>{ rare[0], rare[2], rare[4] };
         for (int s : sufs) if (s > 0) if (const int c = at(suffix, s); c >= 0) return c;
         for (int p : pres) if (p > 0) if (const int c = at(prefix, p); c >= 0) return c;
-        return at(automod, class_affix);   // ponytail: row = the save's class affix id, untested (no worn example)
+        return at(automod, class_affix - 1);   // 1-based: paladin shields' 26/27 are Prismatic/Chromatic (res-all)
     }
 };
 

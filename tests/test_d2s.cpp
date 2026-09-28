@@ -123,7 +123,8 @@ int main() {
             };
             const d2d::compcode::Colours colours{ col("Colors", "Code", false), col("UniqueItems", "chrtransform", false),
                 col("SetItems", "chrtransform", false), col("MagicPrefix", "transformcolor", true),
-                col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true) };
+                col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true),
+                d2d::compcode::gem_colours(tab("ItemTypes"), tab("misc"), tab("gems")) };
             int saves = 0;
             for (const auto& e : fs::directory_iterator(sd)) {
                 if (e.path().extension() != ".d2s") continue;
@@ -147,7 +148,8 @@ int main() {
                     std::vector<d2d::compcode::Worn> worn;
                     for (const auto& it : items)
                         if (it.location == 1)
-                            worn.push_back({ it.slot, it.code, colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix) });
+                            worn.push_back({ it.slot, it.code, colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
+                                                                       it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{}) });
                     assert(d2d::compcode::look(comp, pcs, worn) == hdr.appearance);
                     // The tints too (compcode::tints).
                     const auto tn = d2d::compcode::tints(pcs, worn);

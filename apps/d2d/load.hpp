@@ -1002,7 +1002,8 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
         return v;
     };
     scene.item_colours = { col("Colors", "Code", false), col("UniqueItems", "chrtransform", false), col("SetItems", "chrtransform", false),
-                           col("MagicPrefix", "transformcolor", true), col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true) };
+                           col("MagicPrefix", "transformcolor", true), col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true),
+                           d2d::compcode::gem_colours(types, misc, txt("gems")) };
     int t = 1;
     for (const char* n : { "grey", "grey2", "gold", "brown", "greybrown", "invgrey", "invgrey2", "invgreybrown" })
         if (auto b = mpqs.try_read(std::string(R"(data\global\items\palette\)") + n + ".dat"); b && b->size() >= 21 * 256) {

@@ -178,7 +178,8 @@ struct GameData {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& it : items)
             if (it.location == 1)
-                worn.push_back({ it.slot, it.code, item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix) });
+                worn.push_back({ it.slot, it.code, item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
+                                                        it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{}) });
         const auto l = d2d::compcode::look(comp, item_pieces, worn), t = d2d::compcode::tints(item_pieces, worn);
         Appearance a;
         std::copy(l.begin(), l.end(), a.begin());

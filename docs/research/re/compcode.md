@@ -91,14 +91,26 @@ colour) & 0xff, colour the Colors.txt row (0 whit .. 20 bwht); 0xff for
 no colour or Transform 0, 3 or 4. The colour (FUN_0062c100):
 - unique: UniqueItems chrtransform (by row without separators);
 - set item: SetItems chrtransform;
-- magic, rare, crafted: the first suffix with a transformcolor (item data
+- magic, rare: the first suffix with a transformcolor (item data
   +0x3e..0x42), else the first prefix (+0x38..0x3c), else the class
   automod (+0x36, AutoMagic). Affix ids index the raw MagicPrefix /
   MagicSuffix rows, separators included (the save's ids).
+- anything else, crafted included: if it's socketed (flag 0x800) and can
+  hold sockets, its first socketed item's gems.txt `transform` when that
+  item is a gem (ItemTypes 20 and its children: not runes or jewels), else
+  the automod. The saves' 25 worn runeword items (runes in, 0xff) agree;
+  no worn item holds a gem.
 
 Transform 8 wraps past the byte (uld white → 0x01, uth dark purple →
 0x13): bugs.md #12. All 20 real saves' tints match (test_d2s,
-`compcode::tints`); the automod's row offset has no worn example.
+`compcode::tints`).
+
+The automod id is 1-based into AutoMagic (FUN_00633ee0 looks every
+affix up 1-based in one table: MagicSuffix, MagicPrefix, AutoMagic rows,
+built at ItemTbls.cpp). The saves' class items show it: paladin shields
+hold 26/27, Prismatic/Chromatic (all resists) 1-based but "Sharp" (attack
+rating) 0-based; orbs 13 and 21 land on life and mana, a necromancer head
+33 on poison. No worn item's colour comes from its automod in the saves.
 
 Drawing (FUN_00600c20): the layer's pixels go through colormap
 0x8adbb8 + (Transform x 105 + colour) x 256 before the palette: the files
