@@ -346,7 +346,7 @@ Act 1 levels and rendering
   firebolts and poison (docs/research/re/objects.md). Missing: the unique
   behaviour mods, the other traps; warp arrival spots are a guess
   (LvlWarp ExitWalk).
-- Rendering: lighting without walls casting shadows, cell-granular wall sorting, no item colour tints on composites,
+- Rendering: cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs drawn standing at their start.
 
 Town

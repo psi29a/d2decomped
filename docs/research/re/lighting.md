@@ -143,6 +143,15 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   and monsters' composites cast shadows after the floor pass
   (`shadow_composite`), each pixel once however many layers cover it.
 
-ponytail, not yet: walls blocking light, the light radius
+- Walls shadow the player's and objects' lights (`stamp_shadowed`, as
+  `FUN_00474d70`: the rings, the blend toward the light, 16 behind a
+  blocked subtile); monsters' and missiles' lights (type 1) aren't.
+  Light Quality is taken as high.
+- Light types from their callers of `FUN_00474160`: the player
+  (0x460cf0) and objects (0x4ae2ee) type 0; missiles (0x470555) and
+  MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; two static ones type 2
+  (0x4bc5bc, 0x4d6f85: cached shadows, `FUN_004750f0`).
+
+ponytail, not yet: type 2's cached shadows, the light radius
 items give, lights easing to a new radius, Act 3 / 4 days, the Den's
 lighting once it's cleared.

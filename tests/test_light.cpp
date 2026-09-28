@@ -40,5 +40,17 @@ int main() {
     g.stamp(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255);
     assert(g.at(100, 100) == 255 && g.at(-50, 100) == g.at(76, 100));
 
+    // A wall 4 subtiles east of the light, 7 high: behind it dark, beside
+    // it lit, in front of it lit as before.
+    LightGrid w;
+    w.reset(100, 100, 0);
+    for (int y = 97; y <= 103; ++y) w.blocked[std::size_t((y - w.y0) * LightGrid::kN + (104 - w.x0))] = 1;
+    w.stamp_shadowed(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255);
+    LightGrid open;
+    open.reset(100, 100, 0);
+    open.stamp(100 * 8 + 4, 100 * 8 + 4, 13 * 8, 255);
+    assert(w.at(102, 100) == open.at(102, 100) && w.at(104, 100) == open.at(104, 100));   // up to and on the wall
+    assert(w.at(107, 100) == 0 && open.at(107, 100) > 0);                                 // behind it
+    assert(w.at(100, 108) == open.at(100, 108));                                          // off to the side
     std::puts("test_light: ok");
 }

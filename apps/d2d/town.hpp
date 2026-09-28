@@ -105,16 +105,25 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // level's own light or the day's, then each light stamped. Positions in
 // eighths of a subtile (a cell is 40).
 // ponytail: the player's light is 13 subtiles (FUN_00460930) without the
-// light radius items give; lights don't ease to a new radius.
+// light radius items give; lights don't ease to a new radius; light quality
+// is taken as high (2: shadows on).
 Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
     Lighting l;
     if (!v.level || s.act1_lit[31].entries().empty()) return l;
     l.pal = &s.act1_lit;
     l.grid.reset(int(cam_x * 5), int(cam_y * 5), v.level->light >= 0 ? v.level->light : v.day.intensity());
-    auto stamp = [&](float x, float y, int radius) {
-        if (radius > 0) l.grid.stamp(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
+    for (int j = 0; j < d2d::rules::LightGrid::kN; ++j)           // what walls light (FUN_004756d0)
+        for (int i = 0; i < d2d::rules::LightGrid::kN; ++i)
+            l.grid.blocked[std::size_t(j * d2d::rules::LightGrid::kN + i)] =
+                v.level->blocked((float(l.grid.x0 + i) + 0.5f) / 5, (float(l.grid.y0 + j) + 0.5f) / 5, 0x22);
+    // Type 0 lights (the player's, objects') are shadowed by walls; type 1
+    // (monsters', missiles') aren't (FUN_004755a0).
+    auto stamp = [&](float x, float y, int radius, bool shadowed) {
+        if (radius <= 0) return;
+        if (shadowed) l.grid.stamp_shadowed(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
+        else l.grid.stamp(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
     };
-    stamp(cam_x, cam_y, 13);
+    stamp(cam_x, cam_y, 13, true);
     static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
     auto lit = [&](const Npc& n, std::string_view mode) {
         const auto m = std::ranges::find(kModes, mode.empty() ? std::string_view(n.mode) : mode);
@@ -124,12 +133,12 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y) {
         const auto& n = v.level->npcs[i];
         const auto* st = i < v.npc_states.size() ? &v.npc_states[i] : nullptr;
         if (st && st->hidden) continue;
-        stamp(st ? st->x : n.x, st ? st->y : n.y, lit(n, st ? st->mode : std::string_view{}));
+        stamp(st ? st->x : n.x, st ? st->y : n.y, lit(n, st ? st->mode : std::string_view{}), true);
     }
     for (const auto& nb : v.level->nearby)                  // the torches over the level's edge
-        for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}));
-    for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light);
-    for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light);
+        for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}), true);
+    for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light, false);
+    for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light, false);
     return l;
 }
 
