@@ -12,7 +12,7 @@ struct Scene : GameData {
     d2d::palette::Palette charselect_pal;     // fechar — char-select/create palette
     d2d::palette::Pl2     sky_pl2;            // Sky PL2 (title logo additive)
     d2d::palette::Pl2     fechar_pl2;         // fechar PL2 (campfire additive)
-    d2d::dc6::Sprite      bg;                 // TitleScreen or gameselectscreenEXP
+    d2d::dc6::Sprite      background;                 // TitleScreen or gameselectscreenEXP
     d2d::dc6::Sprite      logo_static;        // Diablo2.dc6 — 320×151, classic only
     d2d::dc6::Sprite      logo_bl, logo_br;   // D2logoBlack{Left,Right} — silhouettes
     d2d::dc6::Sprite      logo_fl, logo_fr;   // D2logoFire{Left,Right} — animated fire
@@ -50,13 +50,13 @@ struct Scene : GameData {
         mutable std::array<std::vector<std::byte>, 16> dcc;
         mutable std::array<d2d::dcc::Sprite, 16>       decoded;
         std::array<const std::uint8_t*, 16>            tint{};   // each layer's colormap (256), null: none
-        [[nodiscard]] const d2d::dcc::Sprite& layer(std::size_t t) const {
-            if (!dcc[t].empty()) {
-                try { decoded[t] = d2d::dcc::Sprite(dcc[t]); if (tint[t]) decoded[t].remap(tint[t]); }
-                catch (const std::exception& e) { d2d::log::warn("{} layer {}: {}", name, t, e.what()); }
-                dcc[t] = {};
+        [[nodiscard]] const d2d::dcc::Sprite& layer(std::size_t layer_index) const {
+            if (!dcc[layer_index].empty()) {
+                try { decoded[layer_index] = d2d::dcc::Sprite(dcc[layer_index]); if (tint[layer_index]) decoded[layer_index].remap(tint[layer_index]); }
+                catch (const std::exception& error) { d2d::log::warn("{} layer {}: {}", name, layer_index, error.what()); }
+                dcc[layer_index] = {};
             }
-            return decoded[t];
+            return decoded[layer_index];
         }
     };
     // Loaded on first use and kept — decoding every composite up front
@@ -86,28 +86,28 @@ struct Scene : GameData {
     const d2d::dc6::Sprite* flippy(const std::string& code) const;   // an item code's ground animation
     // An item's inventory graphic: the unique's/set item's own invfile,
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
-    const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& it) const;
+    const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& item) const;
     // The item's colormap (256 entries), or null (FUN_0062c100): inv, the
     // inventory's (InvTrans, invtransform); else the character's and the
     // ground's (Transform, chrtransform).
-    [[nodiscard]] const std::uint8_t* item_map(const d2d::d2s::Item& it, bool inv) const {
-        const auto p = item_pieces.find(it.code);
-        if (p == item_pieces.end()) return nullptr;
-        const int t = inv ? p->second.inv_transform : p->second.transform;
-        if (!d2d::compcode::tints_with(t) || colormaps[std::size_t(t)].size() < 21 * 256) return nullptr;
-        const int c = item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
-                                      it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{}, inv);
-        return c < 0 || c >= 21 ? nullptr : colormaps[std::size_t(t)].data() + c * 256;
+    [[nodiscard]] const std::uint8_t* item_map(const d2d::d2s::Item& item, bool inv) const {
+        const auto piece = item_pieces.find(item.code);
+        if (piece == item_pieces.end()) return nullptr;
+        const int transform = inv ? piece->second.inv_transform : piece->second.transform;
+        if (!d2d::compcode::tints_with(transform) || colormaps[std::size_t(transform)].size() < 21 * 256) return nullptr;
+        const int colour = item_colours.of(item.quality, item.unique_id, item.set_id, item.prefix, item.suffix, item.affixes, item.class_affix,
+                                      item.socketed && !item.socketed_items.empty() ? item.socketed_items[0].code : std::string{}, inv);
+        return colour < 0 || colour >= 21 ? nullptr : colormaps[std::size_t(transform)].data() + colour * 256;
     }
     // pal through a colormap (null: pal itself).
     [[nodiscard]] static d2d::palette::Palette mapped(const d2d::palette::Palette& base, const std::uint8_t* map) {
         if (!map) return base;
-        std::array<d2d::palette::Rgba, 256> e;
-        for (std::size_t i = 0; i < 256; ++i) e[i] = base[i == 0 ? 0 : map[i]];
-        return d2d::palette::Palette(e);
+        std::array<d2d::palette::Rgba, 256> entries;
+        for (std::size_t i = 0; i < 256; ++i) entries[i] = base[i == 0 ? 0 : map[i]];
+        return d2d::palette::Palette(entries);
     }
-    [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& it, const d2d::palette::Palette& base) const {
-        return mapped(base, item_map(it, true));
+    [[nodiscard]] d2d::palette::Palette item_pal(const d2d::d2s::Item& item, const d2d::palette::Palette& base) const {
+        return mapped(base, item_map(item, true));
     }
     std::vector<std::string> unique_inv, set_inv;             // invfile, rows as item_names
     d2d::dc6::Sprite popbelt;                          // PANEL\ctrlpnl_popbelt
@@ -157,10 +157,10 @@ struct Scene : GameData {
     // COF\palshift.dat table, 8..29 RandTransforms.dat's table - 8; else none.
     mutable std::unordered_map<std::string, std::vector<std::uint8_t>> palshifts;   // by monster code, loaded when first drawn
     std::vector<std::uint8_t> rand_transforms;         // Monsters\RandTransforms.dat: 30 x 256
-    const std::uint8_t* monster_map(const Npc& n) const;
-    const d2d::dcc::Sprite* overlay_sprite(const OverlayInfo& o) const;
+    const std::uint8_t* monster_map(const Npc& npc) const;
+    const d2d::dcc::Sprite* overlay_sprite(const OverlayInfo& overlay) const;
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
-    const PlayerAnim& npc_anim(const Npc& n, std::string_view mode) const;
+    const PlayerAnim& npc_anim(const Npc& npc, std::string_view mode) const;
     const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;
     std::vector<AutomapRule> automap_rules;
 

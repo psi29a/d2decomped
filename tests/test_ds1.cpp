@@ -27,30 +27,30 @@ int main() {
     // Exercises header, file list, walls, floors, objects on a real file.
     {
         const auto raw = mpq.read(R"(data\global\tiles\ACT1\TOWN\townStrans.ds1)");
-        d2d::ds1::Map m(raw);
+        d2d::ds1::Map map(raw);
         std::printf("townStrans: v%d %dx%d act=%d files=%zu walls=%zu floors=%zu objs=%zu\n",
-                    m.version(), m.width(), m.height(), m.act(),
-                    m.files().size(), m.walls().size(), m.floors().size(),
-                    m.objects().size());
-        assert(m.width() > 0 && m.height() > 0);
-        assert(m.version() >= 3);
-        assert(m.act() == 1);
+                    map.version(), map.width(), map.height(), map.act(),
+                    map.files().size(), map.walls().size(), map.floors().size(),
+                    map.objects().size());
+        assert(map.width() > 0 && map.height() > 0);
+        assert(map.version() >= 3);
+        assert(map.act() == 1);
         // Rogue camp stamps reference at least one .dt1 tileset.
-        assert(!m.files().empty());
-        for (const auto& f : m.files()) {
-            assert(!f.empty());
+        assert(!map.files().empty());
+        for (const auto& file : map.files()) {
+            assert(!file.empty());
         }
 
         // Every layer should have exactly width*height cells.
-        const auto cells = std::size_t(m.width()) * m.height();
-        for (const auto& l : m.floors()) assert(l.cells.size() == cells);
-        for (const auto& l : m.walls())  assert(l.cells.size() == cells);
+        const auto cells = std::size_t(map.width()) * map.height();
+        for (const auto& layer : map.floors()) assert(layer.cells.size() == cells);
+        for (const auto& layer : map.walls())  assert(layer.cells.size() == cells);
 
         // At least one floor cell has a non-zero style (i.e. some tile).
         bool any_floor = false;
-        for (const auto& l : m.floors())
-            for (const auto& t : l.cells)
-                if (t.style != 0 || t.sequence != 0 || t.prop1 != 0) {
+        for (const auto& layer : map.floors())
+            for (const auto& tile : layer.cells)
+                if (tile.style != 0 || tile.sequence != 0 || tile.prop1 != 0) {
                     any_floor = true; break;
                 }
         assert(any_floor);
@@ -60,18 +60,18 @@ int main() {
     // Warriv, Charsi, Gheed) after the substitution groups.
     {
         const auto raw = mpq.read(R"(data\global\tiles\ACT1\TOWN\townE1.ds1)");
-        d2d::ds1::Map m(raw);
+        d2d::ds1::Map map(raw);
         int walkers = 0;
-        for (const auto& o : m.objects()) {
-            if (o.path.empty()) continue;
+        for (const auto& object : map.objects()) {
+            if (object.path.empty()) continue;
             ++walkers;
-            assert(o.type == 1);                       // only NPCs patrol
-            for (const auto& pt : o.path) {            // points stay on the map
-                assert(pt.x >= 0 && pt.x < m.width() * 5);
-                assert(pt.y >= 0 && pt.y < m.height() * 5);
+            assert(object.type == 1);                       // only NPCs patrol
+            for (const auto& point : object.path) {            // points stay on the map
+                assert(point.x >= 0 && point.x < map.width() * 5);
+                assert(point.y >= 0 && point.y < map.height() * 5);
             }
         }
-        std::printf("townE1: v%d, %d NPCs with paths\n", m.version(), walkers);
+        std::printf("townE1: v%d, %d NPCs with paths\n", map.version(), walkers);
         assert(walkers == 5);
     }
 

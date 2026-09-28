@@ -8,21 +8,21 @@
 namespace d2d::game {
 
 // Is item type `t` (or an Equiv ancestor) `want`?
-inline bool type_is(const GameData& s, const std::string& t, std::string_view want) {
-    return d2d::rules::type_is(s.rules, t, want);
+inline bool type_is(const GameData& game_data, const std::string& type, std::string_view want) {
+    return d2d::rules::type_is(game_data.rules, type, want);
 }
 
 // What a filled socket adds to `parent`: a jewel's own properties, or the
 // gem/rune's gems.txt bonus for the parent's kind (weapon, shield, else
 // helm/armour).
-inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& s, const d2d::d2s::Item& parent,
+inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, const d2d::d2s::Item& parent,
                                              const d2d::d2s::Item& filled) {
     auto out = filled.props;
-    const auto g = s.gem_props.find(filled.code);
-    const auto info = s.rules.item_info.find(parent.code);
-    if (g == s.gem_props.end() || info == s.rules.item_info.end()) return out;
-    const int k = info->second.kind == 2 ? 0 : type_is(s, info->second.type, "shld") ? 2 : 1;
-    const auto& add = g->second[std::size_t(k)];
+    const auto found = game_data.gem_props.find(filled.code);
+    const auto info = game_data.rules.item_info.find(parent.code);
+    if (found == game_data.gem_props.end() || info == game_data.rules.item_info.end()) return out;
+    const int slot_kind = info->second.kind == 2 ? 0 : type_is(game_data, info->second.type, "shld") ? 2 : 1;
+    const auto& add = found->second[std::size_t(slot_kind)];
     out.insert(out.end(), add.begin(), add.end());
     return out;
 }
@@ -43,56 +43,56 @@ struct PanelStats {
     std::array<std::int64_t, 12> bonus{};
 };
 
-inline PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
-                       const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& st,
+inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header& header,
+                       const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& stats,
                        const std::vector<d2d::rules::PassiveStat>* passives = nullptr) {
-    PanelStats p;
-    const auto lvl = st.get(d2d::d2s::kLevel);
-    if (lvl >= 0 && std::size_t(lvl) + 1 < s.exp_next.size()) p.next = s.exp_next[std::size_t(lvl)];
+    PanelStats panel;
+    const auto lvl = stats.get(d2d::d2s::kLevel);
+    if (lvl >= 0 && std::size_t(lvl) + 1 < game_data.exp_next.size()) panel.next = game_data.exp_next[std::size_t(lvl)];
     std::array<std::int64_t, 64> sum{};
     auto add = [&](const std::vector<d2d::d2s::ItemProp>& props) {
-        for (const auto& pr : props) if (pr.stat >= 0 && pr.stat < 64) sum[std::size_t(pr.stat)] += pr.value;
+        for (const auto& prop : props) if (prop.stat >= 0 && prop.stat < 64) sum[std::size_t(prop.stat)] += prop.value;
     };
     std::int64_t item_def = 0, per_level = 0;
-    for (const auto& it : items) {
-        const bool worn = it.location == 1 && it.slot >= 1 && it.slot <= 10;
-        const bool charm = it.location == 0 && it.panel == 1
-                        && (it.code == "cm1" || it.code == "cm2" || it.code == "cm3");
+    for (const auto& item : items) {
+        const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
+        const bool charm = item.location == 0 && item.panel == 1
+                        && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
         if (!worn && !charm) continue;
-        add(it.props);
-        for (const auto& j : it.socketed_items) add(socket_props(s, it, j));
-        std::int64_t ed = 0;
-        for (const auto& pr : it.props) {
-            if (pr.stat == 16) ed += pr.value;            // item_armor_percent: this item's base
-            if (pr.stat == 214) per_level += pr.value;    // item_armor_perlevel, 1/8 per level
+        add(item.props);
+        for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
+        std::int64_t enhanced_defense = 0;
+        for (const auto& prop : item.props) {
+            if (prop.stat == 16) enhanced_defense += prop.value;            // item_armor_percent: this item's base
+            if (prop.stat == 214) per_level += prop.value;    // item_armor_perlevel, 1/8 per level
         }
-        if (it.defense > 0) item_def += it.defense * (100 + ed) / 100;
+        if (item.defense > 0) item_def += item.defense * (100 + enhanced_defense) / 100;
     }
     std::int64_t skill_def = 0;                           // 171 skill_armor_percent
-    if (passives) for (const auto& ps : *passives) {
-        if (!ps.itype.empty()) continue;
-        if (ps.stat >= 0 && ps.stat < 64) sum[std::size_t(ps.stat)] += ps.value;
-        if (ps.stat == 171) skill_def += ps.value;
+    if (passives) for (const auto& passive : *passives) {
+        if (!passive.itype.empty()) continue;
+        if (passive.stat >= 0 && passive.stat < 64) sum[std::size_t(passive.stat)] += passive.value;
+        if (passive.stat == 171) skill_def += passive.value;
     }
-    for (std::size_t i = 0; i < 12; ++i) p.bonus[i] = sum[i];
+    for (std::size_t i = 0; i < 12; ++i) panel.bonus[i] = sum[i];
     {                                                     // the attributes' share of life, stamina, mana (quarter points)
-        const auto& g = s.class_gains[std::size_t(h.cls % 7)];
-        p.bonus[7] += sum[3] * g.life_per_vit / 4;
-        p.bonus[11] += sum[3] * g.stamina_per_vit / 4;
-        p.bonus[9] += sum[1] * g.mana_per_energy / 4;
+        const auto& gains = game_data.class_gains[std::size_t(header.cls % 7)];
+        panel.bonus[7] += sum[3] * gains.life_per_vit / 4;
+        panel.bonus[11] += sum[3] * gains.stamina_per_vit / 4;
+        panel.bonus[9] += sum[1] * gains.mana_per_energy / 4;
     }
-    p.defense = item_def + sum[31] + per_level * lvl / 8 + (st.get(d2d::d2s::kDex) + sum[2]) / 4;
-    p.defense += p.defense * skill_def / 100;
-    const int diff = h.active_difficulty();
-    const std::int64_t penalty = h.expansion() ? s.resist_penalty[std::size_t(diff)]
+    panel.defense = item_def + sum[31] + per_level * lvl / 8 + (stats.get(d2d::d2s::kDex) + sum[2]) / 4;
+    panel.defense += panel.defense * skill_def / 100;
+    const int diff = header.active_difficulty();
+    const std::int64_t penalty = header.expansion() ? game_data.resist_penalty[std::size_t(diff)]
                                                : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
     constexpr int kRes[4] = { 39, 43, 41, 45 };
     for (int i = 0; i < 4; ++i) {
         const auto cap = std::min<std::int64_t>(75 + sum[std::size_t(kRes[i] + 1)], 95);
-        p.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
-        p.res_cap[std::size_t(i)] = cap;
+        panel.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
+        panel.res_cap[std::size_t(i)] = cap;
     }
-    return p;
+    return panel;
 }
 
 struct Character {

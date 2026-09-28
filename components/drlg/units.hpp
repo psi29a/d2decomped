@@ -35,38 +35,38 @@ struct UnitIds {
 // Monsters need v5+; ids that map to nothing are dropped.
 // ponytail: the act 2 / act 4 monster remaps and type 4 (NPCs by name)
 // aren't there — act 1's levels don't hit them.
-inline std::vector<Unit> ds1_units(const d2d::ds1::Map& m, const UnitIds& ids) {
+inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids) {
     std::vector<Unit> list;
-    const int v = m.version(), act = std::clamp(int(m.act()) - 1, 0, 4);
-    for (const auto& o : m.objects()) {
-        Unit u{ o.type, o.id, 0, o.x, o.y, v > 5 ? std::uint32_t(o.flags) : 0u };
-        if (u.type == 1) {
-            if (v < 5) continue;
-            u.mode = 1;
-            const auto& t = ids.monpreset[std::size_t(act)];
-            if (u.id >= 0 && u.id < int(t.size())) {
-                const auto [kind, id] = t[std::size_t(u.id)];
-                u.id = kind == 0 ? id + ids.monstats + ids.superuniques : kind == 1 ? id : kind == 2 ? id + ids.monstats : -1;
+    const int version = map.version(), act = std::clamp(int(map.act()) - 1, 0, 4);
+    for (const auto& object : map.objects()) {
+        Unit unit{ object.type, object.id, 0, object.x, object.y, version > 5 ? std::uint32_t(object.flags) : 0u };
+        if (unit.type == 1) {
+            if (version < 5) continue;
+            unit.mode = 1;
+            const auto& table = ids.monpreset[std::size_t(act)];
+            if (unit.id >= 0 && unit.id < int(table.size())) {
+                const auto [kind, id] = table[std::size_t(unit.id)];
+                unit.id = kind == 0 ? id + ids.monstats + ids.superuniques : kind == 1 ? id : kind == 2 ? id + ids.monstats : -1;
             }
-        } else if (u.type == 2) {
-            if (v < 6) { if (u.id == 0x23d) u.id = -1; }
-            else u.id = u.id < 150 ? int(kObjPreset[std::size_t(act)][std::size_t(u.id)]) : u.id - 150;
+        } else if (unit.type == 2) {
+            if (version < 6) { if (unit.id == 0x23d) unit.id = -1; }
+            else unit.id = unit.id < 150 ? int(kObjPreset[std::size_t(act)][std::size_t(unit.id)]) : unit.id - 150;
         }
-        if (u.id < 0) continue;
-        list.insert(list.begin(), u);
+        if (unit.id < 0) continue;
+        list.insert(list.begin(), unit);
     }
     return list;
 }
 
 // FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); none of
 // act 1's outdoor or cave presets carry them.
-inline bool rolled_unit(const Unit& u, const UnitIds& ids) {
-    if (u.type == 1) {
-        if (u.id < ids.monstats) return u.id == 0xcc || u.id == 0xcd || u.id == 0x173 || u.id == 0x174;
-        const int place = u.id - ids.monstats - ids.superuniques;
+inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
+    if (unit.type == 1) {
+        if (unit.id < ids.monstats) return unit.id == 0xcc || unit.id == 0xcd || unit.id == 0x173 || unit.id == 0x174;
+        const int place = unit.id - ids.monstats - ids.superuniques;
         return place == 0x21 || place == 0x22 || place == 0x23;
     }
-    return u.type == 2 && (u.id == 0xc4 || u.id == 0x105 || u.id == 0x245);
+    return unit.type == 2 && (unit.id == 0xc4 || unit.id == 0x105 || unit.id == 0x245);
 }
 
 // FUN_00667620's roll for one of those: a step of `seed` (the room's
@@ -74,15 +74,15 @@ inline bool rolled_unit(const Unit& u, const UnitIds& ids) {
 // 4, group50 1 in 2, group75 1 in 4 (group100 never rolls), objects 0xc4 /
 // 0x105 1 in 2, 0x245 3 in 4. `Seed` is d2d::rules::Rng.
 template <class Seed>
-bool stays(const Unit& u, const UnitIds& ids, Seed& seed) {
-    if (!rolled_unit(u, ids)) return true;
+bool stays(const Unit& unit, const UnitIds& ids, Seed& seed) {
+    if (!rolled_unit(unit, ids)) return true;
     const std::uint32_t low = seed.next();
-    if (u.type == 1 && u.id < ids.monstats) return low % 3 == 0;
-    if (u.type == 1) {
-        const int place = u.id - ids.monstats - ids.superuniques;
+    if (unit.type == 1 && unit.id < ids.monstats) return low % 3 == 0;
+    if (unit.type == 1) {
+        const int place = unit.id - ids.monstats - ids.superuniques;
         return place == 0x21 ? (low & 3) != 0 : place == 0x22 ? (low & 1) != 0 : (low & 3) == 0;
     }
-    return u.id == 0x245 ? (low & 3) != 0 : (low & 1) == 0;
+    return unit.id == 0x245 ? (low & 3) != 0 : (low & 1) == 0;
 }
 
 }  // namespace d2d::drlg

@@ -41,7 +41,7 @@ inline fs::path user_dir(std::string_view app) {
 #else
     const char* home = std::getenv("HOME");
     if (!home || !*home)
-        if (const passwd* pw = getpwuid(getuid())) home = pw->pw_dir;
+        if (const passwd* home_entry = getpwuid(getuid())) home = home_entry->pw_dir;
     const fs::path base = home ? fs::path(home) : fs::path(".");
 #  if defined(__APPLE__)
     return base / "Library" / "Preferences" / app;
@@ -68,20 +68,20 @@ using Config = std::unordered_map<std::string, std::string>;
 // Blank lines, '#' comments and lines without '=' are skipped; keys and
 // values are whitespace-trimmed. A missing file is not an error.
 inline void load_cfg(const fs::path& file, Config& cfg) {
-    std::ifstream in(file);
-    constexpr std::string_view ws = " \t\r\n";
-    auto trim = [&](std::string_view s) {
-        const auto b = s.find_first_not_of(ws);
-        if (b == s.npos) return std::string_view{};
-        return s.substr(b, s.find_last_not_of(ws) - b + 1);
+    std::ifstream input(file);
+    constexpr std::string_view whitespace = " \t\r\n";
+    auto trim = [&](std::string_view text) {
+        const auto first = text.find_first_not_of(whitespace);
+        if (first == text.npos) return std::string_view{};
+        return text.substr(first, text.find_last_not_of(whitespace) - first + 1);
     };
-    for (std::string line; std::getline(in, line);) {
-        const auto t = trim(line);
-        if (t.empty() || t.front() == '#') continue;
-        const auto eq = t.find('=');
-        if (eq == t.npos) continue;
-        const auto key = trim(t.substr(0, eq));
-        if (!key.empty()) cfg[std::string(key)] = std::string(trim(t.substr(eq + 1)));
+    for (std::string line; std::getline(input, line);) {
+        const auto trimmed = trim(line);
+        if (trimmed.empty() || trimmed.front() == '#') continue;
+        const auto equals_at = trimmed.find('=');
+        if (equals_at == trimmed.npos) continue;
+        const auto key = trim(trimmed.substr(0, equals_at));
+        if (!key.empty()) cfg[std::string(key)] = std::string(trim(trimmed.substr(equals_at + 1)));
     }
 }
 

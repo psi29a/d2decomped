@@ -1,0 +1,13 @@
+# Names say what they hold (docs/PLAN.md "Code style"): no one- or two-letter
+# variables or parameters beyond the conventional few. CI runs this on Linux.
+Checks: '-*,readability-identifier-length'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(apps|components|tests|tools)/'
+CheckOptions:
+  readability-identifier-length.MinimumVariableNameLength: 3
+  readability-identifier-length.MinimumParameterNameLength: 3
+  readability-identifier-length.MinimumExceptionNameLength: 3
+  readability-identifier-length.MinimumLoopCounterNameLength: 2
+  readability-identifier-length.IgnoredVariableNames: '^(x|y|dx|dy|id|ok)$'
+  readability-identifier-length.IgnoredParameterNames: '^(x|y|dx|dy|id)$'
+  readability-identifier-length.IgnoredLoopCounterNames: '^[ijkxy]$'

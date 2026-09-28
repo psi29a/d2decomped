@@ -76,50 +76,50 @@ public:
     }
 
 private:
-    void parse(std::span<const std::byte> b) {
+    void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kHdr = 25;
-        if (b.size() < kHdr + 3) throw std::runtime_error("COF: truncated header");
-        num_layers_       = std::uint8_t(b[0]);
-        frames_per_dir_   = std::uint8_t(b[1]);
-        num_dirs_         = std::uint8_t(b[2]);
-        speed_            = std::uint8_t(b[24]);
+        if (bytes.size() < kHdr + 3) throw std::runtime_error("COF: truncated header");
+        num_layers_       = std::uint8_t(bytes[0]);
+        frames_per_dir_   = std::uint8_t(bytes[1]);
+        num_dirs_         = std::uint8_t(bytes[2]);
+        speed_            = std::uint8_t(bytes[24]);
 
-        std::size_t p = kHdr + 3;   // skip 3-byte body unknown
+        std::size_t offset = kHdr + 3;   // skip 3-byte body unknown
 
         constexpr std::size_t kLayer = 9;
-        if (b.size() < p + std::size_t(num_layers_) * kLayer)
+        if (bytes.size() < offset + std::size_t(num_layers_) * kLayer)
             throw std::runtime_error("COF: truncated layer table");
         layer_defs_.resize(num_layers_);
-        for (auto& L : layer_defs_) {
-            L.type        = std::uint8_t(b[p + 0]);
-            L.shadow      = std::uint8_t(b[p + 1]);
-            L.selectable  = std::uint8_t(b[p + 2]) != 0;
-            L.transparent = std::uint8_t(b[p + 3]) != 0;
-            L.draw_effect = std::uint8_t(b[p + 4]);
+        for (auto& layer : layer_defs_) {
+            layer.type        = std::uint8_t(bytes[offset + 0]);
+            layer.shadow      = std::uint8_t(bytes[offset + 1]);
+            layer.selectable  = std::uint8_t(bytes[offset + 2]) != 0;
+            layer.transparent = std::uint8_t(bytes[offset + 3]) != 0;
+            layer.draw_effect = std::uint8_t(bytes[offset + 4]);
             // 4-byte weapon class code, NUL-padded (D2 codes are 1..3 chars).
             for (std::size_t k = 0; k < 4; ++k) {
-                const auto ch = char(b[p + 5 + k]);
-                if (ch == '\0') break;
-                L.weapon_class.push_back(ch);
+                const auto letter = char(bytes[offset + 5 + k]);
+                if (letter == '\0') break;
+                layer.weapon_class.push_back(letter);
             }
-            p += kLayer;
+            offset += kLayer;
         }
 
-        if (b.size() < p + frames_per_dir_)
+        if (bytes.size() < offset + frames_per_dir_)
             throw std::runtime_error("COF: truncated events");
         events_.assign(frames_per_dir_, 0);
         for (std::size_t k = 0; k < frames_per_dir_; ++k) {
-            events_[k] = std::uint8_t(b[p + k]);
+            events_[k] = std::uint8_t(bytes[offset + k]);
         }
-        p += frames_per_dir_;
+        offset += frames_per_dir_;
 
         const std::size_t priBytes =
             std::size_t(num_dirs_) * frames_per_dir_ * num_layers_;
-        if (b.size() < p + priBytes)
+        if (bytes.size() < offset + priBytes)
             throw std::runtime_error("COF: truncated priority table");
         priorities_.assign(priBytes, 0);
         for (std::size_t k = 0; k < priBytes; ++k) {
-            priorities_[k] = std::uint8_t(b[p + k]);
+            priorities_[k] = std::uint8_t(bytes[offset + k]);
         }
     }
 

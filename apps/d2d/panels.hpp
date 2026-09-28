@@ -12,8 +12,8 @@ namespace d2d::client {
 // The item under (mx, my) gets its hover text.
 // Items draw through their inventory colormap (Scene::item_pal).
 // ponytail: no cube.
-void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::InvLayout& L,
-                    const std::vector<d2d::d2s::Item>& items, int mx = -1, int my = -1, int clvl = 1,
+void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
+                    const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, int clvl = 1,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr);
 
 // Character panel (left of the inventory: 800x600 puts the left panels
@@ -22,7 +22,7 @@ void draw_inventory(std::vector<std::uint8_t>& fb, const Scene& s, const Scene::
 // (18-byte records), values {x0, y, x1, stat id} at 0x724928 — in panel
 // coordinates; text is centred in [x0, x1].
 constexpr int kCharPanelX = 80, kCharPanelY = 60;
-struct PanelText { int x0, y, x1, id; };
+struct PanelText { int left, y, right, id; };
 constexpr PanelText kCharLabels[] = {
     {  11,  44,  52, 0xfd9 }, {  65,  44, 180, 0xfda }, { 193,  44, 308, 0xfdb },
     {  10,  97,  73, 0xfdc }, {  10, 160,  73, 0xfde }, { 174, 207, 268, 0xfe0 },
@@ -47,10 +47,10 @@ struct StatButton { int x, y, stat; };
 constexpr StatButton kStatButtons[4] = { { 117, 105, 0 }, { 117, 167, 2 }, { 117, 253, 3 }, { 117, 315, 1 } };
 
 // The stat button under (mx, my) (screen), or -1.
-int stat_button_at(int mx, int my);
+int stat_button_at(int mouse_x, int mouse_y);
 
-void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st,
-                     const PanelStats& ps,
+void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
+                     const PanelStats& panel,
                      std::string_view name, int class_idx, int pressed_button = -1);
 
 // The bottom HUD, as game.exe's 800x600 path draws it (FUN_004983d0 for
@@ -64,18 +64,18 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
 //   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
 // The maxima include what's worn (Fight::item_max).
 // ponytail: no poison tint, stamina bar, skill icons or run/walk yet.
-void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st);
+void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats);
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
 // ponytail: no gold line, no "close" button; classic stash untested.
 // Rect {x, y, w, h} of a stored item in a grid layout.
-std::array<int, 4> grid_rect(const Scene& s, const Scene::InvLayout& L, const d2d::d2s::Item& it);
+std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item);
 
 // A left-side storage panel: the stash (panel 5) or the cube (panel 4).
-void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
-                  const d2d::dc6::Sprite& art, const Scene::InvLayout& L, int panel,
-                  int mx, int my, int clvl);
+void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
+                  const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
+                  int mouse_x, int mouse_y, int clvl);
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the
@@ -83,8 +83,8 @@ void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vect
 // ctrlpnl_popbelt frame 0, bottom-anchored at x W/2+21, bottom H-41-32i,
 // and its items. Hovering an item shows its hover text.
 // ponytail: no slot hotkey numbers.
-void draw_belt(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<d2d::d2s::Item>& items,
-               int mx, int my, int clvl, bool popup);
+void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
+               int mouse_x, int mouse_y, int clvl, bool popup);
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's
@@ -105,11 +105,11 @@ struct Automap {
     bool open = false;
 };
 
-int automap_cel(const Scene& s, const Level& L, int orientation, int main, int sub, std::uint32_t hash);
+int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
-void automap_reveal(const Scene& s, const Level& level, Automap& am, float px, float py);
+void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);
 
-void draw_automap(std::vector<std::uint8_t>& fb, const Scene& s, const Automap& am, float px, float py);
+void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
 
 // The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),
 // in the left-panel spot at 800x600 (+80, +60 on game.exe's numbers):
@@ -135,16 +135,16 @@ constexpr int kWpIconBottom[9] = { 89, 125, 161, 197, 234, 270, 306, 342, 378 };
 constexpr int kWpTextBase[9]   = { 84, 119, 154, 189, 224, 259, 294, 329, 364 };
 constexpr int kWpHitTop[9]     = { 60, 96, 132, 168, 205, 241, 277, 313, 349 };
 
-bool waypoint_act_open(const d2d::d2s::Header& h, int act);
+bool waypoint_act_open(const d2d::d2s::Header& header, int act);
 
 // Row under the cursor (activated waypoints only), or -1.
-int waypoint_row_at(const Scene& s, const WaypointUI& ui, const d2d::d2s::Header& h, int mx, int my);
+int waypoint_row_at(const Scene& scene, const WaypointUI& waypoints, const d2d::d2s::Header& header, int mouse_x, int mouse_y);
 
 // Tab under the cursor (open acts only), or -1.
-int waypoint_tab_at(const d2d::d2s::Header& h, bool expansion, int mx, int my);
+int waypoint_tab_at(const d2d::d2s::Header& header, bool expansion, int mouse_x, int mouse_y);
 
-void draw_waypoints(std::vector<std::uint8_t>& fb, const Scene& s, const WaypointUI& ui,
-                    const d2d::d2s::Header& h, bool expansion, int current_level, int mx, int my);
+void draw_waypoints(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const WaypointUI& waypoints,
+                    const d2d::d2s::Header& header, bool expansion, int current_level, int mouse_x, int mouse_y);
 
 // The quest log (QuestLog.cpp: FUN_004a34f0 draws it), a left-hand panel
 // where the character panel goes. Its table at 0x723f30 (16 bytes a quest:
@@ -179,9 +179,9 @@ struct QuestLog {
 // (frames 1..24 are the done animation, played once the quest completes).
 // ponytail: under way = any flag bit but 0 set; the questdone plate for a
 // selected finished quest isn't drawn.
-inline int quest_icon_frame(const d2d::rules::QuestBits& f, int quest, bool selected) {
-    if (d2d::rules::qbit(f, quest, 0)) return 24;
-    for (int b = 1; b < 16; ++b) if (d2d::rules::qbit(f, quest, b)) return selected ? 25 : 0;
+inline int quest_icon_frame(const d2d::rules::QuestBits& quest_bits, int quest, bool selected) {
+    if (d2d::rules::qbit(quest_bits, quest, 0)) return 24;
+    for (int bit = 1; bit < 16; ++bit) if (d2d::rules::qbit(quest_bits, quest, bit)) return selected ? 25 : 0;
     return 26;
 }
 // What the log says about a quest (FUN_004a1950): its record (the Den's at
@@ -194,42 +194,42 @@ inline constexpr std::array<std::uint16_t, 29> kDenLog = { 3714, 76, 4, 3735, 64
     3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3740, 64, 3728, 3725, 3727, 3725, 3726, 64 };
 struct QuestText { int string = 0, count = -1, speech = 0; };
 struct QuestState { int den_state = 1, den_log = 0, den_left = 0; };
-inline QuestText quest_text(const d2d::rules::QuestBits& f, int quest, const QuestState& st) {
+inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
     using d2d::rules::qbit;
     if (quest != 1) return {};
-    const int s = qbit(f, 1, 0) ? (st.den_state == 5 ? 13 : 11) : qbit(f, 1, 14) ? 12 : st.den_log;
-    if (s < 1 || std::size_t(2 * s + 2) >= kDenLog.size()) return {};
-    QuestText t{ kDenLog[std::size_t(2 * s + 1)], -1, kDenLog[std::size_t(2 * s + 2)] };
-    if (s == 4) { if (st.den_left == 1) t.string = 3739; else t.count = st.den_left; }
-    return t;
+    const int log_index = qbit(quest_bits, 1, 0) ? (quest_state.den_state == 5 ? 13 : 11) : qbit(quest_bits, 1, 14) ? 12 : quest_state.den_log;
+    if (log_index < 1 || std::size_t(2 * log_index + 2) >= kDenLog.size()) return {};
+    QuestText text{ kDenLog[std::size_t(2 * log_index + 1)], -1, kDenLog[std::size_t(2 * log_index + 2)] };
+    if (log_index == 4) { if (quest_state.den_left == 1) text.string = 3739; else text.count = quest_state.den_left; }
+    return text;
 }
 // Its buttons on the bottom line (FUN_004a34f0): close (the store buttons'
 // frames 10 / 11) at x 0x116 and questlast (replay the quest's message) at
 // 0xe2, their bottoms 58 above the screen's; hit boxes 0x24 x 0x22 and
 // 0x1e x 0x21. 0: none, 1 close, 2 questlast.
-inline int quest_button_at(int mx, int my) {
-    const int bx = mx - kCharPanelX, by = my - kCharPanelY;
-    if (bx >= 0x116 && bx < 0x116 + 0x24 && by >= 422 - 0x22 && by < 422) return 1;
-    if (bx >= 0xe6 && bx < 0xe6 + 0x1e && by >= 422 - 0x21 && by < 422) return 2;
+inline int quest_button_at(int mouse_x, int mouse_y) {
+    const int panel_x = mouse_x - kCharPanelX, panel_y = mouse_y - kCharPanelY;
+    if (panel_x >= 0x116 && panel_x < 0x116 + 0x24 && panel_y >= 422 - 0x22 && panel_y < 422) return 1;
+    if (panel_x >= 0xe6 && panel_x < 0xe6 + 0x1e && panel_y >= 422 - 0x21 && panel_y < 422) return 2;
     return 0;
 }
-inline int quest_tab_at(int mx, int my) {
-    if (my < kCharPanelY || my >= kCharPanelY + 33) return -1;
-    for (int a = 4; a >= 0; --a) if (mx >= kCharPanelX + kQuestTabX[std::size_t(a)] && mx < kCharPanelX + kQuestTabX[std::size_t(a) + 1]) return a;
+inline int quest_tab_at(int mouse_x, int mouse_y) {
+    if (mouse_y < kCharPanelY || mouse_y >= kCharPanelY + 33) return -1;
+    for (int act = 4; act >= 0; --act) if (mouse_x >= kCharPanelX + kQuestTabX[std::size_t(act)] && mouse_x < kCharPanelX + kQuestTabX[std::size_t(act) + 1]) return act;
     return -1;
 }
-inline int quest_slot_at(const Scene& s, int mx, int my) {
+inline int quest_slot_at(const Scene& scene, int mouse_x, int mouse_y) {
     for (int k = 0; k < 6; ++k) {
         const auto [x, y] = kQuestSlot[std::size_t(k)];
-        const int w = s.quest_icons[0].frames_per_direction() ? int(s.quest_icons[0].frame(0, 0).width) : 64;
-        const int h = s.quest_icons[0].frames_per_direction() ? int(s.quest_icons[0].frame(0, 0).height) : 64;
-        if (mx >= kCharPanelX + x && mx < kCharPanelX + x + w && my >= kCharPanelY + y - h && my < kCharPanelY + y) return k;
+        const int width = scene.quest_icons[0].frames_per_direction() ? int(scene.quest_icons[0].frame(0, 0).width) : 64;
+        const int height = scene.quest_icons[0].frames_per_direction() ? int(scene.quest_icons[0].frame(0, 0).height) : 64;
+        if (mouse_x >= kCharPanelX + x && mouse_x < kCharPanelX + x + width && mouse_y >= kCharPanelY + y - height && mouse_y < kCharPanelY + y) return k;
     }
     return -1;
 }
 // Returns true when a done animation starts (the caller plays
 // cursor_questdone, Sounds.txt 14).
-bool draw_quest_log(std::vector<std::uint8_t>& fb, const Scene& s, QuestLog& q, const d2d::rules::QuestBits& f,
-                    const QuestState& st, std::uint32_t ms);
+bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits,
+                    const QuestState& quest_state, std::uint32_t now_ms);
 
 }  // namespace d2d::client

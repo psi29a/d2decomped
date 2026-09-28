@@ -21,7 +21,7 @@ namespace d2d::rules {
 
 struct ItemInfo {
     std::string invfile;
-    int w = 1, h = 1;
+    int width = 1, height = 1;
     std::string namestr, type;
     int kind = 0;                      // 0 misc, 1 armor, 2 weapon
     int belt = -1;                     // armor.txt belt: belts.txt index
@@ -103,26 +103,26 @@ struct Rng {
     Rng() = default;
     explicit Rng(std::uint32_t seed) : low(seed) {}
     std::uint32_t next() {
-        const std::uint64_t v = std::uint64_t(low) * 0x6AC690C5u + high;
-        low = std::uint32_t(v);
-        high = std::uint32_t(v >> 32);
+        const std::uint64_t product = std::uint64_t(low) * 0x6AC690C5u + high;
+        low = std::uint32_t(product);
+        high = std::uint32_t(product >> 32);
         return low;
     }
-    int operator()(int n) {
-        if (n < 1) return 0;
+    int operator()(int bound) {
+        if (bound < 1) return 0;
         next();
-        return (n & (n - 1)) == 0 ? int(low & std::uint32_t(n - 1)) : int(low % std::uint32_t(n));
+        return (bound & (bound - 1)) == 0 ? int(low & std::uint32_t(bound - 1)) : int(low % std::uint32_t(bound));
     }
-    int range(int lo, int hi) { return hi > lo ? lo + (*this)(hi - lo + 1) : lo; }
+    int range(int minimum, int maximum) { return maximum > minimum ? minimum + (*this)(maximum - minimum + 1) : minimum; }
 };
 
 // hireling.txt row (the stat and cost columns FUN_006637f0 reads).
 struct Hireling {
     int version = 0, id = 0, cls = 0, act = 0, difficulty = 0, level = 0, gold = 0, exp_per_level = 0;
-    int hp = 0, hp_per_level = 0, def = 0, def_per_level = 0, str = 0, str_per_level = 0, dex = 0, dex_per_level = 0;
+    int hit_points = 0, hp_per_level = 0, def = 0, def_per_level = 0, str = 0, str_per_level = 0, dex = 0, dex_per_level = 0;
     int dmg_min = 0, dmg_max = 0, dmg_per_level = 0;
     int names = 1;                                      // NameFirst..NameLast
-    int ar = 0, ar_per_level = 0;
+    int attack_rating = 0, ar_per_level = 0;
 };
 
 struct Tables {
@@ -176,40 +176,40 @@ struct Store {
     bool gamble = false;                        // Gheed's gamble list: buying rolls a new item
 };
 
-inline std::pair<int, int> item_size(const Tables& t, const std::string& code) {
-    const auto info = t.item_info.find(code);
-    return info != t.item_info.end() ? std::pair{ info->second.w, info->second.h } : std::pair{ 1, 1 };
+inline std::pair<int, int> item_size(const Tables& tables, const std::string& code) {
+    const auto info = tables.item_info.find(code);
+    return info != tables.item_info.end() ? std::pair{ info->second.width, info->second.height } : std::pair{ 1, 1 };
 }
 
 // First free w x h spot in a cols x rows grid of placed items, scanning
 // column by column (where D2 autoplaces pickups); {-1, -1} if full.
-inline std::pair<int, int> free_spot(const Tables& t, const std::vector<const d2d::d2s::Item*>& placed,
-                                     int cols, int rows, int w, int h) {
+inline std::pair<int, int> free_spot(const Tables& tables, const std::vector<const d2d::d2s::Item*>& placed,
+                                     int cols, int rows, int width, int height) {
     std::vector<bool> used(std::size_t(cols * rows));
-    for (const auto* it : placed) {
-        const auto [iw, ih] = item_size(t, it->code);
-        for (int y = it->row; y < std::min(it->row + ih, rows); ++y)
-            for (int x = it->column; x < std::min(it->column + iw, cols); ++x) used[std::size_t(y * cols + x)] = true;
+    for (const auto* placed_item : placed) {
+        const auto [item_width, item_height] = item_size(tables, placed_item->code);
+        for (int y = placed_item->row; y < std::min(placed_item->row + item_height, rows); ++y)
+            for (int x = placed_item->column; x < std::min(placed_item->column + item_width, cols); ++x) used[std::size_t(y * cols + x)] = true;
     }
-    for (int x = 0; x + w <= cols; ++x)
-        for (int y = 0; y + h <= rows; ++y) {
+    for (int x = 0; x + width <= cols; ++x)
+        for (int y = 0; y + height <= rows; ++y) {
             bool free = true;
-            for (int yy = y; yy < y + h && free; ++yy)
-                for (int xx = x; xx < x + w && free; ++xx) free = !used[std::size_t(yy * cols + xx)];
+            for (int row = y; row < y + height && free; ++row)
+                for (int column = x; column < x + width && free; ++column) free = !used[std::size_t(row * cols + column)];
             if (free) return { x, y };
         }
     return { -1, -1 };
 }
 
 // Puts an item into the store grid from tab on (weapons spill 1 -> 2).
-inline bool store_place(const Tables& t, Store& st, int tab, d2d::d2s::Item it) {
-    const auto [w, h] = item_size(t, it.code);
+inline bool store_place(const Tables& tables, Store& store, int tab, d2d::d2s::Item item) {
+    const auto [width, height] = item_size(tables, item.code);
     for (int i = tab; i < 4; ++i) {
         std::vector<const d2d::d2s::Item*> placed;
-        for (const auto& p : st.tabs[std::size_t(i)]) placed.push_back(&p);
-        if (const auto [x, y] = free_spot(t, placed, 10, 10, w, h); x >= 0) {
-            it.column = x; it.row = y; it.location = 0; it.panel = 1;
-            st.tabs[std::size_t(i)].push_back(std::move(it));
+        for (const auto& placed_item : store.tabs[std::size_t(i)]) placed.push_back(&placed_item);
+        if (const auto [x, y] = free_spot(tables, placed, 10, 10, width, height); x >= 0) {
+            item.column = x; item.row = y; item.location = 0; item.panel = 1;
+            store.tabs[std::size_t(i)].push_back(std::move(item));
             return true;
         }
         if (i != 1) break;
@@ -217,9 +217,9 @@ inline bool store_place(const Tables& t, Store& st, int tab, d2d::d2s::Item it) 
     return false;
 }
 
-inline int store_tab_for(const Tables& t, const std::string& code) {
-    const auto info = t.item_info.find(code);
-    const int kind = info != t.item_info.end() ? info->second.kind : 0;
+inline int store_tab_for(const Tables& tables, const std::string& code) {
+    const auto info = tables.item_info.find(code);
+    const int kind = info != tables.item_info.end() ? info->second.kind : 0;
     return kind == 1 ? 0 : kind == 2 ? 1 : 3;
 }
 
@@ -238,80 +238,80 @@ inline bool is_repair_vendor(int hc_idx) {
     return hc_idx == 0x9a || hc_idx == 0xb2 || hc_idx == 0xfd || hc_idx == 0x101 || hc_idx == 0x1ff;
 }
 
-inline Store open_store(const Tables& t, int hc_idx, std::string npc_id, Rng& rng) {
-    Store st;
-    st.npc_id = std::move(npc_id);
-    st.hc_idx = hc_idx;
-    st.vendor = vendor_index(hc_idx);
-    if (st.vendor < 0) return st;
-    for (const auto& vi : t.vendor_items[std::size_t(st.vendor)]) {
-        if (vi.perm) st.perm.push_back(vi.code);
-        int n = vi.perm ? 1 : rng.range(vi.min, vi.max);
-        while (n-- > 0) {
-            d2d::d2s::Item it;
-            it.code = vi.code;
-            if (const auto b = t.item_base.find(vi.code); b != t.item_base.end() && store_tab_for(t, vi.code) == 0)
-                it.defense = b->second.minac;
-            store_place(t, st, store_tab_for(t, vi.code), std::move(it));
+inline Store open_store(const Tables& tables, int hc_idx, std::string npc_id, Rng& rng) {
+    Store store;
+    store.npc_id = std::move(npc_id);
+    store.hc_idx = hc_idx;
+    store.vendor = vendor_index(hc_idx);
+    if (store.vendor < 0) return store;
+    for (const auto& vendor_item : tables.vendor_items[std::size_t(store.vendor)]) {
+        if (vendor_item.perm) store.perm.push_back(vendor_item.code);
+        int count = vendor_item.perm ? 1 : rng.range(vendor_item.min, vendor_item.max);
+        while (count-- > 0) {
+            d2d::d2s::Item item;
+            item.code = vendor_item.code;
+            if (const auto found = tables.item_base.find(vendor_item.code); found != tables.item_base.end() && store_tab_for(tables, vendor_item.code) == 0)
+                item.defense = found->second.minac;
+            store_place(tables, store, store_tab_for(tables, vendor_item.code), std::move(item));
         }
     }
-    for (int i = 0; i < 4; ++i) if (!st.tabs[std::size_t(i)].empty()) { st.tab = i; break; }
-    return st;
+    for (int i = 0; i < 4; ++i) if (!store.tabs[std::size_t(i)].empty()) { store.tab = i; break; }
+    return store;
 }
 
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
-inline int item_price(const Tables& t, const d2d::d2s::Item& it, const std::string& npc_id, bool sell,
-                      const d2d::d2s::Header& h) {
-    const auto b = t.item_base.find(it.code);
-    const int base = b != t.item_base.end() ? b->second.cost : 0;
-    auto extra = [&](const std::vector<std::pair<int, int>>& c, int i) {
-        if (i < 0 || std::size_t(i) >= c.size()) return 0;
-        const auto [mul, add] = c[std::size_t(i)];
+inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
+                      const d2d::d2s::Header& header) {
+    const auto found = tables.item_base.find(item.code);
+    const int base = found != tables.item_base.end() ? found->second.cost : 0;
+    auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
+        if (index < 0 || std::size_t(index) >= costs.size()) return 0;
+        const auto [mul, add] = costs[std::size_t(index)];
         return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
     int x = 0;
-    switch (it.quality) {
+    switch (item.quality) {
         case 1: x = -(base / 2); break;
-        case 4: x = extra(t.prefix_cost, it.prefix) + extra(t.suffix_cost, it.suffix); break;
-        case 5: x = extra(t.set_cost, it.set_id); break;
-        case 7: x = extra(t.unique_cost, it.unique_id); break;
+        case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
+        case 5: x = extra(tables.set_cost, item.set_id); break;
+        case 7: x = extra(tables.unique_cost, item.unique_id); break;
         case 6: case 8:
-            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? t.prefix_cost : t.suffix_cost, it.affixes[std::size_t(i)]);
+            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
             break;
         default: break;
     }
     long long price = base + x;
-    for (const auto& j : it.socketed_items)
-        if (const auto jb = t.item_base.find(j.code); jb != t.item_base.end()) price += jb->second.cost / 2;
-    if (sell && it.ethereal) price /= 4;
-    const auto p = t.npc_prices.find(npc_id);
-    const int diff = h.active_difficulty();
-    if (p != t.npc_prices.end()) {
-        const auto& np = p->second;
-        price = price * (sell ? np.sell : np.buy) / 1024;
-        for (int q = 0; q < 3; ++q)
-            if (np.qflag[std::size_t(q)] && (h.quest_flag(diff, np.qflag[std::size_t(q)], 0) || h.quest_flag(diff, np.qflag[std::size_t(q)], 1)))
-                price = price * (sell ? np.qsell[std::size_t(q)] : np.qbuy[std::size_t(q)]) / 1024;
+    for (const auto& socketed : item.socketed_items)
+        if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
+    if (sell && item.ethereal) price /= 4;
+    const auto price_row = tables.npc_prices.find(npc_id);
+    const int diff = header.active_difficulty();
+    if (price_row != tables.npc_prices.end()) {
+        const auto& prices = price_row->second;
+        price = price * (sell ? prices.sell : prices.buy) / 1024;
+        for (int quest = 0; quest < 3; ++quest)
+            if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
+                price = price * (sell ? prices.qsell[std::size_t(quest)] : prices.qbuy[std::size_t(quest)]) / 1024;
     }
-    if (it.quantity > 1 && !(b != t.item_base.end() && b->second.stackable)) price *= it.quantity;
-    if (sell && p != t.npc_prices.end()) price = std::min<long long>(price, p->second.max_buy[std::size_t(diff)]);
+    if (item.quantity > 1 && !(found != tables.item_base.end() && found->second.stackable)) price *= item.quantity;
+    if (sell && price_row != tables.npc_prices.end()) price = std::min<long long>(price, price_row->second.max_buy[std::size_t(diff)]);
     return int(std::max<long long>(price, 1));
 }
 
 // An item's max durability with its modifiers: the save's base, plus
 // flat maxdurability (stat 73), times item_maxdurability_percent (75).
-inline int max_durability(const d2d::d2s::Item& it) {
+inline int max_durability(const d2d::d2s::Item& item) {
     int flat = 0, pct = 0;
-    for (const auto& p : it.props) {
-        if (p.stat == 73) flat += int(p.value);
-        if (p.stat == 75) pct += int(p.value);
+    for (const auto& prop : item.props) {
+        if (prop.stat == 73) flat += int(prop.value);
+        if (prop.stat == 75) pct += int(prop.value);
     }
-    return (it.max_durability + flat) * (100 + pct) / 100;
+    return (item.max_durability + flat) * (100 + pct) / 100;
 }
 // item_indesctructible (stat 152): never wears, never needs repair.
-inline bool indestructible(const d2d::d2s::Item& it) {
-    return std::ranges::any_of(it.props, [](const auto& p) { return p.stat == 152 && p.value; });
+inline bool indestructible(const d2d::d2s::Item& item) {
+    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == 152 && prop.value; });
 }
 
 // Repair cost at the NPC (FUN_0062efb0 mode 3): the buy base with its
@@ -319,103 +319,103 @@ inline bool indestructible(const d2d::d2s::Item& it) {
 // and the quest rep mults / 1024; 0 when there's nothing to repair.
 // Ethereal items can't be repaired.
 // ponytail: no charge recharging, no socket or "reduced prices" terms.
-inline int repair_cost(const Tables& t, const d2d::d2s::Item& it, const std::string& npc_id, const d2d::d2s::Header& h) {
-    const int max = max_durability(it);
-    if (it.max_durability <= 0 || it.durability >= max || it.ethereal || indestructible(it)) return 0;
-    const auto b = t.item_base.find(it.code);
-    const int base = b != t.item_base.end() ? b->second.cost : 0;
-    auto extra = [&](const std::vector<std::pair<int, int>>& c, int i) {
-        if (i < 0 || std::size_t(i) >= c.size()) return 0;
-        const auto [mul, add] = c[std::size_t(i)];
+inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header) {
+    const int max = max_durability(item);
+    if (item.max_durability <= 0 || item.durability >= max || item.ethereal || indestructible(item)) return 0;
+    const auto found = tables.item_base.find(item.code);
+    const int base = found != tables.item_base.end() ? found->second.cost : 0;
+    auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
+        if (index < 0 || std::size_t(index) >= costs.size()) return 0;
+        const auto [mul, add] = costs[std::size_t(index)];
         return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
     long long x = base;
-    switch (it.quality) {
+    switch (item.quality) {
         case 1: x -= base / 2; break;
-        case 4: x += extra(t.prefix_cost, it.prefix) + extra(t.suffix_cost, it.suffix); break;
-        case 5: x += extra(t.set_cost, it.set_id); break;
-        case 7: x += extra(t.unique_cost, it.unique_id); break;
+        case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
+        case 5: x += extra(tables.set_cost, item.set_id); break;
+        case 7: x += extra(tables.unique_cost, item.unique_id); break;
         case 6: case 8:
-            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? t.prefix_cost : t.suffix_cost, it.affixes[std::size_t(i)]);
+            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
             break;
         default: break;
     }
-    long long cost = (max - it.durability) * x / max;
-    if (const auto p = t.npc_prices.find(npc_id); p != t.npc_prices.end()) {
-        const auto& np = p->second;
-        cost = cost * np.rep / 1024;
-        const int diff = h.active_difficulty();
-        for (int q = 0; q < 3; ++q)
-            if (np.qflag[std::size_t(q)] && (h.quest_flag(diff, np.qflag[std::size_t(q)], 0) || h.quest_flag(diff, np.qflag[std::size_t(q)], 1)))
-                cost = cost * np.qrep[std::size_t(q)] / 1024;
+    long long cost = (max - item.durability) * x / max;
+    if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
+        const auto& prices = price_row->second;
+        cost = cost * prices.rep / 1024;
+        const int diff = header.active_difficulty();
+        for (int quest = 0; quest < 3; ++quest)
+            if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
+                cost = cost * prices.qrep[std::size_t(quest)] / 1024;
     }
     return int(std::max<long long>(cost, 1));
 }
 
 // Repairs item i (gold first from the inventory, then the stash, as a
 // buy). False if it's whole or you can't pay.
-inline bool store_repair(const Tables& t, const Store& st, d2d::d2s::Item& it, d2d::d2s::Stats& stats) {
-    const int cost = repair_cost(t, it, st.npc_id, st.header);
+inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
+    const int cost = repair_cost(tables, item, store.npc_id, store.header);
     if (cost <= 0 || stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
-    stats.v[d2d::d2s::kGold] -= from_inv;
-    stats.v[d2d::d2s::kGoldBank] -= cost - from_inv;
-    it.durability = max_durability(it);
+    stats.values[d2d::d2s::kGold] -= from_inv;
+    stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
+    item.durability = max_durability(item);
     return true;
 }
 
 // Repair all: every worn or carried item, in list order, while the gold lasts.
-inline int store_repair_all(const Tables& t, const Store& st, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    int n = 0;
-    for (auto& it : items)
-        if (it.location == 1 || (it.location == 0 && it.panel == 1)) n += store_repair(t, st, it, stats);
-    return n;
+inline int store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    int repaired = 0;
+    for (auto& item : items)
+        if (item.location == 1 || (item.location == 0 && item.panel == 1)) repaired += store_repair(tables, store, item, stats);
+    return repaired;
 }
 
 // Buys stock item i of the open tab into the inventory (10x4): gold
 // down by the price, the item leaves the stock unless it's a perm one.
 // False if it doesn't fit or you can't afford it.
 // ponytail: no "not enough gold"/"no room" message, no stacks or quantity.
-inline bool store_buy(const Tables& t, Store& st, int i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    auto& tab = st.tabs[std::size_t(st.tab)];
-    const auto& it = tab[std::size_t(i)];
-    const int price = item_price(t, it, st.npc_id, false, st.header);
+inline bool store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    auto& tab = store.tabs[std::size_t(store.tab)];
+    const auto& item = tab[std::size_t(index)];
+    const int price = item_price(tables, item, store.npc_id, false, store.header);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
-    const auto [w, h] = item_size(t, it.code);
-    const auto [x, y] = free_spot(t, inv, 10, 4, w, h);
+    const auto [width, height] = item_size(tables, item.code);
+    const auto [x, y] = free_spot(tables, inv, 10, 4, width, height);
     if (x < 0) return false;
-    auto bought = it;
+    auto bought = item;
     bought.column = x; bought.row = y; bought.location = 0; bought.panel = 1;
     items.push_back(std::move(bought));
     // Carried gold first, then the stash (the store shows it for that).
     // ponytail: that order is a guess; the server's buy isn't RE'd.
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
-    stats.v[d2d::d2s::kGold] -= from_inv;
-    stats.v[d2d::d2s::kGoldBank] -= price - from_inv;
-    if (std::ranges::find(st.perm, it.code) == st.perm.end()) tab.erase(tab.begin() + i);
+    stats.values[d2d::d2s::kGold] -= from_inv;
+    stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
+    if (std::ranges::find(store.perm, item.code) == store.perm.end()) tab.erase(tab.begin() + index);
     return true;
 }
 
 // Sells inventory item i: gold up by the sell value (carried gold caps
 // at clvl x 10000), the item joins the stock.
 // ponytail: quest items aren't refused, no belt/equipped selling.
-inline void store_sell(const Tables& t, Store& st, std::size_t i, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    const int price = item_price(t, items[i], st.npc_id, true, st.header);
-    stats.v[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
+inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    const int price = item_price(tables, items[index], store.npc_id, true, store.header);
+    stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
                                                        stats.get(d2d::d2s::kLevel) * 10000);
-    store_place(t, st, store_tab_for(t, items[i].code), items[i]);
-    items.erase(items.begin() + std::ptrdiff_t(i));
+    store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);
+    items.erase(items.begin() + std::ptrdiff_t(index));
 }
 
 // Is type t (or one of its Equiv ancestors) the type want?
-inline bool type_is(const Tables& t, const std::string& type, std::string_view want, int depth = 0) {
+inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0) {
     if (type.empty() || depth > 8) return false;
     if (type == want) return true;
-    const auto e = t.types.find(type);
-    return e != t.types.end()
-        && (type_is(t, e->second.equiv[0], want, depth + 1) || type_is(t, e->second.equiv[1], want, depth + 1));
+    const auto found = tables.types.find(type);
+    return found != tables.types.end()
+        && (type_is(tables, found->second.equiv[0], want, depth + 1) || type_is(tables, found->second.equiv[1], want, depth + 1));
 }
 
 // BodyLocs.txt codes -> body slot (d2s slot numbering: 1 head .. 10 gloves).
@@ -428,12 +428,12 @@ inline int body_slot(std::string_view code) {
 
 // The class code (ama, sor, nec, pal, bar, dru, ass) an item type is
 // restricted to, "" for anyone: ItemTypes Class along the Equiv chain.
-inline std::string type_class(const Tables& t, const std::string& type, int depth = 0) {
-    const auto e = t.types.find(type);
-    if (e == t.types.end() || depth > 8) return {};
-    if (!e->second.cls.empty()) return e->second.cls;
-    for (const auto& q : e->second.equiv)
-        if (auto c = type_class(t, q, depth + 1); !c.empty()) return c;
+inline std::string type_class(const Tables& tables, const std::string& type, int depth = 0) {
+    const auto found = tables.types.find(type);
+    if (found == tables.types.end() || depth > 8) return {};
+    if (!found->second.cls.empty()) return found->second.cls;
+    for (const auto& equivalent : found->second.equiv)
+        if (auto class_code = type_class(tables, equivalent, depth + 1); !class_code.empty()) return class_code;
     return {};
 }
 
@@ -443,45 +443,45 @@ inline constexpr std::string_view kClassCode[7] = { "ama", "sor", "nec", "pal", 
 // strength, dexterity and level.
 struct Wearer { int cls = 0, str = 0, dex = 0, lvl = 1; };
 
-inline const ItemInfo* info_of(const Tables& t, const d2d::d2s::Item& it) {
-    const auto i = t.item_info.find(it.code);
-    return i != t.item_info.end() ? &i->second : nullptr;
+inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_info.find(item.code);
+    return found != tables.item_info.end() ? &found->second : nullptr;
 }
 
 // Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat
 // and level requirements), ignoring what's already equipped?
 // ponytail: base requirements only; ethereal/"requirements -x%" and the
 // unique/set level requirements aren't applied.
-inline bool can_wear(const Tables& t, const d2d::d2s::Item& it, int slot, const Wearer& w) {
-    const auto* info = info_of(t, it);
+inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer) {
+    const auto* info = info_of(tables, item);
     if (!info) return false;
-    const auto ty = t.types.find(info->type);
-    if (ty == t.types.end() || slot < 1 || (ty->second.body[0] != slot && ty->second.body[1] != slot)) return false;
-    if (const auto c = type_class(t, info->type); !c.empty() && (w.cls < 0 || w.cls > 6 || c != kClassCode[std::size_t(w.cls)]))
+    const auto found = tables.types.find(info->type);
+    if (found == tables.types.end() || slot < 1 || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
+    if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
         return false;
-    return w.str >= info->req_str && w.dex >= info->req_dex && w.lvl >= info->req_lvl;
+    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= info->req_lvl;
 }
 
 // A two-handed weapon fills both hands (a Barbarian swings 1or2handed
 // ones in one); only a quiver can join it.
-inline bool blocks_other_hand(const Tables& t, const d2d::d2s::Item& it, const Wearer& w) {
-    const auto* info = info_of(t, it);
-    return info && info->two_handed && !(w.cls == 4 && info->one_or_two);
+inline bool blocks_other_hand(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer) {
+    const auto* info = info_of(tables, item);
+    return info && info->two_handed && !(wearer.cls == 4 && info->one_or_two);
 }
 
 // Can a and b be held in the two hands together? Weapon + shield or
 // quiver; two weapons only for a Barbarian (or an Assassin's two claws);
 // a two-hander only with a quiver.
-inline bool hands_ok(const Tables& t, const d2d::d2s::Item& a, const d2d::d2s::Item& b, const Wearer& w) {
-    const auto* ia = info_of(t, a);
-    const auto* ib = info_of(t, b);
-    if (!ia || !ib) return false;
-    const bool qa = type_is(t, ia->type, "misl"), qb = type_is(t, ib->type, "misl");
-    if (blocks_other_hand(t, a, w)) return qb;
-    if (blocks_other_hand(t, b, w)) return qa;
-    const bool wa = type_is(t, ia->type, "weap"), wb = type_is(t, ib->type, "weap");
-    if (wa && wb) return w.cls == 4 || (w.cls == 6 && type_is(t, ia->type, "h2h") && type_is(t, ib->type, "h2h"));
-    return wa != wb;
+inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2d::d2s::Item& second, const Wearer& wearer) {
+    const auto* first_info = info_of(tables, first);
+    const auto* second_info = info_of(tables, second);
+    if (!first_info || !second_info) return false;
+    const bool first_quiver = type_is(tables, first_info->type, "misl"), second_quiver = type_is(tables, second_info->type, "misl");
+    if (blocks_other_hand(tables, first, wearer)) return second_quiver;
+    if (blocks_other_hand(tables, second, wearer)) return first_quiver;
+    const bool first_weapon = type_is(tables, first_info->type, "weap"), second_weapon = type_is(tables, second_info->type, "weap");
+    if (first_weapon && second_weapon) return wearer.cls == 4 || (wearer.cls == 6 && type_is(tables, first_info->type, "h2h") && type_is(tables, second_info->type, "h2h"));
+    return first_weapon != second_weapon;
 }
 
 // The item cursor. D2 moves one item at a time: picking up takes it out
@@ -492,17 +492,17 @@ inline bool hands_ok(const Tables& t, const d2d::d2s::Item& a, const d2d::d2s::I
 
 // Put `held` into a stored grid (location 0; panel 1 inventory, 4 cube,
 // 5 stash) with its top-left cell at (col, row).
-inline bool put_in_grid(const Tables& t, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
+inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                         int panel, int cols, int rows, int col, int row) {
     if (!held || (panel == 4 && held->code == "box")) return false;   // the cube can't go in itself
-    const auto [w, h] = item_size(t, held->code);
-    if (col < 0 || row < 0 || col + w > cols || row + h > rows) return false;
+    const auto [width, height] = item_size(tables, held->code);
+    if (col < 0 || row < 0 || col + width > cols || row + height > rows) return false;
     int hit = -1;
     for (std::size_t i = 0; i < items.size(); ++i) {
-        const auto& it = items[i];
-        if (it.location != 0 || it.panel != panel) continue;
-        const auto [iw, ih] = item_size(t, it.code);
-        if (it.column < col + w && col < it.column + iw && it.row < row + h && row < it.row + ih) {
+        const auto& placed_item = items[i];
+        if (placed_item.location != 0 || placed_item.panel != panel) continue;
+        const auto [item_width, item_height] = item_size(tables, placed_item.code);
+        if (placed_item.column < col + width && col < placed_item.column + item_width && placed_item.row < row + height && row < placed_item.row + item_height) {
             if (hit >= 0) return false;
             hit = int(i);
         }
@@ -521,17 +521,17 @@ inline bool put_in_grid(const Tables& t, std::vector<d2d::d2s::Item>& items, std
 // non-Barbarian) — as long as only one item comes off in all.
 // ponytail: that displacing is the D2 behaviour for two-handers; for the
 // second-weapon case it isn't checked against game.exe yet.
-inline bool equip(const Tables& t, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                  int slot, const Wearer& w) {
-    if (!held || !can_wear(t, *held, slot, w)) return false;
+inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
+                  int slot, const Wearer& wearer) {
+    if (!held || !can_wear(tables, *held, slot, wearer)) return false;
     const bool hand = slot == 4 || slot == 5;
     const int other = hand ? 9 - slot : 0;
     int off = -1;                                      // the item coming off
     for (std::size_t i = 0; i < items.size(); ++i) {
-        const auto& it = items[i];
-        if (it.location != 1) continue;
-        const bool comes_off = it.slot == slot
-            || (hand && it.slot == other && !hands_ok(t, *held, it, w));
+        const auto& worn = items[i];
+        if (worn.location != 1) continue;
+        const bool comes_off = worn.slot == slot
+            || (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer));
         if (!comes_off) continue;
         if (off >= 0) return false;
         off = int(i);
@@ -547,15 +547,15 @@ inline bool equip(const Tables& t, std::vector<d2d::d2s::Item>& items, std::opti
 // Put `held` in belt box `box` (0..boxes-1): potions, scrolls — ItemTypes
 // Beltable along the Equiv chain.
 // ponytail: swapping in a smaller belt doesn't check the rows it'd lose.
-inline bool put_in_belt(const Tables& t, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
+inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                         int box, int boxes) {
     if (!held || box < 0 || box >= boxes) return false;
-    const auto* info = info_of(t, *held);
+    const auto* info = info_of(tables, *held);
     if (!info) return false;
-    auto beltable = [&](auto&& self, const std::string& ty, int depth) -> bool {
-        const auto e = t.types.find(ty);
-        if (e == t.types.end() || depth > 8) return false;
-        return e->second.beltable || self(self, e->second.equiv[0], depth + 1) || self(self, e->second.equiv[1], depth + 1);
+    auto beltable = [&](auto&& self, const std::string& type, int depth) -> bool {
+        const auto found = tables.types.find(type);
+        if (found == tables.types.end() || depth > 8) return false;
+        return found->second.beltable || self(self, found->second.equiv[0], depth + 1) || self(self, found->second.equiv[1], depth + 1);
     };
     if (!beltable(beltable, info->type, 0)) return false;
     auto put = std::move(*held);
@@ -583,19 +583,19 @@ struct ClassGains {
 // mana, current and max (8.8 fixed: a quarter point is 64). Returns the
 // points spent.
 // ponytail: the server's handler isn't traced; gains are CharStats'.
-inline int spend_stat_points(d2d::d2s::Stats& st, int stat, int n, const ClassGains& g) {
+inline int spend_stat_points(d2d::d2s::Stats& stats, int stat, int count, const ClassGains& gains) {
     using namespace d2d::d2s;
-    n = int(std::min<std::int64_t>(n, st.get(kStatPts)));
-    if (n <= 0 || stat < 0 || stat > 3) return 0;
-    st.v[std::size_t(stat)] += n;
-    st.v[kStatPts] -= n;
+    count = int(std::min<std::int64_t>(count, stats.get(kStatPts)));
+    if (count <= 0 || stat < 0 || stat > 3) return 0;
+    stats.values[std::size_t(stat)] += count;
+    stats.values[kStatPts] -= count;
     auto both = [&](int cur, int max, int quarters) {
-        st.v[std::size_t(cur)] += std::int64_t(quarters) * 64 * n;
-        st.v[std::size_t(max)] += std::int64_t(quarters) * 64 * n;
+        stats.values[std::size_t(cur)] += std::int64_t(quarters) * 64 * count;
+        stats.values[std::size_t(max)] += std::int64_t(quarters) * 64 * count;
     };
-    if (stat == kVit) { both(kLife, kMaxLife, g.life_per_vit); both(kStamina, kMaxStamina, g.stamina_per_vit); }
-    if (stat == kEne) both(kMana, kMaxMana, g.mana_per_energy);
-    return n;
+    if (stat == kVit) { both(kLife, kMaxLife, gains.life_per_vit); both(kStamina, kMaxStamina, gains.stamina_per_vit); }
+    if (stat == kEne) both(kMana, kMaxMana, gains.mana_per_energy);
+    return count;
 }
 
 // Akara's Reset Stat/Skill Points (FUN_00570360, FUN_00570c80): every
@@ -604,20 +604,20 @@ inline int spend_stat_points(d2d::d2s::Stats& st, int stat, int n, const ClassGa
 // in stat order), the difference to or from stat 4; energy and vitality
 // take their mana / life and stamina max with them (current too when they
 // rise, else clamped to the new max).
-inline void respec(d2d::d2s::Stats& st, const std::array<int, 4>& base, const ClassGains& g) {
+inline void respec(d2d::d2s::Stats& stats, const std::array<int, 4>& base, const ClassGains& gains) {
     using namespace d2d::d2s;
-    for (auto& lv : st.skills) { st.v[kSkillPts] += lv; lv = 0; }
+    for (auto& skill_level : stats.skills) { stats.values[kSkillPts] += skill_level; skill_level = 0; }
     for (int stat = 0; stat < 4; ++stat) {
-        const std::int64_t d = base[std::size_t(stat)] - st.v[std::size_t(stat)];
-        st.v[kStatPts] -= d;
-        st.v[std::size_t(stat)] += d;
+        const std::int64_t delta = base[std::size_t(stat)] - stats.values[std::size_t(stat)];
+        stats.values[kStatPts] -= delta;
+        stats.values[std::size_t(stat)] += delta;
         auto pool = [&](int cur, int max, int quarters) {
-            st.v[std::size_t(max)] += std::int64_t(quarters) * d * 64;
-            if (d > 0) st.v[std::size_t(cur)] += std::int64_t(quarters) * d * 64;
-            st.v[std::size_t(cur)] = std::min(st.v[std::size_t(cur)], st.v[std::size_t(max)]);
+            stats.values[std::size_t(max)] += std::int64_t(quarters) * delta * 64;
+            if (delta > 0) stats.values[std::size_t(cur)] += std::int64_t(quarters) * delta * 64;
+            stats.values[std::size_t(cur)] = std::min(stats.values[std::size_t(cur)], stats.values[std::size_t(max)]);
         };
-        if (stat == kEne) pool(kMana, kMaxMana, g.mana_per_energy);
-        if (stat == kVit) { pool(kLife, kMaxLife, g.life_per_vit); pool(kStamina, kMaxStamina, g.stamina_per_vit); }
+        if (stat == kEne) pool(kMana, kMaxMana, gains.mana_per_energy);
+        if (stat == kVit) { pool(kLife, kMaxLife, gains.life_per_vit); pool(kStamina, kMaxStamina, gains.stamina_per_vit); }
     }
 }
 
@@ -625,19 +625,19 @@ inline void respec(d2d::d2s::Stats& st, const std::array<int, 4>& base, const Cl
 // character level, and every prerequisite learned? (FUN_004ac200 greys
 // out the icons that can't.)
 // ponytail: base levels; +skills from items don't count toward anything.
-inline bool can_learn(const Tables& t, int cls, int i, const std::array<std::uint8_t, 30>& lv, int clvl) {
-    if (cls < 0 || cls > 6 || i < 0 || std::size_t(i) >= t.class_skills[std::size_t(cls)].size()) return false;
-    const auto& sk = t.class_skills[std::size_t(cls)][std::size_t(i)];
-    if (lv[std::size_t(i)] >= sk.max_level || clvl < sk.req_level) return false;
-    for (const int r : sk.req) if (r >= 0 && lv[std::size_t(r)] == 0) return false;
+inline bool can_learn(const Tables& tables, int cls, int skill_index, const std::array<std::uint8_t, 30>& levels, int clvl) {
+    if (cls < 0 || cls > 6 || skill_index < 0 || std::size_t(skill_index) >= tables.class_skills[std::size_t(cls)].size()) return false;
+    const auto& class_skill = tables.class_skills[std::size_t(cls)][std::size_t(skill_index)];
+    if (levels[std::size_t(skill_index)] >= class_skill.max_level || clvl < class_skill.req_level) return false;
+    for (const int required : class_skill.req) if (required >= 0 && levels[std::size_t(required)] == 0) return false;
     return true;
 }
 
 // Spends a skill point (stat 5) on skill i. Returns whether it did.
-inline bool learn_skill(const Tables& t, int cls, int i, std::array<std::uint8_t, 30>& lv, d2d::d2s::Stats& st) {
-    if (st.get(d2d::d2s::kSkillPts) <= 0 || !can_learn(t, cls, i, lv, int(st.get(d2d::d2s::kLevel)))) return false;
-    ++lv[std::size_t(i)];
-    --st.v[d2d::d2s::kSkillPts];
+inline bool learn_skill(const Tables& tables, int cls, int skill_index, std::array<std::uint8_t, 30>& levels, d2d::d2s::Stats& stats) {
+    if (stats.get(d2d::d2s::kSkillPts) <= 0 || !can_learn(tables, cls, skill_index, levels, int(stats.get(d2d::d2s::kLevel)))) return false;
+    ++levels[std::size_t(skill_index)];
+    --stats.values[d2d::d2s::kSkillPts];
     return true;
 }
 
@@ -650,17 +650,17 @@ inline bool learn_skill(const Tables& t, int cls, int i, std::array<std::uint8_t
 inline bool is_healer(int hc_idx) {
     return hc_idx == 148 || hc_idx == 178 || hc_idx == 255 || hc_idx == 405 || hc_idx == 513;
 }
-inline void heal(d2d::d2s::Stats& st) {
+inline void heal(d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;
-    st.v[kLife] = std::max(st.v[kLife], st.v[kMaxLife]);
-    st.v[kMana] = std::max(st.v[kMana], st.v[kMaxMana]);
+    stats.values[kLife] = std::max(stats.values[kLife], stats.values[kMaxLife]);
+    stats.values[kMana] = std::max(stats.values[kMana], stats.values[kMaxMana]);
 }
 
 // Pick up item i into the (empty) cursor.
-inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held, std::size_t i) {
-    if (held || i >= items.size()) return false;
-    held = std::move(items[i]);
-    items.erase(items.begin() + std::ptrdiff_t(i));
+inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held, std::size_t index) {
+    if (held || index >= items.size()) return false;
+    held = std::move(items[index]);
+    items.erase(items.begin() + std::ptrdiff_t(index));
     return true;
 }
 
@@ -672,33 +672,33 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
 // 21 class skills, 22 single skill.
 // ponytail: 12 (random skill), 18 (by time), 23, 24 (monster type) and
 // 36 are dropped; sockets (14) and ethereal (23) aren't set on the item.
-inline void apply_mod(const Tables& t, const Mod& m, std::vector<d2d::d2s::ItemProp>& out, Rng& rng) {
-    const auto pf = t.properties.find(m.code);
-    if (pf == t.properties.end()) return;
-    auto skill = [&](const std::string& s) {
-        if (!s.empty() && s[0] >= '0' && s[0] <= '9') return std::atoi(s.c_str());
-        const auto i = t.skill_id.find(s);
-        return i != t.skill_id.end() ? i->second : 0;
+inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng) {
+    const auto found = tables.properties.find(mod.code);
+    if (found == tables.properties.end()) return;
+    auto skill = [&](const std::string& name) {
+        if (!name.empty() && name[0] >= '0' && name[0] <= '9') return std::atoi(name.c_str());
+        const auto skill_found = tables.skill_id.find(name);
+        return skill_found != tables.skill_id.end() ? skill_found->second : 0;
     };
-    const int par = m.param.empty() ? 0 : (m.param[0] >= '0' && m.param[0] <= '9') || m.param[0] == '-'
-                                               ? std::atoi(m.param.c_str()) : skill(m.param);
-    int v = rng.range(std::min(m.min, m.max), std::max(m.min, m.max)), last = v;
-    for (const auto& f : pf->second) {
-        switch (f.func) {
-            case 1: case 2: case 8: if (f.stat >= 0) out.push_back({ f.stat, par, v }); last = v; break;
-            case 3: if (f.stat >= 0) out.push_back({ f.stat, par, last }); break;
-            case 5: out.push_back({ 21, 0, v }); break;
-            case 6: out.push_back({ 22, 0, v }); break;
-            case 7: out.push_back({ 17, 0, v }); out.push_back({ 18, 0, v }); break;
-            case 10: if (f.stat >= 0) out.push_back({ f.stat, (par / 3) << 3 | (par % 3), v }); break;
-            case 11: if (f.stat >= 0) out.push_back({ f.stat, (m.max & 63) | skill(m.param) << 6, m.min }); break;
-            case 15: if (f.stat >= 0) out.push_back({ f.stat, 0, m.min }); break;
-            case 16: if (f.stat >= 0) out.push_back({ f.stat, 0, m.max }); break;
-            case 17: if (f.stat >= 0) out.push_back({ f.stat, 0, par }); break;
-            case 19: if (f.stat >= 0) out.push_back({ f.stat, (m.max & 63) | skill(m.param) << 6, m.min | m.min << 8 }); break;
-            case 20: if (f.stat >= 0) out.push_back({ f.stat, 0, 1 }); break;
-            case 21: if (f.stat >= 0) out.push_back({ f.stat, f.val, v }); break;
-            case 22: if (f.stat >= 0) out.push_back({ f.stat, skill(m.param), v }); break;
+    const int par = mod.param.empty() ? 0 : (mod.param[0] >= '0' && mod.param[0] <= '9') || mod.param[0] == '-'
+                                               ? std::atoi(mod.param.c_str()) : skill(mod.param);
+    int value = rng.range(std::min(mod.min, mod.max), std::max(mod.min, mod.max)), last = value;
+    for (const auto& property_func : found->second) {
+        switch (property_func.func) {
+            case 1: case 2: case 8: if (property_func.stat >= 0) out.push_back({ property_func.stat, par, value }); last = value; break;
+            case 3: if (property_func.stat >= 0) out.push_back({ property_func.stat, par, last }); break;
+            case 5: out.push_back({ 21, 0, value }); break;
+            case 6: out.push_back({ 22, 0, value }); break;
+            case 7: out.push_back({ 17, 0, value }); out.push_back({ 18, 0, value }); break;
+            case 10: if (property_func.stat >= 0) out.push_back({ property_func.stat, (par / 3) << 3 | (par % 3), value }); break;
+            case 11: if (property_func.stat >= 0) out.push_back({ property_func.stat, (mod.max & 63) | skill(mod.param) << 6, mod.min }); break;
+            case 15: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, mod.min }); break;
+            case 16: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, mod.max }); break;
+            case 17: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, par }); break;
+            case 19: if (property_func.stat >= 0) out.push_back({ property_func.stat, (mod.max & 63) | skill(mod.param) << 6, mod.min | mod.min << 8 }); break;
+            case 20: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, 1 }); break;
+            case 21: if (property_func.stat >= 0) out.push_back({ property_func.stat, property_func.val, value }); break;
+            case 22: if (property_func.stat >= 0) out.push_back({ property_func.stat, skill(mod.param), value }); break;
             default: break;
         }
     }
@@ -714,23 +714,23 @@ inline int affix_level(int ilvl, int qlvl) {
 
 // A random affix row for an item of `type` at affix level alvl, weighted
 // by frequency; skips groups already taken. 0 = none fits.
-inline int pick_affix(const Tables& t, const std::vector<Affix>& list, const std::string& type, int alvl, bool rare,
+inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, const std::string& type, int alvl, bool rare,
                       const std::vector<int>& groups, Rng& rng) {
     std::vector<std::pair<int, int>> ok;                   // (row, frequency)
     int total = 0;
-    for (std::size_t r = 1; r < list.size(); ++r) {
-        const auto& a = list[r];
-        if (!a.spawnable || a.frequency <= 0 || a.level > alvl || (a.max_level > 0 && a.max_level < alvl) || (rare && !a.rare))
+    for (std::size_t row = 1; row < list.size(); ++row) {
+        const auto& affix = list[row];
+        if (!affix.spawnable || affix.frequency <= 0 || affix.level > alvl || (affix.max_level > 0 && affix.max_level < alvl) || (rare && !affix.rare))
             continue;
-        if (std::ranges::find(groups, a.group) != groups.end()) continue;
-        if (std::ranges::none_of(a.itypes, [&](const auto& it) { return type_is(t, type, it); })) continue;
-        if (std::ranges::any_of(a.etypes, [&](const auto& et) { return type_is(t, type, et); })) continue;
-        ok.push_back({ int(r), a.frequency });
-        total += a.frequency;
+        if (std::ranges::find(groups, affix.group) != groups.end()) continue;
+        if (std::ranges::none_of(affix.itypes, [&](const auto& item_type) { return type_is(tables, type, item_type); })) continue;
+        if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
+        ok.push_back({ int(row), affix.frequency });
+        total += affix.frequency;
     }
     if (ok.empty()) return 0;
     int roll = rng(total);
-    for (auto [r, f] : ok) { if (roll < f) return r; roll -= f; }
+    for (auto [affix_row, frequency] : ok) { if (roll < frequency) return affix_row; roll -= frequency; }
     return ok.back().first;
 }
 
@@ -740,106 +740,106 @@ inline int pick_affix(const Tables& t, const std::vector<Affix>& list, const std
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
 // prefix, 1/4 suffix, 1/2 both; unique/set picks weigh rarity but skip
 // the "nolimit"/one-per-game rules; no set bonus lists.
-inline d2d::d2s::Item generate_item(const Tables& t, const std::string& code, int ilvl, int quality, Rng& rng) {
-    d2d::d2s::Item it;
-    it.code = code;
-    it.identified = true;
-    it.ilvl = std::clamp(ilvl, 1, 99);
-    const auto* info = info_of(t, it);
-    const auto b = t.item_base.find(code);
-    const int qlvl = b != t.item_base.end() ? b->second.level : 1;
-    if (b != t.item_base.end()) {
-        if (info && info->kind == 1) it.defense = rng.range(b->second.minac, b->second.maxac);
-        if ((it.max_durability = b->second.durability) > 0) it.durability = it.max_durability;
+inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng) {
+    d2d::d2s::Item item;
+    item.code = code;
+    item.identified = true;
+    item.ilvl = std::clamp(ilvl, 1, 99);
+    const auto* info = info_of(tables, item);
+    const auto found = tables.item_base.find(code);
+    const int qlvl = found != tables.item_base.end() ? found->second.level : 1;
+    if (found != tables.item_base.end()) {
+        if (info && info->kind == 1) item.defense = rng.range(found->second.minac, found->second.maxac);
+        if ((item.max_durability = found->second.durability) > 0) item.durability = item.max_durability;
     }
     const std::string type = info ? info->type : std::string{};
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
     // their quantity. ponytail: superior items' own bonuses aren't rolled.
     if (quality <= 3) {
-        it.quality = std::max(quality, 1);
-        if (b != t.item_base.end() && b->second.stackable) it.quantity = rng.range(b->second.min_stack, b->second.max_stack);
-        return it;
+        item.quality = std::max(quality, 1);
+        if (found != tables.item_base.end() && found->second.stackable) item.quantity = rng.range(found->second.min_stack, found->second.max_stack);
+        return item;
     }
     auto special = [&](const std::vector<Special>& list) {
         int total = 0, pick = -1;
         for (std::size_t i = 0; i < list.size(); ++i)
-            if (list[i].enabled && list[i].code == code && list[i].level <= it.ilvl) total += std::max(1, list[i].rarity);
+            if (list[i].enabled && list[i].code == code && list[i].level <= item.ilvl) total += std::max(1, list[i].rarity);
         if (total == 0) return -1;
         int roll = rng(total);
         for (std::size_t i = 0; i < list.size() && pick < 0; ++i) {
-            if (!list[i].enabled || list[i].code != code || list[i].level > it.ilvl) continue;
+            if (!list[i].enabled || list[i].code != code || list[i].level > item.ilvl) continue;
             if (roll < std::max(1, list[i].rarity)) pick = int(i);
             else roll -= std::max(1, list[i].rarity);
         }
         return pick;
     };
     if (quality == 7 || quality == 5) {
-        const auto& list = quality == 7 ? t.uniques : t.sets;
-        if (const int i = special(list); i >= 0) {
-            it.quality = quality;
-            (quality == 7 ? it.unique_id : it.set_id) = i;
-            for (const auto& m : list[std::size_t(i)].mods) apply_mod(t, m, it.props, rng);
-            return it;
+        const auto& list = quality == 7 ? tables.uniques : tables.sets;
+        if (const int special_row = special(list); special_row >= 0) {
+            item.quality = quality;
+            (quality == 7 ? item.unique_id : item.set_id) = special_row;
+            for (const auto& mod : list[std::size_t(special_row)].mods) apply_mod(tables, mod, item.props, rng);
+            return item;
         }
         quality = 6;
     }
-    const int alvl = affix_level(it.ilvl, qlvl);
+    const int alvl = affix_level(item.ilvl, qlvl);
     std::vector<int> groups;
     auto add = [&](bool prefix) {
-        const auto& list = prefix ? t.prefixes : t.suffixes;
-        const int r = pick_affix(t, list, type, alvl, quality == 6, groups, rng);
-        if (r <= 0) return 0;
-        groups.push_back(list[std::size_t(r)].group);
-        for (const auto& m : list[std::size_t(r)].mods) apply_mod(t, m, it.props, rng);
-        return r;
+        const auto& list = prefix ? tables.prefixes : tables.suffixes;
+        const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng);
+        if (affix_row <= 0) return 0;
+        groups.push_back(list[std::size_t(affix_row)].group);
+        for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng);
+        return affix_row;
     };
     if (quality == 6) {
-        it.quality = 6;
-        it.rare1 = t.rare_prefixes > 0 ? 156 + rng(t.rare_prefixes) : 0;
-        it.rare2 = t.rare_suffixes > 0 ? 1 + rng(t.rare_suffixes) : 0;
-        const int n = 3 + rng(4);
-        for (int k = 0; k < n; ++k) {
+        item.quality = 6;
+        item.rare1 = tables.rare_prefixes > 0 ? 156 + rng(tables.rare_prefixes) : 0;
+        item.rare2 = tables.rare_suffixes > 0 ? 1 + rng(tables.rare_suffixes) : 0;
+        const int sockets = 3 + rng(4);
+        for (int k = 0; k < sockets; ++k) {
             const bool prefix = k % 2 == 0;
-            it.affixes[std::size_t(k / 2 * 2 + (prefix ? 0 : 1))] = add(prefix);
+            item.affixes[std::size_t(k / 2 * 2 + (prefix ? 0 : 1))] = add(prefix);
         }
-        return it;
+        return item;
     }
-    it.quality = 4;
+    item.quality = 4;
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
-    if (shape != 1) it.prefix = add(true);
-    if (shape != 0) it.suffix = add(false);
-    return it;
+    if (shape != 1) item.prefix = add(true);
+    if (shape != 0) item.suffix = add(false);
+    return item;
 }
 
 // Exceptional / elite upgrade weights out of 10000 for a gamble at clvl
 // (FUN_00629370): (clvl - qlvl) * 100 / 2 + 1 and * 100 / 4 + 1.
-inline std::pair<int, int> gamble_upgrade(const Tables& t, const std::string& code, int clvl) {
-    const auto b = t.item_base.find(code);
-    if (b == t.item_base.end()) return { 0, 0 };
-    auto w = [&](const std::string& c, int div) {
-        const auto u = t.item_base.find(c);
-        if (c.empty() || c == code || u == t.item_base.end()) return 0;
-        return std::max(0, (clvl - u->second.level) * 100 / div + 1);
+inline std::pair<int, int> gamble_upgrade(const Tables& tables, const std::string& code, int clvl) {
+    const auto found = tables.item_base.find(code);
+    if (found == tables.item_base.end()) return { 0, 0 };
+    auto weight = [&](const std::string& upgrade_code, int div) {
+        const auto upgrade_base = tables.item_base.find(upgrade_code);
+        if (upgrade_code.empty() || upgrade_code == code || upgrade_base == tables.item_base.end()) return 0;
+        return std::max(0, (clvl - upgrade_base->second.level) * 100 / div + 1);
     };
-    return { w(b->second.ubercode, 2), w(b->second.ultracode, 4) };
+    return { weight(found->second.ubercode, 2), weight(found->second.ultracode, 4) };
 }
 
 // Gheed's price for gambling on `code` (FUN_00629370): rings and amulets
 // cost their "gamble cost"; the rest mix the base, exceptional and elite
 // costs by upgrade odds and scale with character level.
-inline int gamble_price(const Tables& t, const std::string& code, int clvl) {
-    const auto b = t.item_base.find(code);
-    if (b == t.item_base.end()) return 0;
-    const auto& base = b->second;
+inline int gamble_price(const Tables& tables, const std::string& code, int clvl) {
+    const auto found = tables.item_base.find(code);
+    if (found == tables.item_base.end()) return 0;
+    const auto& base = found->second;
     if (code == "rin" || code == "amu") return base.gamble_cost;
-    const auto [pb, pu] = gamble_upgrade(t, code, clvl);
-    auto cost_of = [&](const std::string& c) { const auto u = t.item_base.find(c); return u != t.item_base.end() ? u->second.cost : 0; };
+    const auto [exceptional_chance, elite_chance] = gamble_upgrade(tables, code, clvl);
+    auto cost_of = [&](const std::string& upgrade_code) { const auto upgrade_base = tables.item_base.find(upgrade_code); return upgrade_base != tables.item_base.end() ? upgrade_base->second.cost : 0; };
     const long long stack = std::max(1, (base.min_stack + base.max_stack) / 2);
-    const int c = std::max(clvl, 5);
-    const long long mix = ((10000LL - pu - pb) * base.cost * stack + (long long)cost_of(base.ultracode) * pu
-                           + (long long)cost_of(base.ubercode) * pb) / 10000;
-    const long long lvl = ((std::max(base.level - 45, 0) - base.level / 2 + c) * 250) / 3;
-    return int((lvl + mix) * ((c * 2 + 1) / 3 + 20) / 15);
+    const int level = std::max(clvl, 5);
+    const long long mix = ((10000LL - elite_chance - exceptional_chance) * base.cost * stack + (long long)cost_of(base.ultracode) * elite_chance
+                           + (long long)cost_of(base.ubercode) * exceptional_chance) / 10000;
+    const long long lvl = ((std::max(base.level - 45, 0) - base.level / 2 + level) * 250) / 3;
+    return int((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15);
 }
 
 // Gambles on `code`: the base may upgrade (exceptional / elite, by the
@@ -847,60 +847,60 @@ inline int gamble_price(const Tables& t, const std::string& code, int clvl) {
 // unique / set / rare by DifficultyLevels odds per 100000, else magic.
 // ponytail: the server's gamble roll isn't traced; those are the table
 // odds and the price's upgrade weights.
-inline d2d::d2s::Item gamble_item(const Tables& t, const std::string& code, int clvl, int diff, Rng& rng) {
-    std::string c = code;
-    if (const auto b = t.item_base.find(code); b != t.item_base.end()) {
-        const auto [pb, pu] = gamble_upgrade(t, code, clvl);
-        const int r = rng(10000);
-        if (r < pu) c = b->second.ultracode;
-        else if (r < pu + pb) c = b->second.ubercode;
+inline d2d::d2s::Item gamble_item(const Tables& tables, const std::string& code, int clvl, int diff, Rng& rng) {
+    std::string chosen_code = code;
+    if (const auto found = tables.item_base.find(code); found != tables.item_base.end()) {
+        const auto [exceptional_chance, elite_chance] = gamble_upgrade(tables, code, clvl);
+        const int roll = rng(10000);
+        if (roll < elite_chance) chosen_code = found->second.ultracode;
+        else if (roll < elite_chance + exceptional_chance) chosen_code = found->second.ubercode;
     }
-    const auto& g = t.gamble_rates[std::size_t(std::clamp(diff, 0, 2))];
-    const int r = rng(100000);
-    const int q = r < g.unique ? 7 : r < g.unique + g.set ? 5 : r < g.unique + g.set + g.rare ? 6 : 4;
-    return generate_item(t, c, clvl - 5 + rng(10), q, rng);
+    const auto& rates = tables.gamble_rates[std::size_t(std::clamp(diff, 0, 2))];
+    const int roll = rng(100000);
+    const int quality = roll < rates.unique ? 7 : roll < rates.unique + rates.set ? 5 : roll < rates.unique + rates.set + rates.rare ? 6 : 4;
+    return generate_item(tables, chosen_code, clvl - 5 + rng(10), quality, rng);
 }
 
 // Gheed's gamble screen: every gamble.txt base up to the character's
 // level, packed like a store (armour, weapons, misc).
 // ponytail: the game shows a random subset and refreshes it; this shows
 // them all and keeps them.
-inline Store open_gamble(const Tables& t, std::string npc_id, int clvl) {
-    Store st;
-    st.npc_id = std::move(npc_id);
-    st.gamble = true;
-    for (const auto& code : t.gamble) {
-        const auto b = t.item_base.find(code);
-        if (b == t.item_base.end() || b->second.level > clvl) continue;
-        d2d::d2s::Item it;
-        it.code = code;
-        it.identified = true;
-        store_place(t, st, store_tab_for(t, code), std::move(it));
+inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl) {
+    Store store;
+    store.npc_id = std::move(npc_id);
+    store.gamble = true;
+    for (const auto& code : tables.gamble) {
+        const auto found = tables.item_base.find(code);
+        if (found == tables.item_base.end() || found->second.level > clvl) continue;
+        d2d::d2s::Item item;
+        item.code = code;
+        item.identified = true;
+        store_place(tables, store, store_tab_for(tables, code), std::move(item));
     }
-    for (int i = 0; i < 4; ++i) if (!st.tabs[std::size_t(i)].empty()) { st.tab = i; break; }
-    return st;
+    for (int i = 0; i < 4; ++i) if (!store.tabs[std::size_t(i)].empty()) { store.tab = i; break; }
+    return store;
 }
 
 // Gambles on stock item i of the open tab: pays the gamble price (carried
 // gold, then the stash) and puts the rolled item in the inventory. The
 // stock stays. False if it can't be paid for or doesn't fit.
-inline bool store_gamble(const Tables& t, Store& st, int i, std::vector<d2d::d2s::Item>& items,
+inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items,
                          d2d::d2s::Stats& stats, Rng& rng) {
-    const auto& code = st.tabs[std::size_t(st.tab)][std::size_t(i)].code;
+    const auto& code = store.tabs[std::size_t(store.tab)][std::size_t(index)].code;
     const int clvl = int(stats.get(d2d::d2s::kLevel));
-    const int price = gamble_price(t, code, clvl);
+    const int price = gamble_price(tables, code, clvl);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
-    auto it = gamble_item(t, code, clvl, st.header.active_difficulty(), rng);
+    auto item = gamble_item(tables, code, clvl, store.header.active_difficulty(), rng);
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
-    const auto [w, h] = item_size(t, it.code);
-    const auto [x, y] = free_spot(t, inv, 10, 4, w, h);
+    const auto [width, height] = item_size(tables, item.code);
+    const auto [x, y] = free_spot(tables, inv, 10, 4, width, height);
     if (x < 0) return false;
-    it.location = 0; it.panel = 1; it.column = x; it.row = y;
-    items.push_back(std::move(it));
+    item.location = 0; item.panel = 1; item.column = x; item.row = y;
+    items.push_back(std::move(item));
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
-    stats.v[d2d::d2s::kGold] -= from_inv;
-    stats.v[d2d::d2s::kGoldBank] -= price - from_inv;
+    stats.values[d2d::d2s::kGold] -= from_inv;
+    stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
     return true;
 }
 
@@ -919,29 +919,29 @@ struct MercOffer {
 //   (>= 10), cost = Gold * (15d + 100) / 100 (>= Gold), exp =
 //   (level + 1) * Exp/Lvl * level^2, def = Def + Def/Lvl * d, damage =
 //   Dmg-Min/Max + (Dmg/Lvl * d >> 3).
-inline std::optional<MercOffer> merc_offer(const Tables& t, bool expansion, int act, int diff, int clvl, Rng& rng) {
+inline std::optional<MercOffer> merc_offer(const Tables& tables, bool expansion, int act, int diff, int clvl, Rng& rng) {
     std::vector<const Hireling*> rows;
-    for (const auto& h : t.hirelings)
-        if (h.act == act + 1 && h.difficulty == diff + 1 && h.version == (expansion ? 100 : 0)
-            && (rows.empty() || h.level == rows.front()->level))
-            rows.push_back(&h);
+    for (const auto& hireling : tables.hirelings)
+        if (hireling.act == act + 1 && hireling.difficulty == diff + 1 && hireling.version == (expansion ? 100 : 0)
+            && (rows.empty() || hireling.level == rows.front()->level))
+            rows.push_back(&hireling);
     if (rows.empty()) return std::nullopt;
-    const auto& h = *rows[std::size_t(rng(int(rows.size())))];
-    MercOffer o;
-    o.id = h.id;
-    o.seed = std::uint32_t(rng(0x7fffffff)) | 1;
-    o.level = std::max(2, clvl - 5 + rng(5));
-    const int d = o.level - h.level;
-    o.life = std::max(40, h.hp + h.hp_per_level * d);
-    o.str = std::max(10, h.str + (h.str_per_level * d >> 3));
-    o.dex = std::max(10, h.dex + (h.dex_per_level * d >> 3));
-    o.cost = std::max(h.gold, h.gold * (d * 15 + 100) / 100);
-    o.exp = std::uint32_t(std::max<long long>(0, (long long)(o.level + 1) * h.exp_per_level * o.level * o.level));
-    o.def = std::max(0, h.def + h.def_per_level * d);
-    o.dmg_min = std::max(0, h.dmg_min + (h.dmg_per_level * d >> 3));
-    o.dmg_max = std::max(1, h.dmg_max + (h.dmg_per_level * d >> 3));
-    o.name = rng(std::max(1, h.names));
-    return o;
+    const auto& hireling = *rows[std::size_t(rng(int(rows.size())))];
+    MercOffer offer;
+    offer.id = hireling.id;
+    offer.seed = std::uint32_t(rng(0x7fffffff)) | 1;
+    offer.level = std::max(2, clvl - 5 + rng(5));
+    const int level_delta = offer.level - hireling.level;
+    offer.life = std::max(40, hireling.hit_points + hireling.hp_per_level * level_delta);
+    offer.str = std::max(10, hireling.str + (hireling.str_per_level * level_delta >> 3));
+    offer.dex = std::max(10, hireling.dex + (hireling.dex_per_level * level_delta >> 3));
+    offer.cost = std::max(hireling.gold, hireling.gold * (level_delta * 15 + 100) / 100);
+    offer.exp = std::uint32_t(std::max<long long>(0, (long long)(offer.level + 1) * hireling.exp_per_level * offer.level * offer.level));
+    offer.def = std::max(0, hireling.def + hireling.def_per_level * level_delta);
+    offer.dmg_min = std::max(0, hireling.dmg_min + (hireling.dmg_per_level * level_delta >> 3));
+    offer.dmg_max = std::max(1, hireling.dmg_max + (hireling.dmg_per_level * level_delta >> 3));
+    offer.name = rng(std::max(1, hireling.names));
+    return offer;
 }
 
 // The save's mercenary (hireling Id, experience) as it fights: its level
@@ -950,40 +950,40 @@ inline std::optional<MercOffer> merc_offer(const Tables& t, bool expansion, int 
 // level, and life / defence / damage / strength / dexterity grow from the
 // row like a hire offer's; attack rating is AR + AR/Lvl per level.
 // ponytail: items the merc wears aren't counted.
-struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, ar = 0; };
-inline MercStats merc_stats(const Tables& t, int id, std::uint32_t exp) {
-    MercStats m;
+struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0; };
+inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
+    MercStats merc;
     const Hireling* row = nullptr;
-    for (const auto& h : t.hirelings)
-        if (h.id == id && (!row || h.level < row->level)) row = &h;
-    if (!row) return m;
-    for (int l = 1; l < 99; ++l)
-        if ((long long)(l + 1) * row->exp_per_level * l * l <= (long long)exp) m.level = l;
-    for (const auto& h : t.hirelings)
-        if (h.id == id && h.level <= m.level && h.level > row->level) row = &h;
-    const auto& h = *row;
-    const int d = m.level - h.level;
-    m.life = std::max(40, h.hp + h.hp_per_level * d);
-    m.def = std::max(0, h.def + h.def_per_level * d);
-    m.dmg_min = std::max(0, h.dmg_min + (h.dmg_per_level * d >> 3));
-    m.dmg_max = std::max(m.dmg_min + 1, h.dmg_max + (h.dmg_per_level * d >> 3));
-    m.ar = std::max(1, h.ar + h.ar_per_level * d);
-    return m;
+    for (const auto& hireling : tables.hirelings)
+        if (hireling.id == id && (!row || hireling.level < row->level)) row = &hireling;
+    if (!row) return merc;
+    for (int level = 1; level < 99; ++level)
+        if ((long long)(level + 1) * row->exp_per_level * level * level <= (long long)exp) merc.level = level;
+    for (const auto& hireling : tables.hirelings)
+        if (hireling.id == id && hireling.level <= merc.level && hireling.level > row->level) row = &hireling;
+    const auto& hireling = *row;
+    const int level_delta = merc.level - hireling.level;
+    merc.life = std::max(40, hireling.hit_points + hireling.hp_per_level * level_delta);
+    merc.def = std::max(0, hireling.def + hireling.def_per_level * level_delta);
+    merc.dmg_min = std::max(0, hireling.dmg_min + (hireling.dmg_per_level * level_delta >> 3));
+    merc.dmg_max = std::max(merc.dmg_min + 1, hireling.dmg_max + (hireling.dmg_per_level * level_delta >> 3));
+    merc.attack_rating = std::max(1, hireling.attack_rating + hireling.ar_per_level * level_delta);
+    return merc;
 }
 
 // Hires `o`: pays its cost (carried gold, then the stash) and makes it
 // the save's mercenary. False if it can't be paid for.
-inline bool hire(const MercOffer& o, d2d::d2s::Header& h, d2d::d2s::Stats& st) {
+inline bool hire(const MercOffer& offer, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;
-    if (st.get(kGold) + st.get(kGoldBank) < o.cost) return false;
-    const auto from_inv = std::min<std::int64_t>(st.get(kGold), o.cost);
-    st.v[kGold] -= from_inv;
-    st.v[kGoldBank] -= o.cost - from_inv;
-    h.merc_dead = false;
-    h.merc_seed = o.seed;
-    h.merc_type = std::uint16_t(o.id);
-    h.merc_name = std::uint16_t(o.name);
-    h.merc_exp = o.exp;
+    if (stats.get(kGold) + stats.get(kGoldBank) < offer.cost) return false;
+    const auto from_inv = std::min<std::int64_t>(stats.get(kGold), offer.cost);
+    stats.values[kGold] -= from_inv;
+    stats.values[kGoldBank] -= offer.cost - from_inv;
+    header.merc_dead = false;
+    header.merc_seed = offer.seed;
+    header.merc_type = std::uint16_t(offer.id);
+    header.merc_name = std::uint16_t(offer.name);
+    header.merc_exp = offer.exp;
     return true;
 }
 
@@ -992,38 +992,38 @@ inline bool hire(const MercOffer& o, d2d::d2s::Header& h, d2d::d2s::Stats& st) {
 // a row. Returns its code, "" when there's no potion there.
 // A potion drunk from where it's carried: gone, and a belt one's column
 // moves down. Returns its code, "" if it isn't a potion.
-inline std::string drink_at(const Tables& t, std::vector<d2d::d2s::Item>& items, std::vector<d2d::d2s::Item>::iterator it) {
-    if (it == items.end() || !t.potions.contains(it->code) || it->location == 1) return {};
-    std::string code = it->code;
-    const int col = it->location == 2 ? it->column : -1;
-    items.erase(it);
+inline std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::vector<d2d::d2s::Item>::iterator potion) {
+    if (potion == items.end() || !tables.potions.contains(potion->code) || potion->location == 1) return {};
+    std::string code = potion->code;
+    const int col = potion->location == 2 ? potion->column : -1;
+    items.erase(potion);
     if (col >= 0)
         for (int box = col + 4; box < 16; box += 4)
-            for (auto& i : items) if (i.location == 2 && i.column == box) i.column = box - 4;
+            for (auto& item : items) if (item.location == 2 && item.column == box) item.column = box - 4;
     return code;
 }
-inline std::string drink_item(const Tables& t, std::vector<d2d::d2s::Item>& items, int id) {
-    return drink_at(t, items, std::ranges::find(items, id, &d2d::d2s::Item::id));
+inline std::string drink_item(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id) {
+    return drink_at(tables, items, std::ranges::find(items, id, &d2d::d2s::Item::id));
 }
-inline std::string drink_belt(const Tables& t, std::vector<d2d::d2s::Item>& items, int col) {
-    return drink_at(t, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& i) { return i.location == 2 && i.column == col; }));
+inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int col) {
+    return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == 2 && item.column == col; }));
 }
 
 // Cain's "Identify Items": the carried and worn ones. Returns how many.
 // ponytail: the server's scope isn't traced (stash and cube are left).
 inline int unidentified(const std::vector<d2d::d2s::Item>& items) {
-    return int(std::ranges::count_if(items, [](const auto& it) {
-        return !it.identified && (it.location == 1 || it.location == 2 || (it.location == 0 && it.panel == 1));
+    return int(std::ranges::count_if(items, [](const auto& item) {
+        return !item.identified && (item.location == 1 || item.location == 2 || (item.location == 0 && item.panel == 1));
     }));
 }
 inline int identify_all(std::vector<d2d::d2s::Item>& items) {
-    int n = 0;
-    for (auto& it : items)
-        if (!it.identified && (it.location == 1 || it.location == 2 || (it.location == 0 && it.panel == 1))) {
-            it.identified = true;
-            ++n;
+    int count = 0;
+    for (auto& item : items)
+        if (!item.identified && (item.location == 1 || item.location == 2 || (item.location == 0 && item.panel == 1))) {
+            item.identified = true;
+            ++count;
         }
-    return n;
+    return count;
 }
 
 // Pathing over subtiles for a unit that can't stand where blocked(x, y):
@@ -1033,40 +1033,40 @@ inline int identify_all(std::vector<d2d::d2s::Item>& items) {
 // reached (clicking a wall walks up to it); empty when already there.
 // ponytail: stands in for D2's pathing (Path.cpp), which isn't traced.
 template <class Blocked>
-std::vector<std::pair<int, int>> find_path(int sx, int sy, int gx, int gy, Blocked&& blocked, int max_nodes = 6000) {
+std::vector<std::pair<int, int>> find_path(int start_x, int start_y, int goal_x, int goal_y, Blocked&& blocked, int max_nodes = 6000) {
     using P = std::pair<int, int>;
     auto key = [](int x, int y) { return std::uint64_t(std::uint32_t(x)) << 32 | std::uint32_t(y); };
-    auto h = [&](int x, int y) {
-        const int dx = std::abs(x - gx), dy = std::abs(y - gy);
+    auto heuristic = [&](int x, int y) {
+        const int dx = std::abs(x - goal_x), dy = std::abs(y - goal_y);
         return 10 * std::max(dx, dy) + 4 * std::min(dx, dy);
     };
     std::unordered_map<std::uint64_t, std::pair<int, P>> seen;     // g, parent
     std::priority_queue<std::tuple<int, int, int, int>, std::vector<std::tuple<int, int, int, int>>, std::greater<>> open;
-    seen[key(sx, sy)] = { 0, { sx, sy } };
-    open.push({ h(sx, sy), 0, sx, sy });
-    P best{ sx, sy };
-    int best_h = h(sx, sy), expanded = 0;
+    seen[key(start_x, start_y)] = { 0, { start_x, start_y } };
+    open.push({ heuristic(start_x, start_y), 0, start_x, start_y });
+    P best{ start_x, start_y };
+    int best_h = heuristic(start_x, start_y), expanded = 0;
     while (!open.empty() && expanded < max_nodes) {
-        const auto [f, g, x, y] = open.top();
+        const auto [estimate, cost, x, y] = open.top();
         open.pop();
-        if (g > seen[key(x, y)].first) continue;
+        if (cost > seen[key(x, y)].first) continue;
         ++expanded;
-        if (h(x, y) < best_h) { best_h = h(x, y); best = { x, y }; }
-        if (x == gx && y == gy) break;
+        if (heuristic(x, y) < best_h) { best_h = heuristic(x, y); best = { x, y }; }
+        if (x == goal_x && y == goal_y) break;
         for (int dy = -1; dy <= 1; ++dy)
             for (int dx = -1; dx <= 1; ++dx) {
                 if (!dx && !dy) continue;
-                const int nx = x + dx, ny = y + dy;
-                if (blocked(nx, ny) || (dx && dy && (blocked(x + dx, y) || blocked(x, y + dy)))) continue;
-                const int ng = g + (dx && dy ? 14 : 10);
-                const auto k = key(nx, ny);
-                if (const auto it = seen.find(k); it != seen.end() && it->second.first <= ng) continue;
-                seen[k] = { ng, { x, y } };
-                open.push({ ng + h(nx, ny), ng, nx, ny });
+                const int next_x = x + dx, next_y = y + dy;
+                if (blocked(next_x, next_y) || (dx && dy && (blocked(x + dx, y) || blocked(x, y + dy)))) continue;
+                const int next_cost = cost + (dx && dy ? 14 : 10);
+                const auto next_key = key(next_x, next_y);
+                if (const auto found = seen.find(next_key); found != seen.end() && found->second.first <= next_cost) continue;
+                seen[next_key] = { next_cost, { x, y } };
+                open.push({ next_cost + heuristic(next_x, next_y), next_cost, next_x, next_y });
             }
     }
     std::vector<P> path;
-    for (P p = best; p != P{ sx, sy }; p = seen[key(p.first, p.second)].second) path.push_back(p);
+    for (P step = best; step != P{ start_x, start_y }; step = seen[key(step.first, step.second)].second) path.push_back(step);
     std::ranges::reverse(path);
     return path;
 }

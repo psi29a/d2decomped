@@ -11,45 +11,45 @@ namespace {
 // present in 1.14d). Fills the town's ds1, dt1s, tile_lookup and walk
 // grid; place_act1 calls it.
 void load_town(GameData& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
-    auto b = mpqs.try_read(ds1_path);
-    if (!b) {
+    auto bytes = mpqs.try_read(ds1_path);
+    if (!bytes) {
         d2d::log::warn("world: {} not found — placeholder mode", ds1_path);
         return;
     }
     scene.town.id = 1;                                  // ponytail: the only level loaded so far
-    scene.town.ds1 = d2d::ds1::Map(*b);
+    scene.town.ds1 = d2d::ds1::Map(*bytes);
     // Its DT1s as game.exe lists a preset room's (FUN_0066f240): LvlTypes 1's
     // files by LvlPrest 1's Dt1Mask, then Blank, InvisWal, Warp — never the
     // DS1's own list (townN1's names .tg1 files that don't exist).
     std::vector<std::string> files;
-    auto table = [&](const char* n) {
-        auto t = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return t ? d2d::txt::Table(*t) : d2d::txt::Table{};
+    auto table = [&](const char* name) {
+        auto table_bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return table_bytes ? d2d::txt::Table(*table_bytes) : d2d::txt::Table{};
     };
     const auto types = table("LvlTypes"), prest = table("LvlPrest");
     std::uint32_t mask = 0;
-    for (std::size_t r = 0; r < prest.size(); ++r)
-        if (prest.get(r, "Def") == "1") mask = std::uint32_t(std::atoll(std::string(prest.get(r, "Dt1Mask")).c_str()));
-    for (std::size_t r = 0; r < types.size(); ++r)
-        if (types.get(r, "Id") == "1")
+    for (std::size_t row = 0; row < prest.size(); ++row)
+        if (prest.get(row, "Def") == "1") mask = std::uint32_t(std::atoll(std::string(prest.get(row, "Dt1Mask")).c_str()));
+    for (std::size_t row = 0; row < types.size(); ++row)
+        if (types.get(row, "Id") == "1")
             for (int i = 0; i < 32; ++i)
-                if (const auto f = types.get(r, "File " + std::to_string(i + 1)); mask >> i & 1 && f != "0" && !f.empty())
-                    files.push_back("data/global/tiles/" + std::string(f));
-    for (const char* f : { "Act1/Outdoors/Blank.dt1", "Act1/Barracks/InvisWal.dt1", "Act1/Barracks/Warp.dt1" })
-        files.push_back(std::string("data/global/tiles/") + f);
+                if (const auto file = types.get(row, "File " + std::to_string(i + 1)); mask >> i & 1 && file != "0" && !file.empty())
+                    files.push_back("data/global/tiles/" + std::string(file));
+    for (const char* file : { "Act1/Outdoors/Blank.dt1", "Act1/Barracks/InvisWal.dt1", "Act1/Barracks/Warp.dt1" })
+        files.push_back(std::string("data/global/tiles/") + file);
     scene.town.dt1s.reserve(files.size());
-    for (const auto& f : files) {
-        const auto mpq_path = ds1_path_to_mpq(f);
-        auto db = mpqs.try_read(mpq_path);
-        if (!db) continue;
+    for (const auto& file : files) {
+        const auto mpq_path = ds1_path_to_mpq(file);
+        auto dt1_bytes = mpqs.try_read(mpq_path);
+        if (!dt1_bytes) continue;
         try {
-            scene.town.dt1s.emplace_back(*db);
-        } catch (const std::exception& e) {
-            d2d::log::warn("world: {}: {}", mpq_path, e.what());
+            scene.town.dt1s.emplace_back(*dt1_bytes);
+        } catch (const std::exception& error) {
+            d2d::log::warn("world: {}: {}", mpq_path, error.what());
         }
     }
     finish_level(scene.town);
-    const auto& m = scene.town.ds1;
+    const auto& map = scene.town.ds1;
     // The town start, as game.exe picks it on joining: DS1 special walls
     // (orientation 10/11) with main index 30..33 become the level's spawn
     // list (code at 0x667d09: main 30 sub n -> index n, 31 -> n+5,
@@ -58,19 +58,19 @@ void load_town(GameData& scene, d2d::mpq::Stack& mpqs, const char* ds1_path) {
     // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
     // free spot. ponytail: first match instead of a random one — each
     // Act 1 town DS1 has exactly one.
-    for (const auto& L : m.walls())
-        for (std::size_t i = 0; i < L.cells.size() && scene.town.start.first < 0; ++i) {
-            const auto& t = L.cells[i];
-            if ((t.wall_type == 10 || t.wall_type == 11) && t.style == 30 && t.sequence <= 4)
-                scene.town.start = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
-                                     (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
+    for (const auto& layer : map.walls())
+        for (std::size_t i = 0; i < layer.cells.size() && scene.town.start.first < 0; ++i) {
+            const auto& tile = layer.cells[i];
+            if ((tile.wall_type == 10 || tile.wall_type == 11) && tile.style == 30 && tile.sequence <= 4)
+                scene.town.start = { (float(i % std::size_t(map.width())) * 5 + 3 + 0.5f) / 5,
+                                     (float(i / std::size_t(map.width())) * 5 + 3 + 0.5f) / 5 };
         }
-    for (const auto& L : m.walls())                      // 33: where town portals open (index 11)
-        for (std::size_t i = 0; i < L.cells.size(); ++i)
-            if (const auto& t = L.cells[i]; (t.wall_type == 10 || t.wall_type == 11) && t.style == 33 && scene.town.portal_spot.first < 0)
-                scene.town.portal_spot = { (float(i % std::size_t(m.width())) * 5 + 3 + 0.5f) / 5,
-                                           (float(i / std::size_t(m.width())) * 5 + 3 + 0.5f) / 5 };
-    d2d::log::info("  World: {} {}x{}, {} of {} tilesets, {} tiles", ds1_path, m.width(), m.height(),
+    for (const auto& layer : map.walls())                      // 33: where town portals open (index 11)
+        for (std::size_t i = 0; i < layer.cells.size(); ++i)
+            if (const auto& tile = layer.cells[i]; (tile.wall_type == 10 || tile.wall_type == 11) && tile.style == 33 && scene.town.portal_spot.first < 0)
+                scene.town.portal_spot = { (float(i % std::size_t(map.width())) * 5 + 3 + 0.5f) / 5,
+                                           (float(i / std::size_t(map.width())) * 5 + 3 + 0.5f) / 5 };
+    d2d::log::info("  World: {} {}x{}, {} of {} tilesets, {} tiles", ds1_path, map.width(), map.height(),
                    scene.town.dt1s.size(), files.size(), scene.town.tile_lookup.size());
 }
 
@@ -84,8 +84,8 @@ void place_act1(GameData& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdoor
                                                            R"(data\global\tiles\ACT1\TOWN\townS1.ds1)",
                                                            R"(data\global\tiles\ACT1\TOWN\townW1.ds1)" };
     load_town(scene, mpqs, kTown[std::size_t(std::max(0, d2d::drlg::town_file(layout)))]);
-    for (const auto& p : layout)
-        if (p.level == 1) { scene.town.world_x = p.x; scene.town.world_y = p.y; }
+    for (const auto& placement : layout)
+        if (placement.level == 1) { scene.town.world_x = placement.x; scene.town.world_y = placement.y; }
     scene.act1_layout = layout;
 }
 
@@ -96,301 +96,301 @@ void place_act1(GameData& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::Outdoor
 // follows the player) and knows the game's difficulty; the game seed is
 // the map seed here.
 void load_monsters(GameData& scene, const d2d::mpq::Stack& mpqs) {
-    auto txt = [&](const char* n) {
-        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    auto txt = [&](const char* name) {
+        auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto ms = txt("MonStats"), ms2 = txt("MonStats2"), ml = txt("MonLvl"), lv = txt("Levels");
-    if (ms.size() == 0 || ms2.size() == 0) return;
+    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels");
+    if (monstats.size() == 0 || ms2.size() == 0) return;
     const auto ms2_rows = id_rows(ms2);
-    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
-    auto& M = scene.monsters;
-    for (std::size_t r = 0; r < ms.size(); ++r) M.by_id.emplace(std::string(ms.get(r, "Id")), int(r));
-    auto row = [&](std::string_view id) { return id.empty() ? -1 : M.row(std::string(id)); };
+    auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+    auto& monsters = scene.monsters;
+    for (std::size_t row = 0; row < monstats.size(); ++row) monsters.by_id.emplace(std::string(monstats.get(row, "Id")), int(row));
+    auto row = [&](std::string_view id) { return id.empty() ? -1 : monsters.row(std::string(id)); };
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
-    M.types.resize(ms.size());
-    scene.mon_npc.resize(ms.size());
-    for (std::size_t r = 0; r < ms.size(); ++r) {
-        auto& t = M.types[r];
-        auto g = [&](std::string c) { return ms.get(r, c); };
-        t.id = g("Id"); t.code = g("Code"); t.name_key = g("NameStr"); t.ai = g("AI");
-        t.base = row(g("BaseId"));
-        t.min_grp = num(g("MinGrp")); t.max_grp = num(g("MaxGrp"));
-        t.party_min = num(g("PartyMin")); t.party_max = num(g("PartyMax"));
-        t.sparse = num(g("sparsePopulate")); t.rarity = num(g("Rarity"));
-        t.minion = { row(g("minion1")), row(g("minion2")) };
-        t.velocity = num(g("Velocity")); t.run = num(g("Run"));
-        t.enabled = g("enabled") == "1"; t.killable = g("killable") == "1"; t.melee = g("isMelee") == "1";
-        t.miss_a2 = g("MissA2");
-        t.undead = g("hUndead") == "1" || g("lUndead") == "1"; t.demon = g("demon") == "1";
-        for (int e = 0; e < 3; ++e) {
+    monsters.types.resize(monstats.size());
+    scene.mon_npc.resize(monstats.size());
+    for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) {
+        auto& type_info = monsters.types[row_index];
+        auto text = [&](std::string column) { return monstats.get(row_index, column); };
+        type_info.id = text("Id"); type_info.code = text("Code"); type_info.name_key = text("NameStr"); type_info.ai_name = text("AI");
+        type_info.base = row(text("BaseId"));
+        type_info.min_grp = num(text("MinGrp")); type_info.max_grp = num(text("MaxGrp"));
+        type_info.party_min = num(text("PartyMin")); type_info.party_max = num(text("PartyMax"));
+        type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
+        type_info.minion = { row(text("minion1")), row(text("minion2")) };
+        type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
+        type_info.enabled = text("enabled") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
+        type_info.miss_a2 = text("MissA2");
+        type_info.undead = text("hUndead") == "1" || text("lUndead") == "1"; type_info.demon = text("demon") == "1";
+        for (int element = 0; element < 3; ++element) {
             static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
-            const std::string E = "El" + std::to_string(e + 1);
-            t.el_mode[std::size_t(e)] = g(E + "Mode");
-            const auto type = g(E + "Type");                  // frze counts as cold; life/mana/stam/stun/rand aren't damage here
-            const auto ty = std::ranges::find(kEl, type == "frze" ? std::string_view("cold") : type);
-            t.el_type[std::size_t(e)] = ty == kEl.end() ? -1 : int(ty - kEl.begin());
+            const std::string element_prefix = "El" + std::to_string(element + 1);
+            type_info.el_mode[std::size_t(element)] = text(element_prefix + "Mode");
+            const auto type = text(element_prefix + "Type");                  // frze counts as cold; life/mana/stam/stun/rand aren't damage here
+            const auto element_type = std::ranges::find(kEl, type == "frze" ? std::string_view("cold") : type);
+            type_info.el_type[std::size_t(element)] = element_type == kEl.end() ? -1 : int(element_type - kEl.begin());
         }
-        t.sound = g("MonSound");
-        t.montype = g("MonType");
-        for (int d = 0; d < 3; ++d) {
-            const std::string x = kSfx[d];
-            auto& p = t.diff[std::size_t(d)];
-            t.level[std::size_t(d)] = num(g("Level" + x));
-            p = { num(g("MinHP" + x)), num(g("MaxHP" + x)), num(g("AC" + x)), num(g("Exp" + x)),
-                  num(g("A1MinD" + x)), num(g("A1MaxD" + x)), num(g("A1TH" + x)),
-                  num(g("A2MinD" + x)), num(g("A2MaxD" + x)), num(g("A2TH" + x)),
-                  num(g("aidel" + x)), num(g("aidist" + x)), {}, std::string(g("TreasureClass1" + x)) };
-            for (int i = 0; i < 8; ++i) p.aip[std::size_t(i)] = num(g("aip" + std::to_string(i + 1) + x));
+        type_info.sound = text("MonSound");
+        type_info.montype = text("MonType");
+        for (int difficulty = 0; difficulty < 3; ++difficulty) {
+            const std::string x = kSfx[difficulty];
+            auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
+            type_info.level[std::size_t(difficulty)] = num(text("Level" + x));
+            per_difficulty = { num(text("MinHP" + x)), num(text("MaxHP" + x)), num(text("AC" + x)), num(text("Exp" + x)),
+                  num(text("A1MinD" + x)), num(text("A1MaxD" + x)), num(text("A1TH" + x)),
+                  num(text("A2MinD" + x)), num(text("A2MaxD" + x)), num(text("A2TH" + x)),
+                  num(text("aidel" + x)), num(text("aidist" + x)), {}, std::string(text("TreasureClass1" + x)) };
+            for (int i = 0; i < 8; ++i) per_difficulty.aip[std::size_t(i)] = num(text("aip" + std::to_string(i + 1) + x));
             static constexpr const char* kRes[6] = { "ResDm", "ResMa", "ResFi", "ResLi", "ResCo", "ResPo" };
-            for (int i = 0; i < 6; ++i) p.res[std::size_t(i)] = num(g(kRes[i] + x));
-            p.to_block = num(g("ToBlock" + x));
-            t.tc_champion[std::size_t(d)] = g("TreasureClass2" + x);
-            t.tc_unique[std::size_t(d)] = g("TreasureClass3" + x);
-            p.drain = g("Drain" + x).empty() ? 100 : num(g("Drain" + x));
-            p.cold_effect = num(g("coldeffect" + x));
-            for (int e = 0; e < 3; ++e) {
-                const std::string E = "El" + std::to_string(e + 1);
-                p.el[std::size_t(e)] = { num(g(E + "Pct" + x)), num(g(E + "MinD" + x)), num(g(E + "MaxD" + x)), num(g(E + "Dur" + x)) };
+            for (int i = 0; i < 6; ++i) per_difficulty.res[std::size_t(i)] = num(text(kRes[i] + x));
+            per_difficulty.to_block = num(text("ToBlock" + x));
+            type_info.tc_champion[std::size_t(difficulty)] = text("TreasureClass2" + x);
+            type_info.tc_unique[std::size_t(difficulty)] = text("TreasureClass3" + x);
+            per_difficulty.drain = text("Drain" + x).empty() ? 100 : num(text("Drain" + x));
+            per_difficulty.cold_effect = num(text("coldeffect" + x));
+            for (int element = 0; element < 3; ++element) {
+                const std::string element_prefix = "El" + std::to_string(element + 1);
+                per_difficulty.elements[std::size_t(element)] = { num(text(element_prefix + "Pct" + x)), num(text(element_prefix + "MinD" + x)), num(text(element_prefix + "MaxD" + x)), num(text(element_prefix + "Dur" + x)) };
             }
         }
-        const auto ex = ms2_rows.find(std::string(g("MonStatsEx")));
-        if (ex != ms2_rows.end()) {
-            const auto r2 = ex->second;
-            t.size = std::max(num(ms2.get(r2, "SizeX")), 1);
-            t.base_w = ms2.get(r2, "BaseW");
-            t.can_block = ms2.get(r2, "mBL") == "1";
-            for (std::size_t l = 0; l < 16; ++l)
-                if (ms2.get(r2, kLayerCode[l]) == "1") t.parts[l] = split_variants(ms2.get(r2, kVariant[l]));
+        const auto found = ms2_rows.find(std::string(text("MonStatsEx")));
+        if (found != ms2_rows.end()) {
+            const auto monstats2_row = found->second;
+            type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1);
+            type_info.base_w = ms2.get(monstats2_row, "BaseW");
+            type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            for (std::size_t layer = 0; layer < 16; ++layer)
+                if (ms2.get(monstats2_row, kLayerCode[layer]) == "1") type_info.parts[layer] = split_variants(ms2.get(monstats2_row, kVariant[layer]));
         }
-        scene.mon_npc[r] = monster_npc(scene, ms, ms2, ms2_rows, r);
+        scene.mon_npc[row_index] = monster_npc(scene, monstats, ms2, ms2_rows, row_index);
     }
     // MonLvl: the LoD columns (L-*); normal matches the classic ones.
-    for (std::size_t r = 0; r < ml.size(); ++r) {
-        const int level = num(ml.get(r, "Level"));
+    for (std::size_t row_index = 0; row_index < monlvl.size(); ++row_index) {
+        const int level = num(monlvl.get(row_index, "Level"));
         if (level < 0 || level > 200) continue;
-        if (std::size_t(level) >= M.lvl.size()) M.lvl.resize(std::size_t(level) + 1);
-        auto& L = M.lvl[std::size_t(level)];
-        for (int d = 0; d < 3; ++d) {
-            const std::string x = kSfx[d];
-            L.ac[std::size_t(d)] = num(ml.get(r, "L-AC" + x)); L.th[std::size_t(d)] = num(ml.get(r, "L-TH" + x));
-            L.hp[std::size_t(d)] = num(ml.get(r, "L-HP" + x)); L.dm[std::size_t(d)] = num(ml.get(r, "L-DM" + x));
-            L.xp[std::size_t(d)] = num(ml.get(r, "L-XP" + x));
+        if (std::size_t(level) >= monsters.lvl.size()) monsters.lvl.resize(std::size_t(level) + 1);
+        auto& level_row = monsters.lvl[std::size_t(level)];
+        for (int difficulty = 0; difficulty < 3; ++difficulty) {
+            const std::string x = kSfx[difficulty];
+            level_row.armor_class[std::size_t(difficulty)] = num(monlvl.get(row_index, "L-AC" + x)); level_row.to_hit[std::size_t(difficulty)] = num(monlvl.get(row_index, "L-TH" + x));
+            level_row.hit_points[std::size_t(difficulty)] = num(monlvl.get(row_index, "L-HP" + x)); level_row.damage[std::size_t(difficulty)] = num(monlvl.get(row_index, "L-DM" + x));
+            level_row.experience[std::size_t(difficulty)] = num(monlvl.get(row_index, "L-XP" + x));
         }
     }
     // MonSounds.txt.
     const auto snd = txt("MonSounds");
-    for (std::size_t r = 0; r < snd.size(); ++r) {
-        auto id = [&](const char* c) { const auto it = scene.sound_index.find(std::string(snd.get(r, c))); return it == scene.sound_index.end() ? 0 : it->second; };
-        auto n = [&](const char* c) { return num(snd.get(r, c)); };
-        GameData::MonSound m{ { id("Attack1"), id("Attack2") }, { id("Weapon1"), id("Weapon2") }, { n("Att1Del"), n("Att2Del") },
-                           { n("Wea1Del"), n("Wea2Del") }, { n("Att1Prb"), n("Att2Prb") }, id("HitSound"), id("DeathSound"),
-                           n("HitDelay"), n("DeaDelay") };
-        scene.mon_sounds.emplace(std::string(snd.get(r, "Id")), m);
+    for (std::size_t row_index = 0; row_index < snd.size(); ++row_index) {
+        auto id = [&](const char* column) { const auto found = scene.sound_index.find(std::string(snd.get(row_index, column))); return found == scene.sound_index.end() ? 0 : found->second; };
+        auto number = [&](const char* column) { return num(snd.get(row_index, column)); };
+        GameData::MonSound sounds{ { id("Attack1"), id("Attack2") }, { id("Weapon1"), id("Weapon2") }, { number("Att1Del"), number("Att2Del") },
+                           { number("Wea1Del"), number("Wea2Del") }, { number("Att1Prb"), number("Att2Prb") }, id("HitSound"), id("DeathSound"),
+                           number("HitDelay"), number("DeaDelay") };
+        scene.mon_sounds.emplace(std::string(snd.get(row_index, "Id")), sounds);
     }
     // Missiles.txt, the rows monsters and skills fire.
-    const auto mt = txt("Missiles"), sk = txt("Skills");
+    const auto missiles_table = txt("Missiles"), skills_table = txt("Skills");
     std::unordered_set<std::string> skill_missiles;
-    for (std::size_t r = 0; r < sk.size(); ++r) {
-        skill_missiles.emplace(sk.get(r, "srvmissile"));
-        for (const char* c : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(sk.get(r, c));
-        if (const std::string a(sk.get(r, "srvmissilea")); num(sk.get(r, "srvdofunc")) == 149 && !a.empty())   // necromage1..4
-            for (char d = '2'; d <= '4'; ++d) skill_missiles.emplace(a.substr(0, a.size() - 1) + d);
+    for (std::size_t row_index = 0; row_index < skills_table.size(); ++row_index) {
+        skill_missiles.emplace(skills_table.get(row_index, "srvmissile"));
+        for (const char* column : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(skills_table.get(row_index, column));
+        if (const std::string missile_name(skills_table.get(row_index, "srvmissilea")); num(skills_table.get(row_index, "srvdofunc")) == 149 && !missile_name.empty())   // necromage1..4
+            for (char digit = '2'; digit <= '4'; ++digit) skill_missiles.emplace(missile_name.substr(0, missile_name.size() - 1) + digit);
     }
     // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
     // Double Throw.
     std::unordered_map<int, std::string> thrown_ids;
     {
-        const auto wt = txt("weapons");
-        for (std::size_t r = 0; r < wt.size(); ++r)
-            if (const int id = num(wt.get(r, "missiletype")); id > 0) thrown_ids.emplace(id, std::string(wt.get(r, "code")));
-        for (std::size_t r = 0; r < mt.size(); ++r)
-            if (const auto it = thrown_ids.find(num(mt.get(r, "Id"))); it != thrown_ids.end()) skill_missiles.emplace(mt.get(r, "Missile"));
+        const auto weapons_table = txt("weapons");
+        for (std::size_t row_index = 0; row_index < weapons_table.size(); ++row_index)
+            if (const int id = num(weapons_table.get(row_index, "missiletype")); id > 0) thrown_ids.emplace(id, std::string(weapons_table.get(row_index, "code")));
+        for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index)
+            if (const auto found = thrown_ids.find(num(missiles_table.get(row_index, "Id"))); found != thrown_ids.end()) skill_missiles.emplace(missiles_table.get(row_index, "Missile"));
         for (const auto& [id, code] : thrown_ids)
-            for (std::size_t r = 0; r < mt.size(); ++r)
-                if (num(mt.get(r, "Id")) == id) scene.thrown[code] = std::string(mt.get(r, "Missile"));
+            for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index)
+                if (num(missiles_table.get(row_index, "Id")) == id) scene.thrown[code] = std::string(missiles_table.get(row_index, "Missile"));
     }
     // and the rows those spawn (SubMissile1, HitSubMissile1: Fire Wall's
     // flames, Meteor's fire, Blizzard's shards), to a fixed point.
     for (bool more = true; more;) {
         more = false;
-        for (std::size_t r = 0; r < mt.size(); ++r)
-            if (skill_missiles.contains(std::string(mt.get(r, "Missile"))))
-                for (const char* c : { "SubMissile1", "HitSubMissile1" })
-                    if (const std::string n(mt.get(r, c)); !n.empty()) more |= skill_missiles.emplace(n).second;
+        for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index)
+            if (skill_missiles.contains(std::string(missiles_table.get(row_index, "Missile"))))
+                for (const char* column : { "SubMissile1", "HitSubMissile1" })
+                    if (const std::string name(missiles_table.get(row_index, column)); !name.empty()) more |= skill_missiles.emplace(name).second;
     }
-    for (std::size_t r = 0; r < mt.size(); ++r) {
-        auto g = [&](std::string c) { return num(mt.get(r, c)); };
-        const std::string name(mt.get(r, "Missile"));
+    for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index) {
+        auto number = [&](std::string column) { return num(missiles_table.get(row_index, column)); };
+        const std::string name(missiles_table.get(row_index, "Missile"));
         bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
-        for (const auto& t : M.types) used = used || t.miss_a2 == name;
+        for (const auto& type_info : monsters.types) used = used || type_info.miss_a2 == name;
         if (!used) continue;
-        GameData::MissileInfo mi;
-        mi.name = name;
-        mi.vel = g("Vel"); mi.range = g("Range"); mi.src_damage = g("SrcDamage"); mi.min = g("MinDamage"); mi.max = g("MaxDamage");
-        mi.anim_speed = std::max(g("AnimSpeed"), 1); mi.anim_len = std::max(g("AnimLen"), 1); mi.trans = g("Trans"); mi.light = g("Light");
-        mi.skill = mt.get(r, "Skill"); mi.lev_range = g("LevRange"); mi.hit_func = g("pSrvHitFunc"); mi.hit_par1 = g("sHitPar1");
-        mi.to_hit = g("ToHit") == 1; mi.collide_kill = g("CollideKill") == 1; mi.pierce = g("Pierce") == 1;
-        mi.srv_do = g("pSrvDoFunc"); mi.param1 = g("Param1"); mi.param2 = g("Param2"); mi.hit_par2 = g("sHitPar2");
-        mi.next_hit = g("NextHit") == 1; mi.next_delay = g("NextDelay");
-        mi.sub = mt.get(r, "SubMissile1"); mi.hit_sub = mt.get(r, "HitSubMissile1");
+        GameData::MissileInfo missile_info;
+        missile_info.name = name;
+        missile_info.vel = number("Vel"); missile_info.range = number("Range"); missile_info.src_damage = number("SrcDamage"); missile_info.min = number("MinDamage"); missile_info.max = number("MaxDamage");
+        missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
+        missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
+        missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1;
+        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.hit_par2 = number("sHitPar2");
+        missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay");
+        missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
-        if (const auto e = std::ranges::find(kEl, mt.get(r, "EType")); e != kEl.end()) mi.etype = *e == "frze" ? 2 : int(e - kEl.begin());
-        mi.emin = g("EMin"); mi.emax = g("Emax"); mi.hitshift = g("HitShift"); mi.elen = g("ELen");
+        if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
+        missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.elen = number("ELen");
         for (int i = 0; i < 5; ++i) {
-            mi.emin_lev[std::size_t(i)] = g("MinELev" + std::to_string(i + 1));
-            mi.emax_lev[std::size_t(i)] = g("MaxELev" + std::to_string(i + 1));
+            missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
+            missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
         }
-        for (int i = 0; i < 3; ++i) mi.elen_lev[std::size_t(i)] = g("ELevLen" + std::to_string(i + 1));
-        mi.cel_file = mt.get(r, "CelFile");
-        scene.missiles.emplace(name, std::move(mi));
+        for (int i = 0; i < 3; ++i) missile_info.elen_lev[std::size_t(i)] = number("ELevLen" + std::to_string(i + 1));
+        missile_info.cel_file = missiles_table.get(row_index, "CelFile");
+        scene.missiles.emplace(name, std::move(missile_info));
     }
     // SuperUniques.txt: name (string key), Class, minions.
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
-    for (std::size_t r = 0; r < ms.size(); ++r) if (ms.get(r, "Id") != "Expansion") ms_bin.push_back(r);
-    if (const auto su = txt("SuperUniques"); su.size() > 0)
-        for (std::size_t r = 0; r < su.size(); ++r) {
-            if (su.get(r, "Superunique") == "Expansion") continue;
-            const std::string key(su.get(r, "Name"));
-            const auto v = lookup_string(scene, key);
+    for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) if (monstats.get(row_index, "Id") != "Expansion") ms_bin.push_back(row_index);
+    if (const auto superuniques_table = txt("SuperUniques"); superuniques_table.size() > 0)
+        for (std::size_t row_index = 0; row_index < superuniques_table.size(); ++row_index) {
+            if (superuniques_table.get(row_index, "Superunique") == "Expansion") continue;
+            const std::string key(superuniques_table.get(row_index, "Name"));
+            const auto found = lookup_string(scene, key);
             std::vector<int> mods;
-            for (const char* c : { "Mod1", "Mod2", "Mod3" }) if (const int md = num(su.get(r, c)); md > 0) mods.push_back(md);
-            scene.superuniques.push_back({ v ? u16_to_latin1(*v) : key, row(su.get(r, "Class")), num(su.get(r, "MinGrp")),
-                                           num(su.get(r, "MaxGrp")), mods,
-                                           { std::string(su.get(r, "TC")), std::string(su.get(r, "TC(N)")), std::string(su.get(r, "TC(H)")) },
-                                           { num(su.get(r, "Utrans")), num(su.get(r, "Utrans(N)")), num(su.get(r, "Utrans(H)")) } });
+            for (const char* column : { "Mod1", "Mod2", "Mod3" }) if (const int mod = num(superuniques_table.get(row_index, column)); mod > 0) mods.push_back(mod);
+            scene.superuniques.push_back({ found ? u16_to_latin1(*found) : key, row(superuniques_table.get(row_index, "Class")), num(superuniques_table.get(row_index, "MinGrp")),
+                                           num(superuniques_table.get(row_index, "MaxGrp")), mods,
+                                           { std::string(superuniques_table.get(row_index, "TC")), std::string(superuniques_table.get(row_index, "TC(N)")), std::string(superuniques_table.get(row_index, "TC(H)")) },
+                                           { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) } });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
     // string key) and the two formats the client builds them with.
-    for (auto [file, i] : { std::pair{ "UniquePrefix", 0 }, { "UniqueSuffix", 1 }, { "UniqueAppellation", 2 } }) {
-        const auto t = txt(file);
-        for (std::size_t r = 0; r < t.size(); ++r) {
-            const std::string key(t.get(r, "Name"));
+    for (auto [file, index] : { std::pair{ "UniquePrefix", 0 }, { "UniqueSuffix", 1 }, { "UniqueAppellation", 2 } }) {
+        const auto table = txt(file);
+        for (std::size_t row_index = 0; row_index < table.size(); ++row_index) {
+            const std::string key(table.get(row_index, "Name"));
             if (key.empty() || key == "Expansion") continue;
-            const auto v = lookup_string(scene, key);
-            scene.unique_names[std::size_t(i)].push_back(v ? u16_to_latin1(*v) : key);
+            const auto found = lookup_string(scene, key);
+            scene.unique_names[std::size_t(index)].push_back(found ? u16_to_latin1(*found) : key);
         }
     }
     for (int i = 0; i < 2; ++i)
-        if (const auto v = lookup_string(scene, std::uint16_t(0x6b9 + i))) scene.unique_formats[std::size_t(i)] = u16_to_latin1(*v);
+        if (const auto found = lookup_string(scene, std::uint16_t(0x6b9 + i))) scene.unique_formats[std::size_t(i)] = u16_to_latin1(*found);
 
     // MonUMod.txt: champion / unique mods and the constants column.
-    if (const auto um = txt("MonUMod"); um.size() > 0)
-        for (std::size_t r = 0; r < um.size(); ++r) {
-            if (um.get(r, "uniquemod") == "Expansion") continue;
-            auto g = [&](const char* c) { return num(um.get(r, c)); };
-            const int id = g("id");
-            if (id >= 0 && id < 34) scene.umods.k[std::size_t(id)] = g("constants");
-            scene.umods.rows.push_back({ id, g("enabled") == 1, g("champion") == 1, g("fPick"), std::string(um.get(r, "exclude1")),
-                                         std::string(um.get(r, "exclude2")), { g("cpick"), g("cpick (N)"), g("cpick (H)") },
-                                         { g("upick"), g("upick (N)"), g("upick (H)") } });
+    if (const auto umod_table = txt("MonUMod"); umod_table.size() > 0)
+        for (std::size_t row_index = 0; row_index < umod_table.size(); ++row_index) {
+            if (umod_table.get(row_index, "uniquemod") == "Expansion") continue;
+            auto number = [&](const char* column) { return num(umod_table.get(row_index, column)); };
+            const int id = number("id");
+            if (id >= 0 && id < 34) scene.umods.constants[std::size_t(id)] = number("constants");
+            scene.umods.rows.push_back({ id, number("enabled") == 1, number("champion") == 1, number("fPick"), std::string(umod_table.get(row_index, "exclude1")),
+                                         std::string(umod_table.get(row_index, "exclude2")), { number("cpick"), number("cpick (N)"), number("cpick (H)") },
+                                         { number("upick"), number("upick (N)"), number("upick (H)") } });
         }
 
     scene.mon_bin = ms_bin;
-    scene.mon_is_npc.resize(ms.size());
-    for (std::size_t r = 0; r < ms.size(); ++r) scene.mon_is_npc[r] = ms.get(r, "npc") == "1";
+    scene.mon_is_npc.resize(monstats.size());
+    for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) scene.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
     if (!scene.superuniques.empty()) d2d::log::info("  not implemented: unique mods: thief, poison hit (not in Act 1); Charged Bolt's wander");
 }
 
 void load_skills(GameData& scene, const d2d::mpq::Stack& mpqs) {
-    auto txt = [&](const char* n) {
-        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    auto txt = [&](const char* name) {
+        auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto sc = txt("skillcalc"), isc = txt("ItemStatCost"), sk = txt("Skills"), sd = txt("SkillDesc");
-    if (sk.size() == 0) return;
-    auto& T = scene.skills;
-    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
-    for (std::size_t r = 0; r < sc.size(); ++r) T.names.operands.emplace_back(sc.get(r, "code"));
-    for (std::size_t r = 0; r < isc.size(); ++r) T.names.stats.emplace(std::string(isc.get(r, "Stat")), num(isc.get(r, "ID")));
-    for (std::size_t r = 0; r < sk.size(); ++r) {
-        const int id = num(sk.get(r, "Id"));
-        if (id < 0 || sk.get(r, "Id").empty()) continue;
-        T.names.skills.emplace(std::string(sk.get(r, "skill")), id);
-        T.by_name.emplace(std::string(sk.get(r, "skill")), id);
+    const auto skill_calc = txt("skillcalc"), isc = txt("ItemStatCost"), skills_table = txt("Skills"), skill_desc = txt("SkillDesc");
+    if (skills_table.size() == 0) return;
+    auto& skill_tables = scene.skills;
+    auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+    for (std::size_t row = 0; row < skill_calc.size(); ++row) skill_tables.names.operands.emplace_back(skill_calc.get(row, "code"));
+    for (std::size_t row = 0; row < isc.size(); ++row) skill_tables.names.stats.emplace(std::string(isc.get(row, "Stat")), num(isc.get(row, "ID")));
+    for (std::size_t row = 0; row < skills_table.size(); ++row) {
+        const int id = num(skills_table.get(row, "Id"));
+        if (id < 0 || skills_table.get(row, "Id").empty()) continue;
+        skill_tables.names.skills.emplace(std::string(skills_table.get(row, "skill")), id);
+        skill_tables.by_name.emplace(std::string(skills_table.get(row, "skill")), id);
     }
     std::unordered_map<std::string, std::size_t> desc_row;
-    for (std::size_t r = 0; r < sd.size(); ++r) desc_row.emplace(std::string(sd.get(r, "skilldesc")), r);
+    for (std::size_t row = 0; row < skill_desc.size(); ++row) desc_row.emplace(std::string(skill_desc.get(row, "skilldesc")), row);
     int calcs = 0;
     std::vector<std::string> bad;
-    for (std::size_t r = 0; r < sk.size(); ++r) {
-        const int id = num(sk.get(r, "Id"));
-        if (id < 0 || sk.get(r, "Id").empty()) continue;
-        if (std::size_t(id) >= T.rows.size()) T.rows.resize(std::size_t(id) + 1);
-        auto& S = T.rows[std::size_t(id)];
-        auto g = [&](const std::string& c) { return sk.get(r, c); };
-        auto n = [&](const std::string& c) { return num(g(c)); };
-        auto calc = [&](const std::string& c) {
+    for (std::size_t row = 0; row < skills_table.size(); ++row) {
+        const int id = num(skills_table.get(row, "Id"));
+        if (id < 0 || skills_table.get(row, "Id").empty()) continue;
+        if (std::size_t(id) >= skill_tables.rows.size()) skill_tables.rows.resize(std::size_t(id) + 1);
+        auto& skill_row = skill_tables.rows[std::size_t(id)];
+        auto text = [&](const std::string& column) { return skills_table.get(row, column); };
+        auto number = [&](const std::string& column) { return num(text(column)); };
+        auto calc = [&](const std::string& column) {
             d2d::rules::Calc out;
-            if (const auto e = g(c); !e.empty()) {
+            if (const auto expression = text(column); !expression.empty()) {
                 std::string err;
-                out = d2d::rules::compile_calc(e, T.names, &err);
+                out = d2d::rules::compile_calc(expression, skill_tables.names, &err);
                 ++calcs;
-                if (!err.empty()) bad.push_back(std::string(g("skill")) + " " + c + ": " + err);
+                if (!err.empty()) bad.push_back(std::string(text("skill")) + " " + column + ": " + err);
             }
             return out;
         };
-        S.id = id;
-        S.name = g("skill"); S.cls = g("charclass"); S.desc = g("skilldesc");
-        S.srvstfunc = n("srvstfunc"); S.srvdofunc = n("srvdofunc");
-        S.anim = g("anim"); S.range = g("range");
-        S.leftskill = g("leftskill") == "1"; S.passive = g("passive") == "1"; S.aura = g("aura") == "1";
-        S.use_attack_rate = g("UseAttackRate") == "1"; S.in_town = g("InTown") == "1"; S.attack_no_mana = g("AttackNoMana") == "1";
-        S.reqlevel = std::max(n("reqlevel"), 1); if (n("maxlvl") > 0) S.maxlvl = n("maxlvl");
-        S.mana = n("mana"); S.lvlmana = n("lvlmana"); S.manashift = n("manashift"); S.minmana = n("minmana");
-        S.tohit = n("ToHit"); S.levtohit = n("LevToHit"); S.tohit_calc = calc("ToHitCalc");
-        for (int i = 0; i < 4; ++i) S.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
-        for (int i = 0; i < 8; ++i) S.par[std::size_t(i)] = n("Param" + std::to_string(i + 1));
-        S.hitshift = n("HitShift"); S.srcdam = g("SrcDam").empty() ? 128 : n("SrcDam"); S.srcdam_raw = n("SrcDam");
-        S.srvmissile = g("srvmissile"); S.srvmissilea = g("srvmissilea"); S.perdelay = n("perdelay");
-        S.summon = g("summon"); S.pettype = g("pettype"); S.petmax = calc("petmax"); S.target_corpse = g("TargetCorpse") == "1";
+        skill_row.id = id;
+        skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
+        skill_row.srvstfunc = number("srvstfunc"); skill_row.srvdofunc = number("srvdofunc");
+        skill_row.anim = text("anim"); skill_row.range = text("range");
+        skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
+        skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
+        skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
+        skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana");
+        skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
+        for (int i = 0; i < 4; ++i) skill_row.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
+        for (int i = 0; i < 8; ++i) skill_row.par[std::size_t(i)] = number("Param" + std::to_string(i + 1));
+        skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
+        skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay");
+        skill_row.summon = text("summon"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.target_corpse = text("TargetCorpse") == "1";
         for (int i = 0; i < 5; ++i) {
-            S.sumskill[std::size_t(i)] = g("sumskill" + std::to_string(i + 1));
-            S.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");
+            skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
+            skill_row.sumsk_calc[std::size_t(i)] = calc("sumsk" + std::to_string(i + 1) + "calc");
         }
-        S.result_flags = n("ResultFlags");
+        skill_row.result_flags = number("ResultFlags");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "stun" };
-        const auto et = std::ranges::find(kEl, g("EType"));
-        S.etype = et == kEl.end() ? -1 : int(et - kEl.begin());
-        S.emin = n("EMin"); S.emax = n("EMax"); S.elen = n("ELen");
-        S.mindam = n("MinDam"); S.maxdam = n("MaxDam");
+        const auto element = std::ranges::find(kEl, text("EType"));
+        skill_row.etype = element == kEl.end() ? -1 : int(element - kEl.begin());
+        skill_row.emin = number("EMin"); skill_row.emax = number("EMax"); skill_row.elen = number("ELen");
+        skill_row.mindam = number("MinDam"); skill_row.maxdam = number("MaxDam");
         for (int i = 0; i < 5; ++i) {
-            const auto k = std::to_string(i + 1);
-            S.emin_lev[std::size_t(i)] = n("EMinLev" + k); S.emax_lev[std::size_t(i)] = n("EMaxLev" + k);
-            S.mindam_lev[std::size_t(i)] = n("MinLevDam" + k); S.maxdam_lev[std::size_t(i)] = n("MaxLevDam" + k);
-            if (const auto ps = T.names.stats.find(std::string(g("passivestat" + k))); ps != T.names.stats.end())
-                S.passive_stat[std::size_t(i)] = ps->second;
-            S.passive_calc[std::size_t(i)] = calc("passivecalc" + k);
+            const auto suffix = std::to_string(i + 1);
+            skill_row.emin_lev[std::size_t(i)] = number("EMinLev" + suffix); skill_row.emax_lev[std::size_t(i)] = number("EMaxLev" + suffix);
+            skill_row.mindam_lev[std::size_t(i)] = number("MinLevDam" + suffix); skill_row.maxdam_lev[std::size_t(i)] = number("MaxLevDam" + suffix);
+            if (const auto found = skill_tables.names.stats.find(std::string(text("passivestat" + suffix))); found != skill_tables.names.stats.end())
+                skill_row.passive_stat[std::size_t(i)] = found->second;
+            skill_row.passive_calc[std::size_t(i)] = calc("passivecalc" + suffix);
         }
-        S.passive_itype = std::string(g("passiveitype"));
-        for (int i = 0; i < 3; ++i) S.elen_lev[std::size_t(i)] = n("ELevLen" + std::to_string(i + 1));
+        skill_row.passive_itype = std::string(text("passiveitype"));
+        for (int i = 0; i < 3; ++i) skill_row.elen_lev[std::size_t(i)] = number("ELevLen" + std::to_string(i + 1));
         for (int i = 0; i < 6; ++i) {
-            S.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
-            if (const auto a = T.names.stats.find(std::string(g("aurastat" + std::to_string(i + 1)))); a != T.names.stats.end())
-                S.aurastat[std::size_t(i)] = a->second;
+            skill_row.aura_calc[std::size_t(i)] = calc("aurastatcalc" + std::to_string(i + 1));
+            if (const auto found = skill_tables.names.stats.find(std::string(text("aurastat" + std::to_string(i + 1)))); found != skill_tables.names.stats.end())
+                skill_row.aurastat[std::size_t(i)] = found->second;
         }
-        S.auralen = calc("auralencalc"); S.aurarange = calc("aurarangecalc");
-        S.aurastate = g("aurastate"); S.auratarget = g("auratargetstate"); S.prgdam = n("prgdam"); S.seqnum = n("seqnum");
+        skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc");
+        skill_row.aurastate = text("aurastate"); skill_row.auratarget = text("auratargetstate"); skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum");
         for (int i = 0; i < 3; ++i) {
-            S.prgfunc[std::size_t(i)] = n("srvprgfunc" + std::to_string(i + 1));
-            S.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));
+            skill_row.prgfunc[std::size_t(i)] = number("srvprgfunc" + std::to_string(i + 1));
+            skill_row.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));
         }
-        S.prgstack = g("prgstack") == "1";
-        S.srvmissileb = g("srvmissileb"); S.srvmissilec = g("srvmissilec");
-        S.edmg_sym = calc("EDmgSymPerCalc"); S.elen_sym = calc("ELenSymPerCalc"); S.dmg_sym = calc("DmgSymPerCalc");
-        for (std::size_t c = 0; c < 7; ++c)
-            if (S.cls == d2d::rules::kClassCode[c]) T.class_ids[c].push_back(id);
-        if (const auto d = desc_row.find(S.desc); d != desc_row.end()) {
-            S.page = num(sd.get(d->second, "SkillPage"));
-            S.icon = num(sd.get(d->second, "IconCel"));
-            S.str_name = sd.get(d->second, "str name");
+        skill_row.prgstack = text("prgstack") == "1";
+        skill_row.srvmissileb = text("srvmissileb"); skill_row.srvmissilec = text("srvmissilec");
+        skill_row.edmg_sym = calc("EDmgSymPerCalc"); skill_row.elen_sym = calc("ELenSymPerCalc"); skill_row.dmg_sym = calc("DmgSymPerCalc");
+        for (std::size_t class_index = 0; class_index < 7; ++class_index)
+            if (skill_row.cls == d2d::rules::kClassCode[class_index]) skill_tables.class_ids[class_index].push_back(id);
+        if (const auto found = desc_row.find(skill_row.desc); found != desc_row.end()) {
+            skill_row.page = num(skill_desc.get(found->second, "SkillPage"));
+            skill_row.icon = num(skill_desc.get(found->second, "IconCel"));
+            skill_row.str_name = skill_desc.get(found->second, "str name");
         }
     }
-    d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", T.rows.size(), calcs, bad.size());
-    for (const auto& b : bad) d2d::log::info("  not implemented: calc {}", b);
+    d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", skill_tables.rows.size(), calcs, bad.size());
+    for (const auto& failed : bad) d2d::log::info("  not implemented: calc {}", failed);
 }
 
 // Act 1 town NPCs from the DS1's type-1 objects: id -> MonPreset.txt
@@ -399,44 +399,44 @@ void load_skills(GameData& scene, const d2d::mpq::Stack& mpqs) {
 // Positions are in subtiles; a unit stands at its subtile's centre.
 // ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
 void load_npcs(GameData& scene, const d2d::mpq::Stack& mpqs) {
-    auto txt = [&](const char* n) {
-        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    auto txt = [&](const char* name) {
+        auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto preset = txt("MonPreset"), ms = txt("MonStats"), ms2 = txt("MonStats2");
+    const auto preset = txt("MonPreset"), monstats = txt("MonStats"), ms2 = txt("MonStats2");
     if (preset.size() == 0 || ms2.size() == 0) return;
     std::vector<std::size_t> act1;
-    for (std::size_t r = 0; r < preset.size(); ++r)
-        if (preset.get(r, "Act") == "1") act1.push_back(r);
-    const auto ms2_row = id_rows(ms2), ms_row = id_rows(ms);
-    auto monster = [&](std::size_t row) { return monster_npc(scene, ms, ms2, ms2_row, row); };
-    for (const auto& o : scene.town.ds1.objects()) {
-        if (o.type != 1 || o.id < 0 || std::size_t(o.id) >= act1.size()) continue;
-        const std::string place(preset.get(act1[std::size_t(o.id)], "Place"));
-        const auto it = ms_row.find(place);
-        if (it == ms_row.end()) continue;            // place_* markers etc.
-        auto n = monster(it->second);
-        if (n.code.empty()) continue;
-        n.x = (float(o.x) + 0.5f) / 5;
-        n.y = (float(o.y) + 0.5f) / 5;
-        for (const auto& pt : o.path)
-            n.path.emplace_back((float(pt.x) + 0.5f) / 5, (float(pt.y) + 0.5f) / 5);
-        scene.town.npcs.push_back(std::move(n));
+    for (std::size_t row = 0; row < preset.size(); ++row)
+        if (preset.get(row, "Act") == "1") act1.push_back(row);
+    const auto ms2_row = id_rows(ms2), ms_row = id_rows(monstats);
+    auto monster = [&](std::size_t row) { return monster_npc(scene, monstats, ms2, ms2_row, row); };
+    for (const auto& object : scene.town.ds1.objects()) {
+        if (object.type != 1 || object.id < 0 || std::size_t(object.id) >= act1.size()) continue;
+        const std::string place(preset.get(act1[std::size_t(object.id)], "Place"));
+        const auto found = ms_row.find(place);
+        if (found == ms_row.end()) continue;            // place_* markers etc.
+        auto npc = monster(found->second);
+        if (npc.code.empty()) continue;
+        npc.x = (float(object.x) + 0.5f) / 5;
+        npc.y = (float(object.y) + 0.5f) / 5;
+        for (const auto& point : object.path)
+            npc.path.emplace_back((float(point.x) + 0.5f) / 5, (float(point.y) + 0.5f) / 5);
+        scene.town.npcs.push_back(std::move(npc));
     }
 
     // Mercenaries: hireling.txt (LoD rows, Version 100) by Id -> the MonStats
     // row whose hcIdx is its Class; name keys run from NameFirst.
     if (const auto hire = txt("hireling"); hire.size() > 0) {
         std::unordered_map<int, std::size_t> by_hc;
-        for (std::size_t r = 0; r < ms.size(); ++r) by_hc.emplace(std::atoi(std::string(ms.get(r, "hcIdx")).c_str()), r);
-        for (std::size_t r = 0; r < hire.size(); ++r) {
-            if (hire.get(r, "Version") != "100") continue;
-            const int id = std::atoi(std::string(hire.get(r, "Id")).c_str());
-            const auto m = by_hc.find(std::atoi(std::string(hire.get(r, "Class")).c_str()));
-            if (m == by_hc.end() || scene.mercs.contains(id)) continue;
-            auto n = monster(m->second);
-            if (n.code.empty()) continue;
-            scene.mercs.emplace(id, GameData::Merc{ std::move(n), std::string(hire.get(r, "NameFirst")) });
+        for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) by_hc.emplace(std::atoi(std::string(monstats.get(row_index, "hcIdx")).c_str()), row_index);
+        for (std::size_t row_index = 0; row_index < hire.size(); ++row_index) {
+            if (hire.get(row_index, "Version") != "100") continue;
+            const int id = std::atoi(std::string(hire.get(row_index, "Id")).c_str());
+            const auto found = by_hc.find(std::atoi(std::string(hire.get(row_index, "Class")).c_str()));
+            if (found == by_hc.end() || scene.mercs.contains(id)) continue;
+            auto npc = monster(found->second);
+            if (npc.code.empty()) continue;
+            scene.mercs.emplace(id, GameData::Merc{ std::move(npc), std::string(hire.get(row_index, "NameFirst")) });
         }
     }
 
@@ -447,32 +447,32 @@ void load_npcs(GameData& scene, const d2d::mpq::Stack& mpqs) {
     const auto objects = txt("objects");
     // Shrines.txt, and each level's area level (chests' treasure class).
     const auto shr = txt("Shrines"), lvs = txt("Levels");
-    auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
-    for (std::size_t r = 0; r < shr.size(); ++r) {
-        auto g = [&](const char* c) { return num(shr.get(r, c)); };
-        scene.shrines.push_back({ g("Code"), g("Arg0"), g("Arg1"), g("Duration in frames"), g("reset time in minutes"), g("effectclass"), g("LevelMin") });
+    auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+    for (std::size_t row_index = 0; row_index < shr.size(); ++row_index) {
+        auto number = [&](const char* column) { return num(shr.get(row_index, column)); };
+        scene.shrines.push_back({ number("Code"), number("Arg0"), number("Arg1"), number("Duration in frames"), number("reset time in minutes"), number("effectclass"), number("LevelMin") });
     }
-    for (std::size_t r = 0; r < lvs.size(); ++r) {
-        const int id = num(lvs.get(r, "Id"));
+    for (std::size_t row_index = 0; row_index < lvs.size(); ++row_index) {
+        const int id = num(lvs.get(row_index, "Id"));
         if (id < 0 || id > 1000) continue;
         if (std::size_t(id) >= scene.area_level.size()) scene.area_level.resize(std::size_t(id) + 1);
-        scene.area_level[std::size_t(id)] = { num(lvs.get(r, "MonLvl1Ex")), num(lvs.get(r, "MonLvl2Ex")), num(lvs.get(r, "MonLvl3Ex")), num(lvs.get(r, "MonLvl1")) };
+        scene.area_level[std::size_t(id)] = { num(lvs.get(row_index, "MonLvl1Ex")), num(lvs.get(row_index, "MonLvl2Ex")), num(lvs.get(row_index, "MonLvl3Ex")), num(lvs.get(row_index, "MonLvl1")) };
     }
     std::unordered_map<std::string, std::size_t> obj_row;
-    for (std::size_t r = 0; r < objects.size(); ++r) obj_row.emplace(std::string(objects.get(r, "Id")), r);
+    for (std::size_t row_index = 0; row_index < objects.size(); ++row_index) obj_row.emplace(std::string(objects.get(row_index, "Id")), row_index);
     d2d::rules::Rng rgn(scene.map_seed);            // the game's object seed (FUN_00546fa0)
-    auto add = [&](Level& into, int oid, int sx, int sy) { add_object(scene, objects, obj_row, into, oid, sx, sy, rgn); };
+    auto add = [&](Level& into, int oid, int spot_x, int spot_y) { add_object(scene, objects, obj_row, into, oid, spot_x, spot_y, rgn); };
     {                                               // a chest trap's fires (5 / 7: objects 162 and 160)
         Level tmp;
         add(tmp, 162, 0, 0);
         add(tmp, 160, 0, 0);
         for (std::size_t k = 0; k < tmp.npcs.size() && k < 2; ++k) scene.trap_fires[k] = std::move(tmp.npcs[k]);
-        Level tp;
-        add(tp, 59, 0, 0);                          // the town portal
-        if (!tp.npcs.empty()) scene.town_portal = std::move(tp.npcs[0]);
+        Level portal_level;
+        add(portal_level, 59, 0, 0);                          // the town portal
+        if (!portal_level.npcs.empty()) scene.town_portal = std::move(portal_level.npcs[0]);
     }
-    for (const auto& o : scene.town.ds1.objects())
-        if (o.type == 2 && o.id >= 0 && o.id < 150) add(scene.town, kObjPreset[0][std::size_t(o.id)], o.x, o.y);   // act 1
+    for (const auto& object : scene.town.ds1.objects())
+        if (object.type == 2 && object.id >= 0 && object.id < 150) add(scene.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1
 
     // What a level build reads later (build_level).
     if (scene.builder) {
@@ -491,13 +491,13 @@ void load_npcs(GameData& scene, const d2d::mpq::Stack& mpqs) {
     // ponytail: where a game with the quest already done places him isn't
     // located; he stands 3 subtiles off the town start, like the
     // Tristram spawn's offset (FUN_00593290).
-    for (std::size_t r = 0; r < ms.size() && scene.town.start.first >= 0; ++r) {
-        if (ms.get(r, "hcIdx") != "265") continue;
-        auto n = monster(r);
-        if (n.code.empty()) break;
-        n.quest = 4;
-        std::tie(n.x, n.y) = scene.town.nearest_free(scene.town.start.first + 0.6f, scene.town.start.second + 0.6f);
-        scene.town.npcs.push_back(std::move(n));
+    for (std::size_t row_index = 0; row_index < monstats.size() && scene.town.start.first >= 0; ++row_index) {
+        if (monstats.get(row_index, "hcIdx") != "265") continue;
+        auto npc = monster(row_index);
+        if (npc.code.empty()) break;
+        npc.quest = 4;
+        std::tie(npc.x, npc.y) = scene.town.nearest_free(scene.town.start.first + 0.6f, scene.town.start.second + 0.6f);
+        scene.town.npcs.push_back(std::move(npc));
         break;
     }
 }
@@ -506,189 +506,189 @@ void load_npcs(GameData& scene, const d2d::mpq::Stack& mpqs) {
 // class's starting-gear appearance (CharStats.txt item1..: "rarm" item in
 // the right hand, a "larm" shield on the shield layer; body parts "lit").
 void load_tables(GameData& scene, const d2d::mpq::Stack& mpqs) {
-    auto txt = [&](const char* n) {
-        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    auto txt = [&](const char* name) {
+        auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
     const auto types = txt("ItemTypes"), weapons = txt("weapons"), armor = txt("armor"),
                misc = txt("misc"), charstats = txt("CharStats");
     if (types.size() == 0 || weapons.size() == 0) return;
     scene.comp = d2d::compcode::build(types, weapons, armor, misc);
     scene.item_pieces = d2d::compcode::pieces(weapons, armor, misc);
-    auto col = [&](const char* n, const char* c, bool all) {
-        std::vector<std::string> v;
-        if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-            const d2d::txt::Table t(*b, all);
-            for (std::size_t r = 0; r < t.size(); ++r) v.emplace_back(t.get(r, c));
+    auto col = [&](const char* name, const char* column, bool all) {
+        std::vector<std::string> values;
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt")) {
+            const d2d::txt::Table table(*bytes, all);
+            for (std::size_t row = 0; row < table.size(); ++row) values.emplace_back(table.get(row, column));
         }
-        return v;
+        return values;
     };
     scene.item_colours = { col("Colors", "Code", false), col("UniqueItems", "chrtransform", false), col("SetItems", "chrtransform", false),
                            col("MagicPrefix", "transformcolor", true), col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true),
                            d2d::compcode::gem_colours(types, misc, txt("gems")), col("UniqueItems", "invtransform", false),
                            col("SetItems", "invtransform", false) };
     int transform = 1;
-    for (const char* n : { "grey", "grey2", "gold", "brown", "greybrown", "invgrey", "invgrey2", "invgreybrown" })
-        if (auto b = mpqs.try_read(std::string(R"(data\global\items\palette\)") + n + ".dat"); b && b->size() >= 21 * 256) {
-            const auto* p = reinterpret_cast<const std::uint8_t*>(b->data());
-            scene.colormaps[std::size_t(transform++)].assign(p, p + 21 * 256);
+    for (const char* name : { "grey", "grey2", "gold", "brown", "greybrown", "invgrey", "invgrey2", "invgreybrown" })
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\items\palette\)") + name + ".dat"); bytes && bytes->size() >= 21 * 256) {
+            const auto* colormap = reinterpret_cast<const std::uint8_t*>(bytes->data());
+            scene.colormaps[std::size_t(transform++)].assign(colormap, colormap + 21 * 256);
         } else ++transform;
     scene.item_types.emplace(types);
-    if (const auto ov = txt("Overlay"); ov.size() > 0)
-        for (std::size_t r = 0; r < ov.size(); ++r) {
-            auto n = [&](const char* c) { return std::atoi(std::string(ov.get(r, c)).c_str()); };
-            GameData::OverlayInfo o;
-            o.file = std::string(ov.get(r, "Filename"));
-            o.frames = std::max(n("Frames"), 1); o.x = n("Xoffset"); o.y = n("Yoffset"); o.rate = n("AnimRate");
-            o.trans = n("Trans"); o.radius = n("Radius"); o.init_radius = n("InitRadius"); o.predraw = n("PreDraw") != 0;
-            o.height = { n("Height1"), n("Height2"), n("Height3"), n("Height4") };
-            scene.overlays.emplace(std::string(ov.get(r, "overlay")), std::move(o));
+    if (const auto overlay_table = txt("Overlay"); overlay_table.size() > 0)
+        for (std::size_t row = 0; row < overlay_table.size(); ++row) {
+            auto number = [&](const char* column) { return std::atoi(std::string(overlay_table.get(row, column)).c_str()); };
+            GameData::OverlayInfo overlay;
+            overlay.file = std::string(overlay_table.get(row, "Filename"));
+            overlay.frames = std::max(number("Frames"), 1); overlay.x = number("Xoffset"); overlay.y = number("Yoffset"); overlay.rate = number("AnimRate");
+            overlay.trans = number("Trans"); overlay.radius = number("Radius"); overlay.init_radius = number("InitRadius"); overlay.predraw = number("PreDraw") != 0;
+            overlay.height = { number("Height1"), number("Height2"), number("Height3"), number("Height4") };
+            scene.overlays.emplace(std::string(overlay_table.get(row, "overlay")), std::move(overlay));
         }
     auto overlay = [&](std::string_view name) -> const GameData::OverlayInfo* {
-        const auto it = scene.overlays.find(std::string(name));
-        return it == scene.overlays.end() || it->second.file.empty() || it->second.file == "null" ? nullptr : &it->second;
+        const auto found = scene.overlays.find(std::string(name));
+        return found == scene.overlays.end() || found->second.file.empty() || found->second.file == "null" ? nullptr : &found->second;
     };
-    if (const auto st = txt("States"); st.size() > 0)
-        for (std::size_t r = 0; r < st.size(); ++r) {
-            GameData::StateInfo i;
-            const auto shift = st.get(r, "colorshift");
-            i.shift = shift.empty() ? -1 : std::atoi(std::string(shift).c_str());
-            i.pri = std::atoi(std::string(st.get(r, "colorpri")).c_str());
-            for (int k = 0; k < 4; ++k) i.over[std::size_t(k)] = overlay(st.get(r, ("overlay" + std::to_string(k + 1)).c_str()));
-            i.cast = overlay(st.get(r, "castoverlay"));
-            i.item_type = std::string(st.get(r, "itemtype"));
-            const std::string trans(st.get(r, "itemtrans"));
-            for (std::size_t c = 0; c < scene.item_colours.codes.size(); ++c) if (!trans.empty() && scene.item_colours.codes[c] == trans) i.item_colour = int(c);
-            scene.states.emplace(std::string(st.get(r, "state")), std::move(i));
+    if (const auto states_table = txt("States"); states_table.size() > 0)
+        for (std::size_t row = 0; row < states_table.size(); ++row) {
+            GameData::StateInfo state;
+            const auto shift = states_table.get(row, "colorshift");
+            state.shift = shift.empty() ? -1 : std::atoi(std::string(shift).c_str());
+            state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
+            for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
+            state.cast = overlay(states_table.get(row, "castoverlay"));
+            state.item_type = std::string(states_table.get(row, "itemtype"));
+            const std::string trans(states_table.get(row, "itemtrans"));
+            for (std::size_t colour = 0; colour < scene.item_colours.codes.size(); ++colour) if (!trans.empty() && scene.item_colours.codes[colour] == trans) state.item_colour = int(colour);
+            scene.states.emplace(std::string(states_table.get(row, "state")), std::move(state));
         }
-    if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); pb && pb->size() >= 0x53500 + 111 * 256) {
-        const auto* p = reinterpret_cast<const std::uint8_t*>(pb->data()) + 0x53500;
-        scene.colour_shifts.assign(p, p + 111 * 256);
+    if (auto bytes = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); bytes && bytes->size() >= 0x53500 + 111 * 256) {
+        const auto* shifts = reinterpret_cast<const std::uint8_t*>(bytes->data()) + 0x53500;
+        scene.colour_shifts.assign(shifts, shifts + 111 * 256);
     }
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.
-    if (const auto xp = txt("experience"); xp.size() > 0)
-        for (std::size_t r = 0; r < xp.size(); ++r)
-            if (const auto l = xp.get(r, "Level"); !l.empty() && l[0] >= '0' && l[0] <= '9') {
-                const auto lv = std::size_t(std::stoi(std::string(l)));
-                if (lv >= scene.exp_next.size()) scene.exp_next.resize(lv + 1, -1);
-                scene.exp_next[lv] = std::stoll(std::string(xp.get(r, "Amazon")));
+    if (const auto experience_table = txt("experience"); experience_table.size() > 0)
+        for (std::size_t row = 0; row < experience_table.size(); ++row)
+            if (const auto level_text = experience_table.get(row, "Level"); !level_text.empty() && level_text[0] >= '0' && level_text[0] <= '9') {
+                const auto level = std::size_t(std::stoi(std::string(level_text)));
+                if (level >= scene.exp_next.size()) scene.exp_next.resize(level + 1, -1);
+                scene.exp_next[level] = std::stoll(std::string(experience_table.get(row, "Amazon")));
             }
-    if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
-        for (std::size_t r = 0; r < 3; ++r)
-            scene.resist_penalty[r] = std::stoll(std::string(dl.get(r, "ResistPenalty")));
+    if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
+        for (std::size_t row = 0; row < 3; ++row)
+            scene.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
     if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
         scene.item_tables = d2d::d2s::ItemTables::from(isc, armor, weapons, misc);
-    for (const auto* t : { &weapons, &armor, &misc })
-        for (std::size_t r = 0; r < t->size(); ++r)
-            scene.rules.item_info[std::string(t->get(r, "code"))] = {
-                std::string(t->get(r, "invfile")),
-                std::max(1, std::atoi(std::string(t->get(r, "invwidth")).c_str())),
-                std::max(1, std::atoi(std::string(t->get(r, "invheight")).c_str())),
-                std::string(t->get(r, "namestr")), std::string(t->get(r, "type")),
-                t == &armor ? 1 : t == &weapons ? 2 : 0,
-                t == &armor && !t->get(r, "belt").empty() ? std::atoi(std::string(t->get(r, "belt")).c_str()) : -1,
-                t == &weapons && t->get(r, "2handed") == "1", t == &weapons && t->get(r, "1or2handed") == "1",
-                std::atoi(std::string(t->get(r, "reqstr")).c_str()), std::atoi(std::string(t->get(r, "reqdex")).c_str()),
-                std::atoi(std::string(t->get(r, "levelreq")).c_str()), std::string(t->get(r, "flippyfile")),
-                std::string(t->get(r, "dropsound")), std::atoi(std::string(t->get(r, "dropsfxframe")).c_str()) };
-    for (std::size_t r = 0; r < types.size(); ++r) {
-        const std::string code(types.get(r, "Code"));
+    for (const auto* table : { &weapons, &armor, &misc })
+        for (std::size_t row = 0; row < table->size(); ++row)
+            scene.rules.item_info[std::string(table->get(row, "code"))] = {
+                std::string(table->get(row, "invfile")),
+                std::max(1, std::atoi(std::string(table->get(row, "invwidth")).c_str())),
+                std::max(1, std::atoi(std::string(table->get(row, "invheight")).c_str())),
+                std::string(table->get(row, "namestr")), std::string(table->get(row, "type")),
+                table == &armor ? 1 : table == &weapons ? 2 : 0,
+                table == &armor && !table->get(row, "belt").empty() ? std::atoi(std::string(table->get(row, "belt")).c_str()) : -1,
+                table == &weapons && table->get(row, "2handed") == "1", table == &weapons && table->get(row, "1or2handed") == "1",
+                std::atoi(std::string(table->get(row, "reqstr")).c_str()), std::atoi(std::string(table->get(row, "reqdex")).c_str()),
+                std::atoi(std::string(table->get(row, "levelreq")).c_str()), std::string(table->get(row, "flippyfile")),
+                std::string(table->get(row, "dropsound")), std::atoi(std::string(table->get(row, "dropsfxframe")).c_str()) };
+    for (std::size_t row = 0; row < types.size(); ++row) {
+        const std::string code(types.get(row, "Code"));
         scene.rules.types[code] = {
-            { std::string(types.get(r, "Equiv1")), std::string(types.get(r, "Equiv2")) },
-            { d2d::rules::body_slot(types.get(r, "BodyLoc1")), d2d::rules::body_slot(types.get(r, "BodyLoc2")) },
-            std::string(types.get(r, "Class")), types.get(r, "Beltable") == "1",
-            types.get(r, "Magic") == "1", types.get(r, "Rare") == "1", types.get(r, "Normal") == "1" };
+            { std::string(types.get(row, "Equiv1")), std::string(types.get(row, "Equiv2")) },
+            { d2d::rules::body_slot(types.get(row, "BodyLoc1")), d2d::rules::body_slot(types.get(row, "BodyLoc2")) },
+            std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
+            types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1" };
     }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
             "Hralti", "Alkor", "Ormus", "Elzix", "Asheara", "Cain", "Halbu", "Jamella", "Malah", "Larzuk", "Drehya" };
         std::vector<std::pair<std::string, int>> weapons_by_level, armor_by_level;
-        for (const auto* t : { &armor, &weapons, &misc })
-            for (std::size_t r = 0; r < t->size(); ++r) {
-                const std::string code(t->get(r, "code"));
-                auto n = [&](std::string c) { return std::atoi(std::string(t->get(r, c)).c_str()); };
-                const bool two = t == &weapons && t->get(r, "2handed") == "1" && t->get(r, "1or2handed") != "1";
-                scene.rules.item_base[code] = { t == &armor ? n("minac") : 0, t == &armor ? n("maxac") : 0, n("cost"),
+        for (const auto* table : { &armor, &weapons, &misc })
+            for (std::size_t row = 0; row < table->size(); ++row) {
+                const std::string code(table->get(row, "code"));
+                auto number = [&](std::string column) { return std::atoi(std::string(table->get(row, column)).c_str()); };
+                const bool two = table == &weapons && table->get(row, "2handed") == "1" && table->get(row, "1or2handed") != "1";
+                scene.rules.item_base[code] = { table == &armor ? number("minac") : 0, table == &armor ? number("maxac") : 0, number("cost"),
                                           // armor.txt's first mindam/maxdam: a shield's smite, boots' kick damage
-                                          t == &misc ? 0 : n(two ? "2handmindam" : "mindam"),
-                                          t == &misc ? 0 : n(two ? "2handmaxdam" : "maxdam"),
-                                          t == &misc ? 0 : n("StrBonus"), t == &misc ? 0 : n("DexBonus"),
-                                          t == &weapons ? n("speed") : 0, t == &armor ? n("block") : 0,
-                                          t->get(r, "stackable") == "1", n("level"),
-                                          t == &misc ? 0 : n("durability"), n("gamble cost"), n("minstack"), n("maxstack"),
-                                          std::string(t->get(r, "normcode")), std::string(t->get(r, "ubercode")),
-                                          std::string(t->get(r, "ultracode")), std::string(t->get(r, "BetterGem")) };
-                if (t->get(r, "spawnable") != "1") continue;
-                scene.rules.item_rarity[code] = n("rarity");
-                if (t != &misc && n("level") > 0) (t == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, n("level"));
-                for (std::size_t v = 0; v < 17; ++v) {
-                    const std::string V = kVendorCol[v];
-                    d2d::rules::VendorItem vi{ code, n(V + "Min"), n(V + "Max"), n(V + "MagicMin"), n(V + "MagicMax"),
-                                          n(V + "MagicLvl"), t->get(r, "PermStoreItem") == "1" };
-                    if (vi.max > 0 || vi.magic_max > 0) scene.rules.vendor_items[v].push_back(std::move(vi));
+                                          table == &misc ? 0 : number(two ? "2handmindam" : "mindam"),
+                                          table == &misc ? 0 : number(two ? "2handmaxdam" : "maxdam"),
+                                          table == &misc ? 0 : number("StrBonus"), table == &misc ? 0 : number("DexBonus"),
+                                          table == &weapons ? number("speed") : 0, table == &armor ? number("block") : 0,
+                                          table->get(row, "stackable") == "1", number("level"),
+                                          table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
+                                          std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
+                                          std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")) };
+                if (table->get(row, "spawnable") != "1") continue;
+                scene.rules.item_rarity[code] = number("rarity");
+                if (table != &misc && number("level") > 0) (table == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, number("level"));
+                for (std::size_t vendor = 0; vendor < 17; ++vendor) {
+                    const std::string vendor_name = kVendorCol[vendor];
+                    d2d::rules::VendorItem vendor_item{ code, number(vendor_name + "Min"), number(vendor_name + "Max"), number(vendor_name + "MagicMin"), number(vendor_name + "MagicMax"),
+                                          number(vendor_name + "MagicLvl"), table->get(row, "PermStoreItem") == "1" };
+                    if (vendor_item.max > 0 || vendor_item.magic_max > 0) scene.rules.vendor_items[vendor].push_back(std::move(vendor_item));
                 }
             }
         // Potions (misc.txt stat1/calc1, stat2/calc2, len).
-        for (std::size_t r = 0; r < misc.size(); ++r) {
-            auto n = [&](std::string c) { return std::atoi(std::string(misc.get(r, c)).c_str()); };
-            const auto s1 = misc.get(r, "stat1"), s2 = misc.get(r, "stat2");
-            d2d::rules::Tables::Potion p{ 0, 0, n("len") };
-            if (s1 == "hpregen") p.life = n("calc1");
-            else if (s1 == "manarecovery") p.mana = n("calc1");
-            else if (s1 == "hitpoints" && s2 == "mana") { p.life = n("calc1"); p.mana = n("calc2"); p.percent = true; }
+        for (std::size_t row = 0; row < misc.size(); ++row) {
+            auto number = [&](std::string column) { return std::atoi(std::string(misc.get(row, column)).c_str()); };
+            const auto stat1 = misc.get(row, "stat1"), stat2 = misc.get(row, "stat2");
+            d2d::rules::Tables::Potion potion{ 0, 0, number("len") };
+            if (stat1 == "hpregen") potion.life = number("calc1");
+            else if (stat1 == "manarecovery") potion.mana = number("calc1");
+            else if (stat1 == "hitpoints" && stat2 == "mana") { potion.life = number("calc1"); potion.mana = number("calc2"); potion.percent = true; }
             else continue;
-            scene.rules.potions.emplace(std::string(misc.get(r, "code")), p);
+            scene.rules.potions.emplace(std::string(misc.get(row, "code")), potion);
         }
         // Drops: TreasureClassEx, ItemRatio (the LoD, non-class rows), auto classes.
         const auto tcx = txt("TreasureClassEx");
-        for (std::size_t r = 0; r < tcx.size(); ++r) {
-            auto n = [&](std::string c) { return std::atoi(std::string(tcx.get(r, c)).c_str()); };
-            d2d::rules::TreasureClass c{ std::max(n("Picks"), 1), n("NoDrop"), { n("Unique"), n("Set"), n("Rare"), n("Magic") }, {} };
+        for (std::size_t row = 0; row < tcx.size(); ++row) {
+            auto number = [&](std::string column) { return std::atoi(std::string(tcx.get(row, column)).c_str()); };
+            d2d::rules::TreasureClass treasure_class{ std::max(number("Picks"), 1), number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {} };
             for (int i = 1; i <= 10; ++i) {
-                auto item = std::string(tcx.get(r, "Item" + std::to_string(i)));
+                auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
                 std::erase(item, '"');
-                if (!item.empty()) c.items.emplace_back(std::move(item), n("Prob" + std::to_string(i)));
+                if (!item.empty()) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
             }
-            scene.rules.treasure.emplace(std::string(tcx.get(r, "Treasure Class")), std::move(c));
+            scene.rules.treasure.emplace(std::string(tcx.get(row, "Treasure Class")), std::move(treasure_class));
         }
         const auto ratio = txt("ItemRatio");
-        for (std::size_t r = 0; r < ratio.size(); ++r) {
-            if (ratio.get(r, "Version") != "1" || ratio.get(r, "Class Specific") != "0") continue;
-            auto n = [&](std::string c) { return std::atoi(std::string(ratio.get(r, c)).c_str()); };
-            auto& q = scene.rules.quality_ratio[ratio.get(r, "Uber") == "1" ? 1 : 0];
-            q[0] = { n("Unique"), n("UniqueDivisor"), n("UniqueMin") };
-            q[1] = { n("Set"), n("SetDivisor"), n("SetMin") };
-            q[2] = { n("Rare"), n("RareDivisor"), n("RareMin") };
-            q[3] = { n("Magic"), n("MagicDivisor"), n("MagicMin") };
-            q[4] = { n("HiQuality"), n("HiQualityDivisor"), 0 };
-            q[5] = { n("Normal"), n("NormalDivisor"), 0 };
+        for (std::size_t row = 0; row < ratio.size(); ++row) {
+            if (ratio.get(row, "Version") != "1" || ratio.get(row, "Class Specific") != "0") continue;
+            auto number = [&](std::string column) { return std::atoi(std::string(ratio.get(row, column)).c_str()); };
+            auto& ratios = scene.rules.quality_ratio[ratio.get(row, "Uber") == "1" ? 1 : 0];
+            ratios[0] = { number("Unique"), number("UniqueDivisor"), number("UniqueMin") };
+            ratios[1] = { number("Set"), number("SetDivisor"), number("SetMin") };
+            ratios[2] = { number("Rare"), number("RareDivisor"), number("RareMin") };
+            ratios[3] = { number("Magic"), number("MagicDivisor"), number("MagicMin") };
+            ratios[4] = { number("HiQuality"), number("HiQualityDivisor"), 0 };
+            ratios[5] = { number("Normal"), number("NormalDivisor"), 0 };
         }
         d2d::rules::add_auto_treasure(scene.rules, weapons_by_level, armor_by_level);
     }
-    auto keys = [&](const char* n, const char* col, bool all) {
-        std::vector<std::string> v;
-        if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-            const d2d::txt::Table t(*b, all);
-            for (std::size_t r = 0; r < t.size(); ++r) v.emplace_back(t.get(r, col));
+    auto keys = [&](const char* file_name, const char* col, bool all) {
+        std::vector<std::string> values;
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+            const d2d::txt::Table table(*bytes, all);
+            for (std::size_t row = 0; row < table.size(); ++row) values.emplace_back(table.get(row, col));
         }
-        return v;
+        return values;
     };
-    if (auto b = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
-        const d2d::txt::Table t(*b);
-        auto num = [&](std::size_t r, const char* c) { return std::atoi(std::string(t.get(r, c)).c_str()); };
-        for (std::size_t r = 0; r < t.size(); ++r) {
-            const auto id = std::size_t(num(r, "ID"));
+    if (auto bytes = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
+        const d2d::txt::Table table(*bytes);
+        auto num = [&](std::size_t row_index, const char* column) { return std::atoi(std::string(table.get(row_index, column)).c_str()); };
+        for (std::size_t row = 0; row < table.size(); ++row) {
+            const auto id = std::size_t(num(row, "ID"));
             if (id >= scene.stat_desc.size()) scene.stat_desc.resize(id + 1);
-            scene.stat_desc[id] = { num(r, "descpriority"), num(r, "descfunc"), num(r, "descval"),
-                                    num(r, "op"), num(r, "op param"), num(r, "dgrp"), num(r, "dgrpfunc"),
-                                    num(r, "dgrpval"),
-                                    std::string(t.get(r, "descstrpos")), std::string(t.get(r, "descstrneg")),
-                                    std::string(t.get(r, "descstr2")), std::string(t.get(r, "dgrpstrpos")),
-                                    std::string(t.get(r, "dgrpstrneg")), std::string(t.get(r, "dgrpstr2")) };
+            scene.stat_desc[id] = { num(row, "descpriority"), num(row, "descfunc"), num(row, "descval"),
+                                    num(row, "op"), num(row, "op param"), num(row, "dgrp"), num(row, "dgrpfunc"),
+                                    num(row, "dgrpval"),
+                                    std::string(table.get(row, "descstrpos")), std::string(table.get(row, "descstrneg")),
+                                    std::string(table.get(row, "descstr2")), std::string(table.get(row, "dgrpstrpos")),
+                                    std::string(table.get(row, "dgrpstrneg")), std::string(table.get(row, "dgrpstr2")) };
         }
     }
     {
@@ -696,43 +696,43 @@ void load_tables(GameData& scene, const d2d::mpq::Stack& mpqs) {
         // Property funcs used by gems: 1/3 value, 15/16 min/max, 17 param,
         // 5/6/7 min/max/% damage. ponytail: other funcs dropped.
         std::unordered_map<std::string, int> stat_id;
-        if (auto b = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
-            const d2d::txt::Table t(*b);
-            for (std::size_t r = 0; r < t.size(); ++r)
-                stat_id[std::string(t.get(r, "Stat"))] = std::atoi(std::string(t.get(r, "ID")).c_str());
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            for (std::size_t row = 0; row < table.size(); ++row)
+                stat_id[std::string(table.get(row, "Stat"))] = std::atoi(std::string(table.get(row, "ID")).c_str());
         }
         std::unordered_map<std::string, std::vector<std::pair<int, int>>> prop;   // code -> (func, stat)
-        const auto pt = txt("Properties");
-        for (std::size_t r = 0; r < pt.size(); ++r)
+        const auto properties_table = txt("Properties");
+        for (std::size_t row = 0; row < properties_table.size(); ++row)
             for (int i = 1; i <= 7; ++i) {
-                const int f = std::atoi(std::string(pt.get(r, "func" + std::to_string(i))).c_str());
-                if (!f) continue;
-                const auto st = stat_id.find(std::string(pt.get(r, "stat" + std::to_string(i))));
-                prop[std::string(pt.get(r, "code"))].emplace_back(f, st == stat_id.end() ? -1 : st->second);
-                scene.rules.properties[std::string(pt.get(r, "code"))].push_back(
-                    { f, st == stat_id.end() ? -1 : st->second,
-                      std::atoi(std::string(pt.get(r, "val" + std::to_string(i))).c_str()) });
+                const int func = std::atoi(std::string(properties_table.get(row, "func" + std::to_string(i))).c_str());
+                if (!func) continue;
+                const auto found = stat_id.find(std::string(properties_table.get(row, "stat" + std::to_string(i))));
+                prop[std::string(properties_table.get(row, "code"))].emplace_back(func, found == stat_id.end() ? -1 : found->second);
+                scene.rules.properties[std::string(properties_table.get(row, "code"))].push_back(
+                    { func, found == stat_id.end() ? -1 : found->second,
+                      std::atoi(std::string(properties_table.get(row, "val" + std::to_string(i))).c_str()) });
             }
-        const auto gt = txt("gems");
+        const auto gems_table = txt("gems");
         static constexpr const char* kSlot[3] = { "weaponMod", "helmMod", "shieldMod" };
-        for (std::size_t r = 0; r < gt.size(); ++r)
+        for (std::size_t row = 0; row < gems_table.size(); ++row)
             for (int k = 0; k < 3; ++k)
-                for (int m = 1; m <= 3; ++m) {
-                    const std::string pre = std::string(kSlot[k]) + std::to_string(m);
-                    const auto it = prop.find(std::string(gt.get(r, pre + "Code")));
-                    if (it == prop.end()) continue;
-                    auto num = [&](const char* c) { return std::atoi(std::string(gt.get(r, pre + c)).c_str()); };
-                    const int par = num("Param"), mn = num("Min"), mx = num("Max");
-                    auto& out = scene.gem_props[std::string(gt.get(r, "code"))][std::size_t(k)];
-                    for (auto [f, st] : it->second) {
-                        switch (f) {
-                            case 1: case 3: if (st >= 0) out.push_back({ st, par, mn }); break;
-                            case 15: if (st >= 0) out.push_back({ st, 0, mn }); break;
-                            case 16: if (st >= 0) out.push_back({ st, 0, mx }); break;
-                            case 17: if (st >= 0) out.push_back({ st, 0, par }); break;
-                            case 5: out.push_back({ 21, 0, mn }); break;
-                            case 6: out.push_back({ 22, 0, mx }); break;
-                            case 7: out.push_back({ 17, 0, mn }); out.push_back({ 18, 0, mn }); break;
+                for (int mod = 1; mod <= 3; ++mod) {
+                    const std::string pre = std::string(kSlot[k]) + std::to_string(mod);
+                    const auto found = prop.find(std::string(gems_table.get(row, pre + "Code")));
+                    if (found == prop.end()) continue;
+                    auto num = [&](const char* column) { return std::atoi(std::string(gems_table.get(row, pre + column)).c_str()); };
+                    const int par = num("Param"), minimum = num("Min"), maximum = num("Max");
+                    auto& out = scene.gem_props[std::string(gems_table.get(row, "code"))][std::size_t(k)];
+                    for (auto [func, stat] : found->second) {
+                        switch (func) {
+                            case 1: case 3: if (stat >= 0) out.push_back({ stat, par, minimum }); break;
+                            case 15: if (stat >= 0) out.push_back({ stat, 0, minimum }); break;
+                            case 16: if (stat >= 0) out.push_back({ stat, 0, maximum }); break;
+                            case 17: if (stat >= 0) out.push_back({ stat, 0, par }); break;
+                            case 5: out.push_back({ 21, 0, minimum }); break;
+                            case 6: out.push_back({ 22, 0, maximum }); break;
+                            case 7: out.push_back({ 17, 0, minimum }); out.push_back({ 18, 0, minimum }); break;
                             default: break;
                         }
                     }
@@ -740,253 +740,253 @@ void load_tables(GameData& scene, const d2d::mpq::Stack& mpqs) {
     }
     {
         std::unordered_map<std::string, std::string> desc_name;     // SkillDesc key -> "str name"
-        if (auto b = mpqs.try_read(R"(data\global\excel\SkillDesc.txt)")) {
-            const d2d::txt::Table t(*b);
-            for (std::size_t r = 0; r < t.size(); ++r)
-                desc_name[std::string(t.get(r, "skilldesc"))] = std::string(t.get(r, "str name"));
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\SkillDesc.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            for (std::size_t row = 0; row < table.size(); ++row)
+                desc_name[std::string(table.get(row, "skilldesc"))] = std::string(table.get(row, "str name"));
         }
         static constexpr std::string_view kCls[] = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
-        if (auto b = mpqs.try_read(R"(data\global\excel\skills.txt)")) {
-            const d2d::txt::Table t(*b);
-            for (std::size_t r = 0; r < t.size(); ++r) {
-                const auto id = std::size_t(std::atoi(std::string(t.get(r, "Id")).c_str()));
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\skills.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            for (std::size_t row = 0; row < table.size(); ++row) {
+                const auto id = std::size_t(std::atoi(std::string(table.get(row, "Id")).c_str()));
                 if (id >= scene.skill_name.size()) { scene.skill_name.resize(id + 1); scene.skill_class.resize(id + 1, -1); }
-                scene.skill_name[id] = desc_name[std::string(t.get(r, "skilldesc"))];
-                scene.rules.skill_id[std::string(t.get(r, "skill"))] = int(id);
-                const auto cc = t.get(r, "charclass");
-                for (int c = 0; c < 7; ++c) if (cc == kCls[c]) scene.skill_class[id] = c;
+                scene.skill_name[id] = desc_name[std::string(table.get(row, "skilldesc"))];
+                scene.rules.skill_id[std::string(table.get(row, "skill"))] = int(id);
+                const auto class_code = table.get(row, "charclass");
+                for (int class_index = 0; class_index < 7; ++class_index) if (class_code == kCls[class_index]) scene.skill_class[id] = class_index;
             }
         }
-        const auto cs = txt("CharStats");
-        for (std::size_t r = 0; r < std::min<std::size_t>(cs.size(), 7); ++r) {
-            if (const auto w = std::atoi(std::string(cs.get(r, "WalkVelocity")).c_str()); w > 0) scene.walk_velocity[r] = w;
-            if (const auto v = std::atoi(std::string(cs.get(r, "RunVelocity")).c_str()); v > 0) scene.run_velocity[r] = v;
+        const auto charstats_table = txt("CharStats");
+        for (std::size_t row = 0; row < std::min<std::size_t>(charstats_table.size(), 7); ++row) {
+            if (const auto walk = std::atoi(std::string(charstats_table.get(row, "WalkVelocity")).c_str()); walk > 0) scene.walk_velocity[row] = walk;
+            if (const auto run = std::atoi(std::string(charstats_table.get(row, "RunVelocity")).c_str()); run > 0) scene.run_velocity[row] = run;
         }
-        for (std::size_t r = 0; r < std::min<std::size_t>(cs.size(), 7); ++r)
-            scene.class_strs[r] = { std::string(cs.get(r, "StrAllSkills")),
-                                    { std::string(cs.get(r, "StrSkillTab1")), std::string(cs.get(r, "StrSkillTab2")),
-                                      std::string(cs.get(r, "StrSkillTab3")) },
-                                    std::string(cs.get(r, "StrClassOnly")) };
+        for (std::size_t row = 0; row < std::min<std::size_t>(charstats_table.size(), 7); ++row)
+            scene.class_strs[row] = { std::string(charstats_table.get(row, "StrAllSkills")),
+                                    { std::string(charstats_table.get(row, "StrSkillTab1")), std::string(charstats_table.get(row, "StrSkillTab2")),
+                                      std::string(charstats_table.get(row, "StrSkillTab3")) },
+                                    std::string(charstats_table.get(row, "StrClassOnly")) };
     }
     // animdata.d2: blocks of u32 count + count * 160-byte records
     // {char name[8], u32 frames/dir, u32 speed, u8 events[144]}.
-    if (auto b = mpqs.try_read(R"(data\global\animdata.d2)"))
-        for (std::size_t p = 0; p + 4 <= b->size();) {
-            std::uint32_t n; std::memcpy(&n, b->data() + p, 4); p += 4;
-            for (std::uint32_t i = 0; i < n && p + 160 <= b->size(); ++i, p += 160) {
-                std::string name(reinterpret_cast<const char*>(b->data() + p), 8);
+    if (auto bytes = mpqs.try_read(R"(data\global\animdata.d2)"))
+        for (std::size_t at = 0; at + 4 <= bytes->size();) {
+            std::uint32_t count; std::memcpy(&count, bytes->data() + at, 4); at += 4;
+            for (std::uint32_t i = 0; i < count && at + 160 <= bytes->size(); ++i, at += 160) {
+                std::string name(reinterpret_cast<const char*>(bytes->data() + at), 8);
                 name.resize(std::strlen(name.c_str()));
-                for (auto& ch : name) ch = char(std::toupper(ch));
-                GameData::AnimInfo a;
-                std::memcpy(&a.frames, b->data() + p + 8, 4);
-                std::memcpy(&a.speed, b->data() + p + 12, 4);
-                for (std::uint32_t f = 0; f < a.frames && f < 144 && a.action < 0; ++f)
-                    if (std::to_integer<int>(b->data()[p + 16 + f]) != 0) a.action = int(f);
-                scene.anim_data.emplace(std::move(name), a);
+                for (auto& letter : name) letter = char(std::toupper(letter));
+                GameData::AnimInfo anim;
+                std::memcpy(&anim.frames, bytes->data() + at + 8, 4);
+                std::memcpy(&anim.speed, bytes->data() + at + 12, 4);
+                for (std::uint32_t frame = 0; frame < anim.frames && frame < 144 && anim.action < 0; ++frame)
+                    if (std::to_integer<int>(bytes->data()[at + 16 + frame]) != 0) anim.action = int(frame);
+                scene.anim_data.emplace(std::move(name), anim);
             }
         }
-    if (const auto bt = txt("belts"); bt.size() >= 14)
-        for (std::size_t b = 0; b < 7; ++b) {
-            const std::size_t r = 7 + b;                 // the 800x600 half
-            auto& B = scene.belts[b];
-            B.boxes = std::clamp(std::atoi(std::string(bt.get(r, "numboxes")).c_str()), 0, 16);
-            for (int i = 0; i < B.boxes; ++i)
+    if (const auto belts_table = txt("belts"); belts_table.size() >= 14)
+        for (std::size_t belt_index = 0; belt_index < 7; ++belt_index) {
+            const std::size_t row = 7 + belt_index;                 // the 800x600 half
+            auto& belt = scene.belts[belt_index];
+            belt.boxes = std::clamp(std::atoi(std::string(belts_table.get(row, "numboxes")).c_str()), 0, 16);
+            for (int i = 0; i < belt.boxes; ++i)
                 for (int k = 0; k < 4; ++k) {
                     static constexpr const char* kSide[4] = { "left", "right", "top", "bottom" };
-                    B.box[std::size_t(i)][std::size_t(k)] = std::atoi(std::string(
-                        bt.get(r, "box" + std::to_string(i + 1) + kSide[k])).c_str());
+                    belt.box[std::size_t(i)][std::size_t(k)] = std::atoi(std::string(
+                        belts_table.get(row, "box" + std::to_string(i + 1) + kSide[k])).c_str());
                 }
         }
     {
-        const auto lv = txt("Levels");
-        for (std::size_t r = 0; r < lv.size(); ++r)
-            if (lv.get(r, "Id") == "1") scene.town.type = std::atoi(std::string(lv.get(r, "LevelType")).c_str());
-        for (std::size_t r = 0; r < lv.size(); ++r) {
-            const auto wp = lv.get(r, "Waypoint");
-            const int act = std::atoi(std::string(lv.get(r, "Act")).c_str());
-            if (wp.empty() || wp == "255" || act < 0 || act > 4) continue;
-            scene.waypoint_levels[std::size_t(act)].push_back({ std::atoi(std::string(wp).c_str()),
-                std::atoi(std::string(lv.get(r, "Id")).c_str()), std::string(lv.get(r, "LevelName")) });
+        const auto levels_table = txt("Levels");
+        for (std::size_t row = 0; row < levels_table.size(); ++row)
+            if (levels_table.get(row, "Id") == "1") scene.town.type = std::atoi(std::string(levels_table.get(row, "LevelType")).c_str());
+        for (std::size_t row = 0; row < levels_table.size(); ++row) {
+            const auto waypoint = levels_table.get(row, "Waypoint");
+            const int act = std::atoi(std::string(levels_table.get(row, "Act")).c_str());
+            if (waypoint.empty() || waypoint == "255" || act < 0 || act > 4) continue;
+            scene.waypoint_levels[std::size_t(act)].push_back({ std::atoi(std::string(waypoint).c_str()),
+                std::atoi(std::string(levels_table.get(row, "Id")).c_str()), std::string(levels_table.get(row, "LevelName")) });
         }
-        for (auto& a : scene.waypoint_levels) std::ranges::sort(a, {}, &GameData::WaypointLevel::wp);
+        for (auto& act_levels : scene.waypoint_levels) std::ranges::sort(act_levels, {}, &GameData::WaypointLevel::waypoint);
     }
     // The Rogue Encampment (Levels.txt Id 1): automap Layer,
     // and SoundEnv -> SoundEnviron Song / Day Ambience (Sounds.txt indices).
     {
-        const auto lv = txt("Levels"), se = txt("SoundEnviron");
-        for (std::size_t r = 0; r < lv.size(); ++r) {
-            const auto id = lv.get(r, "Id");
+        const auto levels_table = txt("Levels"), sound_env = txt("SoundEnviron");
+        for (std::size_t row = 0; row < levels_table.size(); ++row) {
+            const auto id = levels_table.get(row, "Id");
             Level* into = id == "1" ? &scene.town : nullptr;     // the others: build_level
             if (!into) continue;
-            into->name = std::string(lv.get(r, "LevelName"));
-            into->layer = std::atoi(std::string(lv.get(r, "Layer")).c_str());
-            into->light = level_light(lv.get(r, "Intensity"), lv.get(r, "Red"), lv.get(r, "Green"), lv.get(r, "Blue"));
-            into->rain = lv.get(r, "Rain") == "1";
-            const auto env = lv.get(r, "SoundEnv");
-            for (std::size_t e = 0; e < se.size(); ++e)
-                if (se.get(e, "Index") == env) {
-                    into->song = std::atoi(std::string(se.get(e, "Song")).c_str());
-                    into->ambience = std::atoi(std::string(se.get(e, "Day Ambience")).c_str());
-                    into->night_ambience = std::atoi(std::string(se.get(e, "Night Ambience")).c_str());
-                    into->day_event = std::atoi(std::string(se.get(e, "Day Event")).c_str());
-                    into->night_event = std::atoi(std::string(se.get(e, "Night Event")).c_str());
-                    into->event_delay = std::atoi(std::string(se.get(e, "Event Delay")).c_str());
+            into->name = std::string(levels_table.get(row, "LevelName"));
+            into->layer = std::atoi(std::string(levels_table.get(row, "Layer")).c_str());
+            into->light = level_light(levels_table.get(row, "Intensity"), levels_table.get(row, "Red"), levels_table.get(row, "Green"), levels_table.get(row, "Blue"));
+            into->rain = levels_table.get(row, "Rain") == "1";
+            const auto env = levels_table.get(row, "SoundEnv");
+            for (std::size_t env_row = 0; env_row < sound_env.size(); ++env_row)
+                if (sound_env.get(env_row, "Index") == env) {
+                    into->song = std::atoi(std::string(sound_env.get(env_row, "Song")).c_str());
+                    into->ambience = std::atoi(std::string(sound_env.get(env_row, "Day Ambience")).c_str());
+                    into->night_ambience = std::atoi(std::string(sound_env.get(env_row, "Night Ambience")).c_str());
+                    into->day_event = std::atoi(std::string(sound_env.get(env_row, "Day Event")).c_str());
+                    into->night_event = std::atoi(std::string(sound_env.get(env_row, "Night Event")).c_str());
+                    into->event_delay = std::atoi(std::string(sound_env.get(env_row, "Event Delay")).c_str());
                 }
         }
     }
-    if (const auto st = txt("Sounds"); st.size() > 0)
-        for (std::size_t r = 0; r < st.size(); ++r) {
-            const int i = std::atoi(std::string(st.get(r, "Index")).c_str());
-            if (i < 0 || i > 20000) continue;
-            if (std::size_t(i) >= scene.sounds.size()) scene.sounds.resize(std::size_t(i) + 1);
-            scene.sounds[std::size_t(i)] = { std::string(st.get(r, "FileName")),
-                                             std::atoi(std::string(st.get(r, "Volume")).c_str()),
-                                             st.get(r, "Loop") == "1", st.get(r, "Music Vol") == "1",
-                                             std::atoi(std::string(st.get(r, "Fade In")).c_str()),
-                                             std::atoi(std::string(st.get(r, "Fade Out")).c_str()),
-                                             std::atoi(std::string(st.get(r, "Group Size")).c_str()),
-                                             { std::atoi(std::string(st.get(r, "Block 1")).c_str()), std::atoi(std::string(st.get(r, "Block 2")).c_str()),
-                                               std::atoi(std::string(st.get(r, "Block 3")).c_str()) } };
-            scene.sound_index.emplace(std::string(st.get(r, "Sound")), i);
+    if (const auto sounds_table = txt("Sounds"); sounds_table.size() > 0)
+        for (std::size_t row = 0; row < sounds_table.size(); ++row) {
+            const int index = std::atoi(std::string(sounds_table.get(row, "Index")).c_str());
+            if (index < 0 || index > 20000) continue;
+            if (std::size_t(index) >= scene.sounds.size()) scene.sounds.resize(std::size_t(index) + 1);
+            scene.sounds[std::size_t(index)] = { std::string(sounds_table.get(row, "FileName")),
+                                             std::atoi(std::string(sounds_table.get(row, "Volume")).c_str()),
+                                             sounds_table.get(row, "Loop") == "1", sounds_table.get(row, "Music Vol") == "1",
+                                             std::atoi(std::string(sounds_table.get(row, "Fade In")).c_str()),
+                                             std::atoi(std::string(sounds_table.get(row, "Fade Out")).c_str()),
+                                             std::atoi(std::string(sounds_table.get(row, "Group Size")).c_str()),
+                                             { std::atoi(std::string(sounds_table.get(row, "Block 1")).c_str()), std::atoi(std::string(sounds_table.get(row, "Block 2")).c_str()),
+                                               std::atoi(std::string(sounds_table.get(row, "Block 3")).c_str()) } };
+            scene.sound_index.emplace(std::string(sounds_table.get(row, "Sound")), index);
         }
-    auto& nm = scene.item_names;
-    nm.unique   = keys("UniqueItems", "index", false);
-    nm.set      = keys("SetItems", "index", false);
-    nm.prefix   = keys("MagicPrefix", "Name", true);
+    auto& item_names = scene.item_names;
+    item_names.unique   = keys("UniqueItems", "index", false);
+    item_names.set      = keys("SetItems", "index", false);
+    item_names.prefix   = keys("MagicPrefix", "Name", true);
     {
-        auto pairs = [&](const char* n, const char* mul, const char* add, bool all) {
-            std::vector<std::pair<int, int>> v;
-            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-                const d2d::txt::Table t(*b, all);
-                for (std::size_t r = 0; r < t.size(); ++r)
-                    v.emplace_back(std::atoi(std::string(t.get(r, mul)).c_str()), std::atoi(std::string(t.get(r, add)).c_str()));
+        auto pairs = [&](const char* file_name, const char* mul, const char* add, bool all) {
+            std::vector<std::pair<int, int>> values;
+            if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+                const d2d::txt::Table table(*bytes, all);
+                for (std::size_t row = 0; row < table.size(); ++row)
+                    values.emplace_back(std::atoi(std::string(table.get(row, mul)).c_str()), std::atoi(std::string(table.get(row, add)).c_str()));
             }
-            return v;
+            return values;
         };
         scene.rules.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
         scene.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
         scene.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         scene.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
         // Item generation (components/rules generate_item / gamble_item).
-        auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
-        auto affixes = [&](const char* n) {
-            std::vector<d2d::rules::Affix> v;
-            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-                const d2d::txt::Table t(*b, true);                 // raw rows = the save's affix IDs
-                for (std::size_t r = 0; r < t.size(); ++r) {
-                    d2d::rules::Affix a{ std::string(t.get(r, "Name")), num(t.get(r, "level")), num(t.get(r, "maxlevel")),
-                                         num(t.get(r, "group")), num(t.get(r, "frequency")),
-                                         t.get(r, "spawnable") == "1", t.get(r, "rare") == "1", {}, {}, {} };
+        auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+        auto affixes = [&](const char* file_name) {
+            std::vector<d2d::rules::Affix> values;
+            if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+                const d2d::txt::Table table(*bytes, true);                 // raw rows = the save's affix IDs
+                for (std::size_t row = 0; row < table.size(); ++row) {
+                    d2d::rules::Affix affix{ std::string(table.get(row, "Name")), num(table.get(row, "level")), num(table.get(row, "maxlevel")),
+                                         num(table.get(row, "group")), num(table.get(row, "frequency")),
+                                         table.get(row, "spawnable") == "1", table.get(row, "rare") == "1", {}, {}, {} };
                     for (int i = 1; i <= 7; ++i)
-                        if (const auto c = t.get(r, "itype" + std::to_string(i)); !c.empty()) a.itypes.emplace_back(c);
+                        if (const auto item_type = table.get(row, "itype" + std::to_string(i)); !item_type.empty()) affix.itypes.emplace_back(item_type);
                     for (int i = 1; i <= 5; ++i)
-                        if (const auto c = t.get(r, "etype" + std::to_string(i)); !c.empty()) a.etypes.emplace_back(c);
+                        if (const auto excluded_type = table.get(row, "etype" + std::to_string(i)); !excluded_type.empty()) affix.etypes.emplace_back(excluded_type);
                     for (int i = 1; i <= 3; ++i) {
-                        const auto k = "mod" + std::to_string(i);
-                        if (const auto c = t.get(r, k + "code"); !c.empty())
-                            a.mods.push_back({ std::string(c), std::string(t.get(r, k + "param")),
-                                               num(t.get(r, k + "min")), num(t.get(r, k + "max")) });
+                        const auto mod_prefix = "mod" + std::to_string(i);
+                        if (const auto mod_code = table.get(row, mod_prefix + "code"); !mod_code.empty())
+                            affix.mods.push_back({ std::string(mod_code), std::string(table.get(row, mod_prefix + "param")),
+                                               num(table.get(row, mod_prefix + "min")), num(table.get(row, mod_prefix + "max")) });
                     }
-                    v.push_back(std::move(a));
+                    values.push_back(std::move(affix));
                 }
             }
-            return v;
+            return values;
         };
         scene.rules.prefixes = affixes("MagicPrefix");
         scene.rules.suffixes = affixes("MagicSuffix");
-        auto specials = [&](const char* n, const char* code_col, int props) {
-            std::vector<d2d::rules::Special> v;
-            if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-                const d2d::txt::Table t(*b);
-                for (std::size_t r = 0; r < t.size(); ++r) {
-                    d2d::rules::Special sp{ std::string(t.get(r, code_col)), num(t.get(r, "lvl")), num(t.get(r, "rarity")),
-                                            code_col[0] == 'c' ? t.get(r, "enabled") == "1" : true, {} };
+        auto specials = [&](const char* file_name, const char* code_col, int props) {
+            std::vector<d2d::rules::Special> values;
+            if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+                const d2d::txt::Table table(*bytes);
+                for (std::size_t row = 0; row < table.size(); ++row) {
+                    d2d::rules::Special special{ std::string(table.get(row, code_col)), num(table.get(row, "lvl")), num(table.get(row, "rarity")),
+                                            code_col[0] == 'c' ? table.get(row, "enabled") == "1" : true, {} };
                     for (int i = 1; i <= props; ++i) {
-                        const auto k = std::to_string(i);
-                        if (const auto c = t.get(r, "prop" + k); !c.empty())
-                            sp.mods.push_back({ std::string(c), std::string(t.get(r, "par" + k)),
-                                                num(t.get(r, "min" + k)), num(t.get(r, "max" + k)) });
+                        const auto suffix = std::to_string(i);
+                        if (const auto prop_code = table.get(row, "prop" + suffix); !prop_code.empty())
+                            special.mods.push_back({ std::string(prop_code), std::string(table.get(row, "par" + suffix)),
+                                                num(table.get(row, "min" + suffix)), num(table.get(row, "max" + suffix)) });
                     }
-                    v.push_back(std::move(sp));
+                    values.push_back(std::move(special));
                 }
             }
-            return v;
+            return values;
         };
         scene.rules.uniques = specials("UniqueItems", "code", 12);
         scene.rules.sets = specials("SetItems", "item", 9);
         scene.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
         scene.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
         scene.rules.gamble = keys("gamble", "code", false);
-        if (const auto ht = txt("hireling"); ht.size() > 0)
-            for (std::size_t r = 0; r < ht.size(); ++r) {
-                auto n = [&](const char* c) { return num(ht.get(r, c)); };
-                const std::string first(ht.get(r, "NameFirst")), last(ht.get(r, "NameLast"));
+        if (const auto hireling_table = txt("hireling"); hireling_table.size() > 0)
+            for (std::size_t row = 0; row < hireling_table.size(); ++row) {
+                auto number = [&](const char* column) { return num(hireling_table.get(row, column)); };
+                const std::string first(hireling_table.get(row, "NameFirst")), last(hireling_table.get(row, "NameLast"));
                 const int names = first.size() >= 2 && last.size() >= 2
                     ? std::atoi(last.substr(last.size() - 2).c_str()) - std::atoi(first.substr(first.size() - 2).c_str()) + 1 : 1;
-                scene.rules.hirelings.push_back({ n("Version"), n("Id"), n("Class"), n("Act"), n("Difficulty"), n("Level"),
-                    n("Gold"), n("Exp/Lvl"), n("HP"), n("HP/Lvl"), n("Defense"), n("Def/Lvl"), n("Str"), n("Str/Lvl"),
-                    n("Dex"), n("Dex/Lvl"), n("Dmg-Min"), n("Dmg-Max"), n("Dmg/Lvl"), std::max(1, names),
-                    n("AR"), n("AR/Lvl") });
+                scene.rules.hirelings.push_back({ number("Version"), number("Id"), number("Class"), number("Act"), number("Difficulty"), number("Level"),
+                    number("Gold"), number("Exp/Lvl"), number("HP"), number("HP/Lvl"), number("Defense"), number("Def/Lvl"), number("Str"), number("Str/Lvl"),
+                    number("Dex"), number("Dex/Lvl"), number("Dmg-Min"), number("Dmg-Max"), number("Dmg/Lvl"), std::max(1, names),
+                    number("AR"), number("AR/Lvl") });
             }
-        if (const auto dl = txt("DifficultyLevels"); dl.size() >= 3)
-            for (std::size_t r = 0; r < 3; ++r)
-                scene.rules.gamble_rates[r] = { num(dl.get(r, "GambleRare")), num(dl.get(r, "GambleSet")),
-                                                num(dl.get(r, "GambleUnique")) };
-        if (auto b = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
-            const d2d::txt::Table t(*b);
-            for (std::size_t r = 0; r < t.size(); ++r) {
-                auto n = [&](const char* c) { return std::atoi(std::string(t.get(r, c)).c_str()); };
-                d2d::rules::NpcPrice p{ n("buy mult"), n("sell mult"), n("rep mult"),
-                                   { n("questflag A"), n("questflag B"), n("questflag C") },
-                                   { n("questbuymult A"), n("questbuymult B"), n("questbuymult C") },
-                                   { n("questsellmult A"), n("questsellmult B"), n("questsellmult C") },
-                                   { n("questrepmult A"), n("questrepmult B"), n("questrepmult C") },
-                                   { n("max buy"), n("max buy (N)"), n("max buy (H)") } };
-                scene.rules.npc_prices[std::string(t.get(r, "npc"))] = p;
+        if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
+            for (std::size_t row = 0; row < 3; ++row)
+                scene.rules.gamble_rates[row] = { num(difficulty_table.get(row, "GambleRare")), num(difficulty_table.get(row, "GambleSet")),
+                                                num(difficulty_table.get(row, "GambleUnique")) };
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\npc.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            for (std::size_t row = 0; row < table.size(); ++row) {
+                auto number = [&](const char* column) { return std::atoi(std::string(table.get(row, column)).c_str()); };
+                d2d::rules::NpcPrice prices{ number("buy mult"), number("sell mult"), number("rep mult"),
+                                   { number("questflag A"), number("questflag B"), number("questflag C") },
+                                   { number("questbuymult A"), number("questbuymult B"), number("questbuymult C") },
+                                   { number("questsellmult A"), number("questsellmult B"), number("questsellmult C") },
+                                   { number("questrepmult A"), number("questrepmult B"), number("questrepmult C") },
+                                   { number("max buy"), number("max buy (N)"), number("max buy (H)") } };
+                scene.rules.npc_prices[std::string(table.get(row, "npc"))] = prices;
             }
         }
     }
-    nm.suffix   = keys("MagicSuffix", "Name", true);
-    nm.rare_pre = keys("RarePrefix", "name", true);
-    nm.rare_suf = keys("RareSuffix", "name", true);
+    item_names.suffix   = keys("MagicSuffix", "Name", true);
+    item_names.rare_pre = keys("RarePrefix", "name", true);
+    item_names.rare_suf = keys("RareSuffix", "name", true);
     {
         // Runes.txt "RunewordN" rows sorted by N (80 and 96 don't exist);
         // the save's ID is that rank + 27.
-        std::vector<std::pair<int, std::string>> rw;
-        for (const auto& k : keys("Runes", "Name", false))
-            if (k.starts_with("Runeword")) rw.emplace_back(std::atoi(k.c_str() + 8), k);
-        std::ranges::sort(rw);
-        for (auto& [n, k] : rw) nm.runeword.push_back(std::move(k));
+        std::vector<std::pair<int, std::string>> runewords;
+        for (const auto& key : keys("Runes", "Name", false))
+            if (key.starts_with("Runeword")) runewords.emplace_back(std::atoi(key.c_str() + 8), key);
+        std::ranges::sort(runewords);
+        for (auto& [number, key] : runewords) item_names.runeword.push_back(std::move(key));
     }
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
     const auto inv = txt("inventory");
-    for (std::size_t r = 0; r < inv.size(); ++r) {
-        const auto cls = inv.get(r, "class");
-        const int e = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0
+    for (std::size_t row = 0; row < inv.size(); ++row) {
+        const auto cls = inv.get(row, "class");
+        const int layout_index = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0
                     : cls == "Transmogrify Box2" ? 2 : -1;
-        if (e < 0) continue;
-        auto num = [&](const char* col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
-        auto& L = e == 2 ? scene.cube_layout : scene.stash_layout[std::size_t(e)];
-        L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
-        L.cols = num("gridX"); L.rows = num("gridY");
-        L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
+        if (layout_index < 0) continue;
+        auto num = [&](const char* col) { return std::atoi(std::string(inv.get(row, col)).c_str()); };
+        auto& layout = layout_index == 2 ? scene.cube_layout : scene.stash_layout[std::size_t(layout_index)];
+        layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
+        layout.cols = num("gridX"); layout.rows = num("gridY");
+        layout.box_w = num("gridBoxWidth"); layout.box_h = num("gridBoxHeight");
     }
     static constexpr const char* kInvClass[7] = {
         "Amazon2", "Sorceress2", "Necromancer2", "Paladin2", "Barbarian2", "Druid2", "Assassin2" };
     static constexpr const char* kSlotCol[11] = {
         nullptr, "head", "neck", "torso", "rArm", "lArm", "rHand", "lHand", "belt", "feet", "gloves" };
-    for (std::size_t c = 0; c < 7; ++c)
-        for (std::size_t r = 0; r < inv.size(); ++r) {
-            if (inv.get(r, "class") != kInvClass[c]) continue;
-            auto num = [&](std::string col) { return std::atoi(std::string(inv.get(r, col)).c_str()); };
-            auto& L = scene.inv_layout[c];
-            L.panel_x = num("invLeft"); L.panel_y = num("invTop");
-            L.grid_x = num("gridLeft"); L.grid_y = num("gridTop");
-            L.cols = num("gridX"); L.rows = num("gridY");
-            L.box_w = num("gridBoxWidth"); L.box_h = num("gridBoxHeight");
-            for (std::size_t sl = 1; sl < 11; ++sl) {
-                const std::string k = kSlotCol[sl];
-                L.slots[sl] = { num(k + "Left"), num(k + "Top"), num(k + "Width"), num(k + "Height") };
+    for (std::size_t class_index = 0; class_index < 7; ++class_index)
+        for (std::size_t row = 0; row < inv.size(); ++row) {
+            if (inv.get(row, "class") != kInvClass[class_index]) continue;
+            auto num = [&](std::string col) { return std::atoi(std::string(inv.get(row, col)).c_str()); };
+            auto& layout = scene.inv_layout[class_index];
+            layout.panel_x = num("invLeft"); layout.panel_y = num("invTop");
+            layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
+            layout.cols = num("gridX"); layout.rows = num("gridY");
+            layout.box_w = num("gridBoxWidth"); layout.box_h = num("gridBoxHeight");
+            for (std::size_t slot = 1; slot < 11; ++slot) {
+                const std::string column = kSlotCol[slot];
+                layout.slots[slot] = { num(column + "Left"), num(column + "Top"), num(column + "Width"), num(column + "Height") };
             }
         }
     auto index_of = [&](std::string_view code) {
@@ -999,60 +999,60 @@ void load_tables(GameData& scene, const d2d::mpq::Stack& mpqs) {
     {
         const auto skills = txt("skills"), desc = txt("skilldesc");
         std::unordered_map<std::string, std::size_t> desc_row;
-        for (std::size_t r = 0; r < desc.size(); ++r) desc_row[std::string(desc.get(r, "skilldesc"))] = r;
-        auto num = [](std::string_view v) { return std::atoi(std::string(v).c_str()); };
-        for (std::size_t c = 0; c < 7; ++c) {
-            auto& list = scene.rules.class_skills[c];
+        for (std::size_t row = 0; row < desc.size(); ++row) desc_row[std::string(desc.get(row, "skilldesc"))] = row;
+        auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+        for (std::size_t class_index = 0; class_index < 7; ++class_index) {
+            auto& list = scene.rules.class_skills[class_index];
             std::vector<std::string> names;
-            for (std::size_t r = 0; r < skills.size(); ++r) {
-                if (skills.get(r, "charclass") != d2d::rules::kClassCode[c]) continue;
-                d2d::rules::ClassSkill sk;
-                sk.req_level = std::max(1, num(skills.get(r, "reqlevel")));
-                if (const int m = num(skills.get(r, "maxlvl")); m > 0) sk.max_level = m;
-                if (const auto d = desc_row.find(std::string(skills.get(r, "skilldesc"))); d != desc_row.end()) {
-                    sk.page = num(desc.get(d->second, "SkillPage"));
-                    sk.row = num(desc.get(d->second, "SkillRow"));
-                    sk.col = num(desc.get(d->second, "SkillColumn"));
-                    sk.icon = num(desc.get(d->second, "IconCel"));
-                    sk.name = std::string(desc.get(d->second, "str name"));
+            for (std::size_t row = 0; row < skills.size(); ++row) {
+                if (skills.get(row, "charclass") != d2d::rules::kClassCode[class_index]) continue;
+                d2d::rules::ClassSkill class_skill;
+                class_skill.req_level = std::max(1, num(skills.get(row, "reqlevel")));
+                if (const int max_level = num(skills.get(row, "maxlvl")); max_level > 0) class_skill.max_level = max_level;
+                if (const auto found = desc_row.find(std::string(skills.get(row, "skilldesc"))); found != desc_row.end()) {
+                    class_skill.page = num(desc.get(found->second, "SkillPage"));
+                    class_skill.row = num(desc.get(found->second, "SkillRow"));
+                    class_skill.col = num(desc.get(found->second, "SkillColumn"));
+                    class_skill.icon = num(desc.get(found->second, "IconCel"));
+                    class_skill.name = std::string(desc.get(found->second, "str name"));
                 }
-                names.emplace_back(skills.get(r, "skill"));
-                list.push_back(std::move(sk));
+                names.emplace_back(skills.get(row, "skill"));
+                list.push_back(std::move(class_skill));
             }
             // reqskill1..3 name skills of the same class.
-            std::size_t i = 0;
-            for (std::size_t r = 0; r < skills.size(); ++r) {
-                if (skills.get(r, "charclass") != d2d::rules::kClassCode[c]) continue;
-                for (int q = 0; q < 3; ++q) {
-                    const auto want = skills.get(r, "reqskill" + std::to_string(q + 1));
-                    if (const auto it = std::ranges::find(names, want); !want.empty() && it != names.end())
-                        list[i].req[std::size_t(q)] = int(it - names.begin());
+            std::size_t skill_index = 0;
+            for (std::size_t row = 0; row < skills.size(); ++row) {
+                if (skills.get(row, "charclass") != d2d::rules::kClassCode[class_index]) continue;
+                for (int req_index = 0; req_index < 3; ++req_index) {
+                    const auto want = skills.get(row, "reqskill" + std::to_string(req_index + 1));
+                    if (const auto found = std::ranges::find(names, want); !want.empty() && found != names.end())
+                        list[skill_index].req[std::size_t(req_index)] = int(found - names.begin());
                 }
-                ++i;
+                ++skill_index;
             }
         }
     }
-    for (std::size_t c = 0; c < 7 && c < charstats.size(); ++c) {
-        auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(c, col)).c_str()); };
-        scene.class_gains[c] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
+    for (std::size_t class_index = 0; class_index < 7 && class_index < charstats.size(); ++class_index) {
+        auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(class_index, col)).c_str()); };
+        scene.class_gains[class_index] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
                                  per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };
-        auto& cs = scene.class_start[c];
-        cs = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(c, "StartSkill")) };
+        auto& start = scene.class_start[class_index];
+        start = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(class_index, "StartSkill")) };
         for (int i = 1; i <= 10; ++i)
-            if (const std::string code(charstats.get(c, "item" + std::to_string(i))); !code.empty() && code != "0")
-                cs.items.push_back({ code, std::string(charstats.get(c, "item" + std::to_string(i) + "loc")),
-                                     std::atoi(std::string(charstats.get(c, "item" + std::to_string(i) + "count")).c_str()) });
-        auto& g = scene.starting_gear[c];
-        g.fill(0xff);
-        for (int l : { 1, 2, 3, 4, 8, 9 }) g[std::size_t(l)] = 1;   // TR LG RA LA S1 S2 = lit
+            if (const std::string code(charstats.get(class_index, "item" + std::to_string(i))); !code.empty() && code != "0")
+                start.items.push_back({ code, std::string(charstats.get(class_index, "item" + std::to_string(i) + "loc")),
+                                     std::atoi(std::string(charstats.get(class_index, "item" + std::to_string(i) + "count")).c_str()) });
+        auto& gear = scene.starting_gear[class_index];
+        gear.fill(0xff);
+        for (int layer : { 1, 2, 3, 4, 8, 9 }) gear[std::size_t(layer)] = 1;   // TR LG RA LA S1 S2 = lit
         for (int i = 1; i <= 10; ++i) {
-            const auto item = charstats.get(c, "item" + std::to_string(i));
-            const auto loc  = charstats.get(c, "item" + std::to_string(i) + "loc");
+            const auto item = charstats.get(class_index, "item" + std::to_string(i));
+            const auto loc  = charstats.get(class_index, "item" + std::to_string(i) + "loc");
             const auto idx  = index_of(item);
             if (idx == 0xff) continue;
-            if (loc == "rarm") g[5] = idx;
-            else if (loc == "larm") g[scene.comp[idx].armor ? 7 : 6] = idx;
+            if (loc == "rarm") gear[5] = idx;
+            else if (loc == "larm") gear[scene.comp[idx].armor ? 7 : 6] = idx;
         }
     }
 }
@@ -1065,13 +1065,13 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
         d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
         return std::nullopt;
     }
-    const auto t0 = d2d::log::ms();
+    const auto start_ms = d2d::log::ms();
     try {
         d2d::log::info("Initializing MPQs:");
         d2d::mpq::Stack mpqs;
-        auto push = [&](const fs::path& p) {
-            mpqs.push(p);
-            d2d::log::info("  Loading: {} {} bytes", p.filename().string(), fs::file_size(p));
+        auto push = [&](const fs::path& path) {
+            mpqs.push(path);
+            d2d::log::info("  Loading: {} {} bytes", path.filename().string(), fs::file_size(path));
         };
         // 1.14d's patch layer ranks above everything (game.exe opens
         // patch_d2.mpq first). A real install has patch_d2.mpq; a CD-copied
@@ -1082,15 +1082,15 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
             push(data_dir / "patch_d2.mpq");
             patched = true;
         } else {
-            for (const auto& p : { patch_installer, data_dir / "LODPatch_114d.exe" }) {
-                if (p.empty() || !fs::exists(p)) continue;
+            for (const auto& path : { patch_installer, data_dir / "LODPatch_114d.exe" }) {
+                if (path.empty() || !fs::exists(path)) continue;
                 try {
-                    mpqs.push_installer(p);
-                    d2d::log::info("  Loading: {} (1.14d patch installer)", p.string());
+                    mpqs.push_installer(path);
+                    d2d::log::info("  Loading: {} (1.14d patch installer)", path.string());
                     patched = true;
                     break;
                 }
-                catch (const std::exception& e) { d2d::log::warn("{}", e.what()); }
+                catch (const std::exception& error) { d2d::log::warn("{}", error.what()); }
             }
         }
         if (!patched)
@@ -1106,8 +1106,8 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
         if (fs::exists(d2char)) push(d2char);
         // Sounds: expansion speech, speech, effects, music (Sounds.txt paths).
         // (Music is read off the main thread from its own handles: Audio.)
-        for (const char* n : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
-            if (fs::exists(data_dir / n)) push(data_dir / n);
+        for (const char* name : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
+            if (fs::exists(data_dir / name)) push(data_dir / name);
 
         GameData scene;
         // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
@@ -1118,19 +1118,19 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
         // entry, load all three and query in order (patch → expansion →
         // base).
         scene.strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         scene.patch_strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         scene.exp_strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         auto act1 = std::make_unique<d2d::drlg::OutdoorAssets>();
-        d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& p) { return mpqs.try_read(p); });
+        d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& path) { return mpqs.try_read(path); });
         place_act1(scene, mpqs, *act1, map_seed);
         // The other levels build when they're first wanted (GameData::level).
         scene.builder = std::make_shared<GameData::LevelBuilder>();
@@ -1139,7 +1139,7 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
         load_npcs(scene, mpqs);
         load_monsters(scene, mpqs);
         load_skills(scene, mpqs);
-        d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - t0);
+        d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - start_ms);
         d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
                        scene.item_tables ? "tables loaded" : "no item tables",
                        scene.sounds.size(), scene.town.npcs.size());
@@ -1147,8 +1147,8 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
         scene.data_dir = data_dir;
         scene.mpqs = std::move(mpqs);
         return scene;
-    } catch (const std::exception& e) {
-        d2d::log::error("load_game_data: {}", e.what());
+    } catch (const std::exception& error) {
+        d2d::log::error("load_game_data: {}", error.what());
         return std::nullopt;
     }
 }
@@ -1158,10 +1158,10 @@ void set_map_seed(GameData& scene, std::uint32_t seed) {
     for (auto& [id, job] : scene.builder->jobs) job.wait();
     scene.builder->jobs.clear();
     scene.levels.clear();
-    const Level& o = scene.town;
-    Level town{ .id = o.id, .name = o.name, .type = o.type, .layer = o.layer, .song = o.song, .ambience = o.ambience,
-                .night_ambience = o.night_ambience, .day_event = o.day_event, .night_event = o.night_event,
-                .event_delay = o.event_delay, .light = o.light, .rain = o.rain };
+    const Level& old = scene.town;
+    Level town{ .id = old.id, .name = old.name, .type = old.type, .layer = old.layer, .song = old.song, .ambience = old.ambience,
+                .night_ambience = old.night_ambience, .day_event = old.day_event, .night_event = old.night_event,
+                .event_delay = old.event_delay, .light = old.light, .rain = old.rain };
     scene.town = std::move(town);
     place_act1(scene, scene.mpqs, *scene.builder->act1, seed);
     scene.shrines.clear();                          // load_npcs reads Shrines.txt again

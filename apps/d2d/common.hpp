@@ -20,8 +20,8 @@ namespace d2d::client {
 // D2 LoD 800×600 mode dimensions — matches TitleScreen.DC6, which ships
 // pre-sliced into a 4×3 grid of sub-frames adding up to exactly 800×600
 // (columns 256/256/256/32, rows 256/256/88).
-constexpr std::uint32_t kW = 800;
-constexpr std::uint32_t kH = 600;
+constexpr std::uint32_t kScreenWidth = 800;
+constexpr std::uint32_t kScreenHeight = 600;
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;
@@ -32,8 +32,8 @@ fs::path default_data_dir(std::string_view cfg_data);
 // through the supplied palette to real RGBA. Signed dest so negative offsets
 // clip cleanly (logo frames have ox down to -180).
 // `shade` scales the colour, 256 = as is (skill tree: greyed-out icons).
-void blit_sprite(std::vector<std::uint8_t>& fb,
-                 const d2d::dc6::Frame& f,
+void blit_sprite(std::vector<std::uint8_t>& framebuffer,
+                 const d2d::dc6::Frame& frame,
                  const d2d::palette::Palette& pal,
                  int dst_x, int dst_y, int shade = 256);
 
@@ -43,8 +43,8 @@ void blit_sprite(std::vector<std::uint8_t>& fb,
 // The fire animation confirms this: its oy=132 is constant across frames of
 // varying height, so anchoring the BOTTOM keeps the fire base planted while
 // the flame top flickers up and down.
-void blit_at_anchor(std::vector<std::uint8_t>& fb,
-                    const d2d::dc6::Frame& f,
+void blit_at_anchor(std::vector<std::uint8_t>& framebuffer,
+                    const d2d::dc6::Frame& frame,
                     const d2d::palette::Palette& pal,
                     int anchor_x, int anchor_y);
 
@@ -65,18 +65,18 @@ void blit_at_anchor(std::vector<std::uint8_t>& fb,
 // == fg — so we just plot pal[fg]. Otherwise fall back to RGB-clamp add.
 // The fire is drawn early in the frame over the char-create bg (which is
 // dark/near-black in the campfire pit), so this covers > 95% of pixels.
-void blit_additive(std::vector<std::uint8_t>& fb,
-                   const d2d::dc6::Frame& f,
+void blit_additive(std::vector<std::uint8_t>& framebuffer,
+                   const d2d::dc6::Frame& frame,
                    const d2d::palette::Palette& pal,
                    const d2d::palette::Pl2* pl2,
                    int anchor_x, int anchor_y);
 
-void paint_test_pattern(std::vector<std::uint8_t>& fb);
+void paint_test_pattern(std::vector<std::uint8_t>& framebuffer);
 
 // A DC6 background is often stored as a grid of sub-frames arranged
 // left-to-right, top-to-bottom (D2 splits large images because DC6 frames
 // each cap at 256×256 in practice). This lays them out side by side.
-void blit_dc6_grid(std::vector<std::uint8_t>& fb,
+void blit_dc6_grid(std::vector<std::uint8_t>& framebuffer,
                    const d2d::dc6::Sprite& spr,
                    const d2d::palette::Palette& pal,
                    int origin_x, int origin_y,

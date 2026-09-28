@@ -92,19 +92,19 @@ public:
     [[nodiscard]] std::span<const Frame> frames() const noexcept { return frames_; }
     // Every pixel through a 256-entry map (an item colormap); 0 stays clear.
     void remap(const std::uint8_t* map) {
-        for (auto& f : frames_) for (auto& p : f.pixels) if (p) p = map[p];
+        for (auto& frame : frames_) for (auto& pixel : frame.pixels) if (pixel) pixel = map[pixel];
     }
 
 private:
     // Per-cell 4x4 (or smaller edge) block within a direction canvas.
     struct Cell {
         std::int32_t x{}, y{};
-        std::int32_t w{}, h{};
+        std::int32_t width{}, height{};
         std::int32_t last_x{-1}, last_y{-1}, last_w{-1}, last_h{-1};
     };
     struct FrameCell {
         std::int32_t x{}, y{};
-        std::int32_t w{}, h{};
+        std::int32_t width{}, height{};
     };
     struct PBEntry {
         std::array<std::uint8_t, 4> value{};
@@ -122,116 +122,116 @@ private:
 
         std::uint32_t get_bit() {
             if (pos >= end_bits) throw std::runtime_error("DCC: bitstream OOB");
-            const auto v = (std::uint8_t(data[pos >> 3]) >> (pos & 7)) & 1u;
+            const auto bit = (std::uint8_t(data[pos >> 3]) >> (pos & 7)) & 1u;
             ++pos;
             ++read_since_copy;
-            return v;
+            return bit;
         }
-        std::uint32_t get_bits(int n) {
-            if (n <= 0) return 0;
-            std::uint32_t v = 0;
-            for (int i = 0; i < n; ++i) v |= get_bit() << i;
-            return v;
+        std::uint32_t get_bits(int count) {
+            if (count <= 0) return 0;
+            std::uint32_t value = 0;
+            for (int i = 0; i < count; ++i) value |= get_bit() << i;
+            return value;
         }
-        std::int32_t get_signed(int n) {
-            if (n == 0) return 0;
-            const auto v = get_bits(n);
-            if (n == 1) return -std::int32_t(v);         // 1-bit: 1 → -1
-            const std::uint32_t sign = 1u << (n - 1);
-            if ((v & sign) == 0) return std::int32_t(v);
+        std::int32_t get_signed(int count) {
+            if (count == 0) return 0;
+            const auto value = get_bits(count);
+            if (count == 1) return -std::int32_t(value);         // 1-bit: 1 → -1
+            const std::uint32_t sign = 1u << (count - 1);
+            if ((value & sign) == 0) return std::int32_t(value);
             // Sign-extend: for negative, top bit is set; fill upper bits with 1.
             const std::uint32_t mask = ~((sign << 1) - 1);
-            return std::int32_t(v | mask);
+            return std::int32_t(value | mask);
         }
-        void skip(int n) {
-            if (n < 0 || pos + std::size_t(n) > end_bits)
+        void skip(int count) {
+            if (count < 0 || pos + std::size_t(count) > end_bits)
                 throw std::runtime_error("DCC: bitstream skip OOB");
-            pos += n;
-            read_since_copy += n;
+            pos += count;
+            read_since_copy += count;
         }
         Bits fork() const {                              // clone; independent read counter
-            Bits b = *this;
-            b.read_since_copy = 0;
-            return b;
+            Bits copy = *this;
+            copy.read_since_copy = 0;
+            return copy;
         }
     };
 
-    static std::uint32_t rd_u32(const std::byte* p) {
-        std::uint32_t v; std::memcpy(&v, p, 4); return v;
+    static std::uint32_t rd_u32(const std::byte* source) {
+        std::uint32_t value; std::memcpy(&value, source, 4); return value;
     }
 
-    void parse(std::span<const std::byte> b) {
-        if (b.size() < 15) throw std::runtime_error("DCC: truncated header");
-        if (std::uint8_t(b[0]) != 0x74)
+    void parse(std::span<const std::byte> bytes) {
+        if (bytes.size() < 15) throw std::runtime_error("DCC: truncated header");
+        if (std::uint8_t(bytes[0]) != 0x74)
             throw std::runtime_error("DCC: bad signature");
         // b[1] version — accept anything.
-        dirs_          = std::uint8_t(b[2]);
-        frames_per_dir_ = std::int32_t(rd_u32(b.data() + 3));
+        dirs_          = std::uint8_t(bytes[2]);
+        frames_per_dir_ = std::int32_t(rd_u32(bytes.data() + 3));
         // rd_u32(b + 7) must == 1 in valid files; we don't enforce it.
         // rd_u32(b + 11) = totalSizeCoded (skipped).
         if (dirs_ == 0 || frames_per_dir_ <= 0)
             throw std::runtime_error("DCC: empty");
 
         const std::size_t dirOffsetsBase = 15;
-        if (b.size() < dirOffsetsBase + std::size_t(dirs_) * 4)
+        if (bytes.size() < dirOffsetsBase + std::size_t(dirs_) * 4)
             throw std::runtime_error("DCC: truncated direction offsets");
 
         std::vector<std::uint32_t> dir_offsets(dirs_);
-        for (std::uint8_t d = 0; d < dirs_; ++d) {
-            dir_offsets[d] = rd_u32(b.data() + dirOffsetsBase + std::size_t(d) * 4);
+        for (std::uint8_t direction = 0; direction < dirs_; ++direction) {
+            dir_offsets[direction] = rd_u32(bytes.data() + dirOffsetsBase + std::size_t(direction) * 4);
         }
 
         frames_.assign(std::size_t(dirs_) * frames_per_dir_, Frame{});
-        for (std::uint8_t d = 0; d < dirs_; ++d) {
-            decode_direction(b, dir_offsets[d], d);
+        for (std::uint8_t direction = 0; direction < dirs_; ++direction) {
+            decode_direction(bytes, dir_offsets[direction], direction);
         }
     }
 
-    void decode_direction(std::span<const std::byte> b, std::uint32_t byte_off,
+    void decode_direction(std::span<const std::byte> bytes, std::uint32_t byte_off,
                           std::uint8_t dir_idx) {
-        Bits bm{b.data(), b.size() * 8, std::size_t(byte_off) * 8, 0};
+        Bits bitmap{bytes.data(), bytes.size() * 8, std::size_t(byte_off) * 8, 0};
 
         static constexpr int crazy[16] =
             {0,1,2,4,6,8,10,12,14,16,20,24,26,28,30,32};
 
-        [[maybe_unused]] const auto outSizeCoded = bm.get_bits(32);
-        const auto compFlags = bm.get_bits(2);
-        const int variable0Bits    = crazy[bm.get_bits(4)];
-        const int widthBits        = crazy[bm.get_bits(4)];
-        const int heightBits       = crazy[bm.get_bits(4)];
-        const int xOffsetBits      = crazy[bm.get_bits(4)];
-        const int yOffsetBits      = crazy[bm.get_bits(4)];
-        const int optionalBits     = crazy[bm.get_bits(4)];
-        const int codedBytesBits   = crazy[bm.get_bits(4)];
+        [[maybe_unused]] const auto outSizeCoded = bitmap.get_bits(32);
+        const auto compFlags = bitmap.get_bits(2);
+        const int variable0Bits    = crazy[bitmap.get_bits(4)];
+        const int widthBits        = crazy[bitmap.get_bits(4)];
+        const int heightBits       = crazy[bitmap.get_bits(4)];
+        const int xOffsetBits      = crazy[bitmap.get_bits(4)];
+        const int yOffsetBits      = crazy[bitmap.get_bits(4)];
+        const int optionalBits     = crazy[bitmap.get_bits(4)];
+        const int codedBytesBits   = crazy[bitmap.get_bits(4)];
 
         // Frame headers.
         std::vector<Frame> frames(frames_per_dir_);
         std::int32_t minx =  INT32_MAX, miny =  INT32_MAX;
         std::int32_t maxx = INT32_MIN,  maxy = INT32_MIN;
-        for (std::int32_t f = 0; f < frames_per_dir_; ++f) {
-            auto& fr = frames[f];
-            bm.skip(variable0Bits);                     // variable0 (ignored)
-            fr.width    = std::int32_t(bm.get_bits(widthBits));
-            fr.height   = std::int32_t(bm.get_bits(heightBits));
-            fr.x_offset = bm.get_signed(xOffsetBits);
-            fr.y_offset = bm.get_signed(yOffsetBits);
-            const auto optBytes = bm.get_bits(optionalBits);
-            const auto codedBytes = bm.get_bits(codedBytesBits);
+        for (std::int32_t frame_index = 0; frame_index < frames_per_dir_; ++frame_index) {
+            auto& frame = frames[frame_index];
+            bitmap.skip(variable0Bits);                     // variable0 (ignored)
+            frame.width    = std::int32_t(bitmap.get_bits(widthBits));
+            frame.height   = std::int32_t(bitmap.get_bits(heightBits));
+            frame.x_offset = bitmap.get_signed(xOffsetBits);
+            frame.y_offset = bitmap.get_signed(yOffsetBits);
+            const auto optBytes = bitmap.get_bits(optionalBits);
+            const auto codedBytes = bitmap.get_bits(codedBytesBits);
             (void)codedBytes;
-            const auto bottomUp = bm.get_bit();
+            const auto bottomUp = bitmap.get_bit();
             if (optBytes != 0)
                 throw std::runtime_error("DCC: optional data not supported");
             if (bottomUp != 0)
                 throw std::runtime_error("DCC: bottom-up frames not supported");
 
-            fr.box_left   = fr.x_offset;
-            fr.box_top    = fr.y_offset - fr.height + 1;
-            fr.box_right  = fr.box_left + fr.width;
-            fr.box_bottom = fr.box_top  + fr.height;
-            minx = std::min(minx, fr.box_left);
-            miny = std::min(miny, fr.box_top);
-            maxx = std::max(maxx, fr.box_right);
-            maxy = std::max(maxy, fr.box_bottom);
+            frame.box_left   = frame.x_offset;
+            frame.box_top    = frame.y_offset - frame.height + 1;
+            frame.box_right  = frame.box_left + frame.width;
+            frame.box_bottom = frame.box_top  + frame.height;
+            minx = std::min(minx, frame.box_left);
+            miny = std::min(miny, frame.box_top);
+            maxx = std::max(maxx, frame.box_right);
+            maxy = std::max(maxy, frame.box_bottom);
         }
 
         const std::int32_t dir_left = minx, dir_top = miny;
@@ -241,84 +241,84 @@ private:
 
         std::int32_t equalCellsSize = 0, pixelMaskSize = 0;
         std::int32_t encodingSize   = 0, rawPixelSize  = 0;
-        if (compFlags & 0x2) equalCellsSize = std::int32_t(bm.get_bits(20));
-        pixelMaskSize = std::int32_t(bm.get_bits(20));
+        if (compFlags & 0x2) equalCellsSize = std::int32_t(bitmap.get_bits(20));
+        pixelMaskSize = std::int32_t(bitmap.get_bits(20));
         if (compFlags & 0x1) {
-            encodingSize = std::int32_t(bm.get_bits(20));
-            rawPixelSize = std::int32_t(bm.get_bits(20));
+            encodingSize = std::int32_t(bitmap.get_bits(20));
+            rawPixelSize = std::int32_t(bitmap.get_bits(20));
         }
 
         // 256-bit palette-entry-valid mask.
         std::array<std::uint8_t, 256> palette{};
         int paletteCount = 0;
         for (int i = 0; i < 256; ++i) {
-            if (bm.get_bit()) palette[paletteCount++] = std::uint8_t(i);
+            if (bitmap.get_bit()) palette[paletteCount++] = std::uint8_t(i);
         }
 
         // Fork bitstreams — each starts at the current position and advances
         // its own read counter independently. We then skip the parent by the
         // declared size to reach the next stream.
-        Bits equalCellsBs = bm.fork();  bm.skip(equalCellsSize);
-        Bits pixelMaskBs  = bm.fork();  bm.skip(pixelMaskSize);
-        Bits encTypeBs    = bm.fork();  bm.skip(encodingSize);
-        Bits rawPixelBs   = bm.fork();  bm.skip(rawPixelSize);
-        Bits pcdBs        = bm.fork();  // pixel codes + displacement (rest)
+        Bits equalCellsBs = bitmap.fork();  bitmap.skip(equalCellsSize);
+        Bits pixelMaskBs  = bitmap.fork();  bitmap.skip(pixelMaskSize);
+        Bits encTypeBs    = bitmap.fork();  bitmap.skip(encodingSize);
+        Bits rawPixelBs   = bitmap.fork();  bitmap.skip(rawPixelSize);
+        Bits pcdBs        = bitmap.fork();  // pixel codes + displacement (rest)
 
         // Direction-level cells (4×4 grid).
         constexpr int cells_per_row = 4;
         const int dir_hcells = 1 + (dir_w - 1) / cells_per_row;
         const int dir_vcells = 1 + (dir_h - 1) / cells_per_row;
         std::vector<Cell> dir_cells(std::size_t(dir_hcells) * dir_vcells);
-        for (int cy = 0; cy < dir_vcells; ++cy) {
-            for (int cx = 0; cx < dir_hcells; ++cx) {
-                auto& c = dir_cells[cy * dir_hcells + cx];
-                c.x = cx * 4;
-                c.y = cy * 4;
-                c.w = (cx == dir_hcells - 1) ? dir_w - (cx * 4) : 4;
-                c.h = (cy == dir_vcells - 1) ? dir_h - (cy * 4) : 4;
+        for (int cell_y = 0; cell_y < dir_vcells; ++cell_y) {
+            for (int cell_x = 0; cell_x < dir_hcells; ++cell_x) {
+                auto& cell = dir_cells[cell_y * dir_hcells + cell_x];
+                cell.x = cell_x * 4;
+                cell.y = cell_y * 4;
+                cell.width = (cell_x == dir_hcells - 1) ? dir_w - (cell_x * 4) : 4;
+                cell.height = (cell_y == dir_vcells - 1) ? dir_h - (cell_y * 4) : 4;
             }
         }
 
         // Per-frame cells (aligned within the direction canvas).
         std::vector<std::vector<FrameCell>> frame_cells(frames_per_dir_);
         std::vector<int> frame_hcells(frames_per_dir_), frame_vcells(frames_per_dir_);
-        for (std::int32_t f = 0; f < frames_per_dir_; ++f) {
-            const auto& fr = frames[f];
-            int w0 = 4 - ((fr.box_left - dir_left) & 3);
-            int h0 = 4 - ((fr.box_top  - dir_top)  & 3);
+        for (std::int32_t frame_index = 0; frame_index < frames_per_dir_; ++frame_index) {
+            const auto& frame = frames[frame_index];
+            int first_width = 4 - ((frame.box_left - dir_left) & 3);
+            int first_height = 4 - ((frame.box_top  - dir_top)  & 3);
             int hcnt, vcnt;
-            if (fr.width - w0 <= 1) hcnt = 1;
-            else { int t = fr.width - w0 - 1; hcnt = 2 + t / 4; if (t % 4 == 0) --hcnt; }
-            if (fr.height - h0 <= 1) vcnt = 1;
-            else { int t = fr.height - h0 - 1; vcnt = 2 + t / 4; if (t % 4 == 0) --vcnt; }
-            frame_hcells[f] = hcnt;
-            frame_vcells[f] = vcnt;
+            if (frame.width - first_width <= 1) hcnt = 1;
+            else { int rest = frame.width - first_width - 1; hcnt = 2 + rest / 4; if (rest % 4 == 0) --hcnt; }
+            if (frame.height - first_height <= 1) vcnt = 1;
+            else { int rest = frame.height - first_height - 1; vcnt = 2 + rest / 4; if (rest % 4 == 0) --vcnt; }
+            frame_hcells[frame_index] = hcnt;
+            frame_vcells[frame_index] = vcnt;
 
-            std::vector<int> cw(hcnt), ch(vcnt);
-            if (hcnt == 1) cw[0] = fr.width;
+            std::vector<int> cell_widths(hcnt), cell_heights(vcnt);
+            if (hcnt == 1) cell_widths[0] = frame.width;
             else {
-                cw[0] = w0;
-                for (int i = 1; i < hcnt - 1; ++i) cw[i] = 4;
-                cw[hcnt - 1] = fr.width - w0 - 4 * (hcnt - 2);
+                cell_widths[0] = first_width;
+                for (int i = 1; i < hcnt - 1; ++i) cell_widths[i] = 4;
+                cell_widths[hcnt - 1] = frame.width - first_width - 4 * (hcnt - 2);
             }
-            if (vcnt == 1) ch[0] = fr.height;
+            if (vcnt == 1) cell_heights[0] = frame.height;
             else {
-                ch[0] = h0;
-                for (int i = 1; i < vcnt - 1; ++i) ch[i] = 4;
-                ch[vcnt - 1] = fr.height - h0 - 4 * (vcnt - 2);
+                cell_heights[0] = first_height;
+                for (int i = 1; i < vcnt - 1; ++i) cell_heights[i] = 4;
+                cell_heights[vcnt - 1] = frame.height - first_height - 4 * (vcnt - 2);
             }
 
-            frame_cells[f].resize(std::size_t(hcnt) * vcnt);
-            int off_y = fr.box_top - dir_top;
+            frame_cells[frame_index].resize(std::size_t(hcnt) * vcnt);
+            int off_y = frame.box_top - dir_top;
             for (int y = 0; y < vcnt; ++y) {
-                int off_x = fr.box_left - dir_left;
+                int off_x = frame.box_left - dir_left;
                 for (int x = 0; x < hcnt; ++x) {
-                    auto& fc = frame_cells[f][y * hcnt + x];
-                    fc.x = off_x; fc.y = off_y;
-                    fc.w = cw[x]; fc.h = ch[y];
-                    off_x += cw[x];
+                    auto& frame_cell = frame_cells[frame_index][y * hcnt + x];
+                    frame_cell.x = off_x; frame_cell.y = off_y;
+                    frame_cell.width = cell_widths[x]; frame_cell.height = cell_heights[y];
+                    off_x += cell_widths[x];
                 }
-                off_y += ch[y];
+                off_y += cell_heights[y];
             }
         }
 
@@ -327,25 +327,25 @@ private:
             {0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4};
 
         int max_pbe = 0;
-        for (std::int32_t f = 0; f < frames_per_dir_; ++f)
-            max_pbe += frame_hcells[f] * frame_vcells[f];
+        for (std::int32_t frame_index = 0; frame_index < frames_per_dir_; ++frame_index)
+            max_pbe += frame_hcells[frame_index] * frame_vcells[frame_index];
         std::vector<PBEntry> pixel_buffer(max_pbe);
 
         std::vector<int> cell_buffer(std::size_t(dir_hcells) * dir_vcells, -1);
         int pb_index = -1;
         std::uint32_t last_pixel = 0;
 
-        for (std::int32_t f = 0; f < frames_per_dir_; ++f) {
-            const auto& fr = frames[f];
-            const int origin_cx = (fr.box_left - dir_left) / cells_per_row;
-            const int origin_cy = (fr.box_top  - dir_top)  / cells_per_row;
-            const int fhc = frame_hcells[f];
-            const int fvc = frame_vcells[f];
+        for (std::int32_t frame_index = 0; frame_index < frames_per_dir_; ++frame_index) {
+            const auto& frame = frames[frame_index];
+            const int origin_cx = (frame.box_left - dir_left) / cells_per_row;
+            const int origin_cy = (frame.box_top  - dir_top)  / cells_per_row;
+            const int fhc = frame_hcells[frame_index];
+            const int fvc = frame_vcells[frame_index];
 
-            for (int cy = 0; cy < fvc; ++cy) {
-                for (int cx = 0; cx < fhc; ++cx) {
-                    const int cur = origin_cx + cx +
-                                    (cy + origin_cy) * dir_hcells;
+            for (int cell_y = 0; cell_y < fvc; ++cell_y) {
+                for (int cell_x = 0; cell_x < fhc; ++cell_x) {
+                    const int cur = origin_cx + cell_x +
+                                    (cell_y + origin_cy) * dir_hcells;
                     std::uint32_t pixel_mask = 0x0F;
                     bool next_cell = false;
 
@@ -366,24 +366,24 @@ private:
 
                     int decoded = 0;
                     for (int i = 0; i < n_pix_bits; ++i) {
-                        std::uint32_t v;
+                        std::uint32_t value;
                         if (encoding_type != 0) {
-                            v = rawPixelBs.get_bits(8);
+                            value = rawPixelBs.get_bits(8);
                         } else {
-                            v = last_pixel;
+                            value = last_pixel;
                             std::uint32_t disp = pcdBs.get_bits(4);
-                            v += disp;
+                            value += disp;
                             while (disp == 15) {
                                 disp = pcdBs.get_bits(4);
-                                v += disp;
+                                value += disp;
                             }
                         }
-                        if (v == last_pixel) {
+                        if (value == last_pixel) {
                             pixel_stack[i] = 0;
                             break;
                         }
-                        pixel_stack[i] = v;
-                        last_pixel = v;
+                        pixel_stack[i] = value;
+                        last_pixel = value;
                         ++decoded;
                     }
 
@@ -406,8 +406,8 @@ private:
                         }
                     }
                     cell_buffer[cur] = pb_index;
-                    pixel_buffer[pb_index].frame = f;
-                    pixel_buffer[pb_index].frame_cell_index = cx + cy * fhc;
+                    pixel_buffer[pb_index].frame = frame_index;
+                    pixel_buffer[pb_index].frame_cell_index = cell_x + cell_y * fhc;
                 }
             }
         }
@@ -418,69 +418,69 @@ private:
 
         // === Reconstruct frames ===
         std::vector<std::uint8_t> canvas(std::size_t(dir_w) * dir_h, 0);
-        int pb = 0;
-        for (std::int32_t f = 0; f < frames_per_dir_; ++f) {
-            auto& out = frames_[std::size_t(dir_idx) * frames_per_dir_ + f];
-            const auto& fr = frames[f];
-            out.width    = fr.width;
-            out.height   = fr.height;
-            out.x_offset = fr.x_offset;
-            out.y_offset = fr.y_offset;
-            out.box_left = fr.box_left;   out.box_top    = fr.box_top;
-            out.box_right= fr.box_right;  out.box_bottom = fr.box_bottom;
-            out.pixels.assign(std::size_t(fr.width) * fr.height, 0);
+        int buffer_at = 0;
+        for (std::int32_t frame_index = 0; frame_index < frames_per_dir_; ++frame_index) {
+            auto& out = frames_[std::size_t(dir_idx) * frames_per_dir_ + frame_index];
+            const auto& frame = frames[frame_index];
+            out.width    = frame.width;
+            out.height   = frame.height;
+            out.x_offset = frame.x_offset;
+            out.y_offset = frame.y_offset;
+            out.box_left = frame.box_left;   out.box_top    = frame.box_top;
+            out.box_right= frame.box_right;  out.box_bottom = frame.box_bottom;
+            out.pixels.assign(std::size_t(frame.width) * frame.height, 0);
 
-            for (std::size_t ci = 0; ci < frame_cells[f].size(); ++ci) {
-                const auto& fc = frame_cells[f][ci];
-                const int dir_cell_x = fc.x / cells_per_row;
-                const int dir_cell_y = fc.y / cells_per_row;
+            for (std::size_t cell_index = 0; cell_index < frame_cells[frame_index].size(); ++cell_index) {
+                const auto& frame_cell = frame_cells[frame_index][cell_index];
+                const int dir_cell_x = frame_cell.x / cells_per_row;
+                const int dir_cell_y = frame_cell.y / cells_per_row;
                 const int dir_cell = dir_cell_x + dir_cell_y * dir_hcells;
                 auto& bcell = dir_cells[dir_cell];
-                auto& pbe = pixel_buffer[pb];
+                auto& pbe = pixel_buffer[buffer_at];
 
-                if (pbe.frame != f || pbe.frame_cell_index != int(ci)) {
+                if (pbe.frame != frame_index || pbe.frame_cell_index != int(cell_index)) {
                     // EqualCells: copy previous cell or clear.
-                    if (fc.w != bcell.last_w || fc.h != bcell.last_h) {
-                        for (int y = 0; y < fc.h; ++y)
-                            for (int x = 0; x < fc.w; ++x)
-                                canvas[(fc.y + y) * dir_w + fc.x + x] = 0;
+                    if (frame_cell.width != bcell.last_w || frame_cell.height != bcell.last_h) {
+                        for (int y = 0; y < frame_cell.height; ++y)
+                            for (int x = 0; x < frame_cell.width; ++x)
+                                canvas[(frame_cell.y + y) * dir_w + frame_cell.x + x] = 0;
                     } else {
-                        for (int y = 0; y < fc.h; ++y)
-                            for (int x = 0; x < fc.w; ++x)
-                                canvas[(fc.y + y) * dir_w + fc.x + x] =
+                        for (int y = 0; y < frame_cell.height; ++y)
+                            for (int x = 0; x < frame_cell.width; ++x)
+                                canvas[(frame_cell.y + y) * dir_w + frame_cell.x + x] =
                                     canvas[(bcell.last_y + y) * dir_w
                                            + bcell.last_x + x];
                     }
                 } else {
                     if (pbe.value[0] == pbe.value[1]) {
                         // Solid fill.
-                        for (int y = 0; y < fc.h; ++y)
-                            for (int x = 0; x < fc.w; ++x)
-                                canvas[(fc.y + y) * dir_w + fc.x + x] = pbe.value[0];
+                        for (int y = 0; y < frame_cell.height; ++y)
+                            for (int x = 0; x < frame_cell.width; ++x)
+                                canvas[(frame_cell.y + y) * dir_w + frame_cell.x + x] = pbe.value[0];
                     } else {
                         const int bits = (pbe.value[1] != pbe.value[2]) ? 2 : 1;
-                        for (int y = 0; y < fc.h; ++y) {
-                            for (int x = 0; x < fc.w; ++x) {
+                        for (int y = 0; y < frame_cell.height; ++y) {
+                            for (int x = 0; x < frame_cell.width; ++x) {
                                 const auto idx = pcdBs.get_bits(bits);
-                                canvas[(fc.y + y) * dir_w + fc.x + x] = pbe.value[idx];
+                                canvas[(frame_cell.y + y) * dir_w + frame_cell.x + x] = pbe.value[idx];
                             }
                         }
                     }
-                    ++pb;
+                    ++buffer_at;
                 }
 
-                bcell.last_w = fc.w; bcell.last_h = fc.h;
-                bcell.last_x = fc.x; bcell.last_y = fc.y;
+                bcell.last_w = frame_cell.width; bcell.last_h = frame_cell.height;
+                bcell.last_x = frame_cell.x; bcell.last_y = frame_cell.y;
             }
 
             // Blit the frame's region from the shared canvas — every cell in
             // this frame's box was either painted this pass or filled by an
             // EqualCells copy, so the canvas rect is complete.
-            const int shift_x = fr.box_left - dir_left;
-            const int shift_y = fr.box_top  - dir_top;
-            for (int y = 0; y < fr.height; ++y) {
-                for (int x = 0; x < fr.width; ++x) {
-                    out.pixels[y * fr.width + x] =
+            const int shift_x = frame.box_left - dir_left;
+            const int shift_y = frame.box_top  - dir_top;
+            for (int y = 0; y < frame.height; ++y) {
+                for (int x = 0; x < frame.width; ++x) {
+                    out.pixels[y * frame.width + x] =
                         canvas[(y + shift_y) * dir_w + x + shift_x];
                 }
             }

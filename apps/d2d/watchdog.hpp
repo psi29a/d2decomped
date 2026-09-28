@@ -28,8 +28,8 @@ enum class MainPhase : std::uint32_t {
     IngamePlayer   = 14,
     IngameHudText  = 15,
 };
-inline const char* main_phase_name(std::uint32_t p) {
-    switch (MainPhase(p)) {
+inline const char* main_phase_name(std::uint32_t phase) {
+    switch (MainPhase(phase)) {
         case MainPhase::Idle:          return "idle";
         case MainPhase::PollEvents:    return "poll-events";
         case MainPhase::Devctl:        return "devctl-pump";
@@ -51,9 +51,9 @@ inline const char* main_phase_name(std::uint32_t p) {
 // can report which sub-phase we're stuck in. Declared ahead of
 // render_ingame so it can write the ingame sub-phases.
 inline std::atomic<std::uint32_t>* g_current_phase_ptr = nullptr;
-inline void set_phase(MainPhase p) {
+inline void set_phase(MainPhase phase) {
     if (g_current_phase_ptr)
-        g_current_phase_ptr->store(std::uint32_t(p),
+        g_current_phase_ptr->store(std::uint32_t(phase),
                                    std::memory_order_relaxed);
 }
 

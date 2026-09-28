@@ -50,9 +50,9 @@ struct View {
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     GameData::Appearance gfx{};               // what the character wears
-    struct Merc { UnitState u; const Npc* npc = nullptr; std::string_view mode; };
+    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; };
     std::optional<Merc> merc;
-    struct Pet { Npc npc; UnitState u; std::string_view mode; };
+    struct Pet { Npc npc; UnitState unit; std::string_view mode; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Monster> monsters;         // the level's
     struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; };
@@ -63,7 +63,7 @@ struct View {
     std::vector<Fire> fires;
     // The player's town portal where they stand (which 0: where it was cast,
     // 1: its twin in town), leading to level `to`.
-    struct Portal { float x = 0, y = 0; int to = 0; std::uint32_t born = 0; int which = 0; };
+    struct Portal { float x = 0, y = 0; int destination = 0; std::uint32_t born = 0; int which = 0; };
     std::vector<Portal> portals;
     // The player's corpses where they stand: their look when they fell.
     struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
@@ -91,8 +91,8 @@ struct View {
     std::vector<Event> events;             // what the World said since the last View
     // A monster by unit id: its index in `monsters`, or -1.
     [[nodiscard]] int monster(int id) const {
-        const auto it = std::ranges::find(monsters, id, &Monster::id);
-        return id < 0 || it == monsters.end() ? -1 : int(it - monsters.begin());
+        const auto found = std::ranges::find(monsters, id, &Monster::id);
+        return id < 0 || found == monsters.end() ? -1 : int(found - monsters.begin());
     }
 };
 
@@ -102,7 +102,7 @@ constexpr std::uint32_t kTickMs = 40;
 
 struct World {
     const GameData* scene = nullptr;
-    Character cc;                       // the character: the World's own (the client's is a copy of the View's)
+    Character character;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
     std::optional<UnitState> merc;          // the save's mercenary, following
@@ -110,8 +110,8 @@ struct World {
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     d2d::rules::Rng rng{ 0x2545f491u };    // rolls (the client's stock, talk topics, gambles, merc offers too)
     Cues  cues{ scene };                   // world sounds due later
-    Loot  loot{ scene, level, cc, player, rng, cues };                       // on the ground (loot.hpp)
-    Fight fight{ scene, level, cc, player, merc, merc_npc, rng, loot, cues };  // the fight (fight.hpp)
+    Loot  loot{ scene, level, character, player, rng, cues };                       // on the ground (loot.hpp)
+    Fight fight{ scene, level, character, player, merc, merc_npc, rng, loot, cues };  // the fight (fight.hpp)
     float target_x = 0, target_y = 0;      // where the player is walking to
     bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
     int   take_warp = -1;                  // the warp of `level` the player is walking to
@@ -153,7 +153,7 @@ struct World {
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
     // tent.
-    World(const GameData* s, int start_x, int start_y) : scene(s), level(s ? &s->town : nullptr) {
+    World(const GameData* game_data, int start_x, int start_y) : scene(game_data), level(game_data ? &game_data->town : nullptr) {
         const bool have_world = level && !level->dt1s.empty();
         player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
         player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
@@ -166,12 +166,12 @@ struct World {
         player.dir = 4;                    // south, facing the viewer
         // The character's skill levels for the fight, the skill shrine's
         // +all skills (item_allskills) while its boost lasts.
-        fight.skill_base = [this](int id) { return skill_base_level(*scene, cc, id); };
+        fight.skill_base = [this](int id) { return skill_base_level(*scene, character, id); };
         fight.skill_level = [this](int id) {
             std::vector<d2d::d2s::ItemProp> extra;
             if (now < fight.boost.until)
-                for (const auto& [st, v] : fight.boost.stats) if (st == 127) extra.push_back({ .stat = 127, .value = v });
-            return skill_level(*scene, cc, id, extra);
+                for (const auto& [stat, value] : fight.boost.stats) if (stat == 127) extra.push_back({ .stat = 127, .value = value });
+            return skill_level(*scene, character, id, extra);
         };
     }
     World(const World&) = delete;
@@ -185,7 +185,7 @@ struct World {
     // odds, not the same colour as game.exe's for a given monster); Utrans
     // 0xff's pick (FUN_004791b0) is taken as 1.
     std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
-    [[nodiscard]] int monster_colour(const Monster& m) const;
+    [[nodiscard]] int monster_colour(const Monster& monster) const;
     [[nodiscard]] View view() const;
 
     // The character to the CharacterStore: the save's header with what the
@@ -198,7 +198,7 @@ struct World {
     // drops at the area level).
     // ponytail: magic shrines (16..22) other than gem and warping only
     // log; D2's operate range is 2 cells here.
-    void operate(int i, std::uint32_t ms, int force = -1);
+    void operate(int npc_index, std::uint32_t now_ms, int force = -1);
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
@@ -209,14 +209,14 @@ struct World {
     // ponytail: the AI's range check (aip1) is skipped — the player opening
     // the chest is always close; chainlightning doesn't hop; trapfirebolt's
     // fireexplode isn't spawned.
-    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t ms);
+    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
     // A player enters with their character (a save loaded, or made): the
     // World takes its copy, the merc comes along, a fresh game; the Act 1
     // quest-gated NPCs (Cain) are there once their quest is done.
-    void enter(const Character& c);
+    void enter(const Character& entering);
 
     void new_game();
 
@@ -226,7 +226,7 @@ struct World {
     // Back in camp after dying: at the town start with full life. Monsters
     // stay as they are.
     // ponytail: D2 leaves a corpse holding the gear and takes gold; not yet.
-    void respawn(std::uint32_t ms);
+    void respawn(std::uint32_t now_ms);
 
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::near), so the player
@@ -241,8 +241,8 @@ struct World {
     // act1_complete_den, LAB_005900e0).
     // ponytail: counted when the number drops (game.exe: on each death);
     // the quest log isn't drawn, so the count goes to the log.
-    void den_count(std::uint32_t ms);
-    [[nodiscard]] static const char* level_name(const Level& l);
+    void den_count(std::uint32_t now_ms);
+    [[nodiscard]] static const char* level_name(const Level& level);
 
     // Taking a warp (a cave mouth): a click by one walks there; close to
     // it, the player goes to the level it leads to and stands at that
@@ -254,7 +254,7 @@ struct World {
 
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
     // comes along; the automap and monsters are the new level's.
-    void arrive(const Level* to, float ax, float ay, const char* how);
+    void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
     // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the
@@ -265,7 +265,7 @@ struct World {
     //   (FUN_00535510), the purse is emptied, goldlost (175) is set.
     // ponytail: the pile isn't split into FUN_0055a090's piles; goldlost
     // isn't kept.
-    void death_penalty(std::uint32_t ms);
+    void death_penalty(std::uint32_t now_ms);
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
     // corpse where the player lies with what they wore and held, and 75% of
     // the experience lost. They go on without it.
@@ -275,29 +275,29 @@ struct World {
     // the inventory; what doesn't fit stays on it. It goes once it's empty.
     // ponytail: requirements aren't checked; two-handed / quiver pairing
     // (FUN_0055f2d0) isn't.
-    void take_corpse_items(std::size_t k, std::uint32_t ms);
+    void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
     // item): Skills.txt 219 / 220 cast (srvdofunc 113), not in town (checkfunc
     // 5); the scroll's used up, the tome's quantity goes down.
-    void read_portal(std::vector<d2d::d2s::Item>::iterator it, std::uint32_t ms);
+    void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
     // Town Portal's action frame: a portal by the player and its twin at the
     // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11),
     // each at the nearest free spot; the old pair goes.
     // ponytail: "by the player" is the nearest free spot 0.6 cells south;
     // game.exe searches from the caster with collision 0x3e01, size 3.
-    void open_portal(std::uint32_t ms);
-    void open_portal_at(float px, float py, std::uint32_t ms);
+    void open_portal(std::uint32_t now_ms);
+    void open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
     // Walking into one: out by the other (OperateFn 15, FUN_00584870).
-    void use_portal(std::uint32_t ms);
+    void use_portal(std::uint32_t now_ms);
 
     // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
     // identifying, hiring. True when `c` was one.
-    bool deal(const Command& c);
+    bool deal(const Command& command);
 
     // A command from the player, checked and applied. A busy player's
     // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).
-    void apply(const Command& c, std::uint32_t ms);
+    void apply(const Command& command, std::uint32_t now_ms);
 
     // One step of the game: the player's commands, then the world. The
     // player walks a walk_path to the target (and operates or talks on
@@ -307,7 +307,7 @@ struct World {
     const Level* wanted_near = nullptr;               // whose neighbours were last asked for
     d2d::rules::Day day;
     std::uint32_t day_at = 0;                         // when the day last stepped
-    void tick(const std::vector<Command>& cmds, std::uint32_t ms, std::uint32_t last_ms);
+    void tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::uint32_t last_ms);
 
 };
 

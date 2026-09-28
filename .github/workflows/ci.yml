@@ -50,7 +50,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y cmake ninja-build build-essential pkg-config \
             libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
-            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev clang-tidy
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -160,6 +160,15 @@ jobs:
       - name: Build
         # -k 0: keep going past the first failure so one run shows every error.
         run: cmake --build build --config Release -- -k 0
+
+      # Names say what they hold (docs/PLAN.md "Code style"): .clang-tidy's
+      # identifier-length check over every source of ours.
+      - name: Names (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 -c "import json; print('\n'.join(sorted({e['file'] for e in json.load(open('build/compile_commands.json')) if '/_deps/' not in e['file'] and '/build/' not in e['file']})))" > tidy_files.txt
+          xargs -P 4 -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
 
       # No game data on the runners: tests that need MPQs print SKIP and pass.
       - name: Test (Linux/macOS)

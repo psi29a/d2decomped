@@ -58,82 +58,82 @@ public:
     [[nodiscard]] std::span<const Frame> frames() const noexcept { return frames_; }
 
 private:
-    static std::uint32_t rd32(const std::byte* p) {
-        std::uint32_t v; std::memcpy(&v, p, 4); return v;
+    static std::uint32_t rd32(const std::byte* source) {
+        std::uint32_t value; std::memcpy(&value, source, 4); return value;
     }
 
-    void parse(std::span<const std::byte> b) {
+    void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kFileHdr = 24;
         constexpr std::size_t kFrameHdr = 32;
-        if (b.size() < kFileHdr) throw std::runtime_error("DC6: truncated header");
+        if (bytes.size() < kFileHdr) throw std::runtime_error("DC6: truncated header");
 
-        const auto version   = rd32(b.data());
+        const auto version   = rd32(bytes.data());
         if (version != 6) throw std::runtime_error("DC6: bad version");
 
-        directions_   = rd32(b.data() + 16);
-        framesPerDir_ = rd32(b.data() + 20);
+        directions_   = rd32(bytes.data() + 16);
+        framesPerDir_ = rd32(bytes.data() + 20);
         const auto total = std::size_t(directions_) * framesPerDir_;
         if (total == 0) return;
 
         const std::size_t ptrTblOff = kFileHdr;
-        if (b.size() < ptrTblOff + total * 4)
+        if (bytes.size() < ptrTblOff + total * 4)
             throw std::runtime_error("DC6: truncated pointer table");
 
         frames_.reserve(total);
         for (std::size_t i = 0; i < total; ++i) {
-            const auto frameOff = rd32(b.data() + ptrTblOff + i * 4);
-            if (frameOff + kFrameHdr > b.size())
+            const auto frameOff = rd32(bytes.data() + ptrTblOff + i * 4);
+            if (frameOff + kFrameHdr > bytes.size())
                 throw std::runtime_error("DC6: bad frame offset");
 
-            const std::byte* fh = b.data() + frameOff;
-            Frame f;
-            f.flipped  = rd32(fh + 0)  != 0;
-            f.width    = rd32(fh + 4);
-            f.height   = rd32(fh + 8);
-            f.offset_x = static_cast<std::int32_t>(rd32(fh + 12));
-            f.offset_y = static_cast<std::int32_t>(rd32(fh + 16));
+            const std::byte* frame_header = bytes.data() + frameOff;
+            Frame frame;
+            frame.flipped  = rd32(frame_header + 0)  != 0;
+            frame.width    = rd32(frame_header + 4);
+            frame.height   = rd32(frame_header + 8);
+            frame.offset_x = static_cast<std::int32_t>(rd32(frame_header + 12));
+            frame.offset_y = static_cast<std::int32_t>(rd32(frame_header + 16));
             // fh + 20: unknown/reserved
             // fh + 24: next-block offset (unused here — the pointer table
             //          already tells us where each frame starts)
-            const auto rleLen = rd32(fh + 28);
+            const auto rleLen = rd32(frame_header + 28);
 
             const std::size_t dataOff = frameOff + kFrameHdr;
-            if (dataOff + rleLen > b.size())
+            if (dataOff + rleLen > bytes.size())
                 throw std::runtime_error("DC6: RLE data OOB");
 
-            decode_rle(f, std::span(b.data() + dataOff, rleLen));
-            frames_.push_back(std::move(f));
+            decode_rle(frame, std::span(bytes.data() + dataOff, rleLen));
+            frames_.push_back(std::move(frame));
         }
     }
 
-    static void decode_rle(Frame& f, std::span<const std::byte> rle) {
-        f.pixels.assign(std::size_t(f.width) * f.height, 0);
-        if (f.width == 0 || f.height == 0) return;
+    static void decode_rle(Frame& frame, std::span<const std::byte> rle) {
+        frame.pixels.assign(std::size_t(frame.width) * frame.height, 0);
+        if (frame.width == 0 || frame.height == 0) return;
 
         // Scanline direction: bottom-up when flip=0 (D2 convention),
         // top-down when flip!=0.
         std::uint32_t x = 0;
-        std::int64_t  y = f.flipped ? 0 : std::int64_t(f.height) - 1;
-        const auto width = f.width;
+        std::int64_t  y = frame.flipped ? 0 : std::int64_t(frame.height) - 1;
+        const auto width = frame.width;
 
         for (std::size_t i = 0; i < rle.size(); ++i) {
-            const auto t = std::uint8_t(rle[i]);
-            if (t == 0x80) {                        // end of scanline
+            const auto token = std::uint8_t(rle[i]);
+            if (token == 0x80) {                        // end of scanline
                 x = 0;
-                y += f.flipped ? 1 : -1;
+                y += frame.flipped ? 1 : -1;
                 continue;
             }
-            if (t & 0x80) {                          // transparent run
-                x += std::uint32_t(t & 0x7F);
+            if (token & 0x80) {                          // transparent run
+                x += std::uint32_t(token & 0x7F);
                 continue;
             }
             // Raw pixel run of length t. Bounds-check both source and dest.
-            if (i + t >= rle.size()) throw std::runtime_error("DC6: raw run OOB");
-            if (y < 0 || y >= std::int64_t(f.height))
+            if (i + token >= rle.size()) throw std::runtime_error("DC6: raw run OOB");
+            if (y < 0 || y >= std::int64_t(frame.height))
                 throw std::runtime_error("DC6: scanline OOB");
-            for (std::uint8_t k = 0; k < t; ++k) {
+            for (std::uint8_t k = 0; k < token; ++k) {
                 if (x >= width) throw std::runtime_error("DC6: pixel x OOB");
-                f.pixels[std::size_t(y) * width + x++] =
+                frame.pixels[std::size_t(y) * width + x++] =
                     std::uint8_t(rle[++i]);
             }
         }

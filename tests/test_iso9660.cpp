@@ -25,31 +25,31 @@ int main() {
         return 0;
     }
 
-    auto r = iso9660::Reader::open(iso);
-    CHECK(r.has_value());
+    auto reader = iso9660::Reader::open(iso);
+    CHECK(reader.has_value());
 
-    const auto& es = r->entries();
-    CHECK(es.size() > 10);
+    const auto& entries = reader->entries();
+    CHECK(entries.size() > 10);
 
     std::size_t dirs = 0, files = 0;
     std::uint64_t total = 0;
-    for (const auto& e : es) {
-        if (e.directory) ++dirs;
-        else { ++files; total += e.size; }
+    for (const auto& entry : entries) {
+        if (entry.directory) ++dirs;
+        else { ++files; total += entry.size; }
     }
     CHECK(dirs > 0);
     CHECK(files > 0);
     CHECK(total > 100ull * 1024 * 1024);   // install disc is ~500 MB
 
     // Round-trip: read the first small-ish file, confirm we got its bytes.
-    for (const auto& e : es) {
-        if (!e.directory && e.size > 0 && e.size < 4096) {
-            auto bytes = r->read(e);
-            CHECK(bytes.size() == e.size);
+    for (const auto& entry : entries) {
+        if (!entry.directory && entry.size > 0 && entry.size < 4096) {
+            auto bytes = reader->read(entry);
+            CHECK(bytes.size() == entry.size);
             std::printf("test_iso9660: OK — %zu entries, %llu bytes total, "
                         "sample=%s (%u B)\n",
-                        es.size(), (unsigned long long)total,
-                        e.path.c_str(), e.size);
+                        entries.size(), (unsigned long long)total,
+                        entry.path.c_str(), entry.size);
             return 0;
         }
     }

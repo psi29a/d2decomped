@@ -21,25 +21,25 @@ int main() {
         return 0;
     }
 
-    d2d::mpq::Archive a(d2char);
+    d2d::mpq::Archive archive(d2char);
 
     // Small light overlay — a good bit-decoder canary (~2 KB compressed).
     {
-        const auto raw = a.read(R"(data\global\CHARS\SO\S1\SOS1LITBLHTH.dcc)");
-        d2d::dcc::Sprite s(raw);
+        const auto raw = archive.read(R"(data\global\CHARS\SO\S1\SOS1LITBLHTH.dcc)");
+        d2d::dcc::Sprite sprite(raw);
         std::printf("SOS1LITBL: dirs=%u frames=%d\n",
-                    unsigned(s.directions()), s.frames_per_direction());
-        assert(s.directions() > 0);
-        assert(s.frames_per_direction() > 0);
-        for (const auto& f : s.frames()) {
-            assert(f.width > 0 && f.height > 0);
-            assert(f.pixels.size() == std::size_t(f.width) * f.height);
+                    unsigned(sprite.directions()), sprite.frames_per_direction());
+        assert(sprite.directions() > 0);
+        assert(sprite.frames_per_direction() > 0);
+        for (const auto& frame : sprite.frames()) {
+            assert(frame.width > 0 && frame.height > 0);
+            assert(frame.pixels.size() == std::size_t(frame.width) * frame.height);
         }
         // At least one frame has non-transparent pixels.
         bool any = false;
-        for (const auto& f : s.frames()) {
-            if (std::any_of(f.pixels.begin(), f.pixels.end(),
-                            [](auto p){ return p != 0; })) { any = true; break; }
+        for (const auto& frame : sprite.frames()) {
+            if (std::any_of(frame.pixels.begin(), frame.pixels.end(),
+                            [](auto pixel){ return pixel != 0; })) { any = true; break; }
         }
         assert(any);
     }
@@ -47,17 +47,17 @@ int main() {
     // Bigger sprite — a Barbarian head equipped with a helm.
     // Exercises equal-cells + raw-pixel paths across all directions.
     {
-        const auto raw = a.read(R"(data\global\CHARS\BA\HD\BAHDHLMTWHTH.dcc)");
-        d2d::dcc::Sprite s(raw);
+        const auto raw = archive.read(R"(data\global\CHARS\BA\HD\BAHDHLMTWHTH.dcc)");
+        d2d::dcc::Sprite sprite(raw);
         std::printf("BAHDHLMTW: dirs=%u frames=%d\n",
-                    unsigned(s.directions()), s.frames_per_direction());
-        assert(s.directions() > 0 && s.frames_per_direction() > 0);
+                    unsigned(sprite.directions()), sprite.frames_per_direction());
+        assert(sprite.directions() > 0 && sprite.frames_per_direction() > 0);
         std::size_t total_painted = 0;
-        for (const auto& f : s.frames()) {
-            assert(f.pixels.size() == std::size_t(f.width) * f.height);
+        for (const auto& frame : sprite.frames()) {
+            assert(frame.pixels.size() == std::size_t(frame.width) * frame.height);
             total_painted += std::size_t(std::count_if(
-                f.pixels.begin(), f.pixels.end(),
-                [](auto p){ return p != 0; }));
+                frame.pixels.begin(), frame.pixels.end(),
+                [](auto pixel){ return pixel != 0; }));
         }
         std::printf("BAHDHLMTW: total painted pixels = %zu\n", total_painted);
         assert(total_painted > 100);

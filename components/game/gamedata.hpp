@@ -86,15 +86,15 @@ struct Level {
     // camp's, let them by).
     [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
         if (!inside(x, y))
-            for (const auto& n : nearby)
-                if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy), mask);
+            for (const auto& near : nearby)
+                if (near.level->inside(x - float(near.dx), y - float(near.dy))) return near.level->blocked_here(x - float(near.dx), y - float(near.dy), mask);
         return blocked_here(x, y, mask);
     }
     [[nodiscard]] bool blocked_here(float x, float y, std::uint8_t mask = 0x09) const {
-        const int w = ds1.width() * 5, h = ds1.height() * 5;
-        const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
-        if (sx < 0 || sy < 0 || sx >= w || sy >= h || walk.empty()) return true;
-        return walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & mask;
+        const int width = ds1.width() * 5, height = ds1.height() * 5;
+        const int screen_x = int(std::floor(x * 5)), screen_y = int(std::floor(y * 5));
+        if (screen_x < 0 || screen_y < 0 || screen_x >= width || screen_y >= height || walk.empty()) return true;
+        return walk[std::size_t(screen_y) * std::size_t(width) + std::size_t(screen_x)] & mask;
     }
     // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
     // collision pattern is a plus: the subtile and its four neighbours,
@@ -111,11 +111,11 @@ struct Level {
     // ring (FUN_0064dea0 does it per room for spawns).
     [[nodiscard]] std::pair<float, float> nearest_free(float x, float y) const {
         if (!unit_blocked(x, y)) return { x, y };
-        for (int r = 1; r < 200; ++r)
-            for (int i = -r; i <= r; ++i)
-                for (auto [ox, oy] : { std::pair{ i, -r }, { i, r }, { -r, i }, { r, i } })
-                    if (!unit_blocked(x + float(ox) * 0.2f, y + float(oy) * 0.2f))
-                        return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
+        for (int ring = 1; ring < 200; ++ring)
+            for (int i = -ring; i <= ring; ++i)
+                for (auto [offset_x, offset_y] : { std::pair{ i, -ring }, { i, ring }, { -ring, i }, { ring, i } })
+                    if (!unit_blocked(x + float(offset_x) * 0.2f, y + float(offset_y) * 0.2f))
+                        return { x + float(offset_x) * 0.2f, y + float(offset_y) * 0.2f };
         return { x, y };
     }
     std::pair<float, float> start{ -1.f, -1.f };            // cells: where a player joining arrives; see load_world
@@ -123,7 +123,7 @@ struct Level {
     // Its warps (the units its hidden warp tiles make): cell, the level
     // it leads to (Levels.txt Vis), and where someone arriving through it
     // stands (its LvlWarp ExitWalk, subtiles from the cell).
-    struct Warp { float x, y; int to; float exit_x, exit_y; };
+    struct Warp { float x, y; int destination; float exit_x, exit_y; };
     std::vector<Warp> warps;
     // Its rooms' preset units (drlg level_room_tiles, proven against
     // game.exe): level-relative subtiles; load_npcs / load_monsters make
@@ -170,7 +170,7 @@ struct GameData {
     // the COF alone (load.hpp), kept.
     mutable std::map<std::string, AnimTiming> npc_timings;
     mutable std::map<std::array<std::uint8_t, 18>, AnimTiming> composite_timings;
-    const AnimTiming& npc_timing(const Npc& n, std::string_view mode) const;
+    const AnimTiming& npc_timing(const Npc& npc, std::string_view mode) const;
     const AnimTiming& composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 32>& gfx) const;   // tints ignored
     // data\global\animdata.d2 by COF name: the game's rate source (COFs of
     // walk/run modes store 0), frames per direction and the event frame.
@@ -211,28 +211,28 @@ struct GameData {
     // The look of what's worn (compcode::look). A state on the player with
     // an itemtrans colours worn items of its itemtype (FUN_0062c100's first
     // loop: Enchant's red weapons, Venom Claws' green).
-    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> on = {}) const {
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {}) const {
         std::vector<d2d::compcode::Worn> worn;
-        for (const auto& it : items)
-            if (it.location == 1) {
-                int c = item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
-                                        it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{});
-                if (const auto p = item_pieces.find(it.code); p != item_pieces.end() && item_types)
-                    for (const auto name : on)
-                        if (const auto st = states.find(std::string(name)); st != states.end() && st->second.item_colour >= 0) {
-                            const int want = item_types->index(st->second.item_type);
-                            if (item_types->isa(item_types->index(p->second.type), want) || item_types->isa(item_types->index(p->second.type2), want)) {
-                                c = st->second.item_colour;
+        for (const auto& item : items)
+            if (item.location == 1) {
+                int colour = item_colours.of(item.quality, item.unique_id, item.set_id, item.prefix, item.suffix, item.affixes, item.class_affix,
+                                        item.socketed && !item.socketed_items.empty() ? item.socketed_items[0].code : std::string{});
+                if (const auto piece = item_pieces.find(item.code); piece != item_pieces.end() && item_types)
+                    for (const auto name : active_states)
+                        if (const auto state = states.find(std::string(name)); state != states.end() && state->second.item_colour >= 0) {
+                            const int want = item_types->index(state->second.item_type);
+                            if (item_types->isa(item_types->index(piece->second.type), want) || item_types->isa(item_types->index(piece->second.type2), want)) {
+                                colour = state->second.item_colour;
                                 break;
                             }
                         }
-                worn.push_back({ it.slot, it.code, c });
+                worn.push_back({ item.slot, item.code, colour });
             }
-        const auto l = d2d::compcode::look(comp, item_pieces, worn), t = d2d::compcode::tints(item_pieces, worn);
-        Appearance a;
-        std::copy(l.begin(), l.end(), a.begin());
-        std::copy(t.begin(), t.end(), a.begin() + 16);
-        return a;
+        const auto look = d2d::compcode::look(comp, item_pieces, worn), tints = d2d::compcode::tints(item_pieces, worn);
+        Appearance appearance;
+        std::copy(look.begin(), look.end(), appearance.begin());
+        std::copy(tints.begin(), tints.end(), appearance.begin() + 16);
+        return appearance;
     }
     std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
     // Kept open for lazy loads after startup.
@@ -258,7 +258,7 @@ struct GameData {
     // ItemStatCost.txt description columns, by stat ID, and what the skill
     // descfuncs need: skill name keys by skill ID, CharStats strings by class.
     struct StatDesc {
-        int prio = 0, func = 0, val = 0, op = 0, op_param = 0, dgrp = 0, dgrp_func = 0, dgrp_val = 0;
+        int prio = 0, func = 0, val = 0, operation = 0, op_param = 0, dgrp = 0, dgrp_func = 0, dgrp_val = 0;
         std::string pos, neg, str2, dgrp_pos, dgrp_neg, dgrp_str2;
     };
     std::vector<StatDesc> stat_desc;
@@ -323,7 +323,7 @@ struct GameData {
     void poll_levels() const;
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
-    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc;
+    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> treasure_classes;
                          std::array<int, 3> utrans{}; };   // Utrans by difficulty: its colour
     std::vector<SuperUnique> superuniques;
     d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
@@ -339,7 +339,7 @@ struct GameData {
     std::unordered_map<int, Merc> mercs;
     // Waypoints (docs/research/re/waypoint.md): Levels.txt rows with a
     // Waypoint index, per act in index order; art ui\menu\waygate*.
-    struct WaypointLevel { int wp = 0, level = 0; std::string name; };
+    struct WaypointLevel { int waypoint = 0, level = 0; std::string name; };
     std::array<std::vector<WaypointLevel>, 5> waypoint_levels;
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
@@ -400,14 +400,14 @@ struct GameData {
 };
 
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
-inline std::string u16_to_latin1(std::u16string_view s) {
+inline std::string u16_to_latin1(std::u16string_view text) {
     std::string out;
-    out.reserve(s.size());
-    for (char16_t c : s) {
+    out.reserve(text.size());
+    for (char16_t code_unit : text) {
         // Keep printable Latin-1 (0x20..0xFF) and line breaks (two-line
         // labels like "Fire\nResistance"), drop the rest — D2 UI strings
         // are ASCII with occasional accented chars, all inside Latin-1.
-        if ((c >= 0x20 && c <= 0xFF) || c == '\n') out.push_back(char(c));
+        if ((code_unit >= 0x20 && code_unit <= 0xFF) || code_unit == '\n') out.push_back(char(code_unit));
     }
     return out;
 }
@@ -415,29 +415,29 @@ inline std::string u16_to_latin1(std::u16string_view s) {
 // TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
 // matching how the game resolves any string ID/key at runtime.
 inline std::optional<std::u16string_view>
-lookup_string(const GameData& s, std::string_view key) {
-    if (auto v = s.patch_strings.get(key); v && !v->empty()) return v;
-    if (auto v = s.exp_strings.get(key);   v && !v->empty()) return v;
-    if (auto v = s.strings.get(key);       v && !v->empty()) return v;
+lookup_string(const GameData& game_data, std::string_view key) {
+    if (auto found = game_data.patch_strings.get(key); found && !found->empty()) return found;
+    if (auto found = game_data.exp_strings.get(key);   found && !found->empty()) return found;
+    if (auto found = game_data.strings.get(key);       found && !found->empty()) return found;
     return std::nullopt;
 }
 inline std::optional<std::u16string_view>
-lookup_string(const GameData& s, std::uint16_t id) {
+lookup_string(const GameData& game_data, std::uint16_t id) {
     // Numeric IDs are banked, not layered (RE'd from char-select: 0x58cb =
     // 22731 resolves to expansionstring[2731] "EXPANSION CHARACTER"):
     //   0..9999 string.tbl, 10000..19999 patchstring, 20000+ expansionstring.
     // Trying every table with the raw ID hits the wrong one — string.tbl
     // 2731 is "Bile".
-    if (id >= 10000 && id < 20000 && !s.patched) return std::nullopt;
-    const auto& t = id >= 20000 ? s.exp_strings : id >= 10000 ? s.patch_strings : s.strings;
+    if (id >= 10000 && id < 20000 && !game_data.patched) return std::nullopt;
+    const auto& table = id >= 20000 ? game_data.exp_strings : id >= 10000 ? game_data.patch_strings : game_data.strings;
     const auto local = std::uint16_t(id >= 20000 ? id - 20000 : id >= 10000 ? id - 10000 : id);
-    if (auto v = t.get(local); v && !v->empty()) return v;
+    if (auto found = table.get(local); found && !found->empty()) return found;
     return std::nullopt;
 }
 
-inline std::string string_id(const GameData& s, std::uint16_t id) {
-    const auto v = lookup_string(s, id);
-    return v ? u16_to_latin1(*v) : std::string{};
+inline std::string string_id(const GameData& game_data, std::uint16_t id) {
+    const auto found = lookup_string(game_data, id);
+    return found ? u16_to_latin1(*found) : std::string{};
 }
 
 // Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
@@ -463,9 +463,9 @@ constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 
 // 5 W, 6 N, 7 E), then the half-steps (8 between S and SW, ...).
 inline int direction16(float dx, float dy) {
     constexpr int kFromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
-    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
-    const float a = std::atan2(-sx, sy);                    // 0 = down, + = clockwise
-    const int sector = int(std::lround(a / (2 * 3.14159265f / 16)));
+    const float screen_x = (dx - dy) * (kIsoW / 2), screen_y = (dx + dy) * (kIsoH / 2);
+    const float angle = std::atan2(-screen_x, screen_y);                    // 0 = down, + = clockwise
+    const int sector = int(std::lround(angle / (2 * 3.14159265f / 16)));
     return kFromSector[std::size_t((sector % 16 + 16) % 16)];
 }
 // A composite's direction for a 16-direction facing: 0..7 are the eight
@@ -475,8 +475,8 @@ inline int direction16(float dx, float dy) {
 // game.exe maps its 64 unit directions per direction count, not RE'd.
 inline std::uint8_t cof_direction(int dir16, int dirs) {
     constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
-    const int d = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
-    return std::uint8_t(std::clamp(d, 0, std::max(dirs - 1, 0)));
+    const int dir = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
+    return std::uint8_t(std::clamp(dir, 0, std::max(dirs - 1, 0)));
 }
 constexpr const char* kModeCode[18] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW", "A1", "A2", "BL", "SC",
                                         "TH", "KK", "S1", "S2", "S3", "S4", "DD" };
@@ -490,13 +490,13 @@ constexpr const char* kLayerCode[16] = {
 // "\d2\data\global\tiles\act1\town\floor.dt1") into the MPQ path we can hand to Stack::try_read. The
 // DS1 files store paths as they were on Blizzard's build box, with a
 // leading "\d2\" prefix and forward slashes never — normalize both.
-[[nodiscard]] inline std::string ds1_path_to_mpq(std::string_view s) {
-    if (s.size() > 4 && (s.starts_with("\\d2\\") || s.starts_with("/d2/")))
-        s.remove_prefix(4);
-    else if (!s.empty() && (s[0] == '\\' || s[0] == '/'))
-        s.remove_prefix(1);
-    std::string out(s);
-    for (auto& c : out) if (c == '/') c = '\\';
+[[nodiscard]] inline std::string ds1_path_to_mpq(std::string_view path) {
+    if (path.size() > 4 && (path.starts_with("\\d2\\") || path.starts_with("/d2/")))
+        path.remove_prefix(4);
+    else if (!path.empty() && (path[0] == '\\' || path[0] == '/'))
+        path.remove_prefix(1);
+    std::string out(path);
+    for (auto& letter : out) if (letter == '/') letter = '\\';
     return out;
 }
 
@@ -509,7 +509,7 @@ constexpr const char* kVariant[16] = {
 // The level builder (GameData::builder): one build at a time, on its own MPQ
 // handles and its own DRLG tables (the generator caches DT1 heads in them).
 struct GameData::LevelBuilder {
-    std::mutex m;                                       // held for a whole build; `mpqs` and `act1` are its
+    std::mutex mutex;                                       // held for a whole build; `mpqs` and `act1` are its
     std::optional<d2d::mpq::Stack> mpqs;
     std::unique_ptr<d2d::drlg::OutdoorAssets> act1;     // the act's DRLG tables (load_scene's, handed over)
     // What load_npcs read that a build needs: objects.txt (and its rows by
@@ -547,27 +547,27 @@ struct CofAnim { d2d::cof::Cof cof; GameData::AnimTiming timing; std::string pat
 CofAnim open_cof(const d2d::mpq::Stack& mpqs, const std::string& path);
 CofAnim player_cof(const d2d::mpq::Stack& mpqs, const std::vector<d2d::compcode::Entry>& comp, int cls, int mode,
                    const std::array<std::uint8_t, 32>& gfx);
-CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& n, std::string_view mode);
+CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& npc, std::string_view mode);
 
-std::vector<std::string> split_variants(std::string_view v);
-std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& t);
-int level_light(std::string_view i, std::string_view r, std::string_view g, std::string_view b);
-Npc monster_npc(const GameData& scene, const d2d::txt::Table& ms, const d2d::txt::Table& ms2,
+std::vector<std::string> split_variants(std::string_view text);
+std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& table);
+int level_light(std::string_view intensity, std::string_view red, std::string_view green, std::string_view blue);
+Npc monster_npc(const GameData& scene, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row);
-const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& L, int d);
-void stamp_footprints(Level& lv);
+const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& level, int difficulty);
+void stamp_footprints(Level& level);
 void add_object(const GameData& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
-                Level& into, int oid, int sx, int sy, d2d::rules::Rng& rgn);
-void finish_level(Level& L);
-LevelDt1s load_level_dt1s(Level& lv, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, int type);
-std::size_t set_level_tiles(Level& lv, const d2d::drlg::OutdoorAssets& a, const LevelDt1s& d,
+                Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn);
+void finish_level(Level& level);
+LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type);
+std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
-bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv);
-bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& a, Level& lv, std::size_t row);
-std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& b, int id);
-void install_level(const GameData& s, int id, std::unique_ptr<Level> lv);
+bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
+bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
+std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& builder, int id);
+void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
-void want_nearby(const GameData& s, const Level& l);
+void want_nearby(const GameData& game_data, const Level& level);
 
 }  // namespace d2d::game

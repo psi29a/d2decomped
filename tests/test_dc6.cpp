@@ -21,38 +21,38 @@ int main() {
         return 0;
     }
 
-    d2d::mpq::Archive a(d2data);
+    d2d::mpq::Archive archive(d2data);
 
     // Small UI icon: 141 bytes on disk, 1 direction × 1 frame.
     {
-        const auto raw = a.read(R"(data\global\ui\MENU\helpwhitebullet.dc6)");
-        d2d::dc6::Sprite s(raw);
-        assert(s.directions() == 1);
-        assert(s.frames_per_direction() == 1);
-        assert(s.total_frames() == 1);
+        const auto raw = archive.read(R"(data\global\ui\MENU\helpwhitebullet.dc6)");
+        d2d::dc6::Sprite sprite(raw);
+        assert(sprite.directions() == 1);
+        assert(sprite.frames_per_direction() == 1);
+        assert(sprite.total_frames() == 1);
 
-        const auto& f = s.frame(0, 0);
-        assert(f.width  > 0 && f.width  <= 32);
-        assert(f.height > 0 && f.height <= 32);
-        assert(f.pixels.size() == std::size_t(f.width) * f.height);
+        const auto& frame = sprite.frame(0, 0);
+        assert(frame.width  > 0 && frame.width  <= 32);
+        assert(frame.height > 0 && frame.height <= 32);
+        assert(frame.pixels.size() == std::size_t(frame.width) * frame.height);
         // Bullet icon has a coloured centre — at least one non-transparent pixel.
         bool any = false;
-        for (auto p : f.pixels) if (p) { any = true; break; }
+        for (auto pixel : frame.pixels) if (pixel) { any = true; break; }
         assert(any);
         std::printf("bullet: %ux%u, %zu non-zero pixels\n",
-                    f.width, f.height,
-                    (std::size_t)std::count_if(f.pixels.begin(), f.pixels.end(),
-                                               [](auto p){ return p != 0; }));
+                    frame.width, frame.height,
+                    (std::size_t)std::count_if(frame.pixels.begin(), frame.pixels.end(),
+                                               [](auto pixel){ return pixel != 0; }));
     }
 
     // A directional sprite (monster/inventory) — exercises multi-frame decoding.
     {
-        const auto raw = a.read(R"(data\global\items\invgsba.dc6)");
-        d2d::dc6::Sprite s(raw);
-        assert(s.directions() >= 1);
-        assert(s.frames_per_direction() >= 1);
-        for (const auto& f : s.frames()) {
-            assert(f.pixels.size() == std::size_t(f.width) * f.height);
+        const auto raw = archive.read(R"(data\global\items\invgsba.dc6)");
+        d2d::dc6::Sprite sprite(raw);
+        assert(sprite.directions() >= 1);
+        assert(sprite.frames_per_direction() >= 1);
+        for (const auto& frame : sprite.frames()) {
+            assert(frame.pixels.size() == std::size_t(frame.width) * frame.height);
         }
     }
 

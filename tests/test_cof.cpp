@@ -20,38 +20,38 @@ int main() {
         return 0;
     }
 
-    d2d::mpq::Archive a(d2char);
+    d2d::mpq::Archive archive(d2char);
 
     // Necromancer walk-left animation, hand-to-hand weapon class.
     {
-        const auto raw = a.read(R"(data\global\CHARS\NE\COF\NEWL1HT.COF)");
-        d2d::cof::Cof c(raw);
+        const auto raw = archive.read(R"(data\global\CHARS\NE\COF\NEWL1HT.COF)");
+        d2d::cof::Cof cof(raw);
         std::printf("NEWL1HT: layers=%u frames=%u dirs=%u speed=%u\n",
-                    unsigned(c.layers()), unsigned(c.frames_per_direction()),
-                    unsigned(c.directions()), unsigned(c.speed()));
-        assert(c.layers() > 0);
-        assert(c.frames_per_direction() > 0);
-        assert(c.directions() > 0);
-        assert(c.layer_defs().size() == c.layers());
-        assert(c.events().size() == c.frames_per_direction());
+                    unsigned(cof.layers()), unsigned(cof.frames_per_direction()),
+                    unsigned(cof.directions()), unsigned(cof.speed()));
+        assert(cof.layers() > 0);
+        assert(cof.frames_per_direction() > 0);
+        assert(cof.directions() > 0);
+        assert(cof.layer_defs().size() == cof.layers());
+        assert(cof.events().size() == cof.frames_per_direction());
 
         // Every layer defines a weapon class (usually "hth" for walk).
-        for (const auto& L : c.layer_defs()) {
-            assert(!L.weapon_class.empty());
-            assert(L.weapon_class.size() <= 3);
+        for (const auto& layer : cof.layer_defs()) {
+            assert(!layer.weapon_class.empty());
+            assert(layer.weapon_class.size() <= 3);
         }
 
         // Priority lookup for (dir 0, frame 0) returns `layers` bytes.
-        const auto pri = c.priority(0, 0);
-        assert(pri.size() == c.layers());
+        const auto pri = cof.priority(0, 0);
+        assert(pri.size() == cof.layers());
     }
 
     // Barbarian throw with crossbow — different weapon class.
     {
-        const auto raw = a.read(R"(data\global\CHARS\BA\COF\BATNXBW.COF)");
-        d2d::cof::Cof c(raw);
-        assert(c.directions() == 8 || c.directions() == 16);
-        assert(c.layers() > 0);
+        const auto raw = archive.read(R"(data\global\CHARS\BA\COF\BATNXBW.COF)");
+        d2d::cof::Cof cof(raw);
+        assert(cof.directions() == 8 || cof.directions() == 16);
+        assert(cof.layers() > 0);
     }
 
     std::printf("OK\n");

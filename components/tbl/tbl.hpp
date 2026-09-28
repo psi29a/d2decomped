@@ -36,8 +36,8 @@ public:
     get(std::string_view key) const {
         // heterogeneous lookup would remove the string(), but not worth the
         // template ceremony until profiling asks for it.
-        if (auto it = entries_.find(std::string(key)); it != entries_.end()) {
-            return std::u16string_view(it->second);
+        if (auto found = entries_.find(std::string(key)); found != entries_.end()) {
+            return std::u16string_view(found->second);
         }
         return std::nullopt;
     }
@@ -48,8 +48,8 @@ public:
     // See docs/research/re/frontend-menu-table.md for the anchor use.
     [[nodiscard]] std::optional<std::u16string_view>
     get(std::uint16_t id) const {
-        if (auto it = by_id_.find(id); it != by_id_.end()) {
-            return std::u16string_view(it->second);
+        if (auto found = by_id_.find(id); found != by_id_.end()) {
+            return std::u16string_view(found->second);
         }
         return std::nullopt;
     }
@@ -62,40 +62,40 @@ public:
     [[nodiscard]] const auto& entries() const noexcept { return entries_; }
 
 private:
-    static std::uint32_t rd32(const std::byte* p) {
-        std::uint32_t v; std::memcpy(&v, p, 4); return v;
+    static std::uint32_t rd32(const std::byte* source) {
+        std::uint32_t value; std::memcpy(&value, source, 4); return value;
     }
-    static std::uint16_t rd16(const std::byte* p) {
-        std::uint16_t v; std::memcpy(&v, p, 2); return v;
+    static std::uint16_t rd16(const std::byte* source) {
+        std::uint16_t value; std::memcpy(&value, source, 2); return value;
     }
 
-    void parse(std::span<const std::byte> b) {
+    void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kHeader = 21;
         constexpr std::size_t kNode   = 17;
-        if (b.size() < kHeader) throw std::runtime_error("TBL: truncated header");
+        if (bytes.size() < kHeader) throw std::runtime_error("TBL: truncated header");
 
-        const auto nodesNumber   = rd16(b.data() + 0x02);
-        const auto hashTableSize = rd32(b.data() + 0x04);
+        const auto nodesNumber   = rd16(bytes.data() + 0x02);
+        const auto hashTableSize = rd32(bytes.data() + 0x04);
         // +0x08 Version — 0 or 1, don't care.
         // +0x09 DataStartOffset, +0x0D HashMaxTries, +0x11 FileSize — unused.
 
         const std::size_t nodesOff = kHeader + std::size_t(nodesNumber) * 2;
         const std::size_t stringsOff = nodesOff
                                      + std::size_t(hashTableSize) * kNode;
-        if (b.size() < stringsOff) throw std::runtime_error("TBL: truncated body");
+        if (bytes.size() < stringsOff) throw std::runtime_error("TBL: truncated body");
 
         entries_.reserve(hashTableSize);
         for (std::uint32_t i = 0; i < hashTableSize; ++i) {
-            const std::byte* node = b.data() + nodesOff + i * kNode;
+            const std::byte* node = bytes.data() + nodesOff + i * kNode;
             if (std::uint8_t(node[0]) == 0) continue;   // deleted entry
             const auto keyOff = rd32(node + 0x07);
             const auto valOff = rd32(node + 0x0b);
             const auto valLen = rd16(node + 0x0f);        // includes NUL, in u16 chars
 
-            if (keyOff >= b.size() || valOff >= b.size()) continue;
+            if (keyOff >= bytes.size() || valOff >= bytes.size()) continue;
 
-            const auto* keyp = reinterpret_cast<const char*>(b.data() + keyOff);
-            const std::size_t keyMax = b.size() - keyOff;
+            const auto* keyp = reinterpret_cast<const char*>(bytes.data() + keyOff);
+            const std::size_t keyMax = bytes.size() - keyOff;
             std::size_t keyLen = 0;
             while (keyLen < keyMax && keyp[keyLen] != '\0') ++keyLen;
 
@@ -104,8 +104,8 @@ private:
             // builds aren't handled here yet — treat every byte as Latin-1 for
             // now, matching OpenD2's Latin path. Fix when JPN/KOR TBLs surface.
             // ponytail: Latin-1 only; add MBCS decode when a non-Latin TBL fails.
-            if (valLen == 0 || valOff + std::size_t(valLen) > b.size()) continue;
-            const auto* valp = reinterpret_cast<const unsigned char*>(b.data() + valOff);
+            if (valLen == 0 || valOff + std::size_t(valLen) > bytes.size()) continue;
+            const auto* valp = reinterpret_cast<const unsigned char*>(bytes.data() + valOff);
             std::u16string value;
             value.reserve(valLen - 1);
             for (std::uint16_t j = 0; j + 1 < valLen; ++j) {  // skip trailing NUL

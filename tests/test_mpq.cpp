@@ -34,62 +34,62 @@ int main() {
 
     // Archive: open, existence check, read.
     {
-        Archive a(d2char);
-        assert(a.contains("(listfile)"));
-        const auto listfile = a.read("(listfile)");
+        Archive archive(d2char);
+        assert(archive.contains("(listfile)"));
+        const auto listfile = archive.read("(listfile)");
         assert(!listfile.empty());
 
-        assert(!a.contains("this/file/does/not/exist"));
-        assert(!a.try_read("nope").has_value());
+        assert(!archive.contains("this/file/does/not/exist"));
+        assert(!archive.try_read("nope").has_value());
 
         // A real D2 file we spotted in the archive listing.
-        const auto cof = a.read(R"(data\global\CHARS\NE\COF\NEWL1HT.COF)");
+        const auto cof = archive.read(R"(data\global\CHARS\NE\COF\NEWL1HT.COF)");
         assert(cof.size() == 1269);
     }
 
     // Move construction leaves the source safely closable.
     {
-        Archive a(d2char);
-        Archive b(std::move(a));
-        assert(b.contains("(listfile)"));
+        Archive archive(d2char);
+        Archive moved(std::move(archive));
+        assert(moved.contains("(listfile)"));
     }
 
     // Stack: two archives, first-added wins.
     if (fs::exists(dir / "d2data.mpq")) {
-        Stack s;
-        s.push(d2char);
-        s.push(dir / "d2data.mpq");
-        assert(s.size() == 2);
-        assert(s.contains("(listfile)"));   // both have it; d2char answers first
-        const auto data = s.read("(listfile)");
+        Stack mpqs;
+        mpqs.push(d2char);
+        mpqs.push(dir / "d2data.mpq");
+        assert(mpqs.size() == 2);
+        assert(mpqs.contains("(listfile)"));   // both have it; d2char answers first
+        const auto data = mpqs.read("(listfile)");
         assert(!data.empty());
     }
 
     // 1.14d patch installer as the patch_d2 layer (D2_PATCH_INSTALLER, or
     // LODPatch_114d.exe next to the MPQs). Raw entries come back unwrapped
     // through patch.lst names; compressed ones fall through to lower layers.
-    const char* pi = std::getenv("D2_PATCH_INSTALLER");
-    const fs::path inst = pi ? fs::path(pi) : dir / "LODPatch_114d.exe";
+    const char* patch_installer = std::getenv("D2_PATCH_INSTALLER");
+    const fs::path inst = patch_installer ? fs::path(patch_installer) : dir / "LODPatch_114d.exe";
     if (fs::exists(inst)) {
-        d2d::mpq::Stack st;
-        st.push_installer(inst);
-        const auto ps = st.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
-        assert(ps && ps->size() > 1000);
-        const auto cc = st.try_read("data/global/excel/COMPCODE.txt");   // any case/slash
-        assert(cc && std::memcmp(cc->data(), "component\tcode", 14) == 0);
-        assert(!st.contains(R"(data\global\excel\armor.txt)"));      // delta, no base yet
+        d2d::mpq::Stack mpqs;
+        mpqs.push_installer(inst);
+        const auto patch_strings = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
+        assert(patch_strings && patch_strings->size() > 1000);
+        const auto compcode = mpqs.try_read("data/global/excel/COMPCODE.txt");   // any case/slash
+        assert(compcode && std::memcmp(compcode->data(), "component\tcode", 14) == 0);
+        assert(!mpqs.contains(R"(data\global\excel\armor.txt)"));      // delta, no base yet
         // With the base MPQs underneath, deltas are applied: 1.14d armor.txt
         // (76370 bytes, "namestr" column) from the CD's.
         if (fs::exists(dir / "d2exp.mpq")) {
-            st.push(dir / "d2exp.mpq");
-            st.push(dir / "d2data.mpq");
-            const auto armor = st.try_read(R"(data\global\excel\armor.txt)");
+            mpqs.push(dir / "d2exp.mpq");
+            mpqs.push(dir / "d2data.mpq");
+            const auto armor = mpqs.try_read(R"(data\global\excel\armor.txt)");
             assert(armor && armor->size() == 76370);
             const std::string head(reinterpret_cast<const char*>(armor->data()), 400);
             assert(head.find("\tnamestr\t") != std::string::npos);
             std::printf("installer delta applied: armor.txt %zu bytes\n", armor->size());
         }
-        assert(!st.contains("patch.lst"));                             // not a game path
+        assert(!mpqs.contains("patch.lst"));                             // not a game path
         std::printf("installer layer OK\n");
     } else {
         std::printf("SKIP installer: %s not found\n", inst.string().c_str());

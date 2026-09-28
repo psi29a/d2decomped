@@ -15,7 +15,7 @@ namespace d2d::rules {
 
 // The MonStats / MonStats2 columns spawning and fighting read, per row.
 struct MonType {
-    std::string id, code, name_key, ai;         // Id, Code, NameStr, AI
+    std::string id, code, name_key, ai_name;         // Id, Code, NameStr, AI
     std::string montype;                        // MonType (MonUMod exclusions)
     std::array<std::string, 3> tc_champion, tc_unique;   // TreasureClass2 / 3 by difficulty
     int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
@@ -33,15 +33,15 @@ struct MonType {
     bool can_block = false;                     // MonStats2 mBL
     // Percentages of the MonLvl row (1.10+ style), per difficulty.
     struct Diff {
-        int min_hp = 0, max_hp = 0, ac = 0, exp = 0;
+        int min_hp = 0, max_hp = 0, armor_class = 0, exp = 0;
         int a1_min = 0, a1_max = 0, a1_th = 0, a2_min = 0, a2_max = 0, a2_th = 0;
         int aidel = 0, aidist = 0;
         std::array<int, 8> aip{};
-        std::string tc;                          // TreasureClass1
+        std::string treasure_class;                          // TreasureClass1
         std::array<int, 6> res{};                // ResDm, ResMa, ResFi, ResLi, ResCo, ResPo (%)
         int to_block = 0, drain = 100, cold_effect = 0;   // ToBlock, Drain (leech %), coldeffect (speed % while chilled)
         struct El { int pct = 0, min = 0, max = 0, dur = 0; };
-        std::array<El, 3> el{};                  // El1..3 Pct / MinD / MaxD (MonLvl %) / Dur (ticks)
+        std::array<El, 3> elements{};                  // El1..3 Pct / MinD / MaxD (MonLvl %) / Dur (ticks)
     };
     std::array<Diff, 3> diff{};
     // MonStats2.
@@ -51,7 +51,7 @@ struct MonType {
 };
 
 // MonLvl.txt, by level: the base values MonStats' percentages apply to.
-struct MonLvl { std::array<int, 3> ac{}, th{}, hp{}, dm{}, xp{}; };
+struct MonLvl { std::array<int, 3> armor_class{}, to_hit{}, hit_points{}, damage{}, experience{}; };
 
 struct Monsters {
     std::vector<MonType> types;                 // MonStats rows
@@ -59,10 +59,10 @@ struct Monsters {
     std::vector<MonLvl> lvl;                    // by level
     // By Id, any case (Skills.txt's summon says ClayGolem for claygolem).
     [[nodiscard]] int row(std::string id) const {
-        if (const auto it = by_id.find(id); it != by_id.end()) return it->second;
-        for (auto& c : id) c = char(std::tolower(static_cast<unsigned char>(c)));
-        for (const auto& [k, v] : by_id)
-            if (k.size() == id.size() && std::ranges::equal(k, id, [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == b; })) return v;
+        if (const auto found = by_id.find(id); found != by_id.end()) return found->second;
+        for (auto& letter : id) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+        for (const auto& [key, row_index] : by_id)
+            if (key.size() == id.size() && std::ranges::equal(key, id, [](char left, char right) { return std::tolower(static_cast<unsigned char>(left)) == right; })) return row_index;
         return -1;
     }
 };

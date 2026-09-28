@@ -5,27 +5,27 @@
 
 namespace d2d::client {
 
-void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<TextLine>& lines,
-                     int x0, int x1, int top, int bottom) {
+void draw_hover_text(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<TextLine>& lines,
+                     int left, int right, int top, int bottom) {
     if (lines.empty()) return;
-    const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-    const int lh = 16;                                   // font16 cell height
-    int w = 0;
-    for (const auto& l : lines) w = std::max(w, s.font.measure(l.text));
-    const int h = lh * int(lines.size());
-    int bx = std::clamp((x0 + x1) / 2 - w / 2 - 2, 0, std::max(0, int(kW) - w - 4));
-    int by = bottom - h - 2;
-    if (by < 0) by = std::min(top, int(kH) - h - 4);
-    for (int y = std::max(0, by); y < std::min(int(kH), by + h + 4); ++y)
-        for (int x = bx; x < std::min(int(kW), bx + w + 4); ++x) {
-            auto* p = &fb[(std::size_t(y) * kW + std::size_t(x)) * 4];
-            p[0] = std::uint8_t(p[0] / 4); p[1] = std::uint8_t(p[1] / 4); p[2] = std::uint8_t(p[2] / 4);
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    const int line_height = 16;                                   // font16 cell height
+    int width = 0;
+    for (const auto& line : lines) width = std::max(width, scene.font.measure(line.text));
+    const int height = line_height * int(lines.size());
+    int box_x = std::clamp((left + right) / 2 - width / 2 - 2, 0, std::max(0, int(kScreenWidth) - width - 4));
+    int box_y = bottom - height - 2;
+    if (box_y < 0) box_y = std::min(top, int(kScreenHeight) - height - 4);
+    for (int y = std::max(0, box_y); y < std::min(int(kScreenHeight), box_y + height + 4); ++y)
+        for (int x = box_x; x < std::min(int(kScreenWidth), box_x + width + 4); ++x) {
+            auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+            pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
         }
-    int y = by + 2;
-    for (const auto& l : lines) {
-        const int lw = s.font.measure(l.text);
-        s.font.draw_tinted(fb, kW, kH, pal, bx + 2 + (w - lw) / 2, y, l.text, l.rgb[0], l.rgb[1], l.rgb[2]);
-        y += lh;
+    int y = box_y + 2;
+    for (const auto& line : lines) {
+        const int line_width = scene.font.measure(line.text);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box_x + 2 + (width - line_width) / 2, y, line.text, line.rgb[0], line.rgb[1], line.rgb[2]);
+        y += line_height;
     }
 }
 

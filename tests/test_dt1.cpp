@@ -30,27 +30,27 @@ int main() {
     // desired behaviour (the caller should route by content, not extension).
     {
         const auto raw = mpq.read(R"(data\global\tiles\ACT1\OUTDOORS\blank.dt1)");
-        d2d::dt1::Archive a(raw);
-        std::printf("blank.dt1: %zu tiles\n", a.size());
-        assert(a.size() > 0);
-        for (const auto& t : a.tiles()) {
-            assert(t.width > 0);
-            const auto h = std::size_t(t.height < 0 ? -t.height : t.height);
-            assert(t.pixels.size() == std::size_t(t.width) * h
-                || h == 0);   // some rare "shadow" tiles carry no pixels
+        d2d::dt1::Archive archive(raw);
+        std::printf("blank.dt1: %zu tiles\n", archive.size());
+        assert(archive.size() > 0);
+        for (const auto& tile : archive.tiles()) {
+            assert(tile.width > 0);
+            const auto height = std::size_t(tile.height < 0 ? -tile.height : tile.height);
+            assert(tile.pixels.size() == std::size_t(tile.width) * height
+                || height == 0);   // some rare "shadow" tiles carry no pixels
         }
     }
 
     // Rogue Encampment floor — the milestone tileset for phase 5.
     {
         const auto raw = mpq.read(R"(data\global\tiles\ACT1\TOWN\floor.dt1)");
-        d2d::dt1::Archive a(raw);
-        std::printf("rogue floor.dt1: %zu tiles\n", a.size());
-        assert(a.size() > 20);
+        d2d::dt1::Archive archive(raw);
+        std::printf("rogue floor.dt1: %zu tiles\n", archive.size());
+        assert(archive.size() > 20);
         // A floor tile: at least one tile has non-transparent decoded pixels.
         bool any_painted = false;
-        for (const auto& t : a.tiles()) {
-            for (auto p : t.pixels) if (p) { any_painted = true; break; }
+        for (const auto& tile : archive.tiles()) {
+            for (auto pixel : tile.pixels) if (pixel) { any_painted = true; break; }
             if (any_painted) break;
         }
         assert(any_painted);

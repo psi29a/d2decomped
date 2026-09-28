@@ -9,14 +9,14 @@ namespace d2d::devctl {
 // tokenize() is pure and platform-neutral — kept out of the POSIX gate.
 std::vector<std::string> tokenize(std::string_view line) {
     std::vector<std::string> out;
-    std::size_t i = 0;
-    while (i < line.size()) {
-        while (i < line.size() && (line[i] == ' ' || line[i] == '\t' ||
-                                   line[i] == '\r' || line[i] == '\n')) ++i;
-        const auto start = i;
-        while (i < line.size() && line[i] != ' ' && line[i] != '\t' &&
-               line[i] != '\r' && line[i] != '\n') ++i;
-        if (start < i) out.emplace_back(line.substr(start, i - start));
+    std::size_t offset = 0;
+    while (offset < line.size()) {
+        while (offset < line.size() && (line[offset] == ' ' || line[offset] == '\t' ||
+                                   line[offset] == '\r' || line[offset] == '\n')) ++offset;
+        const auto start = offset;
+        while (offset < line.size() && line[offset] != ' ' && line[offset] != '\t' &&
+               line[offset] != '\r' && line[offset] != '\n') ++offset;
+        if (start < offset) out.emplace_back(line.substr(start, offset - start));
     }
     return out;
 }
@@ -86,24 +86,24 @@ Channel::~Channel() {
     delete impl_;
 }
 
-void Channel::on(std::string verb, Handler h) {
-    impl_->verbs[std::move(verb)] = std::move(h);
+void Channel::on(std::string verb, Handler handler) {
+    impl_->verbs[std::move(verb)] = std::move(handler);
 }
 
 bool Channel::active() const noexcept { return impl_->listen_fd >= 0; }
 
-static void write_all(int fd, std::string_view s) {
-    const char* p = s.data();
-    std::size_t n = s.size();
-    while (n > 0) {
-        ssize_t w = ::send(fd, p, n, 0);
-        if (w > 0) { p += w; n -= std::size_t(w); continue; }
-        if (w < 0 && errno == EINTR) continue;
+static void write_all(int socket_fd, std::string_view text) {
+    const char* cursor = text.data();
+    std::size_t remaining = text.size();
+    while (remaining > 0) {
+        ssize_t sent = ::send(socket_fd, cursor, remaining, 0);
+        if (sent > 0) { cursor += sent; remaining -= std::size_t(sent); continue; }
+        if (sent < 0 && errno == EINTR) continue;
         // Non-blocking socket, buffer full (a big reply): wait for it to
         // drain rather than cut the reply short. 2 s without progress:
         // treat the client as stuck.
-        if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            pollfd pfd{ fd, POLLOUT, 0 };
+        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            pollfd pfd{ socket_fd, POLLOUT, 0 };
             if (::poll(&pfd, 1, 2000) > 0) continue;
         }
         break;   // client gone; caller will notice on next pump
@@ -122,8 +122,8 @@ void Channel::listen(const std::string& path) {
         std::fprintf(stderr, "[devctl] path too long: %s\n", path.c_str());
         return;
     }
-    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
+    int socket_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
         std::fprintf(stderr, "[devctl] socket: %s\n", std::strerror(errno));
         return;
     }
@@ -131,21 +131,21 @@ void Channel::listen(const std::string& path) {
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
-    if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+    if (::bind(socket_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         std::fprintf(stderr, "[devctl] bind %s: %s\n",
                      path.c_str(), std::strerror(errno));
-        ::close(fd);
+        ::close(socket_fd);
         return;
     }
-    if (::listen(fd, 1) < 0) {
+    if (::listen(socket_fd, 1) < 0) {
         std::fprintf(stderr, "[devctl] listen: %s\n", std::strerror(errno));
-        ::close(fd);
+        ::close(socket_fd);
         ::unlink(path.c_str());
         return;
     }
-    const int flags = ::fcntl(fd, F_GETFL, 0);
-    ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    impl_->listen_fd = fd;
+    const int flags = ::fcntl(socket_fd, F_GETFL, 0);
+    ::fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+    impl_->listen_fd = socket_fd;
     impl_->path = path;
     std::fprintf(stderr, "[devctl] listening on %s\n", path.c_str());
 }
@@ -160,9 +160,9 @@ void Channel::pump() {
         char buf[512];
         bool remote_eof = false;
         while (true) {
-            ssize_t n = ::recv(impl_->client_fd, buf, sizeof(buf), 0);
-            if (n > 0) { impl_->rx_buf.append(buf, std::size_t(n)); continue; }
-            if (n == 0) { remote_eof = true; break; }
+            ssize_t received = ::recv(impl_->client_fd, buf, sizeof(buf), 0);
+            if (received > 0) { impl_->rx_buf.append(buf, std::size_t(received)); continue; }
+            if (received == 0) { remote_eof = true; break; }
             if (errno == EAGAIN || errno == EWOULDBLOCK) break;
             if (errno == EINTR) continue;
             impl_->close_client();
@@ -171,24 +171,24 @@ void Channel::pump() {
         // Dispatch every complete line we have — even if the peer half-closed
         // (SHUT_WR) after sending a batch, they still expect replies before
         // the server tears the fd down.
-        std::size_t nl;
+        std::size_t newline;
         while (impl_->client_fd >= 0 &&
-               (nl = impl_->rx_buf.find('\n')) != std::string::npos) {
-            std::string line = impl_->rx_buf.substr(0, nl);
-            impl_->rx_buf.erase(0, nl + 1);
+               (newline = impl_->rx_buf.find('\n')) != std::string::npos) {
+            std::string line = impl_->rx_buf.substr(0, newline);
+            impl_->rx_buf.erase(0, newline + 1);
             auto tok = tokenize(line);
             std::string reply;
             if (tok.empty()) {
                 reply = "err empty\n";
             } else {
-                auto it = impl_->verbs.find(tok[0]);
-                if (it == impl_->verbs.end()) {
+                auto found = impl_->verbs.find(tok[0]);
+                if (found == impl_->verbs.end()) {
                     reply = "err unknown verb '" + tok[0] + "'\n";
                 } else {
                     try {
-                        reply = it->second(tok);
-                    } catch (const std::exception& e) {
-                        reply = std::string("err ") + e.what() + "\n";
+                        reply = found->second(tok);
+                    } catch (const std::exception& error) {
+                        reply = std::string("err ") + error.what() + "\n";
                     } catch (...) {
                         reply = "err unknown exception\n";
                     }
@@ -211,20 +211,20 @@ void Channel::pump() {
 
     // Accept new clients now that the previous one has been fully drained.
     while (true) {
-        int c = ::accept(impl_->listen_fd, nullptr, nullptr);
-        if (c < 0) break;
-        const int flags = ::fcntl(c, F_GETFL, 0);
-        ::fcntl(c, F_SETFL, flags | O_NONBLOCK);
+        int client = ::accept(impl_->listen_fd, nullptr, nullptr);
+        if (client < 0) break;
+        const int flags = ::fcntl(client, F_GETFL, 0);
+        ::fcntl(client, F_SETFL, flags | O_NONBLOCK);
         // The old client may have read its reply and hung up since the
         // drain above (a fast poller reconnects within one pump).
-        if (char b; impl_->client_fd >= 0 && impl_->rx_buf.empty() && ::recv(impl_->client_fd, &b, 1, MSG_PEEK) == 0)
+        if (char peek; impl_->client_fd >= 0 && impl_->rx_buf.empty() && ::recv(impl_->client_fd, &peek, 1, MSG_PEEK) == 0)
             impl_->close_client();
         if (impl_->client_fd >= 0) {
             const char busy[] = "err busy\n";
-            (void)::send(c, busy, sizeof(busy) - 1, 0);
-            ::close(c);
+            (void)::send(client, busy, sizeof(busy) - 1, 0);
+            ::close(client);
         } else {
-            impl_->client_fd = c;
+            impl_->client_fd = client;
         }
     }
 }

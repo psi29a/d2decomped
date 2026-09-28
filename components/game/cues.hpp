@@ -9,11 +9,11 @@ namespace d2d::game {
 
 struct Cues {
     const GameData* scene = nullptr;
-    struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
+    struct Cue { std::uint32_t when_ms = 0; int sound = 0; float x = 0, y = 0; };
     std::vector<Cue> due;
-    void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) due.push_back({ at, sound, x, y }); }
-    void cue(std::string_view name, std::uint32_t at, float x, float y) {
-        if (const auto it = scene->sound_index.find(std::string(name)); it != scene->sound_index.end()) cue(it->second, at, x, y);
+    void cue(int sound, std::uint32_t when_ms, float x, float y) { if (sound > 0) due.push_back({ when_ms, sound, x, y }); }
+    void cue(std::string_view name, std::uint32_t when_ms, float x, float y) {
+        if (const auto found = scene->sound_index.find(std::string(name)); found != scene->sound_index.end()) cue(found->second, when_ms, x, y);
     }
 };
 

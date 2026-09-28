@@ -24,37 +24,37 @@ struct CharacterStore {
     [[nodiscard]] std::filesystem::path path(const std::string& name) const { return dir / (name + ".d2s"); }
 
     // Writes the character; "" when it's done, else why not (nothing written).
-    std::string save(const d2d::d2s::Header& h, const d2d::d2s::Stats& st, const std::vector<d2d::d2s::Item>& items,
+    std::string save(const d2d::d2s::Header& header, const d2d::d2s::Stats& stats, const std::vector<d2d::d2s::Item>& items,
                      const std::vector<d2d::d2s::Item>* corpse = nullptr) const {
         namespace fs = std::filesystem;
         if (!tables) return "no item tables";
-        if (h.name.empty() || h.name.find_first_of("/\\.") != std::string::npos) return "bad name";
-        const auto file = path(h.name);
+        if (header.name.empty() || header.name.find_first_of("/\\.") != std::string::npos) return "bad name";
+        const auto file = path(header.name);
         std::vector<char> raw;
-        if (std::ifstream in(file, std::ios::binary); in) raw.assign(std::istreambuf_iterator<char>(in), {});
+        if (std::ifstream file_in(file, std::ios::binary); file_in) raw.assign(std::istreambuf_iterator<char>(file_in), {});
         std::vector<std::byte> out;
         try {
-            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), h, st, items, *tables, corpse);
+            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), header, stats, items, *tables, corpse);
             const auto back = d2d::d2s::parse_header(out);
             const auto bst = d2d::d2s::parse_stats(out, *tables);
             const auto bitems = d2d::d2s::parse_items(out, *tables);
-            if (back.name != h.name || bst.get(d2d::d2s::kLevel) != st.get(d2d::d2s::kLevel) || bitems.size() != items.size())
+            if (back.name != header.name || bst.get(d2d::d2s::kLevel) != stats.get(d2d::d2s::kLevel) || bitems.size() != items.size())
                 return "the written save didn't read back";
-        } catch (const std::exception& e) {
-            return std::string("write failed: ") + e.what();
+        } catch (const std::exception& error) {
+            return std::string("write failed: ") + error.what();
         }
-        std::error_code ec;
-        fs::create_directories(dir, ec);
+        std::error_code error;
+        fs::create_directories(dir, error);
         if (const auto bak = fs::path(file).replace_extension(".d2s.bak"); !raw.empty() && !fs::exists(bak))
-            fs::copy_file(file, bak, ec);
+            fs::copy_file(file, bak, error);
         const auto tmp = fs::path(file).replace_extension(".d2s.tmp");
         {
-            std::ofstream o(tmp, std::ios::binary | std::ios::trunc);
-            o.write(reinterpret_cast<const char*>(out.data()), std::streamsize(out.size()));
-            if (!o) return "couldn't write " + tmp.string();
+            std::ofstream file_out(tmp, std::ios::binary | std::ios::trunc);
+            file_out.write(reinterpret_cast<const char*>(out.data()), std::streamsize(out.size()));
+            if (!file_out) return "couldn't write " + tmp.string();
         }
-        fs::rename(tmp, file, ec);
-        return ec ? "couldn't replace " + file.string() + ": " + ec.message() : std::string{};
+        fs::rename(tmp, file, error);
+        return error ? "couldn't replace " + file.string() + ": " + error.message() : std::string{};
     }
 };
 
@@ -64,44 +64,44 @@ struct CharacterStore {
 // the inventory), level 1, normal difficulty, no hotkeys.
 // ponytail: stacks (javelins) roll their quantity as a drop does.
 struct NewCharacter { d2d::d2s::Header header; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> items; };
-inline NewCharacter new_character(const GameData& s, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
+inline NewCharacter new_character(const GameData& game_data, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     using namespace d2d::d2s;
-    NewCharacter n;
-    const auto c = std::size_t(std::clamp(cls, 0, 6));
-    const auto& cs = s.class_start[c];
-    auto& h = n.header;
-    h.version = kMaxVersion;
-    h.name = name;
-    h.cls = std::uint8_t(c);
-    h.level = 1;
-    h.status = std::uint8_t((hardcore ? 0x04 : 0) | (expansion ? 0x20 : 0));
-    h.hotkeys.fill(0xffff);
-    h.set_look(s.starting_gear[c]);
-    h.difficulty = { 0x80, 0, 0 };
-    auto& st = n.stats;
-    st.v[kStr] = cs.str; st.v[kDex] = cs.dex; st.v[kEne] = cs.ene; st.v[kVit] = cs.vit;
-    st.v[kLife] = st.v[kMaxLife] = std::int64_t(cs.vit + cs.hpadd) << 8;
-    st.v[kMana] = st.v[kMaxMana] = std::int64_t(cs.ene) << 8;
-    st.v[kStamina] = st.v[kMaxStamina] = std::int64_t(cs.stamina) << 8;
-    st.v[kLevel] = 1;
-    if (!cs.start_skill.empty()) {
-        const auto& ids = s.skills.class_ids[c];
-        for (std::size_t i = 0; i < ids.size() && i < st.skills.size(); ++i)
-            if (const auto* k = s.skills.get(ids[i]); k) {
-                auto lower = [](std::string v) { for (auto& ch : v) ch = char(std::tolower(static_cast<unsigned char>(ch))); return v; };
-                if (lower(k->name) == lower(cs.start_skill)) st.skills[i] = 1;
+    NewCharacter made;
+    const auto class_index = std::size_t(std::clamp(cls, 0, 6));
+    const auto& start = game_data.class_start[class_index];
+    auto& header = made.header;
+    header.version = kMaxVersion;
+    header.name = name;
+    header.cls = std::uint8_t(class_index);
+    header.level = 1;
+    header.status = std::uint8_t((hardcore ? 0x04 : 0) | (expansion ? 0x20 : 0));
+    header.hotkeys.fill(0xffff);
+    header.set_look(game_data.starting_gear[class_index]);
+    header.difficulty = { 0x80, 0, 0 };
+    auto& stats = made.stats;
+    stats.values[kStr] = start.str; stats.values[kDex] = start.dex; stats.values[kEne] = start.ene; stats.values[kVit] = start.vit;
+    stats.values[kLife] = stats.values[kMaxLife] = std::int64_t(start.vit + start.hpadd) << 8;
+    stats.values[kMana] = stats.values[kMaxMana] = std::int64_t(start.ene) << 8;
+    stats.values[kStamina] = stats.values[kMaxStamina] = std::int64_t(start.stamina) << 8;
+    stats.values[kLevel] = 1;
+    if (!start.start_skill.empty()) {
+        const auto& ids = game_data.skills.class_ids[class_index];
+        for (std::size_t i = 0; i < ids.size() && i < stats.skills.size(); ++i)
+            if (const auto* skill = game_data.skills.get(ids[i]); skill) {
+                auto lower = [](std::string text) { for (auto& letter : text) letter = char(std::tolower(static_cast<unsigned char>(letter))); return text; };
+                if (lower(skill->name) == lower(start.start_skill)) stats.skills[i] = 1;
             }
     }
     int belt = 0, inv = 0;
-    for (const auto& e : cs.items)
-        for (int k = 0; k < std::max(e.count, 1); ++k) {
-            auto it = d2d::rules::generate_item(s.rules, e.code, 1, 2, rng);
-            if (e.loc == "rarm" || e.loc == "larm") { it.location = 1; it.slot = e.loc == "rarm" ? 4 : 5; }
-            else if (e.code.starts_with("hp") || e.code.starts_with("mp")) { it.location = 2; it.column = belt++; }
-            else { it.location = 0; it.panel = 1; it.column = inv++; }
-            n.items.push_back(std::move(it));
+    for (const auto& entry : start.items)
+        for (int k = 0; k < std::max(entry.count, 1); ++k) {
+            auto item = d2d::rules::generate_item(game_data.rules, entry.code, 1, 2, rng);
+            if (entry.loc == "rarm" || entry.loc == "larm") { item.location = 1; item.slot = entry.loc == "rarm" ? 4 : 5; }
+            else if (entry.code.starts_with("hp") || entry.code.starts_with("mp")) { item.location = 2; item.column = belt++; }
+            else { item.location = 0; item.panel = 1; item.column = inv++; }
+            made.items.push_back(std::move(item));
         }
-    return n;
+    return made;
 }
 
 }  // namespace d2d::game

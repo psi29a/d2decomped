@@ -12,11 +12,11 @@ namespace d2d::client {
 // The rain over the world (FUN_00473910 → FUN_00473470): each drop a line
 // along the wind, cut where it lands, a landed one a dot; the day's drops
 // half see-through. Nothing over the bottom panel (47 pixels).
-void draw_rain(std::vector<std::uint8_t>& fb, const d2d::rules::Rain& rain);
+void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& rain);
 
-void render_ingame(std::vector<std::uint8_t>& fb,
-                   const Scene& s,
-                   const Level& L,
+void render_ingame(std::vector<std::uint8_t>& framebuffer,
+                   const Scene& scene,
+                   const Level& level,
                    int class_idx,
                    const Scene::Appearance& gfx,
                    std::string_view name,

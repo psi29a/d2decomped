@@ -34,28 +34,28 @@ namespace d2d::compcode {
 class Types {
 public:
     explicit Types(const txt::Table& itemtypes) {
-        const auto code = itemtypes.col("Code"), e1 = itemtypes.col("Equiv1"),
-                   e2 = itemtypes.col("Equiv2");
+        const auto code = itemtypes.col("Code"), equiv1 = itemtypes.col("Equiv1"),
+                   equiv2 = itemtypes.col("Equiv2");
         for (std::size_t i = 0; i < itemtypes.size(); ++i)
-            if (const auto c = itemtypes.get(i, code); !c.empty())
-                index_.emplace(std::string(c), int(i));
+            if (const auto type_code = itemtypes.get(i, code); !type_code.empty())
+                index_.emplace(std::string(type_code), int(i));
         parents_.resize(itemtypes.size());
         for (std::size_t i = 0; i < itemtypes.size(); ++i)
-            for (auto c : { e1, e2 })
-                if (auto p = index_.find(std::string(itemtypes.get(i, c))); p != index_.end())
-                    parents_[i].push_back(p->second);
+            for (auto equiv : { equiv1, equiv2 })
+                if (auto parent = index_.find(std::string(itemtypes.get(i, equiv))); parent != index_.end())
+                    parents_[i].push_back(parent->second);
     }
     [[nodiscard]] int index(std::string_view code) const {
-        auto it = index_.find(std::string(code));
-        return it == index_.end() ? -1 : it->second;
+        auto found = index_.find(std::string(code));
+        return found == index_.end() ? -1 : found->second;
     }
     // The hierarchy is acyclic (D2's own walk, FUN_00504a20, errors out
     // past 64 pending entries); rows with an empty Code aren't indexed, so
     // an empty Equiv can't alias them.
-    [[nodiscard]] bool isa(int t, int of) const {
-        if (t == of) return true;
-        if (t < 0 || t >= int(parents_.size())) return false;
-        for (int p : parents_[std::size_t(t)]) if (isa(p, of)) return true;
+    [[nodiscard]] bool isa(int type, int ancestor) const {
+        if (type == ancestor) return true;
+        if (type < 0 || type >= int(parents_.size())) return false;
+        for (int parent : parents_[std::size_t(type)]) if (isa(parent, ancestor)) return true;
         return false;
     }
 private:
@@ -114,32 +114,32 @@ inline std::vector<Entry> build(const txt::Table& itemtypes, const txt::Table& w
     std::vector<Entry> table(0x400);
     table[1].code = "lit"; table[2].code = "med"; table[3].code = "hvy";
     int cursor = 4;
-    auto reserved = [](int i) { return i < int(kReservedType.size()) ? int(kReservedType[std::size_t(i)]) : 0; };
-    for (const txt::Table* t : { &weapons, &armor, &misc }) {
-        const auto c_code = t->col("code"), c_alt = t->col("alternategfx"),
-                   c_type = t->col("type"), c_wc = t->col("wclass"),
-                   c_wc2 = t->col("2handedwclass");
-        for (std::size_t r = 0; r < t->size(); ++r) {
-            std::string code(t->get(r, c_alt));
-            if (code.empty()) code = t->get(r, c_code);
+    auto reserved = [](int index) { return index < int(kReservedType.size()) ? int(kReservedType[std::size_t(index)]) : 0; };
+    for (const txt::Table* source_table : { &weapons, &armor, &misc }) {
+        const auto c_code = source_table->col("code"), c_alt = source_table->col("alternategfx"),
+                   c_type = source_table->col("type"), c_wc = source_table->col("wclass"),
+                   c_wc2 = source_table->col("2handedwclass");
+        for (std::size_t row = 0; row < source_table->size(); ++row) {
+            std::string code(source_table->get(row, c_alt));
+            if (code.empty()) code = source_table->get(row, c_code);
             if (code.empty()) continue;
-            const int ty = types.index(t->get(r, c_type));
+            const int type = types.index(source_table->get(row, c_type));
             bool known = false;
             for (int i = 0; i < cursor && !known; ++i) known = table[std::size_t(i)].code == code;
             if (known) continue;
-            const bool wanted = (types.isa(ty, kWeapon) || types.isa(ty, kTorso) ||
-                                 types.isa(ty, kShield) || types.isa(ty, kHelm)) &&
-                                !types.isa(ty, kCirclet);
+            const bool wanted = (types.isa(type, kWeapon) || types.isa(type, kTorso) ||
+                                 types.isa(type, kShield) || types.isa(type, kHelm)) &&
+                                !types.isa(type, kCirclet);
             if (!wanted) continue;
             int idx = cursor;
-            while ((types.isa(reserved(idx), kWeapon) && types.isa(ty, kWeapon)) ||
-                   (types.isa(reserved(idx), kArmor) && types.isa(ty, kArmor)) ||
+            while ((types.isa(reserved(idx), kWeapon) && types.isa(type, kWeapon)) ||
+                   (types.isa(reserved(idx), kArmor) && types.isa(type, kArmor)) ||
                    !table[std::size_t(idx)].code.empty())
                 ++idx;
             if (idx > 0xfe) idx = cursor;   // D2 falls back to the cursor slot
-            table[std::size_t(idx)] = { code, wclass_id(t->get(r, c_wc)),
-                                        wclass_id(t->get(r, c_wc2)), ty,
-                                        types.isa(ty, kArmor) };
+            table[std::size_t(idx)] = { code, wclass_id(source_table->get(row, c_wc)),
+                                        wclass_id(source_table->get(row, c_wc2)), type,
+                                        types.isa(type, kArmor) };
             if (idx == cursor) ++cursor;
         }
     }
@@ -154,40 +154,40 @@ inline std::vector<Entry> build(const txt::Table& itemtypes, const txt::Table& w
 // "ht1". Returns "" for combinations D2 rejects (it then falls back to a
 // default composite).
 inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& table,
-                                     std::uint8_t rh, std::uint8_t lh, std::uint8_t sh) {
-    const bool both = rh != 0xff && lh != 0xff;
-    auto claw = [&](int w) { return (w == 13 || w == 14) && d2s_class != 6; };
-    int a = 0, b = 0;
-    if (rh != 0xff) {
-        const auto& e = table[rh];
-        a = (both || (lh == 0xff && sh == 0xff && e.wclass2 != e.wclass)) ? e.wclass2 : e.wclass;
-        if (claw(a) || e.armor) a = 0;   // reserved-list wclass, 0 for these slots
+                                     std::uint8_t right_hand, std::uint8_t left_hand, std::uint8_t shield) {
+    const bool both = right_hand != 0xff && left_hand != 0xff;
+    auto claw = [&](int weapon) { return (weapon == 13 || weapon == 14) && d2s_class != 6; };
+    int right_class = 0, left_class = 0;
+    if (right_hand != 0xff) {
+        const auto& entry = table[right_hand];
+        right_class = (both || (left_hand == 0xff && shield == 0xff && entry.wclass2 != entry.wclass)) ? entry.wclass2 : entry.wclass;
+        if (claw(right_class) || entry.armor) right_class = 0;   // reserved-list wclass, 0 for these slots
     }
-    if (lh != 0xff) {
-        const auto& e = table[lh];
-        b = both ? e.wclass2 : e.wclass;
-        if (claw(b) || e.armor) b = 0;
+    if (left_hand != 0xff) {
+        const auto& entry = table[left_hand];
+        left_class = both ? entry.wclass2 : entry.wclass;
+        if (claw(left_class) || entry.armor) left_class = 0;
     }
     auto id = [&]() -> int {
-        if (a == 0) return b == 0 ? 1 : b;
-        if (a == b && (a == 6 || a == 7)) return a;   // bow/xbow pair
-        if (a == 8) return 8;                         // staff
-        if (b == 0) return a;
+        if (right_class == 0) return left_class == 0 ? 1 : left_class;
+        if (right_class == left_class && (right_class == 6 || right_class == 7)) return right_class;   // bow/xbow pair
+        if (right_class == 8) return 8;                         // staff
+        if (left_class == 0) return right_class;
         // Dual wield: 1hs(4) 1ht(2) 2hs(5) combos -> 1js/1jt/1ss/1st.
-        if (a == 4 && b == 4) return 11;
-        if (a == 4 && b == 2) return 9;
-        if (a == 5 && b == 2) return 11;
-        if (a == 2 && b == 4) return 12;
-        if (b == 4 || b == 5) {
-            if (a == 2) return 11;
-        } else if (a == 2) {
-            return b == 2 ? 10 : 0;
+        if (right_class == 4 && left_class == 4) return 11;
+        if (right_class == 4 && left_class == 2) return 9;
+        if (right_class == 5 && left_class == 2) return 11;
+        if (right_class == 2 && left_class == 4) return 12;
+        if (left_class == 4 || left_class == 5) {
+            if (right_class == 2) return 11;
+        } else if (right_class == 2) {
+            return left_class == 2 ? 10 : 0;
         }
-        if (a == 5) return (b == 4 || b == 5) ? 11 : 0;
-        if (a == 4) return b == 5 ? 11 : 0;
-        if (a == 13) return b == 13 ? 13 : 0;
-        if (a == 14) return b == 14 ? 13 : 0;
-        return (a == 1 && b == 1) ? 1 : 0;
+        if (right_class == 5) return (left_class == 4 || left_class == 5) ? 11 : 0;
+        if (right_class == 4) return left_class == 5 ? 11 : 0;
+        if (right_class == 13) return left_class == 13 ? 13 : 0;
+        if (right_class == 14) return left_class == 14 ? 13 : 0;
+        return (right_class == 1 && left_class == 1) ? 1 : 0;
     }();
     return kWClass[std::size_t(id)];
 }
@@ -201,25 +201,25 @@ inline std::string_view weapon_class(int d2s_class, const std::vector<Entry>& ta
 struct Piece { std::string gfx, type, type2; int component = 16, transform = 0, inv_transform = 0; std::array<int, 6> tiers{ -1, -1, -1, -1, -1, -1 }; };
 inline std::unordered_map<std::string, Piece> pieces(const txt::Table& weapons, const txt::Table& armor, const txt::Table& misc) {
     std::unordered_map<std::string, Piece> out;
-    for (const txt::Table* t : { &weapons, &armor, &misc })
-        for (std::size_t r = 0; r < t->size(); ++r) {
-            const std::string code(t->get(r, "code"));
+    for (const txt::Table* table : { &weapons, &armor, &misc })
+        for (std::size_t row = 0; row < table->size(); ++row) {
+            const std::string code(table->get(row, "code"));
             if (code.empty()) continue;
-            Piece p;
-            p.gfx = std::string(t->get(r, "alternategfx"));
-            if (p.gfx.empty()) p.gfx = code;
-            p.type = std::string(t->get(r, "type")); p.type2 = std::string(t->get(r, "type2"));
-            const auto c = t->get(r, "component");
-            p.component = c.empty() ? 16 : std::atoi(std::string(c).c_str());
-            p.transform = std::atoi(std::string(t->get(r, "Transform")).c_str());
-            p.inv_transform = std::atoi(std::string(t->get(r, "InvTrans")).c_str());
-            if (t->get(r, "type") == "circ") p.component = 16;   // circlets aren't drawn (compcode.md)
-            int k = 0;
+            Piece piece;
+            piece.gfx = std::string(table->get(row, "alternategfx"));
+            if (piece.gfx.empty()) piece.gfx = code;
+            piece.type = std::string(table->get(row, "type")); piece.type2 = std::string(table->get(row, "type2"));
+            const auto component = table->get(row, "component");
+            piece.component = component.empty() ? 16 : std::atoi(std::string(component).c_str());
+            piece.transform = std::atoi(std::string(table->get(row, "Transform")).c_str());
+            piece.inv_transform = std::atoi(std::string(table->get(row, "InvTrans")).c_str());
+            if (table->get(row, "type") == "circ") piece.component = 16;   // circlets aren't drawn (compcode.md)
+            int layer_count = 0;
             for (const char* col : { "Torso", "Legs", "rArm", "lArm", "rSPad", "lSPad" }) {
-                const auto v = t->get(r, col);
-                p.tiers[std::size_t(k++)] = v.empty() ? -1 : std::atoi(std::string(v).c_str());
+                const auto value = table->get(row, col);
+                piece.tiers[std::size_t(layer_count++)] = value.empty() ? -1 : std::atoi(std::string(value).c_str());
             }
-            out.emplace(code, std::move(p));
+            out.emplace(code, std::move(piece));
         }
     return out;
 }
@@ -231,32 +231,32 @@ struct Worn { int slot; std::string code; int colour = -1; };
 // "gem" (ItemTypes 20: not runes or jewels).
 inline std::unordered_map<std::string, int> gem_colours(const txt::Table& itemtypes, const txt::Table& misc, const txt::Table& gems) {
     const Types types(itemtypes);
-    const int g = types.index("gem");
+    const int gem_type = types.index("gem");
     std::unordered_map<std::string, std::string> type;
-    for (std::size_t r = 0; r < misc.size(); ++r) type.emplace(misc.get(r, "code"), misc.get(r, "type"));
+    for (std::size_t row = 0; row < misc.size(); ++row) type.emplace(misc.get(row, "code"), misc.get(row, "type"));
     std::unordered_map<std::string, int> out;
-    for (std::size_t r = 0; r < gems.size(); ++r) {
-        const std::string code(gems.get(r, "code"));
-        const auto t = type.find(code);
-        if (t != type.end() && types.isa(types.index(t->second), g))
-            out.emplace(code, std::atoi(std::string(gems.get(r, "transform")).c_str()));
+    for (std::size_t row = 0; row < gems.size(); ++row) {
+        const std::string code(gems.get(row, "code"));
+        const auto found = type.find(code);
+        if (found != type.end() && types.isa(types.index(found->second), gem_type))
+            out.emplace(code, std::atoi(std::string(gems.get(row, "transform")).c_str()));
     }
     return out;
 }
 
 // The layers each worn item draws on, with its piece (look's placement).
-template <class F> void each_layer(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn, F&& f) {
-    for (const auto& w : worn) {
-        if (w.slot != 1 && w.slot != 3 && w.slot != 4 && w.slot != 5) continue;
-        const auto p = pcs.find(w.code);
-        if (p == pcs.end() || p->second.component >= 16) continue;
-        if (p->second.component == 1) {
+template <class F> void each_layer(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn, F&& visit) {
+    for (const auto& worn_item : worn) {
+        if (worn_item.slot != 1 && worn_item.slot != 3 && worn_item.slot != 4 && worn_item.slot != 5) continue;
+        const auto piece = pcs.find(worn_item.code);
+        if (piece == pcs.end() || piece->second.component >= 16) continue;
+        if (piece->second.component == 1) {
             static constexpr int kLayer[6] = { 1, 2, 3, 4, 8, 9 };   // TR LG RA LA S1 S2
             for (int k = 0; k < 6; ++k)
-                if (p->second.tiers[std::size_t(k)] >= 0) f(kLayer[k], w, p->second);
+                if (piece->second.tiers[std::size_t(k)] >= 0) visit(kLayer[k], worn_item, piece->second);
             continue;
         }
-        f(p->second.component == 5 && w.slot == 5 ? 6 : p->second.component, w, p->second);
+        visit(piece->second.component == 5 && worn_item.slot == 5 ? 6 : piece->second.component, worn_item, piece->second);
     }
 }
 
@@ -268,20 +268,20 @@ template <class F> void each_layer(const std::unordered_map<std::string, Piece>&
 // Checked against the real saves (test_compcode).
 inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const std::unordered_map<std::string, Piece>& pcs,
                                          const std::vector<Worn>& worn) {
-    std::array<std::uint8_t, 16> a;
-    a.fill(0xff);
-    for (int l : { 1, 2, 3, 4, 8, 9 }) a[std::size_t(l)] = 1;
+    std::array<std::uint8_t, 16> tints;
+    tints.fill(0xff);
+    for (int lit_layer : { 1, 2, 3, 4, 8, 9 }) tints[std::size_t(lit_layer)] = 1;
     auto index = [&](const std::string& gfx) -> std::uint8_t {
         for (std::size_t i = 1; i < table.size() && i < 0xff; ++i) if (table[i].code == gfx) return std::uint8_t(i);
         return 0xff;
     };
-    each_layer(pcs, worn, [&](int layer, const Worn&, const Piece& p) {
-        if (p.component == 1) {
+    each_layer(pcs, worn, [&](int layer, const Worn&, const Piece& piece) {
+        if (piece.component == 1) {
             static constexpr int kTier[10] = { 0, 0, 1, 2, 3, 0, 0, 0, 4, 5 };   // TR LG RA LA .. S1 S2
-            a[std::size_t(layer)] = std::uint8_t(1 + p.tiers[std::size_t(kTier[layer])]);
-        } else a[std::size_t(layer)] = index(p.gfx);
+            tints[std::size_t(layer)] = std::uint8_t(1 + piece.tiers[std::size_t(kTier[layer])]);
+        } else tints[std::size_t(layer)] = index(piece.gfx);
     });
-    return a;
+    return tints;
 }
 
 // An item's colour, a Colors.txt index or -1 (FUN_0062c100): a unique's
@@ -296,9 +296,9 @@ struct Colours {
     std::vector<std::string> unique, set, prefix, suffix, automod;
     std::unordered_map<std::string, int> gem;                  // gem code -> gems.txt transform (gem types only)
     std::vector<std::string> unique_inv, set_inv;              // invtransform: a unique's / set item's colour in the inventory
-    [[nodiscard]] int at(const std::vector<std::string>& v, int row) const {
-        if (row < 0 || std::size_t(row) >= v.size() || v[std::size_t(row)].empty()) return -1;
-        for (std::size_t i = 0; i < codes.size(); ++i) if (codes[i] == v[std::size_t(row)]) return int(i);
+    [[nodiscard]] int at(const std::vector<std::string>& column, int row) const {
+        if (row < 0 || std::size_t(row) >= column.size() || column[std::size_t(row)].empty()) return -1;
+        for (std::size_t i = 0; i < codes.size(); ++i) if (codes[i] == column[std::size_t(row)]) return int(i);
         return -1;
     }
     // socket: the first socketed item's code, if the item is socketed;
@@ -308,40 +308,40 @@ struct Colours {
         if (quality == 7) return at(inv ? unique_inv : unique, unique_id);
         if (quality == 5) return at(inv ? set_inv : set, set_id);
         if (quality != 4 && quality != 6) {
-            if (const auto g = gem.find(socket); g != gem.end() && g->second >= 0 && g->second < 21) return g->second;
+            if (const auto found = gem.find(socket); found != gem.end() && found->second >= 0 && found->second < 21) return found->second;
             return at(automod, class_affix - 1);
         }
         const std::array<int, 3> sufs = quality == 4 ? std::array<int, 3>{ suf, 0, 0 } : std::array<int, 3>{ rare[1], rare[3], rare[5] };
         const std::array<int, 3> pres = quality == 4 ? std::array<int, 3>{ pre, 0, 0 } : std::array<int, 3>{ rare[0], rare[2], rare[4] };
-        for (int s : sufs) if (s > 0) if (const int c = at(suffix, s); c >= 0) return c;
-        for (int p : pres) if (p > 0) if (const int c = at(prefix, p); c >= 0) return c;
+        for (int suffix_id : sufs) if (suffix_id > 0) if (const int colour = at(suffix, suffix_id); colour >= 0) return colour;
+        for (int prefix_id : pres) if (prefix_id > 0) if (const int colour = at(prefix, prefix_id); colour >= 0) return colour;
         return at(automod, class_affix - 1);   // 1-based: paladin shields' 26/27 are Prismatic/Chromatic (res-all)
     }
 };
 
 // A colormap set exists for Transform 1, 2 and 5..8 (FUN_00600c20).
-[[nodiscard]] inline bool tints_with(int t) { return t > 0 && t <= 8 && t != 3 && t != 4; }
+[[nodiscard]] inline bool tints_with(int transform) { return transform > 0 && transform <= 8 && transform != 3 && transform != 4; }
 
 // Each layer's tint (the d2s header's 16 bytes at 0x98): (Transform x 32
 // + colour + 1) & 0xff, 0xff with no colour or Transform 0, 3 or 4.
 // Transform 8 wraps below 0x20; tint_of reads it back as game.exe does.
 inline std::array<std::uint8_t, 16> tints(const std::unordered_map<std::string, Piece>& pcs, const std::vector<Worn>& worn) {
-    std::array<std::uint8_t, 16> a;
-    a.fill(0xff);
-    each_layer(pcs, worn, [&](int layer, const Worn& w, const Piece& p) {
-        const int t = p.transform;
-        a[std::size_t(layer)] = w.colour < 0 || !tints_with(t) ? 0xff : std::uint8_t((t * 32 + w.colour + 1) & 0xff);
+    std::array<std::uint8_t, 16> layers;
+    layers.fill(0xff);
+    each_layer(pcs, worn, [&](int layer, const Worn& worn_item, const Piece& piece) {
+        const int transform = piece.transform;
+        layers[std::size_t(layer)] = worn_item.colour < 0 || !tints_with(transform) ? 0xff : std::uint8_t((transform * 32 + worn_item.colour + 1) & 0xff);
     });
-    return a;
+    return layers;
 }
 // A tint byte's colormap set and colour; false for none (FUN_005038d0:
 // byte - 1, Transform 0 is Transform 8's colormaps).
 struct Tint { int transform = 0, colour = 0; };
-inline bool tint_of(std::uint8_t b, Tint& t) {
-    if (b == 0xff || b == 0) return false;
-    t.transform = (b - 1) >> 5; t.colour = (b - 1) & 31;
-    if (t.transform == 0) t.transform = 8;   // the wrap
-    return t.colour < 21;
+inline bool tint_of(std::uint8_t packed, Tint& tint) {
+    if (packed == 0xff || packed == 0) return false;
+    tint.transform = (packed - 1) >> 5; tint.colour = (packed - 1) & 31;
+    if (tint.transform == 0) tint.transform = 8;   // the wrap
+    return tint.colour < 21;
 }
 
 }  // namespace d2d::compcode

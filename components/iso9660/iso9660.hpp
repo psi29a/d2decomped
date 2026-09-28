@@ -43,7 +43,7 @@ public:
 
     // Read `size` bytes starting at LBA `lba` into `out` (>= size room).
     bool read(std::uint32_t lba, std::uint32_t size, std::byte* out);
-    std::vector<std::byte> read(const Entry& e);
+    std::vector<std::byte> read(const Entry& entry);
 
 private:
     Reader() = default;
@@ -60,39 +60,39 @@ private:
 
 namespace detail {
 
-inline std::uint32_t u32_le(const std::byte* p) noexcept {
-    return  static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(p[0]))       |
-           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(p[1])) << 8) |
-           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(p[2])) << 16)|
-           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(p[3])) << 24);
+inline std::uint32_t u32_le(const std::byte* source) noexcept {
+    return  static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(source[0]))       |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(source[1])) << 8) |
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(source[2])) << 16)|
+           (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(source[3])) << 24);
 }
 
 // UCS-2 big-endian → UTF-8 (BMP only; D2 names are ASCII in practice).
-inline std::string ucs2be_to_utf8(const std::byte* p, std::size_t bytes) {
+inline std::string ucs2be_to_utf8(const std::byte* source, std::size_t bytes) {
     std::string out;
     out.reserve(bytes / 2);
     for (std::size_t i = 0; i + 1 < bytes; i += 2) {
-        const auto cp = static_cast<std::uint16_t>(
-            (std::to_integer<std::uint16_t>(p[i]) << 8) |
-             std::to_integer<std::uint16_t>(p[i + 1]));
-        if (cp < 0x80) {
-            out.push_back(static_cast<char>(cp));
-        } else if (cp < 0x800) {
-            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
-            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        const auto code_point = static_cast<std::uint16_t>(
+            (std::to_integer<std::uint16_t>(source[i]) << 8) |
+             std::to_integer<std::uint16_t>(source[i + 1]));
+        if (code_point < 0x80) {
+            out.push_back(static_cast<char>(code_point));
+        } else if (code_point < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (code_point >> 6)));
+            out.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
         } else {
-            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
-            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+            out.push_back(static_cast<char>(0xE0 | (code_point >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
         }
     }
     return out;
 }
 
-inline std::string strip_version(std::string s) {
-    if (const auto p = s.rfind(';'); p != std::string::npos) s.resize(p);
-    while (!s.empty() && s.back() == '.') s.pop_back();
-    return s;
+inline std::string strip_version(std::string name) {
+    if (const auto semicolon = name.rfind(';'); semicolon != std::string::npos) name.resize(semicolon);
+    while (!name.empty() && name.back() == '.') name.pop_back();
+    return name;
 }
 
 } // namespace detail
@@ -104,9 +104,9 @@ inline bool Reader::read(std::uint32_t lba, std::uint32_t size, std::byte* out) 
     return static_cast<std::uint32_t>(file_.gcount()) == size;
 }
 
-inline std::vector<std::byte> Reader::read(const Entry& e) {
-    std::vector<std::byte> buf(e.size);
-    if (e.size) read(e.lba, e.size, buf.data());
+inline std::vector<std::byte> Reader::read(const Entry& entry) {
+    std::vector<std::byte> buf(entry.size);
+    if (entry.size) read(entry.lba, entry.size, buf.data());
     return buf;
 }
 
@@ -115,8 +115,8 @@ inline bool Reader::parse_volume_descriptors() {
     std::uint32_t primary_lba = 0, primary_size = 0;
     std::uint32_t joliet_lba  = 0, joliet_size  = 0;
 
-    for (std::uint32_t s = 16; s < 100; ++s) {   // safety bound
-        if (!read(s, kSector, sector)) return false;
+    for (std::uint32_t sector_index = 16; sector_index < 100; ++sector_index) {   // safety bound
+        if (!read(sector_index, kSector, sector)) return false;
         if (std::memcmp(reinterpret_cast<const char*>(sector) + 1, "CD001", 5) != 0)
             return false;
         const auto type = std::to_integer<std::uint8_t>(sector[0]);
@@ -133,10 +133,10 @@ inline bool Reader::parse_volume_descriptors() {
             const std::byte* esc = sector + 88;
             bool is_joliet = false;
             for (std::size_t i = 0; i + 2 < 32; ++i) {
-                const auto a = std::to_integer<char>(esc[i]);
-                const auto b = std::to_integer<char>(esc[i + 1]);
-                const auto c = std::to_integer<char>(esc[i + 2]);
-                if (a == '%' && b == '/' && (c == '@' || c == 'C' || c == 'E')) {
+                const auto first = std::to_integer<char>(esc[i]);
+                const auto second = std::to_integer<char>(esc[i + 1]);
+                const auto third = std::to_integer<char>(esc[i + 2]);
+                if (first == '%' && second == '/' && (third == '@' || third == 'C' || third == 'E')) {
                     is_joliet = true;
                     break;
                 }
@@ -196,12 +196,12 @@ inline void Reader::walk(std::uint32_t lba, std::uint32_t size,
 }
 
 inline std::optional<Reader> Reader::open(const std::filesystem::path& iso) {
-    Reader r;
-    r.file_.open(iso, std::ios::binary);
-    if (!r.file_) return std::nullopt;
-    if (!r.parse_volume_descriptors()) return std::nullopt;
-    r.walk(r.root_lba_, r.root_size_, "", r.joliet_);
-    return r;
+    Reader reader;
+    reader.file_.open(iso, std::ios::binary);
+    if (!reader.file_) return std::nullopt;
+    if (!reader.parse_volume_descriptors()) return std::nullopt;
+    reader.walk(reader.root_lba_, reader.root_size_, "", reader.joliet_);
+    return reader;
 }
 
 } // namespace iso9660

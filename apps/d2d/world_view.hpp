@@ -16,28 +16,28 @@ namespace d2d::client {
 // draws roofs whole (walls.md). Off: --toggle trans_roof=off.
 inline bool g_roof_cutout = true;
 struct Hole {
-    int x = 0, y = 0, r = 0;                   // screen centre and radius, pixels
+    int x = 0, y = 0, radius = 0;                   // screen centre and radius, pixels
     // The alpha a pixel at (px, py) keeps: 0x40 in the inner half, rising to
     // 0xff at the rim.
-    [[nodiscard]] int alpha(int px, int py, int a) const {
-        const int dx = px - x, dy = py - y, d2 = dx * dx + dy * dy;
-        if (d2 >= r * r) return a;
-        const float t = std::clamp((std::sqrt(float(d2)) - float(r) / 2) / (float(r) / 2), 0.f, 1.f);
-        return std::min(a, 0x40 + int(float(0xff - 0x40) * t));
+    [[nodiscard]] int alpha(int pixel_x, int pixel_y, int base_alpha) const {
+        const int dx = pixel_x - x, dy = pixel_y - y, distance_sq = dx * dx + dy * dy;
+        if (distance_sq >= radius * radius) return base_alpha;
+        const float fraction = std::clamp((std::sqrt(float(distance_sq)) - float(radius) / 2) / (float(radius) / 2), 0.f, 1.f);
+        return std::min(base_alpha, 0x40 + int(float(0xff - 0x40) * fraction));
     }
 };
-void blit_dt1_tile(std::vector<std::uint8_t>& fb,
-                   const d2d::dt1::Tile& t,
+void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
+                   const d2d::dt1::Tile& tile,
                    const d2d::palette::Palette& pal,
-                   int sx, int sy, int alpha_all = 255, const Hole* hole = nullptr);
+                   int screen_x, int screen_y, int alpha_all = 255, const Hole* hole = nullptr);
 
 // A shadow tile (orientation 13), Blended Shadows on (the Video Options
 // default): through the palette's alpha table 0 (PL2 +0x3500), a quarter
 // of the tile over three quarters of the ground, unlit (driver +0xa4,
 // callback FUN_004f82d0 at alpha 0xc0).
 // ponytail: the mix in RGB, not the table's nearest palette colour.
-void blit_dt1_shadow(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t,
-                     const d2d::palette::Palette& pal, int sx, int sy);
+void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
+                     const d2d::palette::Palette& pal, int screen_x, int screen_y);
 
 // A frame's light (docs/research/re/lighting.md): the grid round the
 // player and the palette at each of its 32 levels. game.exe shades a
@@ -50,12 +50,12 @@ struct Lighting {
     const std::array<d2d::palette::Palette, 32>* pal = nullptr;
     // The light at (x, y), cells, 0..255.
     [[nodiscard]] int at(float x, float y) const {
-        const float sx = x * 5, sy = y * 5;
-        const int ix = int(std::floor(sx)), iy = int(std::floor(sy));
-        const float fx = sx - float(ix), fy = sy - float(iy);
-        const auto a = float(grid.at(ix, iy)), b = float(grid.at(ix + 1, iy));
-        const auto c = float(grid.at(ix, iy + 1)), d = float(grid.at(ix + 1, iy + 1));
-        return int((a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy);
+        const float subtile_x = x * 5, subtile_y = y * 5;
+        const int grid_x = int(std::floor(subtile_x)), grid_y = int(std::floor(subtile_y));
+        const float frac_x = subtile_x - float(grid_x), frac_y = subtile_y - float(grid_y);
+        const auto top_left = float(grid.at(grid_x, grid_y)), top_right = float(grid.at(grid_x + 1, grid_y));
+        const auto bottom_left = float(grid.at(grid_x, grid_y + 1)), bottom_right = float(grid.at(grid_x + 1, grid_y + 1));
+        return int((top_left + (top_right - top_left) * frac_x) * (1 - frac_y) + (bottom_left + (bottom_right - bottom_left) * frac_x) * frac_y);
     }
     [[nodiscard]] const d2d::palette::Palette& palette(float x, float y) const { return (*pal)[std::size_t(at(x, y) >> 3)]; }
     // A unit's light: its own subtile's entry (FUN_00475aa0; the unit's path
@@ -69,8 +69,8 @@ struct Lighting {
 // iso projection), a wall's column where it crosses the cell's middle,
 // bilinear between the cell's 6 x 6 subtile corners. One level for the tile
 // when they share it.
-void blit_dt1_tile_lit(std::vector<std::uint8_t>& fb, const d2d::dt1::Tile& t, const Lighting& light,
-                       int sx, int sy, int gx, int gy, int top_x, int top_y, bool floor, int alpha_all = 255, const Hole* hole = nullptr);
+void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
+                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, bool floor, int alpha_all = 255, const Hole* hole = nullptr);
 
 // Render the loaded DS1 onto the framebuffer around the camera point
 // (cam_x, cam_y), in cells. Draws in D2's back-to-front Z order:
@@ -108,7 +108,7 @@ struct Unit {
     // the light) and overlays, each from when it started; `once` plays a
     // cast overlay through a single time.
     const std::uint8_t* shift = nullptr;
-    struct Over { const GameData::OverlayInfo* o = nullptr; std::uint32_t start = 0; bool once = false; };
+    struct Over { const GameData::OverlayInfo* overlay = nullptr; std::uint32_t start = 0; bool once = false; };
     std::vector<Over> overs;
     bool highlight = false;              // under the cursor: drawn at twice its light (FUN_00471ec0)
     int overlay_class = 0;               // Overlay.txt's Height: FUN_006223a0 (players 1, monsters OverlayHeight - 1)
@@ -116,24 +116,24 @@ struct Unit {
 };
 
 // `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque).
-void blit_dcc_frame(std::vector<std::uint8_t>& fb, const d2d::dcc::Frame& f,
+void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer, const d2d::dcc::Frame& frame,
                     const d2d::palette::Palette& pal, int anchor_x, int anchor_y, int trans = 0);
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
-void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
+void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
 
-const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& s, std::uint32_t elapsed);
+const d2d::dc6::Frame* flippy_frame(const d2d::dc6::Sprite& sprite, std::uint32_t elapsed);
 
 // Screen rectangle a composite's current frame covers with its feet at
 // (ax, ay): the union of every drawn layer's frame box. {x0, y0, x1, y1}.
-std::array<int, 4> composite_bounds(const Scene::PlayerAnim& p, int dir_want,
-                                    std::uint32_t elapsed_ms, int ax, int ay);
+std::array<int, 4> composite_bounds(const Scene::PlayerAnim& anim, int dir_want,
+                                    std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 
 inline int draw_mode(int effect);
-void render_world(std::vector<std::uint8_t>& fb,
-                  const Scene& s,
-                  const Level& L,
+void render_world(std::vector<std::uint8_t>& framebuffer,
+                  const Scene& scene,
+                  const Level& level,
                   float cam_x, float cam_y,
                   std::uint32_t elapsed_ms = 0,
                   std::span<const Unit> units = {},
@@ -153,8 +153,8 @@ void render_world(std::vector<std::uint8_t>& fb,
 // through the palette's PL2 tables (FUN_00511d70; D2WinPalette.cpp copies
 // them from PL2 +0x33500 additive and +0x43500 multiply).
 // ponytail: the same sums in RGB, not the tables' nearest palette colours.
-void blit_dcc_frame(std::vector<std::uint8_t>& fb,
-                    const d2d::dcc::Frame& f,
+void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
+                    const d2d::dcc::Frame& frame,
                     const d2d::palette::Palette& pal,
                     int anchor_x, int anchor_y, int trans);
 
@@ -168,8 +168,8 @@ void blit_dcc_frame(std::vector<std::uint8_t>& fb,
 // Each layer's frame of a composite at `elapsed_ms`, in the COF's
 // per-(direction, frame) draw order.
 // The layer's COF record (its draw effect, whether it casts a shadow).
-inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& p, std::uint8_t type) {
-    for (const auto& l : p.cof.layer_defs()) if (l.type == type) return &l;
+inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& anim, std::uint8_t type) {
+    for (const auto& layer : anim.cof.layer_defs()) if (layer.type == type) return &layer;
     return nullptr;
 }
 // A transparent COF layer's draw effect as blit_dcc_frame's mode: the
@@ -180,24 +180,24 @@ inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& p, std::uint8_t
 inline int draw_mode(int effect) {
     switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
 }
-inline int layer_trans(const d2d::cof::Layer* l) { return l && l->transparent ? draw_mode(l->draw_effect) : 0; }
-template <class Fn> void composite_frames(const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms, Fn&& fn) {
-    const auto dirs = p.cof.directions();
-    const auto fpd  = p.cof.frames_per_direction();
+inline int layer_trans(const d2d::cof::Layer* layer) { return layer && layer->transparent ? draw_mode(layer->draw_effect) : 0; }
+template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms, Fn&& visit) {
+    const auto dirs = anim.cof.directions();
+    const auto fpd  = anim.cof.frames_per_direction();
     if (dirs == 0 || fpd == 0) return;
     const auto dir = cof_direction(dir_want, dirs);
     // 25 ticks/s; each tick advances speed/256 frames.
-    const auto ms_per_frame = p.ms_per_frame();
+    const auto ms_per_frame = anim.ms_per_frame();
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
-    for (const auto type : p.cof.priority(dir, frame)) {
-        if (type >= p.dcc.size()) continue;
-        const auto& spr = p.layer(type);
+    for (const auto type : anim.cof.priority(dir, frame)) {
+        if (type >= anim.dcc.size()) continue;
+        const auto& spr = anim.layer(type);
         if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        fn(spr.frame(dir, frame), cof_layer(p, type));
+        visit(spr.frame(dir, frame), cof_layer(anim, type));
     }
 }
 
-void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim,
                     const d2d::palette::Palette& pal, int dir_want,
                     std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 
@@ -208,11 +208,11 @@ void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
 // colour (Blended Shadows on; off it's black). `mask` / `id`: a pixel
 // darkens once however many layers cover it.
 // ponytail: the darkening in RGB, not the table's palette colour.
-void shadow_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p, int dir_want, std::uint32_t elapsed_ms,
+void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
 
 // Draws a composite frame, feet at the anchor.
-void draw_composite(std::vector<std::uint8_t>& fb, const Scene::PlayerAnim& p,
+void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim,
                     const d2d::palette::Palette& pal, int dir_want,
                     std::uint32_t elapsed_ms, int anchor_x, int anchor_y);
 

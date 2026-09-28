@@ -23,7 +23,7 @@ struct UnitState {
     std::vector<std::pair<float, float>> path;   // a walk_path route being followed
 };
 
-std::vector<UnitState> npc_start(const Level& L);
+std::vector<UnitState> npc_start(const Level& level);
 
 // The units moving about (the player, the merc, patrolling NPCs): each
 // blocks the others within 0.3 cells (1.5 subtiles) of its centre, so
@@ -35,8 +35,8 @@ std::vector<UnitState> npc_start(const Level& L);
 struct Crowd {
     std::vector<const UnitState*> units;
     [[nodiscard]] bool at(float x, float y, const UnitState* self) const {
-        for (const auto* u : units)
-            if (u != self && std::abs(u->x - x) < 0.3f && std::abs(u->y - y) < 0.3f) return true;
+        for (const auto* other : units)
+            if (other != self && std::abs(other->x - x) < 0.3f && std::abs(other->y - y) < 0.3f) return true;
         return false;
     }
 };
@@ -45,27 +45,27 @@ struct Crowd {
 // there, move on. NPCs in `busy` (menu, speech or store open on them)
 // stand still. ponytail: the per-point action (1..4 — likely S1
 // specials like Charsi's hammering) isn't interpreted; pauses are 2-5 s.
-void npc_patrol(const Level& L, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t ms, float dt, const Crowd& crowd = {});
+void npc_patrol(const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {});
 
 // A walkable route from (x, y) to (gx, gy), in cells: rules::find_path
 // over subtiles with the unit collision test, then string-pulled (a turn
 // is dropped while the straight line past it stays clear). It ends on
 // the goal itself when that's walkable, else as close as it gets.
-std::vector<std::pair<float, float>> walk_path(const Level& L, float x, float y, float gx, float gy,
+std::vector<std::pair<float, float>> walk_path(const Level& level, float x, float y, float goal_x, float goal_y,
                                                const Crowd& crowd = {}, const UnitState* self = nullptr);
 
 // Moves u along its path by `step` cells, dropping reached points and
 // turning it to face the way; blocked by a wall or another unit, it
 // drops the route. False once there (or stuck).
-bool follow_path(const Level& L, UnitState& u, float step, const Crowd& crowd = {});
+bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
 
 // The mercenary follows the player: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s along a walk_path;
 // more than 12 behind (a warp), or stuck for 1.5 s (no route), it's put
 // next to the player.
 // ponytail: D2's follow distances aren't traced.
-void merc_follow(const Level& L, UnitState& m, float px, float py, float speed, std::uint32_t ms, float dt,
+void merc_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
                  const Crowd& crowd = {});
 
 // A monster in the level: its type (MonStats row), composite recipe with
@@ -86,9 +86,9 @@ struct Monster {
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
-    UnitState u;
-    d2d::rules::MonStats st;
-    int hp = 1;
+    UnitState unit;
+    d2d::rules::MonStats stats;
+    int hit_points = 1;
     int leader = -1;                          // index of its group's leader
     int difficulty = 0;
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
@@ -120,14 +120,14 @@ struct Monster {
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
     std::uint32_t blind_until = 0;
     bool in_aura = false;                     // within the player's aura (its auratargetstate: Conviction's convicted ...)
-    [[nodiscard]] bool alive() const { return hp > 0; }
+    [[nodiscard]] bool alive() const { return hit_points > 0; }
     // As a target for the player's (or the merc's) hits.
-    [[nodiscard]] d2d::rules::Target target(const GameData& s) const {
-        const auto& t = s.monsters.types[std::size_t(type)];
-        const auto& p = t.diff[std::size_t(difficulty)];
-        auto res = p.res;
+    [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
+        const auto& type_info = game_data.monsters.types[std::size_t(type)];
+        const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
+        auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
-        return { hp, st.hp, st.ac, st.level, t.can_block ? p.to_block : 0, res, p.drain };
+        return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain };
     }
 };
 
@@ -137,7 +137,7 @@ struct Foe {
     float x = 0, y = 0;
     int level = 1;
     bool alive = true, moving = false;        // moving: block falls to a third
-    d2d::rules::Fighter f;                    // defense, block, reductions, resistances, thorns
+    d2d::rules::Fighter fighter;                    // defense, block, reductions, resistances, thorns
     int damage = 0;                           // life lost this frame, whole points
     int poison = 0, poison_ticks = 0;         // poison taken this frame: total, over ticks
     bool blocked = false;                     // blocked a hit this frame
@@ -145,10 +145,10 @@ struct Foe {
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     int amplify = 0;                          // Amplify Damage cast on it this frame (a Cursed boss): its level
-    void take(const d2d::rules::Taken& k) {
-        blocked = blocked || k.blocked;
-        damage += k.damage;
-        if (k.poison > 0) { poison += k.poison; poison_ticks = std::max(poison_ticks, k.poison_ticks); }
+    void take(const d2d::rules::Taken& taken) {
+        blocked = blocked || taken.blocked;
+        damage += taken.damage;
+        if (taken.poison > 0) { poison += taken.poison; poison_ticks = std::max(poison_ticks, taken.poison_ticks); }
     }
 };
 
@@ -158,13 +158,13 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 // velocity until it hits the foe, a wall, or runs out of range.
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
-    float x = 0, y = 0, vx = 0, vy = 0;       // cells, cells/s
+    float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
     int dir = 0;                              // 0..31, DCC order
     std::uint32_t born = 0, dies = 0;
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
-    int min = 0, max = 0, ar = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
+    int min = 0, max = 0, attack_rating = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
-    bool fx = false;                          // only a sight (a death blast's guts): hits nothing
+    bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).
@@ -179,8 +179,8 @@ struct Missile {
     // row's own is replaced (Meteor's fire: FUN_005aaa90's 0x8001), the
     // last frame a spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
-    float ox = 0, oy = 0;                     // where it was sent (Molten Boulder), a spiral's centre
-    float bx = 0, by = 0;                     // where it came from (Blade Sentinel goes back and forth)
+    float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
+    float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     std::vector<std::pair<int, std::uint32_t>> hit_at;   // NextHit: when it last struck each monster
 };
@@ -190,8 +190,8 @@ struct Missile {
 inline int direction32(float dx, float dy) {
     constexpr int kFromSector[32] = { 4, 16, 8, 17, 0, 18, 9, 19, 5, 20, 10, 21, 1, 22, 11, 23,
                                       6, 24, 12, 25, 2, 26, 13, 27, 7, 28, 14, 29, 3, 30, 15, 31 };
-    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
-    const int sector = int(std::lround(std::atan2(-sx, sy) / (2 * 3.14159265f / 32)));
+    const float screen_x = (dx - dy) * (kIsoW / 2), screen_y = (dx + dy) * (kIsoH / 2);
+    const int sector = int(std::lround(std::atan2(-screen_x, screen_y) / (2 * 3.14159265f / 32)));
     return kFromSector[std::size_t((sector % 32 + 32) % 32)];
 }
 
@@ -204,19 +204,19 @@ inline int direction32(float dx, float dy) {
 // 128ths of the attack's damage.
 // A friendly one asks `hits_monster` (true: it struck one, spent).
 template <class HitsMonster>
-void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t ms, float dt, HitsMonster&& hits_monster) {
-    std::erase_if(ms_, [&](Missile& m) {
-        m.x += m.vx * dt; m.y += m.vy * dt;
-        if (ms >= m.dies || L.blocked(m.x, m.y, 0x04)) return true;
-        if (m.fx) return false;
-        if (m.friendly) return hits_monster(m);
+void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
+                     std::uint32_t now_ms, float elapsed, HitsMonster&& hits_monster) {
+    std::erase_if(ms_, [&](Missile& missile) {
+        missile.x += missile.velocity_x * elapsed; missile.y += missile.velocity_y * elapsed;
+        if (now_ms >= missile.dies || level.blocked(missile.x, missile.y, 0x04)) return true;
+        if (missile.visual_only) return false;
+        if (missile.friendly) return hits_monster(missile);
         for (auto& foe : foes) {
-            if (!foe.alive || std::hypot(foe.x - m.x, foe.y - m.y) > 0.4f) continue;
+            if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.4f) continue;
             const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
-            if (std::ranges::contains(*m.struck, key)) continue;
-            m.struck->push_back(key);
-            foe.take(d2d::rules::monster_blow(foe.f, foe.level, foe.moving, m.src, true, rng, true));
+            if (std::ranges::contains(*missile.struck, key)) continue;
+            missile.struck->push_back(key);
+            foe.take(d2d::rules::monster_blow(foe.fighter, foe.level, foe.moving, missile.src, true, rng, true));
             ++foe.missile_hits;
             return true;
         }
@@ -231,34 +231,34 @@ void missiles_update(const Level& L, std::vector<Missile>& ms_, std::span<Foe> f
 // A random unique's name (the client's FUN_004ac870): on {name seed, 666},
 // a suffix then a prefix into string 0x6b9 ("%0 %1"); then rand(100) < 50
 // builds it again, appellation, suffix, prefix, into 0x6ba ("%0 %1 %2").
-std::string unique_name(const GameData& s, int name_seed);
+std::string unique_name(const GameData& game_data, int name_seed);
 
 // A champion / unique / superunique / minion (rules/uniques.hpp,
 // FUN_005a2120): a higher level, more life, damage and to-hit,
 // resistances, speed, an element; its name. At full life.
-void make_boss(const GameData& s, Monster& m, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
+void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kind, const std::vector<int>& mods, int super, int name_seed,
                int difficulty, d2d::rules::Rng& rng);
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components
 // and stats rolled (a boss's by make_boss instead: `stats` false).
-Monster make_monster(const GameData& s, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true);
+Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true);
 
-std::vector<Monster> spawn_monsters(const GameData& s, const Level& L, d2d::rules::Rng& rng, int difficulty);
+std::vector<Monster> spawn_monsters(const GameData& game_data, const Level& level, d2d::rules::Rng& rng, int difficulty);
 
-void set_mode(const GameData& s, Monster& m, std::string_view mode, std::uint32_t ms);
+void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 
 // Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
 // when the hit takes an eighth of its life or more; either way it notices.
 // True when this killed it.
 // ponytail: the eighth is the commonly given threshold, not traced.
-bool hurt(const GameData& s, Monster& m, int damage, std::uint32_t ms);
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms);
 
 // A monster that blocked plays its block (BL), when it has one.
-void block_anim(const GameData& s, Monster& m, std::uint32_t ms);
+void block_anim(const GameData& game_data, Monster& monster, std::uint32_t now_ms);
 
 // One step toward (tx, ty) at `speed` cells/s, straight on; false when
 // something's in the way.
-bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, const Crowd& crowd);
+bool monster_step(const Level& level, Monster& monster, float target_x, float target_y, float step, const Crowd& crowd);
 
 // A monster's frame: finish an attack / get-hit / death; flee; notice the
 // player within 8 cells (then keep after them within 16), walk up and
@@ -272,19 +272,19 @@ bool monster_step(const Level& L, Monster& m, float tx, float ty, float step, co
 // by eye; chasing goes straight at the player, sliding to a stop at walls.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
-void attack_starts(const GameData& s, Monster& m, std::string_view mode, d2d::rules::Rng& rng);
+void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.
-bool monster_update(const GameData& s, const Level& L, Monster& m, std::span<Foe> foes, d2d::rules::Rng& rng,
-                    std::uint32_t ms, float dt, const Crowd& crowd, std::vector<Missile>& missiles);
+bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
+                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles);
 
 // Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
 // the others of its group within 10 cells run for 2-3 s.
 // ponytail: the Fallen think function isn't traced; group = spawn group.
-void fallen_scatter(const GameData& s, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t ms);
+void fallen_scatter(const GameData& game_data, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t now_ms);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.
-std::string merc_name(const GameData& s, const GameData::Merc& m, int index);
+std::string merc_name(const GameData& game_data, const GameData::Merc& merc, int index);
 
 }  // namespace d2d::game

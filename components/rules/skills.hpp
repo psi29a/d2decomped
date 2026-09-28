@@ -27,7 +27,7 @@ namespace d2d::rules {
 struct Calc {
     enum Op : std::uint8_t { Const, Operand, SkillRef, StatRef, Min, Max, Rand,
                              Add, Sub, Mul, Div, Lt, Gt, Le, Ge, Eq, Ne, Neg, Cond };
-    struct Ins { Op op; int a = 0, b = 0; };
+    struct Ins { Op opcode; int operand1 = 0, operand2 = 0; };
     std::vector<Ins> code;
     [[nodiscard]] bool empty() const { return code.empty(); }
 };
@@ -51,84 +51,84 @@ inline Calc compile_calc(std::string_view src, const CalcNames& names, std::stri
     Calc out;
     // Cells holding a comma come double-quoted from the .txt.
     if (src.size() >= 2 && src.front() == '"' && src.back() == '"') src = src.substr(1, src.size() - 2);
-    std::size_t i = 0;
+    std::size_t offset = 0;
     bool bad = false;
     auto fail = [&](std::string why) { if (!bad && error) *error = std::move(why); bad = true; };
-    auto ws = [&] { while (i < src.size() && std::isspace((unsigned char)src[i])) ++i; };
-    auto eat = [&](std::string_view s) {
-        ws();
-        if (src.substr(i, s.size()) != s) return false;
-        i += s.size();
+    auto skip_space = [&] { while (offset < src.size() && std::isspace((unsigned char)src[offset])) ++offset; };
+    auto eat = [&](std::string_view token) {
+        skip_space();
+        if (src.substr(offset, token.size()) != token) return false;
+        offset += token.size();
         return true;
     };
     auto ident = [&] {
-        ws();
-        std::size_t j = i;
-        while (j < src.size() && (std::isalnum((unsigned char)src[j]) || src[j] == '_')) ++j;
-        std::string s(src.substr(i, j - i));
-        i = j;
-        return s;
+        skip_space();
+        std::size_t end = offset;
+        while (end < src.size() && (std::isalnum((unsigned char)src[end]) || src[end] == '_')) ++end;
+        std::string name(src.substr(offset, end - offset));
+        offset = end;
+        return name;
     };
     auto quoted = [&] {
-        ws();
-        if (i >= src.size() || src[i] != '\'') { fail("expected a quoted name"); return std::string{}; }
-        const auto e = src.find('\'', i + 1);
-        if (e == std::string_view::npos) { fail("unterminated name"); return std::string{}; }
-        std::string s(src.substr(i + 1, e - i - 1));
-        i = e + 1;
-        return s;
+        skip_space();
+        if (offset >= src.size() || src[offset] != '\'') { fail("expected a quoted name"); return std::string{}; }
+        const auto end_quote = src.find('\'', offset + 1);
+        if (end_quote == std::string_view::npos) { fail("unterminated name"); return std::string{}; }
+        std::string name(src.substr(offset + 1, end_quote - offset - 1));
+        offset = end_quote + 1;
+        return name;
     };
-    auto operand = [&](const std::string& n) {
-        for (std::size_t k = 0; k < names.operands.size(); ++k) if (names.operands[k] == n) return int(k);
+    auto operand = [&](const std::string& name) {
+        for (std::size_t k = 0; k < names.operands.size(); ++k) if (names.operands[k] == name) return int(k);
         return -1;
     };
     std::function<void()> ternary;
-    auto emit = [&](Calc::Op op, int a = 0, int b = 0) { out.code.push_back({ op, a, b }); };
+    auto emit = [&](Calc::Op opcode, int operand1 = 0, int operand2 = 0) { out.code.push_back({ opcode, operand1, operand2 }); };
     std::function<void()> unary;
     auto primary = [&] {
-        ws();
-        if (i >= src.size()) { fail("unexpected end"); return; }
+        skip_space();
+        if (offset >= src.size()) { fail("unexpected end"); return; }
         // A ( left open at the very end counts as closed (Fire Wall's
         // EDmgSymPerCalc is missing its last ")"; the game reads it).
-        if (eat("(")) { ternary(); ws(); if (!eat(")") && i < src.size()) fail("expected )"); return; }
-        if (std::isdigit((unsigned char)src[i])) {
-            int v = 0;
-            while (i < src.size() && std::isdigit((unsigned char)src[i])) v = v * 10 + (src[i++] - '0');
-            emit(Calc::Const, v);
+        if (eat("(")) { ternary(); skip_space(); if (!eat(")") && offset < src.size()) fail("expected )"); return; }
+        if (std::isdigit((unsigned char)src[offset])) {
+            int value = 0;
+            while (offset < src.size() && std::isdigit((unsigned char)src[offset])) value = value * 10 + (src[offset++] - '0');
+            emit(Calc::Const, value);
             return;
         }
-        const auto n = ident();
-        if (n.empty()) { fail(std::string("unexpected '") + src[i] + "'"); ++i; return; }
-        if (n == "min" || n == "max" || n == "rand") {
-            if (!eat("(")) { fail("expected ( after " + n); return; }
+        const auto name = ident();
+        if (name.empty()) { fail(std::string("unexpected '") + src[offset] + "'"); ++offset; return; }
+        if (name == "min" || name == "max" || name == "rand") {
+            if (!eat("(")) { fail("expected ( after " + name); return; }
             ternary();
-            if (!eat(",")) { fail("expected , in " + n); return; }
+            if (!eat(",")) { fail("expected , in " + name); return; }
             ternary();
-            if (!eat(")")) { fail("expected ) in " + n); return; }
-            emit(n == "min" ? Calc::Min : n == "max" ? Calc::Max : Calc::Rand);
+            if (!eat(")")) { fail("expected ) in " + name); return; }
+            emit(name == "min" ? Calc::Min : name == "max" ? Calc::Max : Calc::Rand);
             return;
         }
-        if (n == "skill" || n == "stat") {
-            if (!eat("(")) { fail("expected ( after " + n); return; }
+        if (name == "skill" || name == "stat") {
+            if (!eat("(")) { fail("expected ( after " + name); return; }
             const auto what = quoted();
-            if (!eat(".")) { fail("expected . in " + n + "()"); return; }
+            if (!eat(".")) { fail("expected . in " + name + "()"); return; }
             const auto field = ident();
-            if (!eat(")")) { fail("expected ) in " + n + "()"); return; }
-            if (n == "skill") {
-                const auto s = names.skills.find(what);
+            if (!eat(")")) { fail("expected ) in " + name + "()"); return; }
+            if (name == "skill") {
+                const auto found = names.skills.find(what);
                 const int code = operand(field);
-                if (s == names.skills.end()) { fail("unknown skill '" + what + "'"); return; }
+                if (found == names.skills.end()) { fail("unknown skill '" + what + "'"); return; }
                 if (code < 0) { fail("unknown operand '" + field + "'"); return; }
-                emit(Calc::SkillRef, s->second, code);
+                emit(Calc::SkillRef, found->second, code);
             } else {
-                const auto s = names.stats.find(what);
-                if (s == names.stats.end()) { fail("unknown stat '" + what + "'"); return; }
-                emit(Calc::StatRef, s->second);
+                const auto found = names.stats.find(what);
+                if (found == names.stats.end()) { fail("unknown stat '" + what + "'"); return; }
+                emit(Calc::StatRef, found->second);
             }
             return;
         }
-        if (const int code = operand(n); code >= 0) { emit(Calc::Operand, code); return; }
-        fail("unknown name '" + n + "'");
+        if (const int code = operand(name); code >= 0) { emit(Calc::Operand, code); return; }
+        fail("unknown name '" + name + "'");
     };
     unary = [&] {
         if (eat("-")) { unary(); emit(Calc::Neg); return; }
@@ -172,8 +172,8 @@ inline Calc compile_calc(std::string_view src, const CalcNames& names, std::stri
         }
     };
     ternary();
-    ws();
-    if (i < src.size()) fail("trailing '" + std::string(src.substr(i)) + "'");
+    skip_space();
+    if (offset < src.size()) fail("trailing '" + std::string(src.substr(offset)) + "'");
     if (bad) out.code.clear();
     return out;
 }
@@ -259,16 +259,16 @@ inline int level_bonus(const std::array<int, 5>& lev, int lvl) {
 }
 // ln (FUN_004e6ca0): a + b x (lvl - 1). dm (FUN_00645b20): a + (b - a) x
 // (110 x lvl / (lvl + 6)) / 100, at most b.
-inline int calc_ln(int a, int b, int lvl) { return lvl > 0 ? a + b * (lvl - 1) : 0; }
-inline int calc_dm(int a, int b, int lvl) {
+inline int calc_ln(int base, int per_level, int lvl) { return lvl > 0 ? base + per_level * (lvl - 1) : 0; }
+inline int calc_dm(int base, int per_level, int lvl) {
     if (lvl < 1) return 0;
-    return std::min((110 * lvl / (lvl + 6)) * (b - a) / 100 + a, b);
+    return std::min((110 * lvl / (lvl + 6)) * (per_level - base) / 100 + base, per_level);
 }
 // Mana cost in 256ths (FUN_0056c160): (mana + lvlmana x (lvl - 1)) << manashift,
 // at least minmana points.
-inline int mana_cost(const Skill& s, int lvl) {
+inline int mana_cost(const Skill& skill, int lvl) {
     if (lvl < 1) return 0;
-    return std::max((s.mana + s.lvlmana * (lvl - 1)) << (s.manashift & 31), s.minmana * 256);
+    return std::max((skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31), skill.minmana * 256);
 }
 
 // What calcs may ask of the unit using the skill.
@@ -280,39 +280,39 @@ struct CalcEnv {
     Rng* rng = nullptr;                         // rand()
 };
 
-inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, int skill, int lvl, int depth = 0);
+inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& env, int skill, int lvl, int depth = 0);
 
 // Elemental damage in 256ths (FUN_00644d50 / FUN_00644e40): (EMin + brackets)
 // << HitShift, plus EDmgSymPerCalc percent of that; with `mastery` (the
 // flag), plus the element's mastery % of the sum (FUN_00644c90: fire 329,
 // lightning 330, cold 331, poison 332; env.stat).
-inline int elem_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, bool max, int depth = 0,
+inline int elem_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, bool max, int depth = 0,
                        bool mastery = false) {
     if (lvl < 1) return 0;
-    int d = ((max ? s.emax : s.emin) + level_bonus(max ? s.emax_lev : s.emin_lev, lvl)) << (s.hitshift & 31);
-    if (!s.edmg_sym.empty()) d += d * eval_calc(t, s.edmg_sym, env, s.id, lvl, depth + 1) / 100;
-    if (mastery && env.stat && s.etype >= 0 && s.etype <= 3) d += int(std::int64_t(d) * env.stat(329 + s.etype) / 100);
-    return d;
+    int damage = ((max ? skill.emax : skill.emin) + level_bonus(max ? skill.emax_lev : skill.emin_lev, lvl)) << (skill.hitshift & 31);
+    if (!skill.edmg_sym.empty()) damage += damage * eval_calc(skill_tables, skill.edmg_sym, env, skill.id, lvl, depth + 1) / 100;
+    if (mastery && env.stat && skill.etype >= 0 && skill.etype <= 3) damage += int(std::int64_t(damage) * env.stat(329 + skill.etype) / 100);
+    return damage;
 }
 // Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels
 // 2..8, 9..16, 17 up, plus ELenSymPerCalc percent.
-inline int length_bonus(const std::array<int, 3>& l, int lvl) {
-    return lvl < 2 ? 0 : lvl < 9 ? (lvl - 1) * l[0] : lvl < 17 ? (lvl - 8) * l[1] + l[0] * 7
-                      : (lvl - 16) * l[2] + l[1] * 8 + l[0] * 7;
+inline int length_bonus(const std::array<int, 3>& lengths, int lvl) {
+    return lvl < 2 ? 0 : lvl < 9 ? (lvl - 1) * lengths[0] : lvl < 17 ? (lvl - 8) * lengths[1] + lengths[0] * 7
+                      : (lvl - 16) * lengths[2] + lengths[1] * 8 + lengths[0] * 7;
 }
-inline int elem_length(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int depth = 0) {
+inline int elem_length(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int depth = 0) {
     if (lvl < 1) return 0;
-    int n = s.elen + length_bonus(s.elen_lev, lvl);
-    if (!s.elen_sym.empty()) n += n * eval_calc(t, s.elen_sym, env, s.id, lvl, depth + 1) / 100;
-    return n;
+    int length = skill.elen + length_bonus(skill.elen_lev, lvl);
+    if (!skill.elen_sym.empty()) length += length * eval_calc(skill_tables, skill.elen_sym, env, skill.id, lvl, depth + 1) / 100;
+    return length;
 }
 // The skill's own physical damage in 256ths (FUN_00647bc0 without the
 // weapon share): (MinDam + brackets) plus DmgSymPerCalc percent, << HitShift.
-inline int skill_phys(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, bool max, int depth = 0) {
+inline int skill_phys(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, bool max, int depth = 0) {
     if (lvl < 1) return 0;
-    int d = (max ? s.maxdam : s.mindam) + level_bonus(max ? s.maxdam_lev : s.mindam_lev, lvl);
-    if (!s.dmg_sym.empty()) d += d * eval_calc(t, s.dmg_sym, env, s.id, lvl, depth + 1) / 100;
-    return d << (s.hitshift & 31);
+    int damage = (max ? skill.maxdam : skill.mindam) + level_bonus(max ? skill.maxdam_lev : skill.mindam_lev, lvl);
+    if (!skill.dmg_sym.empty()) damage += damage * eval_calc(skill_tables, skill.dmg_sym, env, skill.id, lvl, depth + 1) / 100;
+    return damage << (skill.hitshift & 31);
 }
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
@@ -323,74 +323,74 @@ inline int skill_phys(const SkillTables& t, const Skill& s, const CalcEnv& env, 
 inline MissileDamage row_damage(int etype, int emin, int emax, const std::array<int, 5>& emin_lev,
                                 const std::array<int, 5>& emax_lev, int hitshift, int elen,
                                 const std::array<int, 3>& elen_lev, int lvl) {
-    MissileDamage m;
-    if (etype < 0 || lvl < 1) return m;
-    m.etype = etype;
-    m.elo = (emin + level_bonus(emin_lev, lvl)) << (hitshift & 31);
-    m.ehi = std::max((emax + level_bonus(emax_lev, lvl)) << (hitshift & 31), m.elo);
-    m.elen = elen + length_bonus(elen_lev, lvl);
-    return m;
+    MissileDamage damage;
+    if (etype < 0 || lvl < 1) return damage;
+    damage.etype = etype;
+    damage.elo = (emin + level_bonus(emin_lev, lvl)) << (hitshift & 31);
+    damage.ehi = std::max((emax + level_bonus(emax_lev, lvl)) << (hitshift & 31), damage.elo);
+    damage.elen = elen + length_bonus(elen_lev, lvl);
+    return damage;
 }
-inline MissileDamage missile_damage(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl) {
-    MissileDamage m;
-    m.phys_lo = skill_phys(t, s, env, lvl, false);
-    m.phys_hi = std::max(skill_phys(t, s, env, lvl, true), m.phys_lo);
-    m.etype = s.etype;
-    if (s.etype >= 0) {
-        m.elo = elem_damage(t, s, env, lvl, false, 0, true);
-        m.ehi = std::max(elem_damage(t, s, env, lvl, true, 0, true), m.elo);
-        m.elen = elem_length(t, s, env, lvl);
+inline MissileDamage missile_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    MissileDamage damage;
+    damage.phys_lo = skill_phys(skill_tables, skill, env, lvl, false);
+    damage.phys_hi = std::max(skill_phys(skill_tables, skill, env, lvl, true), damage.phys_lo);
+    damage.etype = skill.etype;
+    if (skill.etype >= 0) {
+        damage.elo = elem_damage(skill_tables, skill, env, lvl, false, 0, true);
+        damage.ehi = std::max(elem_damage(skill_tables, skill, env, lvl, true, 0, true), damage.elo);
+        damage.elen = elem_length(skill_tables, skill, env, lvl);
     }
-    m.srcdam = s.srcdam_raw;
-    return m;
+    damage.srcdam = skill.srcdam_raw;
+    return damage;
 }
 // Attack rating bonus % (FUN_006449f0): ToHitCalc, else ToHit + LevToHit x (lvl - 1).
-inline int skill_tohit(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int depth = 0) {
+inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int depth = 0) {
     if (lvl < 1) return 0;
-    if (!s.tohit_calc.empty()) return eval_calc(t, s.tohit_calc, env, s.id, lvl, depth + 1);
-    return s.tohit + s.levtohit * (lvl - 1);
+    if (!skill.tohit_calc.empty()) return eval_calc(skill_tables, skill.tohit_calc, env, skill.id, lvl, depth + 1);
+    return skill.tohit + skill.levtohit * (lvl - 1);
 }
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // ponytail: the missile operands (m1en.., 26..37, 43..48), len, rng,
 // pets, skpt read 0 until their phase.
-inline int calc_operand(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int code, int depth) {
-    const auto& p = s.par;
+inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
+    const auto& params = skill.par;
     switch (code) {
-        case 0: return calc_ln(p[0], p[1], lvl);  case 1: return calc_dm(p[0], p[1], lvl);
-        case 2: return calc_ln(p[2], p[3], lvl);  case 3: return calc_dm(p[2], p[3], lvl);
-        case 4: return calc_ln(p[4], p[5], lvl);  case 5: return calc_dm(p[4], p[5], lvl);
-        case 6: return calc_ln(p[6], p[7], lvl);  case 7: return calc_dm(p[6], p[7], lvl);
-        case 8: case 9: case 10: case 11: case 12: case 13: case 14: case 15: return p[std::size_t(code - 8)];
+        case 0: return calc_ln(params[0], params[1], lvl);  case 1: return calc_dm(params[0], params[1], lvl);
+        case 2: return calc_ln(params[2], params[3], lvl);  case 3: return calc_dm(params[2], params[3], lvl);
+        case 4: return calc_ln(params[4], params[5], lvl);  case 5: return calc_dm(params[4], params[5], lvl);
+        case 6: return calc_ln(params[6], params[7], lvl);  case 7: return calc_dm(params[6], params[7], lvl);
+        case 8: case 9: case 10: case 11: case 12: case 13: case 14: case 15: return params[std::size_t(code - 8)];
         case 16: return lvl;
-        case 17: return elem_damage(t, s, env, lvl, false, depth) >> 8;          // edmn
-        case 18: return elem_damage(t, s, env, lvl, true, depth) >> 8;           // edmx
-        case 19: return elem_length(t, s, env, lvl, depth);                      // edln
-        case 20: return skill_tohit(t, s, env, lvl, depth);                      // toht
-        case 21: return mana_cost(s, lvl) >> 8;                                  // mana
-        case 22: return lvl < 1 ? 0 : (((s.mana + s.lvlmana * (lvl - 1)) * 25 / 2) << (s.manashift & 31)) >> 8;   // mps
+        case 17: return elem_damage(skill_tables, skill, env, lvl, false, depth) >> 8;          // edmn
+        case 18: return elem_damage(skill_tables, skill, env, lvl, true, depth) >> 8;           // edmx
+        case 19: return elem_length(skill_tables, skill, env, lvl, depth);                      // edln
+        case 20: return skill_tohit(skill_tables, skill, env, lvl, depth);                      // toht
+        case 21: return mana_cost(skill, lvl) >> 8;                                  // mana
+        case 22: return lvl < 1 ? 0 : (((skill.mana + skill.lvlmana * (lvl - 1)) * 25 / 2) << (skill.manashift & 31)) >> 8;   // mps
         case 23: case 24: case 25: {                                             // math / madm / macr
             for (std::size_t k = 0; k < 5; ++k) {
-                const int st = s.passive_stat[k], want = 0x156 + (code - 23);
-                if (st == want || st == want + 3) return eval_calc(t, s.passive_calc[k], env, s.id, lvl, depth + 1);
+                const int stat = skill.passive_stat[k], want = 0x156 + (code - 23);
+                if (stat == want || stat == want + 3) return eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl, depth + 1);
             }
             return 0;
         }
-        case 49: return elem_damage(t, s, env, lvl, false, depth, true) >> 8;    // enma (FUN_00644d50 flag 1)
-        case 50: return elem_damage(t, s, env, lvl, true, depth, true) >> 8;     // exma
-        case 51: return elem_length(t, s, env, lvl, depth);                      // edma (FUN_00644f20 flag 1)
-        case 52: return elem_damage(t, s, env, lvl, false, depth, true);         // enms
-        case 53: return elem_damage(t, s, env, lvl, true, depth, true);          // exms
-        case 38: return elem_damage(t, s, env, lvl, false, depth);               // edns
-        case 39: return elem_damage(t, s, env, lvl, true, depth);                // edxs
+        case 49: return elem_damage(skill_tables, skill, env, lvl, false, depth, true) >> 8;    // enma (FUN_00644d50 flag 1)
+        case 50: return elem_damage(skill_tables, skill, env, lvl, true, depth, true) >> 8;     // exma
+        case 51: return elem_length(skill_tables, skill, env, lvl, depth);                      // edma (FUN_00644f20 flag 1)
+        case 52: return elem_damage(skill_tables, skill, env, lvl, false, depth, true);         // enms
+        case 53: return elem_damage(skill_tables, skill, env, lvl, true, depth, true);          // exms
+        case 38: return elem_damage(skill_tables, skill, env, lvl, false, depth);               // edns
+        case 39: return elem_damage(skill_tables, skill, env, lvl, true, depth);                // edxs
         case 40: return env.clvl;                                                // ulvl
-        case 41: return env.base_level ? env.base_level(s.id) : lvl;             // blvl
-        case 42: return lvl < 1 ? 0 : (s.mana + s.lvlmana * (lvl - 1)) << (s.manashift & 31);   // usmc
-        case 55: case 56: case 57: case 58: return eval_calc(t, s.calc[std::size_t(code - 55)], env, s.id, lvl, depth + 1);
+        case 41: return env.base_level ? env.base_level(skill.id) : lvl;             // blvl
+        case 42: return lvl < 1 ? 0 : (skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31);   // usmc
+        case 55: case 56: case 57: case 58: return eval_calc(skill_tables, skill.calc[std::size_t(code - 55)], env, skill.id, lvl, depth + 1);
         case 60: case 61: case 62: case 63: case 64: case 65:
-            return eval_calc(t, s.aura_calc[std::size_t(code - 60)], env, s.id, lvl, depth + 1);
+            return eval_calc(skill_tables, skill.aura_calc[std::size_t(code - 60)], env, skill.id, lvl, depth + 1);
         case 66: case 67: case 68: case 69: case 70:
-            return eval_calc(t, s.passive_calc[std::size_t(code - 66)], env, s.id, lvl, depth + 1);
+            return eval_calc(skill_tables, skill.passive_calc[std::size_t(code - 66)], env, skill.id, lvl, depth + 1);
         default: return 0;
     }
 }
@@ -408,61 +408,61 @@ struct PassiveStat { int stat = -1, value = 0; std::string itype; };
 // Paladin's auras — theirs sit in the passivestate while the aura is off
 // (the state at +0x80 holds FUN_00646d60 off) and in the aura's own state
 // while it's on (FUN_005cf3a0 fills it from +0x98), so they're always on.
-inline std::vector<PassiveStat> passive_stats(const SkillTables& t, const CalcEnv& env) {
+inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, const CalcEnv& env) {
     std::vector<PassiveStat> out;
-    for (const auto& s : t.rows) {
-        if (s.id < 0 || s.passive_stat[0] < 0 || !env.level) continue;
-        const int lvl = env.level(s.id);
+    for (const auto& skill : skill_tables.rows) {
+        if (skill.id < 0 || skill.passive_stat[0] < 0 || !env.level) continue;
+        const int lvl = env.level(skill.id);
         if (lvl < 1) continue;
-        for (std::size_t k = 0; k < 5 && s.passive_stat[k] >= 0; ++k)
-            out.push_back({ s.passive_stat[k], eval_calc(t, s.passive_calc[k], env, s.id, lvl, 0), s.passive_itype });
+        for (std::size_t k = 0; k < 5 && skill.passive_stat[k] >= 0; ++k)
+            out.push_back({ skill.passive_stat[k], eval_calc(skill_tables, skill.passive_calc[k], env, skill.id, lvl, 0), skill.passive_itype });
     }
     return out;
 }
 
 // Runs a calc for `skill` at `lvl` (the stack machine; divide by zero
 // gives 0, as FUN_006c0bc0's op 0x13).
-inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, int skill, int lvl, int depth) {
-    const Skill* s = t.get(skill);
-    if (c.empty() || !s || depth > 8) return 0;
-    std::vector<int> st;
-    st.reserve(c.code.size());
-    auto pop = [&] { if (st.empty()) return 0; const int v = st.back(); st.pop_back(); return v; };
-    for (const auto& in : c.code) {
-        switch (in.op) {
-            case Calc::Const: st.push_back(in.a); break;
-            case Calc::Operand: st.push_back(calc_operand(t, *s, env, lvl, in.a, depth)); break;
+inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& env, int skill, int lvl, int depth) {
+    const Skill* skill_row = skill_tables.get(skill);
+    if (calc.empty() || !skill_row || depth > 8) return 0;
+    std::vector<int> stack;
+    stack.reserve(calc.code.size());
+    auto pop = [&] { if (stack.empty()) return 0; const int value = stack.back(); stack.pop_back(); return value; };
+    for (const auto& instruction : calc.code) {
+        switch (instruction.opcode) {
+            case Calc::Const: stack.push_back(instruction.operand1); break;
+            case Calc::Operand: stack.push_back(calc_operand(skill_tables, *skill_row, env, lvl, instruction.operand1, depth)); break;
             case Calc::SkillRef: {                     // that skill's operand at the unit's level in it
-                const Skill* o = t.get(in.a);
-                const int l = in.b == 41 ? (env.base_level ? env.base_level(in.a) : 0) : env.level ? env.level(in.a) : 0;
-                st.push_back(o && in.b != 41 ? calc_operand(t, *o, env, l, in.b, depth + 1) : l);
+                const Skill* other = skill_tables.get(instruction.operand1);
+                const int level = instruction.operand2 == 41 ? (env.base_level ? env.base_level(instruction.operand1) : 0) : env.level ? env.level(instruction.operand1) : 0;
+                stack.push_back(other && instruction.operand2 != 41 ? calc_operand(skill_tables, *other, env, level, instruction.operand2, depth + 1) : level);
                 break;
             }
-            case Calc::StatRef: st.push_back(env.stat ? env.stat(in.a) : 0); break;
-            case Calc::Neg: st.push_back(-pop()); break;
-            case Calc::Cond: { const int b = pop(), a = pop(), k = pop(); st.push_back(k ? a : b); break; }
+            case Calc::StatRef: stack.push_back(env.stat ? env.stat(instruction.operand1) : 0); break;
+            case Calc::Neg: stack.push_back(-pop()); break;
+            case Calc::Cond: { const int if_false = pop(), if_true = pop(), condition = pop(); stack.push_back(condition ? if_true : if_false); break; }
             default: {
-                const int b = pop(), a = pop();
-                switch (in.op) {
-                    case Calc::Min: st.push_back(std::min(a, b)); break;
-                    case Calc::Max: st.push_back(std::max(a, b)); break;
-                    case Calc::Rand: st.push_back(env.rng ? env.rng->range(a, b) : a); break;
-                    case Calc::Add: st.push_back(a + b); break;
-                    case Calc::Sub: st.push_back(a - b); break;
-                    case Calc::Mul: st.push_back(a * b); break;
-                    case Calc::Div: st.push_back(b ? a / b : 0); break;
-                    case Calc::Lt: st.push_back(a < b); break;
-                    case Calc::Gt: st.push_back(a > b); break;
-                    case Calc::Le: st.push_back(a <= b); break;
-                    case Calc::Ge: st.push_back(a >= b); break;
-                    case Calc::Eq: st.push_back(a == b); break;
-                    case Calc::Ne: st.push_back(a != b); break;
-                    default: st.push_back(0); break;
+                const int right = pop(), left = pop();
+                switch (instruction.opcode) {
+                    case Calc::Min: stack.push_back(std::min(left, right)); break;
+                    case Calc::Max: stack.push_back(std::max(left, right)); break;
+                    case Calc::Rand: stack.push_back(env.rng ? env.rng->range(left, right) : left); break;
+                    case Calc::Add: stack.push_back(left + right); break;
+                    case Calc::Sub: stack.push_back(left - right); break;
+                    case Calc::Mul: stack.push_back(left * right); break;
+                    case Calc::Div: stack.push_back(right ? left / right : 0); break;
+                    case Calc::Lt: stack.push_back(left < right); break;
+                    case Calc::Gt: stack.push_back(left > right); break;
+                    case Calc::Le: stack.push_back(left <= right); break;
+                    case Calc::Ge: stack.push_back(left >= right); break;
+                    case Calc::Eq: stack.push_back(left == right); break;
+                    case Calc::Ne: stack.push_back(left != right); break;
+                    default: stack.push_back(0); break;
                 }
             }
         }
     }
-    return st.empty() ? 0 : st.back();
+    return stack.empty() ? 0 : stack.back();
 }
 
 // ---- Whirlwind
@@ -471,8 +471,8 @@ inline int eval_calc(const SkillTables& t, const Calc& c, const CalcEnv& env, in
 // length in frames (FUN_0062a710): under 12 → 4, 15 → 6, 18 → 8, 20 → 10,
 // 23 → 12, then 14, and 16 past 25; 10 bare-handed.
 inline int whirlwind_gap(int attack_frames) {
-    const int f = attack_frames;
-    return f < 12 ? 4 : f < 15 ? 6 : f < 18 ? 8 : f < 20 ? 10 : f < 23 ? 12 : f > 25 ? 16 : 14;
+    const int frames = attack_frames;
+    return frames < 12 ? 4 : frames < 15 ? 6 : frames < 18 ? 8 : frames < 20 ? 10 : frames < 23 ? 12 : frames > 25 ? 16 : 14;
 }
 
 // ---- charge-ups (Assassin martial arts)
@@ -488,27 +488,27 @@ inline int whirlwind_gap(int attack_frames) {
 // not being shown; prgdam 4's third-charge freeze (cold length / an
 // untraced divisor) and its calc1 physical-to-element share aren't applied.
 struct ChargeBonus { int ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
-inline ChargeBonus charge_bonus(const SkillTables& t, const Skill& s, const CalcEnv& env, int lvl, int n) {
-    ChargeBonus b;
-    if (lvl < 1 || n < 1) return b;
-    n = std::min(n, 3);
-    switch (s.prgdam) {
-        case 1: b.ed_pct = eval_calc(t, s.calc[0], env, s.id, lvl) * n; break;
+inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int charges) {
+    ChargeBonus bonus;
+    if (lvl < 1 || charges < 1) return bonus;
+    charges = std::min(charges, 3);
+    switch (skill.prgdam) {
+        case 1: bonus.ed_pct = eval_calc(skill_tables, skill.calc[0], env, skill.id, lvl) * charges; break;
         case 2: {
-            const int steal = calc_ln(s.par[0], s.par[1], lvl) * (n == 3 ? 2 : 1);
-            b.life_steal = steal;
-            b.mana_steal = n >= 2 ? steal : 0;
+            const int steal = calc_ln(skill.par[0], skill.par[1], lvl) * (charges == 3 ? 2 : 1);
+            bonus.life_steal = steal;
+            bonus.mana_steal = charges >= 2 ? steal : 0;
             break;
         }
         case 4:
-            b.etype = s.etype;
-            b.elem_lo = elem_damage(t, s, env, lvl, false) >> 8;
-            b.elem_hi = elem_damage(t, s, env, lvl, true) >> 8;
-            b.elem_len = elem_length(t, s, env, lvl);
+            bonus.etype = skill.etype;
+            bonus.elem_lo = elem_damage(skill_tables, skill, env, lvl, false) >> 8;
+            bonus.elem_hi = elem_damage(skill_tables, skill, env, lvl, true) >> 8;
+            bonus.elem_len = elem_length(skill_tables, skill, env, lvl);
             break;
         default: break;
     }
-    return b;
+    return bonus;
 }
 
 // ---- a character's skill levels
@@ -517,19 +517,19 @@ inline ChargeBonus charge_bonus(const SkillTables& t, const Skill& s, const Calc
 // (ItemStatCost ids): 127 +all skills, 83 +class skills (param = class),
 // 188 +skill tab (param = class x 8 + tab, tab = SkillDesc page - 1),
 // 107 +single class skill and 97 +skill as "oskill" (param = skill id).
-inline int item_skill_bonus(const Skill& s, int cls, std::span<const d2d::d2s::ItemProp> props) {
-    int b = 0;
-    const bool own = !s.cls.empty() && s.cls == kClassCode[std::size_t(cls)];
-    for (const auto& p : props) {
-        switch (p.stat) {
-            case 127: if (own) b += p.value; break;
-            case 83: if (own && p.param == cls) b += p.value; break;
-            case 188: if (own && s.page > 0 && p.param == cls * 8 + s.page - 1) b += p.value; break;
-            case 107: case 97: if (p.param == s.id) b += p.value; break;
+inline int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
+    int bonus = 0;
+    const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];
+    for (const auto& prop : props) {
+        switch (prop.stat) {
+            case 127: if (own) bonus += prop.value; break;
+            case 83: if (own && prop.param == cls) bonus += prop.value; break;
+            case 188: if (own && skill.page > 0 && prop.param == cls * 8 + skill.page - 1) bonus += prop.value; break;
+            case 107: case 97: if (prop.param == skill.id) bonus += prop.value; break;
             default: break;
         }
     }
-    return b;
+    return bonus;
 }
 
 }  // namespace d2d::rules

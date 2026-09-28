@@ -76,11 +76,11 @@ public:
     // Decodes up to time t (seconds from the start): the latest frame with
     // pts <= t lands in rgba(), audio found on the way in audio(). False
     // once the file is exhausted and its last frame has been shown.
-    bool advance(double t) {
+    bool advance(double seconds) {
         if (!fmt_) return false;
         while (!eof_) {
             if (have_pending_) {
-                if (pending_t_ > t) return true;
+                if (pending_t_ > seconds) return true;
                 show_pending();
             }
             if (av_read_frame(fmt_, pkt_) < 0) { eof_ = true; break; }
@@ -88,17 +88,17 @@ public:
             else if (adec_ && pkt_->stream_index == astream_) decode(adec_, false);
             av_packet_unref(pkt_);
         }
-        if (have_pending_ && pending_t_ <= t) show_pending();
+        if (have_pending_ && pending_t_ <= seconds) show_pending();
         return have_pending_;
     }
 
 private:
     AVCodecContext* open_codec(int stream) {
         const auto* par = fmt_->streams[stream]->codecpar;
-        const AVCodec* c = avcodec_find_decoder(par->codec_id);
-        if (!c) return nullptr;
-        AVCodecContext* ctx = avcodec_alloc_context3(c);
-        if (avcodec_parameters_to_context(ctx, par) < 0 || avcodec_open2(ctx, c, nullptr) < 0) {
+        const AVCodec* codec = avcodec_find_decoder(par->codec_id);
+        if (!codec) return nullptr;
+        AVCodecContext* ctx = avcodec_alloc_context3(codec);
+        if (avcodec_parameters_to_context(ctx, par) < 0 || avcodec_open2(ctx, codec, nullptr) < 0) {
             avcodec_free_context(&ctx);
             return nullptr;
         }
@@ -121,12 +121,12 @@ private:
                 have_pending_ = true;
             } else {
                 const int max = swr_get_out_samples(swr_, frame_->nb_samples);
-                const auto at = audio_.size();
-                audio_.resize(at + std::size_t(max) * 2);
-                auto* out = reinterpret_cast<std::uint8_t*>(audio_.data() + at);
-                const int n = swr_convert(swr_, &out, max, const_cast<const std::uint8_t**>(frame_->extended_data),
+                const auto offset = audio_.size();
+                audio_.resize(offset + std::size_t(max) * 2);
+                auto* out = reinterpret_cast<std::uint8_t*>(audio_.data() + offset);
+                const int samples = swr_convert(swr_, &out, max, const_cast<const std::uint8_t**>(frame_->extended_data),
                                           frame_->nb_samples);
-                audio_.resize(at + std::size_t(std::max(n, 0)) * 2);
+                audio_.resize(offset + std::size_t(std::max(samples, 0)) * 2);
             }
             av_frame_unref(frame_);
             if (video) return;                    // one frame at a time
@@ -135,15 +135,15 @@ private:
 
     void show_pending() { rgba_.swap(pending_); have_pending_ = false; }
 
-    static int read_cb(void* opaque, std::uint8_t* buf, int n) {
-        const auto got = static_cast<mpq::File*>(opaque)->read(buf, std::size_t(n));
+    static int read_cb(void* opaque, std::uint8_t* buf, int size) {
+        const auto got = static_cast<mpq::File*>(opaque)->read(buf, std::size_t(size));
         return got ? int(got) : AVERROR_EOF;
     }
     static std::int64_t seek_cb(void* opaque, std::int64_t off, int whence) {
-        auto* f = static_cast<mpq::File*>(opaque);
-        if (whence & AVSEEK_SIZE) return std::int64_t(f->size());
+        auto* file = static_cast<mpq::File*>(opaque);
+        if (whence & AVSEEK_SIZE) return std::int64_t(file->size());
         if ((whence & ~AVSEEK_FORCE) != SEEK_SET) return -1;
-        return std::int64_t(f->seek(std::uint64_t(off)));
+        return std::int64_t(file->seek(std::uint64_t(off)));
     }
 
     void close() {

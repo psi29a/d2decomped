@@ -21,57 +21,57 @@ namespace d2d::game {
 
 namespace wire {
 // A stable home for decoded mode names (the units keep string_views).
-inline std::string_view intern(std::string s) {
+inline std::string_view intern(std::string text) {
     static std::unordered_set<std::string> pool;
-    return *pool.insert(std::move(s)).first;
+    return *pool.insert(std::move(text)).first;
 }
-inline void npc(Out& o, const Npc& n) {
-    o.str(n.root).str(n.code).str(n.base_w).str(n.name).i32(n.light).i32(n.overlay_class).i32(n.colour);
-    for (const auto& c : n.comp) o.str(c);
+inline void npc(Out& out, const Npc& npc_data) {
+    out.str(npc_data.root).str(npc_data.code).str(npc_data.base_w).str(npc_data.name).i32(npc_data.light).i32(npc_data.overlay_class).i32(npc_data.colour);
+    for (const auto& component : npc_data.comp) out.str(component);
 }
-inline Npc npc(In& in) {
-    Npc n;
-    n.root = in.str(); n.code = in.str(); n.base_w = in.str(); n.name = in.str();
-    n.light = in.get<std::int32_t>(); n.overlay_class = in.get<std::int32_t>(); n.colour = in.get<std::int32_t>();
-    for (auto& c : n.comp) c = in.str();
-    return n;
+inline Npc npc(In& input) {
+    Npc npc;
+    npc.root = input.str(); npc.code = input.str(); npc.base_w = input.str(); npc.name = input.str();
+    npc.light = input.get<std::int32_t>(); npc.overlay_class = input.get<std::int32_t>(); npc.colour = input.get<std::int32_t>();
+    for (auto& component : npc.comp) component = input.str();
+    return npc;
 }
-inline void unit(Out& o, const UnitState& u) {
-    o.f32(u.x).f32(u.y).u8(u.dir).u8(u.walking).u8(u.hidden).u8(u.alert).u32(u.mode_ms).str(u.mode);
+inline void unit(Out& out, const UnitState& unit_state) {
+    out.f32(unit_state.x).f32(unit_state.y).u8(unit_state.dir).u8(unit_state.walking).u8(unit_state.hidden).u8(unit_state.alert).u32(unit_state.mode_ms).str(unit_state.mode);
 }
-inline UnitState unit(In& in) {
-    UnitState u;
-    u.x = in.get<float>(); u.y = in.get<float>();
-    u.dir = in.get<std::uint8_t>(); u.walking = in.get<std::uint8_t>(); u.hidden = in.get<std::uint8_t>(); u.alert = in.get<std::uint8_t>();
-    u.mode_ms = in.get<std::uint32_t>();
-    u.mode = intern(in.str());
-    return u;
+inline UnitState unit(In& input) {
+    UnitState unit;
+    unit.x = input.get<float>(); unit.y = input.get<float>();
+    unit.dir = input.get<std::uint8_t>(); unit.walking = input.get<std::uint8_t>(); unit.hidden = input.get<std::uint8_t>(); unit.alert = input.get<std::uint8_t>();
+    unit.mode_ms = input.get<std::uint32_t>();
+    unit.mode = intern(input.str());
+    return unit;
 }
 // Items as their save form (d2s_write.hpp), then their unit ids.
-inline void items(Out& o, const std::vector<d2d::d2s::Item>& list, const d2d::d2s::ItemTables& t) {
-    d2d::d2s::detail::BitWriter w;
-    for (const auto& it : list) d2d::d2s::detail::write_item(w, it, t);
-    o.u16(int(list.size())).u32(std::uint32_t(w.out.size()));
-    for (const auto b : w.out) o.u8(int(b));
-    for (const auto& it : list) o.i32(it.id);
+inline void items(Out& out, const std::vector<d2d::d2s::Item>& list, const d2d::d2s::ItemTables& item_tables) {
+    d2d::d2s::detail::BitWriter writer;
+    for (const auto& item : list) d2d::d2s::detail::write_item(writer, item, item_tables);
+    out.u16(int(list.size())).u32(std::uint32_t(writer.out.size()));
+    for (const auto byte : writer.out) out.u8(int(byte));
+    for (const auto& item : list) out.i32(item.id);
 }
-inline std::vector<d2d::d2s::Item> items(In& in, const d2d::d2s::ItemTables& t) {
-    const int n = in.get<std::uint16_t>();
-    const std::size_t bytes = in.get<std::uint32_t>();
+inline std::vector<d2d::d2s::Item> items(In& input, const d2d::d2s::ItemTables& item_tables) {
+    const int count = input.get<std::uint16_t>();
+    const std::size_t bytes = input.get<std::uint32_t>();
     std::vector<d2d::d2s::Item> out;
-    if (!in.ok || in.at + bytes > in.b.size()) { in.ok = false; return out; }
+    if (!input.ok || input.offset + bytes > input.bytes.size()) { input.ok = false; return out; }
     try {
-        d2d::d2s::detail::Bits bs{ std::as_bytes(in.b.subspan(in.at, bytes)), 0 };
-        for (int i = 0; i < n; ++i) out.push_back(d2d::d2s::detail::item(bs, t));
-    } catch (const std::exception&) { in.ok = false; return out; }
-    in.at += bytes;
-    for (auto& it : out) it.id = in.get<std::int32_t>();
+        d2d::d2s::detail::Bits bits{ std::as_bytes(input.bytes.subspan(input.offset, bytes)), 0 };
+        for (int i = 0; i < count; ++i) out.push_back(d2d::d2s::detail::item(bits, item_tables));
+    } catch (const std::exception&) { input.ok = false; return out; }
+    input.offset += bytes;
+    for (auto& item : out) item.id = input.get<std::int32_t>();
     return out;
 }
 }  // namespace wire
 
 // GameData's level with Levels.txt id `id`.
-inline const Level* level_of(const GameData& s, int id) { return s.level(id); }
+inline const Level* level_of(const GameData& game_data, int id) { return game_data.level(id); }
 
 // What one client was last sent (the server keeps one per client): each
 // section's bytes, each monster's look and state, each NPC's state. A
@@ -87,373 +87,373 @@ struct ViewEncoder {
 
 namespace wire {
 // A section: 0 when it's what the client has, else 1, its length, its bytes.
-inline void section(Out& o, std::vector<std::uint8_t>& last, std::vector<std::uint8_t> now) {
-    if (now == last) { o.u8(0); return; }
-    o.u8(1).u32(std::uint32_t(now.size()));
-    o.b.insert(o.b.end(), now.begin(), now.end());
+inline void section(Out& out, std::vector<std::uint8_t>& last, std::vector<std::uint8_t> now) {
+    if (now == last) { out.u8(0); return; }
+    out.u8(1).u32(std::uint32_t(now.size()));
+    out.bytes.insert(out.bytes.end(), now.begin(), now.end());
     last = std::move(now);
 }
-inline void monster_look(Out& o, const Monster& m) {
-    o.i32(m.type).i32(m.st.hp).i32(m.st.level).u8(int(m.boss)).u8(int(m.mods.size()));
-    for (const int md : m.mods) o.u8(md);
-    npc(o, m.npc);
+inline void monster_look(Out& out, const Monster& monster) {
+    out.i32(monster.type).i32(monster.stats.hit_points).i32(monster.stats.level).u8(int(monster.boss)).u8(int(monster.mods.size()));
+    for (const int mod : monster.mods) out.u8(mod);
+    npc(out, monster.npc);
 }
-inline void monster_look(In& in, Monster& m) {
-    m.type = in.get<std::int32_t>(); m.st.hp = in.get<std::int32_t>(); m.st.level = in.get<std::int32_t>();
-    m.boss = d2d::rules::Boss(in.get<std::uint8_t>());
-    m.mods.clear();
-    for (int k = in.get<std::uint8_t>(); k > 0 && in.ok; --k) m.mods.push_back(in.get<std::uint8_t>());
-    m.npc = npc(in);
+inline void monster_look(In& input, Monster& monster) {
+    monster.type = input.get<std::int32_t>(); monster.stats.hit_points = input.get<std::int32_t>(); monster.stats.level = input.get<std::int32_t>();
+    monster.boss = d2d::rules::Boss(input.get<std::uint8_t>());
+    monster.mods.clear();
+    for (int k = input.get<std::uint8_t>(); k > 0 && input.ok; --k) monster.mods.push_back(input.get<std::uint8_t>());
+    monster.npc = npc(input);
 }
-inline void monster_state(Out& o, const Monster& m) {
-    o.i32(m.hp).u8(m.corpse_used).str(m.mode);
-    unit(o, m.u);
+inline void monster_state(Out& out, const Monster& monster) {
+    out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
+    unit(out, monster.unit);
     // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
-    o.u32(m.poison_until).u32(m.chill_until).u32(m.stun_until).i32(m.curse.skill).u32(m.curse.until).i32(m.cry.skill).u32(m.cry.until).i32(m.aura).u8(m.in_aura);
+    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura);
 }
-inline void monster_state(In& in, Monster& m) {
-    m.hp = in.get<std::int32_t>(); m.corpse_used = in.get<std::uint8_t>(); m.mode = intern(in.str());
-    m.u = unit(in);
-    m.poison_until = in.get<std::uint32_t>(); m.chill_until = in.get<std::uint32_t>(); m.stun_until = in.get<std::uint32_t>();
-    m.curse.skill = in.get<std::int32_t>(); m.curse.until = in.get<std::uint32_t>();
-    m.cry.skill = in.get<std::int32_t>(); m.cry.until = in.get<std::uint32_t>(); m.aura = in.get<std::int32_t>();
-    m.in_aura = in.get<std::uint8_t>() != 0;
+inline void monster_state(In& input, Monster& monster) {
+    monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
+    monster.unit = unit(input);
+    monster.poison_until = input.get<std::uint32_t>(); monster.chill_until = input.get<std::uint32_t>(); monster.stun_until = input.get<std::uint32_t>();
+    monster.curse.skill = input.get<std::int32_t>(); monster.curse.until = input.get<std::uint32_t>();
+    monster.cry.skill = input.get<std::int32_t>(); monster.cry.until = input.get<std::uint32_t>(); monster.aura = input.get<std::int32_t>();
+    monster.in_aura = input.get<std::uint8_t>() != 0;
 }
 }  // namespace wire
 
 // The View as what changed since `enc` last sent (encode_view) and, on
 // the client, that change applied to its last View (apply_view).
-inline std::vector<std::uint8_t> encode_view(const GameData& s, const View& v, ViewEncoder& enc) {
-    wire::Out o;
-    o.u8(0x70);                                              // our own id: game.exe has no packet for a whole view
-    const int lvl = v.level ? v.level->id : -1;
+inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& view, ViewEncoder& enc) {
+    wire::Out out;
+    out.u8(0x70);                                              // our own id: game.exe has no packet for a whole view
+    const int lvl = view.level ? view.level->id : -1;
     const bool key = enc.level != lvl;
     if (key) { enc.reset(); enc.level = lvl; }
-    o.u8(key).i32(lvl);
+    out.u8(key).i32(lvl);
     // 0: the player, what it wears and does, its merc, target, aura, boost.
     {
-        wire::Out c;
-        wire::unit(c, v.player);
-        c.u8(v.running).u8(v.dead).i32(v.pmode).f32(v.prate).u32(v.seq_frame_ms).u8(v.seq_loop);
-        c.u16(int(v.seq.size()));
-        for (const auto& f : v.seq) c.u8(f.mode).u8(f.frame).u8(f.event);
-        for (const auto g : v.gfx) c.u8(g);
+        wire::Out chunk;
+        wire::unit(chunk, view.player);
+        chunk.u8(view.running).u8(view.dead).i32(view.pmode).f32(view.prate).u32(view.seq_frame_ms).u8(view.seq_loop);
+        chunk.u16(int(view.seq.size()));
+        for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
+        for (const auto look_byte : view.gfx) chunk.u8(look_byte);
         std::string merc_type;
-        if (v.merc) for (const auto& [k, m] : s.mercs) if (&m.npc == v.merc->npc) merc_type = std::to_string(k);
-        c.u8(v.merc && !merc_type.empty());
-        if (v.merc && !merc_type.empty()) { c.str(merc_type).str(v.merc->mode); wire::unit(c, v.merc->u); }
-        c.i32(v.attack).i32(v.attack_skill).i32(v.aura).i32(v.day.phase).i32(v.day.time).u8(v.den_cleared).i32(v.light_bonus).i32(v.den_state).i32(v.den_log).i32(v.den_left);
-        c.u16(int(v.boost.size()));
-        for (const auto& [st, val] : v.boost) c.i32(st).i32(val);
-        c.i32(v.gold_lost);
-        c.u16(int(v.buffs.size()));
-        for (const int k : v.buffs) c.i32(k);
-        wire::section(o, enc.section[0], std::move(c.b));
+        if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
+        chunk.u8(view.merc && !merc_type.empty());
+        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); }
+        chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.den_cleared).i32(view.light_bonus).i32(view.den_state).i32(view.den_log).i32(view.den_left);
+        chunk.u16(int(view.boost.size()));
+        for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
+        chunk.i32(view.gold_lost);
+        chunk.u16(int(view.buffs.size()));
+        for (const int buff : view.buffs) chunk.i32(buff);
+        wire::section(out, enc.section[0], std::move(chunk.bytes));
     }
     // 1: pets, 2: missiles.
     {
-        wire::Out c;
-        c.u16(int(v.pets.size()));
-        for (const auto& p : v.pets) { wire::npc(c, p.npc); wire::unit(c, p.u); c.str(p.mode); }
-        wire::section(o, enc.section[1], std::move(c.b));
+        wire::Out chunk;
+        chunk.u16(int(view.pets.size()));
+        for (const auto& pet : view.pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode); }
+        wire::section(out, enc.section[1], std::move(chunk.bytes));
     }
     {
-        wire::Out c;
-        c.u16(int(v.missiles.size()));
-        for (const auto& m : v.missiles) c.str(m.info->name).f32(m.x).f32(m.y).u8(m.dir).u32(m.born);
-        wire::section(o, enc.section[2], std::move(c.b));
+        wire::Out chunk;
+        chunk.u16(int(view.missiles.size()));
+        for (const auto& missile : view.missiles) chunk.str(missile.info->name).f32(missile.x).f32(missile.y).u8(missile.dir).u32(missile.born);
+        wire::section(out, enc.section[2], std::move(chunk.bytes));
     }
     // 3: the ground, 4: fires.
     {
-        wire::Out c;
-        c.u16(int(v.ground.size()));
-        for (const auto& g : v.ground)
-            c.i32(g.id).str(g.item.code).i32(g.gold).f32(g.x).f32(g.y).u32(g.ms).str(g.label).u8(g.rgb[0]).u8(g.rgb[1]).u8(g.rgb[2]);
-        wire::section(o, enc.section[3], std::move(c.b));
+        wire::Out chunk;
+        chunk.u16(int(view.ground.size()));
+        for (const auto& ground_item : view.ground)
+            chunk.i32(ground_item.id).str(ground_item.item.code).i32(ground_item.gold).f32(ground_item.x).f32(ground_item.y).u32(ground_item.now_ms).str(ground_item.label).u8(ground_item.rgb[0]).u8(ground_item.rgb[1]).u8(ground_item.rgb[2]);
+        wire::section(out, enc.section[3], std::move(chunk.bytes));
     }
     {
-        wire::Out c;
-        c.u16(int(v.fires.size()));
-        for (const auto& f : v.fires) c.f32(f.x).f32(f.y).u8(f.npc == &s.trap_fires[1]);
-        c.u16(int(v.portals.size()));
-        for (const auto& p : v.portals) c.f32(p.x).f32(p.y).i32(p.to).u32(p.born).u8(p.which);
-        c.u16(int(v.corpses.size()));
-        for (const auto& k : v.corpses) {
-            c.f32(k.x).f32(k.y).u8(k.dir).u8(k.which);
-            for (const auto g : k.gfx) c.u8(g);
+        wire::Out chunk;
+        chunk.u16(int(view.fires.size()));
+        for (const auto& fire : view.fires) chunk.f32(fire.x).f32(fire.y).u8(fire.npc == &game_data.trap_fires[1]);
+        chunk.u16(int(view.portals.size()));
+        for (const auto& portal : view.portals) chunk.f32(portal.x).f32(portal.y).i32(portal.destination).u32(portal.born).u8(portal.which);
+        chunk.u16(int(view.corpses.size()));
+        for (const auto& corpse : view.corpses) {
+            chunk.f32(corpse.x).f32(corpse.y).u8(corpse.dir).u8(corpse.which);
+            for (const auto look_byte : corpse.gfx) chunk.u8(look_byte);
         }
-        wire::section(o, enc.section[4], std::move(c.b));
+        wire::section(out, enc.section[4], std::move(chunk.bytes));
     }
     // The owner's character: 5 its header (in its save form), 7 its stats
     // and skills (they change with every tick of regeneration), 6 its items,
     // the item in hand and the store's stock; then the hire list.
     {
-        wire::Out c;
+        wire::Out chunk;
         std::vector<std::byte> save;
-        if (s.item_tables && v.has_character)
-            try { save = d2d::d2s::write_save({}, v.header, {}, {}, *s.item_tables); }
-            catch (const std::exception& e) { d2d::log::warn("the character didn't encode: {}", e.what()); }
-        c.u32(std::uint32_t(save.size()));
-        for (const auto b : save) c.u8(int(b));
-        wire::section(o, enc.section[5], std::move(c.b));
+        if (game_data.item_tables && view.has_character)
+            try { save = d2d::d2s::write_save({}, view.header, {}, {}, *game_data.item_tables); }
+            catch (const std::exception& error) { d2d::log::warn("the character didn't encode: {}", error.what()); }
+        chunk.u32(std::uint32_t(save.size()));
+        for (const auto byte : save) chunk.u8(int(byte));
+        wire::section(out, enc.section[5], std::move(chunk.bytes));
     }
     {
-        wire::Out c;
-        for (const auto x : v.stats.v) c.u32(std::uint32_t(x));   // the save's widths: 32 bits at most
-        for (const auto k : v.stats.skills) c.u8(k);
-        wire::section(o, enc.section[7], std::move(c.b));
+        wire::Out chunk;
+        for (const auto x : view.stats.values) chunk.u32(std::uint32_t(x));   // the save's widths: 32 bits at most
+        for (const auto skill_level : view.stats.skills) chunk.u8(skill_level);
+        wire::section(out, enc.section[7], std::move(chunk.bytes));
     }
     {
-        wire::Out c;
-        c.u8(s.item_tables && v.has_character);
-        if (s.item_tables && v.has_character) {
-            wire::items(c, v.items, *s.item_tables);
-            c.u8(v.held.has_value());
-            if (v.held) wire::items(c, { *v.held }, *s.item_tables);
-            c.u8(v.store.has_value());
-            if (v.store) {
-                const auto& st = *v.store;
-                c.i32(st.npc).i32(st.vendor).i32(st.hc_idx).str(st.npc_id).u8(st.gamble);
-                c.u16(int(st.perm.size()));
-                for (const auto& p : st.perm) c.str(p);
-                for (const auto& tab : st.tabs) wire::items(c, tab, *s.item_tables);
+        wire::Out chunk;
+        chunk.u8(game_data.item_tables && view.has_character);
+        if (game_data.item_tables && view.has_character) {
+            wire::items(chunk, view.items, *game_data.item_tables);
+            chunk.u8(view.held.has_value());
+            if (view.held) wire::items(chunk, { *view.held }, *game_data.item_tables);
+            chunk.u8(view.store.has_value());
+            if (view.store) {
+                const auto& store = *view.store;
+                chunk.i32(store.npc).i32(store.vendor).i32(store.hc_idx).str(store.npc_id).u8(store.gamble);
+                chunk.u16(int(store.perm.size()));
+                for (const auto& perm_code : store.perm) chunk.str(perm_code);
+                for (const auto& tab : store.tabs) wire::items(chunk, tab, *game_data.item_tables);
             }
         }
-        wire::section(o, enc.section[6], std::move(c.b));
+        wire::section(out, enc.section[6], std::move(chunk.bytes));
     }
     {
-        wire::Out c;
-        c.u16(int(v.hire_offers.size()));
-        for (const auto& h : v.hire_offers)
-            c.i32(h.id).i32(h.level).i32(h.life).i32(h.str).i32(h.dex).i32(h.cost).i32(h.def).i32(h.dmg_min).i32(h.dmg_max)
-             .u32(h.exp).u32(h.seed).i32(h.name);
-        o.u8(1).u32(std::uint32_t(c.b.size()));                  // small: always
-        o.b.insert(o.b.end(), c.b.begin(), c.b.end());
+        wire::Out chunk;
+        chunk.u16(int(view.hire_offers.size()));
+        for (const auto& offer : view.hire_offers)
+            chunk.i32(offer.id).i32(offer.level).i32(offer.life).i32(offer.str).i32(offer.dex).i32(offer.cost).i32(offer.def).i32(offer.dmg_min).i32(offer.dmg_max)
+             .u32(offer.exp).u32(offer.seed).i32(offer.name);
+        out.u8(1).u32(std::uint32_t(chunk.bytes.size()));                  // small: always
+        out.bytes.insert(out.bytes.end(), chunk.bytes.begin(), chunk.bytes.end());
     }
     // Monsters: the looks and states that changed, and those gone.
     {
         std::vector<std::pair<int, std::vector<std::uint8_t>>> looks, states;
         std::unordered_set<int> here;
-        for (const auto& m : v.monsters) {
-            here.insert(m.id);
-            wire::Out l, t;
-            wire::monster_look(l, m);
-            wire::monster_state(t, m);
-            if (auto& was = enc.look[m.id]; was != l.b) { looks.emplace_back(m.id, l.b); was = std::move(l.b); }
-            if (auto& was = enc.state[m.id]; was != t.b) { states.emplace_back(m.id, t.b); was = std::move(t.b); }
+        for (const auto& monster : view.monsters) {
+            here.insert(monster.id);
+            wire::Out look_chunk, state_chunk;
+            wire::monster_look(look_chunk, monster);
+            wire::monster_state(state_chunk, monster);
+            if (auto& was = enc.look[monster.id]; was != look_chunk.bytes) { looks.emplace_back(monster.id, look_chunk.bytes); was = std::move(look_chunk.bytes); }
+            if (auto& was = enc.state[monster.id]; was != state_chunk.bytes) { states.emplace_back(monster.id, state_chunk.bytes); was = std::move(state_chunk.bytes); }
         }
         std::vector<int> gone;
-        for (auto it = enc.look.begin(); it != enc.look.end();)
-            if (!here.contains(it->first)) { gone.push_back(it->first); enc.state.erase(it->first); it = enc.look.erase(it); }
-            else ++it;
+        for (auto entry = enc.look.begin(); entry != enc.look.end();)
+            if (!here.contains(entry->first)) { gone.push_back(entry->first); enc.state.erase(entry->first); entry = enc.look.erase(entry); }
+            else ++entry;
         for (const auto* list : { &looks, &states }) {
-            o.u16(int(list->size()));
-            for (const auto& [id, b] : *list) { o.i32(id); o.b.insert(o.b.end(), b.begin(), b.end()); }
+            out.u16(int(list->size()));
+            for (const auto& [id, encoded] : *list) { out.i32(id); out.bytes.insert(out.bytes.end(), encoded.begin(), encoded.end()); }
         }
-        o.u16(int(gone.size()));
-        for (const int id : gone) o.i32(id);
+        out.u16(int(gone.size()));
+        for (const int id : gone) out.i32(id);
     }
     // NPCs as they patrol: those that changed.
     {
-        enc.npc.resize(v.npc_states.size());
+        enc.npc.resize(view.npc_states.size());
         std::vector<std::size_t> changed;
-        std::vector<std::vector<std::uint8_t>> now(v.npc_states.size());
-        for (std::size_t i = 0; i < v.npc_states.size(); ++i) {
-            wire::Out u;
-            wire::unit(u, v.npc_states[i]);
-            if (u.b != enc.npc[i]) { changed.push_back(i); enc.npc[i] = u.b; }
-            now[i] = std::move(u.b);
+        std::vector<std::vector<std::uint8_t>> now(view.npc_states.size());
+        for (std::size_t i = 0; i < view.npc_states.size(); ++i) {
+            wire::Out unchanged;
+            wire::unit(unchanged, view.npc_states[i]);
+            if (unchanged.bytes != enc.npc[i]) { changed.push_back(i); enc.npc[i] = unchanged.bytes; }
+            now[i] = std::move(unchanged.bytes);
         }
-        o.u16(int(v.npc_states.size())).u16(int(changed.size()));
-        for (const auto i : changed) { o.u16(int(i)); o.b.insert(o.b.end(), now[i].begin(), now[i].end()); }
+        out.u16(int(view.npc_states.size())).u16(int(changed.size()));
+        for (const auto index : changed) { out.u16(int(index)); out.bytes.insert(out.bytes.end(), now[index].begin(), now[index].end()); }
     }
     // What happened: events and sounds (never repeated).
-    o.u16(int(v.events.size()));
-    for (const auto& e : v.events) {
-        if (const auto* lc = std::get_if<ev::LevelChanged>(&e)) o.u8(0).i32(lc->from ? lc->from->id : -1).u8(lc->keep_map);
+    out.u16(int(view.events.size()));
+    for (const auto& event : view.events) {
+        if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) out.u8(0).i32(level_changed->from ? level_changed->from->id : -1).u8(level_changed->keep_map);
         else {
-            const auto& ui = std::get<ev::OpenUI>(e);
-            o.u8(1).u8(int(ui.kind)).i32(ui.npc).u16(int(ui.quest.size()));
-            for (const auto& q : ui.quest) o.i32(q.string).u8(q.greet);
+            const auto& open_ui = std::get<ev::OpenUI>(event);
+            out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
+            for (const auto& message : open_ui.quest) out.i32(message.string).u8(message.greet);
         }
     }
-    o.u16(int(v.sounds.size()));
-    for (const auto& c : v.sounds) o.u32(c.at).i32(c.sound).f32(c.x).f32(c.y);
-    return o.b;
+    out.u16(int(view.sounds.size()));
+    for (const auto& cue : view.sounds) out.u32(cue.when_ms).i32(cue.sound).f32(cue.x).f32(cue.y);
+    return out.bytes;
 }
 
 // The client's side: a View message applied to its last View `v`. False for
 // anything malformed (the client asks for a keyframe).
-inline bool apply_view(const GameData& s, std::span<const std::uint8_t> b, View& v) {
-    if (b.empty() || b[0] != 0x70) return false;
-    wire::In in{ b };
-    auto u8 = [&] { return int(in.get<std::uint8_t>()); };
-    auto u16 = [&] { return int(in.get<std::uint16_t>()); };
-    auto i32 = [&] { return int(in.get<std::int32_t>()); };
-    auto f32 = [&] { return in.get<float>(); };
-    auto u32 = [&] { return in.get<std::uint32_t>(); };
-    if (u8()) { v.monsters.clear(); v.npc_states.clear(); }   // a keyframe
-    v.level = level_of(s, i32());
+inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, View& view) {
+    if (bytes.empty() || bytes[0] != 0x70) return false;
+    wire::In input{ bytes };
+    auto byte = [&] { return int(input.get<std::uint8_t>()); };
+    auto u16 = [&] { return int(input.get<std::uint16_t>()); };
+    auto i32 = [&] { return int(input.get<std::int32_t>()); };
+    auto f32 = [&] { return input.get<float>(); };
+    auto u32 = [&] { return input.get<std::uint32_t>(); };
+    if (byte()) { view.monsters.clear(); view.npc_states.clear(); }   // a keyframe
+    view.level = level_of(game_data, i32());
     // A section's body, or nothing when it's unchanged.
     auto body = [&](auto&& read) {
-        if (!u8()) return;
-        const std::size_t n = u32(), end = in.at + n;
-        if (!in.ok || end > b.size()) { in.ok = false; return; }
+        if (!byte()) return;
+        const std::size_t length = u32(), end = input.offset + length;
+        if (!input.ok || end > bytes.size()) { input.ok = false; return; }
         read();
-        if (in.at != end) in.ok = false;
+        if (input.offset != end) input.ok = false;
     };
     body([&] {
-        v.player = wire::unit(in);
-        v.running = u8(); v.dead = u8(); v.pmode = i32(); v.prate = f32(); v.seq_frame_ms = u32(); v.seq_loop = u8();
-        v.seq.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            const auto m = std::uint8_t(u8()), f = std::uint8_t(u8()), e = std::uint8_t(u8());
-            v.seq.push_back({ m, f, e });
+        view.player = wire::unit(input);
+        view.running = byte(); view.dead = byte(); view.pmode = i32(); view.prate = f32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
+        view.seq.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            const auto mode = std::uint8_t(byte()), frame = std::uint8_t(byte()), event = std::uint8_t(byte());
+            view.seq.push_back({ mode, frame, event });
         }
-        for (auto& g : v.gfx) g = std::uint8_t(u8());
-        v.merc.reset();
-        if (u8()) {
-            const auto type = in.str();
-            const auto mode = wire::intern(in.str());
-            const auto u = wire::unit(in);
-            if (const auto it = s.mercs.find(std::atoi(type.c_str())); it != s.mercs.end()) v.merc = View::Merc{ u, &it->second.npc, mode };
+        for (auto& look_byte : view.gfx) look_byte = std::uint8_t(byte());
+        view.merc.reset();
+        if (byte()) {
+            const auto type = input.str();
+            const auto mode = wire::intern(input.str());
+            const auto unit = wire::unit(input);
+            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode };
         }
-        v.attack = i32(); v.attack_skill = i32(); v.aura = i32(); v.day.phase = i32(); v.day.time = i32(); v.den_cleared = u8() != 0; v.light_bonus = i32(); v.den_state = i32(); v.den_log = i32(); v.den_left = i32();
-        v.boost.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) { const int st = i32(); v.boost.emplace_back(st, i32()); }
-        v.gold_lost = i32();
-        v.buffs.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) v.buffs.push_back(i32());
+        view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32(); view.den_state = i32(); view.den_log = i32(); view.den_left = i32();
+        view.boost.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
+        view.gold_lost = i32();
+        view.buffs.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) view.buffs.push_back(i32());
     });
     body([&] {
-        v.pets.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            auto npc = wire::npc(in);
-            const auto u = wire::unit(in);
-            v.pets.push_back({ std::move(npc), u, wire::intern(in.str()) });
+        view.pets.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            auto npc = wire::npc(input);
+            const auto unit = wire::unit(input);
+            view.pets.push_back({ std::move(npc), unit, wire::intern(input.str()) });
         }
     });
     body([&] {
-        v.missiles.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            const auto name = in.str();
+        view.missiles.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            const auto name = input.str();
             const float x = f32(), y = f32();
-            const int dir = u8();
+            const int dir = byte();
             const auto born = u32();
-            if (const auto it = s.missiles.find(name); it != s.missiles.end()) v.missiles.push_back({ &it->second, x, y, dir, born });
+            if (const auto found = game_data.missiles.find(name); found != game_data.missiles.end()) view.missiles.push_back({ &found->second, x, y, dir, born });
         }
     });
     body([&] {
-        v.ground.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            Loot::GroundItem g;
-            g.id = i32(); g.item.code = in.str(); g.gold = i32(); g.x = f32(); g.y = f32(); g.ms = u32(); g.label = in.str();
-            for (auto& c : g.rgb) c = std::uint8_t(u8());
-            v.ground.push_back(std::move(g));
+        view.ground.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            Loot::GroundItem ground_item;
+            ground_item.id = i32(); ground_item.item.code = input.str(); ground_item.gold = i32(); ground_item.x = f32(); ground_item.y = f32(); ground_item.now_ms = u32(); ground_item.label = input.str();
+            for (auto& channel : ground_item.rgb) channel = std::uint8_t(byte());
+            view.ground.push_back(std::move(ground_item));
         }
     });
     body([&] {
-        v.fires.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
+        view.fires.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
             const float x = f32(), y = f32();
-            v.fires.push_back({ x, y, &s.trap_fires[u8() ? 1 : 0] });
+            view.fires.push_back({ x, y, &game_data.trap_fires[byte() ? 1 : 0] });
         }
-        v.portals.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            View::Portal p{};
-            p.x = f32(); p.y = f32(); p.to = i32(); p.born = u32(); p.which = u8();
-            v.portals.push_back(p);
+        view.portals.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            View::Portal portal{};
+            portal.x = f32(); portal.y = f32(); portal.destination = i32(); portal.born = u32(); portal.which = byte();
+            view.portals.push_back(portal);
         }
-        v.corpses.clear();
-        for (int n = u16(); n > 0 && in.ok; --n) {
-            View::Corpse k{};
-            k.x = f32(); k.y = f32(); k.dir = u8(); k.which = u8();
-            for (auto& g : k.gfx) g = std::uint8_t(u8());
-            v.corpses.push_back(k);
-        }
-    });
-    body([&] {
-        const std::size_t n = u32();
-        if (n == 0 || !s.item_tables) { v.has_character = false; in.at += n; return; }
-        if (in.at + n > b.size()) { in.ok = false; return; }
-        try { v.header = d2d::d2s::parse_header(std::as_bytes(b.subspan(in.at, n))); }
-        catch (const std::exception&) { in.ok = false; return; }
-        in.at += n;
-        v.has_character = true;
-    });
-    body([&] {
-        for (auto& x : v.stats.v) x = u32();
-        for (auto& k : v.stats.skills) k = std::uint8_t(u8());
-    });
-    body([&] {
-        if (!u8() || !s.item_tables) return;
-        v.items = wire::items(in, *s.item_tables);
-        v.held.reset();
-        if (u8()) if (auto h = wire::items(in, *s.item_tables); h.size() == 1) v.held = std::move(h[0]);
-        v.store.reset();
-        if (u8()) {
-            Store st;
-            st.npc = i32(); st.vendor = i32(); st.hc_idx = i32(); st.npc_id = in.str(); st.gamble = u8();
-            for (int k = u16(); k > 0 && in.ok; --k) st.perm.push_back(in.str());
-            for (auto& tab : st.tabs) tab = wire::items(in, *s.item_tables);
-            st.header = v.header;
-            v.store = std::move(st);
+        view.corpses.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            View::Corpse corpse{};
+            corpse.x = f32(); corpse.y = f32(); corpse.dir = byte(); corpse.which = byte();
+            for (auto& look_byte : corpse.gfx) look_byte = std::uint8_t(byte());
+            view.corpses.push_back(corpse);
         }
     });
     body([&] {
-        v.hire_offers.clear();
-        for (int k = u16(); k > 0 && in.ok; --k) {
-            d2d::rules::MercOffer h;
-            h.id = i32(); h.level = i32(); h.life = i32(); h.str = i32(); h.dex = i32(); h.cost = i32(); h.def = i32();
-            h.dmg_min = i32(); h.dmg_max = i32(); h.exp = u32(); h.seed = u32(); h.name = i32();
-            v.hire_offers.push_back(h);
+        const std::size_t length = u32();
+        if (length == 0 || !game_data.item_tables) { view.has_character = false; input.offset += length; return; }
+        if (input.offset + length > bytes.size()) { input.ok = false; return; }
+        try { view.header = d2d::d2s::parse_header(std::as_bytes(bytes.subspan(input.offset, length))); }
+        catch (const std::exception&) { input.ok = false; return; }
+        input.offset += length;
+        view.has_character = true;
+    });
+    body([&] {
+        for (auto& x : view.stats.values) x = u32();
+        for (auto& skill_level : view.stats.skills) skill_level = std::uint8_t(byte());
+    });
+    body([&] {
+        if (!byte() || !game_data.item_tables) return;
+        view.items = wire::items(input, *game_data.item_tables);
+        view.held.reset();
+        if (byte()) if (auto held_items = wire::items(input, *game_data.item_tables); held_items.size() == 1) view.held = std::move(held_items[0]);
+        view.store.reset();
+        if (byte()) {
+            Store store;
+            store.npc = i32(); store.vendor = i32(); store.hc_idx = i32(); store.npc_id = input.str(); store.gamble = byte();
+            for (int k = u16(); k > 0 && input.ok; --k) store.perm.push_back(input.str());
+            for (auto& tab : store.tabs) tab = wire::items(input, *game_data.item_tables);
+            store.header = view.header;
+            view.store = std::move(store);
+        }
+    });
+    body([&] {
+        view.hire_offers.clear();
+        for (int k = u16(); k > 0 && input.ok; --k) {
+            d2d::rules::MercOffer offer;
+            offer.id = i32(); offer.level = i32(); offer.life = i32(); offer.str = i32(); offer.dex = i32(); offer.cost = i32(); offer.def = i32();
+            offer.dmg_min = i32(); offer.dmg_max = i32(); offer.exp = u32(); offer.seed = u32(); offer.name = i32();
+            view.hire_offers.push_back(offer);
         }
     });
     // Monsters: looks (new ones too), states, the gone.
     auto mon = [&](int id) -> Monster& {
-        const int i = v.monster(id);
-        if (i >= 0) return v.monsters[std::size_t(i)];
-        v.monsters.emplace_back().id = id;
-        return v.monsters.back();
+        const int monster_index = view.monster(id);
+        if (monster_index >= 0) return view.monsters[std::size_t(monster_index)];
+        view.monsters.emplace_back().id = id;
+        return view.monsters.back();
     };
-    for (int n = u16(); n > 0 && in.ok; --n) {
-        auto& m = mon(i32());
-        wire::monster_look(in, m);
-        if (m.type < 0 || std::size_t(m.type) >= s.monsters.types.size()) return false;
+    for (int count = u16(); count > 0 && input.ok; --count) {
+        auto& monster = mon(i32());
+        wire::monster_look(input, monster);
+        if (monster.type < 0 || std::size_t(monster.type) >= game_data.monsters.types.size()) return false;
     }
-    for (int n = u16(); n > 0 && in.ok; --n) wire::monster_state(in, mon(i32()));
-    for (int n = u16(); n > 0 && in.ok; --n) {
-        const int i = v.monster(i32());
-        if (i >= 0) v.monsters.erase(v.monsters.begin() + i);
+    for (int count = u16(); count > 0 && input.ok; --count) wire::monster_state(input, mon(i32()));
+    for (int count = u16(); count > 0 && input.ok; --count) {
+        const int monster_index = view.monster(i32());
+        if (monster_index >= 0) view.monsters.erase(view.monsters.begin() + monster_index);
     }
     // NPCs.
-    v.npc_states.resize(std::size_t(u16()));
-    for (int n = u16(); n > 0 && in.ok; --n) {
-        const auto i = std::size_t(u16());
-        auto u = wire::unit(in);
-        if (i < v.npc_states.size()) v.npc_states[i] = u;
+    view.npc_states.resize(std::size_t(u16()));
+    for (int count = u16(); count > 0 && input.ok; --count) {
+        const auto npc_index = std::size_t(u16());
+        auto unit = wire::unit(input);
+        if (npc_index < view.npc_states.size()) view.npc_states[npc_index] = unit;
     }
-    v.events.clear();
-    for (int k = u16(); k > 0 && in.ok; --k) {
-        if (u8() == 0) {
-            const Level* from = level_of(s, i32());
-            const bool keep = u8();
-            if (from) v.events.push_back(ev::LevelChanged{ from, keep });
+    view.events.clear();
+    for (int k = u16(); k > 0 && input.ok; --k) {
+        if (byte() == 0) {
+            const Level* from = level_of(game_data, i32());
+            const bool keep = byte();
+            if (from) view.events.push_back(ev::LevelChanged{ from, keep });
         } else {
-            const auto kind = ev::OpenUI::Kind(u8());
-            ev::OpenUI ui{ kind, i32() };
-            for (int q = u16(); q > 0 && in.ok; --q) { const int str = i32(); ui.quest.push_back({ str, u8() != 0 }); }
-            v.events.push_back(std::move(ui));
+            const auto kind = ev::OpenUI::Kind(byte());
+            ev::OpenUI open_ui{ kind, i32() };
+            for (int count = u16(); count > 0 && input.ok; --count) { const int str = i32(); open_ui.quest.push_back({ str, byte() != 0 }); }
+            view.events.push_back(std::move(open_ui));
         }
     }
-    v.sounds.clear();
-    for (int k = u16(); k > 0 && in.ok; --k) {
-        const auto at = u32();
+    view.sounds.clear();
+    for (int k = u16(); k > 0 && input.ok; --k) {
+        const auto when_ms = u32();
         const int snd = i32();
         const float x = f32(), y = f32();
-        v.sounds.push_back({ at, snd, x, y });
+        view.sounds.push_back({ when_ms, snd, x, y });
     }
-    return in.ok && in.at == b.size() && v.level;
+    return input.ok && input.offset == bytes.size() && view.level;
 }
 
 }  // namespace d2d::game

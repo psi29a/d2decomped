@@ -54,19 +54,19 @@ static int         g_start_cam_y = -1;
 // means none here.
 static bool          g_seed_fixed = false;  // --seed
 static std::uint32_t g_map_seed = 0;
-static std::uint32_t game_seed(const d2d::d2s::Header& h) {
-    if (!g_seed_fixed && h.difficulty[std::size_t(h.active_difficulty())] & 0x80 && h.map_id) return h.map_id;
+static std::uint32_t game_seed(const d2d::d2s::Header& header) {
+    if (!g_seed_fixed && header.difficulty[std::size_t(header.active_difficulty())] & 0x80 && header.map_id) return header.map_id;
     return g_map_seed;
 }
 static int         g_scale = 1;          // window = game res * g_scale
 
-static Screen parse_screen(std::string_view s) {
-    if (s == "credits")    return Screen::Credits;
-    if (s == "charselect") return Screen::CharSelect;
-    if (s == "charcreate") return Screen::CharCreate;
-    if (s == "ingame")     return Screen::InGame;
-    if (s == "video")      return Screen::Video;
-    if (s == "cinematics") return Screen::Cinematics;
+static Screen parse_screen(std::string_view text) {
+    if (text == "credits")    return Screen::Credits;
+    if (text == "charselect") return Screen::CharSelect;
+    if (text == "charcreate") return Screen::CharCreate;
+    if (text == "ingame")     return Screen::InGame;
+    if (text == "video")      return Screen::Video;
+    if (text == "cinematics") return Screen::Cinematics;
     return Screen::Title;
 }
 
@@ -87,10 +87,10 @@ inline void pace_frame(std::uint32_t frame_start_ms) {
     }
 }
 
-int run_windowed(std::vector<std::uint8_t>& fb,
+int run_windowed(std::vector<std::uint8_t>& framebuffer,
                  std::optional<Scene>& scene,
                  const fs::path& save_dir,
-                 d2d::devctl::Channel& ch,
+                 d2d::devctl::Channel& channel,
                  std::atomic<std::uint64_t>& frame_count,
                  std::atomic<bool>& quit) {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -101,13 +101,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     d2d::log::info("Initializing SDL... done! SDL {}.{}.{} ({})", SDL_VERSIONNUM_MAJOR(sdl_v),
                    SDL_VERSIONNUM_MINOR(sdl_v), SDL_VERSIONNUM_MICRO(sdl_v), SDL_GetCurrentVideoDriver());
     Window win;
-    if (!win.open(int(kW), int(kH), g_scale)) { SDL_Quit(); return 1; }
-    d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kW * g_scale, kH * g_scale, g_scale,
-                   SDL_GetRendererName(win.r));
+    if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale)) { SDL_Quit(); return 1; }
+    d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
+                   SDL_GetRendererName(win.renderer));
     Audio audio;
     audio.init();
     if (scene)
-        g_on_button_press = [&] { audio.play_file(audio.ui, *scene, R"(data\global\sfx\cursor\button.wav)"); };
+        g_on_button_press = [&] { audio.play_file(audio.ui_sounds, *scene, R"(data\global\sfx\cursor\button.wav)"); };
     struct ClearHook { ~ClearHook() { g_on_button_press = nullptr; } } clear_hook;   // audio dies with this scope
 
     Screen screen = g_start_screen.empty() ? Screen::Title
@@ -121,13 +121,13 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     d2d::mpq::Stack video_mpqs;
     std::vector<std::string> video_queue;
     if (scene) {
-        for (const char* n : { "d2xvideo.mpq", "d2video.mpq" })
-            if (fs::exists(scene->data_dir / n)) video_mpqs.push(scene->data_dir / n);
+        for (const char* name : { "d2xvideo.mpq", "d2video.mpq" })
+            if (fs::exists(scene->data_dir / name)) video_mpqs.push(scene->data_dir / name);
     }
     if (scene && !video_mpqs.empty() && g_video && (g_start_screen.empty() || g_start_screen == "video")) {
         video_queue = { R"(Data\Local\Video\New_BLIZ640x480.bik)", R"(Data\Local\Video\BlizNorth640x480.bik)" };
         std::string seen;
-        if (std::ifstream in(g_user_dir / "cinematics_seen"); in) std::getline(in, seen, '\0');
+        if (std::ifstream file(g_user_dir / "cinematics_seen"); file) std::getline(file, seen, '\0');
         const char* intro = R"(data\local\video\ENG\d2intro640x292.bik)";
         const char* xintro = R"(data\local\video\ENG\D2x_Intro_640x292.bik)";
         std::string mark;
@@ -137,8 +137,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             video_queue.push_back(xintro); mark = "d2xintro";
         }
         if (!mark.empty()) {
-            std::error_code ec;
-            fs::create_directories(g_user_dir, ec);
+            std::error_code error;
+            fs::create_directories(g_user_dir, error);
             std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << mark << '\n';
         }
         screen = Screen::Video;
@@ -152,40 +152,40 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     Screen video_return = Screen::Title;        // where the video screen goes when done
     auto read_seen = [&] {
         std::string seen;
-        if (std::ifstream in(g_user_dir / "cinematics_seen"); in) std::getline(in, seen, '\0');
+        if (std::ifstream file(g_user_dir / "cinematics_seen"); file) std::getline(file, seen, '\0');
         return seen;
     };
     CinematicsUI cin_ui = scene ? cinematics_ui(*scene, cinematics_unlocked(read_seen())) : CinematicsUI{};
     Screen last_screen = screen;
     Mouse  mouse;
-    TitleUI ui = scene ? title_ui(*scene) : TitleUI{};
+    TitleUI title = scene ? title_ui(*scene) : TitleUI{};
 
     // Char-create UI. Positions from RE'd master-table records; labels
     // from string.tbl by ID (0x13ed = EXIT, 0x13ee = OK per record +0x18).
     // OK/EXIT bottom-row buttons are RE'd as records 0x70ade0 and 0x70ae10
     // — the last two entries of the char-select master table, shared
     // with char-create by convention (see char-create-table.md).
-    CharCreateUI cc;
+    CharCreateUI character;
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {
-            if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
+            if (auto found = lookup_string(*scene, id)) return u16_to_latin1(*found);
             return std::string(fallback);
         };
-        cc.cancel_label   = tbl_label(0x13ed, "EXIT");
-        cc.ok_label       = tbl_label(0x13ee, "OK");
-        cc.hardcore_label = tbl_label(0x1406, "Hardcore");
-        cc.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, cc.cancel_label.c_str(),
+        character.cancel_label   = tbl_label(0x13ed, "EXIT");
+        character.ok_label       = tbl_label(0x13ee, "OK");
+        character.hardcore_label = tbl_label(0x1406, "Hardcore");
+        character.cancel_btn = Button{ 33, rec_top(572, 35), 128, 35, character.cancel_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::CharSelect, /*do_switch=*/true };
         // OK's target is InGame; do_switch flips true per tick once a class
         // is picked AND a name is entered (see the per-frame gate below).
-        cc.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, cc.ok_label.c_str(),
+        character.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, character.ok_label.c_str(),
                                 &scene->medium_sel_button,
                                 Screen::InGame, /*do_switch=*/false };
         // Preload class/name if --start-screen ingame was given.
-        if (g_start_class >= 0 && g_start_class < 7) { cc.selected = g_start_class; cc.character_class = kUiToSaveClass[g_start_class]; }
-        if (!g_start_name.empty()) cc.name = g_start_name;
-        cc.hardcore = g_start_hardcore;
+        if (g_start_class >= 0 && g_start_class < 7) { character.selected = g_start_class; character.character_class = kUiToSaveClass[g_start_class]; }
+        if (!g_start_name.empty()) character.name = g_start_name;
+        character.hardcore = g_start_hardcore;
     }
 
     // Char-select UI, from the LoD init (FUN_0043ae30): records 0xa4..0xa6
@@ -198,7 +198,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     if (scene && !scene->saves.empty()) csu.selected = 0;
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {
-            if (auto v = lookup_string(*scene, id)) return u16_to_latin1(*v);
+            if (auto found = lookup_string(*scene, id)) return u16_to_latin1(*found);
             return std::string(fallback);
         };
         csu.create_label   = tbl_label(0x2a50, "CREATE NEW");
@@ -229,7 +229,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                                  Screen::InGame, /*do_switch=*/false };
     }
 
-    const auto t0 = SDL_GetTicks();
+    const auto start_ticks = SDL_GetTicks();
     // SDL text input only while CharCreate's name field is up. While it's
     // on, macOS routes every key through the input method (IMK); leaving
     // it on everywhere cost ~100 ms inside SDL_PollEvent on Esc in InGame
@@ -237,14 +237,14 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
-    Town t(scene ? &*scene : nullptr, cc, g_start_cam_x, g_start_cam_y);
+    Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     // The characters' saves (character_store.hpp): the World writes through
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
-    t.world.characters = g_no_save ? nullptr : &characters;
+    town.world.characters = g_no_save ? nullptr : &characters;
     if (screen == Screen::InGame && scene) {
-        set_map_seed(*scene, game_seed(cc.header));
-        t.enter();   // --start-screen ingame: the class and name given
+        set_map_seed(*scene, game_seed(character.header));
+        town.enter();   // --start-screen ingame: the class and name given
     }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
@@ -273,7 +273,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
     });
 
     // Input, debug and state verbs for scripted tests (devctl_verbs.hpp).
-    register_game_verbs(ch, win, screen, csu, cc, t, scene, audio);
+    register_game_verbs(channel, win, screen, csu, character, town, scene, audio);
 
     while (!quit) {
         // Signal-driven quit — Ctrl-C / SIGTERM. The atomic write from
@@ -284,8 +284,8 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
         if (const bool want = screen == Screen::CharCreate; want != text_active) {
-            if (want) SDL_StartTextInput(win.w);
-            else      SDL_StopTextInput(win.w);
+            if (want) SDL_StartTextInput(win.window);
+            else      SDL_StopTextInput(win.window);
             text_active = want;
         }
         heartbeat_ms.store(frame_start_ms, std::memory_order_relaxed);
@@ -299,22 +299,22 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         std::vector<SDL_Keycode> keys_this_frame;
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
-        SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
             // SDL3 doesn't rescale event coords under logical presentation;
             // convert so the mouse lands in 800x600 game pixels.
-            SDL_ConvertEventToRenderCoordinates(win.r, &ev);
-            handle_sdl_events(ev, mouse, screen, text_this_frame,
+            SDL_ConvertEventToRenderCoordinates(win.renderer, &event);
+            handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
                             std::memory_order_relaxed);
-        if (ch.active()) ch.pump();
+        if (channel.active()) channel.pump();
 
         const std::uint32_t t_after_input = std::uint32_t(SDL_GetTicks());
         current_phase.store(std::uint32_t(MainPhase::Render),
                             std::memory_order_relaxed);
-        const auto ms = std::uint32_t(SDL_GetTicks() - t0);
+        const auto now_ms = std::uint32_t(SDL_GetTicks() - start_ticks);
         // Level music and ambience belong to the game screen.
         if (screen != Screen::InGame && (audio.music.sound > 0 || audio.music_old.src)) {
             audio.stop(audio.music);
@@ -338,10 +338,10 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 R"(data\global\music\act2\sewer.wav)", R"(data\global\music\act3\kurast.wav)",
                 R"(data\global\music\act3\kurastsewer.wav)", R"(data\global\music\act4\diablo.wav)" };
             if (std::ranges::all_of(frontend_played, std::identity{})) frontend_played.fill(false);
-            int i = t.rng(8);
-            while (frontend_played[std::size_t(i)]) i = (i + 1) % 8;
-            frontend_played[std::size_t(i)] = true;
-            audio.play_music_path(*scene, kFrontendMusic[i], -(i + 1), 1.f, false);
+            int pick = town.rng(8);
+            while (frontend_played[std::size_t(pick)]) pick = (pick + 1) % 8;
+            frontend_played[std::size_t(pick)] = true;
+            audio.play_music_path(*scene, kFrontendMusic[pick], -(pick + 1), 1.f, false);
         }
         if (scene) {
             switch (screen) {
@@ -352,37 +352,37 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 while (!video_playing && !video_queue.empty()) {
                     const std::string path = video_queue.front();
                     video_queue.erase(video_queue.begin());
-                    auto f = video_mpqs.open(path);
+                    auto file = video_mpqs.open(path);
                     const bool letterbox = path.find("x292") != std::string::npos;
-                    if (f && video.open(std::move(*f), int(kW), letterbox ? int(kH) * 292 / 480 : int(kH))) {
+                    if (file && video.open(std::move(*file), int(kScreenWidth), letterbox ? int(kScreenHeight) * 292 / 480 : int(kScreenHeight))) {
                         video_playing = true;
-                        video_start = ms;
+                        video_start = now_ms;
                         audio.video_start(video.sample_rate());
                     }
                 }
                 if (!video_playing) { screen = video_return; video_return = Screen::Title; break; }
-                if (!video.advance(double(ms - video_start) / 1000.0)) {
+                if (!video.advance(double(now_ms - video_start) / 1000.0)) {
                     video_playing = false;
                     audio.video_stop();
                 }
                 audio.video_feed(video.audio());
-                std::fill(fb.begin(), fb.end(), std::uint8_t{0});
-                for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
-                const int y0 = (int(kH) - video.height()) / 2;
-                const auto& px = video.rgba();
+                std::fill(framebuffer.begin(), framebuffer.end(), std::uint8_t{0});
+                for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
+                const int top = (int(kScreenHeight) - video.height()) / 2;
+                const auto& pixels = video.rgba();
                 for (int y = 0; y < video.height(); ++y)
-                    std::memcpy(&fb[(std::size_t(y0 + y) * kW) * 4], &px[std::size_t(y) * kW * 4], std::size_t(kW) * 4);
+                    std::memcpy(&framebuffer[(std::size_t(top + y) * kScreenWidth) * 4], &pixels[std::size_t(y) * kScreenWidth * 4], std::size_t(kScreenWidth) * 4);
                 break;
             }
             case Screen::Cinematics: {
                 if (prev_screen != Screen::Cinematics)             // entering: refresh what's unlocked
                     cin_ui = cinematics_ui(*scene, cinematics_unlocked(read_seen()));
                 for (int i = 0; i < 7; ++i) {
-                    auto& b = cin_ui.entry[std::size_t(i)];
-                    if (i >= cin_ui.unlocked) { b.hovered = b.pressed = false; continue; }
+                    auto& entry = cin_ui.entry[std::size_t(i)];
+                    if (i >= cin_ui.unlocked) { entry.hovered = entry.pressed = false; continue; }
                     Screen dummy = screen;
-                    update_button(b, mouse, dummy, quit);
-                    if (b.hovered && mouse.release_this_frame && video_mpqs.contains(kCinematicVideo[std::size_t(i)])) {
+                    update_button(entry, mouse, dummy, quit);
+                    if (entry.hovered && mouse.release_this_frame && video_mpqs.contains(kCinematicVideo[std::size_t(i)])) {
                         video_queue = { kCinematicVideo[std::size_t(i)] };
                         video_return = Screen::Cinematics;
                         audio.stop(audio.music);
@@ -390,7 +390,7 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     }
                 }
                 if (update_button(cin_ui.cancel, mouse, screen, quit)) { quit = false; screen = Screen::Title; }
-                render_cinematics(fb, *scene, cin_ui);
+                render_cinematics(framebuffer, *scene, cin_ui);
                 break;
             }
             case Screen::Title:
@@ -399,26 +399,26 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                     video_playing = false;
                     video_queue.clear();
                 }
-                for (auto& b : ui.buttons) update_button(b, mouse, screen, quit);
-                render_title(fb, *scene, ui.buttons, ms);
+                for (auto& button : title.buttons) update_button(button, mouse, screen, quit);
+                render_title(framebuffer, *scene, title.buttons, now_ms);
                 break;
             case Screen::Credits:
                 if (mouse.release_this_frame) screen = Screen::Title;
-                render_credits(fb, *scene, ms);
+                render_credits(framebuffer, *scene, now_ms);
                 break;
             case Screen::CharSelect: {
-                const int n = int(scene->saves.size());
-                const int max_scroll = charselect_max_scroll(n);
+                const int count = int(scene->saves.size());
+                const int max_scroll = charselect_max_scroll(count);
                 int rows = -mouse.wheel;   // wheel up = scroll toward the top
                 bool play = false;
                 if (mouse.press_this_frame) {
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
-                    if (slot >= 0 && csu.scroll + slot < n) {
+                    if (slot >= 0 && csu.scroll + slot < count) {
                         // A second press on the same character within
                         // 500 ms plays it, like OK (FUN_0043a9d0).
-                        play = csu.selected == csu.scroll + slot && ms - csu.last_click_ms < 500;
+                        play = csu.selected == csu.scroll + slot && now_ms - csu.last_click_ms < 500;
                         csu.selected = csu.scroll + slot;
-                        csu.last_click_ms = ms;
+                        csu.last_click_ms = now_ms;
                     }
                     // Scrollbar arrows (only live while the bar is shown).
                     if (max_scroll > 0 && mouse.x >= kScrollX
@@ -434,53 +434,53 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 // ends, Left/Right only move within the row (2 columns),
                 // Up/Down a whole row; the list scrolls to keep the pick
                 // on screen. Enter plays it.
-                for (const auto k : keys_this_frame) {
-                    if (n == 0) break;
+                for (const auto key : keys_this_frame) {
+                    if (count == 0) break;
                     int& sel = csu.selected;
                     if (sel < 0) sel = 0;
-                    else if (k == SDLK_HOME)                       sel = 0;
-                    else if (k == SDLK_END)                        sel = n - 1;
-                    else if (k == SDLK_LEFT  && sel % 2 == 1)      sel -= 1;
-                    else if (k == SDLK_RIGHT && sel % 2 == 0 && sel + 1 < n) sel += 1;
-                    else if (k == SDLK_UP    && sel >= 2)          sel -= 2;
-                    else if (k == SDLK_DOWN  && sel + 2 < n)       sel += 2;
-                    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) play = true;
+                    else if (key == SDLK_HOME)                       sel = 0;
+                    else if (key == SDLK_END)                        sel = count - 1;
+                    else if (key == SDLK_LEFT  && sel % 2 == 1)      sel -= 1;
+                    else if (key == SDLK_RIGHT && sel % 2 == 0 && sel + 1 < count) sel += 1;
+                    else if (key == SDLK_UP    && sel >= 2)          sel -= 2;
+                    else if (key == SDLK_DOWN  && sel + 2 < count)       sel += 2;
+                    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) play = true;
                     const int row0 = sel / 2 * 2;
                     if (row0 < csu.scroll) csu.scroll = row0;
                     if (row0 > csu.scroll + kSlots - 2) csu.scroll = row0 - (kSlots - 2);
                 }
                 // OK only enters the game with a save picked.
                 csu.ok_btn.do_switch = csu.selected >= 0;
-                for (Button* b : {&csu.create_btn, &csu.convert_btn, &csu.delete_btn,
+                for (Button* button : {&csu.create_btn, &csu.convert_btn, &csu.delete_btn,
                                   &csu.cancel_btn, &csu.ok_btn})
-                    update_button(*b, mouse, screen, quit);
-                if (play && csu.selected >= 0 && csu.selected < n) screen = Screen::InGame;
+                    update_button(*button, mouse, screen, quit);
+                if (play && csu.selected >= 0 && csu.selected < count) screen = Screen::InGame;
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
-                    const auto& h = scene->saves[std::size_t(csu.selected)];
-                    cc.selected   = kSaveClassToUi[h.cls];
-                    cc.character_class = h.cls;
-                    cc.name = h.name;
-                    cc.hardcore   = h.hardcore();
-                    cc.appearance = h.look();
-                    cc.items = csu.selected < int(scene->save_items.size())
+                    const auto& header = scene->saves[std::size_t(csu.selected)];
+                    character.selected   = kSaveClassToUi[header.cls];
+                    character.character_class = header.cls;
+                    character.name = header.name;
+                    character.hardcore   = header.hardcore();
+                    character.appearance = header.look();
+                    character.items = csu.selected < int(scene->save_items.size())
                                    ? scene->save_items[std::size_t(csu.selected)]
                                    : std::vector<d2d::d2s::Item>{};
-                    cc.stats = csu.selected < int(scene->save_stats.size())
+                    character.stats = csu.selected < int(scene->save_stats.size())
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
-                    cc.corpse = csu.selected < int(scene->save_corpses.size())
+                    character.corpse = csu.selected < int(scene->save_corpses.size())
                                     ? scene->save_corpses[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
-                    cc.panel = panel_stats(*scene, h, cc.items, cc.stats);
-                    cc.expansion = h.expansion();
-                    cc.header = h;
-                    set_map_seed(*scene, game_seed(cc.header));
-                    t.enter();                                // the World takes the character
+                    character.panel = panel_stats(*scene, header, character.items, character.stats);
+                    character.expansion = header.expansion();
+                    character.header = header;
+                    set_map_seed(*scene, game_seed(character.header));
+                    town.enter();                                // the World takes the character
                 }
-                render_charselect(fb, *scene, csu, ms);
+                render_charselect(framebuffer, *scene, csu, now_ms);
                 break;
             }
             case Screen::InGame: {
-                t.update(fb, mouse, keys_this_frame, screen, audio, ms, last_ms);
+                town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
                 if (screen == Screen::CharSelect && scene) {         // left the game (saved): the roster again,
                     load_saves(*scene, save_dir);                      // the character just played first
                     csu.selected = scene->saves.empty() ? -1 : 0;
@@ -489,50 +489,50 @@ int run_windowed(std::vector<std::uint8_t>& fb,
                 break;
             }
             case Screen::CharCreate: {
-                cc.appearance.reset();   // a new character wears starting gear
-                cc.items.clear();
-                cc.stats = {};
+                character.appearance.reset();   // a new character wears starting gear
+                character.items.clear();
+                character.stats = {};
                 // Text input into the name buffer (15-char cap = D2's
                 // character-record name limit).
                 if (!text_this_frame.empty()) {
-                    for (char c : text_this_frame) {
-                        if (cc.name.size() < 15) cc.name.push_back(c);
+                    for (char letter : text_this_frame) {
+                        if (character.name.size() < 15) character.name.push_back(letter);
                     }
                 }
-                if (backspace_this_frame && !cc.name.empty())
-                    cc.name.pop_back();
+                if (backspace_this_frame && !character.name.empty())
+                    character.name.pop_back();
 
                 // OK is only enabled once a class is picked and a name is
                 // entered — mirrors D2's OK-button gating.
-                cc.ok_btn.do_switch = (cc.selected >= 0 && !cc.name.empty());
-                update_button(cc.cancel_btn, mouse, screen, quit);
-                update_button(cc.ok_btn,     mouse, screen, quit);
-                if (!cc.cancel_btn.hovered && !cc.ok_btn.hovered)
-                    handle_charcreate_click(cc, mouse, ms);
+                character.ok_btn.do_switch = (character.selected >= 0 && !character.name.empty());
+                update_button(character.cancel_btn, mouse, screen, quit);
+                update_button(character.ok_btn,     mouse, screen, quit);
+                if (!character.cancel_btn.hovered && !character.ok_btn.hovered)
+                    handle_charcreate_click(character, mouse, now_ms);
                 // OK: a new character (CharStats.txt's start), saved at once so
                 // it's on the roster. A name that has a save already is refused.
                 if (screen == Screen::InGame && scene) {
-                    if (fs::exists(characters.path(cc.name))) {
-                        d2d::log::info("a character named {} exists already", cc.name);
+                    if (fs::exists(characters.path(character.name))) {
+                        d2d::log::info("a character named {} exists already", character.name);
                         screen = Screen::CharCreate;
                     } else {
-                        cc.character_class = kUiToSaveClass[std::size_t(std::max(cc.selected, 0))];
-                        auto n = new_character(*scene, cc.character_class, cc.name,
-                                               cc.hardcore, cc.expansion, t.rng);
-                        cc.header = std::move(n.header);
-                        cc.stats = n.stats;
-                        cc.items = std::move(n.items);
-                        cc.corpse.clear();
-                        cc.appearance.reset();
-                        cc.panel = panel_stats(*scene, cc.header, cc.items, cc.stats);
-                        set_map_seed(*scene, game_seed(cc.header));
-                        t.enter();
-                        t.save();
+                        character.character_class = kUiToSaveClass[std::size_t(std::max(character.selected, 0))];
+                        auto made = new_character(*scene, character.character_class, character.name,
+                                               character.hardcore, character.expansion, town.rng);
+                        character.header = std::move(made.header);
+                        character.stats = made.stats;
+                        character.items = std::move(made.items);
+                        character.corpse.clear();
+                        character.appearance.reset();
+                        character.panel = panel_stats(*scene, character.header, character.items, character.stats);
+                        set_map_seed(*scene, game_seed(character.header));
+                        town.enter();
+                        town.save();
                         load_saves(*scene, save_dir);
                     }
                 }
-                advance_char_states(cc, *scene, ms);
-                render_charcreate(fb, *scene, cc, ms);
+                advance_char_states(character, *scene, now_ms);
+                render_charcreate(framebuffer, *scene, character, now_ms);
                 break;
             }
             }
@@ -542,18 +542,18 @@ int run_windowed(std::vector<std::uint8_t>& fb,
             // the screen underneath.
             // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
-            if (screen == Screen::InGame && t.held) {
-                draw_held(fb, *scene, *t.held, mouse.x, mouse.y);
+            if (screen == Screen::InGame && town.held) {
+                draw_held(framebuffer, *scene, *town.held, mouse.x, mouse.y);
             } else if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
-                const auto& f = scene->cursor.frame(0, mouse.down ? 7 : 0);
-                blit_sprite(fb, f, pal, mouse.x + f.offset_x,
-                            mouse.y + f.offset_y - int(f.height) + 1);
+                const auto& frame = scene->cursor.frame(0, mouse.down ? 7 : 0);
+                blit_sprite(framebuffer, frame, pal, mouse.x + frame.offset_x,
+                            mouse.y + frame.offset_y - int(frame.height) + 1);
             }
         } else {
-            paint_test_pattern(fb);
+            paint_test_pattern(framebuffer);
         }
 
         const std::uint32_t t_after_render = std::uint32_t(SDL_GetTicks());
@@ -561,20 +561,20 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         // stalls if we keep pushing frames to a hidden drawable, which
         // is the classic macOS beachball trigger for SDL apps that
         // don't gate render on window visibility.
-        const auto wflags = SDL_GetWindowFlags(win.w);
+        const auto wflags = SDL_GetWindowFlags(win.window);
         if (!(wflags & SDL_WINDOW_MINIMIZED)) {
             current_phase.store(std::uint32_t(MainPhase::Upload),
                                 std::memory_order_relaxed);
-            SDL_UpdateTexture(win.t, nullptr, fb.data(), int(kW * 4));
-            SDL_RenderClear(win.r);
-            SDL_RenderTexture(win.r, win.t, nullptr, nullptr);
+            SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
+            SDL_RenderClear(win.renderer);
+            SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
             current_phase.store(std::uint32_t(MainPhase::Present),
                                 std::memory_order_relaxed);
-            SDL_RenderPresent(win.r);
+            SDL_RenderPresent(win.renderer);
         }
         const std::uint32_t t_after_present = std::uint32_t(SDL_GetTicks());
         if (++frame_count == 1) d2d::log::info("First frame presented at {} ms after launch.", d2d::log::ms());
-        last_ms = ms;
+        last_ms = now_ms;
         // Per-frame diagnostics — break the frame into `input` (SDL event
         // pump + devctl; macOS blocks in here during window drags / focus
         // changes), `render` (our CPU blits into the framebuffer) and
@@ -602,25 +602,25 @@ int run_windowed(std::vector<std::uint8_t>& fb,
         if (dt_input > 100 || dt_render > 100 || dt_present > 100) {
             d2d::log::warn(
                 "slow frame: input={} ms render={} ms present={} ms screen={} cam=({},{})",
-                dt_input, dt_render, dt_present, int(screen), int(t.player.x), int(t.player.y));
+                dt_input, dt_render, dt_present, int(screen), int(town.player.x), int(town.player.y));
         }
-        if (ms - stat_last_report_ms >= 5000) {
+        if (now_ms - stat_last_report_ms >= 5000) {
             const std::uint32_t avg_r = stat_frames ? stat_render_sum  / stat_frames : 0;
             const std::uint32_t avg_p = stat_frames ? stat_present_sum / stat_frames : 0;
             d2d::log::info(
                 "alive: {} frames/5s | input max={} | render avg={} max={} | present avg={} max={} | screen={} cam=({},{})",
                 stat_frames, stat_input_max, avg_r, stat_render_max, avg_p, stat_present_max,
-                int(screen), int(t.player.x), int(t.player.y));
+                int(screen), int(town.player.x), int(town.player.y));
             stat_frames = 0;      stat_input_max = 0;
             stat_render_sum = 0;  stat_render_max = 0;
             stat_present_sum = 0; stat_present_max = 0;
-            stat_last_report_ms = ms;
+            stat_last_report_ms = now_ms;
         }
         current_phase.store(std::uint32_t(MainPhase::PaceDelay),
                             std::memory_order_relaxed);
         pace_frame(frame_start_ms);
     }
-    if (screen == Screen::InGame) t.save();   // quitting from the game saves it
+    if (screen == Screen::InGame) town.save();   // quitting from the game saves it
     // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
     // and touch stale pointers.
     watchdog_stop.store(true, std::memory_order_relaxed);
@@ -673,10 +673,10 @@ int main(int argc, char** argv) {
     d2d::log::info("d2d — Diablo II re-implementation (dev build)");
     d2d::log::info("  User dir: {}", user_dir.string());
     d2d::userdir::Config cfg;
-    for (const auto& d : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
-        if (fs::exists(d / "d2d.cfg")) {
-            d2d::userdir::load_cfg(d / "d2d.cfg", cfg);
-            d2d::log::info("  Config: {}", (d / "d2d.cfg").string());
+    for (const auto& dir : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
+        if (fs::exists(dir / "d2d.cfg")) {
+            d2d::userdir::load_cfg(dir / "d2d.cfg", cfg);
+            d2d::log::info("  Config: {}", (dir / "d2d.cfg").string());
         }
 
     std::string devctl_path;
@@ -726,16 +726,16 @@ int main(int argc, char** argv) {
                    "InGame camera y (grid cell)");
     try {
         app.parse(argc, argv);
-    } catch (const CLI::ParseError& e) {
-        return app.exit(e);
+    } catch (const CLI::ParseError& error) {
+        return app.exit(error);
     }
     g_seed_fixed = app.count("--seed") > 0;
     g_map_seed = map_seed;
     data_dir = data_dir_str;
     d2d::log::info("  Data dir: {}", data_dir.string());
 
-    std::vector<std::uint8_t> fb(std::size_t(kW) * kH * 4, 0);
-    for (std::size_t i = 3; i < fb.size(); i += 4) fb[i] = 0xFF;
+    std::vector<std::uint8_t> framebuffer(std::size_t(kScreenWidth) * kScreenHeight * 4, 0);
+    for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
     auto scene = load_scene(data_dir, cfg["patch"], map_seed);   // nullopt if MPQ dir is missing
     if (scene) load_saves(*scene, save_dir);
     if (scene && !scene->saves.empty()) set_map_seed(*scene, game_seed(scene->saves.front()));   // the likely pick's map
@@ -744,24 +744,24 @@ int main(int argc, char** argv) {
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
 
-    d2d::devctl::Channel ch;
-    ch.on("info", [&](const std::vector<std::string>&) {
-        return "w=" + std::to_string(kW) + " h=" + std::to_string(kH)
+    d2d::devctl::Channel channel;
+    channel.on("info", [&](const std::vector<std::string>&) {
+        return "w=" + std::to_string(kScreenWidth) + " h=" + std::to_string(kScreenHeight)
              + " frame=" + std::to_string(frame_count.load()) + "\nok\n";
     });
-    ch.on("screenshot", [&](const std::vector<std::string>& args) {
+    channel.on("screenshot", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err screenshot <path>\n");
         // Relative paths land in the user screenshots dir.
         const fs::path out = fs::path(args[1]).is_relative() ? shot_dir / args[1]
                                                              : fs::path(args[1]);
-        const auto n = d2d::screenshot::save_png(out, fb, kW, kH);
-        return "ok " + std::to_string(n) + "\n";
+        const auto written = d2d::screenshot::save_png(out, framebuffer, kScreenWidth, kScreenHeight);
+        return "ok " + std::to_string(written) + "\n";
     });
-    ch.on("quit", [&](const std::vector<std::string>&) {
+    channel.on("quit", [&](const std::vector<std::string>&) {
         quit = true;
         return std::string("ok\n");
     });
-    ch.listen(devctl_path);
+    channel.listen(devctl_path);
 
     g_start_screen   = start_screen;
     g_video          = !no_video && cfg["video"] != "0";
@@ -774,14 +774,14 @@ int main(int argc, char** argv) {
             const auto comma = rest.find(',');
             const auto item = rest.substr(0, comma);
             rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
-            const auto eq = item.find('=');
-            const auto name = item.substr(0, eq), value = eq == std::string_view::npos ? std::string_view("on") : item.substr(eq + 1);
-            const auto t = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
-            if (t == std::end(kToggles) || (value != "on" && value != "off")) {
+            const auto equals_at = item.find('=');
+            const auto name = item.substr(0, equals_at), value = equals_at == std::string_view::npos ? std::string_view("on") : item.substr(equals_at + 1);
+            const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
+            if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
                 d2d::log::warn("--toggle: unknown '{}' (known: trans_roof; values on|off)", std::string(item));
                 continue;
             }
-            *t->second = value == "on";
+            *toggle->second = value == "on";
         }
     }
     g_user_dir       = user_dir;
@@ -794,7 +794,7 @@ int main(int argc, char** argv) {
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
 
     if (headless) {
-        if (!ch.active()) {
+        if (!channel.active()) {
             d2d::log::info("--headless with no --devctl has nothing to do. exiting.");
             return 0;
         }
@@ -806,5 +806,5 @@ int main(int argc, char** argv) {
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
         if (!std::getenv("ALSOFT_DRIVERS")) SDL_setenv_unsafe("ALSOFT_DRIVERS", "null", 1);   // openal-soft's silent backend
     }
-    return run_windowed(fb, scene, save_dir, ch, frame_count, quit);
+    return run_windowed(framebuffer, scene, save_dir, channel, frame_count, quit);
 }

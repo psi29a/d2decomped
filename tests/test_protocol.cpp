@@ -15,23 +15,23 @@ int main() {
         cmd::ToBelt{ 7 }, cmd::OpenTrade{ 3, true }, cmd::OpenTrade{ 3, false }, cmd::OpenHire{ 8 }, cmd::Buy{ 2 },
         cmd::Sell{ 55 }, cmd::Repair{ -1 }, cmd::Identify{}, cmd::Hire{ 1 }, cmd::CloseTrade{}, cmd::Run{ true }, cmd::Run{ false },
         cmd::Chat{ 4 }, cmd::Chat{ -1 }, cmd::QuestMessage{ 3, 76 }, cmd::Respec{ 2 } };
-    for (const auto& c : all) {
-        const auto b = encode(c);
-        const auto back = decode(b);
-        assert(back && back->index() == c.index());
-        assert(encode(*back) == b);                      // same fields: the same bytes
+    for (const auto& command : all) {
+        const auto bytes = encode(command);
+        const auto back = decode(bytes);
+        assert(back && back->index() == command.index());
+        assert(encode(*back) == bytes);                      // same fields: the same bytes
     }
     // Through the transport, in order.
-    LocalTransport t;
-    for (const auto& c : all) t.send(c);
-    const auto got = t.receive();
-    assert(got.size() == all.size() && t.receive().empty());
+    LocalTransport transport;
+    for (const auto& command : all) transport.send(command);
+    const auto got = transport.receive();
+    assert(got.size() == all.size() && transport.receive().empty());
     for (std::size_t i = 0; i < all.size(); ++i) assert(got[i].index() == all[i].index());
     // Malformed: empty, unknown id, short, trailing bytes.
-    auto m = encode(cmd::Pickup{ 1 });
+    auto message = encode(cmd::Pickup{ 1 });
     assert(!decode({}) && !decode(std::vector<std::uint8_t>{ 0xee }));
-    assert(!decode(std::span(m).first(m.size() - 1)));
-    m.push_back(0);
-    assert(!decode(m));
+    assert(!decode(std::span(message).first(message.size() - 1)));
+    message.push_back(0);
+    assert(!decode(message));
     std::puts("ok");
 }

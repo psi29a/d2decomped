@@ -71,7 +71,7 @@ struct CloseTrade {};
 // to her; d2d tells it apart with kind 3).
 struct Respec { int npc = -1; };
 // 0x53 / 0x54: run or walk.
-struct Run { bool on = false; };
+struct Run { bool running = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
 // it stands meanwhile), -1 none.
 struct Chat { int npc = -1; };
@@ -93,125 +93,125 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
 // codec's (docs/research/re/network.md).
 namespace wire {
 struct Out {
-    std::vector<std::uint8_t> b;
-    template <class T> Out& put(T v) {
+    std::vector<std::uint8_t> bytes;
+    template <class T> Out& put(T value) {
         static_assert(std::is_trivially_copyable_v<T>);
-        const auto at = b.size();
-        b.resize(at + sizeof v);
-        std::memcpy(b.data() + at, &v, sizeof v);
+        const auto offset = bytes.size();
+        bytes.resize(offset + sizeof value);
+        std::memcpy(bytes.data() + offset, &value, sizeof value);
         return *this;
     }
-    Out& u8(int v) { return put(std::uint8_t(v)); }
-    Out& u16(int v) { return put(std::uint16_t(v)); }
-    Out& i32(int v) { return put(std::int32_t(v)); }
-    Out& u32(std::uint32_t v) { return put(v); }
-    Out& f32(float v) { return put(v); }
-    Out& str(std::string_view v) {
-        u16(int(v.size()));
-        b.insert(b.end(), v.begin(), v.end());
+    Out& u8(int value) { return put(std::uint8_t(value)); }
+    Out& u16(int value) { return put(std::uint16_t(value)); }
+    Out& i32(int value) { return put(std::int32_t(value)); }
+    Out& u32(std::uint32_t value) { return put(value); }
+    Out& f32(float value) { return put(value); }
+    Out& str(std::string_view text) {
+        u16(int(text.size()));
+        bytes.insert(bytes.end(), text.begin(), text.end());
         return *this;
     }
 };
 struct In {
-    std::span<const std::uint8_t> b;
-    std::size_t at = 1;
+    std::span<const std::uint8_t> bytes;
+    std::size_t offset = 1;
     bool ok = true;
     std::string str() {
-        const std::size_t n = get<std::uint16_t>();
-        if (!ok || at + n > b.size()) { ok = false; return {}; }
-        std::string v(reinterpret_cast<const char*>(b.data() + at), n);
-        at += n;
-        return v;
+        const std::size_t length = get<std::uint16_t>();
+        if (!ok || offset + length > bytes.size()) { ok = false; return {}; }
+        std::string text(reinterpret_cast<const char*>(bytes.data() + offset), length);
+        offset += length;
+        return text;
     }
     template <class T> T get() {
-        T v{};
-        if (at + sizeof v > b.size()) { ok = false; return v; }
-        std::memcpy(&v, b.data() + at, sizeof v);
-        at += sizeof v;
-        return v;
+        T value{};
+        if (offset + sizeof value > bytes.size()) { ok = false; return value; }
+        std::memcpy(&value, bytes.data() + offset, sizeof value);
+        offset += sizeof value;
+        return value;
     }
 };
 }  // namespace wire
 
-inline std::vector<std::uint8_t> encode(const Command& c) {
-    wire::Out o;
-    std::visit([&](const auto& m) {
-        using T = std::decay_t<decltype(m)>;
-        if constexpr (std::is_same_v<T, cmd::Move>) o.u8(0x01).f32(m.x).f32(m.y).u8(m.fresh);
-        else if constexpr (std::is_same_v<T, cmd::UseSkill>) o.u8(m.left ? 0x05 : 0x0c).i32(m.skill).f32(m.x).f32(m.y).i32(m.unit);
-        else if constexpr (std::is_same_v<T, cmd::Interact>) o.u8(0x13).i32(m.npc);
-        else if constexpr (std::is_same_v<T, cmd::Pickup>) o.u8(0x16).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::Resurrect>) o.u8(0x41);
-        else if constexpr (std::is_same_v<T, cmd::StatPoint>) o.u8(0x3a).i32(m.stat).i32(m.count);
-        else if constexpr (std::is_same_v<T, cmd::SkillPoint>) o.u8(0x3b).i32(m.skill);
-        else if constexpr (std::is_same_v<T, cmd::SelectSkill>) o.u8(0x3c).i32(m.skill).u8(m.left);
-        else if constexpr (std::is_same_v<T, cmd::UseBelt>) o.u8(0x26).i32(m.slot);
-        else if constexpr (std::is_same_v<T, cmd::UseItem>) o.u8(0x20).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::ToCursor>) o.u8(0x19).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::Drop>) o.u8(0x17).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::ToGrid>) o.u8(0x18).i32(m.panel).i32(m.col).i32(m.row);
-        else if constexpr (std::is_same_v<T, cmd::ToBody>) o.u8(0x1a).i32(m.slot);
-        else if constexpr (std::is_same_v<T, cmd::ToBelt>) o.u8(0x23).i32(m.box);
-        else if constexpr (std::is_same_v<T, cmd::OpenTrade>) o.u8(0x38).u8(m.gamble ? 1 : 0).i32(m.npc);
-        else if constexpr (std::is_same_v<T, cmd::OpenHire>) o.u8(0x38).u8(2).i32(m.npc);
-        else if constexpr (std::is_same_v<T, cmd::Respec>) o.u8(0x38).u8(3).i32(m.npc);
-        else if constexpr (std::is_same_v<T, cmd::Buy>) o.u8(0x32).i32(m.stock);
-        else if constexpr (std::is_same_v<T, cmd::Sell>) o.u8(0x33).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::Repair>) o.u8(0x35).i32(m.item);
-        else if constexpr (std::is_same_v<T, cmd::Identify>) o.u8(0x34);
-        else if constexpr (std::is_same_v<T, cmd::Hire>) o.u8(0x36).i32(m.offer);
-        else if constexpr (std::is_same_v<T, cmd::CloseTrade>) o.u8(0x30);
-        else if constexpr (std::is_same_v<T, cmd::Run>) o.u8(m.on ? 0x53 : 0x54);
-        else if constexpr (std::is_same_v<T, cmd::Chat>) o.u8(0x2f).i32(m.npc);
-        else if constexpr (std::is_same_v<T, cmd::QuestMessage>) o.u8(0x31).i32(m.npc).i32(m.string);
+inline std::vector<std::uint8_t> encode(const Command& command) {
+    wire::Out out;
+    std::visit([&](const auto& message) {
+        using T = std::decay_t<decltype(message)>;
+        if constexpr (std::is_same_v<T, cmd::Move>) out.u8(0x01).f32(message.x).f32(message.y).u8(message.fresh);
+        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? 0x05 : 0x0c).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit);
+        else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(0x13).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(0x16).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(0x41);
+        else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(0x3a).i32(message.stat).i32(message.count);
+        else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(0x3b).i32(message.skill);
+        else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(0x3c).i32(message.skill).u8(message.left);
+        else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(0x26).i32(message.slot);
+        else if constexpr (std::is_same_v<T, cmd::UseItem>) out.u8(0x20).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ToCursor>) out.u8(0x19).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Drop>) out.u8(0x17).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(0x18).i32(message.panel).i32(message.col).i32(message.row);
+        else if constexpr (std::is_same_v<T, cmd::ToBody>) out.u8(0x1a).i32(message.slot);
+        else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(0x23).i32(message.box);
+        else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(0x38).u8(message.gamble ? 1 : 0).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(0x38).u8(2).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(0x38).u8(3).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(0x32).i32(message.stock);
+        else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(0x33).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(0x35).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(0x34);
+        else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(0x36).i32(message.offer);
+        else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(0x30);
+        else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? 0x53 : 0x54);
+        else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(0x2f).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(0x31).i32(message.npc).i32(message.string);
         else static_assert(!sizeof(T), "a command without a wire form");
-    }, c);
-    return o.b;
+    }, command);
+    return out.bytes;
 }
 
 // A command back from its wire form; nullopt for anything malformed (the
 // server drops it: what comes over a transport is untrusted).
-inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
-    if (b.empty()) return std::nullopt;
-    wire::In in{ b };
-    auto i32 = [&] { return int(in.get<std::int32_t>()); };
-    auto f32 = [&] { return in.get<float>(); };
-    auto u8 = [&] { return int(in.get<std::uint8_t>()); };
-    std::optional<Command> c;
-    switch (b[0]) {
-        case 0x01: { const float x = f32(), y = f32(); c = cmd::Move{ x, y, u8() != 0 }; break; }
-        case 0x05: case 0x0c: { const int k = i32(); const float x = f32(), y = f32(); c = cmd::UseSkill{ k, x, y, i32(), b[0] == 0x05 }; break; }
-        case 0x13: c = cmd::Interact{ i32() }; break;
-        case 0x16: c = cmd::Pickup{ i32() }; break;
-        case 0x41: c = cmd::Resurrect{}; break;
-        case 0x3a: { const int st = i32(); c = cmd::StatPoint{ st, i32() }; break; }
-        case 0x3b: c = cmd::SkillPoint{ i32() }; break;
-        case 0x3c: { const int k = i32(); c = cmd::SelectSkill{ k, u8() != 0 }; break; }
-        case 0x26: c = cmd::UseBelt{ i32() }; break;
-        case 0x20: c = cmd::UseItem{ i32() }; break;
-        case 0x19: c = cmd::ToCursor{ i32() }; break;
-        case 0x17: c = cmd::Drop{ i32() }; break;
-        case 0x18: { const int p = i32(), col = i32(); c = cmd::ToGrid{ p, col, i32() }; break; }
-        case 0x1a: c = cmd::ToBody{ i32() }; break;
-        case 0x23: c = cmd::ToBelt{ i32() }; break;
+inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
+    if (bytes.empty()) return std::nullopt;
+    wire::In input{ bytes };
+    auto i32 = [&] { return int(input.get<std::int32_t>()); };
+    auto f32 = [&] { return input.get<float>(); };
+    auto byte = [&] { return int(input.get<std::uint8_t>()); };
+    std::optional<Command> command;
+    switch (bytes[0]) {
+        case 0x01: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
+        case 0x05: case 0x0c: { const int skill = i32(); const float x = f32(), y = f32(); command = cmd::UseSkill{ skill, x, y, i32(), bytes[0] == 0x05 }; break; }
+        case 0x13: command = cmd::Interact{ i32() }; break;
+        case 0x16: command = cmd::Pickup{ i32() }; break;
+        case 0x41: command = cmd::Resurrect{}; break;
+        case 0x3a: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
+        case 0x3b: command = cmd::SkillPoint{ i32() }; break;
+        case 0x3c: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
+        case 0x26: command = cmd::UseBelt{ i32() }; break;
+        case 0x20: command = cmd::UseItem{ i32() }; break;
+        case 0x19: command = cmd::ToCursor{ i32() }; break;
+        case 0x17: command = cmd::Drop{ i32() }; break;
+        case 0x18: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
+        case 0x1a: command = cmd::ToBody{ i32() }; break;
+        case 0x23: command = cmd::ToBelt{ i32() }; break;
         case 0x38: {
-            const int kind = u8(), npc = i32();
-            c = kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
+            const int kind = byte(), npc = i32();
+            command = kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
             break;
         }
-        case 0x32: c = cmd::Buy{ i32() }; break;
-        case 0x33: c = cmd::Sell{ i32() }; break;
-        case 0x35: c = cmd::Repair{ i32() }; break;
-        case 0x34: c = cmd::Identify{}; break;
-        case 0x36: c = cmd::Hire{ i32() }; break;
-        case 0x30: c = cmd::CloseTrade{}; break;
-        case 0x53: case 0x54: c = cmd::Run{ b[0] == 0x53 }; break;
-        case 0x2f: c = cmd::Chat{ i32() }; break;
-        case 0x31: { const int n = i32(); c = cmd::QuestMessage{ n, i32() }; break; }
+        case 0x32: command = cmd::Buy{ i32() }; break;
+        case 0x33: command = cmd::Sell{ i32() }; break;
+        case 0x35: command = cmd::Repair{ i32() }; break;
+        case 0x34: command = cmd::Identify{}; break;
+        case 0x36: command = cmd::Hire{ i32() }; break;
+        case 0x30: command = cmd::CloseTrade{}; break;
+        case 0x53: case 0x54: command = cmd::Run{ bytes[0] == 0x53 }; break;
+        case 0x2f: command = cmd::Chat{ i32() }; break;
+        case 0x31: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
         default: return std::nullopt;
     }
-    if (!in.ok || in.at != b.size()) return std::nullopt;
-    return c;
+    if (!input.ok || input.offset != bytes.size()) return std::nullopt;
+    return command;
 }
 
 // The in-process transport (docs/design/multiplayer.md rule 3): the
@@ -221,11 +221,11 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> b) {
 struct LocalTransport {
     std::deque<std::vector<std::uint8_t>> to_server;
     std::vector<std::uint8_t> to_client;   // the World's latest View, as its wire form (replication.hpp)
-    void send(const Command& c) { to_server.push_back(encode(c)); }
+    void send(const Command& command) { to_server.push_back(encode(command)); }
     // What the server has been sent since it last looked.
     std::vector<Command> receive() {
         std::vector<Command> out;
-        for (const auto& m : to_server) if (auto c = decode(m)) out.push_back(*c);
+        for (const auto& message : to_server) if (auto command = decode(message)) out.push_back(*command);
         to_server.clear();
         return out;
     }

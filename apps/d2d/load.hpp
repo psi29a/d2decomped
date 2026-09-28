@@ -27,7 +27,7 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
 // Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><BaseW>,
 // then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
 // with the recipe's component for that layer ("lit" when blank).
-Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc,
                                      const std::string& mode);
 
 // Headers (and items) of every valid .d2s in `dir`, most recently played first. Bad files are

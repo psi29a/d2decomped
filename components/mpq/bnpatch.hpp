@@ -35,60 +35,60 @@
 
 namespace d2d::mpq::bnpatch {
 
-inline std::uint32_t crc32(std::span<const std::byte> b) {
+inline std::uint32_t crc32(std::span<const std::byte> bytes) {
     static const auto table = [] {
-        std::array<std::uint32_t, 256> t{};
+        std::array<std::uint32_t, 256> entries{};
         for (std::uint32_t i = 0; i < 256; ++i) {
-            std::uint32_t c = i;
-            for (int k = 0; k < 8; ++k) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
-            t[i] = c;
+            std::uint32_t crc = i;
+            for (int k = 0; k < 8; ++k) crc = crc & 1 ? 0xEDB88320u ^ (crc >> 1) : crc >> 1;
+            entries[i] = crc;
         }
-        return t;
+        return entries;
     }();
-    std::uint32_t c = 0xffffffffu;
-    for (auto x : b) c = table[(c ^ std::uint8_t(x)) & 0xff] ^ (c >> 8);
-    return ~c;
+    std::uint32_t crc = 0xffffffffu;
+    for (auto x : bytes) crc = table[(crc ^ std::uint8_t(x)) & 0xff] ^ (crc >> 8);
+    return ~crc;
 }
 
 namespace detail {
 struct Reader {
-    std::span<const std::byte> b;
-    std::size_t i = 0;
+    std::span<const std::byte> bytes;
+    std::size_t at = 0;
     std::uint8_t u8() {
-        if (i >= b.size()) throw 0;
-        return std::uint8_t(b[i++]);
+        if (at >= bytes.size()) throw 0;
+        return std::uint8_t(bytes[at++]);
     }
     std::uint32_t uvar() {
         const std::uint32_t x = u8();
         if (x < 0x80) return x;
         if (!(x & 0x40)) return (x & 0x3f) | std::uint32_t(u8()) << 6;
-        std::uint32_t v = (x & 0x1f) | std::uint32_t(u8()) << 5;
-        v |= std::uint32_t(u8()) << 13;
-        if (!(x & 0x20)) return v;
-        return v | std::uint32_t(u8()) << 21;
+        std::uint32_t value = (x & 0x1f) | std::uint32_t(u8()) << 5;
+        value |= std::uint32_t(u8()) << 13;
+        if (!(x & 0x20)) return value;
+        return value | std::uint32_t(u8()) << 21;
     }
     std::int32_t svar() {
-        const std::size_t start = i;
-        const std::uint32_t x = std::uint8_t(b[start]);
-        const std::uint32_t v = uvar();
+        const std::size_t start = at;
+        const std::uint32_t x = std::uint8_t(bytes[start]);
+        const std::uint32_t value = uvar();
         const int bits = x < 0x80 ? 7 : !(x & 0x40) ? 14 : !(x & 0x20) ? 21 : 29;
-        return std::int32_t(v << (32 - bits)) >> (32 - bits);
+        return std::int32_t(value << (32 - bits)) >> (32 - bits);
     }
 };
-inline std::uint16_t rd16(const std::vector<std::byte>& v, std::size_t o) {
-    return std::uint16_t(std::uint8_t(v[o]) | std::uint8_t(v[o + 1]) << 8);
+inline std::uint16_t rd16(const std::vector<std::byte>& bytes, std::size_t offset) {
+    return std::uint16_t(std::uint8_t(bytes[offset]) | std::uint8_t(bytes[offset + 1]) << 8);
 }
-inline void wr16(std::vector<std::byte>& v, std::size_t o, std::uint16_t w) {
-    v[o] = std::byte(w & 0xff); v[o + 1] = std::byte(w >> 8);
+inline void wr16(std::vector<std::byte>& bytes, std::size_t offset, std::uint16_t value) {
+    bytes[offset] = std::byte(value & 0xff); bytes[offset + 1] = std::byte(value >> 8);
 }
 }  // namespace detail
 
 // The 24-byte header of an installer entry.
 struct Header { bool stored = false; std::uint32_t crc = 0, src_size = 0, out_size = 0; };
-inline std::optional<Header> header(std::span<const std::byte> e) {
-    if (e.size() < 24 || std::uint8_t(e[0]) != 24 || std::uint8_t(e[1]) != 0) return std::nullopt;
-    auto u32 = [&](std::size_t o) { std::uint32_t v; std::memcpy(&v, e.data() + o, 4); return v; };
-    return Header{ std::uint8_t(e[3]) == 1, u32(4), u32(8), u32(12) };
+inline std::optional<Header> header(std::span<const std::byte> entry) {
+    if (entry.size() < 24 || std::uint8_t(entry[0]) != 24 || std::uint8_t(entry[1]) != 0) return std::nullopt;
+    auto u32 = [&](std::size_t offset) { std::uint32_t value; std::memcpy(&value, entry.data() + offset, 4); return value; };
+    return Header{ std::uint8_t(entry[3]) == 1, u32(4), u32(8), u32(12) };
 }
 
 // Rebuild the patched file from an installer entry and its source file.
@@ -97,70 +97,70 @@ inline std::optional<Header> header(std::span<const std::byte> e) {
 inline std::optional<std::vector<std::byte>> apply(std::span<const std::byte> entry,
                                                    std::span<const std::byte> src) {
     using namespace detail;
-    const auto h = header(entry);
-    if (!h || h->stored || entry.size() < 32) return std::nullopt;
-    if (src.size() != h->src_size || crc32(src) != h->crc) return std::nullopt;
-    std::uint32_t l1, l2;
-    std::memcpy(&l1, entry.data() + 24, 4);
-    std::memcpy(&l2, entry.data() + 28, 4);
-    if (32 + std::size_t(l1) + l2 > entry.size()) return std::nullopt;
+    const auto patch_header = header(entry);
+    if (!patch_header || patch_header->stored || entry.size() < 32) return std::nullopt;
+    if (src.size() != patch_header->src_size || crc32(src) != patch_header->crc) return std::nullopt;
+    std::uint32_t length1, length2;
+    std::memcpy(&length1, entry.data() + 24, 4);
+    std::memcpy(&length2, entry.data() + 28, 4);
+    if (32 + std::size_t(length1) + length2 > entry.size()) return std::nullopt;
     try {
-        std::vector<std::byte> f(src.begin(), src.end());           // filtered source
-        for (std::size_t i = f.size() >= 2 ? f.size() - 2 : 0; i > 1; i -= 2)
-            wr16(f, i, std::uint16_t(rd16(f, i) - rd16(f, i - 2)));
-        std::vector<std::byte> out(std::size_t(h->out_size) + 2);
-        std::size_t o = 0;
+        std::vector<std::byte> filtered(src.begin(), src.end());           // filtered source
+        for (std::size_t i = filtered.size() >= 2 ? filtered.size() - 2 : 0; i > 1; i -= 2)
+            wr16(filtered, i, std::uint16_t(rd16(filtered, i) - rd16(filtered, i - 2)));
+        std::vector<std::byte> out(std::size_t(patch_header->out_size) + 2);
+        std::size_t written = 0;
         std::int64_t cur = 0;
-        Reader s1{ entry.subspan(32, l1) };
-        auto room = [&](std::size_t n) { if (o + n > h->out_size) throw 0; };
-        auto in_src = [&](std::int64_t at, std::size_t n) {
-            if (at < 0 || std::size_t(at) + n > src.size()) throw 0;
+        Reader stream1{ entry.subspan(32, length1) };
+        auto room = [&](std::size_t count) { if (written + count > patch_header->out_size) throw 0; };
+        auto in_src = [&](std::int64_t source_at, std::size_t count) {
+            if (source_at < 0 || std::size_t(source_at) + count > src.size()) throw 0;
         };
-        while (s1.i < s1.b.size()) {
-            const std::uint16_t op = std::uint16_t(s1.u8() | s1.u8() << 8);
-            const std::size_t n = op & 0x3fff;
-            const std::uint16_t kind = op & 0xc000;
-            if (kind == 0x4000 || kind == 0x8000) cur += s1.svar();
-            room(n);
+        while (stream1.at < stream1.bytes.size()) {
+            const std::uint16_t op_code = std::uint16_t(stream1.u8() | stream1.u8() << 8);
+            const std::size_t count = op_code & 0x3fff;
+            const std::uint16_t kind = op_code & 0xc000;
+            if (kind == 0x4000 || kind == 0x8000) cur += stream1.svar();
+            room(count);
             if (kind == 0x4000) {
-                in_src(cur, n);
-                std::memcpy(out.data() + o, src.data() + cur, n);
+                in_src(cur, count);
+                std::memcpy(out.data() + written, src.data() + cur, count);
             } else if (kind == 0x8000) {
-                in_src(cur, n);
-                for (std::size_t k = 0; k < n; k += 2) {
-                    const std::uint16_t prev = o + k >= 2 ? rd16(out, o + k - 2) : 0;
-                    wr16(out, o + k, std::uint16_t(rd16(f, std::size_t(cur) + k) + prev));
+                in_src(cur, count);
+                for (std::size_t k = 0; k < count; k += 2) {
+                    const std::uint16_t prev = written + k >= 2 ? rd16(out, written + k - 2) : 0;
+                    wr16(out, written + k, std::uint16_t(rd16(filtered, std::size_t(cur) + k) + prev));
                 }
             } else if (kind == 0) {
-                if (s1.i + n > s1.b.size()) throw 0;
-                std::memcpy(out.data() + o, s1.b.data() + s1.i, n);
-                s1.i += n;
+                if (stream1.at + count > stream1.bytes.size()) throw 0;
+                std::memcpy(out.data() + written, stream1.bytes.data() + stream1.at, count);
+                stream1.at += count;
             }                                                          // 0xC000: zeros
-            o += n;
-            cur += std::int64_t(n);
+            written += count;
+            cur += std::int64_t(count);
         }
-        Reader s2{ entry.subspan(32 + l1, l2) };
-        auto add = [&](std::uint32_t pos, std::int32_t v) {
+        Reader stream2{ entry.subspan(32 + length1, length2) };
+        auto add = [&](std::uint32_t pos, std::int32_t value) {
             if (std::size_t(pos) + 2 > out.size()) throw 0;
-            wr16(out, pos, std::uint16_t(rd16(out, pos) + v));
+            wr16(out, pos, std::uint16_t(rd16(out, pos) + value));
         };
         std::int32_t acc = 0;
-        if (s2.b.size()) {
-            const std::int32_t v = s2.svar();
-            if (v != 0) {
-                std::uint32_t pos = s2.uvar();
-                add(pos, v);
-                for (std::uint32_t d = s2.uvar(); d; d = s2.uvar()) add(pos += d, v);
-                acc = v;
+        if (stream2.bytes.size()) {
+            const std::int32_t value = stream2.svar();
+            if (value != 0) {
+                std::uint32_t pos = stream2.uvar();
+                add(pos, value);
+                for (std::uint32_t delta = stream2.uvar(); delta; delta = stream2.uvar()) add(pos += delta, value);
+                acc = value;
             }
-            for (std::uint32_t dv = s2.uvar(); dv; dv = s2.uvar()) {
-                acc += std::int32_t(dv);
-                std::uint32_t pos = s2.uvar();
+            for (std::uint32_t delta_value = stream2.uvar(); delta_value; delta_value = stream2.uvar()) {
+                acc += std::int32_t(delta_value);
+                std::uint32_t pos = stream2.uvar();
                 add(pos, acc);
-                for (std::uint32_t d = s2.uvar(); d; d = s2.uvar()) add(pos += d, acc);
+                for (std::uint32_t delta = stream2.uvar(); delta; delta = stream2.uvar()) add(pos += delta, acc);
             }
         }
-        out.resize(h->out_size);
+        out.resize(patch_header->out_size);
         return out;
     } catch (...) {
         return std::nullopt;

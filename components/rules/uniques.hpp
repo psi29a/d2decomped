@@ -31,7 +31,7 @@ struct UMod {
 // 22..27 champion's, 28..33 unique's (each by difficulty).
 struct UMods {
     std::vector<UMod> rows;
-    std::array<int, 34> k{};
+    std::array<int, 34> constants{};
 };
 
 // What a spawned monster is (MonsterData +0x16 flags: 4 champion, 8 unique
@@ -56,24 +56,24 @@ namespace unique_detail {
 // MonType; fPick 2 (multishot) not for melee monsters.
 // ponytail: fPick 1 / 3 (teleport, fast) test FUN_0046c140, not mapped —
 // allowed here; MonType exclusions match the type itself, not its parents.
-inline bool can_take(const UMod& u, const MonType& t) {
-    if (!u.enabled) return false;
-    if (!u.exclude1.empty() && u.exclude1 == t.montype) return false;
-    if (!u.exclude2.empty() && u.exclude2 == t.montype) return false;
-    if (u.fpick == 2 && t.melee) return false;
+inline bool can_take(const UMod& mod, const MonType& type) {
+    if (!mod.enabled) return false;
+    if (!mod.exclude1.empty() && mod.exclude1 == type.montype) return false;
+    if (!mod.exclude2.empty() && mod.exclude2 == type.montype) return false;
+    if (mod.fpick == 2 && type.melee) return false;
     return true;
 }
 
 // Weighted pick among the rows that pass (FUN_005a0500 champion weights,
 // FUN_005a0600 unique weights not already taken): rand(total), walk.
 template <class Weight>
-inline int pick(const UMods& m, const MonType& t, Rng& seed, Weight&& weight) {
-    std::vector<std::pair<int, int>> c;
+inline int pick(const UMods& umods, const MonType& type, Rng& seed, Weight&& weight) {
+    std::vector<std::pair<int, int>> candidates;
     int total = 0;
-    for (const auto& u : m.rows)
-        if (const int w = weight(u); w > 0 && can_take(u, t)) { c.emplace_back(u.id, w); total += w; }
-    int r = seed(total);
-    for (const auto& [id, w] : c) { if (r < w) return id; r -= w; }
+    for (const auto& mod : umods.rows)
+        if (const int mod_weight = weight(mod); mod_weight > 0 && can_take(mod, type)) { candidates.emplace_back(mod.id, mod_weight); total += mod_weight; }
+    int roll = seed(total);
+    for (const auto& [id, mod_weight] : candidates) { if (roll < mod_weight) return id; roll -= mod_weight; }
     return 0;
 }
 
@@ -83,39 +83,39 @@ inline int pick(const UMods& m, const MonType& t, Rng& seed, Weight&& weight) {
 // rand(100) < the champion chance makes it a champion with one champion
 // mod (cpick); else a unique with 1 + difficulty unique mods (upick, no
 // repeats, 8 at most). Rolls the monster's own seed.
-inline BossInfo roll_boss(const UMods& m, const MonType& t, int difficulty, bool champions, Rng& seed) {
+inline BossInfo roll_boss(const UMods& umods, const MonType& type, int difficulty, bool champions, Rng& seed) {
     using namespace unique_detail;
-    const int d = std::clamp(difficulty, 0, 2);
-    BossInfo b;
-    if (champions && seed(100) < m.k[0]) {
-        b.kind = Boss::champion;
-        if (const int id = pick(m, t, seed, [&](const UMod& u) { return u.champion ? u.cpick[std::size_t(d)] : 0; })) b.mods.push_back(id);
-        b.name_seed = int(seed.next() & 0xffff);
-        return b;
+    const int difficulty_index = std::clamp(difficulty, 0, 2);
+    BossInfo boss;
+    if (champions && seed(100) < umods.constants[0]) {
+        boss.kind = Boss::champion;
+        if (const int id = pick(umods, type, seed, [&](const UMod& mod) { return mod.champion ? mod.cpick[std::size_t(difficulty_index)] : 0; })) boss.mods.push_back(id);
+        boss.name_seed = int(seed.next() & 0xffff);
+        return boss;
     }
-    b.kind = Boss::unique;
-    const int n = std::min(seed(1) + 1 + d, 8);
-    for (int i = 0; i < n; ++i) {
-        const int id = pick(m, t, seed, [&](const UMod& u) {
-            return !u.champion && std::ranges::find(b.mods, u.id) == b.mods.end() ? u.upick[std::size_t(d)] : 0;
+    boss.kind = Boss::unique;
+    const int count = std::min(seed(1) + 1 + difficulty_index, 8);
+    for (int i = 0; i < count; ++i) {
+        const int id = pick(umods, type, seed, [&](const UMod& mod) {
+            return !mod.champion && std::ranges::find(boss.mods, mod.id) == boss.mods.end() ? mod.upick[std::size_t(difficulty_index)] : 0;
         });
         if (!id) break;
-        b.mods.push_back(id);
+        boss.mods.push_back(id);
     }
-    b.name_seed = int(seed.next() & 0xffff);    // FUN_005a2120's fixed mods: 1 rndname first
-    return b;
+    boss.name_seed = int(seed.next() & 0xffff);    // FUN_005a2120's fixed mods: 1 rndname first
+    return boss;
 }
 
 // A superunique's mods (FUN_005a49b0): SuperUniques Mod1..3 (24 skipped),
 // then `difficulty` more unique mods (upick, none twice), at most 5 before.
-inline std::vector<int> superunique_mods(const UMods& m, const MonType& t, const std::vector<int>& fixed, int difficulty, Rng& seed) {
+inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type, const std::vector<int>& fixed, int difficulty, Rng& seed) {
     using namespace unique_detail;
     std::vector<int> mods;
     for (const int id : fixed) if (id != 24) mods.push_back(id);
-    const int d = std::clamp(difficulty, 0, 2);
-    for (int i = 0; i < d; ++i) {
-        const int id = pick(m, t, seed, [&](const UMod& u) {
-            return !u.champion && std::ranges::find(mods, u.id) == mods.end() ? u.upick[std::size_t(d)] : 0;
+    const int difficulty_index = std::clamp(difficulty, 0, 2);
+    for (int i = 0; i < difficulty_index; ++i) {
+        const int id = pick(umods, type, seed, [&](const UMod& mod) {
+            return !mod.champion && std::ranges::find(mods, mod.id) == mods.end() ? mod.upick[std::size_t(difficulty_index)] : 0;
         });
         if (!id) break;
         mods.push_back(id);
@@ -144,14 +144,14 @@ inline constexpr std::uint16_t kChampionFormat = 0x2b40;
 inline std::uint16_t champion_word(const std::vector<int>& mods) {
     static constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, std::uint16_t(0xc94) }, { 36, std::uint16_t(0x2b4c) }, { 37, std::uint16_t(0x2b4d) },
                                                                                   { 38, std::uint16_t(0x2b4e) }, { 39, std::uint16_t(0x2b4f) } } };
-    std::uint16_t w = kWord[4].second;                          // fixed mod 1 (rndname) runs it first: no key matches
+    std::uint16_t word = kWord[4].second;                          // fixed mod 1 (rndname) runs it first: no key matches
     for (const int id : mods) {
         if (id != 1 && id != 12 && id != 16 && (id < 36 || id > 39)) continue;
-        std::size_t k = 0;
-        while (k < 4 && kWord[k].first != id) ++k;
-        w = kWord[k].second;
+        std::size_t index = 0;
+        while (index < 4 && kWord[index].first != id) ++index;
+        word = kWord[index].second;
     }
-    return w;
+    return word;
 }
 
 // What the mods do to a monster's stats (FUN_005a2120: the fixed rndname,
@@ -175,70 +175,70 @@ struct BossStats {
 // 90 / 75 / 66): the share of the champion and strong damage and to-hit
 // bonuses a difficulty keeps (FUN_005a0e80, FUN_005a17e0).
 inline constexpr std::array<int, 3> kBossBonus{ 90, 75, 66 };
-inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const std::vector<int>& mods, int difficulty) {
-    const int d = std::clamp(difficulty, 0, 2);
-    BossStats s;
+inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, const std::vector<int>& mods, int difficulty) {
+    const int difficulty_index = std::clamp(difficulty, 0, 2);
+    BossStats stats;
     const bool unique = kind == Boss::unique || kind == Boss::superunique;
     const bool champion = std::ranges::find(mods, umod::champion) != mods.end() || kind == Boss::champion;
     if (unique) {                                                        // FUN_005a0e40 leveladd, FUN_005a0dc0 hpmultiply
-        s.level_add += 3;
-        s.exp_mult = 5;
-        s.hp_pct = m.k[std::size_t(7 + d)];
+        stats.level_add += 3;
+        stats.exp_mult = 5;
+        stats.hp_pct = umods.constants[std::size_t(7 + difficulty_index)];
     } else if (kind == Boss::minion) {
-        s.hp_pct = m.k[std::size_t(1 + d)];
+        stats.hp_pct = umods.constants[std::size_t(1 + difficulty_index)];
     }
     if (champion) {                                                      // FUN_005a0e80
-        s.level_add += unique ? -1 : 2;
-        s.exp_mult = 3;
-        s.hp_pct = m.k[std::size_t(4 + d)];
-        s.tohit_pct += m.k[10] * kBossBonus[std::size_t(d)] / 100;
-        s.dmg_pct += m.k[11] * kBossBonus[std::size_t(d)] / 100;
-        s.velocity_pct += 20;
+        stats.level_add += unique ? -1 : 2;
+        stats.exp_mult = 3;
+        stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];
+        stats.tohit_pct += umods.constants[10] * kBossBonus[std::size_t(difficulty_index)] / 100;
+        stats.dmg_pct += umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100;
+        stats.velocity_pct += 20;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
-        auto& r = s.res_add;
-        auto base = [&](int i) { return t.diff[std::size_t(d)].res[std::size_t(i)] + r[std::size_t(i)]; };
+        auto& resist_add = stats.res_add;
+        auto base = [&](int index) { return type.diff[std::size_t(difficulty_index)].res[std::size_t(index)] + resist_add[std::size_t(index)]; };
         int immune = 0;
         for (int i = 0; i < 6; ++i) immune += base(i) > 99;
         if (immune >= 2) return;
-        auto add = [&](int i, int v, int below) {
-            if (base(i) < below) { r[std::size_t(i)] += v; if (base(i) > 99) ++immune; }
+        auto add = [&](int index, int value, int below) {
+            if (base(index) < below) { resist_add[std::size_t(index)] += value; if (base(index) > 99) ++immune; }
         };
         switch (id) {
         case umod::resist:                                               // magic resistant: +40 cold, fire, light
             add(4, 40, 100); if (immune < 2) add(2, 40, 100); if (immune < 2) add(3, 40, 100); break;
-        case umod::fire: r[2] += 75; break;
-        case umod::cold: r[4] += 75; break;
-        case umod::lightning: r[3] += 75; break;
-        case 23: r[5] += 75; break;                                      // poison hit
-        case 25: r[1] += 20; break;                                      // mana burn: +20 magic resist
+        case umod::fire: resist_add[2] += 75; break;
+        case umod::cold: resist_add[4] += 75; break;
+        case umod::lightning: resist_add[3] += 75; break;
+        case 23: resist_add[5] += 75; break;                                      // poison hit
+        case 25: resist_add[1] += 20; break;                                      // mana burn: +20 magic resist
         case umod::spectralhit:                                          // +20 cold, fire, light under 75
             add(4, 20, 75); if (immune < 2) add(2, 20, 75); if (immune < 2) add(3, 20, 75); break;
-        case umod::stoneskin: s.double_defense = true; r[0] += 50; break;
+        case umod::stoneskin: stats.double_defense = true; resist_add[0] += 50; break;
         default: break;
         }
     };
     for (const int id : mods) {
         switch (id) {
         case umod::strong:                                               // FUN_005a17e0
-            s.dmg_pct += m.k[kind == Boss::minion ? 14 : 15] * kBossBonus[std::size_t(d)] / 100;
-            s.tohit_pct += m.k[kind == Boss::minion ? 12 : 13] * kBossBonus[std::size_t(d)] / 100;
+            stats.dmg_pct += umods.constants[kind == Boss::minion ? 14 : 15] * kBossBonus[std::size_t(difficulty_index)] / 100;
+            stats.tohit_pct += umods.constants[kind == Boss::minion ? 12 : 13] * kBossBonus[std::size_t(difficulty_index)] / 100;
             break;
         case umod::fast:                                                 // FUN_005a1910: 2048 / Velocity - 128, 10..100
-            if (t.velocity > 0) s.velocity_pct += std::clamp(2048 / t.velocity - 128, 10, 100);
+            if (type.velocity > 0) stats.velocity_pct += std::clamp(2048 / type.velocity - 128, 10, 100);
             break;
         case umod::fire: case umod::lightning: case umod::cold: {        // FUN_005a1990 & co: MonLvl damage x %
-            s.elem = id == umod::fire ? 0 : id == umod::lightning ? 1 : 2;
+            stats.elem = id == umod::fire ? 0 : id == umod::lightning ? 1 : 2;
             const int base = kind == Boss::minion ? 16 : champion ? 22 : 28;
-            s.elem_min_pct = m.k[std::size_t(base + d)];
-            s.elem_max_pct = m.k[std::size_t(base + 3 + d)];
+            stats.elem_min_pct = umods.constants[std::size_t(base + difficulty_index)];
+            stats.elem_max_pct = umods.constants[std::size_t(base + 3 + difficulty_index)];
             resist(id);
             break;
         }
         default: resist(id); break;
         }
     }
-    return s;
+    return stats;
 }
 
 // What a unique's mods do in the fight (the event hooks at 0x73c0b8, six
@@ -252,10 +252,10 @@ inline BossStats boss_stats(const UMods& m, const MonType& t, Boss kind, const s
 // + 4 subtiles. Returns {lo, hi} before the roll.
 inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
     static constexpr int kCE[3] = { 50, 35, 20 };
-    const int d = std::clamp(difficulty, 0, 2);
-    int v = max_life * kCE[d] / 100;
-    v = d == 0 ? v - v / 4 : d == 1 ? v - v / 3 : v / 8;
-    return { v * 60 / 100, v };
+    const int difficulty_index = std::clamp(difficulty, 0, 2);
+    int value = max_life * kCE[difficulty_index] / 100;
+    value = difficulty_index == 0 ? value - value / 4 : difficulty_index == 1 ? value - value / 3 : value / 8;
+    return { value * 60 / 100, value };
 }
 // Spectral hit (FUN_005a3040 / FUN_005a21d0): each attack, one of five
 // elements (0x6e21b8: fire, lightning, magic, cold, poison; as Skill::etype
@@ -275,13 +275,13 @@ inline BossAura boss_aura(int mlvl, int name_seed, int super) {
     static constexpr Row kRows[7] = { { 0, 0, 1, 6, 98 }, { 0, 0, 1, 6, 102 }, { 0, 0, 1, 5, 108 }, { 0, 0, 1, 7, 114 },
                                       { 0, 0, 1, 8, 123 }, { 0, 0, 1, 8, 122 }, { 20, 0, 1, 8, 118 } };
     mlvl = std::max(mlvl, 1);
-    int n = 0;
-    for (const auto& r : kRows) n += r.min_lvl <= mlvl;
+    int count = 0;
+    for (const auto& row : kRows) count += row.min_lvl <= mlvl;
     Rng rng{ std::uint32_t(name_seed) };
-    int pick = rng(std::max(n, 1));
+    int pick = rng(std::max(count, 1));
     if (super == 37) pick = 5;
-    const auto& r = kRows[pick];
-    return { r.skill, std::clamp((r.add + mlvl) * r.mul / r.div, 1, 99) };
+    const auto& row = kRows[pick];
+    return { row.skill, std::clamp((row.add + mlvl) * row.mul / row.div, 1, 99) };
 }
 
 }  // namespace d2d::rules

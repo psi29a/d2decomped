@@ -6,8 +6,8 @@
 
 namespace d2d::client {
 
-void render_title(std::vector<std::uint8_t>& fb,
-                  const Scene& s,
+void render_title(std::vector<std::uint8_t>& framebuffer,
+                  const Scene& scene,
                   std::span<const Button> buttons,
                   std::uint32_t elapsed_ms);
 
@@ -38,7 +38,7 @@ struct CharSelectUI {
 };
 
 // Largest valid CharSelectUI::scroll for `n` saves: last row at the bottom.
-int charselect_max_scroll(int n);
+int charselect_max_scroll(int count);
 
 // D2 font colours used on char-select (FUN_004fc9b0 colour arg).
 constexpr std::uint8_t kTextRed[3]   = { 255, 77, 77 };    // 1
@@ -49,21 +49,21 @@ constexpr std::uint8_t kTextGold[3]  = { 199, 179, 119 };  // 4
 // from the progression byte, FUN_00505640 the (hard-coded English) word.
 // Tier: classic <4/<8/<12/else, LoD <5/<10/<15/else -> 0..3; hardcore
 // shifts non-zero tiers by 3. Female: Amazon, Sorceress, Assassin.
-std::string char_title(const d2d::d2s::Header& h);
+std::string char_title(const d2d::d2s::Header& header);
 
 // Visible slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
 int charselect_slot_at(int x, int y);
 
-void render_charselect(std::vector<std::uint8_t>& fb,
-                       const Scene& s,
-                       const CharSelectUI& ui,
+void render_charselect(std::vector<std::uint8_t>& framebuffer,
+                       const Scene& scene,
+                       const CharSelectUI& select_ui,
                        std::uint32_t elapsed_ms);
 
 // Full-screen credits background + scrolling text. The scroll starts with
 // the first line off the bottom of the screen and advances upward at ~1 px
 // per D2 tick (25 Hz). When the last line clears the top, the scroll loops.
-void render_credits(std::vector<std::uint8_t>& fb,
-                    const Scene& s,
+void render_credits(std::vector<std::uint8_t>& framebuffer,
+                    const Scene& scene,
                     std::uint32_t elapsed_ms);
 
 // Character-creation screen — the iconic seven-classes-around-a-campfire
@@ -73,8 +73,8 @@ void render_credits(std::vector<std::uint8_t>& fb,
 
 // Advance the per-class state machine — completes one-shot animations
 // (Selecting → Selected, Deselecting → Idle) once they finish.
-void advance_char_states(CharCreateUI& ui,
-                         const Scene& s,
+void advance_char_states(CharCreateUI& create_ui,
+                         const Scene& scene,
                          std::uint32_t elapsed_ms);
 
 // Hit-test click position against class silhouettes and trigger selection
@@ -84,13 +84,13 @@ void advance_char_states(CharCreateUI& ui,
 constexpr int kHardcoreX = 319, kHardcoreW = 15, kHardcoreH = 16;
 constexpr int kHardcoreY = rec_top(560, kHardcoreH);
 
-void handle_charcreate_click(CharCreateUI& ui,
-                             const Mouse& m,
+void handle_charcreate_click(CharCreateUI& create_ui,
+                             const Mouse& mouse,
                              std::uint32_t elapsed_ms);
 
-void render_charcreate(std::vector<std::uint8_t>& fb,
-                       const Scene& s,
-                       const CharCreateUI& ui,
+void render_charcreate(std::vector<std::uint8_t>& framebuffer,
+                       const Scene& scene,
+                       const CharCreateUI& create_ui,
                        std::uint32_t elapsed_ms);
 
 // Store labels alongside the buttons so we own the string memory through
@@ -131,10 +131,10 @@ constexpr std::array<const char*, 7> kCinematicVideo = {
 // 0x04 act 2: 2, else 1. We keep the same facts in cinematics_seen.
 int cinematics_unlocked(const std::string& seen);
 
-CinematicsUI cinematics_ui(const Scene& s, int unlocked);
+CinematicsUI cinematics_ui(const Scene& scene, int unlocked);
 
-void render_cinematics(std::vector<std::uint8_t>& fb, const Scene& s, const CinematicsUI& ui);
+void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const CinematicsUI& cinematics);
 
-TitleUI title_ui(const Scene& s);
+TitleUI title_ui(const Scene& scene);
 
 }  // namespace d2d::client

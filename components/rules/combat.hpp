@@ -18,12 +18,12 @@ namespace d2d::rules {
 // Chance to hit in percent (FUN_0057d9b0): negative defense adds to the
 // attack rating (and vice versa); c = AR x 100 / (AR + DEF), then
 // c x 2 x alvl / (alvl + dlvl), clamped to 5..95.
-inline int hit_chance(int ar, int def, int alvl, int dlvl) {
-    std::int64_t a = ar, d = def;
-    if (d < 0) { a -= d; d = 0; }
-    if (a < 0) { d -= a; a = 0; }
-    const std::int64_t c = a + d != 0 ? a * 100 / (a + d) : 100;
-    return int(std::clamp<std::int64_t>(c * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
+inline int hit_chance(int attack_rating, int def, int alvl, int dlvl) {
+    std::int64_t attack = attack_rating, defense = def;
+    if (defense < 0) { attack -= defense; defense = 0; }
+    if (attack < 0) { defense -= attack; attack = 0; }
+    const std::int64_t chance = attack + defense != 0 ? attack * 100 / (attack + defense) : 100;
+    return int(std::clamp<std::int64_t>(chance * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
 }
 
 // Item stats summed by ItemStatCost id: what's worn, charms carried, and
@@ -33,7 +33,7 @@ using StatSum = std::array<std::int64_t, 512>;
 // The player in a fight: what an attack does and what protects them.
 // Elements index 0 fire, 1 lightning, 2 cold, 3 poison, 4 magic.
 struct Fighter {
-    int min = 1, max = 2, ar = 1;                   // physical damage, attack rating (as the panel shows them)
+    int min = 1, max = 2, attack_rating = 1;                   // physical damage, attack rating (as the panel shows them)
     // Before their percentages, so a skill's % joins the same sum as in
     // game.exe: the weapon damage in 256ths and its % (FUN_0057b420), the
     // attack rating and its % (FUN_0057d9b0).
@@ -85,78 +85,78 @@ struct Fighter {
 //   masteries (FUN_00645830), in `sum` only when the weapon is their
 //     passiveitype (the caller checks): 342 to-hit joins 119, 343 damage
 //     joins 25, 344 crit rolls first; 348 weapon block (two claws).
-inline Fighter make_fighter(const Tables& t, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
-                            const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& st,
-                            const ClassGains& g, int defense, const std::array<int, 4>& res,
+inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
+                            const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,
+                            const ClassGains& gains, int defense, const std::array<int, 4>& res,
                             const d2d::d2s::Item* boots = nullptr) {
     using namespace d2d::d2s;
-    Fighter f;
-    const auto S = [&](int id) { return sum[std::size_t(id)]; };
-    const auto W = [&](int id) { return weapon_sum[std::size_t(id)]; };
-    const std::int64_t clvl = std::max<std::int64_t>(st.get(kLevel), 1), str = st.get(kStr), dex = st.get(kDex);
-    const ItemBase* wb = nullptr;
-    if (weapon) if (const auto b = t.item_base.find(weapon->code); b != t.item_base.end()) wb = &b->second;
+    Fighter fighter;
+    const auto stat = [&](int id) { return sum[std::size_t(id)]; };
+    const auto weapon_stat = [&](int id) { return weapon_sum[std::size_t(id)]; };
+    const std::int64_t clvl = std::max<std::int64_t>(stats.get(kLevel), 1), str = stats.get(kStr), dex = stats.get(kDex);
+    const ItemBase* weapon_base = nullptr;
+    if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;
     // In 256ths, as game.exe keeps them.
-    std::int64_t lo = (wb ? wb->mindam * (100 + W(18)) / 100 : 1) + S(21) + S(111),
-                 hi = (wb ? wb->maxdam * (100 + W(17) + W(219) * clvl / 8) / 100 : 2) + S(22) + S(218) * clvl / 8 + S(111);
-    lo = std::max<std::int64_t>(lo, 1) << 8;
-    hi = std::max<std::int64_t>(hi << 8, lo + 256);
-    const std::int64_t pct = std::max<std::int64_t>(S(25) + S(343) + (wb ? str * wb->str_bonus / 100 + dex * wb->dex_bonus / 100 : 0), -90);
-    f.phys_lo = int(lo); f.phys_hi = int(hi); f.phys_pct = int(pct);
-    f.min = int(std::max<std::int64_t>((lo + lo * pct / 100) >> 8, 1));
-    f.max = int(std::max<std::int64_t>((hi + hi * pct / 100) >> 8, f.min));
-    f.ar_base = int(dex * 5 - 35 + g.to_hit + S(19) + S(224) * clvl / 8);
-    f.ar_pct = int(S(119) + S(342));
-    f.ar = int(std::max<std::int64_t>(std::int64_t(f.ar_base) * (100 + f.ar_pct) / 100, 1));
-    f.kick_lo = f.kick_hi = int(S(137));
-    if (boots) if (const auto b = t.item_base.find(boots->code); b != t.item_base.end()) {
-        f.kick_lo += b->second.mindam;
-        f.kick_hi = std::max(f.kick_hi + b->second.maxdam, f.kick_lo);
-        f.kick_pct = int(std::max<std::int64_t>(str * b->second.str_bonus / 100 + dex * b->second.dex_bonus / 100 + S(25), -90)
-                         + S(17) - W(17));
+    std::int64_t low = (weapon_base ? weapon_base->mindam * (100 + weapon_stat(18)) / 100 : 1) + stat(21) + stat(111),
+                 high = (weapon_base ? weapon_base->maxdam * (100 + weapon_stat(17) + weapon_stat(219) * clvl / 8) / 100 : 2) + stat(22) + stat(218) * clvl / 8 + stat(111);
+    low = std::max<std::int64_t>(low, 1) << 8;
+    high = std::max<std::int64_t>(high << 8, low + 256);
+    const std::int64_t pct = std::max<std::int64_t>(stat(25) + stat(343) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
+    fighter.phys_lo = int(low); fighter.phys_hi = int(high); fighter.phys_pct = int(pct);
+    fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
+    fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
+    fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(19) + stat(224) * clvl / 8);
+    fighter.ar_pct = int(stat(119) + stat(342));
+    fighter.attack_rating = int(std::max<std::int64_t>(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct) / 100, 1));
+    fighter.kick_lo = fighter.kick_hi = int(stat(137));
+    if (boots) if (const auto found = tables.item_base.find(boots->code); found != tables.item_base.end()) {
+        fighter.kick_lo += found->second.mindam;
+        fighter.kick_hi = std::max(fighter.kick_hi + found->second.maxdam, fighter.kick_lo);
+        fighter.kick_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(25), -90)
+                         + stat(17) - weapon_stat(17));
     }
-    if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end()) {
-        f.smite_lo = b->second.mindam;
-        f.smite_hi = std::max(b->second.maxdam, f.smite_lo);
-        f.smite_pct = int(std::max<std::int64_t>(str * b->second.str_bonus / 100 + dex * b->second.dex_bonus / 100 + S(25), -90)
-                          + S(17) - W(17));
+    if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end()) {
+        fighter.smite_lo = found->second.mindam;
+        fighter.smite_hi = std::max(found->second.maxdam, fighter.smite_lo);
+        fighter.smite_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(25), -90)
+                          + stat(17) - weapon_stat(17));
     }
-    if (shield) if (const auto b = t.item_base.find(shield->code); b != t.item_base.end() && b->second.block > 0)
-        f.block = int(std::clamp<std::int64_t>((b->second.block + g.block + S(20)) * (dex - 15) / (clvl * 2), 0, 75));
+    if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end() && found->second.block > 0)
+        fighter.block = int(std::clamp<std::int64_t>((found->second.block + gains.block + stat(20)) * (dex - 15) / (clvl * 2), 0, 75));
     // Each element's mastery % (FUN_0057b7d0 -> FUN_0057a8e0): fire 329,
     // lightning 330, cold 331, poison 332, magic 357.
-    const auto M = [&](std::int64_t v, int m) { return int(v * (100 + S(m)) / 100); };
-    f.elem = { { { M(S(48), 329), M(S(49), 329) }, { M(S(50), 330), M(S(51), 330) }, { M(S(54), 331), M(S(55), 331) },
-                 { M(S(57) * S(59) / 256, 332), M(S(58) * S(59) / 256, 332) }, { M(S(52), 357), M(S(53), 357) } } };
-    f.cold_len = int(S(56)); f.poison_len = int(S(59));
-    f.crushing = int(S(136)); f.deadly = int(S(141) + S(250) * clvl / 8); f.critical = int(S(337));
-    f.mastery_crit = int(S(344)); f.weapon_block = int(S(348));
-    f.open_wounds = int(S(135));
-    f.knockback = S(81) > 0;
-    f.life_steal = int(S(60)); f.mana_steal = int(S(62));
-    f.ias = int(S(93)); f.wsm = wb ? wb->speed : 0; f.frw = int(S(96)); f.fhr = int(S(99)); f.fbr = int(S(102)); f.fcr = int(S(105));
-    f.defense = defense;
-    f.def_melee = int(S(33)); f.def_missile = int(S(32));
-    f.dodge = int(S(338)); f.avoid = int(S(339)); f.evade = int(S(340));
-    f.dr_pct = int(std::min<std::int64_t>(S(36), 50)); f.dr_flat = int(S(34)); f.mdr = int(S(35));
-    f.res = res;
-    f.thorns = int(S(78)); f.thorns_light = int(S(128)); f.thorns_pct = int(S(131));
-    f.life_regen = int(S(74)); f.mana_regen = int(S(27));
-    return f;
+    const auto scaled = [&](std::int64_t value, int stat_id) { return int(value * (100 + stat(stat_id)) / 100); };
+    fighter.elem = { { { scaled(stat(48), 329), scaled(stat(49), 329) }, { scaled(stat(50), 330), scaled(stat(51), 330) }, { scaled(stat(54), 331), scaled(stat(55), 331) },
+                 { scaled(stat(57) * stat(59) / 256, 332), scaled(stat(58) * stat(59) / 256, 332) }, { scaled(stat(52), 357), scaled(stat(53), 357) } } };
+    fighter.cold_len = int(stat(56)); fighter.poison_len = int(stat(59));
+    fighter.crushing = int(stat(136)); fighter.deadly = int(stat(141) + stat(250) * clvl / 8); fighter.critical = int(stat(337));
+    fighter.mastery_crit = int(stat(344)); fighter.weapon_block = int(stat(348));
+    fighter.open_wounds = int(stat(135));
+    fighter.knockback = stat(81) > 0;
+    fighter.life_steal = int(stat(60)); fighter.mana_steal = int(stat(62));
+    fighter.ias = int(stat(93)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(96)); fighter.fhr = int(stat(99)); fighter.fbr = int(stat(102)); fighter.fcr = int(stat(105));
+    fighter.defense = defense;
+    fighter.def_melee = int(stat(33)); fighter.def_missile = int(stat(32));
+    fighter.dodge = int(stat(338)); fighter.avoid = int(stat(339)); fighter.evade = int(stat(340));
+    fighter.dr_pct = int(std::min<std::int64_t>(stat(36), 50)); fighter.dr_flat = int(stat(34)); fighter.mdr = int(stat(35));
+    fighter.res = res;
+    fighter.thorns = int(stat(78)); fighter.thorns_light = int(stat(128)); fighter.thorns_pct = int(stat(131));
+    fighter.life_regen = int(stat(74)); fighter.mana_regen = int(stat(27));
+    return fighter;
 }
 
 // A fighter with just damage, attack rating and defense (the merc, its
 // arrows, tests).
-inline Fighter simple_fighter(int min, int max, int ar, int defense = 0) {
-    Fighter f;
-    f.min = min; f.max = std::max(max, min); f.ar = f.ar_base = ar; f.defense = defense;
-    f.phys_lo = min << 8; f.phys_hi = f.max << 8;
-    return f;
+inline Fighter simple_fighter(int min, int max, int attack_rating, int defense = 0) {
+    Fighter fighter;
+    fighter.min = min; fighter.max = std::max(max, min); fighter.attack_rating = fighter.ar_base = attack_rating; fighter.defense = defense;
+    fighter.phys_lo = min << 8; fighter.phys_hi = fighter.max << 8;
+    return fighter;
 }
 
 // Diminishing returns on the speed stats: IAS / FHR / FBR count
 // 120 x v / (120 + v), FRW 150 x v / (150 + v).
-inline int effective_speed(int v, int k = 120) { return v > 0 ? k * v / (k + v) : v; }
+inline int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * speed / (cap + speed) : speed; }
 
 // Ticks an attack animation of `frames` frames at AnimData `rate` takes with
 // `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
@@ -170,16 +170,16 @@ inline int attack_ticks(int frames, int rate, int ias, int wsm) {
 // Open wounds: bleeding per second for a character level (1.10's table in
 // 256ths a tick, times 25 ticks), for 8 seconds.
 inline int open_wounds_per_sec(int clvl) {
-    const int v = clvl < 15 ? 9 * clvl + 31 : clvl < 31 ? 18 * clvl - 104 : clvl < 46 ? 27 * clvl - 374
+    const int value = clvl < 15 ? 9 * clvl + 31 : clvl < 31 ? 18 * clvl - 104 : clvl < 46 ? 27 * clvl - 374
                 : clvl < 61 ? 36 * clvl - 779 : 45 * clvl - 1319;
-    return std::max(v, 0) * 25 / 256;
+    return std::max(value, 0) * 25 / 256;
 }
 
 // A monster being struck: its life now and max, defense, level, block
 // chance (0 unless it can block), resistances (physical, magic, fire,
 // lightning, cold, poison %), Drain (the % of leech that works on it).
 struct Target {
-    int hp = 1, max_hp = 1, ac = 0, level = 1, block = 0;
+    int hit_points = 1, max_hp = 1, armor_class = 0, level = 1, block = 0;
     std::array<int, 6> res{};
     int drain = 100;
 };
@@ -210,28 +210,28 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // length, poison runs its per-tick damage over it, stun stands it.
 // ponytail: pierce against immunity is the published rule; its code in
 // game.exe isn't traced.
-inline Blow missile_blow(const MissileDamage& md, const Target& t, const std::array<int, 4>& pierce, Rng& rng,
-                         Blow b = { .hit = true }) {
-    if (md.phys_hi > 0) {
-        const int p = rng.range(md.phys_lo, md.phys_hi) >> 8;
-        b.phys += p;
-        b.damage += resisted(p, t.res[0]);
+inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
+                         Blow blow = { .hit = true }) {
+    if (damage.phys_hi > 0) {
+        const int physical = rng.range(damage.phys_lo, damage.phys_hi) >> 8;
+        blow.phys += physical;
+        blow.damage += resisted(physical, target.res[0]);
     }
-    if (md.etype < 0 || md.etype > 5 || md.ehi <= 0) return b;
+    if (damage.etype < 0 || damage.etype > 5 || damage.ehi <= 0) return blow;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    const int roll = rng.range(md.elo, md.ehi);
-    if (md.etype == 5) { b.stun_ticks = std::max(b.stun_ticks, std::min(md.elen, 250)); return b; }
-    int res = t.res[std::size_t(kRes[md.etype])];
-    if (md.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(md.etype)], -100);
-    if (md.etype == 3) {
-        b.poison += resisted(int(std::int64_t(roll) * std::max(md.elen, 1) >> 8), res);
-        b.poison_ticks = std::max(b.poison_ticks, std::max(md.elen, 1));
-        return b;
+    const int roll = rng.range(damage.elo, damage.ehi);
+    if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
+    int res = target.res[std::size_t(kRes[damage.etype])];
+    if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
+    if (damage.etype == 3) {
+        blow.poison += resisted(int(std::int64_t(roll) * std::max(damage.elen, 1) >> 8), res);
+        blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
+        return blow;
     }
-    const int d = resisted(roll >> 8, res);
-    b.damage += d;
-    if (md.etype == 2 && d > 0) b.chill_ticks = std::max(b.chill_ticks, md.elen);
-    return b;
+    const int resisted_damage = resisted(roll >> 8, res);
+    blow.damage += resisted_damage;
+    if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, damage.elen);
+    return blow;
 }
 
 // What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
@@ -260,68 +260,68 @@ struct Swing {
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
 // takes a quarter of its current life (less physical resistance).
 // ponytail: crushing blow's boss / difficulty divisors aren't applied.
-inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, const Swing& sw = {}) {
-    Blow b;
-    const int ar = std::max(int(std::int64_t(f.ar_base) * (100 + f.ar_pct + sw.ar_pct) / 100), 1);
-    if (!sw.smite && rng(100) >= hit_chance(ar, t.ac, clvl, t.level)) return b;
-    if (t.block > 0 && rng(100) < t.block) { b.blocked = true; return b; }
-    b.hit = true;
-    std::int64_t lo, hi;                                  // 256ths
-    if (sw.smite) {
-        const std::int64_t sp = std::max<std::int64_t>(f.smite_pct + sw.ed_pct, -90);
-        lo = ((std::int64_t(f.smite_lo) << 8) + sw.skill_lo) * (100 + sp) / 100;
-        hi = ((std::int64_t(f.smite_hi) << 8) + sw.skill_hi) * (100 + sp) / 100;
-    } else if (sw.kick) {
-        const std::int64_t kp = f.kick_pct + sw.ed_pct;
-        lo = sw.skill_lo + std::int64_t(sw.skill_lo) * sw.ed_pct / 100 + (std::int64_t(f.kick_lo) << 8) * (100 + kp) / 100;
-        hi = sw.skill_hi + std::int64_t(sw.skill_hi) * sw.ed_pct / 100 + (std::int64_t(f.kick_hi) << 8) * (100 + kp) / 100;
+inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}) {
+    Blow blow;
+    const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
+    if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
+    if (target.block > 0 && rng(100) < target.block) { blow.blocked = true; return blow; }
+    blow.hit = true;
+    std::int64_t low, high;                                  // 256ths
+    if (swing.smite) {
+        const std::int64_t smite_pct = std::max<std::int64_t>(fighter.smite_pct + swing.ed_pct, -90);
+        low = ((std::int64_t(fighter.smite_lo) << 8) + swing.skill_lo) * (100 + smite_pct) / 100;
+        high = ((std::int64_t(fighter.smite_hi) << 8) + swing.skill_hi) * (100 + smite_pct) / 100;
+    } else if (swing.kick) {
+        const std::int64_t kick_pct = fighter.kick_pct + swing.ed_pct;
+        low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
+        high = swing.skill_hi + std::int64_t(swing.skill_hi) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_hi) << 8) * (100 + kick_pct) / 100;
     } else {
-        const std::int64_t p = std::max<std::int64_t>(f.phys_pct + sw.ed_pct, -90);
-        lo = f.phys_lo + f.phys_lo * p / 100;
-        hi = f.phys_hi + f.phys_hi * p / 100;
+        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct, -90);
+        low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
+        high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
-    std::int64_t d = hi > lo ? lo + rng(int(hi - lo)) : lo;
-    const int rolled = int(d >> 8);                       // before crit: what Vengeance's elements are a share of
+    std::int64_t damage = high > low ? low + rng(int(high - low)) : low;
+    const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
     // The mastery crit, critical strike and deadly strike are separate
     // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
-    const auto roll = [&](int c) { return c > 0 && rng(100) < c; };
-    if (!sw.kick && !sw.smite && (roll(f.mastery_crit) || roll(f.critical) || roll(f.deadly))) { d *= 2; b.deadly = true; }
-    d = d * sw.srcdam / 128;
+    const auto roll = [&](int chance) { return chance > 0 && rng(100) < chance; };
+    if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
+    damage = damage * swing.srcdam / 128;
     // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
     // pct % of the physical moves to the element, calc2's add comes after.
     // ponytail: poison conversion (an eighth, 50-tick length) isn't done.
-    const std::int64_t conv = sw.conv_type >= 0 && sw.conv_type < 5 ? d * std::clamp(sw.conv_pct, 0, 100) / 100 : 0;
-    d -= conv;
-    int phys = int(std::max<std::int64_t>(d >> 8, sw.kick || conv ? 0 : 1)) + sw.flat;
-    b.phys = phys;
-    phys = resisted(phys, t.res[0]);
-    if (sw.smite) {
-        b.damage = phys;
-        b.knockback = sw.knockback;
-        b.stun_ticks = std::min(sw.stun_ticks, 250);
-        return b;
+    const std::int64_t conv = swing.conv_type >= 0 && swing.conv_type < 5 ? damage * std::clamp(swing.conv_pct, 0, 100) / 100 : 0;
+    damage -= conv;
+    int phys = int(std::max<std::int64_t>(damage >> 8, swing.kick || conv ? 0 : 1)) + swing.flat;
+    blow.phys = phys;
+    phys = resisted(phys, target.res[0]);
+    if (swing.smite) {
+        blow.damage = phys;
+        blow.knockback = swing.knockback;
+        blow.stun_ticks = std::min(swing.stun_ticks, 250);
+        return blow;
     }
-    b.life = phys * f.life_steal * t.drain / 10000;
-    b.mana = phys * f.mana_steal * t.drain / 10000;
+    blow.life = phys * fighter.life_steal * target.drain / 10000;
+    blow.mana = phys * fighter.mana_steal * target.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    int elem = conv > 0 && sw.conv_type != 3 ? resisted(int(conv >> 8), t.res[std::size_t(kRes[sw.conv_type])]) : 0;
-    elem += resisted(rolled * sw.fire_pct / 100, t.res[2]) + resisted(rolled * sw.ltng_pct / 100, t.res[3]);
-    if (const int c = resisted(rolled * sw.cold_pct / 100, t.res[4]); c > 0) { elem += c; b.chill_ticks = std::max(sw.cold_len, 1); }
-    for (int e = 0; e < 5; ++e) {
-        const auto [elo, ehi] = f.elem[std::size_t(e)];
+    int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(conv >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
+    elem += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
+    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; blow.chill_ticks = std::max(swing.cold_len, 1); }
+    for (int element = 0; element < 5; ++element) {
+        const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
-        const int ed = resisted(rng.range(elo, ehi), t.res[std::size_t(kRes[e])]);
-        if (e == 3) { b.poison = ed; b.poison_ticks = std::max(f.poison_len, 1); continue; }
-        if (e == 2 && ed > 0) b.chill_ticks = std::max(b.chill_ticks, f.cold_len);
-        elem += ed;
+        const int element_damage = resisted(rng.range(elo, ehi), target.res[std::size_t(kRes[element])]);
+        if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
+        if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, fighter.cold_len);
+        elem += element_damage;
     }
-    int cb = 0;
-    if (f.crushing > 0 && rng(100) < f.crushing) { b.crushing = true; cb = resisted(t.hp / 4, t.res[0]); }
-    b.bleed = f.open_wounds > 0 && rng(100) < f.open_wounds;
-    b.knockback = f.knockback || sw.knockback;
-    b.stun_ticks = std::min(sw.stun_ticks, 250);
-    b.damage = phys + elem + cb;
-    return b;
+    int crushing_blow = 0;
+    if (fighter.crushing > 0 && rng(100) < fighter.crushing) { blow.crushing = true; crushing_blow = resisted(target.hit_points / 4, target.res[0]); }
+    blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
+    blow.knockback = fighter.knockback || swing.knockback;
+    blow.stun_ticks = std::min(swing.stun_ticks, 250);
+    blow.damage = phys + elem + crushing_blow;
+    return blow;
 }
 
 // A monster's attack on the player (`moving`: walking or running;
@@ -335,28 +335,28 @@ inline Blow player_blow(const Fighter& f, const Target& t, int clvl, Rng& rng, c
 // magic damage reduction; poison lands as a total over its ticks.
 // ponytail: poison isn't cut by resistance length; cold doesn't slow the player.
 struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0; };
-inline Taken monster_blow(const Fighter& d, int dlvl, bool moving, const MonStats& m, bool a2, Rng& rng,
+inline Taken monster_blow(const Fighter& defender, int dlvl, bool moving, const MonStats& attacker, bool second_attack, Rng& rng,
                           bool missile = false) {
-    Taken k;
-    if (rng(100) >= hit_chance(m.th, d.defense + (missile ? d.def_missile : d.def_melee), m.level, dlvl)) return k;
-    if (d.block > 0 && rng(100) < (moving ? d.block / 3 : d.block)) { k.blocked = true; return k; }
-    if (!moving && d.weapon_block > 0 && rng(100) < d.weapon_block) { k.blocked = true; return k; }
-    const int dodge = moving ? d.evade : missile ? d.avoid : d.dodge;
-    if (dodge > 0 && rng(100) < dodge) { k.dodged = true; return k; }
-    k.hit = true;
-    int phys = a2 ? rng.range(m.a2_min, m.a2_max) : rng.range(m.a1_min, m.a1_max);
-    phys = std::max(phys * (100 - d.dr_pct) / 100 - d.dr_flat, 0);
-    k.damage = phys;
-    for (const auto& e : m.el) {
-        if (e.type < 0 || e.mode != (a2 ? "A2" : "A1") || rng(100) >= e.pct) continue;
-        const int roll = rng.range(e.min, e.max);
-        switch (e.type) {
-            case 3: k.poison += resisted(roll, d.res[3]); k.poison_ticks = std::max(e.dur, 25); break;
-            case 4: k.damage += std::max(roll - d.mdr, 0); break;
-            default: k.damage += std::max(resisted(roll, d.res[std::size_t(e.type)]) - d.mdr, 0); break;
+    Taken taken;
+    if (rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl)) return taken;
+    if (defender.block > 0 && rng(100) < (moving ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
+    if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
+    const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
+    if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
+    taken.hit = true;
+    int phys = second_attack ? rng.range(attacker.a2_min, attacker.a2_max) : rng.range(attacker.a1_min, attacker.a1_max);
+    phys = std::max(phys * (100 - defender.dr_pct) / 100 - defender.dr_flat, 0);
+    taken.damage = phys;
+    for (const auto& element : attacker.elements) {
+        if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || rng(100) >= element.pct) continue;
+        const int roll = rng.range(element.min, element.max);
+        switch (element.type) {
+            case 3: taken.poison += resisted(roll, defender.res[3]); taken.poison_ticks = std::max(element.dur, 25); break;
+            case 4: taken.damage += std::max(roll - defender.mdr, 0); break;
+            default: taken.damage += std::max(resisted(roll, defender.res[std::size_t(element.type)]) - defender.mdr, 0); break;
         }
     }
-    return k;
+    return taken;
 }
 
 // Experience for a kill: the monster's, less when the character outlevels
@@ -375,23 +375,23 @@ inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
 // level + 1) gives StatPerLevel stat points, a skill point and the class's
 // life/stamina/mana per level (quarter points, 8.8 fixed stats). Returns the
 // levels gained.
-inline int gain_exp(d2d::d2s::Stats& st, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& g) {
+inline int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains) {
     using namespace d2d::d2s;
-    st.v[kExp] += exp;
+    stats.values[kExp] += exp;
     int gained = 0;
     for (;;) {
-        const auto lvl = st.get(kLevel);
+        const auto lvl = stats.get(kLevel);
         if (lvl < 1 || std::size_t(lvl) >= exp_next.size() || exp_next[std::size_t(lvl)] <= 0
-            || st.v[kExp] < exp_next[std::size_t(lvl)] || lvl >= 99) break;
-        ++st.v[kLevel];
+            || stats.values[kExp] < exp_next[std::size_t(lvl)] || lvl >= 99) break;
+        ++stats.values[kLevel];
         ++gained;
-        st.v[kStatPts] += g.stat_per_level;
-        st.v[kSkillPts] += 1;
-        for (auto [cur, max, q] : { std::tuple{ kLife, kMaxLife, g.life_per_level },
-                                    std::tuple{ kStamina, kMaxStamina, g.stamina_per_level },
-                                    std::tuple{ kMana, kMaxMana, g.mana_per_level } }) {
-            st.v[std::size_t(max)] += std::int64_t(q) * 64;
-            st.v[std::size_t(cur)] += std::int64_t(q) * 64;
+        stats.values[kStatPts] += gains.stat_per_level;
+        stats.values[kSkillPts] += 1;
+        for (auto [cur, max, per_level] : { std::tuple{ kLife, kMaxLife, gains.life_per_level },
+                                    std::tuple{ kStamina, kMaxStamina, gains.stamina_per_level },
+                                    std::tuple{ kMana, kMaxMana, gains.mana_per_level } }) {
+            stats.values[std::size_t(max)] += std::int64_t(per_level) * 64;
+            stats.values[std::size_t(cur)] += std::int64_t(per_level) * 64;
         }
     }
     return gained;

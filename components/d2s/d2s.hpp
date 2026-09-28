@@ -66,14 +66,14 @@ struct Header {
     std::array<std::uint8_t, 16> tints{};
     // Both as one: the look d2d draws (0x88..0xa7).
     [[nodiscard]] std::array<std::uint8_t, 32> look() const {
-        std::array<std::uint8_t, 32> a{};
-        std::copy(appearance.begin(), appearance.end(), a.begin());
-        std::copy(tints.begin(), tints.end(), a.begin() + 16);
-        return a;
+        std::array<std::uint8_t, 32> gear_look{};
+        std::copy(appearance.begin(), appearance.end(), gear_look.begin());
+        std::copy(tints.begin(), tints.end(), gear_look.begin() + 16);
+        return gear_look;
     }
-    void set_look(const std::array<std::uint8_t, 32>& a) {
-        std::copy(a.begin(), a.begin() + 16, appearance.begin());
-        std::copy(a.begin() + 16, a.end(), tints.begin());
+    void set_look(const std::array<std::uint8_t, 32>& look) {
+        std::copy(look.begin(), look.begin() + 16, appearance.begin());
+        std::copy(look.begin() + 16, look.end(), tints.begin());
     }
     std::array<std::uint8_t, 3>  difficulty{};
     std::uint32_t map_id = 0;
@@ -83,14 +83,14 @@ struct Header {
     std::uint32_t merc_seed = 0, merc_exp = 0;
     std::uint16_t merc_name = 0, merc_type = 0;
     [[nodiscard]] bool quest_flag(int diff, int quest, int bit) const noexcept {
-        const int n = quest * 16 + bit;
-        if (diff < 0 || diff > 2 || n < 0 || n >= 96 * 8) return false;
-        return quests[std::size_t(diff)][std::size_t(n >> 3)] >> (n & 7) & 1;
+        const int bit_index = quest * 16 + bit;
+        if (diff < 0 || diff > 2 || bit_index < 0 || bit_index >= 96 * 8) return false;
+        return quests[std::size_t(diff)][std::size_t(bit_index >> 3)] >> (bit_index & 7) & 1;
     }
     std::array<std::array<std::uint8_t, 5>, 3> waypoints{};  // zero when the save has none
-    [[nodiscard]] bool waypoint(int diff, int wp) const noexcept {
-        if (diff < 0 || diff > 2 || wp < 0 || wp >= 40) return false;
-        return waypoints[std::size_t(diff)][std::size_t(wp >> 3)] >> (wp & 7) & 1;
+    [[nodiscard]] bool waypoint(int diff, int waypoint_index) const noexcept {
+        if (diff < 0 || diff > 2 || waypoint_index < 0 || waypoint_index >= 40) return false;
+        return waypoints[std::size_t(diff)][std::size_t(waypoint_index >> 3)] >> (waypoint_index & 7) & 1;
     }
     // 0 normal, 1 nightmare, 2 hell — the last one played.
     [[nodiscard]] int active_difficulty() const noexcept {
@@ -105,47 +105,47 @@ struct Header {
 
 // Throws std::runtime_error on anything that isn't a 1.09–1.14d save.
 // Saves are user-supplied files: validate before trusting any field.
-inline Header parse_header(std::span<const std::byte> b) {
+inline Header parse_header(std::span<const std::byte> bytes) {
     constexpr std::size_t kHeaderEnd = 0xBF;   // through the merc fields
-    if (b.size() < kHeaderEnd) throw std::runtime_error("d2s: truncated header");
+    if (bytes.size() < kHeaderEnd) throw std::runtime_error("d2s: truncated header");
     auto rd32 = [&](std::size_t off) {
-        std::uint32_t v; std::memcpy(&v, b.data() + off, 4); return v;
+        std::uint32_t value; std::memcpy(&value, bytes.data() + off, 4); return value;
     };
     if (rd32(0x00) != kMagic) throw std::runtime_error("d2s: bad magic");
 
-    Header h;
-    h.version = rd32(0x04);
-    if (h.version < kMinVersion || h.version > kMaxVersion)
+    Header header;
+    header.version = rd32(0x04);
+    if (header.version < kMinVersion || header.version > kMaxVersion)
         throw std::runtime_error("d2s: unsupported version "
-                                 + std::to_string(h.version));
+                                 + std::to_string(header.version));
 
-    const auto* name = reinterpret_cast<const char*>(b.data() + 0x14);
-    h.name.assign(name, strnlen(name, 16));
-    if (h.name.empty()) throw std::runtime_error("d2s: empty name");
+    const auto* name = reinterpret_cast<const char*>(bytes.data() + 0x14);
+    header.name.assign(name, strnlen(name, 16));
+    if (header.name.empty()) throw std::runtime_error("d2s: empty name");
 
-    h.status      = std::uint8_t(b[0x24]);
-    h.progression = std::uint8_t(b[0x25]);
-    h.cls         = std::uint8_t(b[0x28]);
-    h.level       = std::uint8_t(b[0x2B]);
-    h.last_played = rd32(0x30);
-    for (std::size_t i = 0; i < 16; ++i) h.hotkeys[i] = rd32(0x38 + i * 4);
-    h.left_skill = rd32(0x78); h.right_skill = rd32(0x7C); h.left_swap = rd32(0x80); h.right_swap = rd32(0x84);
-    std::memcpy(h.appearance.data(), b.data() + 0x88, 16);
-    std::memcpy(h.tints.data(),      b.data() + 0x98, 16);
-    std::memcpy(h.difficulty.data(), b.data() + 0xA8, 3);
-    auto rd16 = [&](std::size_t off) { std::uint16_t v; std::memcpy(&v, b.data() + off, 2); return v; };
-    h.map_id    = rd32(0xAB);
-    h.merc_dead = rd16(0xB1) != 0;
-    h.merc_seed = rd32(0xB3);
-    h.merc_name = rd16(0xB7);
-    h.merc_type = rd16(0xB9);
-    h.merc_exp  = rd32(0xBB);
-    if (b.size() >= 0x159 + 3 * 96 && std::memcmp(b.data() + 0x14F, "Woo!", 4) == 0)
-        for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.quests[d].data(), b.data() + 0x159 + d * 96, 96);
-    if (b.size() >= 0x281 + 3 * 24 && std::memcmp(b.data() + 0x279, "WS", 2) == 0)
-        for (std::size_t d = 0; d < 3; ++d) std::memcpy(h.waypoints[d].data(), b.data() + 0x283 + d * 24, 5);
-    if (h.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(h.cls));
-    return h;
+    header.status      = std::uint8_t(bytes[0x24]);
+    header.progression = std::uint8_t(bytes[0x25]);
+    header.cls         = std::uint8_t(bytes[0x28]);
+    header.level       = std::uint8_t(bytes[0x2B]);
+    header.last_played = rd32(0x30);
+    for (std::size_t i = 0; i < 16; ++i) header.hotkeys[i] = rd32(0x38 + i * 4);
+    header.left_skill = rd32(0x78); header.right_skill = rd32(0x7C); header.left_swap = rd32(0x80); header.right_swap = rd32(0x84);
+    std::memcpy(header.appearance.data(), bytes.data() + 0x88, 16);
+    std::memcpy(header.tints.data(),      bytes.data() + 0x98, 16);
+    std::memcpy(header.difficulty.data(), bytes.data() + 0xA8, 3);
+    auto rd16 = [&](std::size_t off) { std::uint16_t value; std::memcpy(&value, bytes.data() + off, 2); return value; };
+    header.map_id    = rd32(0xAB);
+    header.merc_dead = rd16(0xB1) != 0;
+    header.merc_seed = rd32(0xB3);
+    header.merc_name = rd16(0xB7);
+    header.merc_type = rd16(0xB9);
+    header.merc_exp  = rd32(0xBB);
+    if (bytes.size() >= 0x159 + 3 * 96 && std::memcmp(bytes.data() + 0x14F, "Woo!", 4) == 0)
+        for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.quests[difficulty].data(), bytes.data() + 0x159 + difficulty * 96, 96);
+    if (bytes.size() >= 0x281 + 3 * 24 && std::memcmp(bytes.data() + 0x279, "WS", 2) == 0)
+        for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.waypoints[difficulty].data(), bytes.data() + 0x283 + difficulty * 24, 5);
+    if (header.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(header.cls));
+    return header;
 }
 
 }  // namespace d2d::d2s

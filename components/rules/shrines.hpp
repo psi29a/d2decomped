@@ -29,13 +29,13 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
     auto low = [&](int id) { return level_id < rows[std::size_t(id)].level_min; };
     int id = 0;
     if (parm0 == 0) {
-        for (int n = 8; n > 0; --n) if (id = obj(int(rows.size()) - 1) + 1; !low(id)) break;
+        for (int tries = 8; tries > 0; --tries) if (id = obj(int(rows.size()) - 1) + 1; !low(id)) break;
     } else {
         int cls = parm0 == 1 ? 2 : parm0 == 2 ? 3 : obj.next() % 10 == 0 ? 1 : 4;
         std::vector<int> list;
-        for (std::size_t r = 0; r < rows.size(); ++r) if (rows[r].effectclass == cls) list.push_back(int(r));
+        for (std::size_t row = 0; row < rows.size(); ++row) if (rows[row].effectclass == cls) list.push_back(int(row));
         if (list.empty()) return 0;
-        for (int n = 8; n > 0; --n) if (id = std::max(list[std::size_t(rgn(int(list.size())))], 1); !low(id)) break;
+        for (int tries = 8; tries > 0; --tries) if (id = std::max(list[std::size_t(rgn(int(list.size())))], 1); !low(id)) break;
     }
     return id == 5 ? 3 : id == 4 ? 2 : id == 16 ? 18 : id;
 }
@@ -45,18 +45,18 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,
 // staminarecoverybonus (28) 1000), by Code. `ar`: the player's rating.
 // Skills FUN_00583bf0: +Arg0 all skills (item_allskills, 127).
-inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& s, int ar) {
-    switch (s.code) {
-    case 6:  return { { 171, s.arg0 } };                  // skill_armor_percent
-    case 7:  return { { 19, ar * s.arg0 / 100 }, { 25, s.arg1 } };
-    case 8:  return { { 39, s.arg0 } };                   // fireresist
-    case 9:  return { { 43, s.arg0 } };                   // coldresist
-    case 10: return { { 41, s.arg0 } };                   // lightresist
-    case 11: return { { 45, s.arg0 } };                   // poisonresist
-    case 12: return { { 127, s.arg0 } };                  // item_allskills
-    case 13: return { { 27, s.arg0 } };                   // manarecoverybonus
+inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, int attack_rating) {
+    switch (shrine.code) {
+    case 6:  return { { 171, shrine.arg0 } };                  // skill_armor_percent
+    case 7:  return { { 19, attack_rating * shrine.arg0 / 100 }, { 25, shrine.arg1 } };
+    case 8:  return { { 39, shrine.arg0 } };                   // fireresist
+    case 9:  return { { 43, shrine.arg0 } };                   // coldresist
+    case 10: return { { 41, shrine.arg0 } };                   // lightresist
+    case 11: return { { 45, shrine.arg0 } };                   // poisonresist
+    case 12: return { { 127, shrine.arg0 } };                  // item_allskills
+    case 13: return { { 27, shrine.arg0 } };                   // manarecoverybonus
     case 14: return { { 28, 1000 } };                     // staminarecoverybonus
-    case 15: return { { 85, s.arg0 } };                   // item_addexperience
+    case 15: return { { 85, shrine.arg0 } };                   // item_addexperience
     default: return {};
     }
 }
@@ -65,13 +65,13 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& s, int ar)
 // maxima, any fixed point: 1 both full, 2 life full, 3 mana full, 4 life
 // down Arg0 %, mana up Arg1 % of that; 5 the other way round.
 // (4 and 5 aren't rolled — roll_shrine turns them into 2 and 3.)
-inline void shrine_recharge(const ShrineRow& s, std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana) {
-    switch (s.code) {
+inline void shrine_recharge(const ShrineRow& shrine, std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana) {
+    switch (shrine.code) {
     case 1: life = std::max(life, max_life); mana = std::max(mana, max_mana); break;
     case 2: life = std::max(life, max_life); break;
     case 3: mana = std::max(mana, max_mana); break;
-    case 4: { const auto d = life * s.arg0 / 100; life -= d; mana += d * s.arg1 / 100; break; }
-    case 5: { const auto d = mana * s.arg0 / 100; mana -= d; life += d * s.arg1 / 100; break; }
+    case 4: { const auto moved = life * shrine.arg0 / 100; life -= moved; mana += moved * shrine.arg1 / 100; break; }
+    case 5: { const auto moved = mana * shrine.arg0 / 100; mana -= moved; life += moved * shrine.arg1 / 100; break; }
     default: break;
     }
 }
@@ -80,12 +80,12 @@ inline void shrine_recharge(const ShrineRow& s, std::int64_t& life, std::int64_t
 // better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,
 // a chipped gem, rand(6) on the player's seed. Returns the code to give,
 // "" when `upgrade` took one.
-inline std::string gem_shrine(const Tables& t, std::vector<d2s::Item>& items, Rng& seed) {
-    for (auto& it : items) {
-        if (it.location != 0 || it.panel != 1) continue;
-        const auto b = t.item_base.find(it.code);
-        if (b == t.item_base.end() || b->second.better_gem.empty() || b->second.better_gem == "non") continue;
-        it.code = b->second.better_gem;
+inline std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed) {
+    for (auto& item : items) {
+        if (item.location != 0 || item.panel != 1) continue;
+        const auto found = tables.item_base.find(item.code);
+        if (found == tables.item_base.end() || found->second.better_gem.empty() || found->second.better_gem == "non") continue;
+        item.code = found->second.better_gem;
         return {};
     }
     static constexpr const char* kChipped[6] = { "gcw", "gcr", "gcg", "gcb", "gcy", "gcv" };
@@ -99,8 +99,8 @@ inline std::string gem_shrine(const Tables& t, std::vector<d2s::Item>& items, Rn
 inline std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int hi_alvl) {
     const int third = (std::abs(hi_alvl - lo_alvl) + 1) / 3;
     const int cls = alvl < lo_alvl + third ? 0 : alvl < lo_alvl + 2 * third ? 1 : 2;
-    static constexpr const char* kD[3] = { "", " (N)", " (H)" };
-    return std::format("Act {}{} Chest {}", std::clamp(act, 0, 4) + 1, kD[std::clamp(difficulty, 0, 2)], char('A' + cls));
+    static constexpr const char* kDifficultySuffix[3] = { "", " (N)", " (H)" };
+    return std::format("Act {}{} Chest {}", std::clamp(act, 0, 4) + 1, kDifficultySuffix[std::clamp(difficulty, 0, 2)], char('A' + cls));
 }
 // A chest as its init makes it (InitFn 3, FUN_0054fcb0, on the object's
 // seed): first the trap (FUN_0054fbb0: rand(100) < MonLvl1 / 8 + 5, then
@@ -109,11 +109,11 @@ inline std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int 
 // classic normal column (Levels +0x10), whatever the difficulty.
 struct ChestInit { int trap = 0; bool locked = false; };
 inline ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
-    ChestInit c;
-    if (seed(100) < mlvl1 / 8 + 5) c.trap = seed.range(1, 8);
-    if (lockable && seed(100) < mlvl1 / 2 + 8) c.locked = true;
+    ChestInit chest;
+    if (seed(100) < mlvl1 / 8 + 5) chest.trap = seed.range(1, 8);
+    if (lockable && seed(100) < mlvl1 / 2 + 8) chest.locked = true;
     seed.next();
-    return c;
+    return chest;
 }
 // Opening it (FUN_00585f60): a locked one takes a key and drops two
 // rounds; any other is empty one time in four (rand(100) < 25).
@@ -147,10 +147,10 @@ inline constexpr std::array<std::pair<int, int>, 16> kPoisonNova{ { { 0, 2 }, { 
 // that family's first id. None: 234, a flying scimitar — and in act 1
 // (FUN_00582250) no trap at all (-1).
 inline int trap_undead(const std::vector<int>& region, int act) {
-    const int z = act == 1 ? 96 : 5;
+    const int chance = act == 1 ? 96 : 5;
     for (const int id : region) {
-        if (id >= z && id < z + 5) return z;
-        for (const int b : { 0, 170, 274, 379, 383, 387 }) if (id >= b && id < b + 4) return b;
+        if (id >= chance && id < chance + 5) return chance;
+        for (const int first : { 0, 170, 274, 379, 383, 387 }) if (id >= first && id < first + 4) return first;
     }
     return act == 0 ? -1 : 234;
 }

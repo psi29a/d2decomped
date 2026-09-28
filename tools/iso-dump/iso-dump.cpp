@@ -24,28 +24,28 @@ int main(int argc, char** argv) {
     const std::string cmd = argv[1];
     const fs::path iso = argv[2];
 
-    auto r = iso9660::Reader::open(iso);
-    if (!r) { std::fprintf(stderr, "cannot open %s\n", iso.string().c_str()); return 1; }
+    auto reader = iso9660::Reader::open(iso);
+    if (!reader) { std::fprintf(stderr, "cannot open %s\n", iso.string().c_str()); return 1; }
 
     if (cmd == "list") {
-        for (const auto& e : r->entries()) {
+        for (const auto& entry : reader->entries()) {
             std::printf("%c %10u  %s\n",
-                        e.directory ? 'd' : '-', e.size, e.path.c_str());
+                        entry.directory ? 'd' : '-', entry.size, entry.path.c_str());
         }
         return 0;
     }
     if (cmd == "extract") {
         if (argc < 4) { std::fprintf(stderr, "missing dest-dir\n"); return 2; }
         const fs::path dest = argv[3];
-        std::error_code ec;
-        fs::create_directories(dest, ec);
+        std::error_code error;
+        fs::create_directories(dest, error);
         std::uint64_t total = 0;
         std::size_t count = 0;
-        for (const auto& e : r->entries()) {
-            const fs::path out = dest / e.path.substr(1);
-            if (e.directory) { fs::create_directories(out, ec); continue; }
-            fs::create_directories(out.parent_path(), ec);
-            auto bytes = r->read(e);
+        for (const auto& entry : reader->entries()) {
+            const fs::path out = dest / entry.path.substr(1);
+            if (entry.directory) { fs::create_directories(out, error); continue; }
+            fs::create_directories(out.parent_path(), error);
+            auto bytes = reader->read(entry);
             std::ofstream(out, std::ios::binary).write(
                 reinterpret_cast<const char*>(bytes.data()),
                 static_cast<std::streamsize>(bytes.size()));

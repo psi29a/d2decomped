@@ -12,11 +12,11 @@ namespace d2d::screenshot {
 
 namespace {
 
-void write_u32_be(std::vector<std::uint8_t>& out, std::uint32_t v) {
-    out.push_back(std::uint8_t(v >> 24));
-    out.push_back(std::uint8_t(v >> 16));
-    out.push_back(std::uint8_t(v >>  8));
-    out.push_back(std::uint8_t(v      ));
+void write_u32_be(std::vector<std::uint8_t>& out, std::uint32_t value) {
+    out.push_back(std::uint8_t(value >> 24));
+    out.push_back(std::uint8_t(value >> 16));
+    out.push_back(std::uint8_t(value >>  8));
+    out.push_back(std::uint8_t(value      ));
 }
 
 void write_chunk(std::vector<std::uint8_t>& out,
@@ -36,16 +36,16 @@ void write_chunk(std::vector<std::uint8_t>& out,
 
 std::size_t save_png(const std::filesystem::path& path,
                      std::span<const std::uint8_t> pixels,
-                     std::uint32_t w, std::uint32_t h) {
-    if (w == 0 || h == 0)
+                     std::uint32_t width, std::uint32_t height) {
+    if (width == 0 || height == 0)
         throw std::runtime_error("screenshot: zero dimension");
-    if (pixels.size() != std::size_t(w) * h * 4)
+    if (pixels.size() != std::size_t(width) * height * 4)
         throw std::runtime_error("screenshot: pixel span size mismatch");
 
     // Build raw filtered scanlines: 1 filter byte per row, then RGBA pixels.
-    const std::size_t rowStride = std::size_t(w) * 4;
-    std::vector<std::uint8_t> raw(h * (rowStride + 1));
-    for (std::uint32_t y = 0; y < h; ++y) {
+    const std::size_t rowStride = std::size_t(width) * 4;
+    std::vector<std::uint8_t> raw(height * (rowStride + 1));
+    for (std::uint32_t y = 0; y < height; ++y) {
         raw[y * (rowStride + 1)] = 0;   // filter = None
         std::memcpy(raw.data() + y * (rowStride + 1) + 1,
                     pixels.data() + std::size_t(y) * rowStride,
@@ -55,10 +55,10 @@ std::size_t save_png(const std::filesystem::path& path,
     // zlib-compress the filtered stream.
     uLongf compBound = ::compressBound(uLong(raw.size()));
     std::vector<std::uint8_t> comp(compBound);
-    int rc = ::compress2(comp.data(), &compBound,
+    int result = ::compress2(comp.data(), &compBound,
                          raw.data(), uLong(raw.size()),
                          Z_BEST_SPEED);   // fast path — dev-only screenshots
-    if (rc != Z_OK)
+    if (result != Z_OK)
         throw std::runtime_error("screenshot: zlib compress failed");
     comp.resize(compBound);
 
@@ -69,10 +69,10 @@ std::size_t save_png(const std::filesystem::path& path,
     out.insert(out.end(), kSig, kSig + 8);
 
     std::uint8_t ihdr[13];
-    ihdr[ 0] = std::uint8_t(w >> 24); ihdr[ 1] = std::uint8_t(w >> 16);
-    ihdr[ 2] = std::uint8_t(w >>  8); ihdr[ 3] = std::uint8_t(w      );
-    ihdr[ 4] = std::uint8_t(h >> 24); ihdr[ 5] = std::uint8_t(h >> 16);
-    ihdr[ 6] = std::uint8_t(h >>  8); ihdr[ 7] = std::uint8_t(h      );
+    ihdr[ 0] = std::uint8_t(width >> 24); ihdr[ 1] = std::uint8_t(width >> 16);
+    ihdr[ 2] = std::uint8_t(width >>  8); ihdr[ 3] = std::uint8_t(width      );
+    ihdr[ 4] = std::uint8_t(height >> 24); ihdr[ 5] = std::uint8_t(height >> 16);
+    ihdr[ 6] = std::uint8_t(height >>  8); ihdr[ 7] = std::uint8_t(height      );
     ihdr[ 8] = 8;   // bit depth
     ihdr[ 9] = 6;   // color type = RGBA
     ihdr[10] = 0;   // compression = deflate
@@ -83,11 +83,11 @@ std::size_t save_png(const std::filesystem::path& path,
     write_chunk(out, "IEND", nullptr, 0);
 
     // Write the whole file at once — dev-only, doesn't warrant streaming.
-    std::ofstream os(path, std::ios::binary | std::ios::trunc);
-    if (!os) throw std::runtime_error("screenshot: open failed: " + path.string());
-    os.write(reinterpret_cast<const char*>(out.data()),
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) throw std::runtime_error("screenshot: open failed: " + path.string());
+    file.write(reinterpret_cast<const char*>(out.data()),
              std::streamsize(out.size()));
-    if (!os) throw std::runtime_error("screenshot: write failed: " + path.string());
+    if (!file) throw std::runtime_error("screenshot: write failed: " + path.string());
     return out.size();
 }
 

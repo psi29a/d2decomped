@@ -132,6 +132,23 @@ rng) and hands references to its subsystems (`Fight`, `Loot`); the client
 (docs/design/multiplayer.md). A new game system goes into the World or a
 subsystem it owns; a new panel or input into `Town`.
 
+## Code style
+
+**Names say what they hold.** A variable, parameter or field is named for
+its meaning: `framebuffer`, `now_ms`, `monster`, `row`, `scene`,
+`game_data`, not `fb`, `ms`, `m`, `r`, `s`. The few short names that stay
+are the conventional ones: `i`, `j`, `k` as loop counters, `x`, `y`,
+`dx`, `dy` for coordinates, `id`, `ok`; and a colour's `r`, `g`, `b`, `a`
+(`palette::Rgba`). Constants are `kCamelCase`. `.clang-tidy`
+(readability-identifier-length) enforces this for variables and
+parameters; CI runs it on Linux (clang-tidy -p build on every source).
+Fields are held to the same rule by review.
+
+**Namespaces say which part.** The file formats are `d2d::mpq`, `d2d::dcc`,
+`d2d::ds1` ... (components/<format>), the game's rules `d2d::rules`, the
+level generator `d2d::drlg`, the game server `d2d::game`
+(components/game) and the client `d2d::client` (apps/d2d).
+
 ## Toolchain
 
 - C++26 (`-std=c++2c` / `/std:c++latest`), CMake ≥ 3.28, Ninja.

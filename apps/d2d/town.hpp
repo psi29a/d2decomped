@@ -19,7 +19,7 @@ namespace d2d::client {
 // as wide as the name plus a margin, filled by its share of life left.
 // ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
 // font and per-type colours) isn't traced; this is its look by eye.
-void draw_monster_bar(std::vector<std::uint8_t>& fb, const Scene& s, const Monster& m);
+void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster);
 
 // The client's drawing of what the World told it (View): the ground
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
@@ -36,60 +36,60 @@ struct StateClock {
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
     std::uint32_t now = 0;
 };
-inline void dress(const Scene& s, Unit& u, int key, std::span<const std::string_view> names, StateClock* clk) {
+inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::string_view> names, StateClock* clk) {
     int pri = -1;
     for (const auto name : names) {
-        const auto it = s.states.find(std::string(name));
-        if (name.empty() || it == s.states.end()) continue;
-        const auto& st = it->second;
+        const auto found = scene.states.find(std::string(name));
+        if (name.empty() || found == scene.states.end()) continue;
+        const auto& state = found->second;
         // colorshift counts from 1: "blue" (108) is table 107, blue; 108
         // is purple. "red" (100) → 99 red, "poison" (104) → 103 green.
-        if (st.shift >= 1 && st.shift <= 111 && st.pri > pri && s.colour_shifts.size() >= 111 * 256) {
-            pri = st.pri;
-            u.shift = s.colour_shifts.data() + (st.shift - 1) * 256;
+        if (state.shift >= 1 && state.shift <= 111 && state.pri > pri && scene.colour_shifts.size() >= 111 * 256) {
+            pri = state.pri;
+            unit.shift = scene.colour_shifts.data() + (state.shift - 1) * 256;
         }
         std::uint32_t start = 0;
         if (clk) {
-            auto [e, fresh] = clk->seen.try_emplace({ key, &st }, StateClock::Seen{ clk->now, clk->now });
-            if (!fresh && clk->now - e->second.last > 200) e->second.start = clk->now;   // gone a while: a new one
-            e->second.last = clk->now;
-            start = e->second.start;
+            auto [seen, fresh] = clk->seen.try_emplace({ key, &state }, StateClock::Seen{ clk->now, clk->now });
+            if (!fresh && clk->now - seen->second.last > 200) seen->second.start = clk->now;   // gone a while: a new one
+            seen->second.last = clk->now;
+            start = seen->second.start;
         }
-        for (const auto* o : st.over) if (o) u.overs.push_back({ o, start, false });
-        if (st.cast) u.overs.push_back({ st.cast, start, true });
+        for (const auto* overlay : state.over) if (overlay) unit.overs.push_back({ overlay, start, false });
+        if (state.cast) unit.overs.push_back({ state.cast, start, true });
     }
 }
 // The states on a monster and on the player, by States.txt name.
-inline std::vector<std::string_view> monster_states(const Scene& s, const Monster& m, std::uint32_t now, int player_aura = 0) {
+inline std::vector<std::string_view> monster_states(const Scene& scene, const Monster& monster, std::uint32_t now, int player_aura = 0) {
     std::vector<std::string_view> out;
-    if (!m.alive()) return out;
-    if (now < m.poison_until) out.push_back("poison");
-    if (now < m.chill_until) out.push_back("cold");
-    if (now < m.stun_until) out.push_back("stunned");
-    for (const auto& k : { m.curse, m.cry })
-        if (k.skill >= 0 && now < k.until)
-            if (const auto* sk = s.skills.get(k.skill)) out.push_back(sk->auratarget);
-    if (m.aura > 0)
-        if (const auto* sk = s.skills.get(m.aura)) out.push_back(sk->aurastate);
-    if (m.in_aura && player_aura > 0)
-        if (const auto* sk = s.skills.get(player_aura)) out.push_back(sk->auratarget);
+    if (!monster.alive()) return out;
+    if (now < monster.poison_until) out.push_back("poison");
+    if (now < monster.chill_until) out.push_back("cold");
+    if (now < monster.stun_until) out.push_back("stunned");
+    for (const auto& effect : { monster.curse, monster.cry })
+        if (effect.skill >= 0 && now < effect.until)
+            if (const auto* skill = scene.skills.get(effect.skill)) out.push_back(skill->auratarget);
+    if (monster.aura > 0)
+        if (const auto* skill = scene.skills.get(monster.aura)) out.push_back(skill->aurastate);
+    if (monster.in_aura && player_aura > 0)
+        if (const auto* skill = scene.skills.get(player_aura)) out.push_back(skill->auratarget);
     return out;
 }
-inline std::vector<std::string_view> player_states(const Scene& s, const View& v) {
+inline std::vector<std::string_view> player_states(const Scene& scene, const View& view) {
     std::vector<std::string_view> out;
-    for (const int k : v.buffs) if (const auto* sk = s.skills.get(k)) out.push_back(sk->aurastate);
-    if (v.aura > 0) if (const auto* sk = s.skills.get(v.aura)) out.push_back(sk->aurastate);
+    for (const int buff : view.buffs) if (const auto* skill = scene.skills.get(buff)) out.push_back(skill->aurastate);
+    if (view.aura > 0) if (const auto* skill = scene.skills.get(view.aura)) out.push_back(skill->aurastate);
     return out;
 }
 constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;
-void view_units(const Scene& s, const View& v, float cx, float cy, const std::string* merc_label, std::vector<Unit>& out,
-                std::span<const View::Shot> fx = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0,
+void view_units(const Scene& scene, const View& view, float camera_x, float camera_y, const std::string* merc_label, std::vector<Unit>& out,
+                std::span<const View::Shot> effects = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0,
                 StateClock* clk = nullptr);
 // Over the world: the hovered (else attacked) monster's life bar, the
 // death message.
-void view_overlays(std::vector<std::uint8_t>& fb, const Scene& s, const View& v, int hovered);
+void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered);
 // An SQ skill's frame now: the mode and when it started, as Fight::seq_view.
-std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, std::uint32_t ms);
+std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& view, std::uint32_t now_ms);
 
 // The client (docs/design/multiplayer.md): input, panels, camera,
 // drawing and sound, over a World (world.hpp) it sends commands to. The
@@ -101,12 +101,12 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
 // ponytail: light quality is taken as high (2: shadows on).
-Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1,
+Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0);
 
 struct Town {
     const Scene* scene = nullptr;
-    CharCreateUI& cc;                      // the in-game character (save, items, stats)
+    CharCreateUI& character;                      // the in-game character (save, items, stats)
     World world;                           // the game server's side (in-process: single player)
     const Level* level = nullptr;          // where the character is (the View's): the town, the Blood Moor, the Den of Evil
     d2d::rules::Rng rng{ 0x7f4a7c15u };    // the client's own rolls (which gossip, sound variations)
@@ -154,7 +154,7 @@ struct Town {
     std::uint32_t amb_next = 0, amb_last = 0;
     d2d::rules::Rng sound_rng{ 0x5eed5u };
     std::vector<int> gossip_pick;          // per world NPC: chosen gossip topic, -1 = not yet
-    SkillBar skillbar{ scene, cc };        // the skill buttons, picker and hotkeys (skillbar.hpp)
+    SkillBar skillbar{ scene, character };        // the skill buttons, picker and hotkeys (skillbar.hpp)
     int   hovered_npc = -1;                // Level::npcs index under the cursor (last frame); <= -10: monster -10 - i
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
@@ -165,8 +165,8 @@ struct Town {
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
 
-    Town(const Scene* s, CharCreateUI& c, int start_x = -1, int start_y = -1)
-        : scene(s), cc(c), world(s, start_x, start_y) {
+    Town(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
+        : scene(game_scene), character(player_character), world(game_scene, start_x, start_y) {
         have_world = world.level && !world.level->dt1s.empty();
         view = world.view();
         level = view.level;
@@ -186,7 +186,7 @@ struct Town {
     std::string save();
 
     // devctl: operate object i now, as the server would on arrival.
-    void operate(int i, std::uint32_t ms, int force = -1);
+    void operate(int npc_index, std::uint32_t frame_ms, int force = -1);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
@@ -194,8 +194,8 @@ struct Town {
 
     // One InGame frame: keys, panels, clicks, walking, NPCs, then the render.
     // Esc with nothing open goes back to the roster (screen).
-    void update(std::vector<std::uint8_t>& fb, Mouse& mouse, const std::vector<SDL_Keycode>& keys_this_frame,
-                Screen& screen, Audio& audio, std::uint32_t ms, std::uint32_t last_ms);
+    void update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const std::vector<SDL_Keycode>& keys_this_frame,
+                Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms);
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
@@ -209,10 +209,10 @@ struct Town {
 
     // The game this frame: what the player asks for (input), the World's
     // step, then what it told the client (events).
-    void walk(const Mouse& mouse, bool over_ui, std::uint32_t ms, std::uint32_t last_ms);
+    void walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms);
 
     // What the World told the client.
-    void handle(const Event& e, std::uint32_t ms);
+    void handle(const Event& event, std::uint32_t frame_ms);
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
     bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
     int replay_speech = 0;                         // questlast: a quest message to play again
@@ -229,14 +229,14 @@ struct Town {
     bool den_seen = false, den_lit = false;
     std::vector<View::Shot> den_beams;
     [[nodiscard]] int den_ambient() const;
-    void den_tick(std::uint32_t ms);
+    void den_tick(std::uint32_t frame_ms);
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc);
 
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.
-    void draw(std::vector<std::uint8_t>& fb, const Mouse& mouse, std::uint32_t ms);
+    void draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms);
 };
 
 }  // namespace d2d::client

@@ -8,7 +8,7 @@ namespace d2d::client {
 
 // Hover text box: lines centred over [x0, x1], bottom on `bottom` (below
 // `top` instead when it would leave the screen), on a darkened backdrop.
-void draw_hover_text(std::vector<std::uint8_t>& fb, const Scene& s, const std::vector<TextLine>& lines,
-                     int x0, int x1, int top, int bottom);
+void draw_hover_text(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<TextLine>& lines,
+                     int left, int right, int top, int bottom);
 
 }  // namespace d2d::client

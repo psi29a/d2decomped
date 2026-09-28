@@ -18,12 +18,12 @@ int main() {
     {
         const char* src = "name\tCode\talternateGfx\r\nHand Axe\thax\thax\r\n"
                           "Expansion\r\n\r\nHatchet\t9ha\thax\r\nshort\r\n";
-        d2d::txt::Table t(std::as_bytes(std::span(src, std::strlen(src))));
-        assert(t.size() == 3);                          // Expansion + blank dropped
-        assert(t.get(1, "code") == "9ha");
-        assert(t.get(1, "ALTERNATEGFX") == "hax");
-        assert(t.get(2, "code").empty());               // short row
-        assert(t.get(0, "nope").empty());
+        d2d::txt::Table table(std::as_bytes(std::span(src, std::strlen(src))));
+        assert(table.size() == 3);                          // Expansion + blank dropped
+        assert(table.get(1, "code") == "9ha");
+        assert(table.get(1, "ALTERNATEGFX") == "hax");
+        assert(table.get(2, "code").empty());               // short row
+        assert(table.get(0, "nope").empty());
     }
 
     const char* env = std::getenv("D2_MPQ_DIR");
@@ -36,8 +36,8 @@ int main() {
     d2d::mpq::Stack mpqs;
     if (fs::exists(dir / "d2exp.mpq")) mpqs.push(dir / "d2exp.mpq");
     mpqs.push(dir / "d2data.mpq");
-    auto tbl = [&](const char* n) {
-        return d2d::txt::Table(mpqs.read(std::string(R"(data\global\excel\)") + n + ".txt"));
+    auto tbl = [&](const char* name) {
+        return d2d::txt::Table(mpqs.read(std::string(R"(data\global\excel\)") + name + ".txt"));
     };
     const auto table = d2d::compcode::build(tbl("ItemTypes"), tbl("weapons"),
                                             tbl("armor"), tbl("misc"));
@@ -54,10 +54,10 @@ int main() {
         {89, "ba1"}, {90, "ba3"}, {91, "ba5"}, {93, "pa3"}, {94, "pa5"},
     };
     int bad = 0;
-    for (const auto& t : truth) {
-        if (table[std::size_t(t.idx)].code != t.code) {
-            std::printf("idx %d: got '%s' want '%s'\n", t.idx,
-                        table[std::size_t(t.idx)].code.c_str(), t.code);
+    for (const auto& truth_row : truth) {
+        if (table[std::size_t(truth_row.idx)].code != truth_row.code) {
+            std::printf("idx %d: got '%s' want '%s'\n", truth_row.idx,
+                        table[std::size_t(truth_row.idx)].code.c_str(), truth_row.code);
             ++bad;
         }
     }
@@ -68,7 +68,7 @@ int main() {
 
     // Weapon class from real saves' RH/LH/SH bytes (d2s class id first).
     using d2d::compcode::weapon_class;
-    struct { const char* who; int cls; int rh, lh, sh; const char* want; } wc[] = {
+    struct { const char* who; int cls; int right_hand, left_hand, shield; const char* want; } cases[] = {
         {"Lyndon BA flail+club",   4, 15,   12,   0xff, "1ss"},
         {"Joanna AM bow in LH",    0, 0xff, 55,   0xff, "bow"},
         {"Mule AS two claws",      6, 43,   43,   0xff, "ht1"},
@@ -79,18 +79,18 @@ int main() {
         {"claw on a barbarian",    4, 43,   0xff, 0xff, "hth"},
         {"empty hands",            5, 0xff, 0xff, 0xff, "hth"},
     };
-    const char* cc[7] = {"AM", "SO", "NE", "PA", "BA", "DZ", "AI"};
+    const char* class_codes[7] = {"AM", "SO", "NE", "PA", "BA", "DZ", "AI"};
     const bool have_chars = fs::exists(dir / "d2char.mpq");
     if (have_chars) mpqs.push(dir / "d2char.mpq");
-    for (const auto& c : wc) {
-        const auto got = weapon_class(c.cls, table, std::uint8_t(c.rh),
-                                      std::uint8_t(c.lh), std::uint8_t(c.sh));
-        if (got != c.want) std::printf("%s: got '%.*s' want '%s'\n", c.who,
-                                       int(got.size()), got.data(), c.want);
-        assert(got == c.want);
+    for (const auto& test_case : cases) {
+        const auto got = weapon_class(test_case.cls, table, std::uint8_t(test_case.right_hand),
+                                      std::uint8_t(test_case.left_hand), std::uint8_t(test_case.shield));
+        if (got != test_case.want) std::printf("%s: got '%.*s' want '%s'\n", test_case.who,
+                                       int(got.size()), got.data(), test_case.want);
+        assert(got == test_case.want);
         if (have_chars) {   // the animation D2 would load must exist
-            std::string cof = std::string(R"(data\global\CHARS\)") + cc[c.cls] +
-                              R"(\COF\)" + cc[c.cls] + "TN" + std::string(got) + ".cof";
+            std::string cof = std::string(R"(data\global\CHARS\)") + class_codes[test_case.cls] +
+                              R"(\COF\)" + class_codes[test_case.cls] + "TN" + std::string(got) + ".cof";
             assert(mpqs.contains(cof));
         }
     }

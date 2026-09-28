@@ -21,15 +21,15 @@ struct Dt1File {
     std::string name;                                   // lower-case file name
     std::vector<Dt1Head> tiles;                         // file order
 };
-template <class Bytes> Dt1File dt1_heads(std::string name, const Bytes& b) {
-    Dt1File f{ std::move(name), {} };
-    auto rd = [&](std::size_t o) { std::int32_t v = 0; if (o + 4 <= b.size()) std::memcpy(&v, b.data() + o, 4); return v; };
-    const int n = rd(0x10c), off = rd(0x110);
-    for (int i = 0; i < n; ++i) {
-        const auto h = std::size_t(off) + std::size_t(i) * 0x60;
-        f.tiles.push_back({ rd(h + 0x14), rd(h + 0x18), rd(h + 0x1c), rd(h + 0x20) });
+template <class Bytes> Dt1File dt1_heads(std::string name, const Bytes& bytes) {
+    Dt1File file{ std::move(name), {} };
+    auto read_i32 = [&](std::size_t offset) { std::int32_t value = 0; if (offset + 4 <= bytes.size()) std::memcpy(&value, bytes.data() + offset, 4); return value; };
+    const int count = read_i32(0x10c), off = read_i32(0x110);
+    for (int i = 0; i < count; ++i) {
+        const auto header = std::size_t(off) + std::size_t(i) * 0x60;
+        file.tiles.push_back({ read_i32(header + 0x14), read_i32(header + 0x18), read_i32(header + 0x1c), read_i32(header + 0x20) });
     }
-    return f;
+    return file;
 }
 
 // The DT1s a level's rooms can list: LvlTypes File1..32 of its type (index
@@ -45,11 +45,11 @@ struct RoomDt1s {
 struct RoomTile { int layer, x, y, orient; const Dt1File* file; int index; };
 
 // A room's DT1 list (FUN_0066f240): its mask's files in bit order, then the three.
-inline std::vector<const Dt1File*> room_dt1_list(std::uint32_t mask, const RoomDt1s& d) {
+inline std::vector<const Dt1File*> room_dt1_list(std::uint32_t mask, const RoomDt1s& dt1s) {
     std::vector<const Dt1File*> list;
-    for (int b = 0; b < 32; ++b)
-        if ((mask >> b & 1) && d.by_bit[std::size_t(b)]) list.push_back(d.by_bit[std::size_t(b)]);
-    for (const auto* f : d.always) if (f) list.push_back(f);
+    for (int bit = 0; bit < 32; ++bit)
+        if ((mask >> bit & 1) && dt1s.by_bit[std::size_t(bit)]) list.push_back(dt1s.by_bit[std::size_t(bit)]);
+    for (const auto* file : dt1s.always) if (file) list.push_back(file);
     return list;
 }
 
@@ -58,31 +58,31 @@ inline std::vector<const Dt1File*> room_dt1_list(std::uint32_t mask, const RoomD
 // sequence, DT1 by DT1 in list order, each DT1's in reverse file order
 // (its hash bucket list is built by inserting at the front); the first
 // whose running rarity reaches rand(total) + 1.
-inline std::pair<const Dt1File*, int> pick_tile(const std::vector<const Dt1File*>& list, d2d::rules::Rng& s, int orient,
+inline std::pair<const Dt1File*, int> pick_tile(const std::vector<const Dt1File*>& list, d2d::rules::Rng& rng, int orient,
                                            std::uint32_t word) {
     const int style = word ? int((word >> 20) & 0x3f) : 0, seq = word ? int((word >> 8) & 0xff) : 0;
-    std::vector<std::pair<const Dt1File*, int>> c;
-    auto gather = [&](int o, int st, int sq) {
-        for (const auto* f : list) {
-            for (int i = int(f->tiles.size()) - 1; i >= 0 && c.size() < 40; --i) {
-                const auto& t = f->tiles[std::size_t(i)];
-                if (t.orient == o && t.style == st && t.seq == sq) c.emplace_back(f, i);
+    std::vector<std::pair<const Dt1File*, int>> candidates;
+    auto gather = [&](int want_orient, int want_style, int want_sequence) {
+        for (const auto* file : list) {
+            for (int i = int(file->tiles.size()) - 1; i >= 0 && candidates.size() < 40; --i) {
+                const auto& tile = file->tiles[std::size_t(i)];
+                if (tile.orient == want_orient && tile.style == want_style && tile.seq == want_sequence) candidates.emplace_back(file, i);
             }
-            if (c.size() >= 40) break;
+            if (candidates.size() >= 40) break;
         }
     };
     gather(orient, style, seq);
-    if (c.empty()) {
+    if (candidates.empty()) {
         gather(10, 0, 0);
-        return c.empty() ? std::pair<const Dt1File*, int>{ nullptr, -1 } : c.front();
+        return candidates.empty() ? std::pair<const Dt1File*, int>{ nullptr, -1 } : candidates.front();
     }
     int total = 0;
-    for (auto [f, i] : c) total += f->tiles[std::size_t(i)].rarity;
-    if (total < 1) return c.front();
-    int r = int(s(total)) + 1;
-    std::size_t k = 0;
-    while (c.size() > 1 && r > 0) { r -= c[k].first->tiles[std::size_t(c[k].second)].rarity; ++k; }
-    return c[k ? k - 1 : 0];
+    for (auto [file, tile_index] : candidates) total += file->tiles[std::size_t(tile_index)].rarity;
+    if (total < 1) return candidates.front();
+    int roll = int(rng(total)) + 1;
+    std::size_t index = 0;
+    while (candidates.size() > 1 && roll > 0) { roll -= candidates[index].first->tiles[std::size_t(candidates[index].second)].rarity; ++index; }
+    return candidates[index ? index - 1 : 0];
 }
 
 

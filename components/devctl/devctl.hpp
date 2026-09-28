@@ -42,7 +42,7 @@ public:
     void listen(const std::string& path);
 
     // Register a verb handler. Overwrites any existing handler for that verb.
-    void on(std::string verb, Handler h);
+    void on(std::string verb, Handler handler);
 
     // Poll: accept new clients (single client at a time; extra get
     // `err busy\n`), drain the connected client, dispatch complete lines.

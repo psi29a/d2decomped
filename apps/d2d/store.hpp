@@ -15,13 +15,13 @@ namespace d2d::client {
 // game's scrolling list widget (FUN_004bf8f0, 490x280 at (W-490)/2,
 // H/2-160, rows 35 high) and the second line of hire description aren't
 // drawn.
-NpcMenuState open_hire_menu(const Scene& s, int npc, const std::vector<d2d::rules::MercOffer>& offers,
+NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
                             std::int64_t gold);
 
 // The store item under the cursor (index into the open tab), or -1.
-int store_item_at(const Scene& s, const Store& st, int mx, int my);
+int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y);
 
-std::array<int, 4> store_button_frames(const Store& st);
+std::array<int, 4> store_button_frames(const Store& store);
 
 // The vendor store (panel 0xc). Layout from FUN_00488400: buysell.dc6
 // as the 2x2 left panel; tabs (buyselltabs, frame i active / i+4 not) at
@@ -32,7 +32,7 @@ std::array<int, 4> store_button_frames(const Store& st);
 // repair (6) and repair all (18) at repair vendors, else an empty slot
 // (0) and close (10) (FUN_00487ed0). Stock grid: inventory.txt "Monster2"
 // (10x10 at 96,123).
-void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, int mx, int my, int clvl);
+void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, int clvl);
 
 // Gold readouts (FUN_00488100, docs/research/re/store.md), font16 white,
 // baselines at 800x600: the inventory's carried gold (stat 14) at x 508,
@@ -40,6 +40,6 @@ void draw_store(std::vector<std::uint8_t>& fb, const Scene& s, const Store& st, 
 // store open, "Stash" (0xcf3) at x 101, y 434 and the stash gold (15)
 // right-aligned to x 278.
 // ponytail: the coin button doesn't click (no gold drop/withdraw yet).
-void draw_gold(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st, bool store);
+void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, bool store);
 
 }  // namespace d2d::client

@@ -24,28 +24,28 @@ inline long long ms() {
         std::chrono::steady_clock::now() - g_start).count();
 }
 
-inline void open(const std::filesystem::path& p) {
-    std::lock_guard lk(g_mutex);
-    g_file.open(p, std::ios::trunc);
-    if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", p.string().c_str());
+inline void open(const std::filesystem::path& path) {
+    std::lock_guard lock(g_mutex);
+    g_file.open(path, std::ios::trunc);
+    if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", path.string().c_str());
 }
 
 inline void write(std::FILE* out, const char* level, const std::string& msg) {
-    std::lock_guard lk(g_mutex);
+    std::lock_guard lock(g_mutex);
     std::fprintf(out, "%s%s\n", level, msg.c_str());
     std::fflush(out);
-    const auto t = ms();
-    if (g_file) g_file << std::format("{:>4}.{:03} {}{}\n", t / 1000, t % 1000, level, msg) << std::flush;
+    const auto now_ms = ms();
+    if (g_file) g_file << std::format("{:>4}.{:03} {}{}\n", now_ms / 1000, now_ms % 1000, level, msg) << std::flush;
 }
 
-template <class... A> void info(std::format_string<A...> f, A&&... a) {
-    write(stdout, "", std::format(f, std::forward<A>(a)...));
+template <class... A> void info(std::format_string<A...> format, A&&... args) {
+    write(stdout, "", std::format(format, std::forward<A>(args)...));
 }
-template <class... A> void warn(std::format_string<A...> f, A&&... a) {
-    write(stderr, "warning: ", std::format(f, std::forward<A>(a)...));
+template <class... A> void warn(std::format_string<A...> format, A&&... args) {
+    write(stderr, "warning: ", std::format(format, std::forward<A>(args)...));
 }
-template <class... A> void error(std::format_string<A...> f, A&&... a) {
-    write(stderr, "error: ", std::format(f, std::forward<A>(a)...));
+template <class... A> void error(std::format_string<A...> format, A&&... args) {
+    write(stderr, "error: ", std::format(format, std::forward<A>(args)...));
 }
 
 }  // namespace d2d::log

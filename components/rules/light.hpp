@@ -37,9 +37,9 @@ struct Day {
     // FUN_0061bb80: sin(angle) · 128 + 128, the sine halved past 180°;
     // 0..255. Sunrise 128, noon 255, midnight 64.
     [[nodiscard]] int intensity() const {
-        auto s = float(std::sin(double(time) / kDayScale / 180.0 * 3.1415927410125732));
-        if (time >= 180 * kDayScale) s = float(s * 0.5);
-        return std::clamp(int(double(s) * 128.0 + 128.0 + 0.5), 0, 255);
+        auto sine = float(std::sin(double(time) / kDayScale / 180.0 * 3.1415927410125732));
+        if (time >= 180 * kDayScale) sine = float(sine * 0.5);
+        return std::clamp(int(double(sine) * 128.0 + 128.0 + 0.5), 0, 255);
     }
 };
 
@@ -52,45 +52,45 @@ struct Day {
 // game.exe's).
 struct LightGrid {
     static constexpr int kGame = 48;
-    int n = kGame;                             // entries a side
-    int x0 = 0, y0 = 0;                        // the subtile of entry (0, 0)
-    std::vector<std::uint8_t> v = std::vector<std::uint8_t>(std::size_t(kGame * kGame));
+    int grid_size = kGame;                             // entries a side
+    int origin_x = 0, origin_y = 0;                        // the subtile of entry (0, 0)
+    std::vector<std::uint8_t> values = std::vector<std::uint8_t>(std::size_t(kGame * kGame));
     std::vector<std::uint8_t> blocked = std::vector<std::uint8_t>(std::size_t(kGame * kGame));   // subtiles whose collision has 0x22 (FUN_004756d0)
-    [[nodiscard]] bool is_blocked(int sx, int sy) const {   // FUN_00474a30: off the grid counts as blocked
-        const int cx = sx - x0, cy = sy - y0;
-        return cx < 0 || cy < 0 || cx >= n || cy >= n || blocked[std::size_t(cy * n + cx)];
+    [[nodiscard]] bool is_blocked(int subtile_x, int subtile_y) const {   // FUN_00474a30: off the grid counts as blocked
+        const int grid_x = subtile_x - origin_x, grid_y = subtile_y - origin_y;
+        return grid_x < 0 || grid_y < 0 || grid_x >= grid_size || grid_y >= grid_size || blocked[std::size_t(grid_y * grid_size + grid_x)];
     }
     // Centred on the player's subtile, all at the ambient (FUN_004744b0).
-    void reset(int px, int py, int ambient, int size = kGame) {
-        n = size;
-        x0 = px - n / 2; y0 = py - n / 2;
-        v.assign(std::size_t(n * n), std::uint8_t(std::clamp(ambient, 0, 255)));
-        blocked.assign(std::size_t(n * n), 0);
+    void reset(int player_x, int player_y, int ambient, int size = kGame) {
+        grid_size = size;
+        origin_x = player_x - grid_size / 2; origin_y = player_y - grid_size / 2;
+        values.assign(std::size_t(grid_size * grid_size), std::uint8_t(std::clamp(ambient, 0, 255)));
+        blocked.assign(std::size_t(grid_size * grid_size), 0);
     }
     // FUN_00475aa0: the entry for subtile (sx, sy), clamped to the edge.
-    [[nodiscard]] int at(int sx, int sy) const {
-        return v[std::size_t(std::clamp(sy - y0, 0, n - 1) * n + std::clamp(sx - x0, 0, n - 1))];
+    [[nodiscard]] int at(int subtile_x, int subtile_y) const {
+        return values[std::size_t(std::clamp(subtile_y - origin_y, 0, grid_size - 1) * grid_size + std::clamp(subtile_x - origin_x, 0, grid_size - 1))];
     }
     // FUN_004747c0: a light's share into the entry at (x, y), capped at 255.
     void add(int x, int y, int amount) {
-        const int cx = (x >> 3) - x0, cy = (y >> 3) - y0;
-        if (cx < 0 || cy < 0 || cx >= n || cy >= n) return;
-        auto& e = v[std::size_t(cy * n + cx)];
-        e = std::uint8_t(std::min(255, e + amount));
+        const int grid_x = (x >> 3) - origin_x, grid_y = (y >> 3) - origin_y;
+        if (grid_x < 0 || grid_y < 0 || grid_x >= grid_size || grid_y >= grid_size) return;
+        auto& entry = values[std::size_t(grid_y * grid_size + grid_x)];
+        entry = std::uint8_t(std::min(255, entry + amount));
     }
     // A light at (x, y), radius r, intensity i (FUN_004748d0): each entry
     // of its square takes (r − d) · i / r, d the distance (FUN_004740d0:
     // 0.96 · the longer side + 0.4 · the shorter, in 1/1024ths).
-    void stamp(int x, int y, int r, int i) {
-        if (r < 1 || r > 255) return;
-        const int step = (i << 16) / r, side = r * 2 >> 3;   // the light's square
-        const int sx = (x - (x & 7)) - r, sy = (y - (y & 7)) - r;
+    void stamp(int x, int y, int radius, int intensity) {
+        if (radius < 1 || radius > 255) return;
+        const int step = (intensity << 16) / radius, side = radius * 2 >> 3;   // the light's square
+        const int start_x = (x - (x & 7)) - radius, start_y = (y - (y & 7)) - radius;
         for (int row = 0; row <= side; ++row)
             for (int col = 0; col <= side; ++col) {
-                const int cx = sx + col * 8, cy = sy + row * 8;
-                const int dx = std::abs(x - cx), dy = std::abs(y - cy);
-                const int d = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
-                if (const int s = (r - d) * step >> 16; s > 0) add(cx, cy, s);
+                const int cell_x = start_x + col * 8, cell_y = start_y + row * 8;
+                const int dx = std::abs(x - cell_x), dy = std::abs(y - cell_y);
+                const int distance = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
+                if (const int strength = (radius - distance) * step >> 16; strength > 0) add(cell_x, cell_y, strength);
             }
     }
     // A light that walls shadow (types 0: the player, objects; FUN_00474d70
@@ -100,49 +100,49 @@ struct LightGrid {
     // of the two by the angle (FUN_00474b50 / FUN_00474c00) — a blocked
     // neighbour passes its 16 on. The light is then scaled by
     // (8 − shade / 2) / 8 and nothing lands where the shade is 16.
-    void stamp_shadowed(int x, int y, int r, int i) {
-        if (r < 1 || r > 255) return;
-        constexpr int kT = 64, kC = 32;
-        std::vector<int> B(kT * kT, 0), A(kT * kT, 0);
-        const int lx = x >> 3, ly = y >> 3, rc = r >> 3, side = r * 2 >> 3;   // the light's square
+    void stamp_shadowed(int x, int y, int radius, int intensity) {
+        if (radius < 1 || radius > 255) return;
+        constexpr int kGrid = 64, kCenter = 32;
+        std::vector<int> blocking(kGrid * kGrid, 0), shaded(kGrid * kGrid, 0);
+        const int light_x = x >> 3, light_y = y >> 3, radius_cells = radius >> 3, side = radius * 2 >> 3;   // the light's square
         for (int row = 0; row <= side; ++row)
             for (int col = 0; col <= side; ++col)
-                B[std::size_t((kC - rc + row) * kT + kC - rc + col)] = is_blocked(lx - rc + col, ly - rc + row) ? 16 : 0;
-        auto cell = [&](int idx) { return B[std::size_t(idx)] ? B[std::size_t(idx)] : A[std::size_t(idx)]; };
-        auto shade = [&](int px, int py, int row, int col) {
-            int dx = x - px, dy = y - py;
+                blocking[std::size_t((kCenter - radius_cells + row) * kGrid + kCenter - radius_cells + col)] = is_blocked(light_x - radius_cells + col, light_y - radius_cells + row) ? 16 : 0;
+        auto cell = [&](int idx) { return blocking[std::size_t(idx)] ? blocking[std::size_t(idx)] : shaded[std::size_t(idx)]; };
+        auto shade = [&](int from_x, int from_y, int row, int col) {
+            int dx = x - from_x, dy = y - from_y;
             if (dx == 0 && dy == 0) return;
-            const int sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
+            const int step_x = dx < 0 ? -1 : 1, step_y = dy < 0 ? -1 : 1;
             dx = std::abs(dx); dy = std::abs(dy);
-            const int at = row * kT + col;
-            int v = 0;
-            if (dx == 0) v = cell((row + sy) * kT + col);
-            else if (dy == 0) v = cell(at + sx);
-            else if (dy <= dx) { const int f = (dy << 8) / dx; v = ((256 - f) * cell(at + sx) + f * cell((row + sy) * kT + col + sx)) >> 8; }
-            else { const int f = (dx << 8) / dy; v = ((256 - f) * cell((row + sy) * kT + col) + f * cell((row + sy) * kT + col + sx)) >> 8; }
-            A[std::size_t(at)] = v;
+            const int cell_index = row * kGrid + col;
+            int value = 0;
+            if (dx == 0) value = cell((row + step_y) * kGrid + col);
+            else if (dy == 0) value = cell(cell_index + step_x);
+            else if (dy <= dx) { const int fraction = (dy << 8) / dx; value = ((256 - fraction) * cell(cell_index + step_x) + fraction * cell((row + step_y) * kGrid + col + step_x)) >> 8; }
+            else { const int fraction = (dx << 8) / dy; value = ((256 - fraction) * cell((row + step_y) * kGrid + col) + fraction * cell((row + step_y) * kGrid + col + step_x)) >> 8; }
+            shaded[std::size_t(cell_index)] = value;
         };
-        if (rc >= 2)
-            for (int d = 2; d <= rc; ++d) {
-                const int top = ly * 8 + 4 - d * 8, bottom = ly * 8 + 4 + d * 8, left = lx * 8 + 4 - d * 8, right = lx * 8 + 4 + d * 8;
-                for (int j = 0; j <= d; ++j) {
-                    const int xl = lx * 8 + 4 - j * 8, xr = lx * 8 + 4 + j * 8, yu = ly * 8 + 4 - j * 8, yd = ly * 8 + 4 + j * 8;
-                    shade(xl, top, kC - d, kC - j);    shade(xr, top, kC - d, kC + j);
-                    shade(xl, bottom, kC + d, kC - j); shade(xr, bottom, kC + d, kC + j);
-                    shade(right, yu, kC - j, kC + d);  shade(right, yd, kC + j, kC + d);
-                    shade(left, yu, kC - j, kC - d);   shade(left, yd, kC + j, kC - d);
+        if (radius_cells >= 2)
+            for (int ring = 2; ring <= radius_cells; ++ring) {
+                const int top = light_y * 8 + 4 - ring * 8, bottom = light_y * 8 + 4 + ring * 8, left = light_x * 8 + 4 - ring * 8, right = light_x * 8 + 4 + ring * 8;
+                for (int j = 0; j <= ring; ++j) {
+                    const int ring_left = light_x * 8 + 4 - j * 8, ring_right = light_x * 8 + 4 + j * 8, ring_up = light_y * 8 + 4 - j * 8, ring_down = light_y * 8 + 4 + j * 8;
+                    shade(ring_left, top, kCenter - ring, kCenter - j);    shade(ring_right, top, kCenter - ring, kCenter + j);
+                    shade(ring_left, bottom, kCenter + ring, kCenter - j); shade(ring_right, bottom, kCenter + ring, kCenter + j);
+                    shade(right, ring_up, kCenter - j, kCenter + ring);  shade(right, ring_down, kCenter + j, kCenter + ring);
+                    shade(left, ring_up, kCenter - j, kCenter - ring);   shade(left, ring_down, kCenter + j, kCenter - ring);
                 }
             }
-        const int step = (i << 16) / r;
-        const int sx0 = (x - (x & 7)) - r, sy0 = (y - (y & 7)) - r;
+        const int step = (intensity << 16) / radius;
+        const int sx0 = (x - (x & 7)) - radius, sy0 = (y - (y & 7)) - radius;
         for (int row = 0; row <= side; ++row)
             for (int col = 0; col <= side; ++col) {
-                const int a = A[std::size_t((kC - rc + row) * kT + kC - rc + col)];
-                if (a >= 16) continue;
-                const int cx = sx0 + col * 8, cy = sy0 + row * 8;
-                const int dx = std::abs(x - cx), dy = std::abs(y - cy);
-                const int d = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
-                if (const int s = ((r - d) * step >> 16) * (8 - (a >> 1)) >> 3; s > 0) add(cx, cy, s);
+                const int shading = shaded[std::size_t((kCenter - radius_cells + row) * kGrid + kCenter - radius_cells + col)];
+                if (shading >= 16) continue;
+                const int cell_x = sx0 + col * 8, cell_y = sy0 + row * 8;
+                const int dx = std::abs(x - cell_x), dy = std::abs(y - cell_y);
+                const int distance = (std::max(dx, dy) * 0x3d7 + std::min(dx, dy) * 0x197) >> 10;
+                if (const int strength = ((radius - distance) * step >> 16) * (8 - (shading >> 1)) >> 3; strength > 0) add(cell_x, cell_y, strength);
             }
     }
 };

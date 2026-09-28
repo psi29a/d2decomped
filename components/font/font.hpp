@@ -59,26 +59,26 @@ public:
     // Nullptr when the char isn't in the font — caller decides whether to
     // skip, substitute, or throw.
     [[nodiscard]] const Glyph* find(std::uint16_t code) const {
-        auto it = glyphs_.find(code);
-        return it == glyphs_.end() ? nullptr : &it->second;
+        auto found = glyphs_.find(code);
+        return found == glyphs_.end() ? nullptr : &found->second;
     }
 
     // Total advance width of `text` (single-line — no newline handling yet).
     [[nodiscard]] int measure(std::string_view text) const {
-        int w = 0;
-        for (unsigned char c : text) if (auto* g = find(c)) w += g->width;
-        return w;
+        int width = 0;
+        for (unsigned char letter : text) if (auto* glyph = find(letter)) width += glyph->width;
+        return width;
     }
 
     // Blit `text` at (x, y) into `fb` (row-major RGBA, size fbW*fbH*4).
     // Uses `pal` to map DC6 palette indices; glyph background (index 0) is
     // transparent. y is the TOP of the glyph row. Returns the cursor's
     // final x position.
-    int draw(std::vector<std::uint8_t>& fb,
+    int draw(std::vector<std::uint8_t>& framebuffer,
              std::uint32_t fbW, std::uint32_t fbH,
              const palette::Palette& pal,
              int x, int y, std::string_view text) const {
-        return draw_tinted(fb, fbW, fbH, pal, x, y, text, 255, 255, 255);
+        return draw_tinted(framebuffer, fbW, fbH, pal, x, y, text, 255, 255, 255);
     }
 
     // Same as draw(), but multiplies each palette-lookup RGB by (tr, tg, tb)
@@ -87,73 +87,73 @@ public:
     // same as D2's PL2 hue-shift (which does index remapping), but visually
     // close enough for section headers and highlight rows.
     // Rows outside [clip_y0, clip_y1) are skipped (a scrolling text box).
-    int draw_tinted(std::vector<std::uint8_t>& fb,
+    int draw_tinted(std::vector<std::uint8_t>& framebuffer,
                     std::uint32_t fbW, std::uint32_t fbH,
                     const palette::Palette& pal,
                     int x, int y, std::string_view text,
-                    std::uint8_t tr, std::uint8_t tg, std::uint8_t tb,
+                    std::uint8_t tint_red, std::uint8_t tint_green, std::uint8_t tint_blue,
                     int clip_y0 = 0, int clip_y1 = 1 << 30) const {
-        for (unsigned char c : text) {
-            const auto* g = find(c);
-            if (!g) continue;
-            const auto& fr = sheet_.frame(0, g->frame);
-            blit_glyph_tinted(fb, fbW, fbH, pal, fr, x, y, tr, tg, tb, clip_y0, clip_y1);
-            x += g->width;
+        for (unsigned char letter : text) {
+            const auto* glyph = find(letter);
+            if (!glyph) continue;
+            const auto& frame = sheet_.frame(0, glyph->frame);
+            blit_glyph_tinted(framebuffer, fbW, fbH, pal, frame, x, y, tint_red, tint_green, tint_blue, clip_y0, clip_y1);
+            x += glyph->width;
         }
         return x;
     }
 
 private:
-    static void blit_glyph_tinted(std::vector<std::uint8_t>& fb,
+    static void blit_glyph_tinted(std::vector<std::uint8_t>& framebuffer,
                                   std::uint32_t fbW, std::uint32_t fbH,
                                   const palette::Palette& pal,
-                                  const dc6::Frame& fr,
+                                  const dc6::Frame& frame,
                                   int dst_x, int dst_y,
-                                  std::uint8_t tr, std::uint8_t tg, std::uint8_t tb,
+                                  std::uint8_t tint_red, std::uint8_t tint_green, std::uint8_t tint_blue,
                                   int clip_y0, int clip_y1) {
-        for (std::uint32_t gy = 0; gy < fr.height; ++gy) {
-            const int py = dst_y + int(gy);
-            if (py < 0 || std::uint32_t(py) >= fbH || py < clip_y0 || py >= clip_y1) continue;
-            for (std::uint32_t gx = 0; gx < fr.width; ++gx) {
-                const int px = dst_x + int(gx);
-                if (px < 0 || std::uint32_t(px) >= fbW) continue;
-                const auto idx = fr.pixels[gy * fr.width + gx];
+        for (std::uint32_t glyph_y = 0; glyph_y < frame.height; ++glyph_y) {
+            const int pixel_y = dst_y + int(glyph_y);
+            if (pixel_y < 0 || std::uint32_t(pixel_y) >= fbH || pixel_y < clip_y0 || pixel_y >= clip_y1) continue;
+            for (std::uint32_t glyph_x = 0; glyph_x < frame.width; ++glyph_x) {
+                const int pixel_x = dst_x + int(glyph_x);
+                if (pixel_x < 0 || std::uint32_t(pixel_x) >= fbW) continue;
+                const auto idx = frame.pixels[glyph_y * frame.width + glyph_x];
                 if (idx == 0) continue;
-                const auto c = pal[idx];
-                auto* p = &fb[(std::size_t(py) * fbW + std::uint32_t(px)) * 4];
-                p[0] = std::uint8_t(int(c.r) * tr / 255);
-                p[1] = std::uint8_t(int(c.g) * tg / 255);
-                p[2] = std::uint8_t(int(c.b) * tb / 255);
-                p[3] = c.a;
+                const auto colour = pal[idx];
+                auto* pixel = &framebuffer[(std::size_t(pixel_y) * fbW + std::uint32_t(pixel_x)) * 4];
+                pixel[0] = std::uint8_t(int(colour.r) * tint_red / 255);
+                pixel[1] = std::uint8_t(int(colour.g) * tint_green / 255);
+                pixel[2] = std::uint8_t(int(colour.b) * tint_blue / 255);
+                pixel[3] = colour.a;
             }
         }
     }
 
-    void parse_tbl(std::span<const std::byte> b) {
+    void parse_tbl(std::span<const std::byte> bytes) {
         constexpr std::size_t kHdr = 12;
         constexpr std::size_t kRec = 14;
-        if (b.size() < kHdr) throw std::runtime_error("font: truncated header");
+        if (bytes.size() < kHdr) throw std::runtime_error("font: truncated header");
         // "Woo!\x01" magic — first 5 bytes.
-        if (b[0] != std::byte{0x57} || b[1] != std::byte{0x6f}
-            || b[2] != std::byte{0x6f} || b[3] != std::byte{0x21}
-            || b[4] != std::byte{0x01})
+        if (bytes[0] != std::byte{0x57} || bytes[1] != std::byte{0x6f}
+            || bytes[2] != std::byte{0x6f} || bytes[3] != std::byte{0x21}
+            || bytes[4] != std::byte{0x01})
             throw std::runtime_error("font: bad magic");
         // 7 unknown header bytes follow, then 256 * 14 records.
-        std::size_t p = kHdr;
-        while (p + kRec <= b.size()) {
-            Glyph g;
-            g.code   = std::uint16_t(std::uint8_t(b[p + 0])
-                                    | (std::uint8_t(b[p + 1]) << 8));
+        std::size_t offset = kHdr;
+        while (offset + kRec <= bytes.size()) {
+            Glyph glyph;
+            glyph.code   = std::uint16_t(std::uint8_t(bytes[offset + 0])
+                                    | (std::uint8_t(bytes[offset + 1]) << 8));
             // p + 2: unknown1
-            g.width  = std::uint8_t(b[p + 3]);
-            g.height = std::uint8_t(b[p + 4]);
+            glyph.width  = std::uint8_t(bytes[offset + 3]);
+            glyph.height = std::uint8_t(bytes[offset + 4]);
             // p + 5..7: unknown2
-            g.frame  = std::uint16_t(std::uint8_t(b[p + 8])
-                                    | (std::uint8_t(b[p + 9]) << 8));
+            glyph.frame  = std::uint16_t(std::uint8_t(bytes[offset + 8])
+                                    | (std::uint8_t(bytes[offset + 9]) << 8));
             // p + 10..13: unknown3
-            glyphs_.emplace(g.code, g);
-            if (g.height > line_height_) line_height_ = g.height;
-            p += kRec;
+            glyphs_.emplace(glyph.code, glyph);
+            if (glyph.height > line_height_) line_height_ = glyph.height;
+            offset += kRec;
         }
     }
 

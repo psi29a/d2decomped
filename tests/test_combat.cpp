@@ -16,45 +16,45 @@ int main() {
     assert(kill_exp(100, 1, 10) == 10);
     // The fighter: weapon damage with enhanced damage and the strength
     // bonus, attack rating, shield block, the rest straight from the sums.
-    Tables t;
-    t.item_base["hax"] = { .mindam = 3, .maxdam = 6, .str_bonus = 100, .speed = -10 };
-    t.item_base["buc"] = { .block = 25 };
+    Tables tables;
+    tables.item_base["hax"] = { .mindam = 3, .maxdam = 6, .str_bonus = 100, .speed = -10 };
+    tables.item_base["buc"] = { .block = 25 };
     d2d::d2s::Item hax; hax.code = "hax";
     d2d::d2s::Item buc; buc.code = "buc";
-    d2d::d2s::Stats st;
-    st.v[d2d::d2s::kStr] = 20; st.v[d2d::d2s::kDex] = 20; st.v[d2d::d2s::kLevel] = 1;
+    d2d::d2s::Stats stats;
+    stats.values[d2d::d2s::kStr] = 20; stats.values[d2d::d2s::kDex] = 20; stats.values[d2d::d2s::kLevel] = 1;
     StatSum sum{}, wsum{};
-    auto f = make_fighter(t, &hax, nullptr, sum, wsum, st, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
-    assert(f.min == 3 && f.max == 7 && f.ar == 80 && f.block == 0 && f.wsm == -10 && f.defense == 50 && f.res[3] == 4);
+    auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
+    assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
     sum[17] = sum[18] = 100;                                          // enhanced damage off the weapon: no effect (op 13)
-    assert(make_fighter(t, &hax, nullptr, sum, wsum, st, {}, 0, {}).max == 7);
+    assert(make_fighter(tables, &hax, nullptr, sum, wsum, stats, {}, 0, {}).max == 7);
     sum[17] = sum[18] = 0;
     wsum[17] = wsum[18] = 100;                                        // +100% on the weapon
     sum[20] = 10; sum[136] = 40; sum[36] = 80; sum[34] = 3; sum[60] = 10; sum[54] = 3; sum[55] = 14; sum[56] = 50;
     sum[57] = 256; sum[58] = 512; sum[59] = 75;                         // poison: 1-2 a tick for 75 ticks
-    f = make_fighter(t, &hax, &buc, sum, wsum, st, { .to_hit = 15, .block = 25 }, 50, {});
-    assert(f.min == 7 && f.max == 14);                                // 6-12, +20% from strength
-    assert(f.block == 75);                                            // 60 x 5 / 2 = 150: capped
-    st.v[d2d::d2s::kLevel] = 10;
-    assert(make_fighter(t, &hax, &buc, sum, wsum, st, { .block = 25 }, 0, {}).block == 60 * 5 / 20);   // (block) x (dex - 15) / (clvl x 2)
-    st.v[d2d::d2s::kLevel] = 1;
-    assert(f.crushing == 40 && f.dr_pct == 50 && f.dr_flat == 3 && f.life_steal == 10);   // DR% caps at 50
-    assert(f.elem[2] == std::pair(3, 14) && f.cold_len == 50 && f.elem[3] == std::pair(75, 150));
+    fighter = make_fighter(tables, &hax, &buc, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, {});
+    assert(fighter.min == 7 && fighter.max == 14);                                // 6-12, +20% from strength
+    assert(fighter.block == 75);                                            // 60 x 5 / 2 = 150: capped
+    stats.values[d2d::d2s::kLevel] = 10;
+    assert(make_fighter(tables, &hax, &buc, sum, wsum, stats, { .block = 25 }, 0, {}).block == 60 * 5 / 20);   // (block) x (dex - 15) / (clvl x 2)
+    stats.values[d2d::d2s::kLevel] = 1;
+    assert(fighter.crushing == 40 && fighter.dr_pct == 50 && fighter.dr_flat == 3 && fighter.life_steal == 10);   // DR% caps at 50
+    assert(fighter.elem[2] == std::pair(3, 14) && fighter.cold_len == 50 && fighter.elem[3] == std::pair(75, 150));
     StatSum s25{};
     s25[25] = 50;                                                     // damagepercent joins the strength bonus: +70%
-    f = make_fighter(t, &hax, nullptr, s25, StatSum{}, st, {}, 0, {});
-    assert(f.min == 5 && f.max == 10);
+    fighter = make_fighter(tables, &hax, nullptr, s25, StatSum{}, stats, {}, 0, {});
+    assert(fighter.min == 5 && fighter.max == 10);
     s25[25] = 0; s25[111] = 2;                                        // "+2 damage": both ends, before the bonus
-    f = make_fighter(t, &hax, nullptr, s25, StatSum{}, st, {}, 0, {});
-    assert(f.min == 6 && f.max == 9);
-    f = make_fighter(t, nullptr, nullptr, StatSum{}, StatSum{}, st, {}, 0, {});
-    assert(f.min == 1 && f.max == 2);                                 // fists, no strength bonus
+    fighter = make_fighter(tables, &hax, nullptr, s25, StatSum{}, stats, {}, 0, {});
+    assert(fighter.min == 6 && fighter.max == 9);
+    fighter = make_fighter(tables, nullptr, nullptr, StatSum{}, StatSum{}, stats, {}, 0, {});
+    assert(fighter.min == 1 && fighter.max == 2);                                 // fists, no strength bonus
     StatSum mst{};                                                    // a mastery: +20 % to hit, +50 % damage
     mst[342] = 20; mst[343] = 50; mst[344] = 7; mst[348] = 30;
-    f = make_fighter(t, &hax, nullptr, mst, StatSum{}, st, {}, 0, {});
-    assert(f.min == 5 && f.max == 10 && f.ar_pct == 20 && f.mastery_crit == 7 && f.weapon_block == 30);
+    fighter = make_fighter(tables, &hax, nullptr, mst, StatSum{}, stats, {}, 0, {});
+    assert(fighter.min == 5 && fighter.max == 10 && fighter.ar_pct == 20 && fighter.mastery_crit == 7 && fighter.weapon_block == 30);
     mst[48] = 10; mst[49] = 20; mst[329] = 50;                        // Fire Mastery on the gear's fire
-    assert(make_fighter(t, &hax, nullptr, mst, StatSum{}, st, {}, 0, {}).elem[0] == std::pair(15, 30));
+    assert(make_fighter(tables, &hax, nullptr, mst, StatSum{}, stats, {}, 0, {}).elem[0] == std::pair(15, 30));
     // Hit chance rounds the percent first (FUN_0057d9b0); negative defense helps.
     assert(hit_chance(1, 2, 3, 1) == 49 && hit_chance(10, -10, 1, 1) == 95);
 
@@ -70,35 +70,35 @@ int main() {
     Fighter hit = simple_fighter(100, 100, 1000000);
     hit.crushing = 100; hit.life_steal = 10;
     hit.elem[0] = { 10, 10 };
-    Target tg{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 50, 0, 100, 0, 0, 0 }, .drain = 50 };
-    Rng br{ 5 };
-    auto blow = player_blow(hit, tg, 99, br);
-    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, tg, 99, br);   // 95 % to hit
+    Target target{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .res = { 50, 0, 100, 0, 0, 0 }, .drain = 50 };
+    Rng rng{ 5 };
+    auto blow = player_blow(hit, target, 99, rng);
+    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng);   // 95 % to hit
     assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400/4 at 50%
     assert(blow.life == 50 * 10 * 50 / 10000);
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);
     crit.critical = 100;
-    Target plain{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1 };
-    auto cb = player_blow(crit, plain, 99, br);
-    for (int i = 0; i < 20 && !cb.hit; ++i) cb = player_blow(crit, plain, 99, br);
-    assert(cb.hit && cb.deadly && cb.damage == 20);
+    Target plain{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1 };
+    auto crushing = player_blow(crit, plain, 99, rng);
+    for (int i = 0; i < 20 && !crushing.hit; ++i) crushing = player_blow(crit, plain, 99, rng);
+    assert(crushing.hit && crushing.deadly && crushing.damage == 20);
     // A skill's swing: its enhanced damage joins the gear's %, its flat
     // damage comes after (and isn't doubled), SrcDam scales the weapon part.
-    Fighter sk = simple_fighter(100, 100, 1000000);
-    sk.phys_pct = 20;
-    auto swing = [&](const Fighter& ff, const Swing& sw) {
-        auto x = player_blow(ff, plain, 99, br, sw);
-        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(ff, plain, 99, br, sw);
+    Fighter sure_hit = simple_fighter(100, 100, 1000000);
+    sure_hit.phys_pct = 20;
+    auto swing = [&](const Fighter& attacker, const Swing& swing_opts) {
+        auto x = player_blow(attacker, plain, 99, rng, swing_opts);
+        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(attacker, plain, 99, rng, swing_opts);
         assert(x.hit);
         return x.damage;
     };
-    assert(swing(sk, {}) == 120);
-    assert(swing(sk, { .ed_pct = 50 }) == 170);                     // (20 + 50)%
-    assert(swing(sk, { .ed_pct = 50, .flat = 7 }) == 177);
-    assert(swing(sk, { .srcdam = 64 }) == 60);
-    assert(swing(sk, { .ed_pct = -500 }) == 10);                    // the % floors at -90
-    Fighter critter = sk;
+    assert(swing(sure_hit, {}) == 120);
+    assert(swing(sure_hit, { .ed_pct = 50 }) == 170);                     // (20 + 50)%
+    assert(swing(sure_hit, { .ed_pct = 50, .flat = 7 }) == 177);
+    assert(swing(sure_hit, { .srcdam = 64 }) == 60);
+    assert(swing(sure_hit, { .ed_pct = -500 }) == 10);                    // the % floors at -90
+    Fighter critter = sure_hit;
     critter.critical = 100;
     assert(swing(critter, { .flat = 5 }) == 245);                   // doubled before the flat add
     // A kick: the boots' damage with its own %, the skill's damage with the
@@ -106,15 +106,15 @@ int main() {
     Fighter kicker = critter;
     kicker.kick_lo = kicker.kick_hi = 10; kicker.kick_pct = 100;
     assert(swing(kicker, { .ed_pct = 50, .kick = true, .skill_lo = 4 << 8, .skill_hi = 4 << 8 }) == 10 * 250 / 100 + 4 * 150 / 100);
-    auto kb = player_blow(kicker, plain, 99, br, { .knockback = true });
-    for (int i = 0; i < 20 && !kb.hit; ++i) kb = player_blow(kicker, plain, 99, br, { .knockback = true });
-    assert(kb.hit && kb.knockback);
+    auto knocked = player_blow(kicker, plain, 99, rng, { .knockback = true });
+    for (int i = 0; i < 20 && !knocked.hit; ++i) knocked = player_blow(kicker, plain, 99, rng, { .knockback = true });
+    assert(knocked.hit && knocked.knockback);
     // Conversion: calc4 % of the physical to the element, less its
     // resistance; calc2's flat add stays physical. A stun's length, capped.
-    Target mres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 50, 0, 0, 0, 0 } };
-    auto conv = [&](const Swing& sw) {
-        auto x = player_blow(sk, mres, 99, br, sw);
-        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(sk, mres, 99, br, sw);
+    Target mres{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .res = { 0, 50, 0, 0, 0, 0 } };
+    auto conv = [&](const Swing& swing_opts) {
+        auto x = player_blow(sure_hit, mres, 99, rng, swing_opts);
+        for (int i = 0; i < 20 && !x.hit; ++i) x = player_blow(sure_hit, mres, 99, rng, swing_opts);
         assert(x.hit);
         return x;
     };
@@ -125,92 +125,92 @@ int main() {
     // no crit, no gear elements or leech; the stun.
     Fighter smiter = critter;
     smiter.smite_lo = smiter.smite_hi = 10; smiter.smite_pct = 20; smiter.life_steal = 50; smiter.elem[0] = { 30, 30 };
-    const Target wall{ .hp = 400, .max_hp = 400, .ac = 1000000, .level = 99 };
-    const auto sm = player_blow(smiter, wall, 1, br, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
-    assert(sm.hit && !sm.deadly && sm.damage == 15 && sm.life == 0 && sm.stun_ticks == 20);
+    const Target wall{ .hit_points = 400, .max_hp = 400, .armor_class = 1000000, .level = 99 };
+    const auto smite = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
+    assert(smite.hit && !smite.deadly && smite.damage == 15 && smite.life == 0 && smite.stun_ticks == 20);
     // With Holy Shield up its damage joins the shield's before the %.
-    const auto hs = player_blow(smiter, wall, 1, br, { .ed_pct = 30, .skill_lo = 4 << 8, .skill_hi = 4 << 8, .smite = true });
-    assert(hs.hit && hs.damage == (10 + 4) * 150 / 100);
+    const auto holy_shield = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .skill_lo = 4 << 8, .skill_hi = 4 << 8, .smite = true });
+    assert(holy_shield.hit && holy_shield.damage == (10 + 4) * 150 / 100);
     // Vengeance: elements as % of the physical rolled (before crit), each
     // less its resistance; the cold chills.
-    Target vres{ .hp = 400, .max_hp = 400, .ac = 1, .level = 1, .res = { 0, 0, 50, 0, 0, 0 } };   // fire 50 %
-    auto v = player_blow(critter, vres, 99, br, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
-    for (int i = 0; i < 20 && !v.hit; ++i) v = player_blow(critter, vres, 99, br, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
-    assert(v.hit && v.damage == 240 + 60 + 60 + 12 && v.chill_ticks == 40);   // crit 240 phys; 120 x (100 % at 50, 50 %, 10 %)
+    Target vres{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .res = { 0, 0, 50, 0, 0, 0 } };   // fire 50 %
+    auto vs_resists = player_blow(critter, vres, 99, rng, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
+    for (int i = 0; i < 20 && !vs_resists.hit; ++i) vs_resists = player_blow(critter, vres, 99, rng, { .fire_pct = 100, .cold_pct = 50, .ltng_pct = 10, .cold_len = 40 });
+    assert(vs_resists.hit && vs_resists.damage == 240 + 60 + 60 + 12 && vs_resists.chill_ticks == 40);   // crit 240 phys; 120 x (100 % at 50, 50 %, 10 %)
     // Boots make the kick: their kick damage, StrBonus on strength, + stat 137.
-    t.item_base["lbt"] = { .mindam = 3, .maxdam = 8, .str_bonus = 120 };
+    tables.item_base["lbt"] = { .mindam = 3, .maxdam = 8, .str_bonus = 120 };
     d2d::d2s::Item lbt; lbt.code = "lbt";
-    StatSum ks{};
-    ks[137] = 2;
-    const auto kf = make_fighter(t, &hax, nullptr, ks, StatSum{}, st, {}, 0, {}, &lbt);
-    assert(kf.kick_lo == 5 && kf.kick_hi == 10 && kf.kick_pct == 20 * 120 / 100);
-    tg.block = 100;
+    StatSum kick_sum{};
+    kick_sum[137] = 2;
+    const auto kicker_fighter = make_fighter(tables, &hax, nullptr, kick_sum, StatSum{}, stats, {}, 0, {}, &lbt);
+    assert(kicker_fighter.kick_lo == 5 && kicker_fighter.kick_hi == 10 && kicker_fighter.kick_pct == 20 * 120 / 100);
+    target.block = 100;
     int blocked = 0;
-    for (int i = 0; i < 20; ++i) blocked += player_blow(hit, tg, 99, br).blocked;
+    for (int i = 0; i < 20; ++i) blocked += player_blow(hit, target, 99, rng).blocked;
     assert(blocked >= 15);                                            // every blow that connects
     // Monster blows: block, damage reduced % then flat, elemental less resistance.
     MonStats mon;
-    mon.level = 99; mon.th = 1000000; mon.a1_min = mon.a1_max = 100;
-    mon.el[0] = { 0, 100, 40, 40, 0, "A1" };                           // fire, always
-    Fighter me;
-    me.dr_pct = 20; me.dr_flat = 5; me.res[0] = 75; me.mdr = 2;
-    auto k = monster_blow(me, 1, false, mon, false, br);
-    for (int i = 0; i < 20 && !k.hit; ++i) k = monster_blow(me, 1, false, mon, false, br);
-    assert(k.hit && k.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
+    mon.level = 99; mon.to_hit = 1000000; mon.a1_min = mon.a1_max = 100;
+    mon.elements[0] = { 0, 100, 40, 40, 0, "A1" };                           // fire, always
+    Fighter defender;
+    defender.dr_pct = 20; defender.dr_flat = 5; defender.res[0] = 75; defender.mdr = 2;
+    auto taken = monster_blow(defender, 1, false, mon, false, rng);
+    for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, false, mon, false, rng);
+    assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
     // Dodge a swing standing, avoid a missile, evade on the move.
     Fighter agile;
     agile.dodge = 100;
     int dodged = 0, evaded = 0;
     for (int i = 0; i < 100; ++i) {
-        dodged += monster_blow(agile, 1, false, mon, false, br).dodged;
-        evaded += monster_blow(agile, 1, true, mon, false, br).dodged;
+        dodged += monster_blow(agile, 1, false, mon, false, rng).dodged;
+        evaded += monster_blow(agile, 1, true, mon, false, rng).dodged;
     }
     assert(dodged > 85 && evaded == 0);
     {                                                                  // a skill's missile (FUN_0064b860's record)
-        Target mt;
-        mt.res = { 0, 0, 50, 100, 20, 0 };
-        MissileDamage md{ .etype = 0, .elo = 100 << 8, .ehi = 100 << 8, .elen = 25 };
-        assert(missile_blow(md, mt, { 30, 0, 0, 0 }, br).damage == 80);      // fire 50 % less 30 pierce
-        md.etype = 1;
-        assert(missile_blow(md, mt, { 0, 90, 0, 0 }, br).damage == 0);       // immune: pierce doesn't reach
-        md.etype = 2;
-        const auto ck = missile_blow(md, mt, { 0, 0, 500, 0 }, br);
-        assert(ck.damage == 200 && ck.chill_ticks == 25);                    // -100 % at the least
-        md.etype = 3;
-        const auto pb = missile_blow(md, mt, {}, br);
-        assert(pb.damage == 0 && pb.poison == 100 * 25 && pb.poison_ticks == 25);
+        Target missile_target;
+        missile_target.res = { 0, 0, 50, 100, 20, 0 };
+        MissileDamage damage{ .etype = 0, .elo = 100 << 8, .ehi = 100 << 8, .elen = 25 };
+        assert(missile_blow(damage, missile_target, { 30, 0, 0, 0 }, rng).damage == 80);      // fire 50 % less 30 pierce
+        damage.etype = 1;
+        assert(missile_blow(damage, missile_target, { 0, 90, 0, 0 }, rng).damage == 0);       // immune: pierce doesn't reach
+        damage.etype = 2;
+        const auto cold_kill = missile_blow(damage, missile_target, { 0, 0, 500, 0 }, rng);
+        assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 25);                    // -100 % at the least
+        damage.etype = 3;
+        const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
+        assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);
     }
     Fighter claws;                                                     // Weapon Block: standing only
     claws.weapon_block = 100;
     int wblocked = 0, wmoving = 0;
     for (int i = 0; i < 100; ++i) {
-        wblocked += monster_blow(claws, 1, false, mon, false, br).blocked;
-        wmoving += monster_blow(claws, 1, true, mon, false, br).blocked;
+        wblocked += monster_blow(claws, 1, false, mon, false, rng).blocked;
+        wmoving += monster_blow(claws, 1, true, mon, false, rng).blocked;
     }
     assert(wblocked > 85 && wmoving == 0);
     agile.def_missile = 1000000000;                                    // vs missiles only
     int spikes = 0;
-    for (int i = 0; i < 100; ++i) spikes += monster_blow(agile, 99, false, mon, true, br).hit;
+    for (int i = 0; i < 100; ++i) spikes += monster_blow(agile, 99, false, mon, true, rng).hit;
     assert(spikes < 15);
-    me.block = 75;
+    defender.block = 75;
     int blocks = 0, moving_blocks = 0;
-    for (int i = 0; i < 1000; ++i) { blocks += monster_blow(me, 1, false, mon, false, br).blocked; moving_blocks += monster_blow(me, 1, true, mon, false, br).blocked; }
+    for (int i = 0; i < 1000; ++i) { blocks += monster_blow(defender, 1, false, mon, false, rng).blocked; moving_blocks += monster_blow(defender, 1, true, mon, false, rng).blocked; }
     assert(blocks > 700 && blocks < 800 && moving_blocks > 200 && moving_blocks < 300);
-    ClassGains g{ .life_per_level = 8, .stamina_per_level = 4, .mana_per_level = 6, .stat_per_level = 5 };
-    st.v[d2d::d2s::kMaxLife] = st.v[d2d::d2s::kLife] = 50 << 8;
+    ClassGains gains{ .life_per_level = 8, .stamina_per_level = 4, .mana_per_level = 6, .stat_per_level = 5 };
+    stats.values[d2d::d2s::kMaxLife] = stats.values[d2d::d2s::kLife] = 50 << 8;
     const std::vector<std::int64_t> next{ 0, 500, 1500, 3750 };
-    assert(gain_exp(st, 400, next, g) == 0 && st.get(d2d::d2s::kLevel) == 1);
-    assert(gain_exp(st, 1200, next, g) == 2);                          // 1600: past 500 and 1500
-    assert(st.get(d2d::d2s::kLevel) == 3 && st.get(d2d::d2s::kStatPts) == 10 && st.get(d2d::d2s::kSkillPts) == 2);
-    assert(st.fixed(d2d::d2s::kMaxLife) == 54 && st.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
+    assert(gain_exp(stats, 400, next, gains) == 0 && stats.get(d2d::d2s::kLevel) == 1);
+    assert(gain_exp(stats, 1200, next, gains) == 2);                          // 1600: past 500 and 1500
+    assert(stats.get(d2d::d2s::kLevel) == 3 && stats.get(d2d::d2s::kStatPts) == 10 && stats.get(d2d::d2s::kSkillPts) == 2);
+    assert(stats.fixed(d2d::d2s::kMaxLife) == 54 && stats.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
     // The merc: level from experience, stats from its band.
-    Tables mt;
-    mt.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hp = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
-                       .dmg_min = 2, .dmg_max = 5, .dmg_per_level = 8, .ar = 20, .ar_per_level = 5 },
-                     { .id = 1, .level = 20, .exp_per_level = 100, .hp = 500, .dmg_min = 10, .dmg_max = 20 } };
-    auto ms = merc_stats(mt, 1, 5 * 100 * 4 * 4);                    // level 4: 1600; level 5 needs 3000
-    assert(ms.level == 4 && ms.life == 110 && ms.def == 12 && ms.dmg_min == 3 && ms.dmg_max == 6 && ms.ar == 25);
-    ms = merc_stats(mt, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
-    assert(ms.level == 20 && ms.life == 500 && ms.dmg_min == 10);
+    Tables merc_tables;
+    merc_tables.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
+                       .dmg_min = 2, .dmg_max = 5, .dmg_per_level = 8, .attack_rating = 20, .ar_per_level = 5 },
+                     { .id = 1, .level = 20, .exp_per_level = 100, .hit_points = 500, .dmg_min = 10, .dmg_max = 20 } };
+    auto merc = merc_stats(merc_tables, 1, 5 * 100 * 4 * 4);                    // level 4: 1600; level 5 needs 3000
+    assert(merc.level == 4 && merc.life == 110 && merc.def == 12 && merc.dmg_min == 3 && merc.dmg_max == 6 && merc.attack_rating == 25);
+    merc = merc_stats(merc_tables, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
+    assert(merc.level == 20 && merc.life == 500 && merc.dmg_min == 10);
     std::puts("ok");
 }

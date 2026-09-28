@@ -27,34 +27,34 @@ int main() {
     auto dc6_bytes = mpq.read(R"(data\local\FONT\LATIN\font16.dc6)");
     d2d::dc6::Sprite sheet(dc6_bytes);
 
-    d2d::font::Font f(tbl_bytes, std::move(sheet));
+    d2d::font::Font font(tbl_bytes, std::move(sheet));
     std::printf("font16: glyphs=%zu line_height=%d sheet_frames=%zu\n",
-                f.glyph_count(), f.line_height(),
-                f.sheet().total_frames());
+                font.glyph_count(), font.line_height(),
+                font.sheet().total_frames());
 
-    assert(f.glyph_count() == 256);      // one record per Latin-1 byte
+    assert(font.glyph_count() == 256);      // one record per Latin-1 byte
 
     // Every printable ASCII char should have a glyph with non-zero width.
-    for (int c = 'A'; c <= 'Z'; ++c) {
-        const auto* g = f.find(std::uint16_t(c));
-        assert(g);
-        assert(g->width > 0);
-        assert(g->height > 0);
-        assert(g->frame < f.sheet().total_frames());
+    for (int letter = 'A'; letter <= 'Z'; ++letter) {
+        const auto* glyph = font.find(std::uint16_t(letter));
+        assert(glyph);
+        assert(glyph->width > 0);
+        assert(glyph->height > 0);
+        assert(glyph->frame < font.sheet().total_frames());
     }
 
     // "Hello" should have a positive measured width equal to the sum of
     // per-char advance widths.
-    const auto w = f.measure("Hello");
+    const auto width = font.measure("Hello");
     int by_hand = 0;
-    for (char c : std::string_view("Hello")) by_hand += f.find(c)->width;
-    assert(w == by_hand);
-    assert(w > 0);
+    for (char letter : std::string_view("Hello")) by_hand += font.find(letter)->width;
+    assert(width == by_hand);
+    assert(width > 0);
 
-    std::printf("measure(\"Hello\") = %d px\n", w);
+    std::printf("measure(\"Hello\") = %d px\n", width);
 
     // A missing code returns nullptr.
-    assert(f.find(0xFFFF) == nullptr);
+    assert(font.find(0xFFFF) == nullptr);
 
     std::printf("OK\n");
     return 0;

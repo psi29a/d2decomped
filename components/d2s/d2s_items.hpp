@@ -79,130 +79,130 @@ struct ItemTables {
 
     static ItemTables from(const txt::Table& isc, const txt::Table& armor_t,
                            const txt::Table& weapons_t, const txt::Table& misc_t) {
-        ItemTables t;
+        ItemTables item_tables;
         const auto c_id = isc.col("ID"), c_b = isc.col("Save Bits"),
                    c_a = isc.col("Save Add"), c_p = isc.col("Save Param Bits"),
                    c_c = isc.col("CSvBits");
-        auto num = [](std::string_view s) { return s.empty() ? 0 : std::stoi(std::string(s)); };
-        for (std::size_t r = 0; r < isc.size(); ++r) {
-            const auto id = isc.get(r, c_id);
+        auto num = [](std::string_view text) { return text.empty() ? 0 : std::stoi(std::string(text)); };
+        for (std::size_t row = 0; row < isc.size(); ++row) {
+            const auto id = isc.get(row, c_id);
             if (id.empty()) continue;
-            const auto i = std::size_t(num(id));
-            if (i >= t.stats.size()) t.stats.resize(i + 1);
-            t.stats[i] = { num(isc.get(r, c_b)), num(isc.get(r, c_a)), num(isc.get(r, c_p)),
-                           num(isc.get(r, c_c)) };
+            const auto stat_id = std::size_t(num(id));
+            if (stat_id >= item_tables.stats.size()) item_tables.stats.resize(stat_id + 1);
+            item_tables.stats[stat_id] = { num(isc.get(row, c_b)), num(isc.get(row, c_a)), num(isc.get(row, c_p)),
+                           num(isc.get(row, c_c)) };
         }
         auto codes = [&](const txt::Table& tab, auto& into) {
-            for (std::size_t r = 0; r < tab.size(); ++r) {
-                const std::string code(tab.get(r, "code"));
+            for (std::size_t row = 0; row < tab.size(); ++row) {
+                const std::string code(tab.get(row, "code"));
                 into.insert(code);
-                if (tab.get(r, "stackable") == "1") t.stackable.insert(code);
-                if (tab.get(r, "compactsave") == "1") t.compact.insert(code);
+                if (tab.get(row, "stackable") == "1") item_tables.stackable.insert(code);
+                if (tab.get(row, "compactsave") == "1") item_tables.compact.insert(code);
             }
         };
         std::unordered_set<std::string> misc;
-        codes(armor_t, t.armor); codes(weapons_t, t.weapons); codes(misc_t, misc);
-        return t;
+        codes(armor_t, item_tables.armor); codes(weapons_t, item_tables.weapons); codes(misc_t, misc);
+        return item_tables;
     }
 };
 
 namespace detail {
 struct Bits {
-    std::span<const std::byte> b;
+    std::span<const std::byte> bytes;
     std::size_t pos = 0;   // in bits
-    std::uint32_t read(int n) {
-        std::uint32_t v = 0;
-        for (int i = 0; i < n; ++i, ++pos) {
-            if ((pos >> 3) >= b.size()) throw std::runtime_error("d2s items: read past end");
-            v |= std::uint32_t((std::uint8_t(b[pos >> 3]) >> (pos & 7)) & 1) << i;
+    std::uint32_t read(int count) {
+        std::uint32_t value = 0;
+        for (int i = 0; i < count; ++i, ++pos) {
+            if ((pos >> 3) >= bytes.size()) throw std::runtime_error("d2s items: read past end");
+            value |= std::uint32_t((std::uint8_t(bytes[pos >> 3]) >> (pos & 7)) & 1) << i;
         }
-        return v;
+        return value;
     }
 };
 
-inline void props(Bits& bs, const ItemTables& t, std::vector<ItemProp>& out) {
+inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemProp>& out) {
     for (;;) {
-        const int id = int(bs.read(9));
+        const int id = int(bits.read(9));
         if (id == 0x1ff) return;
         // Stats that carry the next ones with them.
         int run = 1;
         if (id == 17 || id == 48 || id == 50 || id == 52) run = 2;
         if (id == 54 || id == 57) run = 3;
-        for (int s = id; s < id + run; ++s) {
-            if (std::size_t(s) >= t.stats.size() || t.stats[std::size_t(s)].save_bits == 0)
-                throw std::runtime_error("d2s items: unknown stat " + std::to_string(s));
-            const auto& st = t.stats[std::size_t(s)];
-            const int param = st.param_bits ? int(bs.read(st.param_bits)) : 0;
-            out.push_back({ s, param, int(bs.read(st.save_bits)) - st.save_add });
+        for (int stat = id; stat < id + run; ++stat) {
+            if (std::size_t(stat) >= item_tables.stats.size() || item_tables.stats[std::size_t(stat)].save_bits == 0)
+                throw std::runtime_error("d2s items: unknown stat " + std::to_string(stat));
+            const auto& stat_info = item_tables.stats[std::size_t(stat)];
+            const int param = stat_info.param_bits ? int(bits.read(stat_info.param_bits)) : 0;
+            out.push_back({ stat, param, int(bits.read(stat_info.save_bits)) - stat_info.save_add });
         }
     }
 }
 
-inline Item item(Bits& bs, const ItemTables& t) {
-    if (bs.pos % 8 || bs.read(16) != 0x4d4a) throw std::runtime_error("d2s items: missing JM");
-    Item it;
-    const std::uint32_t f = bs.read(32);
-    it.flags = f;
-    it.identified   = f >> 4 & 1;  it.socketed = f >> 11 & 1;
-    const bool ear  = f >> 16 & 1; it.simple   = f >> 21 & 1;
-    it.ethereal     = f >> 22 & 1; it.personalized = f >> 24 & 1;
-    it.runeword     = f >> 26 & 1;
-    it.version = int(bs.read(10));
-    it.location = int(bs.read(3)); it.slot = int(bs.read(4));
-    it.column   = int(bs.read(4)); it.row  = int(bs.read(4)); it.panel = int(bs.read(3));
+inline Item item(Bits& bits, const ItemTables& item_tables) {
+    if (bits.pos % 8 || bits.read(16) != 0x4d4a) throw std::runtime_error("d2s items: missing JM");
+    Item parsed;
+    const std::uint32_t flags = bits.read(32);
+    parsed.flags = flags;
+    parsed.identified   = flags >> 4 & 1;  parsed.socketed = flags >> 11 & 1;
+    const bool ear  = flags >> 16 & 1; parsed.simple   = flags >> 21 & 1;
+    parsed.ethereal     = flags >> 22 & 1; parsed.personalized = flags >> 24 & 1;
+    parsed.runeword     = flags >> 26 & 1;
+    parsed.version = int(bits.read(10));
+    parsed.location = int(bits.read(3)); parsed.slot = int(bits.read(4));
+    parsed.column   = int(bits.read(4)); parsed.row  = int(bits.read(4)); parsed.panel = int(bits.read(3));
     int filled = 0;
     if (ear) {
-        it.code = "ear";
-        it.ear_class = int(bs.read(3)); it.ear_level = int(bs.read(7));
-        while (const auto c = bs.read(7)) it.owner.push_back(char(c));
+        parsed.code = "ear";
+        parsed.ear_class = int(bits.read(3)); parsed.ear_level = int(bits.read(7));
+        while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
     } else {
         for (int i = 0; i < 4; ++i) {
-            const char c = char(bs.read(8));
-            if (c != ' ' && c != '\0') it.code.push_back(c);
+            const char letter = char(bits.read(8));
+            if (letter != ' ' && letter != '\0') parsed.code.push_back(letter);
         }
-        filled = int(bs.read(3));
-        if (!it.simple) {
-            it.uid = bs.read(32); it.ilvl = int(bs.read(7)); it.quality = int(bs.read(4));
-            if (bs.read(1)) it.picture = int(bs.read(3));
-            if (bs.read(1)) it.class_affix = int(bs.read(11));   // class-specific auto affix
-            switch (it.quality) {
-                case 1: case 3: it.qsub = int(bs.read(3)); break;
-                case 4: it.prefix = int(bs.read(11)); it.suffix = int(bs.read(11)); break;
-                case 5: it.set_id = int(bs.read(12)); break;
-                case 7: it.unique_id = int(bs.read(12)); break;
+        filled = int(bits.read(3));
+        if (!parsed.simple) {
+            parsed.uid = bits.read(32); parsed.ilvl = int(bits.read(7)); parsed.quality = int(bits.read(4));
+            if (bits.read(1)) parsed.picture = int(bits.read(3));
+            if (bits.read(1)) parsed.class_affix = int(bits.read(11));   // class-specific auto affix
+            switch (parsed.quality) {
+                case 1: case 3: parsed.qsub = int(bits.read(3)); break;
+                case 4: parsed.prefix = int(bits.read(11)); parsed.suffix = int(bits.read(11)); break;
+                case 5: parsed.set_id = int(bits.read(12)); break;
+                case 7: parsed.unique_id = int(bits.read(12)); break;
                 case 6: case 8:
-                    it.rare1 = int(bs.read(8)); it.rare2 = int(bs.read(8));
-                    for (auto& a : it.affixes) a = bs.read(1) ? int(bs.read(11)) : 0;
+                    parsed.rare1 = int(bits.read(8)); parsed.rare2 = int(bits.read(8));
+                    for (auto& affix : parsed.affixes) affix = bits.read(1) ? int(bits.read(11)) : 0;
                     break;
                 default: break;
             }
-            if (it.runeword) { it.runeword_id = int(bs.read(12)); it.rw_extra = int(bs.read(4)); }
-            if (it.personalized) while (const auto c = bs.read(7)) it.owner.push_back(char(c));
-            if (it.code == "tbk" || it.code == "ibk") it.tome = int(bs.read(5));
-            it.bit_after = int(bs.read(1));
-            if (t.armor.contains(it.code)) it.defense = int(bs.read(11)) - 10;
-            if (t.armor.contains(it.code) || t.weapons.contains(it.code))
-                if ((it.max_durability = int(bs.read(8)))) {   // max, then current (8 bits + 1 unused)
-                    it.durability = int(bs.read(8));
-                    it.dur_extra = int(bs.read(1));
+            if (parsed.runeword) { parsed.runeword_id = int(bits.read(12)); parsed.rw_extra = int(bits.read(4)); }
+            if (parsed.personalized) while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
+            if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));
+            parsed.bit_after = int(bits.read(1));
+            if (item_tables.armor.contains(parsed.code)) parsed.defense = int(bits.read(11)) - 10;
+            if (item_tables.armor.contains(parsed.code) || item_tables.weapons.contains(parsed.code))
+                if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (8 bits + 1 unused)
+                    parsed.durability = int(bits.read(8));
+                    parsed.dur_extra = int(bits.read(1));
                 }
-            if (t.stackable.contains(it.code)) it.quantity = int(bs.read(9));
-            if (it.socketed) it.sockets = int(bs.read(4));
+            if (item_tables.stackable.contains(parsed.code)) parsed.quantity = int(bits.read(9));
+            if (parsed.socketed) parsed.sockets = int(bits.read(4));
             int lists = 0;
-            if (it.quality == 5) { it.set_lists = int(bs.read(5)); for (auto sf = it.set_lists; sf; sf &= sf - 1) ++lists; }
-            props(bs, t, it.props);
-            it.main_props = it.props.size();
+            if (parsed.quality == 5) { parsed.set_lists = int(bits.read(5)); for (auto set_list = parsed.set_lists; set_list; set_list &= set_list - 1) ++lists; }
+            props(bits, item_tables, parsed.props);
+            parsed.main_props = parsed.props.size();
             for (int i = 0; i < lists; ++i) {
-                const auto n0 = it.set_props.size();
-                props(bs, t, it.set_props);
-                it.set_list_sizes.push_back(it.set_props.size() - n0);
+                const auto props_before = parsed.set_props.size();
+                props(bits, item_tables, parsed.set_props);
+                parsed.set_list_sizes.push_back(parsed.set_props.size() - props_before);
             }
-            if (it.runeword) props(bs, t, it.props);
+            if (parsed.runeword) props(bits, item_tables, parsed.props);
         }
     }
-    bs.pos = (bs.pos + 7) & ~std::size_t(7);
-    for (int i = 0; i < filled; ++i) it.socketed_items.push_back(item(bs, t));
-    return it;
+    bits.pos = (bits.pos + 7) & ~std::size_t(7);
+    for (int i = 0; i < filled; ++i) parsed.socketed_items.push_back(item(bits, item_tables));
+    return parsed;
 }
 }  // namespace detail
 
@@ -210,52 +210,52 @@ inline Item item(Bits& bs, const ItemTables& t) {
 // of ItemStatCost CSvBits width, until 0x1ff; then "if" + 30 skill bytes,
 // then the items. Life/mana/stamina (6..11) are 8.8 fixed point.
 struct Stats {
-    std::array<std::int64_t, 16> v{};   // by stat id 0..15 (strength .. goldbank)
+    std::array<std::int64_t, 16> values{};   // by stat id 0..15 (strength .. goldbank)
     std::size_t items_at = 0;           // byte offset of the item list's "JM"
     std::array<std::uint8_t, 30> skills{};   // "if": the class's 30 skills in Skills.txt order, base levels
-    [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? v[std::size_t(id)] : 0; }
+    [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? values[std::size_t(id)] : 0; }
     [[nodiscard]] std::int64_t fixed(int id) const { return get(id) >> 8; }   // life/mana/stamina
 };
 enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 5,
               kLife = 6, kMaxLife = 7, kMana = 8, kMaxMana = 9, kStamina = 10,
               kMaxStamina = 11, kLevel = 12, kExp = 13, kGold = 14, kGoldBank = 15 };
 
-inline Stats parse_stats(std::span<const std::byte> save, const ItemTables& t) {
+inline Stats parse_stats(std::span<const std::byte> save, const ItemTables& item_tables) {
     constexpr std::size_t kGf = 0x2FD;
     if (save.size() < kGf + 2 || save[kGf] != std::byte{'g'} || save[kGf + 1] != std::byte{'f'})
         throw std::runtime_error("d2s: no stats section");
-    Stats st;
-    detail::Bits bs{ save, (kGf + 2) * 8 };
+    Stats stats;
+    detail::Bits bits{ save, (kGf + 2) * 8 };
     for (;;) {
-        const int id = int(bs.read(9));
+        const int id = int(bits.read(9));
         if (id == 0x1ff) break;
-        if (std::size_t(id) >= t.stats.size() || t.stats[std::size_t(id)].csv_bits == 0)
+        if (std::size_t(id) >= item_tables.stats.size() || item_tables.stats[std::size_t(id)].csv_bits == 0)
             throw std::runtime_error("d2s: unknown character stat " + std::to_string(id));
-        const auto val = bs.read(t.stats[std::size_t(id)].csv_bits);
-        if (id < 16) st.v[std::size_t(id)] = val;
+        const auto val = bits.read(item_tables.stats[std::size_t(id)].csv_bits);
+        if (id < 16) stats.values[std::size_t(id)] = val;
     }
-    const std::size_t at = (bs.pos + 7) / 8;              // "if" + 30 bytes follow
-    if (at + 32 > save.size() || save[at] != std::byte{'i'} || save[at + 1] != std::byte{'f'})
+    const std::size_t items_at = (bits.pos + 7) / 8;              // "if" + 30 bytes follow
+    if (items_at + 32 > save.size() || save[items_at] != std::byte{'i'} || save[items_at + 1] != std::byte{'f'})
         throw std::runtime_error("d2s: skills section not after stats");
-    for (std::size_t i = 0; i < 30; ++i) st.skills[i] = std::uint8_t(save[at + 2 + i]);
-    st.items_at = at + 32;
-    return st;
+    for (std::size_t i = 0; i < 30; ++i) stats.skills[i] = std::uint8_t(save[items_at + 2 + i]);
+    stats.items_at = items_at + 32;
+    return stats;
 }
 
 // The player's item list. Throws on anything that doesn't parse cleanly.
-inline std::vector<Item> parse_items(std::span<const std::byte> save, const ItemTables& t) {
+inline std::vector<Item> parse_items(std::span<const std::byte> save, const ItemTables& item_tables) {
     // Exactly after the stats + skills sections; the fixed-width scan is
     // only a fallback for tables without CSvBits (unit tests).
-    std::size_t at = 0x2FD;
-    try { at = parse_stats(save, t).items_at; } catch (const std::runtime_error&) {
-        for (; at + 4 <= save.size(); ++at)
-            if (save[at] == std::byte{'J'} && save[at + 1] == std::byte{'M'}) break;
+    std::size_t offset = 0x2FD;
+    try { offset = parse_stats(save, item_tables).items_at; } catch (const std::runtime_error&) {
+        for (; offset + 4 <= save.size(); ++offset)
+            if (save[offset] == std::byte{'J'} && save[offset + 1] == std::byte{'M'}) break;
     }
-    if (at + 4 > save.size()) throw std::runtime_error("d2s items: no item list");
-    const int count = int(std::uint8_t(save[at + 2])) | int(std::uint8_t(save[at + 3])) << 8;
-    detail::Bits bs{ save, (at + 4) * 8 };
+    if (offset + 4 > save.size()) throw std::runtime_error("d2s items: no item list");
+    const int count = int(std::uint8_t(save[offset + 2])) | int(std::uint8_t(save[offset + 3])) << 8;
+    detail::Bits bits{ save, (offset + 4) * 8 };
     std::vector<Item> out;
-    for (int i = 0; i < count; ++i) out.push_back(detail::item(bs, t));
+    for (int i = 0; i < count; ++i) out.push_back(detail::item(bits, item_tables));
     return out;
 }
 
@@ -264,27 +264,27 @@ inline std::vector<Item> parse_items(std::span<const std::byte> save, const Item
 // u32 x, u32 y) and its own "JM" item list. `end`: the byte after it.
 // A save has at most one corpse.
 struct CorpseList { std::size_t begin = 0, end = 0; std::vector<Item> items; bool has = false; };
-inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables& t) {
-    CorpseList c;
-    const auto at = parse_stats(save, t).items_at;
-    const int n = int(std::uint8_t(save[at + 2])) | int(std::uint8_t(save[at + 3])) << 8;
-    detail::Bits bs{ save, (at + 4) * 8 };
-    for (int i = 0; i < n; ++i) detail::item(bs, t);
-    c.begin = c.end = bs.pos / 8;
-    if (c.begin + 4 > save.size() || save[c.begin] != std::byte{'J'} || save[c.begin + 1] != std::byte{'M'}) return c;
-    const int corpses = int(std::uint8_t(save[c.begin + 2])) | int(std::uint8_t(save[c.begin + 3])) << 8;
-    std::size_t p = c.begin + 4;
+inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables& item_tables) {
+    CorpseList corpse;
+    const auto items_at = parse_stats(save, item_tables).items_at;
+    const int count = int(std::uint8_t(save[items_at + 2])) | int(std::uint8_t(save[items_at + 3])) << 8;
+    detail::Bits bits{ save, (items_at + 4) * 8 };
+    for (int i = 0; i < count; ++i) detail::item(bits, item_tables);
+    corpse.begin = corpse.end = bits.pos / 8;
+    if (corpse.begin + 4 > save.size() || save[corpse.begin] != std::byte{'J'} || save[corpse.begin + 1] != std::byte{'M'}) return corpse;
+    const int corpses = int(std::uint8_t(save[corpse.begin + 2])) | int(std::uint8_t(save[corpse.begin + 3])) << 8;
+    std::size_t corpse_offset = corpse.begin + 4;
     for (int k = 0; k < corpses; ++k) {
-        p += 12;
-        if (p + 4 > save.size() || save[p] != std::byte{'J'}) throw std::runtime_error("d2s: corpse without items");
-        const int m = int(std::uint8_t(save[p + 2])) | int(std::uint8_t(save[p + 3])) << 8;
-        detail::Bits cb{ save, (p + 4) * 8 };
-        for (int i = 0; i < m; ++i) c.items.push_back(detail::item(cb, t));
-        p = cb.pos / 8;
-        c.has = true;
+        corpse_offset += 12;
+        if (corpse_offset + 4 > save.size() || save[corpse_offset] != std::byte{'J'}) throw std::runtime_error("d2s: corpse without items");
+        const int item_count = int(std::uint8_t(save[corpse_offset + 2])) | int(std::uint8_t(save[corpse_offset + 3])) << 8;
+        detail::Bits corpse_bits{ save, (corpse_offset + 4) * 8 };
+        for (int i = 0; i < item_count; ++i) corpse.items.push_back(detail::item(corpse_bits, item_tables));
+        corpse_offset = corpse_bits.pos / 8;
+        corpse.has = true;
     }
-    c.end = p;
-    return c;
+    corpse.end = corpse_offset;
+    return corpse;
 }
 
 }  // namespace d2d::d2s

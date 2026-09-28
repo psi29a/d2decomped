@@ -14,13 +14,13 @@ namespace d2d::drlg {
 
 // What the layout needs from Levels.txt: size for the difficulty and the
 // fixed offset of a level that anchors a chain.
-struct LevelDef { int w = 0, h = 0, offset_x = 0, offset_y = 0; bool outdoor = false; };
+struct LevelDef { int width = 0, height = 0, offset_x = 0, offset_y = 0; bool outdoor = false; };
 using LevelDefs = std::unordered_map<int, LevelDef>;   // by Levels.txt Id
 
 // A placed level: its rectangle in act tiles, the side of its link it
 // went to (0 below, 1 left, 2 above, 3 right; -1 the chain's anchor), the
 // alignment variant, and the outdoor flags the placement set.
-struct Placed { int level = 0, x = 0, y = 0, w = 0, h = 0, dir = -1, flip = 0; std::uint32_t flags = 0; };
+struct Placed { int level = 0, x = 0, y = 0, width = 0, height = 0, dir = -1, flip = 0; std::uint32_t flags = 0; };
 
 // How a record places its level against its link (game.exe's callbacks).
 enum class Place { Anchor, Beside, BloodMoor, Town, Fixed };
@@ -45,7 +45,7 @@ inline constexpr std::array<std::uint8_t, 64> kTownAllowed = {
 // Outdoor flags from consecutive placements (0x6f1258, FUN_00677180): a
 // record's level (0 = any), unless it's one of two levels, gets `flag`
 // when its dir and the next record's dir are (a, b).
-struct FlagRule { int level, not1, not2, a, b; std::uint32_t flag; };
+struct FlagRule { int level, not1, not2, dir, next_dir; std::uint32_t flag; };
 inline constexpr std::array<FlagRule, 15> kAct1Flags = { {
     { 0, 2, 3, 1, 0, 4 }, { 0, 2, 3, 2, 3, 4 }, { 0, 3, 17, 2, 1, 8 }, { 0, 3, 17, 3, 0, 8 },
     { 0, 3, 17, 1, 1, 16 }, { 0, 3, 17, 3, 3, 16 }, { 2, 0, 0, 0, 0, 8 }, { 2, 0, 0, 2, 2, 8 },
@@ -54,9 +54,9 @@ inline constexpr std::array<FlagRule, 15> kAct1Flags = { {
 
 // Rectangles overlap unless they're `gap` or more apart on an axis
 // (FUN_0066b800; gap 0 lets them touch).
-inline bool apart(const Placed& a, const Placed& b, int gap = 0) {
-    const int dx = a.x < b.x ? b.x - a.w - a.x : a.x - b.w - b.x;
-    const int dy = a.y < b.y ? b.y - a.h - a.y : a.y - b.h - b.y;
+inline bool apart(const Placed& first, const Placed& second, int gap = 0) {
+    const int dx = first.x < second.x ? second.x - first.width - first.x : first.x - second.width - second.x;
+    const int dy = first.y < second.y ? second.y - first.height - first.y : first.y - second.height - second.y;
     return !(dx < gap && dy < gap);
 }
 
@@ -70,132 +70,132 @@ inline bool apart(const Placed& a, const Placed& b, int gap = 0) {
 // first, not ported.
 inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const LevelDefs& defs, d2d::rules::Rng seed,
                                        bool town_rules) {
-    const int n = int(recs.size());
-    std::vector<Placed> p(static_cast<std::size_t>(n));
-    std::vector<int> start_dir(static_cast<std::size_t>(n), -1), start_flip(static_cast<std::size_t>(n), -1);
-    for (int i = 0; i < n; ++i) {
-        p[std::size_t(i)].level = recs[std::size_t(i)].level;
-        if (const auto d = defs.find(recs[std::size_t(i)].level); d != defs.end()) {
-            p[std::size_t(i)].w = d->second.w;
-            p[std::size_t(i)].h = d->second.h;
+    const int count = int(recs.size());
+    std::vector<Placed> placed(static_cast<std::size_t>(count));
+    std::vector<int> start_dir(static_cast<std::size_t>(count), -1), start_flip(static_cast<std::size_t>(count), -1);
+    for (int i = 0; i < count; ++i) {
+        placed[std::size_t(i)].level = recs[std::size_t(i)].level;
+        if (const auto found = defs.find(recs[std::size_t(i)].level); found != defs.end()) {
+            placed[std::size_t(i)].width = found->second.width;
+            placed[std::size_t(i)].height = found->second.height;
         }
     }
     // Roll a first side (and alignment), else step to the next; false once
     // every one has been tried.
-    auto next_side = [&](int i, bool with_flip) {
-        auto& q = p[std::size_t(i)];
-        if (start_dir[std::size_t(i)] == -1) {
-            start_dir[std::size_t(i)] = q.dir = int(seed.next() & 3);
-            if (with_flip) start_flip[std::size_t(i)] = q.flip = int(seed.next() & 1);
+    auto next_side = [&](int index, bool with_flip) {
+        auto& placement = placed[std::size_t(index)];
+        if (start_dir[std::size_t(index)] == -1) {
+            start_dir[std::size_t(index)] = placement.dir = int(seed.next() & 3);
+            if (with_flip) start_flip[std::size_t(index)] = placement.flip = int(seed.next() & 1);
             return true;
         }
         if (!with_flip) {
-            const int d = (q.dir + 1) & 3;
-            if (d == start_dir[std::size_t(i)]) return false;
-            q.dir = d;
+            const int next = (placement.dir + 1) & 3;
+            if (next == start_dir[std::size_t(index)]) return false;
+            placement.dir = next;
             return true;
         }
-        const int d = (q.dir + q.flip) & 3, f = (q.flip + 1) & 1;
-        if (d == start_dir[std::size_t(i)] && f == start_flip[std::size_t(i)]) return false;
-        q.dir = d;
-        q.flip = f;
+        const int next = (placement.dir + placement.flip) & 3, next_flip = (placement.flip + 1) & 1;
+        if (next == start_dir[std::size_t(index)] && next_flip == start_flip[std::size_t(index)]) return false;
+        placement.dir = next;
+        placement.flip = next_flip;
         return true;
     };
-    auto place = [&](int i) {
-        const auto& r = recs[std::size_t(i)];
-        auto& q = p[std::size_t(i)];
-        if (r.how == Place::Anchor) {
-            q.dir = -1;
-            if (const auto d = defs.find(r.level); d != defs.end()) { q.x = d->second.offset_x; q.y = d->second.offset_y; }
+    auto place = [&](int index) {
+        const auto& record = recs[std::size_t(index)];
+        auto& placement = placed[std::size_t(index)];
+        if (record.how == Place::Anchor) {
+            placement.dir = -1;
+            if (const auto found = defs.find(record.level); found != defs.end()) { placement.x = found->second.offset_x; placement.y = found->second.offset_y; }
             return true;
         }
-        const auto& L = p[std::size_t(r.link)];
-        if (r.how == Place::Fixed) {                          // FUN_006768c0: below, left-aligned
-            q.dir = 0;
-            q.x = L.x;
-            q.y = L.y + L.h;
+        const auto& linked = placed[std::size_t(record.link)];
+        if (record.how == Place::Fixed) {                          // FUN_006768c0: below, left-aligned
+            placement.dir = 0;
+            placement.x = linked.x;
+            placement.y = linked.y + linked.height;
             return true;
         }
-        const bool flips = r.how == Place::BloodMoor || r.how == Place::Town;
-        if (!next_side(i, flips)) return false;
-        if (r.how == Place::BloodMoor) {                      // 96x56 left/right, 56x96 above/below
-            q.w = q.dir & 1 ? 96 : 56;
-            q.h = q.dir & 1 ? 56 : 96;
+        const bool flips = record.how == Place::BloodMoor || record.how == Place::Town;
+        if (!next_side(index, flips)) return false;
+        if (record.how == Place::BloodMoor) {                      // 96x56 left/right, 56x96 above/below
+            placement.width = placement.dir & 1 ? 96 : 56;
+            placement.height = placement.dir & 1 ? 56 : 96;
         }
-        const int W = q.w, H = q.h, x0 = L.x, y0 = L.y, x1 = L.x + L.w, y1 = L.y + L.h;
-        auto at = [&](int x, int y) { q.x = x; q.y = y; };
-        if (r.how == Place::Beside || (r.how == Place::BloodMoor && q.flip == 1)) {   // FUN_00676150 / 00676650
-            const std::array<std::pair<int, int>, 4> spot = { { { x0 - 16, y1 }, { x0 - W, y0 - 16 },
-                                                                { x1 - W + 16, y0 - H }, { x1, y1 - H + 16 } } };
-            at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
-        } else if (r.how == Place::BloodMoor) {
-            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W + 16, y1 }, { x0 - W, y1 - H + 16 },
-                                                                { x0 - 16, y0 - H }, { x1, y0 - 16 } } };
-            at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
-        } else if (q.flip == 1) {                                                   // the town, FUN_00676450
-            const std::array<std::pair<int, int>, 4> spot = { { { x0, y1 }, { x0 - W, y0 + 8 },
-                                                                { x1 - W, y0 - H }, { x1, y1 - H - 8 } } };
-            at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
+        const int width = placement.width, height = placement.height, left = linked.x, top = linked.y, right = linked.x + linked.width, bottom = linked.y + linked.height;
+        auto put_at = [&](int x, int y) { placement.x = x; placement.y = y; };
+        if (record.how == Place::Beside || (record.how == Place::BloodMoor && placement.flip == 1)) {   // FUN_00676150 / 00676650
+            const std::array<std::pair<int, int>, 4> spot = { { { left - 16, bottom }, { left - width, top - 16 },
+                                                                { right - width + 16, top - height }, { right, bottom - height + 16 } } };
+            put_at(spot[std::size_t(placement.dir)].first, spot[std::size_t(placement.dir)].second);
+        } else if (record.how == Place::BloodMoor) {
+            const std::array<std::pair<int, int>, 4> spot = { { { right - width + 16, bottom }, { left - width, bottom - height + 16 },
+                                                                { left - 16, top - height }, { right, top - 16 } } };
+            put_at(spot[std::size_t(placement.dir)].first, spot[std::size_t(placement.dir)].second);
+        } else if (placement.flip == 1) {                                                   // the town, FUN_00676450
+            const std::array<std::pair<int, int>, 4> spot = { { { left, bottom }, { left - width, top + 8 },
+                                                                { right - width, top - height }, { right, bottom - height - 8 } } };
+            put_at(spot[std::size_t(placement.dir)].first, spot[std::size_t(placement.dir)].second);
         } else {
-            const std::array<std::pair<int, int>, 4> spot = { { { x1 - W, y1 }, { x0 - W, y1 - H - 8 },
-                                                                { x0, y0 - H }, { x1, y0 + 8 } } };
-            at(spot[std::size_t(q.dir)].first, spot[std::size_t(q.dir)].second);
+            const std::array<std::pair<int, int>, 4> spot = { { { right - width, bottom }, { left - width, bottom - height - 8 },
+                                                                { left, top - height }, { right, top + 8 } } };
+            put_at(spot[std::size_t(placement.dir)].first, spot[std::size_t(placement.dir)].second);
         }
         return true;
     };
     // FUN_00676dd0: clear of every earlier level but its link; the town
     // only where kTownAllowed says; the Burial Grounds not on the same side
     // of its link as another level from that link.
-    auto fits = [&](int i) {
-        const auto& r = recs[std::size_t(i)];
-        for (int j = 0; j < i; ++j)
-            if (j != r.link && !apart(p[std::size_t(i)], p[std::size_t(j)])) return false;
+    auto fits = [&](int index) {
+        const auto& record = recs[std::size_t(index)];
+        for (int j = 0; j < index; ++j)
+            if (j != record.link && !apart(placed[std::size_t(index)], placed[std::size_t(j)])) return false;
         if (!town_rules) return true;
-        if (r.level == 1) {
-            const auto& L = p[std::size_t(r.link)];
-            const auto& q = p[std::size_t(i)];
-            return kTownAllowed[std::size_t(q.dir + 4 * q.flip + 8 * L.dir + 32 * L.flip)] != 0;
+        if (record.level == 1) {
+            const auto& linked = placed[std::size_t(record.link)];
+            const auto& placement = placed[std::size_t(index)];
+            return kTownAllowed[std::size_t(placement.dir + 4 * placement.flip + 8 * linked.dir + 32 * linked.flip)] != 0;
         }
-        if (r.level == 17)
-            for (int k = 0; k < n; ++k)
-                if (k != i && recs[std::size_t(k)].link == r.link && p[std::size_t(k)].dir == p[std::size_t(i)].dir) return false;
+        if (record.level == 17)
+            for (int k = 0; k < count; ++k)
+                if (k != index && recs[std::size_t(k)].link == record.link && placed[std::size_t(k)].dir == placed[std::size_t(index)].dir) return false;
         return true;
     };
-    for (int i = 0; i < n;) {
+    for (int i = 0; i < count;) {
         if (!place(i)) {                                      // all sides tried: back up
             start_dir[std::size_t(i)] = start_flip[std::size_t(i)] = -1;
-            p[std::size_t(i)].dir = -1;
-            p[std::size_t(i)].flip = 0;
+            placed[std::size_t(i)].dir = -1;
+            placed[std::size_t(i)].flip = 0;
             if (--i < 0) break;
             continue;
         }
         if (fits(i)) ++i;
     }
     if (town_rules)
-        for (int i = 0; i < n; ++i) {
-            const int a = p[std::size_t(i)].dir, b = i + 1 < n ? p[std::size_t(i + 1)].dir : -1;
-            const int lv = p[std::size_t(i)].level;
-            if (const auto d = defs.find(lv); d == defs.end() || !d->second.outdoor) continue;
-            for (const auto& fr : kAct1Flags)
-                if ((fr.level == lv || fr.level == 0) && lv != fr.not1 && lv != fr.not2 && a == fr.a && b == fr.b)
-                    p[std::size_t(i)].flags |= fr.flag;
+        for (int i = 0; i < count; ++i) {
+            const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
+            const int level = placed[std::size_t(i)].level;
+            if (const auto found = defs.find(level); found == defs.end() || !found->second.outdoor) continue;
+            for (const auto& rule : kAct1Flags)
+                if ((rule.level == level || rule.level == 0) && level != rule.not1 && level != rule.not2 && dir == rule.dir && next_dir == rule.next_dir)
+                    placed[std::size_t(i)].flags |= rule.flag;
         }
-    return p;
+    return placed;
 }
 
 // Act 1's outdoor levels (FUN_00677750), both chains from the act seed.
 inline std::vector<Placed> act1_layout(const LevelDefs& defs, const d2d::rules::Rng& act_seed) {
-    auto a = place_chain(kAct1Outdoors, defs, act_seed, true);
-    const auto b = place_chain(kAct1Highlands, defs, act_seed, false);
-    a.insert(a.end(), b.begin(), b.end());
-    return a;
+    auto outdoors = place_chain(kAct1Outdoors, defs, act_seed, true);
+    const auto highlands = place_chain(kAct1Highlands, defs, act_seed, false);
+    outdoors.insert(outdoors.end(), highlands.begin(), highlands.end());
+    return outdoors;
 }
 
 // The town's preset, from the side of the Blood Moor it went to
 // (LvlPrest "Act 1 - Town 1" File1..4): 0 townN1, 1 townE1, 2 townS1,
 // 3 townW1 — named for the side the Blood Moor is on.
 inline int town_file(const std::vector<Placed>& layout) {
-    for (const auto& p : layout) if (p.level == 1) return p.dir;
+    for (const auto& placement : layout) if (placement.level == 1) return placement.dir;
     return -1;
 }
 

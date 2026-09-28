@@ -72,7 +72,7 @@ struct PathPoint {
 
 // A substitution group (DS1 substitution type 1 / 2): a rectangle of
 // tiles; `variants` (v13+) counts the alternatives laid out to its right.
-struct Group { std::int32_t x{}, y{}, w{}, h{}, variants{}; };
+struct Group { std::int32_t x{}, y{}, width{}, height{}, variants{}; };
 
 struct Object {
     std::int32_t type{};
@@ -96,10 +96,10 @@ public:
     }
 
     // A tile dword and back (lossless; walls keep their orientation apart).
-    [[nodiscard]] static Tile tile(std::uint32_t dw) { Tile t; decode_tile_dword(dw, t); return t; }
-    [[nodiscard]] static std::uint32_t word(const Tile& t) {
-        return std::uint32_t(t.prop1) | std::uint32_t(t.sequence) << 8 | std::uint32_t(t.unknown1) << 14
-             | std::uint32_t(t.style) << 20 | std::uint32_t(t.unknown2) << 26 | (t.hidden ? 0x80000000u : 0u);
+    [[nodiscard]] static Tile tile(std::uint32_t packed) { Tile decoded; decode_tile_dword(packed, decoded); return decoded; }
+    [[nodiscard]] static std::uint32_t word(const Tile& tile) {
+        return std::uint32_t(tile.prop1) | std::uint32_t(tile.sequence) << 8 | std::uint32_t(tile.unknown1) << 14
+             | std::uint32_t(tile.style) << 20 | std::uint32_t(tile.unknown2) << 26 | (tile.hidden ? 0x80000000u : 0u);
     }
 
     [[nodiscard]] int version()          const noexcept { return version_; }
@@ -119,77 +119,77 @@ public:
 
 private:
     struct Cursor {
-        const std::byte* p;
+        const std::byte* at;
         const std::byte* end;
         std::int32_t rd_i32() {
-            if (p + 4 > end) throw std::runtime_error("DS1: read past end");
-            std::int32_t v; std::memcpy(&v, p, 4); p += 4; return v;
+            if (at + 4 > end) throw std::runtime_error("DS1: read past end");
+            std::int32_t value; std::memcpy(&value, at, 4); at += 4; return value;
         }
         std::uint32_t rd_u32() {
-            if (p + 4 > end) throw std::runtime_error("DS1: read past end");
-            std::uint32_t v; std::memcpy(&v, p, 4); p += 4; return v;
+            if (at + 4 > end) throw std::runtime_error("DS1: read past end");
+            std::uint32_t value; std::memcpy(&value, at, 4); at += 4; return value;
         }
         std::uint8_t rd_u8() {
-            if (p >= end) throw std::runtime_error("DS1: read past end");
-            return std::uint8_t(*p++);
+            if (at >= end) throw std::runtime_error("DS1: read past end");
+            return std::uint8_t(*at++);
         }
-        void skip(std::size_t n) {
-            if (p + n > end) throw std::runtime_error("DS1: skip past end");
-            p += n;
+        void skip(std::size_t count) {
+            if (at + count > end) throw std::runtime_error("DS1: skip past end");
+            at += count;
         }
     };
 
-    static void decode_tile_dword(std::uint32_t dw, Tile& t) {
-        t.prop1     = std::uint8_t( dw        & 0xFF);
-        t.sequence  = std::uint8_t((dw >>  8) & 0x3F);
-        t.unknown1  = std::uint8_t((dw >> 14) & 0x3F);
-        t.style     = std::uint8_t((dw >> 20) & 0x3F);
-        t.unknown2  = std::uint8_t((dw >> 26) & 0x1F);
-        t.hidden    = (dw & 0x80000000u) != 0;
+    static void decode_tile_dword(std::uint32_t packed, Tile& tile) {
+        tile.prop1     = std::uint8_t( packed        & 0xFF);
+        tile.sequence  = std::uint8_t((packed >>  8) & 0x3F);
+        tile.unknown1  = std::uint8_t((packed >> 14) & 0x3F);
+        tile.style     = std::uint8_t((packed >> 20) & 0x3F);
+        tile.unknown2  = std::uint8_t((packed >> 26) & 0x1F);
+        tile.hidden    = (packed & 0x80000000u) != 0;
     }
 
-    void parse(std::span<const std::byte> b) {
-        Cursor c{b.data(), b.data() + b.size()};
+    void parse(std::span<const std::byte> bytes) {
+        Cursor cursor{bytes.data(), bytes.data() + bytes.size()};
 
-        version_ = c.rd_i32();
+        version_ = cursor.rd_i32();
         // Sanity — real D2 DS1s span v3..v18 in the wild.
         if (version_ < 0 || version_ > 40)
             throw std::runtime_error("DS1: bogus version");
 
-        width_  = c.rd_i32() + 1;
-        height_ = c.rd_i32() + 1;
+        width_  = cursor.rd_i32() + 1;
+        height_ = cursor.rd_i32() + 1;
         if (width_  <= 0 || width_  > 1024) throw std::runtime_error("DS1: bad width");
         if (height_ <= 0 || height_ > 1024) throw std::runtime_error("DS1: bad height");
 
-        if (version_ >= 8) act_ = c.rd_i32() + 1;
+        if (version_ >= 8) act_ = cursor.rd_i32() + 1;
         std::int32_t sub_type = 0;
-        if (version_ >= 10) sub_type = c.rd_i32();
+        if (version_ >= 10) sub_type = cursor.rd_i32();
         sub_type_ = sub_type;
 
         // File list (v3+).
         if (version_ >= 3) {
-            const auto n = c.rd_i32();
-            if (n < 0 || n > 64) throw std::runtime_error("DS1: bogus file count");
-            files_.resize(n);
-            for (auto& s : files_) {
+            const auto file_count = cursor.rd_i32();
+            if (file_count < 0 || file_count > 64) throw std::runtime_error("DS1: bogus file count");
+            files_.resize(file_count);
+            for (auto& file : files_) {
                 while (true) {
-                    const auto ch = c.rd_u8();
-                    if (ch == 0) break;
-                    s.push_back(static_cast<char>(ch));
+                    const auto letter = cursor.rd_u8();
+                    if (letter == 0) break;
+                    file.push_back(static_cast<char>(letter));
                 }
             }
         }
 
         // Unknown 8-byte block (v9..v13 only).
-        if (version_ >= 9 && version_ <= 13) c.skip(8);
+        if (version_ >= 9 && version_ <= 13) cursor.skip(8);
 
         // Layer counts.
         std::int32_t num_walls = 0;
         std::int32_t num_floors = 1;                // default when not specified
         std::int32_t num_shadows = 1;               // always exactly 1 unless zero
         if (version_ >= 4) {
-            num_walls = c.rd_i32();
-            if (version_ >= 16) num_floors = c.rd_i32();
+            num_walls = cursor.rd_i32();
+            if (version_ >= 16) num_floors = cursor.rd_i32();
         }
         // We don't implement substitutions; count is inferred from sub_type
         // (0 = none, 1/2 = one layer). Keep the number for read-skip below.
@@ -203,9 +203,9 @@ private:
         floors_.assign(num_floors, Layer{});
         shadows_.assign(num_shadows, Layer{});
         const auto cells = std::size_t(width_) * height_;
-        for (auto& l : walls_)   l.cells.assign(cells, Tile{});
-        for (auto& l : floors_)  l.cells.assign(cells, Tile{});
-        for (auto& l : shadows_) l.cells.assign(cells, Tile{});
+        for (auto& layer : walls_)   layer.cells.assign(cells, Tile{});
+        for (auto& layer : floors_)  layer.cells.assign(cells, Tile{});
+        for (auto& layer : shadows_) layer.cells.assign(cells, Tile{});
 
         // Layer stream: interleaved per Blizzard's order.
         // For versions <4 the schema is one wall + one floor + orientation +
@@ -217,82 +217,82 @@ private:
         std::vector<std::uint32_t> sub_stream;
         if (num_subs) sub_stream.assign(cells, 0);
 
-        for (std::int32_t w = 0; w < num_walls; ++w) {
+        for (std::int32_t wall = 0; wall < num_walls; ++wall) {
             // wall dword
             for (std::size_t i = 0; i < cells; ++i) {
-                decode_tile_dword(c.rd_u32(), walls_[w].cells[i]);
+                decode_tile_dword(cursor.rd_u32(), walls_[wall].cells[i]);
             }
             // orientation dword (paired with each wall)
             for (std::size_t i = 0; i < cells; ++i) {
-                const auto dw = c.rd_u32();
-                auto& t = walls_[w].cells[i];
-                t.wall_type = std::uint8_t(dw & 0xFF);
-                t.wall_zero = (dw >> 8) & 0x00FFFFFFu;
+                const auto packed = cursor.rd_u32();
+                auto& tile = walls_[wall].cells[i];
+                tile.wall_type = std::uint8_t(packed & 0xFF);
+                tile.wall_zero = (packed >> 8) & 0x00FFFFFFu;
             }
         }
-        for (std::int32_t f = 0; f < num_floors; ++f) {
+        for (std::int32_t floor = 0; floor < num_floors; ++floor) {
             for (std::size_t i = 0; i < cells; ++i) {
-                decode_tile_dword(c.rd_u32(), floors_[f].cells[i]);
+                decode_tile_dword(cursor.rd_u32(), floors_[floor].cells[i]);
             }
         }
         if (!shadows_.empty()) {
             for (std::size_t i = 0; i < cells; ++i) {
-                decode_tile_dword(c.rd_u32(), shadows_[0].cells[i]);
+                decode_tile_dword(cursor.rd_u32(), shadows_[0].cells[i]);
             }
         }
         if (num_subs) {
             for (std::size_t i = 0; i < cells; ++i) {
-                sub_stream[i] = c.rd_u32();
+                sub_stream[i] = cursor.rd_u32();
             }
         }
 
         // Objects (v3+).
         if (version_ >= 3) {
-            const auto n = c.rd_i32();
-            if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus object count");
-            objects_.resize(n);
-            for (auto& o : objects_) {
-                o.type  = c.rd_i32();
-                o.id    = c.rd_i32();
-                o.x     = c.rd_i32();
-                o.y     = c.rd_i32();
-                o.flags = c.rd_i32();
+            const auto object_count = cursor.rd_i32();
+            if (object_count < 0 || object_count > 100000) throw std::runtime_error("DS1: bogus object count");
+            objects_.resize(object_count);
+            for (auto& object : objects_) {
+                object.type  = cursor.rd_i32();
+                object.id    = cursor.rd_i32();
+                object.x     = cursor.rd_i32();
+                object.y     = cursor.rd_i32();
+                object.flags = cursor.rd_i32();
             }
         }
 
         // Substitution groups (v12+, sub_type 1/2).
-        if (version_ >= 12 && (sub_type == 1 || sub_type == 2) && c.p < c.end) {
-            if (version_ >= 18) c.skip(4);
-            const auto n = c.rd_i32();
-            if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus group count");
-            groups_.resize(std::size_t(n));
+        if (version_ >= 12 && (sub_type == 1 || sub_type == 2) && cursor.at < cursor.end) {
+            if (version_ >= 18) cursor.skip(4);
+            const auto group_count = cursor.rd_i32();
+            if (group_count < 0 || group_count > 100000) throw std::runtime_error("DS1: bogus group count");
+            groups_.resize(std::size_t(group_count));
             // Act1/Outdoors/Trees.ds1 (v12) says 14 groups and ends 12 bytes
             // into the 14th; game.exe (FUN_00665950) reads on past its buffer.
             // Past the end reads as 0 here (a 0x0 group that stamps nothing).
-            auto rd = [&] { return c.p + 4 <= c.end ? c.rd_i32() : (c.p = c.end, 0); };
-            for (auto& g : groups_) {
-                g.x = rd(); g.y = rd(); g.w = rd(); g.h = rd();
-                if (version_ >= 13) g.variants = rd();
+            auto read_i32 = [&] { return cursor.at + 4 <= cursor.end ? cursor.rd_i32() : (cursor.at = cursor.end, 0); };
+            for (auto& group : groups_) {
+                group.x = read_i32(); group.y = read_i32(); group.width = read_i32(); group.height = read_i32();
+                if (version_ >= 13) group.variants = read_i32();
             }
         }
 
         // NPC paths (v14+): {count, x, y} then `count` points. The path
         // belongs to the object standing at (x, y).
-        if (version_ >= 14 && c.p < c.end) {
-            const auto n = c.rd_i32();
-            if (n < 0 || n > 100000) throw std::runtime_error("DS1: bogus path count");
-            for (std::int32_t k = 0; k < n; ++k) {
-                const auto count = c.rd_i32();
-                const auto x = c.rd_i32(), y = c.rd_i32();
+        if (version_ >= 14 && cursor.at < cursor.end) {
+            const auto point_count = cursor.rd_i32();
+            if (point_count < 0 || point_count > 100000) throw std::runtime_error("DS1: bogus path count");
+            for (std::int32_t k = 0; k < point_count; ++k) {
+                const auto count = cursor.rd_i32();
+                const auto x = cursor.rd_i32(), y = cursor.rd_i32();
                 if (count < 0 || count > 10000) throw std::runtime_error("DS1: bogus path length");
                 std::vector<PathPoint> path(static_cast<std::size_t>(count));
-                for (auto& pt : path) {
-                    pt.x = c.rd_i32();
-                    pt.y = c.rd_i32();
-                    if (version_ >= 15) pt.action = c.rd_i32();
+                for (auto& point : path) {
+                    point.x = cursor.rd_i32();
+                    point.y = cursor.rd_i32();
+                    if (version_ >= 15) point.action = cursor.rd_i32();
                 }
-                for (auto& o : objects_)
-                    if (o.x == x && o.y == y) { o.path = path; break; }
+                for (auto& object : objects_)
+                    if (object.x == x && object.y == y) { object.path = path; break; }
             }
         }
     }

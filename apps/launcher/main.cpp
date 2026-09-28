@@ -45,11 +45,11 @@
 // ---------------------------------------------------------------------------
 static std::string mpq_target(std::string_view basename) {
     std::string upper(basename);
-    for (auto& c : upper) c = static_cast<char>(std::toupper(c));
+    for (auto& letter : upper) letter = static_cast<char>(std::toupper(letter));
     if (upper.size() > 4 && upper.starts_with("D2") &&
         upper.ends_with(".MPQ")) {
         std::string lower(basename);
-        for (auto& c : lower) c = static_cast<char>(std::tolower(c));
+        for (auto& letter : lower) letter = static_cast<char>(std::tolower(letter));
         return lower;
     }
     return {};
@@ -57,7 +57,7 @@ static std::string mpq_target(std::string_view basename) {
 
 static std::string runtime_target(std::string_view basename) {
     std::string upper(basename);
-    for (auto& c : upper) c = static_cast<char>(std::toupper(c));
+    for (auto& letter : upper) letter = static_cast<char>(std::toupper(letter));
     static constexpr std::string_view kBins[] = {
         "GAME.EXE", "DIABLO II.EXE",
         "D2CLIENT.DLL", "D2COMMON.DLL", "D2GAME.DLL", "D2GFX.DLL",
@@ -67,27 +67,27 @@ static std::string runtime_target(std::string_view basename) {
         "BNCLIENT.DLL", "FOG.DLL",      "STORM.DLL",  "IJL11.DLL",
         "BINKW32.DLL",  "SMACKW32.DLL",
     };
-    for (auto b : kBins) if (upper == b) {
+    for (auto binary : kBins) if (upper == binary) {
         std::string lower(basename);
-        for (auto& c : lower) c = static_cast<char>(std::tolower(c));
+        for (auto& letter : lower) letter = static_cast<char>(std::tolower(letter));
         return "bin/" + lower;
     }
     return {};
 }
 
 static std::string dest_target(std::string_view basename) {
-    if (auto n = mpq_target(basename);     !n.empty()) return n;
-    if (auto n = runtime_target(basename); !n.empty()) return n;
+    if (auto target = mpq_target(basename);     !target.empty()) return target;
+    if (auto target = runtime_target(basename); !target.empty()) return target;
     return {};
 }
 
-static std::string path_basename(const std::string& p) {
-    const auto slash = p.find_last_of("/\\");
-    return slash == std::string::npos ? p : p.substr(slash + 1);
+static std::string path_basename(const std::string& path) {
+    const auto slash = path.find_last_of("/\\");
+    return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
-static bool is_iso_path(const QString& p) {
-    return QFileInfo(p).suffix().compare("iso", Qt::CaseInsensitive) == 0;
+static bool is_iso_path(const QString& path) {
+    return QFileInfo(path).suffix().compare("iso", Qt::CaseInsensitive) == 0;
 }
 
 static QString default_dest() {
@@ -100,26 +100,26 @@ static QString default_dest() {
 // Scan a PE for its VS_VERSION_INFO "FileVersion" string. UTF-16LE search
 // avoids a full PE resource walk. Empty return = not found / not a PE.
 static QString pe_file_version(const std::filesystem::path& file) {
-    QFile f(QString::fromStdString(file.string()));
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    const auto data = f.readAll();
+    QFile version_file(QString::fromStdString(file.string()));
+    if (!version_file.open(QIODevice::ReadOnly)) return {};
+    const auto data = version_file.readAll();
     static constexpr char16_t needle[] = u"FileVersion";
     constexpr int needle_bytes = sizeof(needle) - sizeof(char16_t);
     for (int i = 0; i + needle_bytes < data.size(); i += 2) {
         if (std::memcmp(data.constData() + i, needle, needle_bytes) != 0)
             continue;
-        int p = i + needle_bytes + 2;         // skip "FileVersion\0"
-        while (p < data.size() && (p % 4) != 0) ++p;
-        QString v;
-        while (p + 1 < data.size() && v.size() < 64) {
-            const auto c = static_cast<char16_t>(
-                quint8(data[p]) | (quint8(data[p + 1]) << 8));
-            if (c == 0) break;
-            v.append(QChar(c));
-            p += 2;
+        int offset = i + needle_bytes + 2;         // skip "FileVersion\0"
+        while (offset < data.size() && (offset % 4) != 0) ++offset;
+        QString version;
+        while (offset + 1 < data.size() && version.size() < 64) {
+            const auto code_unit = static_cast<char16_t>(
+                quint8(data[offset]) | (quint8(data[offset + 1]) << 8));
+            if (code_unit == 0) break;
+            version.append(QChar(code_unit));
+            offset += 2;
         }
-        if (!v.isEmpty()) {
-            return v.trimmed().replace(", ", ".").replace(",", ".");
+        if (!version.isEmpty()) {
+            return version.trimmed().replace(", ", ".").replace(",", ".");
         }
     }
     return {};
@@ -127,9 +127,9 @@ static QString pe_file_version(const std::filesystem::path& file) {
 
 static bool game_dir_valid(const QString& dir) {
     if (dir.isEmpty()) return false;
-    QDir d(dir);
-    if (!d.exists()) return false;
-    const auto hits = d.entryList({"d2data.mpq", "D2DATA.MPQ"},
+    QDir directory(dir);
+    if (!directory.exists()) return false;
+    const auto hits = directory.entryList({"d2data.mpq", "D2DATA.MPQ"},
                                    QDir::Files | QDir::CaseSensitive);
     return !hits.isEmpty();
 }
@@ -169,9 +169,9 @@ public:
             dlg.setFileMode(QFileDialog::ExistingFiles);
             dlg.setOptions(macos_dlg_opts());
             if (dlg.exec() != QDialog::Accepted) return;
-            for (const auto& f : dlg.selectedFiles()) {
-                add_unique(f);
-                remember_dir(QFileInfo(f).absolutePath());
+            for (const auto& file : dlg.selectedFiles()) {
+                add_unique(file);
+                remember_dir(QFileInfo(file).absolutePath());
             }
         });
         connect(add_dir, &QPushButton::clicked, this, [this] {
@@ -183,15 +183,15 @@ public:
             if (dlg.exec() != QDialog::Accepted) return;
             const auto sel = dlg.selectedFiles();
             if (sel.isEmpty()) return;
-            const QString d = sel.first();
-            remember_dir(d);
-            const QDir dir(d);
+            const QString directory = sel.first();
+            remember_dir(directory);
+            const QDir dir(directory);
             const auto isos = dir.entryList({"*.iso", "*.ISO"},
                                             QDir::Files, QDir::Name);
             if (!isos.isEmpty()) {
-                for (const auto& f : isos) add_unique(dir.absoluteFilePath(f));
+                for (const auto& file : isos) add_unique(dir.absoluteFilePath(file));
             } else {
-                add_unique(d);
+                add_unique(directory);
             }
         });
         connect(remove, &QPushButton::clicked, this, [this] {
@@ -199,14 +199,14 @@ public:
             emit completeChanged();
         });
 
-        auto* v = new QVBoxLayout(this);
-        v->addWidget(list_);
+        auto* layout = new QVBoxLayout(this);
+        layout->addWidget(list_);
         auto* row = new QHBoxLayout;
         row->addWidget(add_isos);
         row->addWidget(add_dir);
         row->addStretch();
         row->addWidget(remove);
-        v->addLayout(row);
+        layout->addLayout(row);
 
         registerField("sources", this, "sourcePaths", SIGNAL(completeChanged()));
     }
@@ -226,9 +226,9 @@ private:
             ? QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
             : last_dir_;
     }
-    void remember_dir(const QString& d) { last_dir_ = d; }
-    void add_unique(const QString& p) {
-        if (list_->findItems(p, Qt::MatchExactly).isEmpty()) list_->addItem(p);
+    void remember_dir(const QString& directory) { last_dir_ = directory; }
+    void add_unique(const QString& path) {
+        if (list_->findItems(path, Qt::MatchExactly).isEmpty()) list_->addItem(path);
         emit completeChanged();
     }
     QListWidget* list_{};
@@ -263,12 +263,12 @@ public:
         connect(edit_, &QLineEdit::textChanged, this,
                 &QWizardPage::completeChanged);
 
-        auto* v = new QVBoxLayout(this);
+        auto* layout = new QVBoxLayout(this);
         auto* row = new QHBoxLayout;
         row->addWidget(edit_);
         row->addWidget(browse);
-        v->addLayout(row);
-        v->addStretch();
+        layout->addLayout(row);
+        layout->addStretch();
 
         registerField("dest*", edit_);
     }
@@ -292,11 +292,11 @@ public:
         status_->setWordWrap(true);
         summary_ = new QLabel(this);
         summary_->setWordWrap(true);
-        auto* v = new QVBoxLayout(this);
-        v->addWidget(bar_);
-        v->addWidget(status_);
-        v->addWidget(summary_);
-        v->addStretch();
+        auto* layout = new QVBoxLayout(this);
+        layout->addWidget(bar_);
+        layout->addWidget(status_);
+        layout->addWidget(summary_);
+        layout->addStretch();
     }
 
     void initializePage() override {
@@ -321,15 +321,15 @@ private:
     void do_install(const QStringList& sources, const QString& dest_str) {
         namespace fs = std::filesystem;
         const fs::path dest(dest_str.toStdString());
-        std::error_code ec;
-        fs::create_directories(dest, ec);
+        std::error_code error;
+        fs::create_directories(dest, error);
 
         std::vector<Job> jobs;
-        for (const auto& s : sources) {
-            const fs::path p(s.toStdString());
-            if (is_iso_path(s))                collect_from_iso(p, jobs);
-            else if (fs::is_directory(p, ec))  collect_from_dir(p, jobs);
-            else                               collect_from_iso(p, jobs);
+        for (const auto& source : sources) {
+            const fs::path path(source.toStdString());
+            if (is_iso_path(source))                collect_from_iso(path, jobs);
+            else if (fs::is_directory(path, error))  collect_from_dir(path, jobs);
+            else                               collect_from_iso(path, jobs);
         }
         if (jobs.empty()) {
             report_pct(0, 1, tr("No D2*.MPQ files found in the selected "
@@ -339,31 +339,31 @@ private:
         }
 
         std::vector<Job> unique;
-        for (auto& j : jobs) {
+        for (auto& job : jobs) {
             bool dup = false;
-            for (const auto& u : unique)
-                if (u.out_name == j.out_name) { dup = true; break; }
-            if (!dup) unique.push_back(std::move(j));
+            for (const auto& unique_job : unique)
+                if (unique_job.out_name == job.out_name) { dup = true; break; }
+            if (!dup) unique.push_back(std::move(job));
         }
 
         std::uint64_t total = 0;
-        for (const auto& j : unique) total += j.size;
+        for (const auto& job : unique) total += job.size;
 
         std::uint64_t written = 0;
         std::size_t copied = 0, skipped = 0;
-        for (const auto& j : unique) {
-            const fs::path out = dest / j.out_name;
-            const bool already = fs::exists(out, ec) &&
-                                 fs::file_size(out, ec) == j.size;
+        for (const auto& job : unique) {
+            const fs::path out = dest / job.out_name;
+            const bool already = fs::exists(out, error) &&
+                                 fs::file_size(out, error) == job.size;
             report_pct(written, total,
                 (already ? tr("skip %1 (already installed)")
                          : tr("copy %1  (%2 / %3 MB)"))
-                    .arg(QString::fromStdString(j.out_name))
+                    .arg(QString::fromStdString(job.out_name))
                     .arg(written / (1024 * 1024))
                     .arg(total   / (1024 * 1024)));
             if (already) ++skipped;
-            else { copy_one(j, out); ++copied; }
-            written += j.size;
+            else { copy_one(job, out); ++copied; }
+            written += job.size;
         }
         report_pct(total, total,
             tr("Done. Copied %1, skipped %2 (already installed).")
@@ -382,42 +382,42 @@ private:
 
     static void collect_from_iso(const std::filesystem::path& iso,
                                  std::vector<Job>& out) {
-        auto r = iso9660::Reader::open(iso);
-        if (!r) return;
-        auto reader = std::make_shared<iso9660::Reader>(std::move(*r));
-        for (const auto& e : reader->entries()) {
-            if (e.directory) continue;
-            auto name = dest_target(path_basename(e.path));
+        auto opened = iso9660::Reader::open(iso);
+        if (!opened) return;
+        auto reader = std::make_shared<iso9660::Reader>(std::move(*opened));
+        for (const auto& entry : reader->entries()) {
+            if (entry.directory) continue;
+            auto name = dest_target(path_basename(entry.path));
             if (name.empty()) continue;
-            out.push_back({std::move(name), e.size, reader, e, {}});
+            out.push_back({std::move(name), entry.size, reader, entry, {}});
         }
     }
     static void collect_from_dir(const std::filesystem::path& dir,
                                  std::vector<Job>& out) {
-        std::error_code ec;
-        for (const auto& de : std::filesystem::recursive_directory_iterator(
+        std::error_code error;
+        for (const auto& dir_entry : std::filesystem::recursive_directory_iterator(
                 dir, std::filesystem::directory_options::skip_permission_denied,
-                ec)) {
-            if (!de.is_regular_file(ec)) continue;
-            auto name = dest_target(de.path().filename().string());
+                error)) {
+            if (!dir_entry.is_regular_file(error)) continue;
+            auto name = dest_target(dir_entry.path().filename().string());
             if (name.empty()) continue;
             out.push_back({std::move(name),
-                           static_cast<std::uint64_t>(de.file_size(ec)),
-                           {}, {}, de.path()});
+                           static_cast<std::uint64_t>(dir_entry.file_size(error)),
+                           {}, {}, dir_entry.path()});
         }
     }
-    static void copy_one(const Job& j, const std::filesystem::path& out) {
-        std::error_code ec;
-        std::filesystem::create_directories(out.parent_path(), ec);
-        if (j.reader) {
-            auto bytes = j.reader->read(j.entry);
+    static void copy_one(const Job& job, const std::filesystem::path& out) {
+        std::error_code error;
+        std::filesystem::create_directories(out.parent_path(), error);
+        if (job.reader) {
+            auto bytes = job.reader->read(job.entry);
             std::ofstream(out, std::ios::binary).write(
                 reinterpret_cast<const char*>(bytes.data()),
                 static_cast<std::streamsize>(bytes.size()));
         } else {
             std::filesystem::copy_file(
-                j.local, out,
-                std::filesystem::copy_options::overwrite_existing, ec);
+                job.local, out,
+                std::filesystem::copy_options::overwrite_existing, error);
         }
     }
     void report_pct(std::uint64_t done, std::uint64_t total,
@@ -510,20 +510,20 @@ public:
         });
 
         // --- layout --------------------------------------------------------
-        auto* v = new QVBoxLayout(this);
+        auto* layout = new QVBoxLayout(this);
 
         auto* pathRow = new QHBoxLayout;
         pathRow->addWidget(pathLabel);
         pathRow->addWidget(path_, 1);
         pathRow->addWidget(browse);
-        v->addLayout(pathRow);
-        v->addWidget(status_);
+        layout->addLayout(pathRow);
+        layout->addWidget(status_);
 
         auto* line = new QFrame(this);
         line->setFrameShape(QFrame::HLine);
         line->setFrameShadow(QFrame::Sunken);
-        v->addSpacing(6);
-        v->addWidget(line);
+        layout->addSpacing(6);
+        layout->addWidget(line);
 
         auto* btnRow = new QHBoxLayout;
         btnRow->addWidget(install_);
@@ -531,14 +531,14 @@ public:
         btnRow->addWidget(fetchBins_);
         btnRow->addStretch();
         btnRow->addWidget(launch_);
-        v->addLayout(btnRow);
-        v->addStretch();
+        layout->addLayout(btnRow);
+        layout->addStretch();
 
         auto* footer = new QHBoxLayout;
         footer->addWidget(version_);
         footer->addStretch();
         footer->addWidget(upgrade_);
-        v->addLayout(footer);
+        layout->addLayout(footer);
 
         loadSettings();
         refresh();
@@ -549,12 +549,12 @@ public:
 
 private:
     void loadSettings() {
-        QSettings s;
-        path_->setText(s.value("game/dataPath", default_dest()).toString());
+        QSettings settings;
+        path_->setText(settings.value("game/dataPath", default_dest()).toString());
     }
     void saveSettings() const {
-        QSettings s;
-        s.setValue("game/dataPath", path_->text());
+        QSettings settings;
+        settings.setValue("game/dataPath", path_->text());
     }
 
     void refresh() {
@@ -611,17 +611,17 @@ private:
         if (dlg.exec() != QDialog::Accepted) return;
         const auto sel = dlg.selectedFiles();
         if (sel.isEmpty()) return;
-        const QString p = sel.first();
-        const QFileInfo fi(p);
-        int n = 0;
-        if (fi.isDir()) {
-            n = importBinariesFromDir(p, path_->text());
-        } else if (fi.isFile()) {
-            n = importBinariesFromExe(p, path_->text());
-            if (n < 0) {
+        const QString path = sel.first();
+        const QFileInfo info(path);
+        int count = 0;
+        if (info.isDir()) {
+            count = importBinariesFromDir(path, path_->text());
+        } else if (info.isFile()) {
+            count = importBinariesFromExe(path, path_->text());
+            if (count < 0) {
                 QMessageBox::warning(this, tr("Cannot open"),
                     tr("Not a Blizzard MPQ-appended installer (or corrupt): %1")
-                        .arg(p));
+                        .arg(path));
                 return;
             }
         } else {
@@ -637,29 +637,29 @@ private:
         QMessageBox::information(this, tr("Import complete"),
             ver.isEmpty()
                 ? tr("✓ Imported %1 D2 binaries into %2/bin/")
-                    .arg(n).arg(path_->text())
+                    .arg(count).arg(path_->text())
                 : tr("✓ Imported %1 D2 binaries (v%2) into %3/bin/")
-                    .arg(n).arg(ver).arg(path_->text()));
+                    .arg(count).arg(ver).arg(path_->text()));
         refresh();
     }
 
     static int importBinariesFromDir(const QString& src, const QString& dst) {
         namespace fs = std::filesystem;
-        std::error_code ec;
-        fs::create_directories(fs::path(dst.toStdString()) / "bin", ec);
-        int n = 0;
-        for (const auto& de : fs::recursive_directory_iterator(
+        std::error_code error;
+        fs::create_directories(fs::path(dst.toStdString()) / "bin", error);
+        int count = 0;
+        for (const auto& dir_entry : fs::recursive_directory_iterator(
                 src.toStdString(),
-                fs::directory_options::skip_permission_denied, ec)) {
-            if (!de.is_regular_file(ec)) continue;
-            auto name = runtime_target(de.path().filename().string());
+                fs::directory_options::skip_permission_denied, error)) {
+            if (!dir_entry.is_regular_file(error)) continue;
+            auto name = runtime_target(dir_entry.path().filename().string());
             if (name.empty()) continue;
             const fs::path out = fs::path(dst.toStdString()) / name;
-            fs::copy_file(de.path(), out,
-                          fs::copy_options::overwrite_existing, ec);
-            if (!ec) ++n;
+            fs::copy_file(dir_entry.path(), out,
+                          fs::copy_options::overwrite_existing, error);
+            if (!error) ++count;
         }
-        return n;
+        return count;
     }
 
     // Returns -1 if the file cannot be opened as an MPQ, else count extracted.
@@ -671,8 +671,8 @@ private:
                               MPQ_OPEN_READ_ONLY | STREAM_FLAG_READ_ONLY, &mpq)) {
             return -1;
         }
-        std::error_code ec;
-        fs::create_directories(fs::path(dst.toStdString()) / "bin", ec);
+        std::error_code error;
+        fs::create_directories(fs::path(dst.toStdString()) / "bin", error);
         static constexpr std::string_view kBins[] = {
             "Game.exe", "Diablo II.exe",
             "D2Client.dll", "D2Common.dll", "D2Game.dll", "D2Gfx.dll",
@@ -682,17 +682,17 @@ private:
             "Bnclient.dll", "Fog.dll",      "Storm.dll",  "ijl11.dll",
             "BinkW32.dll",  "SmackW32.dll",
         };
-        int n = 0;
+        int count = 0;
         for (auto name : kBins) {
-            HANDLE f{};
+            HANDLE file{};
             const std::string namez(name);
-            if (!SFileOpenFileEx(mpq, namez.c_str(), 0, &f)) continue;
-            const DWORD size = SFileGetFileSize(f, nullptr);
+            if (!SFileOpenFileEx(mpq, namez.c_str(), 0, &file)) continue;
+            const DWORD size = SFileGetFileSize(file, nullptr);
             std::vector<char> buf(size);
             DWORD got = 0;
-            SFileReadFile(f, buf.data(), size, &got, nullptr);
+            SFileReadFile(file, buf.data(), size, &got, nullptr);
 
-            SFileCloseFile(f);
+            SFileCloseFile(file);
 
             // kBins are all PEs, so they must start with "MZ". Blizzard's patch
             // installer prepends a proprietary wrapper (~24 bytes: header size,
@@ -709,10 +709,10 @@ private:
             const fs::path out = fs::path(dst.toStdString()) / target;
             std::ofstream(out, std::ios::binary)
                 .write(buf.data() + off, got - off);
-            ++n;
+            ++count;
         }
         SFileCloseArchive(mpq);
-        return n;
+        return count;
     }
 
     void fetchPatch() {
@@ -725,11 +725,11 @@ private:
             this, tr("Save downloaded installer"),
             suggested.isEmpty() ? QDir::homePath() + "/patch.exe" : suggested);
         if (dst.isEmpty()) return;
-        auto* f = new QFile(dst, this);
-        if (!f->open(QIODevice::WriteOnly)) {
+        auto* file = new QFile(dst, this);
+        if (!file->open(QIODevice::WriteOnly)) {
             QMessageBox::warning(this, tr("Cannot write"),
                 tr("Cannot open %1 for writing.").arg(dst));
-            f->deleteLater();
+            file->deleteLater();
             return;
         }
 
@@ -747,16 +747,16 @@ private:
                 [prog](qint64 got, qint64 total) {
             if (total > 0) { prog->setMaximum(int(total)); prog->setValue(int(got)); }
         });
-        connect(reply, &QIODevice::readyRead, f,
-                [reply, f] { f->write(reply->readAll()); });
+        connect(reply, &QIODevice::readyRead, file,
+                [reply, file] { file->write(reply->readAll()); });
         connect(prog, &QProgressDialog::canceled, reply, &QNetworkReply::abort);
         connect(reply, &QNetworkReply::finished, this,
-                [this, reply, f, prog, dst] {
-            f->write(reply->readAll());
-            f->close();
+                [this, reply, file, prog, dst] {
+            file->write(reply->readAll());
+            file->close();
             prog->close();
             prog->deleteLater();
-            f->deleteLater();
+            file->deleteLater();
             const bool ok = reply->error() == QNetworkReply::NoError;
             reply->deleteLater();
             if (!ok) {
@@ -777,8 +777,8 @@ private:
 #else
         const QString name = "d2";
 #endif
-        const QString p = dir + "/" + name;
-        return QFileInfo::exists(p) ? p : QString{};
+        const QString path = dir + "/" + name;
+        return QFileInfo::exists(path) ? path : QString{};
     }
 
     void startUpdateCheck() {
@@ -793,12 +793,12 @@ private:
         mgr->get(req);
     }
 
-    void onUpdateReply(QNetworkReply* r) {
-        r->deleteLater();
-        if (r->error() != QNetworkReply::NoError) return;
-        const auto o = QJsonDocument::fromJson(r->readAll()).object();
-        const QString tag = o.value("tag_name").toString();
-        latest_url_ = o.value("html_url").toString();
+    void onUpdateReply(QNetworkReply* reply) {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) return;
+        const auto object = QJsonDocument::fromJson(reply->readAll()).object();
+        const QString tag = object.value("tag_name").toString();
+        latest_url_ = object.value("html_url").toString();
         if (tag.isEmpty()) return;
         const QString local = QString::fromUtf8(d2::kAppVersion);
         if (tag == local || local.startsWith(tag)) return;
@@ -826,8 +826,8 @@ int main(int argc, char** argv) {
     QApplication::setOrganizationName("D2Decomp");
     QApplication::setApplicationName("D2 Launcher");
 
-    MainWindow w;
-    w.show();
+    MainWindow window;
+    window.show();
     return app.exec();
 }
 

@@ -20,6 +20,6 @@ namespace d2d::screenshot {
 // on any I/O or compression failure. Returns the number of bytes written.
 std::size_t save_png(const std::filesystem::path& path,
                      std::span<const std::uint8_t> pixels,
-                     std::uint32_t w, std::uint32_t h);
+                     std::uint32_t width, std::uint32_t height);
 
 }  // namespace d2d::screenshot

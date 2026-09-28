@@ -15,7 +15,7 @@ namespace d2d::game {
 struct Loot {
     const GameData* scene;
     const Level* const& level;             // Town's: where drops land
-    Character& cc;
+    Character& character;
     UnitState& player;
     d2d::rules::Rng& rng;
     Cues& cues;
@@ -25,7 +25,7 @@ struct Loot {
         d2d::d2s::Item item;
         int gold = 0;
         float x = 0, y = 0;
-        std::uint32_t ms = 0;                // when it dropped: the flippy plays from here
+        std::uint32_t now_ms = 0;                // when it dropped: the flippy plays from here
         std::string label;
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
     };
@@ -33,105 +33,105 @@ struct Loot {
     int next_id = 1;                       // the next ground item's unit id
     // A ground item by unit id: its index in `ground`, or -1.
     [[nodiscard]] int index_of(int id) const {
-        const auto it = std::ranges::find(ground, id, &GroundItem::id);
-        return it == ground.end() ? -1 : int(it - ground.begin());
+        const auto found = std::ranges::find(ground, id, &GroundItem::id);
+        return found == ground.end() ? -1 : int(found - ground.begin());
     }
     const Level* ground_level = nullptr;
     std::unordered_map<const Level*, std::vector<GroundItem>> kept;   // other levels' floors
     // The player went to `to`: what lies on its floor, the last level's kept.
-    void enter(const Level* to) {
-        if (to == ground_level) return;
+    void enter(const Level* destination) {
+        if (destination == ground_level) return;
         if (ground_level) kept[ground_level] = std::move(ground);
-        ground = std::move(kept[to]);
-        ground_level = to;
+        ground = std::move(kept[destination]);
+        ground_level = destination;
     }
 
     // A kill's loot (MonStats TreasureClass1 for the difficulty) round
     // where it fell. Magic and better come unidentified.
     // ponytail: D2 spreads drops by its own pattern (not traced); here each
     // goes to the nearest free spot within half a cell.
-    void drop(const Monster& m, std::uint32_t ms) {
-        const int diff = cc.header.active_difficulty();
+    void drop(const Monster& monster, std::uint32_t now_ms) {
+        const int diff = character.header.active_difficulty();
         // Champions drop from TreasureClass2, uniques from 3, superuniques
         // from their SuperUniques TC (for the difficulty).
-        const auto d = std::size_t(std::clamp(diff, 0, 2));
-        const auto& t = scene->monsters.types[std::size_t(m.type)];
-        const std::string& tc = m.super >= 0 && std::size_t(m.super) < scene->superuniques.size() && !scene->superuniques[std::size_t(m.super)].tc[d].empty()
-                                    ? scene->superuniques[std::size_t(m.super)].tc[d]
-                              : m.boss == d2d::rules::Boss::champion && !t.tc_champion[d].empty() ? t.tc_champion[d]
-                              : m.boss == d2d::rules::Boss::unique && !t.tc_unique[d].empty()     ? t.tc_unique[d]
-                                                                                                   : t.diff[d].tc;
+        const auto difficulty_index = std::size_t(std::clamp(diff, 0, 2));
+        const auto& type_info = scene->monsters.types[std::size_t(monster.type)];
+        const std::string& treasure_class = monster.super >= 0 && std::size_t(monster.super) < scene->superuniques.size() && !scene->superuniques[std::size_t(monster.super)].treasure_classes[difficulty_index].empty()
+                                    ? scene->superuniques[std::size_t(monster.super)].treasure_classes[difficulty_index]
+                              : monster.boss == d2d::rules::Boss::champion && !type_info.tc_champion[difficulty_index].empty() ? type_info.tc_champion[difficulty_index]
+                              : monster.boss == d2d::rules::Boss::unique && !type_info.tc_unique[difficulty_index].empty()     ? type_info.tc_unique[difficulty_index]
+                                                                                                   : type_info.diff[difficulty_index].treasure_class;
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(scene->rules, tc, m.st.level, rng, drops);
-        for (const auto& dr : drops) put(dr, m.u.x, m.u.y, m.st.level, ms);
+        d2d::rules::roll_drops(scene->rules, treasure_class, monster.stats.level, rng, drops);
+        for (const auto& dropped : drops) put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, now_ms);
     }
     // One drop round (x, y).
-    void put(const d2d::rules::Drop& d, float x, float y, int ilvl, std::uint32_t ms) {
+    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, std::uint32_t now_ms) {
         {
-            GroundItem g;
-            std::tie(g.x, g.y) = level->nearest_free(x + float(rng(11) - 5) / 10, y + float(rng(11) - 5) / 10);
-            g.ms = ms;
-            if (d.code == "gld") {
-                g.item.code = "gld";
-                g.gold = d.gold;
-                g.label = std::to_string(d.gold) + " Gold";
+            GroundItem ground_item;
+            std::tie(ground_item.x, ground_item.y) = level->nearest_free(x + float(rng(11) - 5) / 10, y + float(rng(11) - 5) / 10);
+            ground_item.now_ms = now_ms;
+            if (dropped.code == "gld") {
+                ground_item.item.code = "gld";
+                ground_item.gold = dropped.gold;
+                ground_item.label = std::to_string(dropped.gold) + " Gold";
             } else {
-                g.item = d2d::rules::generate_item(scene->rules, d.code, ilvl, d.quality, rng);
-                g.item.identified = d.quality <= 3;
-                const auto lines = item_lines(*scene, g.item, int(cc.stats.get(d2d::d2s::kLevel)));
-                if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
+                ground_item.item = d2d::rules::generate_item(scene->rules, dropped.code, ilvl, dropped.quality, rng);
+                ground_item.item.identified = dropped.quality <= 3;
+                const auto lines = item_lines(*scene, ground_item.item, int(character.stats.get(d2d::d2s::kLevel)));
+                if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
             }
-            land(std::move(g), ms);
+            land(std::move(ground_item), now_ms);
         }
     }
     // An item the player drops (C→S 0x17, FUN_00563c00): at the nearest
     // free spot to (x, y) (FUN_00555da0), named as its tooltip names it.
-    void place(d2d::d2s::Item it, float x, float y, std::uint32_t ms) {
-        GroundItem g;
-        std::tie(g.x, g.y) = level->nearest_free(x, y);
-        g.ms = ms;
-        const auto lines = item_lines(*scene, it, int(cc.stats.get(d2d::d2s::kLevel)));
-        if (!lines.empty()) { g.label = lines[0].text; g.rgb = lines[0].rgb; }
-        g.item = std::move(it);
-        g.item.location = 3;                 // on the ground
-        land(std::move(g), ms);
+    void place(d2d::d2s::Item item, float x, float y, std::uint32_t now_ms) {
+        GroundItem ground_item;
+        std::tie(ground_item.x, ground_item.y) = level->nearest_free(x, y);
+        ground_item.now_ms = now_ms;
+        const auto lines = item_lines(*scene, item, int(character.stats.get(d2d::d2s::kLevel)));
+        if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
+        ground_item.item = std::move(item);
+        ground_item.item.location = 3;                 // on the ground
+        land(std::move(ground_item), now_ms);
     }
     // Onto the floor: its flippy plays and its drop sound at its drop frame.
-    void land(GroundItem g, std::uint32_t ms) {
-        if (const auto info = scene->rules.item_info.find(g.item.code);
+    void land(GroundItem ground_item, std::uint32_t now_ms) {
+        if (const auto info = scene->rules.item_info.find(ground_item.item.code);
             info == scene->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
-        cues.cue("item_flippy", ms, g.x, g.y);
-        if (const auto info = scene->rules.item_info.find(g.item.code); info != scene->rules.item_info.end())
-            cues.cue(info->second.drop_sound, ms + std::uint32_t(info->second.drop_frame) * 40, g.x, g.y);
-        g.id = next_id++;
-        ground.push_back(std::move(g));
+        cues.cue("item_flippy", now_ms, ground_item.x, ground_item.y);
+        if (const auto info = scene->rules.item_info.find(ground_item.item.code); info != scene->rules.item_info.end())
+            cues.cue(info->second.drop_sound, now_ms + std::uint32_t(info->second.drop_frame) * 40, ground_item.x, ground_item.y);
+        ground_item.id = next_id++;
+        ground.push_back(std::move(ground_item));
     }
 
     // Picking up: gold into the purse (up to 10000 per character level),
     // an item into the first inventory spot it fits.
     // ponytail: potions don't go to the belt first; no "no room" sound.
-    void take(std::size_t i) {
+    void take(std::size_t index) {
         using namespace d2d::d2s;
-        auto& g = ground[i];
-        if (g.item.code == "gld") {
-            const auto cap = cc.stats.get(kLevel) * 10000, room = std::max<std::int64_t>(cap - cc.stats.get(kGold), 0);
-            const auto n = std::min<std::int64_t>(g.gold, room);
-            if (n <= 0) return;
-            cc.stats.v[kGold] += n;
+        auto& ground_item = ground[index];
+        if (ground_item.item.code == "gld") {
+            const auto cap = character.stats.get(kLevel) * 10000, room = std::max<std::int64_t>(cap - character.stats.get(kGold), 0);
+            const auto taken = std::min<std::int64_t>(ground_item.gold, room);
+            if (taken <= 0) return;
+            character.stats.values[kGold] += taken;
             cues.cue("item_gold", 0, player.x, player.y);
-            if ((g.gold -= int(n)) > 0) { g.label = std::to_string(g.gold) + " Gold"; return; }
+            if ((ground_item.gold -= int(taken)) > 0) { ground_item.label = std::to_string(ground_item.gold) + " Gold"; return; }
         } else {
-            const auto& lay = scene->inv_layout[std::size_t(std::max(cc.character_class, 0))];
+            const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
             std::vector<const Item*> inv;
-            for (const auto& x : cc.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
-            const auto [w, h] = d2d::rules::item_size(scene->rules, g.item.code);
-            const auto [x, y] = d2d::rules::free_spot(scene->rules, inv, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, w, h);
-            if (x < 0) { d2d::log::info("no room for {}", g.label); return; }
-            g.item.location = 0; g.item.panel = 1; g.item.column = x; g.item.row = y;
-            cc.items.push_back(std::move(g.item));
+            for (const auto& x : character.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+            const auto [width, height] = d2d::rules::item_size(scene->rules, ground_item.item.code);
+            const auto [x, y] = d2d::rules::free_spot(scene->rules, inv, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, width, height);
+            if (x < 0) { d2d::log::info("no room for {}", ground_item.label); return; }
+            ground_item.item.location = 0; ground_item.item.panel = 1; ground_item.item.column = x; ground_item.item.row = y;
+            character.items.push_back(std::move(ground_item.item));
             cues.cue("item_pickup", 0, player.x, player.y);
         }
-        ground.erase(ground.begin() + std::ptrdiff_t(i));
+        ground.erase(ground.begin() + std::ptrdiff_t(index));
     }
 
 };

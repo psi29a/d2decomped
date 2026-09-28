@@ -11,62 +11,62 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                                  const std::array<std::vector<std::uint8_t>, 9>& colormaps,
                                  int cls, int mode, const Scene::Appearance& gfx) {
     Scene::PlayerAnim out;
-    const char* cc = kCharCode[cls];
-    auto c = player_cof(mpqs, comp, cls, mode, gfx);      // the COF and timing (gamedata.cpp)
-    if (!c.ok) return out;
+    const char* class_code = kCharCode[cls];
+    auto cof = player_cof(mpqs, comp, cls, mode, gfx);      // the COF and timing (gamedata.cpp)
+    if (!cof.ok) return out;
     char path[256] = "";
     try {
-        out.cof = std::move(c.cof);
-        static_cast<GameData::AnimTiming&>(out) = std::move(c.timing);
-        for (const auto& L : out.cof.layer_defs()) {
-            if (L.type >= 16) continue;
-            const auto b = gfx[L.type];
-            std::string code = (b != 0 && b != 0xff && b < comp.size()) ? comp[b].code : "";
+        out.cof = std::move(cof.cof);
+        static_cast<GameData::AnimTiming&>(out) = std::move(cof.timing);
+        for (const auto& layer : out.cof.layer_defs()) {
+            if (layer.type >= 16) continue;
+            const auto component = gfx[layer.type];
+            std::string code = (component != 0 && component != 0xff && component < comp.size()) ? comp[component].code : "";
             if (code.empty()) {
-                if (L.type >= 5 && L.type <= 7) continue;   // empty hand / no shield
+                if (layer.type >= 5 && layer.type <= 7) continue;   // empty hand / no shield
                 code = "lit";
             }
-            std::string lw = L.weapon_class;
-            for (auto* t : { &code, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
+            std::string weapon_class = layer.weapon_class;
+            for (auto* text : { &code, &weapon_class }) for (auto& letter : *text) letter = char(std::toupper(letter));
             std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%s%s%s%s.dcc)",
-                          cc, kLayerCode[L.type], cc, kLayerCode[L.type], code.c_str(),
-                          kModeCode[mode], lw.c_str());
-            if (d2d::compcode::Tint tn; d2d::compcode::tint_of(gfx[16 + L.type], tn) && colormaps[std::size_t(tn.transform)].size() >= 21 * 256)
-                out.tint[L.type] = colormaps[std::size_t(tn.transform)].data() + tn.colour * 256;
-            if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
+                          class_code, kLayerCode[layer.type], class_code, kLayerCode[layer.type], code.c_str(),
+                          kModeCode[mode], weapon_class.c_str());
+            if (d2d::compcode::Tint tint; d2d::compcode::tint_of(gfx[16 + layer.type], tint) && colormaps[std::size_t(tint.transform)].size() >= 21 * 256)
+                out.tint[layer.type] = colormaps[std::size_t(tint.transform)].data() + tint.colour * 256;
+            if (auto bytes = mpqs.try_read(path)) out.dcc[layer.type] = std::move(*bytes);
             else if (code != "LIT") {                     // no such piece in this mode (death has only LIT's): the lit one
                 std::snprintf(path, sizeof(path), R"(data\global\CHARS\%s\%s\%s%sLIT%s%s.dcc)",
-                              cc, kLayerCode[L.type], cc, kLayerCode[L.type], kModeCode[mode], lw.c_str());
-                if (auto d2 = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d2);
+                              class_code, kLayerCode[layer.type], class_code, kLayerCode[layer.type], kModeCode[mode], weapon_class.c_str());
+                if (auto piece_bytes = mpqs.try_read(path)) out.dcc[layer.type] = std::move(*piece_bytes);
             }
         }
-    } catch (const std::exception& e) {
-        d2d::log::warn("{}: {}", path, e.what());
+    } catch (const std::exception& error) {
+        d2d::log::warn("{}: {}", path, error.what());
     }
     return out;
 }
 
-Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
+Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc,
                                      const std::string& mode) {
     Scene::PlayerAnim out;
-    auto c = npc_cof(mpqs, n, mode);                      // the COF and timing (gamedata.cpp)
-    if (!c.ok) return out;
+    auto cof = npc_cof(mpqs, npc, mode);                      // the COF and timing (gamedata.cpp)
+    if (!cof.ok) return out;
     char path[256] = "";
     try {
-        out.cof = std::move(c.cof);
-        static_cast<GameData::AnimTiming&>(out) = std::move(c.timing);
-        for (const auto& L : out.cof.layer_defs()) {
-            if (L.type >= 16) continue;
-            std::string comp = n.comp[L.type].empty() ? "lit" : n.comp[L.type];
-            std::string lw = L.weapon_class;
-            for (auto* t : { &comp, &lw }) for (auto& ch : *t) ch = char(std::toupper(ch));
+        out.cof = std::move(cof.cof);
+        static_cast<GameData::AnimTiming&>(out) = std::move(cof.timing);
+        for (const auto& layer : out.cof.layer_defs()) {
+            if (layer.type >= 16) continue;
+            std::string comp = npc.comp[layer.type].empty() ? "lit" : npc.comp[layer.type];
+            std::string weapon_class = layer.weapon_class;
+            for (auto* text : { &comp, &weapon_class }) for (auto& letter : *text) letter = char(std::toupper(letter));
             std::snprintf(path, sizeof(path), R"(data\global\%s\%s\%s\%s%s%s%s%s.dcc)",
-                          n.root.c_str(), n.code.c_str(), kLayerCode[L.type], n.code.c_str(),
-                          kLayerCode[L.type], comp.c_str(), mode.c_str(), lw.c_str());
-            if (auto d = mpqs.try_read(path)) out.dcc[L.type] = std::move(*d);
+                          npc.root.c_str(), npc.code.c_str(), kLayerCode[layer.type], npc.code.c_str(),
+                          kLayerCode[layer.type], comp.c_str(), mode.c_str(), weapon_class.c_str());
+            if (auto bytes = mpqs.try_read(path)) out.dcc[layer.type] = std::move(*bytes);
         }
-    } catch (const std::exception& e) {
-        d2d::log::warn("{}: {}", path, e.what());
+    } catch (const std::exception& error) {
+        d2d::log::warn("{}: {}", path, error.what());
     }
     return out;
 }
@@ -74,33 +74,33 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& n,
 namespace {
 
 void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
-    auto txt = [&](const char* n) {
-        auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt");
-        return b ? d2d::txt::Table(*b) : d2d::txt::Table{};
+    auto txt = [&](const char* name) {
+        auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
+        return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    auto keys = [&](const char* n, const char* col, bool all) {
-        std::vector<std::string> v;
-        if (auto b = mpqs.try_read(std::string(R"(data\global\excel\)") + n + ".txt")) {
-            const d2d::txt::Table t(*b, all);
-            for (std::size_t r = 0; r < t.size(); ++r) v.emplace_back(t.get(r, col));
+    auto keys = [&](const char* name, const char* col, bool all) {
+        std::vector<std::string> values;
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt")) {
+            const d2d::txt::Table table(*bytes, all);
+            for (std::size_t row = 0; row < table.size(); ++row) values.emplace_back(table.get(row, col));
         }
-        return v;
+        return values;
     };
     const auto types = txt("ItemTypes");
-    if (auto rb = mpqs.try_read(R"(data\global\monsters\RandTransforms.dat)"))
-        scene.rand_transforms.assign(reinterpret_cast<const std::uint8_t*>(rb->data()), reinterpret_cast<const std::uint8_t*>(rb->data()) + rb->size());
+    if (auto bytes = mpqs.try_read(R"(data\global\monsters\RandTransforms.dat)"))
+        scene.rand_transforms.assign(reinterpret_cast<const std::uint8_t*>(bytes->data()), reinterpret_cast<const std::uint8_t*>(bytes->data()) + bytes->size());
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\buysell.dc6)", &scene.store_panel },
                                { R"(data\global\ui\PANEL\buyselltabs.dc6)", &scene.store_tabs },
                                { R"(data\global\ui\PANEL\buysellbtn.dc6)", &scene.store_buttons },
                                { R"(data\global\ui\PANEL\goldcoinbtn.dc6)", &scene.gold_coin } })
-        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
-    for (std::size_t r = 0; r < types.size(); ++r) {
-        const std::string code(types.get(r, "Code"));
-        auto& g = scene.type_invgfx[code];
-        for (int i = 0; i < 6; ++i) g[std::size_t(i)] = std::string(types.get(r, "InvGfx" + std::to_string(i + 1)));
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
+    for (std::size_t row = 0; row < types.size(); ++row) {
+        const std::string code(types.get(row, "Code"));
+        auto& graphics = scene.type_invgfx[code];
+        for (int i = 0; i < 6; ++i) graphics[std::size_t(i)] = std::string(types.get(row, "InvGfx" + std::to_string(i + 1)));
     }
-    if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*b);
-    if (auto b = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*b);
+    if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\ctrlpnl_popbelt.dc6)")) scene.popbelt = d2d::dc6::Sprite(*bytes);
+    if (auto bytes = mpqs.try_read(R"(data\global\ui\CURSOR\focus16.dc6)")) scene.focus16 = d2d::dc6::Sprite(*bytes);
     {
         static constexpr std::string_view kLevelTypeName[] = {
             "None", "1 Town", "1 Wilderness", "1 Cave", "1 Crypt", "1 Monestary", "1 Courtyard", "1 Barracks",
@@ -111,113 +111,113 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
         static constexpr std::string_view kOrientName[] = {
             "fl", "wl", "wr", "wtlr", "wtll", "wtr", "wbl", "wbr", "wld", "wrd", "wle", "wre", "co", "sh", "tr",
             "rf", "ld", "rd", "fd", "fi" };
-        const auto am = txt("AutoMap");
-        auto idx = [](auto& names, std::string_view v) {
-            for (std::size_t i = 0; i < std::size(names); ++i) if (names[i] == v) return int(i);
+        const auto automap_table = txt("AutoMap");
+        auto idx = [](auto& names, std::string_view name) {
+            for (std::size_t i = 0; i < std::size(names); ++i) if (names[i] == name) return int(i);
             return -1;
         };
-        auto num = [&](std::size_t r, std::string_view c) {
-            const auto v = am.get(r, c);
-            return v.empty() ? -1 : std::atoi(std::string(v).c_str());
+        auto num = [&](std::size_t row_index, std::string_view column) {
+            const auto value = automap_table.get(row_index, column);
+            return value.empty() ? -1 : std::atoi(std::string(value).c_str());
         };
-        for (std::size_t r = 0; r < am.size(); ++r) {
+        for (std::size_t row = 0; row < automap_table.size(); ++row) {
             Scene::AutomapRule rule;
-            rule.level_type = idx(kLevelTypeName, am.get(r, "LevelName"));
-            rule.orientation = idx(kOrientName, am.get(r, "TileName"));
+            rule.level_type = idx(kLevelTypeName, automap_table.get(row, "LevelName"));
+            rule.orientation = idx(kOrientName, automap_table.get(row, "TileName"));
             if (rule.level_type < 0 || rule.orientation < 0) continue;
-            rule.main = num(r, "Style");
-            rule.sub0 = num(r, "StartSequence");
-            rule.sub1 = num(r, "EndSequence");
-            for (const char* c : { "Cel1", "Cel2", "Cel3", "Cel4" })
-                if (const int v = num(r, c); v >= 0) rule.cels.push_back(v);
+            rule.main = num(row, "Style");
+            rule.sub0 = num(row, "StartSequence");
+            rule.sub1 = num(row, "EndSequence");
+            for (const char* column : { "Cel1", "Cel2", "Cel3", "Cel4" })
+                if (const int cel = num(row, column); cel >= 0) rule.cels.push_back(cel);
             if (!rule.cels.empty()) scene.automap_rules.push_back(std::move(rule));
         }
-        if (auto b = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*b);
+        if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*bytes);
     }
     for (auto [path, into] : { std::pair{ R"(data\global\ui\menu\waygatebackground.dc6)", &scene.wp_bg },
                                { R"(data\global\ui\menu\waygateicons.dc6)", &scene.wp_icons },
                                { R"(data\global\ui\menu\waygatetabs.dc6)", &scene.wp_tabs[0] },
                                { R"(data\global\ui\menu\expwaygatetabs.dc6)", &scene.wp_tabs[1] } })
-        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
-    if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
-        if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
-            scene.font_formal11 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
-    if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\font30.tbl)"))
-        if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\font30.dc6)"))
-            scene.font30 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
+    if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
+        if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
+            scene.font_formal11 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
+    if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.tbl)"))
+        if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.dc6)"))
+            scene.font30 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     for (auto [spr, name] : { std::pair{ &scene.you_died, "youdiedhardcore" }, { &scene.you_died_inst, "youdiedinst" } })
-        if (auto d = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + name + ".dc6")) *spr = d2d::dc6::Sprite(*d);
+        if (auto bytes = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + name + ".dc6")) *spr = d2d::dc6::Sprite(*bytes);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
     scene.set_inv    = keys("SetItems", "invfile", false);
     for (auto [name, into] : { std::pair{ "font8", &scene.font_small }, { "font6", &scene.font_tiny } })
-        if (auto t = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"))
-            if (auto d = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6"))
-                *into = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
+        if (auto bytes = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"))
+            if (auto sheet_bytes = mpqs.try_read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6"))
+                *into = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\800ctrlpnl7.dc6)", &scene.ctrl_panel },
                                { R"(data\global\ui\PANEL\hlthmana.dc6)", &scene.globes },
                                { R"(data\global\ui\PANEL\overlap.dc6)", &scene.globe_glass } })
-        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
-    if (auto p = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
-        scene.inv_panel = d2d::dc6::Sprite(*p);
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
+    if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
+        scene.inv_panel = d2d::dc6::Sprite(*bytes);
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\level.dc6)", &scene.level_button },
                                { R"(data\global\ui\PANEL\levelsocket.dc6)", &scene.level_socket },
                                { R"(data\global\ui\PANEL\skillpoints.dc6)", &scene.points_box } })
-        if (auto b = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*b);
-    for (auto [path, e] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
+    for (auto [path, page] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
                             { R"(data\global\ui\PANEL\TradeStash.dc6)", 1 } })
-        if (auto b = mpqs.try_read(path)) scene.stash_panel[std::size_t(e)] = d2d::dc6::Sprite(*b);
-    if (auto b = mpqs.try_read(R"(data\global\ui\PANEL\supertransmogrifier.dc6)"))
-        scene.cube_panel = d2d::dc6::Sprite(*b);
+        if (auto bytes = mpqs.try_read(path)) scene.stash_panel[std::size_t(page)] = d2d::dc6::Sprite(*bytes);
+    if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\supertransmogrifier.dc6)"))
+        scene.cube_panel = d2d::dc6::Sprite(*bytes);
     static constexpr const char* kTree[7] = { "a", "s", "n", "p", "b", "d", "i" };
     static constexpr const char* kIcons[7] = { "Am", "So", "Ne", "Pa", "Ba", "Dr", "As" };
-    for (std::size_t c = 0; c < 7; ++c) {
-        if (auto b = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\skltree_)") + kTree[c] + "_back.dc6"))
-            scene.skill_tree_bg[c] = d2d::dc6::Sprite(*b);
-        if (auto b = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\)") + kIcons[c] + "Skillicon.dc6"))
-            scene.skill_icons[c] = d2d::dc6::Sprite(*b);
+    for (std::size_t class_index = 0; class_index < 7; ++class_index) {
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\skltree_)") + kTree[class_index] + "_back.dc6"))
+            scene.skill_tree_bg[class_index] = d2d::dc6::Sprite(*bytes);
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\ui\SPELLS\)") + kIcons[class_index] + "Skillicon.dc6"))
+            scene.skill_icons[class_index] = d2d::dc6::Sprite(*bytes);
     }
-    if (auto b = mpqs.try_read(R"(data\global\ui\SPELLS\Skillicon.dc6)")) scene.generic_skill_icons = d2d::dc6::Sprite(*b);
+    if (auto bytes = mpqs.try_read(R"(data\global\ui\SPELLS\Skillicon.dc6)")) scene.generic_skill_icons = d2d::dc6::Sprite(*bytes);
     for (auto [sprite, file] : { std::pair{ &scene.quest_bg, "questbackground" }, { &scene.quest_tabs, "expquesttabs" },
                                  { &scene.quest_sockets, "questsockets" }, { &scene.quest_last, "questlast" } })
-        if (auto b = mpqs.try_read(std::string(R"(data\global\ui\menu\)") + file + ".dc6")) *sprite = d2d::dc6::Sprite(*b);
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\ui\menu\)") + file + ".dc6")) *sprite = d2d::dc6::Sprite(*bytes);
     for (std::size_t i = 0; i < scene.quest_icons.size(); ++i)    // the names at 0x6da2c8: a1q1..a1q6, a2q1.., a4q1..3, a5q1..
-        if (auto b = mpqs.try_read(std::format(R"(data\global\ui\menu\a{}q{}.dc6)", i < 6 ? 1 : i < 12 ? 2 : i < 18 ? 3 : i < 21 ? 4 : 5,
+        if (auto bytes = mpqs.try_read(std::format(R"(data\global\ui\menu\a{}q{}.dc6)", i < 6 ? 1 : i < 12 ? 2 : i < 18 ? 3 : i < 21 ? 4 : 5,
                                                i < 18 ? i % 6 + 1 : i < 21 ? i - 17 : i - 20)))
-            scene.quest_icons[i] = d2d::dc6::Sprite(*b);
+            scene.quest_icons[i] = d2d::dc6::Sprite(*bytes);
 }
 
 void load_monster_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     std::vector<std::pair<d2d::dcc::Sprite*, std::vector<std::byte>>> cels;
     for (const auto& [name, missile] : scene.missiles)
-        if (auto b = mpqs.try_read(R"(data\global\missiles\)" + missile.cel_file + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*b));
-    if (auto b = mpqs.try_read(R"(data\global\overlays\NPCSpeechBalloon.dcc)")) cels.emplace_back(&scene.npc_alert, std::move(*b));
+        if (auto bytes = mpqs.try_read(R"(data\global\missiles\)" + missile.cel_file + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*bytes));
+    if (auto bytes = mpqs.try_read(R"(data\global\overlays\NPCSpeechBalloon.dcc)")) cels.emplace_back(&scene.npc_alert, std::move(*bytes));
     for (std::size_t i = 0; i < 4; ++i)                // the rain's splashes (FUN_00472890)
-        if (auto b = mpqs.try_read(R"(data\global\UncompOverlays\Rain)" + std::to_string(i + 1) + ".dc6")) scene.rain_splash[i] = d2d::dc6::Sprite(*b);
+        if (auto bytes = mpqs.try_read(R"(data\global\UncompOverlays\Rain)" + std::to_string(i + 1) + ".dc6")) scene.rain_splash[i] = d2d::dc6::Sprite(*bytes);
     // Their DCCs decode on every core (the reads above stay on this thread:
     // StormLib handles aren't shared).
     {
         std::atomic<std::size_t> next = 0;
         std::vector<std::jthread> pool(std::max(1u, std::thread::hardware_concurrency()));
-        for (auto& t : pool) t = std::jthread([&] {
+        for (auto& worker : pool) worker = std::jthread([&] {
             for (std::size_t i; (i = next++) < cels.size();)
                 try { *cels[i].first = d2d::dcc::Sprite(cels[i].second); }
-                catch (const std::exception& e) { d2d::log::warn("missile cel: {}", e.what()); }
+                catch (const std::exception& error) { d2d::log::warn("missile cel: {}", error.what()); }
         });
     }
 }
 
 void load_act1_palettes(Scene& scene, const d2d::mpq::Stack& mpqs) {
-    if (auto pb = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
-        scene.act1_pal = d2d::palette::Palette(*pb);
+    if (auto bytes = mpqs.try_read(R"(data\global\palette\ACT1\pal.dat)"))
+        scene.act1_pal = d2d::palette::Palette(*bytes);
     // Its 32 light levels: PL2 +0x400, 256 indices a level, level 31 as is and
     // 0 black; the software renderer draws a pixel at light v through level
     // v >> 3 (FUN_004f8050).
-    if (auto lb = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); lb && lb->size() >= 0x400 + 32 * 256)
-        for (std::size_t l = 0; l < 32; ++l) {
-            std::array<d2d::palette::Rgba, 256> e{};
-            for (std::size_t i = 0; i < 256; ++i) e[i] = scene.act1_pal[std::uint8_t((*lb)[0x400 + l * 256 + i])];
-            e[0].a = 0;
-            scene.act1_lit[l] = d2d::palette::Palette(e);
+    if (auto bytes = mpqs.try_read(R"(data\global\palette\ACT1\Pal.pl2)"); bytes && bytes->size() >= 0x400 + 32 * 256)
+        for (std::size_t level = 0; level < 32; ++level) {
+            std::array<d2d::palette::Rgba, 256> entries{};
+            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act1_pal[std::uint8_t((*bytes)[0x400 + level * 256 + i])];
+            entries[0].a = 0;
+            scene.act1_lit[level] = d2d::palette::Palette(entries);
         }
 }
 
@@ -226,43 +226,43 @@ void load_act1_palettes(Scene& scene, const d2d::mpq::Stack& mpqs) {
 void load_saves(Scene& scene, const fs::path& dir) {
     struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse; };
     std::vector<Entry> out;
-    std::error_code ec;
-    for (const auto& e : fs::directory_iterator(dir, ec)) {
-        if (e.path().extension() != ".d2s") continue;
-        std::ifstream in(e.path(), std::ios::binary);
-        std::vector<char> raw{std::istreambuf_iterator<char>(in), {}};
+    std::error_code error;
+    for (const auto& entry : fs::directory_iterator(dir, error)) {
+        if (entry.path().extension() != ".d2s") continue;
+        std::ifstream file(entry.path(), std::ios::binary);
+        std::vector<char> raw{std::istreambuf_iterator<char>(file), {}};
         const auto bytes = std::as_bytes(std::span(raw));
         try {
-            Entry en{ d2d::d2s::parse_header(bytes), {}, {} };
+            Entry save_entry{ d2d::d2s::parse_header(bytes), {}, {} };
             if (scene.item_tables) {
                 try {
-                    en.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
-                    en.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
-                    en.corpse = d2d::d2s::parse_corpse(bytes, *scene.item_tables).items;
+                    save_entry.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
+                    save_entry.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
+                    save_entry.corpse = d2d::d2s::parse_corpse(bytes, *scene.item_tables).items;
                 }
-                catch (const std::exception& ex) {
-                    d2d::log::warn("{} items: {}", e.path().string(), ex.what());
+                catch (const std::exception& parse_error) {
+                    d2d::log::warn("{} items: {}", entry.path().string(), parse_error.what());
                 }
             }
-            out.push_back(std::move(en));
-        } catch (const std::exception& ex) {
-            d2d::log::warn("{}: {}", e.path().string(), ex.what());
+            out.push_back(std::move(save_entry));
+        } catch (const std::exception& parse_error) {
+            d2d::log::warn("{}: {}", entry.path().string(), parse_error.what());
         }
     }
     // Newest first — LoD inserts each character by last-played time,
     // descending (FUN_00438ad0), and preselects slot 0.
     // Ties (e.g. synthetic saves with no timestamp) fall back to name so
     // the order doesn't depend on directory iteration.
-    std::ranges::sort(out, [](const Entry& a, const Entry& b) {
-        return std::tie(b.header.last_played, a.header.name)
-             < std::tie(a.header.last_played, b.header.name);
+    std::ranges::sort(out, [](const Entry& first, const Entry& second) {
+        return std::tie(second.header.last_played, first.header.name)
+             < std::tie(first.header.last_played, second.header.name);
     });
     scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear();
-    for (auto& en : out) {
-        scene.saves.push_back(std::move(en.header));
-        scene.save_items.push_back(std::move(en.items));
-        scene.save_corpses.push_back(std::move(en.corpse));
-        scene.save_stats.push_back(en.stats);
+    for (auto& entry : out) {
+        scene.saves.push_back(std::move(entry.header));
+        scene.save_items.push_back(std::move(entry.items));
+        scene.save_corpses.push_back(std::move(entry.corpse));
+        scene.save_stats.push_back(entry.stats);
     }
     d2d::log::info("Characters: {} in {}", scene.saves.size(), dir.string());
 }
@@ -270,7 +270,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
 std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed) {
     auto data = game::load_game_data(data_dir, patch_installer, map_seed);
     if (!data) return std::nullopt;
-    const auto t0 = d2d::log::ms();
+    const auto start_ms = d2d::log::ms();
     try {
         Scene scene{ std::move(*data) };
         const auto& mpqs = scene.mpqs;
@@ -294,7 +294,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                                 R"(data\global\palette\Sky\Pal.PL2)"));
         scene.fechar_pl2 = d2d::palette::Pl2(mpqs.read(
                                 R"(data\global\palette\fechar\Pal.PL2)"));
-        scene.bg = d2d::dc6::Sprite(*title);
+        scene.background = d2d::dc6::Sprite(*title);
         scene.logo_static = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\Diablo2.dc6)"));
         scene.logo_bl = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackLeft.DC6)"));
         scene.logo_br = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\D2logoBlackRight.DC6)"));
@@ -306,14 +306,14 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.btn_short = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\ShortButtonBlank.dc6)"));
         scene.credits_bg = [&] {
                 // creditsbckgexpand.dc6 (LoD) → creditsbckg.dc6 (classic).
-                auto b = mpqs.try_read(R"(data\global\ui\CharSelect\creditsbckgexpand.dc6)");
-                if (!b) b = mpqs.read(R"(data\global\ui\CharSelect\creditsbckg.dc6)");
-                return d2d::dc6::Sprite(*b);
+                auto bytes = mpqs.try_read(R"(data\global\ui\CharSelect\creditsbckgexpand.dc6)");
+                if (!bytes) bytes = mpqs.read(R"(data\global\ui\CharSelect\creditsbckg.dc6)");
+                return d2d::dc6::Sprite(*bytes);
             }();
         scene.charcreate_bg = [&] {
-                auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\charactercreationscreenEXP.dc6)");
-                if (!b) b = mpqs.read(R"(data\global\ui\FrontEnd\CharacterCreate.dc6)");
-                return d2d::dc6::Sprite(*b);
+                auto bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\charactercreationscreenEXP.dc6)");
+                if (!bytes) bytes = mpqs.read(R"(data\global\ui\FrontEnd\CharacterCreate.dc6)");
+                return d2d::dc6::Sprite(*bytes);
             }();
         scene.fire = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\fire.DC6)"));
         scene.medium_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\MediumButtonBlank.dc6)"));
@@ -329,7 +329,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.
                 struct C { const char* dir; const char* prefix; };
-                constexpr C cs[7] = {
+                constexpr C classes[7] = {
                     {"barbarian",   "ba"},
                     {"necromancer", "ne"},
                     {"paladin",     "pa"},
@@ -340,13 +340,13 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                 };
                 constexpr const char* suffix[5] = {"nu1", "nu2", "fw", "nu3", "bw"};
                 std::array<std::array<d2d::dc6::Sprite, 5>, 7> out;
-                for (std::size_t ci = 0; ci < 7; ++ci) {
-                    for (std::size_t si = 0; si < 5; ++si) {
+                for (std::size_t class_index = 0; class_index < 7; ++class_index) {
+                    for (std::size_t state_index = 0; state_index < 5; ++state_index) {
                         char path[256];
                         std::snprintf(path, sizeof(path),
                             R"(data\global\ui\FrontEnd\%s\%s%s.dc6)",
-                            cs[ci].dir, cs[ci].prefix, suffix[si]);
-                        out[ci][si] = d2d::dc6::Sprite(mpqs.read(path));
+                            classes[class_index].dir, classes[class_index].prefix, suffix[state_index]);
+                        out[class_index][state_index] = d2d::dc6::Sprite(mpqs.read(path));
                     }
                 }
                 return out;
@@ -355,9 +355,9 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                              mpqs.read(R"(data\local\FONT\LATIN\font16.tbl)"),
                              d2d::dc6::Sprite(mpqs.read(R"(data\local\FONT\LATIN\font16.dc6)")));
         scene.credits = [&] {
-                auto b = mpqs.try_read(R"(data\local\UI\ENG\ExpansionCredits.txt)");
-                if (!b) b = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
-                return b ? parse_credits_utf16(*b) : std::vector<std::string>{};
+                auto bytes = mpqs.try_read(R"(data\local\UI\ENG\ExpansionCredits.txt)");
+                if (!bytes) bytes = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
+                return bytes ? parse_credits_utf16(*bytes) : std::vector<std::string>{};
             }();
         // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
         // string.tbl per probe. patchstring.tbl (826 entries) overrides
@@ -367,29 +367,29 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         // entry, load all three and query in order (patch → expansion →
         // base).
         scene.strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         scene.patch_strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         scene.exp_strings = [&] {
-                auto b = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
-                return b ? d2d::tbl::Table(*b) : d2d::tbl::Table{};
+                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
+                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
         // Rogue-camp world data — separate call so a DS1/DT1 miss doesn't
         // nuke the whole scene; the InGame screen falls back to the credits
         // placeholder when world is empty.
-        if (auto b = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
-            scene.cinematics_panel = d2d::dc6::Sprite(*b);
+        if (auto bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
+            scene.cinematics_panel = d2d::dc6::Sprite(*bytes);
         load_ui_sprites(scene, mpqs);
         load_monster_sprites(scene, mpqs);
         load_act1_palettes(scene, mpqs);
-        d2d::log::info("Scene loaded in {} ms.", d2d::log::ms() - t0);
+        d2d::log::info("Scene loaded in {} ms.", d2d::log::ms() - start_ms);
         return scene;
-    } catch (const std::exception& e) {
-        d2d::log::error("load_scene: {}", e.what());
+    } catch (const std::exception& error) {
+        d2d::log::error("load_scene: {}", error.what());
         return std::nullopt;
     }
 }

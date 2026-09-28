@@ -21,29 +21,29 @@ int main() {
         return 0;
     }
 
-    d2d::mpq::Archive a(d2data);
-    const auto raw = a.read(R"(data\local\LNG\ENG\string.tbl)");
+    d2d::mpq::Archive archive(d2data);
+    const auto raw = archive.read(R"(data\local\LNG\ENG\string.tbl)");
 
-    d2d::tbl::Table t(raw);
-    std::printf("string.tbl entries: %zu\n", t.size());
-    assert(t.size() > 1000);   // full string table is ~5-15k entries.
+    d2d::tbl::Table table(raw);
+    std::printf("string.tbl entries: %zu\n", table.size());
+    assert(table.size() > 1000);   // full string table is ~5-15k entries.
 
     // Sanity: a well-known key. D2 stores UI strings with formatting-code
     // prefixes/suffixes (colour codes like "\x01c8"), so equality against a
     // bare English word is fragile — check for presence + contents that end
     // in the expected word instead.
-    auto ends_with = [](std::u16string_view s, std::u16string_view suf) {
-        return s.size() >= suf.size()
-            && s.substr(s.size() - suf.size()) == suf;
+    auto ends_with = [](std::u16string_view text, std::u16string_view suf) {
+        return text.size() >= suf.size()
+            && text.substr(text.size() - suf.size()) == suf;
     };
-    auto cancel = t.get("cancel");
+    auto cancel = table.get("cancel");
     assert(cancel.has_value());
     assert(*cancel == u"CANCEL");    // D2 button labels are ALLCAPS.
     assert(ends_with(*cancel, u"ANCEL"));
 
     // Missing keys return nullopt, not an empty string.
-    assert(!t.get("this key does not exist").has_value());
-    assert(!t.get(std::uint16_t{0xFFFF}).has_value());
+    assert(!table.get("this key does not exist").has_value());
+    assert(!table.get(std::uint16_t{0xFFFF}).has_value());
 
     // ID-based lookup: pull "cancel" back out via its Index field. We don't
     // know the exact ID a-priori, so scan every u16 to find the one that
@@ -51,8 +51,8 @@ int main() {
     // by-key map for at least this canary entry.
     bool id_hit = false;
     for (std::uint32_t i = 0; i < 0x10000 && !id_hit; ++i) {
-        if (auto v = t.get(std::uint16_t(i));
-            v && *v == *cancel) { id_hit = true; }
+        if (auto found = table.get(std::uint16_t(i));
+            found && *found == *cancel) { id_hit = true; }
     }
     assert(id_hit);
 

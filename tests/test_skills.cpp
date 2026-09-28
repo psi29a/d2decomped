@@ -11,14 +11,14 @@
 using namespace d2d::rules;
 
 int main() {
-    SkillTables t;
-    t.names.operands = { "ln12", "dm12", "ln34", "dm34", "ln56", "dm56", "ln78", "dm78", "par1", "par2", "par3", "par4",
+    SkillTables skill_tables;
+    skill_tables.names.operands = { "ln12", "dm12", "ln34", "dm34", "ln56", "dm56", "ln78", "dm78", "par1", "par2", "par3", "par4",
                          "par5", "par6", "par7", "par8", "lvl", "edmn", "edmx", "edln", "toht", "mana", "mps" };
-    t.names.operands.resize(73);
-    t.names.operands[40] = "ulvl";
-    t.names.operands[41] = "blvl";
-    t.names.operands[55] = "clc1";
-    t.names.stats = { { "passive_fire_mastery", 329 } };
+    skill_tables.names.operands.resize(73);
+    skill_tables.names.operands[40] = "ulvl";
+    skill_tables.names.operands[41] = "blvl";
+    skill_tables.names.operands[55] = "clc1";
+    skill_tables.names.stats = { { "passive_fire_mastery", 329 } };
     Skill bash;
     bash.id = 0; bash.name = "Bash"; bash.cls = "bar"; bash.page = 2;
     bash.par = { 50, 5, 1, 1, 0, 0, 5, 5 };
@@ -29,37 +29,37 @@ int main() {
     bolt.id = 2; bolt.name = "Fire Bolt"; bolt.cls = "sor"; bolt.hitshift = 8; bolt.par[7] = 16;
     bolt.emin = 3; bolt.emax = 6; bolt.emin_lev = { 1, 2, 3, 4, 5 }; bolt.emax_lev = { 1, 2, 3, 4, 5 };
     bolt.mana = 5; bolt.lvlmana = 1; bolt.manashift = 7;
-    t.rows = { bash, stun, bolt };
-    for (const auto& r : t.rows) t.names.skills[r.name] = r.id, t.by_name[r.name] = r.id;
+    skill_tables.rows = { bash, stun, bolt };
+    for (const auto& skill : skill_tables.rows) skill_tables.names.skills[skill.name] = skill.id, skill_tables.by_name[skill.name] = skill.id;
 
     std::string err;
-    auto C = [&](std::string_view e) { err.clear(); return compile_calc(e, t.names, &err); };
+    auto compile = [&](std::string_view expression) { err.clear(); return compile_calc(expression, skill_tables.names, &err); };
     int stun_blvl = 3;
-    CalcEnv env{ .base_level = [&](int s) { return s == 1 ? stun_blvl : 4; },
-                 .level = [&](int s) { return s == 1 ? stun_blvl + 1 : 5; },
-                 .stat = [](int st) { return st == 329 ? 40 : 0; }, .clvl = 30 };
-    auto E = [&](std::string_view e, int skill, int lvl) {
-        const auto c = C(e);
-        if (!err.empty()) std::printf("calc error: %s in %.*s\n", err.c_str(), int(e.size()), e.data());
+    CalcEnv env{ .base_level = [&](int skill_id) { return skill_id == 1 ? stun_blvl : 4; },
+                 .level = [&](int skill_id) { return skill_id == 1 ? stun_blvl + 1 : 5; },
+                 .stat = [](int stat) { return stat == 329 ? 40 : 0; }, .clvl = 30 };
+    auto evaluate = [&](std::string_view expression, int skill, int lvl) {
+        const auto calc = compile(expression);
+        if (!err.empty()) std::printf("calc error: %s in %.*s\n", err.c_str(), int(expression.size()), expression.data());
         assert(err.empty());
-        return eval_calc(t, c, env, skill, lvl);
+        return eval_calc(skill_tables, calc, env, skill, lvl);
     };
     // Bash calc1: ln12 + skill('Stun'.blvl) * par8 = 50 + 5 x 3 + 3 x 5.
-    assert(E("ln12+skill('Stun'.blvl)*par8", 0, 4) == 50 + 15 + 15);
-    assert(E("15+lvl*5+skill('Stun'.blvl)*par7", 0, 2) == 15 + 10 + 15);
+    assert(evaluate("ln12+skill('Stun'.blvl)*par8", 0, 4) == 50 + 15 + 15);
+    assert(evaluate("15+lvl*5+skill('Stun'.blvl)*par7", 0, 2) == 15 + 10 + 15);
     // Ternaries, comparisons, precedence, min / max / unary minus, division by 0.
-    assert(E("(lvl < 4) ?lvl:(2+lvl/3)", 0, 3) == 3 && E("(lvl < 4) ?lvl:(2+lvl/3)", 0, 9) == 5);
-    assert(E("(lvl < 5) ? lvl : min(12,5+(lvl-5)/3)", 0, 40) == 12);
-    assert(E("((lvl < 4) ? 0 : ((lvl-3)*par3))", 0, 10) == 7);
-    assert(E("-par1+2*3", 0, 1) == -44 && E("max(1,-2)", 0, 1) == 1 && E("par1/0", 0, 1) == 0);
-    assert(E("stat('passive_fire_mastery'.accr)", 0, 1) == 40 && E("ulvl", 0, 1) == 30);
-    assert(E("blvl", 0, 7) == 4 && E("clc1", 0, 1) == 0);
+    assert(evaluate("(lvl < 4) ?lvl:(2+lvl/3)", 0, 3) == 3 && evaluate("(lvl < 4) ?lvl:(2+lvl/3)", 0, 9) == 5);
+    assert(evaluate("(lvl < 5) ? lvl : min(12,5+(lvl-5)/3)", 0, 40) == 12);
+    assert(evaluate("((lvl < 4) ? 0 : ((lvl-3)*par3))", 0, 10) == 7);
+    assert(evaluate("-par1+2*3", 0, 1) == -44 && evaluate("max(1,-2)", 0, 1) == 1 && evaluate("par1/0", 0, 1) == 0);
+    assert(evaluate("stat('passive_fire_mastery'.accr)", 0, 1) == 40 && evaluate("ulvl", 0, 1) == 30);
+    assert(evaluate("blvl", 0, 7) == 4 && evaluate("clc1", 0, 1) == 0);
     // Unreadable text: empty calc, 0, and why.
-    assert(C("par34").empty() && err.find("par34") != std::string::npos);
-    assert(C("skill('Nobody'.blvl)").empty() && C("1+").empty() && C("min(1").empty());
-    assert(E("\"min(par1,par2)\"", 0, 1) == 5);                      // quoted cells
-    assert(E("(par1*2+par2", 0, 1) == 105);                          // Fire Wall's missing ")"
-    assert(C("(1)2").empty());                                       // but not in the middle
+    assert(compile("par34").empty() && err.find("par34") != std::string::npos);
+    assert(compile("skill('Nobody'.blvl)").empty() && compile("1+").empty() && compile("min(1").empty());
+    assert(evaluate("\"min(par1,par2)\"", 0, 1) == 5);                      // quoted cells
+    assert(evaluate("(par1*2+par2", 0, 1) == 105);                          // Fire Wall's missing ")"
+    assert(compile("(1)2").empty());                                       // but not in the middle
 
     // ln / dm (FUN_004e6ca0 / FUN_00645b20) and the brackets (FUN_00644b70).
     assert(calc_ln(50, 5, 4) == 65 && calc_ln(50, 5, 0) == 0);
@@ -69,18 +69,18 @@ int main() {
     assert(level_bonus(lev, 17) == 7 + 16 + 3 && level_bonus(lev, 23) == 7 + 16 + 18 + 4);
     assert(level_bonus(lev, 30) == 7 + 16 + 18 + 24 + 10);
     // Elemental damage: (EMin + brackets) << HitShift, + the synergy %.
-    t.rows[2].edmg_sym = C("skill('Bash'.blvl)*par8");     // 4 x 16 = +64%
-    const auto& fb = t.rows[2];
-    assert(elem_damage(t, fb, CalcEnv{}, 1, false) == 3 * 256);
-    assert(elem_damage(t, fb, env, 3, true) == (6 + 2) * 256 * 164 / 100);
-    assert(E("edmn", 2, 1) == 3 * 256 * 164 / 100 >> 8);
+    skill_tables.rows[2].edmg_sym = compile("skill('Bash'.blvl)*par8");     // 4 x 16 = +64%
+    const auto& fire_bolt = skill_tables.rows[2];
+    assert(elem_damage(skill_tables, fire_bolt, CalcEnv{}, 1, false) == 3 * 256);
+    assert(elem_damage(skill_tables, fire_bolt, env, 3, true) == (6 + 2) * 256 * 164 / 100);
+    assert(evaluate("edmn", 2, 1) == 3 * 256 * 164 / 100 >> 8);
     // Physical: (MinDam + brackets + DmgSymPerCalc %) << HitShift.
-    t.rows[0].mindam = 2; t.rows[0].mindam_lev = { 1, 1, 1, 1, 1 }; t.rows[0].dmg_sym = C("par8*10");
-    assert(skill_phys(t, t.rows[0], env, 3, false) == (4 + 4 * 50 / 100) << 8);
+    skill_tables.rows[0].mindam = 2; skill_tables.rows[0].mindam_lev = { 1, 1, 1, 1, 1 }; skill_tables.rows[0].dmg_sym = compile("par8*10");
+    assert(skill_phys(skill_tables, skill_tables.rows[0], env, 3, false) == (4 + 4 * 50 / 100) << 8);
     // Mana cost: (mana + lvlmana x (lvl - 1)) << manashift, at least minmana.
-    assert(mana_cost(fb, 1) == 5 << 7 && mana_cost(fb, 5) == 9 << 7);
-    assert(mana_cost(t.rows[0], 1) == 512 && mana_cost(t.rows[0], 0) == 0);
-    Skill cheap = t.rows[0];
+    assert(mana_cost(fire_bolt, 1) == 5 << 7 && mana_cost(fire_bolt, 5) == 9 << 7);
+    assert(mana_cost(skill_tables.rows[0], 1) == 512 && mana_cost(skill_tables.rows[0], 0) == 0);
+    Skill cheap = skill_tables.rows[0];
     cheap.mana = 0;
     assert(mana_cost(cheap, 3) == 256);                     // minmana 1
 
@@ -89,24 +89,24 @@ int main() {
     const std::vector<P> props{ { .stat = 127, .value = 1 }, { .stat = 83, .param = 4, .value = 2 },
                                 { .stat = 188, .param = 4 * 8 + 1, .value = 3 }, { .stat = 107, .param = 0, .value = 1 },
                                 { .stat = 83, .param = 1, .value = 5 }, { .stat = 97, .param = 2, .value = 2 } };
-    assert(item_skill_bonus(t.rows[0], 4, props) == 1 + 2 + 3 + 1);   // Bash, barbarian, page 2 = tab 1
-    assert(item_skill_bonus(t.rows[2], 4, props) == 2);                // Fire Bolt for a barbarian: the oskill only
+    assert(item_skill_bonus(skill_tables.rows[0], 4, props) == 1 + 2 + 3 + 1);   // Bash, barbarian, page 2 = tab 1
+    assert(item_skill_bonus(skill_tables.rows[2], 4, props) == 2);                // Fire Bolt for a barbarian: the oskill only
 
     // Charge-ups: Tiger Strike's calc1 x charges ED, Cobra Strike's ln12
     // steal (life, then mana too, then both doubled), prgdam 4's element.
     Skill tiger;
-    tiger.id = 3; tiger.prgdam = 1; tiger.par = { 100, 20 }; tiger.calc[0] = C("ln12");
-    t.rows.push_back(tiger);                                // calcs read their params by skill id
-    assert(charge_bonus(t, tiger, env, 3, 2).ed_pct == 140 * 2);
-    assert(charge_bonus(t, tiger, env, 3, 5).ed_pct == 140 * 3);        // at most 3
+    tiger.id = 3; tiger.prgdam = 1; tiger.par = { 100, 20 }; tiger.calc[0] = compile("ln12");
+    skill_tables.rows.push_back(tiger);                                // calcs read their params by skill id
+    assert(charge_bonus(skill_tables, tiger, env, 3, 2).ed_pct == 140 * 2);
+    assert(charge_bonus(skill_tables, tiger, env, 3, 5).ed_pct == 140 * 3);        // at most 3
     Skill cobra;
     cobra.prgdam = 2; cobra.par = { 40, 5 };
-    const auto c1 = charge_bonus(t, cobra, env, 1, 1), c2 = charge_bonus(t, cobra, env, 1, 2), c3 = charge_bonus(t, cobra, env, 1, 3);
-    assert(c1.life_steal == 40 && c1.mana_steal == 0 && c2.mana_steal == 40 && c3.life_steal == 80 && c3.mana_steal == 80);
+    const auto charge1 = charge_bonus(skill_tables, cobra, env, 1, 1), charge2 = charge_bonus(skill_tables, cobra, env, 1, 2), charge3 = charge_bonus(skill_tables, cobra, env, 1, 3);
+    assert(charge1.life_steal == 40 && charge1.mana_steal == 0 && charge2.mana_steal == 40 && charge3.life_steal == 80 && charge3.mana_steal == 80);
     Skill fists = bolt;
     fists.prgdam = 4;
-    const auto cf = charge_bonus(t, fists, CalcEnv{}, 1, 1);
-    assert(cf.etype == bolt.etype && cf.elem_lo == 3 && charge_bonus(t, fists, CalcEnv{}, 1, 0).etype == -1);
+    const auto fists_charge = charge_bonus(skill_tables, fists, CalcEnv{}, 1, 1);
+    assert(fists_charge.etype == bolt.etype && fists_charge.elem_lo == 3 && charge_bonus(skill_tables, fists, CalcEnv{}, 1, 0).etype == -1);
 
     // Sequences (0x7483b8): Jab with a spear, 21 frames, three hits; the
     // claws' seq 16 with two claws hits in A2 then S4; none for a bow.
@@ -120,49 +120,49 @@ int main() {
     // A missile's elemental damage with the mastery (FUN_00644c90): % of
     // the damage after the synergy. Fire Bolt, stat 329 = 40.
     {
-        Skill fire = t.rows[2];
+        Skill fire = skill_tables.rows[2];
         fire.etype = 0;
-        assert(elem_damage(t, fire, env, 1, false, 0, true) == elem_damage(t, fire, env, 1, false) * 140 / 100);
+        assert(elem_damage(skill_tables, fire, env, 1, false, 0, true) == elem_damage(skill_tables, fire, env, 1, false) * 140 / 100);
     }
     // Passives (FUN_00646d60): each passivestat at the skill's level, on its
     // passiveitype's layer; skills with no level give nothing.
     {
-        SkillTables pt = t;
+        SkillTables passive_tables = skill_tables;
         Skill mastery;
-        mastery.id = int(pt.rows.size()); mastery.name = "Sword Mastery"; mastery.passive = true; mastery.passive_itype = "swor";
+        mastery.id = int(passive_tables.rows.size()); mastery.name = "Sword Mastery"; mastery.passive = true; mastery.passive_itype = "swor";
         mastery.par = { 28, 7, 30, 5, 1, 1, 0, 0 };
         mastery.passive_stat = { 342, 343, -1, 344, -1 };             // stops at the first empty one
-        mastery.passive_calc[0] = compile_calc("ln12", pt.names); mastery.passive_calc[1] = compile_calc("ln34", pt.names);
+        mastery.passive_calc[0] = compile_calc("ln12", passive_tables.names); mastery.passive_calc[1] = compile_calc("ln34", passive_tables.names);
         Skill idle = mastery;
         idle.id = mastery.id + 1; idle.passive_itype.clear();
-        pt.rows.push_back(mastery); pt.rows.push_back(idle);
-        CalcEnv pe{ .level = [&](int s) { return s == mastery.id ? 3 : 0; } };
-        const auto ps = passive_stats(pt, pe);
-        assert(ps.size() == 2 && ps[0].stat == 342 && ps[0].value == 28 + 14 && ps[0].itype == "swor");
-        assert(ps[1].stat == 343 && ps[1].value == 30 + 10);
+        passive_tables.rows.push_back(mastery); passive_tables.rows.push_back(idle);
+        CalcEnv passive_env{ .level = [&](int skill_id) { return skill_id == mastery.id ? 3 : 0; } };
+        const auto passives = passive_stats(passive_tables, passive_env);
+        assert(passives.size() == 2 && passives[0].stat == 342 && passives[0].value == 28 + 14 && passives[0].itype == "swor");
+        assert(passives[1].stat == 343 && passives[1].value == 30 + 10);
         // An aura's passive stats count too (Holy Fire's weapon fire), on
         // or off (FUN_00646d60 while off, FUN_005cf3a0's state while on).
         Skill fire_aura = idle;
-        fire_aura.id = int(pt.rows.size()); fire_aura.passive = false; fire_aura.aura = true;
-        pt.rows.push_back(fire_aura);
-        CalcEnv ae{ .level = [&](int s) { return s == fire_aura.id ? 2 : 0; } };
-        assert(passive_stats(pt, ae).size() == 2);
+        fire_aura.id = int(passive_tables.rows.size()); fire_aura.passive = false; fire_aura.aura = true;
+        passive_tables.rows.push_back(fire_aura);
+        CalcEnv aura_env{ .level = [&](int skill_id) { return skill_id == fire_aura.id ? 2 : 0; } };
+        assert(passive_stats(passive_tables, aura_env).size() == 2);
     }
     // A skill-less missile row's own element (FUN_0064b100 ..): brackets,
     // HitShift, length brackets. Claws of Thunder's nova at level 9.
     {
-        const auto md = row_damage(1, 1, 30, { 0, 0, 0, 0, 0 }, { 15, 25, 0, 0, 0 }, 8, 10, { 2, 1, 0 }, 9);
-        assert(md.etype == 1 && md.elo == 1 << 8 && md.ehi == (30 + 15 * 7 + 25) << 8 && md.elen == 10 + 14 + 1);
+        const auto damage = row_damage(1, 1, 30, { 0, 0, 0, 0, 0 }, { 15, 25, 0, 0, 0 }, 8, 10, { 2, 1, 0 }, 9);
+        assert(damage.etype == 1 && damage.elo == 1 << 8 && damage.ehi == (30 + 15 * 7 + 25) << 8 && damage.elen == 10 + 14 + 1);
     }
     // enms / exms (52 / 53): the elemental damage with the mastery, 256ths.
     {
-        SkillTables et = t;
-        et.names.operands[52] = "enms";
-        Skill fire = et.rows[2];
+        SkillTables element_tables = skill_tables;
+        element_tables.names.operands[52] = "enms";
+        Skill fire = element_tables.rows[2];
         fire.etype = 0;
-        fire.passive_calc[0] = compile_calc("enms*6/256", et.names);
-        et.rows[2] = fire;
-        assert(eval_calc(et, fire.passive_calc[0], env, 2, 1) == elem_damage(et, fire, env, 1, false, 0, true) * 6 / 256);
+        fire.passive_calc[0] = compile_calc("enms*6/256", element_tables.names);
+        element_tables.rows[2] = fire;
+        assert(eval_calc(element_tables, fire.passive_calc[0], env, 2, 1) == elem_damage(element_tables, fire, env, 1, false, 0, true) * 6 / 256);
     }
     std::puts("ok");
 }

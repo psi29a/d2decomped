@@ -63,7 +63,7 @@ public:
         }
     }
 
-    explicit Palette(const std::array<Rgba, 256>& e) : entries_(e) {}
+    explicit Palette(const std::array<Rgba, 256>& entries) : entries_(entries) {}
 
     [[nodiscard]] Rgba operator[](std::uint8_t idx) const noexcept {
         return entries_[idx];
@@ -72,8 +72,8 @@ public:
 
     // Overwrite the alpha for one entry — handy when a specific tileset
     // treats a non-zero index as chroma-key.
-    void set_alpha(std::uint8_t idx, std::uint8_t a) noexcept {
-        entries_[idx].a = a;
+    void set_alpha(std::uint8_t idx, std::uint8_t alpha) noexcept {
+        entries_[idx].a = alpha;
     }
 
 private:
@@ -132,11 +132,11 @@ public:
 
     // additive(fg, bg) -> palette index that most closely represents
     // fg + bg per Blizzard's authored LUT. Symmetric.
-    [[nodiscard]] std::uint8_t additive(std::uint8_t fg, std::uint8_t bg) const noexcept {
-        return additive_[std::size_t(fg) * 256 + bg];
+    [[nodiscard]] std::uint8_t additive(std::uint8_t foreground, std::uint8_t background) const noexcept {
+        return additive_[std::size_t(foreground) * 256 + background];
     }
-    [[nodiscard]] std::uint8_t blend50(std::uint8_t fg, std::uint8_t bg) const noexcept {
-        return blend50_[std::size_t(fg) * 256 + bg];
+    [[nodiscard]] std::uint8_t blend50(std::uint8_t foreground, std::uint8_t background) const noexcept {
+        return blend50_[std::size_t(foreground) * 256 + background];
     }
 
 private:

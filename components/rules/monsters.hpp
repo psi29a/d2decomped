@@ -27,19 +27,19 @@ struct Region {
     std::vector<std::pair<int, int>> types;     // (MonStats row, rarity)
     int total = 0;                              // rarity sum
 };
-inline Region monster_region(const Monsters& m, const LevelMon& L, int difficulty, Rng& seed) {
-    Region r;
-    auto list = difficulty == 0 ? L.mon : L.nmon;
-    const int picks = std::min<int>(std::min(L.num_mon, 13), int(list.size()));
+inline Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int difficulty, Rng& seed) {
+    Region region;
+    auto list = difficulty == 0 ? level_mon.mon : level_mon.nmon;
+    const int picks = std::min<int>(std::min(level_mon.num_mon, 13), int(list.size()));
     for (int i = 0; i < picks && !list.empty(); ++i) {
-        const int k = seed(int(list.size()));
-        const int row = list[std::size_t(k)];
-        list.erase(list.begin() + k);
-        if (row < 0 || std::size_t(row) >= m.types.size() || !m.types[std::size_t(row)].enabled) continue;
-        r.types.emplace_back(row, m.types[std::size_t(row)].rarity);
-        r.total += m.types[std::size_t(row)].rarity;
+        const int pick = seed(int(list.size()));
+        const int row = list[std::size_t(pick)];
+        list.erase(list.begin() + pick);
+        if (row < 0 || std::size_t(row) >= monsters.types.size() || !monsters.types[std::size_t(row)].enabled) continue;
+        region.types.emplace_back(row, monsters.types[std::size_t(row)].rarity);
+        region.total += monsters.types[std::size_t(row)].rarity;
     }
-    return r;
+    return region;
 }
 
 // A spawned monster, in level-relative subtiles; `leader` is the index
@@ -61,7 +61,7 @@ struct Population {
 };
 
 // A room to populate: its rect in subtiles and its seed.
-struct SpawnRoom { int x = 0, y = 0, w = 0, h = 0; Rng seed; };
+struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; };
 
 namespace monster_detail {
 
@@ -70,30 +70,30 @@ namespace monster_detail {
 // point on it round the square; the first spot in the room that the
 // monster fits wins. `fits(x, y)`: the collision test (FUN_0064d9b0).
 template <class Fits>
-bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& ox, int& oy) {
+bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& out_x, int& out_y) {
     const int last = radius < 0 ? 0 : radius * 3;
-    for (int c = radius < 0 ? 0 : 3; c <= last; c += 3) {
+    for (int ring = radius < 0 ? 0 : 3; ring <= last; ring += 3) {
         const bool even = (room.seed.next() & 1) == 0;
         int dx, dy;
-        if (even) { dx = room.seed(c); dy = c; } else { dx = c; dy = room.seed(c); }
-        int sx = even ? 1 : 0, sy = even ? 0 : 1;
+        if (even) { dx = room.seed(ring); dy = ring; } else { dx = ring; dy = room.seed(ring); }
+        int step_x = even ? 1 : 0, step_y = even ? 0 : 1;
         if (room.seed.next() & 1) dx = -dx;
         if (room.seed.next() & 1) dy = -dy;
-        int px = x + dx, py = y + dy;
-        const int x0 = x - c, x1 = x + c, y0 = y - c, y1 = y + c;
-        for (int n = c ? c * 8 : 1; n > 0; --n) {
-            if (px == x0 && py == y0) { sx = 1; sy = 0; }
-            if (px == x1) {
-                if (py == y0) { sx = 0; sy = 1; }
-                if (py == y1) { sx = -1; sy = 0; }
+        int spot_x = x + dx, spot_y = y + dy;
+        const int left = x - ring, right = x + ring, top = y - ring, bottom = y + ring;
+        for (int steps = ring ? ring * 8 : 1; steps > 0; --steps) {
+            if (spot_x == left && spot_y == top) { step_x = 1; step_y = 0; }
+            if (spot_x == right) {
+                if (spot_y == top) { step_x = 0; step_y = 1; }
+                if (spot_y == bottom) { step_x = -1; step_y = 0; }
             }
-            if (px == x0) {
-                if (py == y1) { sx = 0; sy = -1; }
-                if (py == y0 && px == x1 && py == y1) { sx = 0; sy = 0; }
+            if (spot_x == left) {
+                if (spot_y == bottom) { step_x = 0; step_y = -1; }
+                if (spot_y == top && spot_x == right && spot_y == bottom) { step_x = 0; step_y = 0; }
             }
-            px += sx; py += sy;
-            if (px >= room.x && py >= room.y && px < room.x + room.w && py < room.y + room.h && fits(px, py)) {
-                ox = px; oy = py;
+            spot_x += step_x; spot_y += step_y;
+            if (spot_x >= room.x && spot_y >= room.y && spot_x < room.x + room.width && spot_y < room.y + room.height && fits(spot_x, spot_y)) {
+                out_x = spot_x; out_y = spot_y;
                 return true;
             }
         }
@@ -105,22 +105,22 @@ bool place(SpawnRoom& room, int x, int y, int radius, Fits&& fits, int& ox, int&
 
 // A type by rarity from the region (FUN_005bde80) on `seed`.
 inline int pick_type(const Region& reg, Rng& seed) {
-    int r = seed(reg.total) + 1;
-    std::size_t k = 0;
-    for (; k < reg.types.size(); ++k) { r -= reg.types[k].second; if (r < 1) break; }
-    return reg.types[std::min(k, reg.types.size() - 1)].first;
+    int pick = seed(reg.total) + 1;
+    std::size_t index = 0;
+    for (; index < reg.types.size(); ++index) { pick -= reg.types[index].second; if (pick < 1) break; }
+    return reg.types[std::min(index, reg.types.size() - 1)].first;
 }
 
 // FUN_0054dc40: a spot in the room (the rect shrunk by one subtile at the
 // top left), 20 tries, not by an entrance, where a monster fits.
 template <class Fits, class Near>
-bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& sx, int& sy) {
-    const int rx = room.x + 1, ry = room.y + 1, rw = room.x + room.w - rx, rh = room.y + room.h - ry;
+bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, int& spot_y) {
+    const int room_x = room.x + 1, room_y = room.y + 1, room_width = room.x + room.width - room_x, room_height = room.y + room.height - room_y;
     for (int tries = 0; tries < 20; ++tries) {
-        const int x = room.seed(rw) + rx, y = room.seed(rh) + ry;
+        const int x = room.seed(room_width) + room_x, y = room.seed(room_height) + room_y;
         if (near_entrance(x, y)) continue;
-        int px, py;
-        if (monster_detail::place(room, x, y, -1, fits, px, py)) { sx = x; sy = y; return true; }
+        int found_x, found_y;
+        if (monster_detail::place(room, x, y, -1, fits, found_x, found_y)) { spot_x = x; spot_y = y; return true; }
     }
     return false;
 }
@@ -131,21 +131,21 @@ bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& sx, int&
 // radius 3).
 // ponytail: a monster's own seed (unit +0x20) is the room's here.
 template <class Fits>
-void boss_pack(const Monsters& m, int utype, int lx, int ly, SpawnRoom& room, Fits&& fits, std::vector<Spawn>& out, Population& pop) {
+void boss_pack(const Monsters& monsters, int utype, int leader_x, int leader_y, SpawnRoom& room, Fits&& fits, std::vector<Spawn>& out, Population& pop) {
     using monster_detail::place;
-    const auto& ut = m.types[std::size_t(utype)];
-    auto b = roll_boss(*pop.umods, ut, pop.difficulty, true, room.seed);
+    const auto& unique_type = monsters.types[std::size_t(utype)];
+    auto boss = roll_boss(*pop.umods, unique_type, pop.difficulty, true, room.seed);
     const int leader = int(out.size());
-    out.push_back({ utype, lx, ly, leader, -1, b.kind, b.mods, b.name_seed });
+    out.push_back({ utype, leader_x, leader_y, leader, -1, boss.kind, boss.mods, boss.name_seed });
     ++pop.uniques;
-    int px, py;
-    if (b.kind == Boss::champion) {
-        for (int c = room.seed(3) + 1; c > 0; --c)
-            if (place(room, lx, ly, 4, fits, px, py)) out.push_back({ utype, px, py, leader, -1, Boss::champion, { umod::champion } });
+    int spot_x, spot_y;
+    if (boss.kind == Boss::champion) {
+        for (int remaining = room.seed(3) + 1; remaining > 0; --remaining)
+            if (place(room, leader_x, leader_y, 4, fits, spot_x, spot_y)) out.push_back({ utype, spot_x, spot_y, leader, -1, Boss::champion, { umod::champion } });
     } else {
-        const int mt = ut.minion[0] >= 0 ? ut.minion[0] : utype;
-        for (int c = room.seed(4) + 3; c > 0; --c)
-            if (place(room, lx, ly, 3, fits, px, py)) out.push_back({ mt, px, py, leader, -1, Boss::minion, {} });
+        const int minion_type = unique_type.minion[0] >= 0 ? unique_type.minion[0] : utype;
+        for (int remaining = room.seed(4) + 3; remaining > 0; --remaining)
+            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) out.push_back({ minion_type, spot_x, spot_y, leader, -1, Boss::minion, {} });
     }
 }
 
@@ -165,17 +165,17 @@ void boss_pack(const Monsters& m, int utype, int lx, int ly, SpawnRoom& room, Fi
 // room's seed stands in; MonStats `spawn` replacements aren't applied (no
 // act 1 wilderness monster has one).
 template <class Fits, class Near>
-void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom room, Rng& game,
+void populate_room(const Monsters& monsters, const Region& reg, int density, SpawnRoom room, Rng& game,
                    Fits&& fits, Near&& near_entrance, std::vector<Spawn>& out, Population* pop = nullptr) {
     using monster_detail::place;
     if (pop) ++pop->rooms_done;                                 // FUN_0054ebc0
     if (reg.types.empty() || density <= 0) return;
     density = std::min(density, 10000);
-    auto spot = [&](int& sx, int& sy) { return room_spot(room, fits, near_entrance, sx, sy); };
-    for (int n = (room.h / 3) * (room.w / 3); n > 0; --n) {
+    auto spot = [&](int& spot_x, int& spot_y) { return room_spot(room, fits, near_entrance, spot_x, spot_y); };
+    for (int tries = (room.height / 3) * (room.width / 3); tries > 0; --tries) {
         if (int(game.next() % 100000) > density) continue;
         const int type = pick_type(reg, room.seed);
-        const auto& t = m.types[std::size_t(type)];
+        const auto& type_info = monsters.types[std::size_t(type)];
         // FUN_005be020 (room seed): a unique while under MonUMin (chance
         // rooms done / rooms in the level) or under MonUMax (6 %); else a
         // group (its champion answer, 1, becomes a group too).
@@ -193,32 +193,32 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
             // normal has MonUMin / MonUMax 0); a monster's own seed (unit
             // +0x20) is the room's here; MonStats `spawn` replacement skipped.
             const int utype = pick_type(reg, room.seed);
-            int sx, sy, lx, ly;
-            if (!spot(sx, sy) || !place(room, sx, sy, -1, fits, lx, ly)) continue;
-            boss_pack(m, utype, lx, ly, room, fits, out, *pop);
+            int spot_x, spot_y, leader_x, leader_y;
+            if (!spot(spot_x, spot_y) || !place(room, spot_x, spot_y, -1, fits, leader_x, leader_y)) continue;
+            boss_pack(monsters, utype, leader_x, leader_y, room, fits, out, *pop);
             continue;
         }
-        int lo = t.min_grp, hi = t.max_grp;
-        if (t.base == 19 || t.base == 91) lo = hi = 1;  // FUN_0054ec40
-        if (t.sparse && t.sparse < int(game.next() % 100)) continue;
-        if (!lo || !hi || lo > hi) continue;
-        int sx = 0, sy = 0;
-        if (!spot(sx, sy)) continue;
-        int lx, ly;
-        if (!place(room, sx, sy, -1, fits, lx, ly)) continue;
+        int low = type_info.min_grp, high = type_info.max_grp;
+        if (type_info.base == 19 || type_info.base == 91) low = high = 1;  // FUN_0054ec40
+        if (type_info.sparse && type_info.sparse < int(game.next() % 100)) continue;
+        if (!low || !high || low > high) continue;
+        int spot_x = 0, spot_y = 0;
+        if (!spot(spot_x, spot_y)) continue;
+        int leader_x, leader_y;
+        if (!place(room, spot_x, spot_y, -1, fits, leader_x, leader_y)) continue;
         const int leader = int(out.size());
-        out.push_back({ type, lx, ly, leader });
+        out.push_back({ type, leader_x, leader_y, leader });
         auto nearby = [&](int who, int radius) {
-            int px, py;
-            if (who >= 0 && std::size_t(who) < m.types.size() && place(room, lx, ly, radius, fits, px, py))
-                out.push_back({ who, px, py, leader });
+            int found_x, found_y;
+            if (who >= 0 && std::size_t(who) < monsters.types.size() && place(room, leader_x, leader_y, radius, fits, found_x, found_y))
+                out.push_back({ who, found_x, found_y, leader });
         };
-        if (t.minion[0] >= 0) {                         // FUN_005b2830
-            const int count = room.seed.range(t.party_min, t.party_max);
-            const int kinds = t.minion[1] >= 0 ? 2 : 1;
-            for (int i = 0; i < count; ++i) nearby(t.minion[std::size_t(i % kinds)], 4);
+        if (type_info.minion[0] >= 0) {                         // FUN_005b2830
+            const int count = room.seed.range(type_info.party_min, type_info.party_max);
+            const int kinds = type_info.minion[1] >= 0 ? 2 : 1;
+            for (int i = 0; i < count; ++i) nearby(type_info.minion[std::size_t(i % kinds)], 4);
         }
-        for (int extra = room.seed(hi - lo + 1) + lo - 1; extra > 0; --extra) nearby(type, 3);
+        for (int extra = room.seed(high - low + 1) + low - 1; extra > 0; --extra) nearby(type, 3);
     }
 }
 
@@ -228,36 +228,36 @@ void populate_room(const Monsters& m, const Region& reg, int density, SpawnRoom 
 // game.exe — this is the documented txt contract.
 // Elemental attacks come as MonLvl damage percentages too (El1..3 MinD/MaxD).
 struct MonStats {
-    int level = 1, hp = 1, ac = 0, th = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
+    int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
-    std::array<El, 3> el{};
+    std::array<El, 3> elements{};
 };
-inline MonStats monster_stats(const Monsters& m, int type, int difficulty, Rng& rng, int level_add = 0) {
-    MonStats s;
-    if (type < 0 || std::size_t(type) >= m.types.size()) return s;
-    const auto& t = m.types[std::size_t(type)];
-    const int d = std::clamp(difficulty, 0, 2);
-    s.level = std::max(t.level[std::size_t(d)] + level_add, 1);
-    if (m.lvl.empty()) return s;
-    const auto& L = m.lvl[std::min<std::size_t>(std::size_t(s.level), m.lvl.size() - 1)];
-    const auto& p = t.diff[std::size_t(d)];
-    auto pct = [](int base, int v) { return base * v / 100; };
-    const int hp = L.hp[std::size_t(d)];
-    s.hp  = std::max(rng.range(pct(hp, p.min_hp), pct(hp, p.max_hp)), 1);
-    s.ac  = pct(L.ac[std::size_t(d)], p.ac);
-    s.th  = pct(L.th[std::size_t(d)], p.a1_th);
-    s.a1_min = pct(L.dm[std::size_t(d)], p.a1_min);
-    s.a1_max = std::max(pct(L.dm[std::size_t(d)], p.a1_max), s.a1_min);
-    s.a2_min = pct(L.dm[std::size_t(d)], p.a2_min);
-    s.a2_max = std::max(pct(L.dm[std::size_t(d)], p.a2_max), s.a2_min);
-    s.exp = pct(L.xp[std::size_t(d)], p.exp);
-    for (std::size_t e = 0; e < 3; ++e) {
-        const auto& E = p.el[e];
-        if (t.el_type[e] < 0 || E.max <= 0) continue;
-        s.el[e] = { t.el_type[e], E.pct ? E.pct : 100, pct(L.dm[std::size_t(d)], E.min),
-                    std::max(pct(L.dm[std::size_t(d)], E.max), pct(L.dm[std::size_t(d)], E.min)), E.dur, t.el_mode[e] };
+inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0) {
+    MonStats stats;
+    if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
+    const auto& type_info = monsters.types[std::size_t(type)];
+    const int difficulty_index = std::clamp(difficulty, 0, 2);
+    stats.level = std::max(type_info.level[std::size_t(difficulty_index)] + level_add, 1);
+    if (monsters.lvl.empty()) return stats;
+    const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(stats.level), monsters.lvl.size() - 1)];
+    const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
+    auto pct = [](int base, int percent) { return base * percent / 100; };
+    const int hit_points = level_row.hit_points[std::size_t(difficulty_index)];
+    stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
+    stats.armor_class  = pct(level_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
+    stats.to_hit  = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a1_th);
+    stats.a1_min = pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.a1_min);
+    stats.a1_max = std::max(pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.a1_max), stats.a1_min);
+    stats.a2_min = pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.a2_min);
+    stats.a2_max = std::max(pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.a2_max), stats.a2_min);
+    stats.exp = pct(level_row.experience[std::size_t(difficulty_index)], per_difficulty.exp);
+    for (std::size_t element = 0; element < 3; ++element) {
+        const auto& element_info = per_difficulty.elements[element];
+        if (type_info.el_type[element] < 0 || element_info.max <= 0) continue;
+        stats.elements[element] = { type_info.el_type[element], element_info.pct ? element_info.pct : 100, pct(level_row.damage[std::size_t(difficulty_index)], element_info.min),
+                    std::max(pct(level_row.damage[std::size_t(difficulty_index)], element_info.max), pct(level_row.damage[std::size_t(difficulty_index)], element_info.min)), element_info.dur, type_info.el_mode[element] };
     }
-    return s;
+    return stats;
 }
 
 }  // namespace d2d::rules
