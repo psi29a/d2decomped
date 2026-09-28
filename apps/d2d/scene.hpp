@@ -527,6 +527,8 @@ struct Scene : GameData {
     std::array<d2d::palette::Palette, 32>    act1_lit;   // act1_pal at each light level (PL2 +0x400)
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
+    d2d::font::Font  font30;                           // Font30 (font id 2): the death screen's lines
+    d2d::dc6::Sprite you_died, you_died_inst;          // UI\ENG\youdiedhardcore, youdiedinst (FUN_00453100)
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
     // game.exe's level-type names (0x6e7d50: "None", "1 Town", ...),
     // TileName through its orientation names (0x6e7f90: fl wl wr wtlr

@@ -140,6 +140,7 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
         c.i32(v.attack).i32(v.attack_skill).i32(v.aura).i32(v.day.phase).i32(v.day.time).u8(v.den_cleared).i32(v.light_bonus).i32(v.den_state).i32(v.den_log).i32(v.den_left);
         c.u16(int(v.boost.size()));
         for (const auto& [st, val] : v.boost) c.i32(st).i32(val);
+        c.i32(v.gold_lost);
         c.u16(int(v.buffs.size()));
         for (const int k : v.buffs) c.i32(k);
         wire::section(o, enc.section[0], std::move(c.b));
@@ -315,6 +316,7 @@ inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v)
         v.attack = i32(); v.attack_skill = i32(); v.aura = i32(); v.day.phase = i32(); v.day.time = i32(); v.den_cleared = u8() != 0; v.light_bonus = i32(); v.den_state = i32(); v.den_log = i32(); v.den_left = i32();
         v.boost.clear();
         for (int n = u16(); n > 0 && in.ok; --n) { const int st = i32(); v.boost.emplace_back(st, i32()); }
+        v.gold_lost = i32();
         v.buffs.clear();
         for (int n = u16(); n > 0 && in.ok; --n) v.buffs.push_back(i32());
     });

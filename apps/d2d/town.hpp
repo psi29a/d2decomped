@@ -164,10 +164,38 @@ void view_units(const Scene& s, const View& v, float cx, float cy, const std::st
 void view_overlays(std::vector<std::uint8_t>& fb, const Scene& s, const View& v, int hovered) {
     if (hovered >= 0) draw_monster_bar(fb, s, v.monsters[std::size_t(hovered)]);
     else if (const int a = v.monster(v.attack); a >= 0) draw_monster_bar(fb, s, v.monsters[std::size_t(a)]);
-    if (v.pmode == kModeDD) {                    // ponytail: D2's death screen text isn't traced
-        const std::string msg = "You have died.  Click or press Esc to continue.";
+    // The death screen (FUN_00453100): youdiedhardcore then youdiedinst,
+    // centred, from H/2 - 94 down 48 px each; then in Font30, red, centred,
+    // 48 px apart: string 0x13e8 "Your deeds of valor..." (hardcore) or
+    // 0x13e6 "Death takes its toll of %d Gold" (when goldlost > 0), and in
+    // Nightmare / Hell (softcore) 0x13e7 "You have lost experience".
+    // ponytail: FUN_00502680's anchor taken as the cel's bottom, centred.
+    if (v.pmode == kModeDD) {
         const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
-        s.font.draw_tinted(fb, kW, kH, pal, int(kW) / 2 - s.font.measure(msg) / 2, int(kH) / 2 - 60, msg, 220, 60, 60);
+        int y = int(kH) / 2 - 0x5e;
+        for (const auto* spr : { &s.you_died, &s.you_died_inst }) {
+            int w = 0;                                   // its frames side by side (FUN_00502680)
+            for (std::uint32_t k = 0; k < spr->frames_per_direction(); ++k) w += int(spr->frame(0, k).width);
+            for (std::uint32_t k = 0, x = std::uint32_t(int(kW) / 2 - w / 2); k < spr->frames_per_direction(); ++k) {
+                const auto& f = spr->frame(0, k);
+                blit_sprite(fb, f, pal, int(x), y - int(f.height) + 1);
+                x += f.width;
+            }
+            y += 0x30;
+        }
+        const auto& f30 = s.font30.line_height() > 0 ? s.font30 : s.font;
+        auto line = [&](const std::string& t) {
+            if (!t.empty()) f30.draw_tinted(fb, kW, kH, pal, int(kW) / 2 - f30.measure(t) / 2, y - f30.line_height() + 1, t, 255, 77, 77);
+            y += 0x30;
+        };
+        const bool hc = v.header.hardcore();
+        if (hc) line(string_id(s, 0x13e8));
+        else if (v.gold_lost > 0) {
+            auto fmt = string_id(s, 0x13e6);
+            if (const auto at = fmt.find("%d"); at != std::string::npos) fmt.replace(at, 2, std::to_string(v.gold_lost));
+            line(fmt);
+        }
+        if (!hc && v.header.active_difficulty() > 0) line(string_id(s, 0x13e7));
     }
 }
 // An SQ skill's frame now: the mode and when it started, as Fight::seq_view.

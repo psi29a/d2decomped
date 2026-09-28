@@ -1401,6 +1401,11 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
             scene.font_formal11 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
+    if (auto t = mpqs.try_read(R"(data\local\FONT\LATIN\font30.tbl)"))
+        if (auto d = mpqs.try_read(R"(data\local\FONT\LATIN\font30.dc6)"))
+            scene.font30 = d2d::font::Font(*t, d2d::dc6::Sprite(*d));
+    for (auto [spr, name] : { std::pair{ &scene.you_died, "youdiedhardcore" }, { &scene.you_died_inst, "youdiedinst" } })
+        if (auto d = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + name + ".dc6")) *spr = d2d::dc6::Sprite(*d);
     auto& nm = scene.item_names;
     nm.unique   = keys("UniqueItems", "index", false);
     scene.unique_inv = keys("UniqueItems", "invfile", false);

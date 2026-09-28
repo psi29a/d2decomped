@@ -65,6 +65,7 @@ struct View {
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
+    int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
@@ -180,6 +181,7 @@ struct World {
     // ponytail: the roll is on the unit id, not the unit's seed (the same
     // odds, not the same colour as game.exe's for a given monster); Utrans
     // 0xff's pick (FUN_004791b0) is taken as 1.
+    std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
     [[nodiscard]] int monster_colour(const Monster& m) const {
         const auto& n = m.npc;
         const int d = std::clamp(m.difficulty, 0, 2);
@@ -225,6 +227,7 @@ struct World {
         v.npc_states = npc_states;
         if (now < fight.boost.until) v.boost = fight.boost.stats;
         v.aura = fight.aura;
+        v.gold_lost = int(gold_lost);
         for (const auto& st : fight.self_states) v.buffs.push_back(st.skill);
         v.day = day;
         v.den_cleared = den.state >= 4;
@@ -651,6 +654,7 @@ struct World {
         lost = std::min(lost, purse);
         if (purse - lost > 0) loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, ms);
         v[kGold] = 0;
+        gold_lost = lost;
         d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", exp_lost, lost, purse - lost);
     }
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
