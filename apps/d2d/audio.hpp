@@ -16,8 +16,9 @@ namespace {
 // FUN_004ba020 ramp the volume linearly), in sound ticks — 25 a second.
 // A level song picks up where it left off, at its next Block cue point
 // (FUN_004dcaa0, below).
-// ponytail: channels are head-relative (no 3D positions yet); ambience
-// changes don't fade.
+// The ambience cross-fades at dusk and dawn over 250 sound ticks
+// (FUN_004e42e0: FUN_004b9ef0(0, 0xfa)), and switches at once otherwise.
+// ponytail: channels are head-relative (no 3D positions yet).
 // A song's resume point from its position (FUN_004dcaa0).
 [[nodiscard]] constexpr int next_block(const std::array<int, 3>& b, int pos) {
     if (pos >= 0 && pos < b[0]) return b[0];
@@ -44,6 +45,7 @@ struct Audio {
     std::array<Channel, 12> sfx;                 // world sounds, oldest reused first
     std::size_t sfx_next = 0;
     Channel music_old;                           // the previous song, fading out under `music`
+    Channel ambience_old;                        // the day's (night's) ambience, fading out under `ambience`
     std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
     int voice_sound() const { return voice.sound; }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
@@ -67,7 +69,7 @@ struct Audio {
     }
     ~Audio() {
         video_stop();
-        for (auto* c : { &voice, &music, &music_old, &ambience, &ui, &rain }) stop(*c);
+        for (auto* c : { &voice, &music, &music_old, &ambience, &ambience_old, &ui, &rain }) stop(*c);
         for (auto& c : sfx) stop(c);
         if (music_job.valid()) music_job.wait();
         alcMakeContextCurrent(nullptr);
@@ -182,6 +184,22 @@ struct Audio {
     }
     // A new level's song (FUN_004dcaa0): the playing one fades out while
     // this one, once decoded, fades in.
+    // Day to night (or back): the old ambience out and the new one in over
+    // 250 sound ticks (10 s).
+    void crossfade_ambience(const GameData& s, int index) {
+        stop(ambience_old);
+        if (ambience.src) {
+            ambience_old = ambience;
+            ambience = {};
+            fade(ambience_old, 0.f, 250 * kTickMs);
+        }
+        play(ambience, s, index);
+        if (ambience.src) {
+            const float to = ambience.gain;
+            set_gain(ambience, 0.f);
+            fade(ambience, to, 250 * kTickMs);
+        }
+    }
     void crossfade_music(const GameData& s, int index) {
         auto fade_of = [&](int i, bool in) {
             if (i <= 0 || std::size_t(i) >= s.sounds.size()) return std::uint64_t(0);
@@ -286,13 +304,14 @@ struct Audio {
             song_resume[music.sound] = next_block(music_blocks, pos);
             music_mark_ms = now;
         }
-        for (auto* c : { &music, &music_old }) {
+        for (auto* c : { &music, &music_old, &ambience, &ambience_old }) {
             if (!c->fade_t1) continue;
             const float t = std::min(1.f, float(now - c->fade_t0) / float(c->fade_t1 - c->fade_t0));
             set_gain(*c, c->fade_from + (c->fade_to - c->fade_from) * t);
             if (t < 1.f) continue;
             c->fade_t1 = 0;
             if (c == &music_old) stop(music_old);
+            if (c == &ambience_old) stop(ambience_old);
         }
         for (auto* c : { &voice, &ui, &ambience, &rain, &music, &music_old }) {
             if (!c->src) continue;

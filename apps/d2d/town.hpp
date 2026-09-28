@@ -554,11 +554,13 @@ struct Town {
         // ticks (3 s) into the new level, so skirting an edge doesn't flip
         // it, and cross-fades (Audio::crossfade_music). Its ambience then,
         // and at dusk and dawn.
-        // ponytail: the ambience switches at once; game.exe fades it.
         if (audio.music.sound > 0 && level->song > 0 && audio.music.sound != level->song && ms - level_ms >= 75 * 40)
             audio.crossfade_music(*scene, level->song);
         if (audio.music.sound > 0 && audio.music.sound == level->song && audio.ambience.sound != amb) {
-            audio.play(audio.ambience, *scene, amb);
+            const bool turn = (audio.ambience.sound == level->ambience && amb == level->night_ambience)
+                           || (audio.ambience.sound == level->night_ambience && amb == level->ambience);
+            if (turn) audio.crossfade_ambience(*scene, amb);   // dusk / dawn (FUN_004e42e0)
+            else audio.play(audio.ambience, *scene, amb);
             audio.ambience.sound = amb;           // tried: not again every frame
         }
         // The weather, a client frame at a time where it rains (FUN_00473f50;
