@@ -157,5 +157,7 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 - The player's radius is 13 + item_lightradius (stat 89) summed over what's
   worn, charms and sockets (the View's `light_bonus`), capped at 18.
 
-ponytail, not yet: type 2's cached shadows, lights easing to a new radius, Act 3 / 4 days, the Den's
-lighting once it's cleared.
+- The Den of Evil's light once cleared: quests.md "The Den lights up".
+
+ponytail, not yet: type 2's cached shadows, lights easing to a new radius,
+Act 3 / 4 days.
