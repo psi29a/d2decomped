@@ -185,7 +185,7 @@ struct GameData {
     // layer's draw effect), its light (InitRadius / Radius, RGB).
     struct OverlayInfo {
         std::string file;
-        int frames = 1, x = 0, y = 0, rate = 16, trans = 3, radius = 0;
+        int frames = 1, x = 0, y = 0, rate = 16, trans = 3, radius = 0, init_radius = 0;
         bool predraw = false;
         std::array<int, 4> height{};
         [[nodiscard]] int dy(int cls) const { return y + (cls >= 0 && cls < 4 ? height[std::size_t(cls)] : 75); }

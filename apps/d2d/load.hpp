@@ -1042,7 +1042,7 @@ void load_composite_data(Scene& scene, const d2d::mpq::Stack& mpqs) {
             Scene::OverlayInfo o;
             o.file = std::string(ov.get(r, "Filename"));
             o.frames = std::max(n("Frames"), 1); o.x = n("Xoffset"); o.y = n("Yoffset"); o.rate = n("AnimRate");
-            o.trans = n("Trans"); o.radius = n("Radius"); o.predraw = n("PreDraw") != 0;
+            o.trans = n("Trans"); o.radius = n("Radius"); o.init_radius = n("InitRadius"); o.predraw = n("PreDraw") != 0;
             o.height = { n("Height1"), n("Height2"), n("Height3"), n("Height4") };
             scene.overlays.emplace(std::string(ov.get(r, "overlay")), std::move(o));
         }

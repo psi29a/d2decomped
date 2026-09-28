@@ -184,8 +184,10 @@ std::pair<int, std::uint32_t> view_seq(const Scene& s, int cls, const View& v, s
 // The frame's light (FUN_00475800): the grid round the player at the
 // level's own light or the day's, then each light stamped. Positions in
 // eighths of a subtile (a cell is 40).
-// ponytail: lights don't ease to a new radius (8 eighths a frame); light
-// quality is taken as high (2: shadows on).
+// A light's radius moves toward a new one 8 eighths (a subtile) a frame
+// (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
+// radius (FUN_00474160; an overlay's InitRadius).
+// ponytail: light quality is taken as high (2: shadows on).
 Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, std::span<const View::Shot> fx = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0) {
     Lighting l;
@@ -203,12 +205,29 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
                 v.level->blocked((float(l.grid.x0 + i) + 0.5f) / 5, (float(l.grid.y0 + j) + 0.5f) / 5, 0x22);
     // Type 0 lights (the player's, objects') are shadowed by walls; type 1
     // (monsters', missiles') aren't (FUN_004755a0).
-    auto stamp = [&](float x, float y, int radius, bool shadowed) {
-        if (radius <= 0) return;
-        if (shadowed) l.grid.stamp_shadowed(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
-        else l.grid.stamp(int(x * 40), int(y * 40), std::min(radius, 18) * 8, 255);
+    struct Ease { int r8 = 0; std::uint32_t at = 0, seen = 0; };
+    static std::unordered_map<std::uint64_t, Ease> eases;         // by light: its radius now, in eighths
+    auto eased = [&](std::uint64_t key, int radius, int first) {
+        const int want = std::clamp(radius, 0, 18) * 8;
+        auto [it, fresh] = eases.try_emplace(key, Ease{ std::clamp(first, 0, 18) * 8, now, now });
+        auto& e = it->second;
+        if (const auto steps = int((now - e.at) / 40); steps > 0) {
+            e.r8 = e.r8 < want ? std::min(want, e.r8 + 8 * steps) : std::max(want, e.r8 - 8 * steps);
+            e.at += std::uint32_t(steps) * 40;
+        }
+        e.seen = now;
+        return e.r8;
     };
-    stamp(cam_x, cam_y, std::max(0, 13 + v.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
+    auto stamp8 = [&](float x, float y, int r8, bool shadowed) {
+        if (r8 <= 0) return;
+        if (shadowed) l.grid.stamp_shadowed(int(x * 40), int(y * 40), r8, 255);
+        else l.grid.stamp(int(x * 40), int(y * 40), r8, 255);
+    };
+    auto stamp = [&](float x, float y, int radius, bool shadowed) { stamp8(x, y, std::min(radius, 18) * 8, shadowed); };
+    auto lamp = [&](std::uint64_t key, float x, float y, int radius, bool shadowed, int first = -1) {
+        stamp8(x, y, eased(key, radius, first < 0 ? radius : first), shadowed);
+    };
+    lamp(1, cam_x, cam_y, std::max(0, 13 + v.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
     static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
     auto lit = [&](const Npc& n, std::string_view mode) {
         const auto m = std::ranges::find(kModes, mode.empty() ? std::string_view(n.mode) : mode);
@@ -218,24 +237,29 @@ Lighting frame_light(const Scene& s, const View& v, float cam_x, float cam_y, st
         const auto& n = v.level->npcs[i];
         const auto* st = i < v.npc_states.size() ? &v.npc_states[i] : nullptr;
         if (st && st->hidden) continue;
-        stamp(st ? st->x : n.x, st ? st->y : n.y, lit(n, st ? st->mode : std::string_view{}), true);
+        lamp(2ull << 32 | i, st ? st->x : n.x, st ? st->y : n.y, lit(n, st ? st->mode : std::string_view{}), true);
     }
     for (const auto& nb : v.level->nearby)                  // the torches over the level's edge
         for (const auto& n : nb.level->npcs) stamp(n.x + float(nb.dx), n.y + float(nb.dy), lit(n, {}), true);
-    for (const auto& m : v.monsters) if (m.alive()) stamp(m.u.x, m.u.y, m.npc.light, false);
-    for (const auto& p : v.portals) stamp(p.x, p.y, int(s.town_portal.lit[2]), true);   // Lit2 19 (ON); ponytail: Lit1 18 while opening
+    for (const auto& m : v.monsters) if (m.alive()) lamp(4ull << 32 | std::uint32_t(m.id), m.u.x, m.u.y, m.npc.light, false);
+    for (const auto& p : v.portals)                        // Lit1 (OP) while it opens, then Lit2 (ON)
+        lamp(5ull << 32 | std::uint32_t(p.which), p.x, p.y, int(s.town_portal.lit[now - p.born < kPortalOpenMs ? 1 : 2]), true);
     for (const auto& m : v.missiles) if (m.info) stamp(m.x, m.y, m.info->light, false);
     for (const auto& m : fx) if (m.info) stamp(m.x, m.y, m.info->light, false);
-    // States' overlays light their unit (Overlay.txt Radius, FUN_00474160).
-    // ponytail: at Radius at once (FUN_00474290 grows it from InitRadius);
-    // a plain light, its colour dropped like every light's here.
+    // States' overlays light their unit (Overlay.txt: InitRadius growing to
+    // Radius, FUN_00474160 / FUN_00474290); a plain light, its colour
+    // dropped like every light's here.
     auto overs = [&](const Unit& u, float x, float y) {
-        for (const auto& o : u.overs)
+        for (std::size_t k = 0; k < u.overs.size(); ++k) {
+            const auto& o = u.overs[k];
             if (o.o->radius > 0 && (!o.once || (now - o.start) * std::uint32_t(std::max(o.o->rate, 1)) / 640 < std::uint32_t(o.o->frames)))
-                stamp(x, y, o.o->radius, false);
+                lamp(6ull << 56 ^ std::uint64_t(reinterpret_cast<std::uintptr_t>(o.o)) ^ std::uint64_t(std::uint32_t(u.npc)) << 40 ^ o.start,
+                     x, y, o.o->radius, false, o.o->init_radius);
+        }
     };
     for (const auto& u : units) overs(u, u.x, u.y);
     if (player_look) overs(*player_look, cam_x, cam_y);
+    std::erase_if(eases, [&](const auto& e) { return now - e.second.seen > 2000; });
     return l;
 }
 

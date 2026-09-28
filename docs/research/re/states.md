@@ -33,7 +33,7 @@ Overlay.txt (record 0x84, `FUN_00470390` makes one):
 | Xoffset, Yoffset | 0x54, 0x58 | from the unit's feet |
 | Height1..4 | 0x5c..0x68 | added to Yoffset by the unit's class (`FUN_006223a0`): players 1, monsters MonStats2 OverlayHeight − 1, others 0; −1 adds 75 |
 | AnimRate | 0x6c | × 16: 1/256ths of a frame a tick |
-| InitRadius, Radius, RGB | 0x70, 0x74, 0x7d.. | the overlay's light |
+| InitRadius, Radius, RGB | 0x70, 0x74, 0x7d.. | the overlay's light: starts at InitRadius, grows a subtile a frame to Radius (`FUN_004755a0`) |
 | LoopWaitTime | 0x78 | a pause between loops |
 | Trans | 0x7c | the draw mode, as a COF layer's draw effect (3 additive) |
 
@@ -49,5 +49,3 @@ tint byte, so a save's tints leave it out.
 - LoopWaitTime isn't applied.
 - The player's own chill and poison aren't modelled by the fight, so
   they don't show.
-- An overlay's light is stamped at Radius at once, not grown from
-  InitRadius (`FUN_00474290`).
