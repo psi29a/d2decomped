@@ -477,7 +477,9 @@ void render_world(std::vector<std::uint8_t>& fb,
                 // Roof — hoist by the DT1's own roof_height.
                 auto [iso_x, iso_y] = iso(gx, gy);
                 iso_y -= t.roof_height;
-                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, iso_x, iso_y + t.roof_height, false);
+                // A roof is flat: lit like a floor, where each pixel lies on
+                // the roof's plane (its top corner at the hoisted iso_y).
+                if (light) blit_dt1_tile_lit(fb, t, *light, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH), gx, gy, iso_x, iso_y, true);
                 else blit_dt1_tile(fb, t, pal, iso_x - t.width / 2, iso_y - (std::abs(t.height) - kIsoH));
             };
             if (!lv->picks.empty()) {
