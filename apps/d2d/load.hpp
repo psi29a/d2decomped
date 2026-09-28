@@ -29,50 +29,6 @@ void place_act1(Scene& scene, d2d::mpq::Stack& mpqs, const d2d::drlg::OutdoorAss
     scene.act1_layout = layout;
 }
 
-// Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
-// dev codename), D2 mode ids we use, and layer names by COF type.
-constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
-constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
-              kModeA1 = 7, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeDD = 17;
-
-// ponytail: town walk speed picked by eye so the TW cycle doesn't skate
-// (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
-// input; derive from it once movement units are RE'd.
-// Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
-// MonStats Velocity): the path velocity is velocity << 8 (scaled by
-// velocitypercent, FUN_00462a20), and a unit covers path velocity / 4096
-// subtiles per 40 ms tick (arrival time (dist << 16) / ((v >> 8) << 12),
-// 0x4c86a3) — velocity / 16 subtiles a tick. Walk 6: 1.875 cells/s.
-constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 5.f; }
-
-// Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
-// cells. Directions are screen-space: project to screen, take the angle
-// clockwise from straight down, and map the 16 sectors through D2's
-// ordering — the 8 main directions first (0 SW, 1 NW, 2 NE, 3 SE, 4 S,
-// 5 W, 6 N, 7 E), then the half-steps (8 between S and SW, ...).
-inline int direction16(float dx, float dy) {
-    constexpr int kFromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
-    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
-    const float a = std::atan2(-sx, sy);                    // 0 = down, + = clockwise
-    const int sector = int(std::lround(a / (2 * 3.14159265f / 16)));
-    return kFromSector[std::size_t((sector % 16 + 16) % 16)];
-}
-// A composite's direction for a 16-direction facing: 0..7 are the eight
-// compass points, 8..15 the ones between; an 8-direction composite (town
-// NPCs, mercs) takes the neighbouring point for those — clamping them
-// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
-// game.exe maps its 64 unit directions per direction count, not RE'd.
-inline std::uint8_t cof_direction(int dir16, int dirs) {
-    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
-    const int d = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
-    return std::uint8_t(std::clamp(d, 0, std::max(dirs - 1, 0)));
-}
-constexpr const char* kModeCode[18] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW", "A1", "A2", "BL", "SC",
-                                        "TH", "KK", "S1", "S2", "S3", "S4", "DD" };
-constexpr const char* kLayerCode[16] = {
-    "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
-    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
-};
 
 // Load one composite: COF <CC><mode><wclass>, then per COF layer the DCC
 // <CC><LY><component><mode><layer wclass>. The weapon class comes from

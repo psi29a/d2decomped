@@ -1,6 +1,8 @@
 // Shared includes, screen/iso constants, data-dir lookup, blit helpers.
 #pragma once
 
+#include "game.hpp"
+
 
 #include <mpq.hpp>
 #include <cof.hpp>
@@ -98,11 +100,6 @@ namespace d2d::app {
 constexpr std::uint32_t kW = 800;
 constexpr std::uint32_t kH = 600;
 
-// D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
-// step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
-// See OpenDiablo2's mapengine for the same convention.
-constexpr int kIsoW = 160;
-constexpr int kIsoH = 80;
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 static bool g_debug_collision = false;

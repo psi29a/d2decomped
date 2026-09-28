@@ -762,7 +762,7 @@ struct Town {
             net.send(cmd::Drop{ held->id });
         const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
         if (have_world) walk(mouse, over_ui, ms, last_ms);
-        cues.play(audio, view.player.x, view.player.y, rng, ms);
+        play_cues(cues, audio, view.player.x, view.player.y, rng, ms);
         draw(fb, mouse, ms);
     }
 

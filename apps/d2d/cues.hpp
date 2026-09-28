@@ -1,0 +1,20 @@
+// World sounds due later (a monster's cry after its delay, an item landing),
+// from a place. The World queues them; the client plays them when due
+// (audio.hpp play_cues).
+#pragma once
+
+#include "gamedata.hpp"
+
+namespace d2d::app {
+
+struct Cues {
+    const GameData* scene = nullptr;
+    struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
+    std::vector<Cue> due;
+    void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) due.push_back({ at, sound, x, y }); }
+    void cue(std::string_view name, std::uint32_t at, float x, float y) {
+        if (const auto it = scene->sound_index.find(std::string(name)); it != scene->sound_index.end()) cue(it->second, at, x, y);
+    }
+};
+
+}  // namespace d2d::app

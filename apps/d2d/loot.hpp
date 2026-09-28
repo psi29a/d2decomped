@@ -10,7 +10,7 @@ namespace d2d::app {
 struct Loot {
     const GameData* scene;
     const Level* const& level;             // Town's: where drops land
-    CharCreateUI& cc;
+    Character& cc;
     UnitState& player;
     d2d::rules::Rng& rng;
     Cues& cues;

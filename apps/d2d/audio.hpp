@@ -2,6 +2,7 @@
 #pragma once
 
 #include "frontend.hpp"
+#include "cues.hpp"
 
 namespace d2d::app {
 
@@ -322,25 +323,15 @@ struct Audio {
     }
 };
 
-// World sounds due later (a monster's cry after its delay, an item landing),
-// from a place: played when due, quieter with distance (silent past 20
-// cells from the listener).
-struct Cues {
-    const GameData* scene = nullptr;
-    struct Cue { std::uint32_t at = 0; int sound = 0; float x = 0, y = 0; };
-    std::vector<Cue> due;
-    void cue(int sound, std::uint32_t at, float x, float y) { if (sound > 0) due.push_back({ at, sound, x, y }); }
-    void cue(std::string_view name, std::uint32_t at, float x, float y) {
-        if (const auto it = scene->sound_index.find(std::string(name)); it != scene->sound_index.end()) cue(it->second, at, x, y);
-    }
-    void play(Audio& audio, float lx, float ly, d2d::rules::Rng& rng, std::uint32_t ms) {
-        std::erase_if(due, [&](const Cue& c) {
-            if (ms < c.at) return false;
-            const float d = std::hypot(c.x - lx, c.y - ly);
-            audio.play_sfx(*scene, c.sound, std::clamp(1.f - d / 20.f, 0.f, 1.f), rng(16));
-            return true;
-        });
-    }
-};
+// Plays the World's cues (cues.hpp) that are due, quieter with distance
+// (silent past 20 cells from the listener).
+inline void play_cues(Cues& cues, Audio& audio, float lx, float ly, d2d::rules::Rng& rng, std::uint32_t ms) {
+    std::erase_if(cues.due, [&](const Cues::Cue& c) {
+        if (ms < c.at) return false;
+        const float d = std::hypot(c.x - lx, c.y - ly);
+        audio.play_sfx(*cues.scene, c.sound, std::clamp(1.f - d / 20.f, 0.f, 1.f), rng(16));
+        return true;
+    });
+}
 
 }  // namespace d2d::app

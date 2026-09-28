@@ -1,0 +1,498 @@
+// GameData: what the rules read (tables, levels, timings, strings) and
+// the World's view of them. No pixels, fonts or sound here: Scene
+// (scene.hpp) adds those for the client.
+#pragma once
+
+#include "game.hpp"
+
+namespace d2d::app {
+
+
+// Things the DS1 places (its object list): NPCs (type 1, from
+// data\global\monsters) and objects (type 2 — torches, fires, the
+// waypoint..., from data\global\objects). Both are composites.
+struct Npc {
+    std::string root;                    // "monsters" or "objects"
+    std::string code;                    // <root>\<code>\ ...
+    std::string mode;                    // animation mode token (NU, ON...)
+    std::string base_w;                  // weapon class ("hth" for objects)
+    std::array<std::string, 16> comp;    // per layer, "" = not present
+    float x = 0, y = 0;
+    int size_x = 0, size_y = 0;          // collision footprint, subtiles
+    std::string name;                    // hover label; "" = not selectable
+    std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
+    float velocity = 3;                  // MonStats Velocity
+    int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
+    std::string id;                      // MonStats Id (npc.txt key)
+    int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
+    int op_frames = 0;                   // objects.txt FrameCnt1 when it has an OP mode (Mode1)
+    int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
+    int trap = 0;                        // a chest's trap type (roll_chest), 0 none
+    bool locked = false;                 // a locked chest: takes a key
+    int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
+    int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
+    bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
+    std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
+    int colour = 0;                      // the colour it's drawn in (FUN_00466360; Scene::monster_map), 0/1 none
+    int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)
+    std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
+};
+
+// One level (Levels.txt row): its DS1, the DT1s it references and a
+// (style, seq, type) -> tile lookup for the compositor, the walk grid, the
+// units the DS1 places, where players arrive, and its sound environment.
+// Empty when the assets aren't found (headless / bad data dir).
+struct Level {
+    int id = 0;                                        // Levels.txt Id (1: the Rogue Encampment)
+    std::string name;                                  // Levels.txt LevelName
+    int type = 1;                                      // its LevelType (AutoMap.txt rules)
+    int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
+    int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
+    int song = 0, ambience = 0;                        // SoundEnviron Song / Day Ambience (Sounds.txt)
+    int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
+    int light = -1;                                    // Levels.txt Intensity when it has its own light (caves: 0), -1 the day's
+    bool rain = false;                                 // Levels.txt Rain: the weather reaches it
+    d2d::ds1::Map ds1;
+    std::vector<d2d::dt1::Archive> dt1s;
+    // Keyed by (style, seq, type) — one map covers floors, walls, trees,
+    // shadows, roofs; the DT1's `type` field disambiguates orientations
+    // that share (style, seq). First matching tile wins across DT1s.
+    std::unordered_map<std::uint64_t, const d2d::dt1::Tile*> tile_lookup;
+    // The DT1 tile game.exe's room pass gives each cell (drlg
+    // level_room_tiles, proven against game.exe): layer 0 wall, 1 floor,
+    // 2 shadow, in the order the rooms add them. Filled for generated
+    // levels; when present it replaces tile_lookup for drawing and walking.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; };
+    std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
+    // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
+    // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
+    // 0x08 blocks player walking (DT1 subtile flag bits).
+    std::vector<std::uint8_t> walk;
+    std::vector<Npc> npcs;                             // what its DS1 places (and Cain)
+    // The levels next to it in the act, (dx, dy) = their origin minus
+    // ours, in cells. Past this map's edge, collision and
+    // the renderer use theirs — the way D2 walks and draws across rooms
+    // of neighbouring levels.
+    struct Near { const Level* level; int dx, dy; };
+    mutable std::vector<Near> nearby;                  // linked as neighbours get built (install_level)
+    [[nodiscard]] bool inside(float x, float y) const {
+        return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
+    }
+    // `mask` 0x09 walls for walkers; 0x04 the missile barrier (the DT1
+    // subtile bit missiles stop on; walk-only 0x01 cells, like the Fallen
+    // camp's, let them by).
+    [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
+        if (!inside(x, y))
+            for (const auto& n : nearby)
+                if (n.level->inside(x - float(n.dx), y - float(n.dy))) return n.level->blocked_here(x - float(n.dx), y - float(n.dy), mask);
+        return blocked_here(x, y, mask);
+    }
+    [[nodiscard]] bool blocked_here(float x, float y, std::uint8_t mask = 0x09) const {
+        const int w = ds1.width() * 5, h = ds1.height() * 5;
+        const int sx = int(std::floor(x * 5)), sy = int(std::floor(y * 5));
+        if (sx < 0 || sy < 0 || sx >= w || sy >= h || walk.empty()) return true;
+        return walk[std::size_t(sy) * std::size_t(w) + std::size_t(sx)] & mask;
+    }
+    // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
+    // collision pattern is a plus: the subtile and its four neighbours,
+    // any of them walls (0x09) blocks — FUN_0064d100, collision pattern
+    // 1 (FUN_0064d870). Off the map counts as blocked, like the game's
+    // 0x27 outside a room.
+    // Units don't stamp themselves in; moving ones block each other through
+    // the Crowd (ai.hpp).
+    [[nodiscard]] bool unit_blocked(float x, float y) const {
+        return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
+            || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
+    }
+    // The nearest spot a unit can stand, searching outward a subtile per
+    // ring (FUN_0064dea0 does it per room for spawns).
+    [[nodiscard]] std::pair<float, float> nearest_free(float x, float y) const {
+        if (!unit_blocked(x, y)) return { x, y };
+        for (int r = 1; r < 200; ++r)
+            for (int i = -r; i <= r; ++i)
+                for (auto [ox, oy] : { std::pair{ i, -r }, { i, r }, { -r, i }, { r, i } })
+                    if (!unit_blocked(x + float(ox) * 0.2f, y + float(oy) * 0.2f))
+                        return { x + float(ox) * 0.2f, y + float(oy) * 0.2f };
+        return { x, y };
+    }
+    std::pair<float, float> start{ -1.f, -1.f };            // cells: where a player joining arrives; see load_world
+    std::pair<float, float> portal_spot{ -1.f, -1.f };      // cells: a town's portal arrival (DS1 special 33, spawn index 11)
+    // Its warps (the units its hidden warp tiles make): cell, the level
+    // it leads to (Levels.txt Vis), and where someone arriving through it
+    // stands (its LvlWarp ExitWalk, subtiles from the cell).
+    struct Warp { float x, y; int to; float exit_x, exit_y; };
+    std::vector<Warp> warps;
+    // Its rooms' preset units (drlg level_room_tiles, proven against
+    // game.exe): level-relative subtiles; load_npcs / load_monsters make
+    // them objects, NPCs and monsters.
+    std::vector<d2d::drlg::Unit> units;
+    // Monsters: its Levels.txt columns, the rooms the generator made and
+    // what populating them spawned (subtiles, level-relative).
+    d2d::rules::LevelMon mon;
+    std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
+    // What populating it spawns at a difficulty, made the first time it's
+    // played at that difficulty (level_spawns), and its monster region's
+    // MonStats rows (trap 8).
+    mutable std::array<std::optional<std::vector<d2d::rules::Spawn>>, 3> spawns;
+    mutable std::array<std::vector<int>, 3> region;
+};
+
+// What the game's rules read: the tables, the levels, animation timings,
+// string tables, the MPQs. The World (server.hpp) sees only this, so a
+// standalone server loads no graphics beyond the levels' tiles.
+// ponytail: a Level still carries its DT1s' pixels next to its walk grid.
+struct GameData {
+    // A mode's timing, all the World needs of an animation: its COF name
+    // ("AITW1HS"), animdata.d2's rate (256 = a frame per tick), frames per
+    // direction and event frame (the hit), the COF's own rate and frames
+    // for modes animdata lacks, and its directions (0: no such mode).
+    struct AnimTiming {
+        std::string   name;
+        std::uint32_t speed = 0, frames = 0;
+        int           action = -1;
+        std::uint32_t cof_speed = 0, cof_frames = 0, directions = 0;
+        // One frame's length: 25 ticks/s, speed/256 frames a tick.
+        [[nodiscard]] std::uint32_t ms_per_frame() const {
+            return 40u * 256u / std::max<std::uint32_t>(speed ? speed : cof_speed, 1);
+        }
+        [[nodiscard]] std::uint32_t length_ms() const {
+            return ms_per_frame() * std::max<std::uint32_t>(frames ? frames : cof_frames, 1);
+        }
+        // When the attack lands: its event frame, else halfway.
+        [[nodiscard]] std::uint32_t action_ms() const {
+            return action >= 0 ? ms_per_frame() * std::uint32_t(action) : length_ms() / 2;
+        }
+    };
+    // An NPC's / monster's mode, a character's mode in its gear: read from
+    // the COF alone (load.hpp), kept.
+    mutable std::map<std::string, AnimTiming> npc_timings;
+    mutable std::map<std::array<std::uint8_t, 18>, AnimTiming> composite_timings;
+    const AnimTiming& npc_timing(const Npc& n, std::string_view mode) const;
+    const AnimTiming& composite_timing(int d2s_class, int mode, const std::array<std::uint8_t, 32>& gfx) const;   // tints ignored
+    // data\global\animdata.d2 by COF name: the game's rate source (COFs of
+    // walk/run modes store 0), frames per direction and the event frame.
+    struct AnimInfo { std::uint32_t speed = 0, frames = 0; int action = -1; };
+    std::unordered_map<std::string, AnimInfo> anim_data;
+    using Appearance = std::array<std::uint8_t, 32>;   // the save's 16 layer graphics, then their 16 tints
+    std::vector<d2d::compcode::Entry> comp;         // appearance byte -> component
+    std::unordered_map<std::string, d2d::compcode::Piece> item_pieces;
+    d2d::compcode::Colours item_colours;
+    std::optional<d2d::compcode::Types> item_types;    // ItemTypes' hierarchy (a state's itemtype)
+    // Overlay.txt (FUN_00470390; record 0x84): the DCC in
+    // data\global\overlays, its frames, drawn before the unit (PreDraw), the
+    // offset, the height by the unit's class (Height1..4; class -1: +75),
+    // AnimRate (x 16 / 256 frames a tick), its draw mode (Trans, as a COF
+    // layer's draw effect), its light (InitRadius / Radius, RGB).
+    struct OverlayInfo {
+        std::string file;
+        int frames = 1, x = 0, y = 0, rate = 16, trans = 3, radius = 0, init_radius = 0;
+        bool predraw = false;
+        std::array<int, 4> height{};
+        [[nodiscard]] int dy(int cls) const { return y + (cls >= 0 && cls < 4 ? height[std::size_t(cls)] : 75); }
+    };
+    std::unordered_map<std::string, OverlayInfo> overlays;
+    // States.txt's look: the colour shift that wins by colorpri (PL2's
+    // colour shift tables, +0x53500, colorshift - 1), overlays while it lasts
+    // (overlay1..4) and once as it starts (castoverlay); the colour worn
+    // items of itemtype take (itemtrans).
+    struct StateInfo {
+        int pri = 0, shift = -1, item_colour = -1;
+        std::string item_type;
+        std::array<const OverlayInfo*, 4> over{};
+        const OverlayInfo* cast = nullptr;
+    };
+    std::unordered_map<std::string, StateInfo> states;
+    std::vector<std::uint8_t> colour_shifts;           // ACT1 PL2 +0x53500: 111 x 256
+    // Items\Palette\<transform>.dat by Transform 1..8: 21 colours x 256.
+    std::array<std::vector<std::uint8_t>, 9> colormaps;   // item code -> its layer, graphic, armour tiers
+    // The look of what's worn (compcode::look). A state on the player with
+    // an itemtrans colours worn items of its itemtype (FUN_0062c100's first
+    // loop: Enchant's red weapons, Venom Claws' green).
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> on = {}) const {
+        std::vector<d2d::compcode::Worn> worn;
+        for (const auto& it : items)
+            if (it.location == 1) {
+                int c = item_colours.of(it.quality, it.unique_id, it.set_id, it.prefix, it.suffix, it.affixes, it.class_affix,
+                                        it.socketed && !it.socketed_items.empty() ? it.socketed_items[0].code : std::string{});
+                if (const auto p = item_pieces.find(it.code); p != item_pieces.end() && item_types)
+                    for (const auto name : on)
+                        if (const auto st = states.find(std::string(name)); st != states.end() && st->second.item_colour >= 0) {
+                            const int want = item_types->index(st->second.item_type);
+                            if (item_types->isa(item_types->index(p->second.type), want) || item_types->isa(item_types->index(p->second.type2), want)) {
+                                c = st->second.item_colour;
+                                break;
+                            }
+                        }
+                worn.push_back({ it.slot, it.code, c });
+            }
+        const auto l = d2d::compcode::look(comp, item_pieces, worn), t = d2d::compcode::tints(item_pieces, worn);
+        Appearance a;
+        std::copy(l.begin(), l.end(), a.begin());
+        std::copy(t.begin(), t.end(), a.begin() + 16);
+        return a;
+    }
+    std::array<Appearance, 7>         starting_gear{};  // per d2s class, CharStats.txt
+    // Kept open for lazy loads after startup.
+    d2d::mpq::Stack mpqs;
+    // True when 1.14d patch data is layered in. Without it patchstring.tbl
+    // is the CD's (826 entries), whose IDs don't match what 1.14d code asks
+    // for (10832 is "CREATE NEW" in 1.14d, "Bonus to Attack Rating" on CD).
+    bool patched = false;
+    std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
+    std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
+    // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
+    // inventory graphic + size, and the 800x600 inventory panel/layouts.
+    std::optional<d2d::d2s::ItemTables> item_tables;
+    // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
+    // helm/armour, shield), already resolved through Properties.txt.
+    std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
+    // String keys for item names, indexed the way the save's IDs are (see
+    // item_lines): uniques/sets by row without separators, magic affixes by
+    // raw row, rare names by raw row, runewords by RunewordN rank.
+    struct ItemNames {
+        std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
+    } item_names;
+    // ItemStatCost.txt description columns, by stat ID, and what the skill
+    // descfuncs need: skill name keys by skill ID, CharStats strings by class.
+    struct StatDesc {
+        int prio = 0, func = 0, val = 0, op = 0, op_param = 0, dgrp = 0, dgrp_func = 0, dgrp_val = 0;
+        std::string pos, neg, str2, dgrp_pos, dgrp_neg, dgrp_str2;
+    };
+    std::vector<StatDesc> stat_desc;
+    std::vector<std::string> skill_name;         // string key
+    std::vector<int>         skill_class;        // CharStats row, -1 none
+    struct ClassStrs { std::string all_skills, tab[3], only; };
+    std::array<ClassStrs, 7> class_strs;
+    d2d::rules::Tables rules;                    // item/vendor/price tables (components/rules)
+    // belts.txt 800x600 rows ("belt2" .. "uber belt", after the Expansion
+    // separator) by armor.txt `belt` index: box count and boxes 1..16
+    // {left, right, top, bottom}. Index 2 ("default") when no belt is worn.
+    struct Belt { int boxes = 4; std::array<std::array<int, 4>, 16> box{}; };
+    std::array<Belt, 7> belts{};
+    struct InvLayout {
+        int panel_x = 400, panel_y = 60;
+        int grid_x = 0, grid_y = 0, box_w = 29, box_h = 29;
+        int cols = 0, rows = 0;                     // gridX, gridY
+        std::array<std::array<int, 4>, 11> slots{};   // by body slot 1..10: x, y, w, h
+    };
+    std::array<InvLayout, 7> inv_layout{};            // by d2s class
+    // Stash: inventory.txt "Bank Page2" (classic, 6x4) / "Big Bank Page2"
+    // (expansion, 6x8) grids; art PANEL\bank / PANEL\TradeStash (game.exe
+    // loads the latter only for expansion games, FUN_00489e50), drawn in
+    // the left-panel spot like the char panel (0x48f1a4).
+    std::array<InvLayout, 2> stash_layout{};          // [expansion]
+    // Horadric Cube: inventory.txt "Transmogrify Box2" (3x4), art
+    // PANEL\supertransmogrifier (FUN_0048a4b0), same left-panel spot
+    // (panel 0xe, 0x48eeca).
+    InvLayout cube_layout{};
+    std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
+    // A new character's start (CharStats.txt): str, dex, int (energy), vit,
+    // stamina, hpadd; item1..10 with their loc and count; StartSkill.
+    struct ClassStart {
+        int str = 0, dex = 0, ene = 0, vit = 0, stamina = 0, hpadd = 0;
+        struct Item { std::string code, loc; int count = 0; };
+        std::vector<Item> items;
+        std::string start_skill;
+    };
+    std::array<ClassStart, 7> class_start{};
+    // D2's three-tier string tables. Lookup order per D2's own convention:
+    //   patchstring.tbl (826 entries) — patch-shipped overrides, wins
+    //   expansionstring.tbl (2788 entries) — LoD additions (Druid/Assassin
+    //     class names live here in some builds, but 1.14d put them in
+    //     patchstring.tbl — see class-table.md)
+    //   string.tbl (5099 entries) — base classic keys
+    // Frontend button labels come out via ID lookup (see
+    // docs/research/re/frontend-menu-table.md — records at 0x708ec0+ carry
+    // TBL ids 0x13f2..0x13f7 in the +0x18 field). Class-name keys are bare
+    // ("Barbarian", "Assassin", "Druid", …) — see class-table.md.
+    d2d::tbl::Table       strings;         // string.tbl
+    d2d::tbl::Table       patch_strings;   // patchstring.tbl (has Druid/Assassin)
+    d2d::tbl::Table       exp_strings;     // expansionstring.tbl
+    Level town;                                        // the Rogue Encampment, built at start
+    // Every other level: built from the map seed the first time it's
+    // wanted (the same on every machine), then kept. `level` builds it or
+    // waits for its build; `want_level` starts one on the builder thread
+    // (the levels next to the player's); `poll_levels` takes in finished
+    // builds and links outdoor neighbours (Level::nearby). load.hpp.
+    mutable std::map<int, std::unique_ptr<Level>> levels;
+    const Level* level(int id) const;
+    void want_level(int id) const;
+    void poll_levels() const;
+    // SuperUniques.txt (without its Expansion row): name, MonStats row of
+    // its Class, minions.
+    struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> tc;
+                         std::array<int, 3> utrans{}; };   // Utrans by difficulty: its colour
+    std::vector<SuperUnique> superuniques;
+    d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
+    std::array<std::vector<std::string>, 3> unique_names;   // UniquePrefix / Suffix / Appellation, resolved
+    std::array<std::string, 2> unique_formats;         // strings 0x6b9 ("%0 %1"), 0x6ba ("%0 %1 %2")
+    std::vector<d2d::rules::ShrineRow> shrines;        // Shrines.txt
+    std::vector<std::array<int, 4>> area_level;        // Levels.txt MonLvl1Ex..3Ex, then classic MonLvl1, by Id
+    std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
+    std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
+    // Mercenary units by hireling.txt Id (the save's merc type): the
+    // monster, and the first name key (merc01, merca201, MercX101, ...).
+    struct Merc { Npc npc; std::string name_first; };
+    std::unordered_map<int, Merc> mercs;
+    // Waypoints (docs/research/re/waypoint.md): Levels.txt rows with a
+    // Waypoint index, per act in index order; art ui\menu\waygate*.
+    struct WaypointLevel { int wp = 0, level = 0; std::string name; };
+    std::array<std::vector<WaypointLevel>, 5> waypoint_levels;
+    // Sounds.txt by Index: file (under data\global\sfx or, for speech,
+    // data\local\sfx) and volume 0..255.
+    struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0;
+                   int group = 0;                      // Group Size: variants at the following indices
+                   std::array<int, 3> block{ -1, -1, -1 }; };   // a song's Block 1..3: cue points, in sample frames
+    std::unordered_map<std::string, int> sound_index;   // Sounds.txt Sound -> Index
+    // MonSounds.txt by Id (MonStats MonSound): per attack mode (A1, A2) the
+    // attack and weapon sounds, their delays in ticks and the attack sound's
+    // chance; the get-hit and death sounds and delays.
+    struct MonSound {
+        std::array<int, 2> attack{}, weapon{}, att_del{}, wea_del{}, att_prb{ 100, 100 };
+        int hit = 0, death = 0, hit_del = 0, death_del = 0;
+    };
+    std::unordered_map<std::string, MonSound> mon_sounds;
+    std::vector<Sound> sounds;
+    fs::path data_dir;                                  // the MPQs' folder
+    // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
+    // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
+    std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
+    d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
+    d2d::rules::SkillTables skills;                     // Skills.txt, compiled calcs (skills.hpp)
+    std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
+    // Missiles.txt rows monsters and skills fire: velocity (units like
+    // MonStats Velocity), range in ticks (+ LevRange a skill level),
+    // SrcDamage (128 = all the attack's damage), its own damage, animation
+    // (AnimSpeed/16 frames a tick over AnimLen; its CelFile DCC, 32
+    // directions, is in missile_cels); for a skill's: the Skill whose damage it carries
+    // (FUN_0064b860), ToHit (rolls the attack rating), CollideKill (spent on
+    // its first hit; else flies through), Pierce (may fly on, stat 328 %),
+    // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
+    struct MissileInfo { std::string name; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+                         std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
+                         bool to_hit = false, collide_kill = true, pierce = false;
+                         // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
+                         // 0064b2a0 by level): Skill::etype order, frze as cold.
+                         int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
+                         std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
+                         // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
+                         // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
+                         int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
+                         bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
+                         std::string sub, hit_sub;
+                         int light = 0;   // Light: its light radius, subtiles
+                         int trans = 0;   // Trans (record +0x18d): 1 additive, 2 multiply (FUN_004720xx: draw modes 3 / 4)
+                       };
+    std::unordered_map<std::string, MissileInfo> missiles;
+    std::array<Npc, 2> trap_fires;                         // objects 162 / 160, ON (a chest's traps 5 and 7)
+    Npc town_portal;                                       // object 59 (TP): a town portal's look and light
+    std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
+    std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)
+    std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
+    // The level builder: its own MPQ handles, the DRLG tables and the
+    // tables a build reads. Last, so it's torn down first: a build in
+    // flight reads the rest of the Scene.
+    struct LevelBuilder;
+    std::shared_ptr<LevelBuilder> builder;
+};
+
+// D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
+inline std::string u16_to_latin1(std::u16string_view s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char16_t c : s) {
+        // Keep printable Latin-1 (0x20..0xFF) and line breaks (two-line
+        // labels like "Fire\nResistance"), drop the rest — D2 UI strings
+        // are ASCII with occasional accented chars, all inside Latin-1.
+        if ((c >= 0x20 && c <= 0xFF) || c == '\n') out.push_back(char(c));
+    }
+    return out;
+}
+
+
+// TBL lookup with D2's precedence: patch → expansion → base. First-hit wins,
+// matching how the game resolves any string ID/key at runtime.
+inline std::optional<std::u16string_view>
+lookup_string(const GameData& s, std::string_view key) {
+    if (auto v = s.patch_strings.get(key); v && !v->empty()) return v;
+    if (auto v = s.exp_strings.get(key);   v && !v->empty()) return v;
+    if (auto v = s.strings.get(key);       v && !v->empty()) return v;
+    return std::nullopt;
+}
+inline std::optional<std::u16string_view>
+lookup_string(const GameData& s, std::uint16_t id) {
+    // Numeric IDs are banked, not layered (RE'd from char-select: 0x58cb =
+    // 22731 resolves to expansionstring[2731] "EXPANSION CHARACTER"):
+    //   0..9999 string.tbl, 10000..19999 patchstring, 20000+ expansionstring.
+    // Trying every table with the raw ID hits the wrong one — string.tbl
+    // 2731 is "Bile".
+    if (id >= 10000 && id < 20000 && !s.patched) return std::nullopt;
+    const auto& t = id >= 20000 ? s.exp_strings : id >= 10000 ? s.patch_strings : s.strings;
+    const auto local = std::uint16_t(id >= 20000 ? id - 20000 : id >= 10000 ? id - 10000 : id);
+    if (auto v = t.get(local); v && !v->empty()) return v;
+    return std::nullopt;
+}
+
+
+inline std::string string_id(const GameData& s, std::uint16_t id) {
+    const auto v = lookup_string(s, id);
+    return v ? u16_to_latin1(*v) : std::string{};
+}
+
+// .d2s class id (AM SO NE PA BA DZ AS) -> our visual-order index
+// (BA NE PA AM SO DZ AS, see kClassKey).
+constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
+constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
+
+// Composite tokens: d2s class id -> CHARS folder (Assassin is "AI", its
+// dev codename), D2 mode ids we use, and layer names by COF type.
+constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
+constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
+              kModeA1 = 7, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeDD = 17;
+
+// ponytail: town walk speed picked by eye so the TW cycle doesn't skate
+// (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
+// input; derive from it once movement units are RE'd.
+// Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
+// MonStats Velocity): the path velocity is velocity << 8 (scaled by
+// velocitypercent, FUN_00462a20), and a unit covers path velocity / 4096
+// subtiles per 40 ms tick (arrival time (dist << 16) / ((v >> 8) << 12),
+// 0x4c86a3) — velocity / 16 subtiles a tick. Walk 6: 1.875 cells/s.
+constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 5.f; }
+
+// Direction (0..15, D2's DCC order) for a world-space step (dx, dy) in
+// cells. Directions are screen-space: project to screen, take the angle
+// clockwise from straight down, and map the 16 sectors through D2's
+// ordering — the 8 main directions first (0 SW, 1 NW, 2 NE, 3 SE, 4 S,
+// 5 W, 6 N, 7 E), then the half-steps (8 between S and SW, ...).
+inline int direction16(float dx, float dy) {
+    constexpr int kFromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
+    const float sx = (dx - dy) * (kIsoW / 2), sy = (dx + dy) * (kIsoH / 2);
+    const float a = std::atan2(-sx, sy);                    // 0 = down, + = clockwise
+    const int sector = int(std::lround(a / (2 * 3.14159265f / 16)));
+    return kFromSector[std::size_t((sector % 16 + 16) % 16)];
+}
+// A composite's direction for a 16-direction facing: 0..7 are the eight
+// compass points, 8..15 the ones between; an 8-direction composite (town
+// NPCs, mercs) takes the neighbouring point for those — clamping them
+// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
+// game.exe maps its 64 unit directions per direction count, not RE'd.
+inline std::uint8_t cof_direction(int dir16, int dirs) {
+    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
+    const int d = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
+    return std::uint8_t(std::clamp(d, 0, std::max(dirs - 1, 0)));
+}
+constexpr const char* kModeCode[18] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW", "A1", "A2", "BL", "SC",
+                                        "TH", "KK", "S1", "S2", "S3", "S4", "DD" };
+constexpr const char* kLayerCode[16] = {
+    "HD", "TR", "LG", "RA", "LA", "RH", "LH", "SH",
+    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8",
+};
+
+// A level's population for a difficulty, and the levels next to one
+// (load.hpp builds them).
+const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& L, int d);
+void want_nearby(const GameData& s, const Level& l);
+
+}  // namespace d2d::app

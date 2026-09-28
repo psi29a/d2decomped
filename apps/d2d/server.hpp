@@ -96,7 +96,7 @@ constexpr std::uint32_t kTickMs = 40;
 
 struct World {
     const GameData* scene = nullptr;
-    CharCreateUI cc;                       // the character: the World's own (the client's is a copy of the View's)
+    Character cc;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
     std::optional<UnitState> merc;          // the save's mercenary, following
@@ -424,7 +424,7 @@ struct World {
     // A player enters with their character (a save loaded, or made): the
     // World takes its copy, the merc comes along, a fresh game; the Act 1
     // quest-gated NPCs (Cain) are there once their quest is done.
-    void enter(const CharCreateUI& c) {
+    void enter(const Character& c) {
         cc.selected = c.selected; cc.input_name = c.input_name; cc.hardcore = c.hardcore;
         cc.appearance = c.appearance; cc.items = c.items; cc.stats = c.stats; cc.panel = c.panel;
         cc.expansion = c.expansion; cc.header = c.header;

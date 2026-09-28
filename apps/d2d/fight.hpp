@@ -64,7 +64,7 @@ inline bool finisher(const d2d::rules::Skill* s) {
 // (the skill shrine's +all skills) — only on skills that have points.
 // ponytail: other general skills, item charges, charms and set bonuses
 // don't count yet.
-inline int skill_base_level(const GameData& s, const CharCreateUI& cc, int id) {
+inline int skill_base_level(const GameData& s, const Character& cc, int id) {
     const auto& ids = s.skills.class_ids[std::size_t(kUiToSaveClass[std::max(cc.selected, 0)])];
     if (const auto it = std::ranges::find(ids, id); it != ids.end()) return cc.stats.skills[std::size_t(it - ids.begin())];
     if (id == 0) return 1;
@@ -73,7 +73,7 @@ inline int skill_base_level(const GameData& s, const CharCreateUI& cc, int id) {
     const char* tome = k->name == "Book of Townportal" ? "tbk" : k->name == "Book of Identify" ? "ibk" : nullptr;
     return tome && std::ranges::any_of(cc.items, [&](const d2d::d2s::Item& it) { return it.code == tome && it.location == 0; }) ? 1 : 0;
 }
-inline int skill_level(const GameData& s, const CharCreateUI& cc, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
+inline int skill_level(const GameData& s, const Character& cc, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
     const auto* k = s.skills.get(id);
     const int base = skill_base_level(s, cc, id);
     if (!k || k->cls.empty()) return base;
@@ -93,7 +93,7 @@ inline int skill_level(const GameData& s, const CharCreateUI& cc, int id, const 
 struct Fight {
     const GameData* scene;
     const Level* const& level;             // Town's: where the player is
-    CharCreateUI& cc;
+    Character& cc;
     UnitState& player;
     std::optional<UnitState>& merc;
     const Npc* const& merc_npc;
