@@ -990,10 +990,9 @@ inline bool hire(const MercOffer& o, d2d::d2s::Header& h, d2d::d2s::Stats& st) {
 // Drinks the potion at the bottom of belt column `col` (box col, 0..3):
 // the item goes, those stacked above it (boxes col + 4, + 8, + 12) drop
 // a row. Returns its code, "" when there's no potion there.
-// A potion drunk from anywhere it's carried (item unit id): gone, and a
-// belt one's column moves down. Returns its code, "" if it isn't a potion.
-inline std::string drink_item(const Tables& t, std::vector<d2d::d2s::Item>& items, int id) {
-    const auto it = std::ranges::find(items, id, &d2d::d2s::Item::id);
+// A potion drunk from where it's carried: gone, and a belt one's column
+// moves down. Returns its code, "" if it isn't a potion.
+inline std::string drink_at(const Tables& t, std::vector<d2d::d2s::Item>& items, std::vector<d2d::d2s::Item>::iterator it) {
     if (it == items.end() || !t.potions.contains(it->code) || it->location == 1) return {};
     std::string code = it->code;
     const int col = it->location == 2 ? it->column : -1;
@@ -1003,9 +1002,11 @@ inline std::string drink_item(const Tables& t, std::vector<d2d::d2s::Item>& item
             for (auto& i : items) if (i.location == 2 && i.column == box) i.column = box - 4;
     return code;
 }
+inline std::string drink_item(const Tables& t, std::vector<d2d::d2s::Item>& items, int id) {
+    return drink_at(t, items, std::ranges::find(items, id, &d2d::d2s::Item::id));
+}
 inline std::string drink_belt(const Tables& t, std::vector<d2d::d2s::Item>& items, int col) {
-    const auto it = std::ranges::find_if(items, [&](const d2d::d2s::Item& i) { return i.location == 2 && i.column == col; });
-    return it == items.end() ? std::string{} : drink_item(t, items, it->id);
+    return drink_at(t, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& i) { return i.location == 2 && i.column == col; }));
 }
 
 // Cain's "Identify Items": the carried and worn ones. Returns how many.
