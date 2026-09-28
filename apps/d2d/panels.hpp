@@ -2,6 +2,7 @@
 #pragma once
 
 #include "items.hpp"
+#include "inventory.hpp"
 
 namespace d2d::app {
 
@@ -278,16 +279,6 @@ void draw_storage(std::vector<std::uint8_t>& fb, const Scene& s, const std::vect
     if (hover) draw_hover_text(fb, s, item_lines(s, *hover, clvl), hb[0], hb[0] + hb[2], hb[1] + hb[3], hb[1]);
 }
 
-// The equipped belt's belts.txt index (armor.txt `belt`), 2 ("default":
-// one row) without one — as the popup code picks it (0x49906b).
-int belt_index(const GameData& s, const std::vector<d2d::d2s::Item>& items) {
-    for (const auto& it : items)
-        if (it.location == 1 && it.slot == 8)
-            if (const auto i = s.rules.item_info.find(it.code); i != s.rules.item_info.end() && i->second.belt >= 0
-                && i->second.belt < 7)
-                return i->second.belt;
-    return 2;
-}
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the

@@ -3,6 +3,7 @@
 // movement, NPCs, then the render.
 #pragma once
 
+#include "window.hpp"
 #include "replication.hpp"
 #include "skillbar.hpp"
 

@@ -62,7 +62,7 @@ struct CharacterStore {
 // the inventory), level 1, normal difficulty, no hotkeys.
 // ponytail: stacks (javelins) roll their quantity as a drop does.
 struct NewCharacter { d2d::d2s::Header header; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> items; };
-inline NewCharacter new_character(const Scene& s, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
+inline NewCharacter new_character(const GameData& s, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     using namespace d2d::d2s;
     NewCharacter n;
     const auto c = std::size_t(std::clamp(cls, 0, 6));

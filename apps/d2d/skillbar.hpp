@@ -6,6 +6,7 @@
 // item bonuses (components/rules/skills.hpp).
 #pragma once
 
+#include "window.hpp"
 #include "fight.hpp"
 
 namespace d2d::app {

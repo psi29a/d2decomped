@@ -1,7 +1,9 @@
 // NPC behaviour: town NPCs patrolling their DS1 paths.
 #pragma once
 
-#include "world.hpp"
+#include "gamedata.hpp"
+#include "character.hpp"
+#include "cues.hpp"
 
 namespace d2d::app {
 

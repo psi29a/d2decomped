@@ -66,7 +66,7 @@ inline std::vector<d2d::d2s::Item> items(In& in, const d2d::d2s::ItemTables& t) 
 }  // namespace wire
 
 // The Scene's level with Levels.txt id `id`.
-inline const Level* level_of(const Scene& s, int id) { return s.level(id); }
+inline const Level* level_of(const GameData& s, int id) { return s.level(id); }
 
 // What one client was last sent (the server keeps one per client): each
 // section's bytes, each monster's look and state, each NPC's state. A
@@ -118,7 +118,7 @@ inline void monster_state(In& in, Monster& m) {
 
 // The View as what changed since `enc` last sent (encode_view) and, on
 // the client, that change applied to its last View (apply_view).
-inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, ViewEncoder& enc) {
+inline std::vector<std::uint8_t> encode_view(const GameData& s, const View& v, ViewEncoder& enc) {
     wire::Out o;
     o.u8(0x70);                                              // our own id: game.exe has no packet for a whole view
     const int lvl = v.level ? v.level->id : -1;
@@ -279,7 +279,7 @@ inline std::vector<std::uint8_t> encode_view(const Scene& s, const View& v, View
 
 // The client's side: a View message applied to its last View `v`. False for
 // anything malformed (the client asks for a keyframe).
-inline bool apply_view(const Scene& s, std::span<const std::uint8_t> b, View& v) {
+inline bool apply_view(const GameData& s, std::span<const std::uint8_t> b, View& v) {
     if (b.empty() || b[0] != 0x70) return false;
     wire::In in{ b };
     auto u8 = [&] { return int(in.get<std::uint8_t>()); };

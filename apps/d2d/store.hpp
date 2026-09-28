@@ -2,18 +2,10 @@
 #pragma once
 
 #include "skilltree.hpp"
+#include "inventory.hpp"
 
 namespace d2d::app {
 
-using d2d::rules::Store;
-
-// The store for world NPC npc (stock rolled from rng).
-Store open_store(const GameData& s, const Level& L, int npc, d2d::rules::Rng& rng) {
-    const auto& n = L.npcs[std::size_t(npc)];
-    Store st = d2d::rules::open_store(s.rules, n.hc_idx, n.id, rng);
-    st.npc = npc;
-    return st;
-}
 
 // The hire list (FUN_004b5c60): a 490x350 NPC text window, header
 // "Your Gold: %d     Hire which Mercenary?" (0xd24, carried + stash gold)

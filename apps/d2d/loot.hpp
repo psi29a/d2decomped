@@ -3,7 +3,8 @@
 // up into the purse or the inventory.
 #pragma once
 
-#include "window.hpp"
+#include "ai.hpp"
+#include "inventory.hpp"
 
 namespace d2d::app {
 
