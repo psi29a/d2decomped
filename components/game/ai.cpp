@@ -77,12 +77,21 @@ std::string unique_name(const GameData& game_data, int name_seed) {
     return name;
 }
 
-std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, d2d::rules::Rng& rng, int difficulty) {
+std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, const d2d::rules::Region& region,
+                                    d2d::rules::Rng& rng, int difficulty) {
     std::vector<Monster> out;
     for (const auto& spawn : spawns) {
         if (spawn.type < 0 || std::size_t(spawn.type) >= game_data.mon_npc.size()) continue;
         const bool boss = spawn.boss != d2d::rules::Boss::none;
         auto monster = make_monster(game_data, spawn.type, (float(spawn.x) + 0.5f) / 5, (float(spawn.y) + 0.5f) / 5, rng, difficulty, !boss);
+        const auto& type_info = game_data.monsters.types[std::size_t(spawn.type)];
+        const std::vector<d2d::rules::Components>* sets = nullptr;
+        for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
+            if (region.types[i].first == spawn.type) sets = &region.components[i];
+        d2d::rules::Rng unit_seed{ spawn.seed };
+        const auto look = d2d::rules::monster_look(sets, type_info.choices, unit_seed);
+        for (std::size_t layer = 0; layer < 16; ++layer)
+            if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
         if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng);
         monster.leader = spawn.leader;
         out.push_back(std::move(monster));

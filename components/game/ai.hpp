@@ -243,10 +243,6 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     });
 }
 
-// The level's spawns as monsters: each rolls its components (one of
-// MonStats2's HDv..S8v per layer) and its stats at the difficulty.
-// ponytail: components from our own roll, not game.exe's
-// (the monster's seed at spawn isn't traced).
 // A random unique's name (the client's FUN_004ac870): on {name seed, 666},
 // a suffix then a prefix into string 0x6b9 ("%0 %1"); then rand(100) < 50
 // builds it again, appellation, suffix, prefix, into 0x6ba ("%0 %1 %2").
@@ -262,7 +258,10 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // and stats rolled (a boss's by make_boss instead: `stats` false).
 Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true);
 
-std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, d2d::rules::Rng& rng, int difficulty);
+// Spawns as monsters, each looking as its unit seed picks from `region`
+// (rules::monster_look).
+std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, const d2d::rules::Region& region,
+                                    d2d::rules::Rng& rng, int difficulty);
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 

@@ -409,8 +409,9 @@ Combat
 Spawning
 - Rooms populate as they come into play, on the room1 seed (done
   2026-09-28, monsters.md "When a room populates"); left: tiles still
-  come up at load, the camp's room order; the +0x20 seed for group counts; which region component set a monster
-  takes. (The game seed, regions and object seed match game.exe.)
+  come up at load, the camp's room order; the +0x20 seed for group counts.
+  A monster's look is game.exe's pick from its unit seed (done 2026-09-28).
+  Random object groups (Levels ObjGrp, FUN_00552610) aren't built. (The game seed, regions and object seed match game.exe.)
 
 Act 1 levels and rendering
 - Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
@@ -547,7 +548,7 @@ covers only the paths those two take). Next, in order:
 2. The caves and crypts on the Den's maze generator, with the cave theme
    rooms (FUN_006735f0).
 3. The presets: Tristram, the Monastery, the Catacombs.
-Still open in the Blood Moor: which region component set a monster takes; the Portal
+Still open in the Blood Moor: random object groups (FUN_00552610); the Portal
 Shrine; warp arrival spots (a guess); the camp's hidden river-edge walls
 (game.exe keeps them as wall tiles; drawn or only blocking isn't traced).
 

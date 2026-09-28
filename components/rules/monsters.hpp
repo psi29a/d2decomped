@@ -55,6 +55,17 @@ inline std::vector<Components> roll_components(const Components& choices, Rng& r
     return sets;
 }
 
+// A monster's look as it's made (FUN_00573cb0 → FUN_005739d0), the first
+// roll of its unit seed: one of its type's region sets (rand(count)); a
+// type the level's region lacks rolls every layer with a choice instead
+// (a layer of one choice still takes a roll).
+inline Components monster_look(const std::vector<Components>* sets, const Components& choices, Rng& unit_seed) {
+    if (sets && !sets->empty()) return (*sets)[std::size_t(unit_seed(int(sets->size())))];
+    Components look{};
+    for (std::size_t layer = 0; layer < 16; ++layer) look[layer] = std::uint8_t(choices[layer] < 1 ? 0 : unit_seed(choices[layer]));
+    return look;
+}
+
 // The level's monster region (FUN_005475e0): up to NumMon (at most 13)
 // types drawn without replacement from the difficulty's list, each kept
 // with its rarity and component sets when MonStats isSpawn. With
@@ -95,6 +106,9 @@ struct Spawn {
     Boss boss = Boss::none;                                   // champion / unique / its minion
     std::vector<int> mods;                                    // MonUMod ids
     int name_seed = 0;                                        // a unique's (rndname)
+    // Its unit seed (unit +0x20, {seed, 666}): a step of the game seed as
+    // the unit is made (FUN_00555230 → FUN_00552df0), what its look rolls.
+    std::uint32_t seed = 0;
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
@@ -177,21 +191,22 @@ bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, 
 // radius 3).
 // ponytail: a monster's own seed (unit +0x20) is the room's here.
 template <class Fits>
-void boss_pack(const Monsters& monsters, int utype, int leader_x, int leader_y, SpawnRoom& room, Fits&& fits, std::vector<Spawn>& out, Population& pop) {
+void boss_pack(const Monsters& monsters, int utype, int leader_x, int leader_y, SpawnRoom& room, Fits&& fits, std::vector<Spawn>& out, Population& pop,
+               Rng& game) {
     using monster_detail::place;
     const auto& unique_type = monsters.types[std::size_t(utype)];
     auto boss = roll_boss(*pop.umods, unique_type, pop.difficulty, true, room.seed);
     const int leader = int(out.size());
-    out.push_back({ utype, leader_x, leader_y, leader, -1, boss.kind, boss.mods, boss.name_seed });
+    out.push_back({ utype, leader_x, leader_y, leader, -1, boss.kind, boss.mods, boss.name_seed, game.next() });
     ++pop.uniques;
     int spot_x, spot_y;
     if (boss.kind == Boss::champion) {
         for (int remaining = room.seed(3) + 1; remaining > 0; --remaining)
-            if (place(room, leader_x, leader_y, 4, fits, spot_x, spot_y)) out.push_back({ utype, spot_x, spot_y, leader, -1, Boss::champion, { umod::champion } });
+            if (place(room, leader_x, leader_y, 4, fits, spot_x, spot_y)) out.push_back({ utype, spot_x, spot_y, leader, -1, Boss::champion, { umod::champion }, 0, game.next() });
     } else {
         const int minion_type = unique_type.minion[0] >= 0 ? unique_type.minion[0] : utype;
         for (int remaining = room.seed(4) + 3; remaining > 0; --remaining)
-            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) out.push_back({ minion_type, spot_x, spot_y, leader, -1, Boss::minion, {} });
+            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) out.push_back({ minion_type, spot_x, spot_y, leader, -1, Boss::minion, {}, 0, game.next() });
     }
 }
 
@@ -241,7 +256,7 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
             const int utype = pick_type(reg, room.seed);
             int spot_x, spot_y, leader_x, leader_y;
             if (!spot(spot_x, spot_y) || !place(room, spot_x, spot_y, -1, fits, leader_x, leader_y)) continue;
-            boss_pack(monsters, utype, leader_x, leader_y, room, fits, out, *pop);
+            boss_pack(monsters, utype, leader_x, leader_y, room, fits, out, *pop, game);
             continue;
         }
         int low = type_info.min_grp, high = type_info.max_grp;
@@ -253,11 +268,11 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
         int leader_x, leader_y;
         if (!place(room, spot_x, spot_y, -1, fits, leader_x, leader_y)) continue;
         const int leader = int(out.size());
-        out.push_back({ type, leader_x, leader_y, leader });
+        out.push_back({ type, leader_x, leader_y, leader, -1, Boss::none, {}, 0, game.next() });
         auto nearby = [&](int who, int radius) {
             int found_x, found_y;
             if (who >= 0 && std::size_t(who) < monsters.types.size() && place(room, leader_x, leader_y, radius, fits, found_x, found_y))
-                out.push_back({ who, found_x, found_y, leader });
+                out.push_back({ who, found_x, found_y, leader, -1, Boss::none, {}, 0, game.next() });
         };
         if (type_info.minion[0] >= 0) {                         // FUN_005b2830
             const int count = room.seed.range(type_info.party_min, type_info.party_max);

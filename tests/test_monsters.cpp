@@ -116,5 +116,21 @@ int main() {
         }
         assert(boss_aura(40, 5, 37).skill == 122 && boss_aura(40, 5, 37).level == 5);
     }
+    // A monster's look (FUN_005739d0, checked against game.exe on 2000
+    // unit seeds): rand(sets) on its unit seed; without sets, a roll per
+    // layer with a choice, a one-choice layer included.
+    {
+        const std::vector<Components> sets = { Components{ 1 }, Components{ 2 }, Components{ 3 } };
+        for (std::uint32_t seed = 1; seed < 50; ++seed) {
+            Rng unit_seed{ seed }, expect{ seed };
+            assert(monster_look(&sets, {}, unit_seed)[0] == sets[std::size_t(expect(3))][0]);
+        }
+        Components choices{};
+        choices[0] = 1; choices[2] = 3;
+        Rng unit_seed{ 7 }, expect{ 7 };
+        const auto look = monster_look(nullptr, choices, unit_seed);
+        (void)expect(1);
+        assert(look[0] == 0 && look[1] == 0 && look[2] == expect(3) && unit_seed.low == expect.low);
+    }
     std::puts("ok");
 }

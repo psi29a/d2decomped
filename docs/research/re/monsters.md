@@ -85,6 +85,22 @@ distinct Ids (bugs.md #13).
   seeds` (300 seeds each, the Blood Moor and the Den, rooms brought up in
   list order).
 
+- **Every unit made steps the game seed.** FUN_00555230 (the server's
+  unit maker, every type but players) calls FUN_00552df0(unit, game
+  +0xd0): one step, the low word is the unit's init seed (+0x28) and its
+  seed (+0x20) is `{low, 666}`. So a room's preset monsters, objects and
+  warp tiles, and each monster population places, take a step between
+  the density rolls; so do items, missiles, the merc and the camp's NPCs
+  wherever they're made, which puts the stream's absolute state out of
+  reach without modelling every unit (d2d steps only for what rooms make).
+- **Its look** (FUN_00574250 → FUN_00573cb0 → FUN_005739d0, ECX the
+  type's region entry from FUN_00547bc0, EDX the unit) is the first roll
+  of the unit seed: `rand(entry +3)`, and that set's 16 bytes go to
+  monster data +4. A type the region lacks rolls each of the 16 layers
+  with at least one choice (MonStats2 +0x15.., FUN_006647c0), a
+  one-choice layer included. Checked in the emulator: 2000 seeds.
+  FUN_00573cb0 then rolls the monster's life on the same seed.
+
 d2d: `Spawning` (components/game/gamedata.hpp, `start_spawning`,
 `player_moved`), run by `Fight::rooms_up` every tick and on arrival. The
 camp's rooms are 8×8 splits row by row (their order isn't traced), and
@@ -331,8 +347,13 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
   the room1 seeds after them) can differ from ours off that order.
 - The seed at `+0x20` used for party and group counts (we use the room's).
 - The `spawn` replacement.
-- Which of its type's region component sets a monster takes (we roll
-  our own per layer, ai.cpp), and its stat init.
+- The stat init after the look (FUN_00573cb0: life on the unit seed,
+  FUN_006538a0), and the unit seed's later rolls (champion / unique,
+  party and group counts: the room's here).
+- Random object groups per room (FUN_00552610: Levels ObjGrp0..7 /
+  ObjPrb0..7, objgroup.txt, objects.txt PopulateFn through 0x731d00) aren't
+  built: the Blood Moor's dead rogues and forest objects, and their steps
+  of the game seed.
 
 Seed 3's Blood Moor: 155 monsters (107 fallen1, 24 quillrat1, 24 zombie1).
 

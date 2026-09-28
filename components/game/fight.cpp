@@ -2559,7 +2559,8 @@ auto Fight::enter(const Level* destination) -> void {
 auto Fight::rooms_up(const Level& at, float x, float y, bool arrived) -> void {
         for (const auto& [grown, from] : player_moved(*game_data, spawning, at, x, y, arrived)) {
             const auto& spawns = spawning.levels[grown].spawns;
-            auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), rng, game_difficulty);
+            const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
+            auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty);
             auto& into = grown == mon_level ? monsters : kept[grown];
             for (auto& monster : made) { monster.id = next_id++; into.push_back(std::move(monster)); }
         }

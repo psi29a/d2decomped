@@ -327,7 +327,8 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     auto at_spot = [&](int type, int x, int y, int retry) {
         if (type < 0) return;
         int spot_x, spot_y;
-        if (place(room, x, y, -1, fits, spot_x, spot_y) || (retry > 0 && place(room, x, y, retry, fits, spot_x, spot_y))) spawns.push_back({ type, spot_x, spot_y });
+        if (place(room, x, y, -1, fits, spot_x, spot_y) || (retry > 0 && place(room, x, y, retry, fits, spot_x, spot_y)))
+            spawns.push_back({ type, spot_x, spot_y, -1, -1, d2d::rules::Boss::none, {}, 0, spawning.game.next() });
     };
     // FUN_0063ec70 + FUN_0054e2a0: a base monster as the level has it — the
     // first of its family in the level's list, then Carvers / Devilkin (and
@@ -343,12 +344,14 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         return row;
     };
     for (const auto& unit : level.units) {
-        if (unit.type != 1 || unit.id < 0) continue;
         if (unit.x < room.x || unit.y < room.y || unit.x >= room.x + room.width || unit.y >= room.y + room.height) continue;
+        if (unit.type == 2 || unit.type == 5) { spawning.game.next(); continue; }   // an object or a warp tile: a unit made (FUN_00555230)
+        if (unit.type != 1 || unit.id < 0) continue;
         if (unit.id < nmon) {                                                // a MonStats row (FUN_0054e490)
             const auto monstats_row = game_data.mon_bin[std::size_t(unit.id)];
             const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
             if (!game_data.mon_is_npc[monstats_row]) at_spot(int(monstats_row), unit.x, unit.y, stay ? 0 : 4);
+            else spawning.game.next();                                       // an NPC (Flavie): made, drawn by the level's NPCs
             continue;
         }
         if (unit.id >= nmon + nsu) {                                         // MonPlace
@@ -361,11 +364,12 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
                 if (code == 0x03) {                                       // place_champion: at the spot, mod 16, 1..3 more (FUN_0054e1e0)
                     if (!place(room, unit.x, unit.y, -1, fits, spot_x, spot_y)) continue;
                     const int lead = int(spawns.size());
-                    spawns.push_back({ type, spot_x, spot_y, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion } });
+                    spawns.push_back({ type, spot_x, spot_y, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion }, 0, spawning.game.next() });
                     for (int remaining = room.seed(3) + 1; remaining > 0; --remaining)
-                        if (place(room, spot_x, spot_y, 4, fits, leader_x, leader_y)) spawns.push_back({ type, leader_x, leader_y, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion } });
+                        if (place(room, spot_x, spot_y, 4, fits, leader_x, leader_y))
+                            spawns.push_back({ type, leader_x, leader_y, lead, -1, d2d::rules::Boss::champion, { d2d::rules::umod::champion }, 0, spawning.game.next() });
                 } else if (d2d::rules::room_spot(room, fits, near_way, leader_x, leader_y) && place(room, leader_x, leader_y, -1, fits, spot_x, spot_y)) {
-                    d2d::rules::boss_pack(monsters, type, spot_x, spot_y, room, fits, spawns, pop);   // place_unique_pack: a random spot of the room (FUN_005a43e0)
+                    d2d::rules::boss_pack(monsters, type, spot_x, spot_y, room, fits, spawns, pop, spawning.game);   // place_unique_pack: a random spot of the room (FUN_005a43e0)
                 }
             }
             continue;
@@ -383,14 +387,18 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         if (!place(room, unit.x, unit.y, -1, fits, leader_x, leader_y) && !place(room, unit.x, unit.y, 5, fits, leader_x, leader_y)) continue;
         const int lead = int(spawns.size());
         spawns.push_back({ sup.type, leader_x, leader_y, -1, superunique_index, d2d::rules::Boss::superunique,
-                           d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, room.seed) });
+                           d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, room.seed), 0,
+                           spawning.game.next() });
         const int minion = monsters.types[std::size_t(sup.type)].minion[0] >= 0 ? monsters.types[std::size_t(sup.type)].minion[0] : sup.type;
         const int low = sup.min_grp + (sup.min_grp && sup.max_grp ? difficulty : 0), high = sup.max_grp + (sup.min_grp && sup.max_grp ? difficulty : 0);
         const int count = room.seed.range(low, std::max(low, high));
         int placed = 0;
         for (int k = 0; k < count; ++k) {
             int spot_x, spot_y;
-            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) { spawns.push_back({ minion, spot_x, spot_y, lead, -1, d2d::rules::Boss::minion, {} }); ++placed; }
+            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) {
+                spawns.push_back({ minion, spot_x, spot_y, lead, -1, d2d::rules::Boss::minion, {}, 0, spawning.game.next() });
+                ++placed;
+            }
         }
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
