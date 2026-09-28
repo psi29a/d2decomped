@@ -192,6 +192,16 @@ struct Fight {
     std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
     std::uint32_t storm_frame = 0;                 // the last frame buff_tick ran its paced strikes
     std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
+    // What worn items (and passives) put on the maxima (256ths): the
+    // character's own, as a save keeps them, are the maxima less these.
+    std::array<std::int64_t, 3> item_max{};        // life, mana, stamina
+    // The stats as a save keeps them: the maxima without items or Battle Orders.
+    [[nodiscard]] d2d::d2s::Stats own_stats() const {
+        using namespace d2d::d2s;
+        auto st = cc.stats;
+        st.v[kMaxLife] -= bo_life + item_max[0]; st.v[kMaxMana] -= bo_mana + item_max[1]; st.v[kMaxStamina] -= item_max[2];
+        return st;
+    }
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
@@ -463,6 +473,18 @@ struct Fight {
             cc.stats.v[kMaxLife] += want_life - bo_life; cc.stats.v[kLife] = std::min(cc.stats.v[kLife] + std::max<std::int64_t>(want_life - bo_life, 0), cc.stats.v[kMaxLife]);
             cc.stats.v[kMaxMana] += want_mana - bo_mana; cc.stats.v[kMana] = std::min(cc.stats.v[kMana] + std::max<std::int64_t>(want_mana - bo_mana, 0), cc.stats.v[kMaxMana]);
             bo_life = want_life; bo_mana = want_mana;
+            // Items' +life / mana / stamina (and their attributes' share):
+            // the maxima follow what's worn; life and mana don't rise with
+            // them, only stay under them.
+            constexpr std::array<std::pair<int, int>, 3> kMax{ { { kMaxLife, kLife }, { kMaxMana, kMana }, { kMaxStamina, kStamina } } };
+            constexpr std::array<std::size_t, 3> kBonus{ 7, 9, 11 };
+            for (std::size_t k = 0; k < 3; ++k) {
+                const std::int64_t want = cc.panel.bonus[kBonus[k]] * 256;
+                auto& mx = cc.stats.v[std::size_t(kMax[k].first)];
+                mx += want - item_max[k];
+                cc.stats.v[std::size_t(kMax[k].second)] = std::min(cc.stats.v[std::size_t(kMax[k].second)], mx);
+                item_max[k] = want;
+            }
         }
         pf = player_fighter(&pf_kick, &st_sum, &passives, &psum);
         constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison

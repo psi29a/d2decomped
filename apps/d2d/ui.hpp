@@ -173,6 +173,11 @@ std::vector<d2d::d2s::ItemProp> socket_props(const GameData& s, const d2d::d2s::
 struct PanelStats {
     std::int64_t next = -1, defense = 0;
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
+    std::array<std::int64_t, 4> res_cap{ 75, 75, 75, 75 };   // 75 + max resist, at most 95: gold at it
+    // What items and passives add to the character's own stats 0..11
+    // (strength .. max stamina, whole points): the panel shows the sum,
+    // blue when it's more, red when less (FUN_004a7d00).
+    std::array<std::int64_t, 12> bonus{};
 };
 
 PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
@@ -206,7 +211,14 @@ PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
         if (ps.stat >= 0 && ps.stat < 64) sum[std::size_t(ps.stat)] += ps.value;
         if (ps.stat == 171) skill_def += ps.value;
     }
-    p.defense = item_def + sum[31] + per_level * lvl / 8 + st.get(d2d::d2s::kDex) / 4;
+    for (std::size_t i = 0; i < 12; ++i) p.bonus[i] = sum[i];
+    {                                                     // the attributes' share of life, stamina, mana (quarter points)
+        const auto& g = s.class_gains[std::size_t(h.cls % 7)];
+        p.bonus[7] += sum[3] * g.life_per_vit / 4;
+        p.bonus[11] += sum[3] * g.stamina_per_vit / 4;
+        p.bonus[9] += sum[1] * g.mana_per_energy / 4;
+    }
+    p.defense = item_def + sum[31] + per_level * lvl / 8 + (st.get(d2d::d2s::kDex) + sum[2]) / 4;
     p.defense += p.defense * skill_def / 100;
     const int diff = h.active_difficulty();
     const std::int64_t penalty = h.expansion() ? s.resist_penalty[std::size_t(diff)]
@@ -215,6 +227,7 @@ PanelStats panel_stats(const GameData& s, const d2d::d2s::Header& h,
     for (int i = 0; i < 4; ++i) {
         const auto cap = std::min<std::int64_t>(75 + sum[std::size_t(kRes[i] + 1)], 95);
         p.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
+        p.res_cap[std::size_t(i)] = cap;
     }
     return p;
 }

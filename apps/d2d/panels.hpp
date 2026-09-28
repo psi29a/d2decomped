@@ -111,20 +111,27 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
     // baseline. Labels in font6, a "Fire\nResistance" pair at y-4 / y+4;
     // values in font16, dropping to font8 when > 999 or too wide (life/
     // mana/stamina); name font16/font8/font6 by length, class font16.
-    // ponytail: all white; the game colours boosted/lowered values blue/red
-    // and maxed resistances gold (local_8 in FUN_004a7d00).
+    // Colour (local_8 in FUN_004a7d00): strength .. max stamina blue when
+    // their total is over the character's own, red when under (life, mana,
+    // stamina themselves stay white); a resistance gold at its cap, red
+    // below 0.
+    // ponytail: the states' part (Battle Orders' life, a curse's resistances
+    // blue / red, defense) isn't coloured: the panel sees items and passives.
     auto pick = [&](const d2d::font::Font& f) -> const d2d::font::Font& {
         return f.line_height() > 0 ? f : s.font;
     };
     const auto& f16 = s.font;
     const auto& f8 = pick(s.font_small);
     const auto& f6 = pick(s.font_tiny);
-    auto text = [&](const d2d::font::Font& f, int x0, int x1, int y, const std::string& t) {
+    auto text = [&](const d2d::font::Font& f, int x0, int x1, int y, const std::string& t, int colour = 0) {
         const int w = f.measure(t);
         const int x = w < x1 - x0 + 1 ? x0 + (x1 - x0 + 1 - w) / 2 : x0;
         // Glyph cells blit bottom-anchored at y, like any DC6 (font6 cells
         // are 11 tall with the baseline on row 8).
-        f.draw(fb, kW, kH, pal, px + x, py + y - int(f.sheet().frame(0, 0).height) + 1, t);
+        const int ty = py + y - int(f.sheet().frame(0, 0).height) + 1;
+        static constexpr std::array<std::array<std::uint8_t, 3>, 5> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 255, 255, 255 }, { 105, 105, 255 }, { 199, 179, 119 } } };
+        if (colour == 0) f.draw(fb, kW, kH, pal, px + x, ty, t);
+        else f.draw_tinted(fb, kW, kH, pal, px + x, ty, t, kRgb[std::size_t(colour)][0], kRgb[std::size_t(colour)][1], kRgb[std::size_t(colour)][2]);
     };
     for (const auto& t : kCharLabels) {
         const auto v = lookup_string(s, std::uint16_t(t.id));
@@ -140,19 +147,26 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
     for (const auto& t : kCharValues) {
         const bool fixed = t.id >= 6 && t.id <= 11;       // life/mana/stamina, 8.8
         std::int64_t v = fixed ? st.fixed(t.id) : st.get(t.id);
+        int colour = 0;                                   // 1 red, 3 blue, 4 gold
+        if (t.id < 12 && t.id != 6 && t.id != 8 && t.id != 10) {   // the maxima already hold theirs (Fight::item_max)
+            const auto b = ps.bonus[std::size_t(t.id)];
+            if (t.id < 4) v += b;
+            colour = b > 0 ? 3 : b < 0 ? 1 : 0;
+        }
+        auto res = [&](int k) { v = ps.res[std::size_t(k)]; colour = v >= ps.res_cap[std::size_t(k)] ? 4 : v < 0 ? 1 : 0; };
         switch (t.id) {
             case 30: v = ps.next; break;
             case 31: v = ps.defense; break;
-            case 39: v = ps.res[0]; break;
-            case 43: v = ps.res[1]; break;
-            case 41: v = ps.res[2]; break;
-            case 45: v = ps.res[3]; break;
+            case 39: res(0); break;
+            case 43: res(1); break;
+            case 41: res(2); break;
+            case 45: res(3); break;
             default: break;
         }
         if (t.id == 30 && v < 0) continue;                // max level: blank
         const auto txt = std::to_string(v);
         const bool small_font = (fixed || t.id == 31) && (v > 999 || f16.measure(txt) >= t.x1 - t.x0);
-        text(small_font ? f8 : f16, t.x0, t.x1, t.y, txt);
+        text(small_font ? f8 : f16, t.x0, t.x1, t.y, txt, colour);
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
     if (auto v = lookup_string(s, cls)) cls = u16_to_latin1(*v);
@@ -191,8 +205,8 @@ void draw_char_panel(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d
 //   globes: fill = cur * 80 / max rows of hlthmana frame 0 (life; 2 when
 //   poisoned) / 1 (mana), bottom at H-13, x 29 / W-111; then the glass
 //   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
-// ponytail: saved life/mana are base values (no item bonuses); no
-// poison tint, stamina bar, skill icons or run/walk yet.
+// The maxima include what's worn (Fight::item_max).
+// ponytail: no poison tint, stamina bar, skill icons or run/walk yet.
 void draw_hud(std::vector<std::uint8_t>& fb, const Scene& s, const d2d::d2s::Stats& st) {
     const auto& pal = s.act1_pal.entries().empty() ? s.pal : s.act1_pal;
     const int W = int(kW), H = int(kH);

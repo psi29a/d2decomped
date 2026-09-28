@@ -256,7 +256,7 @@ struct World {
         // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
         // ponytail: game.exe's pick among several isn't traced.
         const std::vector<d2d::d2s::Item> no_corpse;
-        const auto err = characters->save(h, cc.stats, cc.items, corpses.empty() ? &no_corpse : &corpses.back().items);
+        const auto err = characters->save(h, fight.own_stats(), cc.items, corpses.empty() ? &no_corpse : &corpses.back().items);
         if (err.empty()) cc.header.last_played = h.last_played;
         d2d::log::info("save {}: {}", h.name, err.empty() ? "written" : err);
         return err;
