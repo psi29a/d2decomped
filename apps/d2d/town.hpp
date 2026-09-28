@@ -124,6 +124,7 @@ struct Town {
     View view;                             // what the World told the client after its last tick
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
+    bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
     float cam_x = 0, cam_y = 0;            // where the camera is this frame

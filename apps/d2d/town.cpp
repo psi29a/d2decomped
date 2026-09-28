@@ -500,6 +500,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
             menu_after_speech = -1;
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
+            menu_click = true;                            // the click is the menu's, not a walk
             const int line_index = npc_menu.line_at(mouse.x, mouse.y);
             const auto action = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].action : NpcMenuState::kClose;
             const int npc_menu_arg = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].arg : -1;
@@ -614,7 +615,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
         const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
-        if (have_world) walk(mouse, over_ui, frame_ms, last_ms);
+        // A press on the UI stays the UI's while the button is held: no walk
+        // starts under a menu that just closed.
+        if (mouse.press_this_frame) press_on_ui = over_ui;
+        else if (!mouse.down) press_on_ui = false;
+        if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         draw(framebuffer, mouse, frame_ms);
     }
