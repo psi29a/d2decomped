@@ -92,7 +92,7 @@ int level_light(std::string_view intensity, std::string_view red, std::string_vi
     return number(intensity) || number(red) || number(green) || number(blue) ? number(intensity) : -1;
 }
 
-Npc monster_npc(const GameData& scene, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
+Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row) {
     const auto found = ms2_rows.find(std::string(monstats.get(row, "MonStatsEx")));
     const std::size_t row2 = found == ms2_rows.end() ? row : found->second;
@@ -118,7 +118,7 @@ Npc monster_npc(const GameData& scene, const d2d::txt::Table& monstats, const d2
     if (ms2.get(row2, "isSel") == "1") {
         std::string key(monstats.get(row, "NameStr"));        // 1.14d; "namco" on the CD
         if (key.empty()) key = std::string(monstats.get(row, "namco"));
-        auto name = lookup_string(scene, key);
+        auto name = lookup_string(game_data, key);
         npc.name = name ? u16_to_latin1(*name) : key;
     }
     if (npc.code.empty()) return npc;
@@ -143,24 +143,24 @@ Npc monster_npc(const GameData& scene, const d2d::txt::Table& monstats, const d2
 // ponytail: each level's rooms in cell order, on a game seed from the map
 // seed; game.exe populates a room when it first comes up, in whatever order
 // the player brings them, each level's region seeded when it's made.
-const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& level, int difficulty) {
+const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, const Level& level, int difficulty) {
     difficulty = std::clamp(difficulty, 0, 2);
     if (level.spawns[std::size_t(difficulty)]) return *level.spawns[std::size_t(difficulty)];
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
-    const auto& monsters = scene.monsters;
-    d2d::rules::Rng game{ scene.map_seed };
+    const auto& monsters = game_data.monsters;
+    d2d::rules::Rng game{ game_data.map_seed };
     if (level.rooms.empty() || level.walk.empty()) return level.spawns[std::size_t(difficulty)].emplace();
     auto& spawns = level.spawns[std::size_t(difficulty)].emplace();
     d2d::rules::Rng region_seed{ game.next() };
     const auto region = d2d::rules::monster_region(monsters, level.mon, difficulty, region_seed);
     for (const auto& [row, rarity] : region.types) level.region[std::size_t(difficulty)].push_back(row);
-    d2d::rules::Population pop{ 0, int(level.rooms.size()), 0, level.mon.umin[std::size_t(difficulty)], level.mon.umax[std::size_t(difficulty)], difficulty, &scene.umods };
+    d2d::rules::Population pop{ 0, int(level.rooms.size()), 0, level.mon.umin[std::size_t(difficulty)], level.mon.umax[std::size_t(difficulty)], difficulty, &game_data.umods };
     // Not within WarpDist (2025 = 45^2 subtiles) of where players come
     // in: the camp for the Blood Moor, the warps for a level entered by one.
     std::vector<std::array<int, 4>> ways;
     if (level.id == 2) {
-        const int tx0 = (scene.town.world_x - level.world_x) * 5, ty0 = (scene.town.world_y - level.world_y) * 5;
-        ways.push_back({ tx0, ty0, tx0 + scene.town.ds1.width() * 5, ty0 + scene.town.ds1.height() * 5 });
+        const int tx0 = (game_data.town.world_x - level.world_x) * 5, ty0 = (game_data.town.world_y - level.world_y) * 5;
+        ways.push_back({ tx0, ty0, tx0 + game_data.town.ds1.width() * 5, ty0 + game_data.town.ds1.height() * 5 });
     } else {
         for (const auto& warp : level.warps) ways.push_back({ int(warp.x) * 5, int(warp.y) * 5, int(warp.x) * 5 + 5, int(warp.y) * 5 + 5 });
     }
@@ -189,13 +189,13 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const 
     // unique pick from Levels.txt umon1.. in normal aren't there (the
     // region's list stands in).
     using d2d::rules::monster_detail::place;
-    const int nmon = int(scene.mon_bin.size()), nsu = int(scene.superuniques.size());
-    auto bin = [&](int bin_row) { return bin_row >= 0 && bin_row < nmon ? int(scene.mon_bin[std::size_t(bin_row)]) : -1; };
+    const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
+    auto bin = [&](int bin_row) { return bin_row >= 0 && bin_row < nmon ? int(game_data.mon_bin[std::size_t(bin_row)]) : -1; };
     auto room_at = [&](int x, int y) -> d2d::rules::SpawnRoom {
         for (const auto& room : level.rooms)
             if (x >= room.x * 5 && y >= room.y * 5 && x < (room.x + room.width) * 5 && y < (room.y + room.height) * 5)
                 return { room.x * 5, room.y * 5, room.width * 5, room.height * 5, d2d::rules::Rng{ room.seed } };
-        return { 0, 0, level.ds1.width() * 5, level.ds1.height() * 5, d2d::rules::Rng{ scene.map_seed } };
+        return { 0, 0, level.ds1.width() * 5, level.ds1.height() * 5, d2d::rules::Rng{ game_data.map_seed } };
     };
     // FUN_005b2f20 at the spot (radius -1), then within `retry` if taken.
     auto at_spot = [&](int type, int x, int y, int retry) {
@@ -220,9 +220,9 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const 
     for (const auto& unit : level.units) {
         if (unit.type != 1 || unit.id < 0) continue;
         if (unit.id < nmon) {                                                // a MonStats row (FUN_0054e490)
-            const auto monstats_row = scene.mon_bin[std::size_t(unit.id)];
+            const auto monstats_row = game_data.mon_bin[std::size_t(unit.id)];
             const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
-            if (!scene.mon_is_npc[monstats_row]) at_spot(int(monstats_row), unit.x, unit.y, stay ? 0 : 4);
+            if (!game_data.mon_is_npc[monstats_row]) at_spot(int(monstats_row), unit.x, unit.y, stay ? 0 : 4);
             continue;
         }
         if (unit.id >= nmon + nsu) {                                         // MonPlace
@@ -251,14 +251,14 @@ const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const 
         // ponytail: its unique stat bonuses and TC come in the fight / loot;
         // the per-superunique specials (the Countess, the Smith ...) aren't built.
         const int superunique_index = unit.id - nmon;
-        const auto& sup = scene.superuniques[std::size_t(superunique_index)];
+        const auto& sup = game_data.superuniques[std::size_t(superunique_index)];
         if (sup.type < 0) continue;
         auto room = room_at(unit.x, unit.y);
         int leader_x, leader_y;
         if (!place(room, unit.x, unit.y, -1, fits, leader_x, leader_y) && !place(room, unit.x, unit.y, 5, fits, leader_x, leader_y)) continue;
         const int lead = int(spawns.size());
         spawns.push_back({ sup.type, leader_x, leader_y, -1, superunique_index, d2d::rules::Boss::superunique,
-                           d2d::rules::superunique_mods(scene.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, game) });
+                           d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, game) });
         const int minion = monsters.types[std::size_t(sup.type)].minion[0] >= 0 ? monsters.types[std::size_t(sup.type)].minion[0] : sup.type;
         const int low = sup.min_grp + (sup.min_grp && sup.max_grp ? difficulty : 0), high = sup.max_grp + (sup.min_grp && sup.max_grp ? difficulty : 0);
         const int count = room.seed.range(low, std::max(low, high));
@@ -310,7 +310,7 @@ void stamp_footprints(Level& level) {
 // A type-2 object at subtile (sx, sy): objects.txt Id `oid` (through
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock. `rgn`: the game's object seed (FUN_00546fa0).
-void add_object(const GameData& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
+void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn) {
     const auto found = obj_row.find(std::to_string(oid));
     if (oid == 0 || found == obj_row.end()) return;
@@ -323,16 +323,16 @@ void add_object(const GameData& scene, const d2d::txt::Table& objects, const std
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
         // ponytail: seeded from the level and spot — game.exe rolls the
         // object's own seed and the game's object seed (not emulated).
-        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ scene.map_seed);
-        npc.shrine = d2d::rules::roll_shrine(scene.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, obj, rgn);
+        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ game_data.map_seed);
+        npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, obj, rgn);
     }
     if (objects.get(row, "InitFn") == "3") {      // a chest: its trap and lock (FUN_0054fcb0)
-        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ scene.map_seed);   // ponytail: as the shrines'
-        const auto& area_levels = scene.area_level;
+        d2d::rules::Rng obj(std::uint32_t(spot_x * 7919 + spot_y) ^ game_data.map_seed);   // ponytail: as the shrines'
+        const auto& area_levels = game_data.area_level;
         const int mlvl1 = std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1;
         const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", obj);
         npc.trap = chest.trap; npc.locked = chest.locked;
-        if (npc.locked) if (auto locked_name = lookup_string(scene, "lockedchest")) npc.name = u16_to_latin1(*locked_name);
+        if (npc.locked) if (auto locked_name = lookup_string(game_data, "lockedchest")) npc.name = u16_to_latin1(*locked_name);
     }
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
@@ -343,7 +343,7 @@ void add_object(const GameData& scene, const d2d::txt::Table& objects, const std
     // 2 = ON): objects.txt Name through the string tables.
     if (objects.get(row, lit_mode ? "Selectable2" : "Selectable0") == "1") {
         const std::string key(objects.get(row, "Name"));
-        auto name_found = lookup_string(scene, key);
+        auto name_found = lookup_string(game_data, key);
         npc.name = name_found ? u16_to_latin1(*name_found) : key;
     }
     // Blocks walking in its start mode (HasCollision0 = NU, 2 = ON).
@@ -470,12 +470,12 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
 
 // An outdoor level of the act (the Blood Moor): drlg generate_outdoor
 // where the act's layout put it, on its level seed.
-bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level) {
-    const auto outdoor_level = d2d::drlg::outdoor_level(assets.levels, scene.act1_layout, level.id);
+bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level) {
+    const auto outdoor_level = d2d::drlg::outdoor_level(assets.levels, game_data.act1_layout, level.id);
     if (outdoor_level.rect.width == 0) { d2d::log::warn("{}: the layout didn't place it", level.name); return false; }
     const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type);
     assets.data.dt1s = &dt1s.heads;                          // stamps pick their shadows as they go (game.exe's rolls)
-    auto outdoor = d2d::drlg::generate_outdoor(assets.data, outdoor_level, d2d::drlg::level_seed(scene.map_seed, level.id));
+    auto outdoor = d2d::drlg::generate_outdoor(assets.data, outdoor_level, d2d::drlg::level_seed(game_data.map_seed, level.id));
     assets.data.dt1s = nullptr;
     auto notes = outdoor.notes;
     level.ds1 = std::move(outdoor.tiles);
@@ -486,14 +486,14 @@ bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outd
     for (const auto& note : notes) d2d::log::info("  not implemented: {}", note);
     d2d::log::info("  {}: {}x{} tiles at ({}, {}), {} roads, {} tilesets, {} picked tiles, {} warp tiles, map seed {}", level.name,
                    level.ds1.width(), level.ds1.height(), level.world_x, level.world_y, outdoor.roads.size(), level.dt1s.size(), placed,
-                   level.warps.size(), scene.map_seed);
+                   level.warps.size(), game_data.map_seed);
     return true;
 }
 
 // A maze level (the Den of Evil): drlg generate_maze from its level seed,
 // its preset rooms' tiles picked as game.exe picks them. It sits apart
 // from the act's outdoor levels; its warps lead out.
-bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row) {
+bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row) {
     d2d::drlg::MazeDef maze;
     for (std::size_t maze_row = 0; maze_row < assets.lvl_maze.size(); ++maze_row)
         if (d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Level"), -1) == level.id) {
@@ -505,7 +505,7 @@ bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoor
     if (maze.width == 0) { d2d::log::warn("{}: no LvlMaze row", level.name); return false; }
     std::vector<std::string> notes;
     const int size_x = d2d::drlg::to_int(assets.levels.get(row, "SizeX")), size_y = d2d::drlg::to_int(assets.levels.get(row, "SizeY"));
-    auto made = d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, d2d::drlg::level_seed(scene.map_seed, level.id), 0, notes);
+    auto made = d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, d2d::drlg::level_seed(game_data.map_seed, level.id), 0, notes);
     int width = 0, height = 0;
     for (const auto& room : made) { width = std::max(width, room.x + room.width); height = std::max(height, room.y + room.height); }
     level.ds1 = d2d::ds1::Map(width, height, 4, 2);
@@ -523,10 +523,10 @@ bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoor
 // Level `id` built from the map seed: its tiles and walk grid, warps, the
 // objects and NPCs its DS1s place, its sound, automap layer and monster
 // columns. On the builder thread; reads GameData's tables only.
-std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& builder, int id) {
+std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id) {
     const auto start_ms = d2d::log::ms();
     std::lock_guard lock(builder.mutex);
-    if (!builder.mpqs) builder.mpqs = scene.mpqs.reopen();
+    if (!builder.mpqs) builder.mpqs = game_data.mpqs.reopen();
     auto& assets = *builder.act1;
     const auto row = d2d::drlg::level_row(assets.levels, id);
     if (!row) return nullptr;
@@ -534,8 +534,8 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
     level->id = id;
     level->type = d2d::drlg::to_int(assets.levels.get(*row, "LevelType"));
     level->name = std::string(assets.levels.get(*row, "LevelName"));
-    const bool outdoor = std::ranges::any_of(scene.act1_layout, [&](const auto& placement) { return placement.level == id; });
-    if (!(outdoor ? build_outdoor(scene, *builder.mpqs, assets, *level) : build_maze(scene, *builder.mpqs, assets, *level, *row))) return nullptr;
+    const bool outdoor = std::ranges::any_of(game_data.act1_layout, [&](const auto& placement) { return placement.level == id; });
+    if (!(outdoor ? build_outdoor(game_data, *builder.mpqs, assets, *level) : build_maze(game_data, *builder.mpqs, assets, *level, *row))) return nullptr;
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     for (std::size_t row_index = 0; row_index < builder.levels.size(); ++row_index) {
         if (num(builder.levels.get(row_index, "Id")) != id) continue;
@@ -552,7 +552,7 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
                 level->night_event = num(builder.sound_env.get(env_row, "Night Event"));
                 level->event_delay = num(builder.sound_env.get(env_row, "Event Delay"));
             }
-        auto mon = [&](std::string_view monster_id) { return monster_id.empty() ? -1 : scene.monsters.row(std::string(monster_id)); };
+        auto mon = [&](std::string_view monster_id) { return monster_id.empty() ? -1 : game_data.monsters.row(std::string(monster_id)); };
         auto& level_mon = level->mon;
         level_mon.density = { num(text("MonDen")), num(text("MonDen(N)")), num(text("MonDen(H)")) };
         level_mon.umin = { num(text("MonUMin")), num(text("MonUMin(N)")), num(text("MonUMin(H)")) };
@@ -568,13 +568,13 @@ std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder
     // as NPCs (Flavie by the Blood Moor's way in). Unit ids are game.exe's:
     // MonStats rows without its Expansion row.
     // ponytail: the object seed starts from the map seed in every level.
-    d2d::rules::Rng rgn(scene.map_seed);
+    d2d::rules::Rng rgn(game_data.map_seed);
     for (const auto& unit : level->units) {
-        if (unit.type == 2) add_object(scene, builder.objects, builder.obj_row, *level, unit.id, unit.x, unit.y, rgn);
-        if (unit.type != 1 || unit.id < 0 || std::size_t(unit.id) >= scene.mon_bin.size()) continue;
-        const auto bin_row = scene.mon_bin[std::size_t(unit.id)];
-        if (!scene.mon_is_npc[bin_row] || scene.mon_npc[bin_row].code.empty()) continue;
-        auto npc = scene.mon_npc[bin_row];
+        if (unit.type == 2) add_object(game_data, builder.objects, builder.obj_row, *level, unit.id, unit.x, unit.y, rgn);
+        if (unit.type != 1 || unit.id < 0 || std::size_t(unit.id) >= game_data.mon_bin.size()) continue;
+        const auto bin_row = game_data.mon_bin[std::size_t(unit.id)];
+        if (!game_data.mon_is_npc[bin_row] || game_data.mon_npc[bin_row].code.empty()) continue;
+        auto npc = game_data.mon_npc[bin_row];
         npc.x = (float(unit.x) + 0.5f) / 5;
         npc.y = (float(unit.y) + 0.5f) / 5;
         level->npcs.push_back(std::move(npc));

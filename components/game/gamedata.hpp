@@ -552,20 +552,20 @@ CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& npc, std::string_view mo
 std::vector<std::string> split_variants(std::string_view text);
 std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& table);
 int level_light(std::string_view intensity, std::string_view red, std::string_view green, std::string_view blue);
-Npc monster_npc(const GameData& scene, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
+Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row);
-const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& scene, const Level& level, int difficulty);
+const std::vector<d2d::rules::Spawn>& level_spawns(const GameData& game_data, const Level& level, int difficulty);
 void stamp_footprints(Level& level);
-void add_object(const GameData& scene, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
+void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn);
 void finish_level(Level& level);
 LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type);
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
-bool build_outdoor(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
-bool build_maze(const GameData& scene, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
-std::unique_ptr<Level> build_level(const GameData& scene, GameData::LevelBuilder& builder, int id);
+bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
+bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
+std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& game_data, const Level& level);

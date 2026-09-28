@@ -330,7 +330,7 @@ inline void play_cues(Cues& cues, Audio& audio, float listener_x, float listener
     std::erase_if(cues.due, [&](const Cues::Cue& cue) {
         if (now_ms < cue.when_ms) return false;
         const float distance = std::hypot(cue.x - listener_x, cue.y - listener_y);
-        audio.play_sfx(*cues.scene, cue.sound, std::clamp(1.f - distance / 20.f, 0.f, 1.f), rng(16));
+        audio.play_sfx(*cues.game_data, cue.sound, std::clamp(1.f - distance / 20.f, 0.f, 1.f), rng(16));
         return true;
     });
 }

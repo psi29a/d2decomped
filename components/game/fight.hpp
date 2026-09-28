@@ -95,7 +95,7 @@ inline int skill_level(const GameData& game_data, const Character& character, in
 }
 
 struct Fight {
-    const GameData* scene;
+    const GameData* game_data;
     const Level* const& level;             // Town's: where the player is
     Character& character;
     UnitState& player;

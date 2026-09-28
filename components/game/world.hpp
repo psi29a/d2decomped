@@ -101,7 +101,7 @@ struct View {
 constexpr std::uint32_t kTickMs = 40;
 
 struct World {
-    const GameData* scene = nullptr;
+    const GameData* game_data = nullptr;
     Character character;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
@@ -109,9 +109,9 @@ struct World {
     const Npc* merc_npc = nullptr;
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     d2d::rules::Rng rng{ 0x2545f491u };    // rolls (the client's stock, talk topics, gambles, merc offers too)
-    Cues  cues{ scene };                   // world sounds due later
-    Loot  loot{ scene, level, character, player, rng, cues };                       // on the ground (loot.hpp)
-    Fight fight{ scene, level, character, player, merc, merc_npc, rng, loot, cues };  // the fight (fight.hpp)
+    Cues  cues{ game_data };                   // world sounds due later
+    Loot  loot{ game_data, level, character, player, rng, cues };                       // on the ground (loot.hpp)
+    Fight fight{ game_data, level, character, player, merc, merc_npc, rng, loot, cues };  // the fight (fight.hpp)
     float target_x = 0, target_y = 0;      // where the player is walking to
     bool  running = false;                 // run / walk (game.exe's 0x53 / 0x54)
     int   take_warp = -1;                  // the warp of `level` the player is walking to
@@ -153,25 +153,25 @@ struct World {
     // At --start-cam-x/y, else the town start (Level::start), else the
     // map's middle; then the nearest free spot so we never start inside a
     // tent.
-    World(const GameData* game_data, int start_x, int start_y) : scene(game_data), level(game_data ? &game_data->town : nullptr) {
+    World(const GameData* loaded_data, int start_x, int start_y) : game_data(loaded_data), level(loaded_data ? &loaded_data->town : nullptr) {
         const bool have_world = level && !level->dt1s.empty();
         player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
         player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
         if (have_world && start_x < 0 && start_y < 0 && level->start.first >= 0)
             std::tie(player.x, player.y) = level->start;
         if (have_world) std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);
-        if (scene) npc_states = npc_start(*level);
-        if (scene) fight.new_game(0);
+        if (game_data) npc_states = npc_start(*level);
+        if (game_data) fight.new_game(0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
         // The character's skill levels for the fight, the skill shrine's
         // +all skills (item_allskills) while its boost lasts.
-        fight.skill_base = [this](int id) { return skill_base_level(*scene, character, id); };
+        fight.skill_base = [this](int id) { return skill_base_level(*game_data, character, id); };
         fight.skill_level = [this](int id) {
             std::vector<d2d::d2s::ItemProp> extra;
             if (now < fight.boost.until)
                 for (const auto& [stat, value] : fight.boost.stats) if (stat == 127) extra.push_back({ .stat = 127, .value = value });
-            return skill_level(*scene, character, id, extra);
+            return skill_level(*game_data, character, id, extra);
         };
     }
     World(const World&) = delete;
