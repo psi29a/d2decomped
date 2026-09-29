@@ -165,15 +165,19 @@ jobs:
       # "Code style"): .clang-tidy's identifier-length and include-cleaner
       # checks. A push to main sweeps everything (rot never lands); a PR
       # narrows to the changed .cpp / .hpp so review is a couple of minutes,
-      # not ten. A header edit re-tidies every TU that includes it.
+      # not ten. A header edit re-tidies every TU that includes it. The
+      # changed files come from the PR API so no extra git fetch is needed
+      # (`persist-credentials: false` above blocks git fetch anyway).
       - name: Names and includes (Linux)
         if: runner.os == 'Linux'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 -c "import json; print('\n'.join(sorted({e['file'] for e in json.load(open('build/compile_commands.json')) if '/_deps/' not in e['file'] and '/build/' not in e['file']})))" > tidy_files.txt
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-            git diff --name-only --diff-filter=AMR "origin/${{ github.base_ref }}...HEAD" -- '*.cpp' '*.hpp' > changed.txt
+            gh pr view "${{ github.event.pull_request.number }}" --json files --jq '.files[].path' \
+                | grep -E '\.(cpp|hpp)$' > changed.txt || true
             python3 tools/tidy-pr-select.py > tidy_files.txt
             if [ ! -s tidy_files.txt ]; then echo "PR needs no tidy pass" && exit 0; fi
             echo "PR mode: $(wc -l < tidy_files.txt) files to tidy"
