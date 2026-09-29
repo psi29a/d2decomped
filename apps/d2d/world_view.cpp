@@ -331,11 +331,15 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
             const Unit& unit = *order[next_unit];
             const auto [anchor_x, anchor_y] = iso_point(unit.x, unit.y);
-            // The unit under the cursor (FUN_00467a10) at twice its light,
-            // 0x40..0xff (FUN_00471ec0).
-            // ponytail: objects also switch to draw mode 7 there, untraced.
+            // Bright-alpha (draw mode 7): the unit under the cursor
+            // (FUN_00467a10 -> FUN_00471ec0) and a Ghostly champion
+            // (umod 36, FUN_005a1080). Its light doubles, clamped
+            // 0x40..0xff.
+            // ponytail: objects also switch to mode 7 under the cursor,
+            // untraced.
+            const bool bright = unit.highlight || unit.ghostly;
             const auto& lpal = !light ? upal0
-                             : (*light->pal)[std::size_t((unit.highlight ? std::clamp(light->unit_at(unit.x, unit.y) * 2, 0x40, 0xff) : light->unit_at(unit.x, unit.y)) >> 3)];
+                             : (*light->pal)[std::size_t((bright ? std::clamp(light->unit_at(unit.x, unit.y) * 2, 0x40, 0xff) : light->unit_at(unit.x, unit.y)) >> 3)];
             // A state's colour shift wins over the unit's own colour
             // (a monster's palshift / RandTransforms, an item's colormap).
             const auto* umap = unit.shift ? unit.shift : unit.cmap;
