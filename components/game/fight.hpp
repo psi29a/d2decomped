@@ -264,10 +264,8 @@ struct Fight {
     [[nodiscard]] const GameData::Appearance& gfx() const;
     [[nodiscard]] const GameData::AnimTiming& player_anim(int mode) const;
     // A swing takes attack_ticks for the item attack speed and weapon
-    // speed; get-hit and block recover faster with FHR / FBR (their
-    // effective % on the animation rate).
-    // ponytail: FHR / FBR / FCR as rate bonuses, not the class breakpoint
-    // tables.
+    // speed; get-hit, block and self cast recover faster with FHR / FBR /
+    // FCR (rules::speed_frames on the animation's base frame count).
     void set_pmode(int mode, std::uint32_t now_ms);
     [[nodiscard]] bool dead() const;
 
@@ -543,8 +541,7 @@ struct Fight {
     // attack's speed for the bow skills, else SC with FCR); the missiles
     // leave on the action frame (fire).
     // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
-    // (+400) isn't kept; FCR as a rate bonus, not the breakpoint table; no
-    // ammo is used up.
+    // (+400) isn't kept; no ammo is used up.
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
@@ -733,8 +730,8 @@ struct Fight {
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part
-    // (FUN_005c6dc0) aren't read; cast rate (FCR) isn't applied; a shield
-    // is assumed (itypea1 shie isn't checked).
+    // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
+    // checked).
     // Reading a scroll or a tome (Skills.txt 219 / 220): its skill cast,
     // no mana, anywhere but in town (checkfunc 5).
     bool portal_due = false;                       // Town Portal's action frame came

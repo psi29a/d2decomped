@@ -172,6 +172,16 @@ inline int attack_ticks(int frames, int rate, int ias, int wsm) {
     return (256 * frames + speed - 1) / speed;
 }
 
+// Frame count after a speed stat (FCR / FHR / FBR) shortens `base_frames`:
+// E = 120 v / (120 + v); shown = ceil(base x 256 / (256 + floor(256 E / 100))).
+// Emergent breakpoints — Sorc SC base 14 sweeps 14/13/12/11/10/9/8 at
+// stat 0/9/20/37/63/105/200.
+inline int speed_frames(int base_frames, int speed_stat) {
+    if (base_frames <= 0 || speed_stat <= 0) return std::max(base_frames, 0);
+    const int scaled = 256 * effective_speed(speed_stat) / 100;
+    return (base_frames * 256 + 256 + scaled - 1) / (256 + scaled);
+}
+
 // Open wounds: bleeding per second for a character level (1.10's table in
 // 256ths a tick, times 25 ticks), for 8 seconds.
 inline int open_wounds_per_sec(int clvl) {

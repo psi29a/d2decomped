@@ -160,9 +160,10 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         if (attack_mode(mode) && anim.frames) {
             const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), player_combat.ias, player_combat.wsm);
             len = std::uint32_t(ticks) * 40;
-        } else if (mode == kModeGH || mode == kModeBL || mode == kModeSC) {
-            const int frame_rate = mode == kModeGH ? player_combat.fhr : mode == kModeBL ? player_combat.fbr : player_combat.fcr;
-            len = len * 100 / std::uint32_t(100 + d2d::rules::effective_speed(frame_rate));
+        } else if ((mode == kModeGH || mode == kModeBL || mode == kModeSC) && anim.frames) {
+            const int stat = mode == kModeGH ? player_combat.fhr : mode == kModeBL ? player_combat.fbr : player_combat.fcr;
+            const int shown = d2d::rules::speed_frames(int(anim.frames), stat);
+            len = std::uint32_t(shown) * anim.ms_per_frame();
         }
         prate = len ? float(anim.length_ms()) / float(len) : 1.f;
         pmode_until = mode == kModeDD ? 0 : now_ms + len;

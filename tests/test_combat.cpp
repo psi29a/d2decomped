@@ -69,6 +69,12 @@ int main() {
     assert(attack_ticks(16, 256, 0, 0) == 16);                        // no IAS: a frame a tick
     assert(attack_ticks(16, 256, 20, 0) == 14);                       // EIAS 17: ceil(4096 / 299)
     assert(attack_ticks(16, 256, 0, 20) == 21);                       // a slow weapon: ceil(4096 / 204)
+    // FCR / FHR / FBR: Sorc SC base 14 sweeps published Sorc breakpoints
+    // 0/9/20/37/63/105/200 -> 14/13/12/11/10/9/8.
+    assert(speed_frames(14, 0) == 14 && speed_frames(14, 9) == 13 && speed_frames(14, 20) == 12);
+    assert(speed_frames(14, 37) == 11 && speed_frames(14, 63) == 10);
+    assert(speed_frames(14, 105) == 9 && speed_frames(14, 200) == 8);
+    assert(speed_frames(0, 105) == 0 && speed_frames(-3, 105) == 0);   // no anim, no shortening
     assert(open_wounds_per_sec(1) == 3 && open_wounds_per_sec(81) == 227);
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
