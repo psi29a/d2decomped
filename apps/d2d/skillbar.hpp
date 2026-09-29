@@ -4,15 +4,21 @@
 // hotkeys (F1-F8). The chosen skills and hotkeys start from the save
 // (header +0x38..0x87); a character's level in a skill is its points plus
 // item bonuses (components/rules/skills.hpp).
+// ponytail: kLeftX / kRightX are our own; game.exe uses 80 and
+// screen_width - 128 for the PICKER's fan anchor (spellsel.cpp
+// FUN_004aa7e0 EDX = 0x50 / [0x71146c] - 0x80), and rows keyed by
+// SkillDesc byte +5 (ListRow, 0..4), not our class-first grouping. See
+// docs/research/re/skills.md "Skill HUD" for the picker's real layout.
 #pragma once
 
 #include "common.hpp"
-#include "platform.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
 #include <rules.hpp>
+
+#include <SDL3/SDL_keycode.h>
 
 #include <algorithm>
 #include <cstddef>
