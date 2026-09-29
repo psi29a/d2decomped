@@ -129,8 +129,26 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
         return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels");
+    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup");
     if (monstats.size() == 0 || ms2.size() == 0) return;
+    // objgroup.txt by Offset (0..132 in 1.14d): a rare column outside 0..N
+    // still gets a slot, so we size by max Offset + 1.
+    if (objgroup.size() > 0) {
+        auto offset_num = [&](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+        int max_offset = 0;
+        for (std::size_t row_index = 0; row_index < objgroup.size(); ++row_index) max_offset = std::max(max_offset, offset_num(objgroup.get(row_index, "Offset")));
+        game_data.obj_groups.assign(std::size_t(max_offset) + 1, {});
+        for (std::size_t row_index = 0; row_index < objgroup.size(); ++row_index) {
+            const int off = offset_num(objgroup.get(row_index, "Offset"));
+            if (off < 0 || off > max_offset) continue;
+            auto& group = game_data.obj_groups[std::size_t(off)];
+            for (int i = 0; i < 8; ++i) {
+                group.id[std::size_t(i)]      = offset_num(objgroup.get(row_index, "ID" + std::to_string(i)));
+                group.density[std::size_t(i)] = std::uint8_t(offset_num(objgroup.get(row_index, "DENSITY" + std::to_string(i))));
+                group.weight[std::size_t(i)]  = std::uint8_t(offset_num(objgroup.get(row_index, "PROB" + std::to_string(i))));
+            }
+        }
+    }
     const auto ms2_rows = id_rows(ms2);
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     auto& monsters = game_data.monsters;
@@ -341,6 +359,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 1; i <= 25; ++i) {
             if (const int monstats_row = row(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
             if (const int monstats_row = row(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
+        }
+        for (int i = 0; i < 8; ++i) {
+            level_mon.obj_group[std::size_t(i)] = std::uint8_t(num(text("ObjGrp" + std::to_string(i))));
+            level_mon.obj_prob[std::size_t(i)]  = std::uint8_t(num(text("ObjPrb" + std::to_string(i))));
         }
     }
 

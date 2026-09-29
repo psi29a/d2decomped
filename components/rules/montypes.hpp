@@ -77,6 +77,19 @@ struct LevelMon {
     int num_mon = 0;                            // NumMon
     bool ranged_first = false;                  // rangedspawn (level def +0x31)
     std::vector<int> mon, nmon;                 // mon1.., nmon1.. rows (normal / NM+hell)
+    // Random object groups per room (FUN_00552610, objects.md): each ObjGrp
+    // is an objgroup.txt row (Offset), rolled with the matching ObjPrb
+    // (0..100) on the room1 seed.
+    std::array<std::uint8_t, 8> obj_group{}, obj_prob{};
+};
+
+// One objgroup.txt row (Offset key, 0..132 in 1.14d): 8 slots of {object
+// id, density (PopulateFn param), weight}. A row picks one slot on the
+// room seed, weights taken as cumulative probabilities that sum to 100.
+struct ObjGroup {
+    std::array<int, 8> id{};
+    std::array<std::uint8_t, 8> density{};
+    std::array<std::uint8_t, 8> weight{};
 };
 
 }  // namespace d2d::rules
