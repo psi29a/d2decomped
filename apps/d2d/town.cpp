@@ -21,6 +21,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
+#include <uniques.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -121,6 +122,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ monster.unit.x, monster.unit.y, &scene.npc_anim(monster.npc, monster.mode), monster.unit.dir, monster.alive() ? &monster.npc.name : nullptr, monster.unit.mode_ms, -10 - int(i) });
         out.back().overlay_class = monster.npc.overlay_class;
         out.back().cmap = scene.monster_map(monster.npc);
+        out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
         dress(scene, out.back(), monster.id, monster_states(scene, monster, now_ms, view.aura), clk);
     }
 }

@@ -393,3 +393,54 @@ second set (+0x800) is used when a setting (+0x11c) is 2; untraced.
 d2d: `World::monster_colour` (the roll on the unit id: same odds, not
 game.exe's colour for that monster), `Scene::monster_map`. A state's
 colour shift (states.md) replaces it while it lasts.
+
+### Ghostly blend (client flag 0x40)
+
+Champion mod 36 (Ghostly, `FUN_005a1080`) sets a bit on the monster:
+`pMonData[0x16] |= 0x40`. Client-side, this is the marker that says
+"draw this unit see-through with an extra bright pass". No `Trans*.dat`
+palette is involved — it's a runtime alpha, not a colour LUT.
+
+Client sprite draw dispatch (`FUN_00470ec0` → `FUN_00471ec0`, source
+string `.\ENGINE\Gfx.cpp` line 0x52b): picks a per-layer draw type
+`local_c` and a `param_2` low byte (alpha), then calls
+`FUN_004f6480(local_b4, x, y, alpha_and_flags, draw_type, palette)`.
+Draw types seen in the branches: **5** normal alpha, **6** overlay, **7**
+"bright alpha" (`FUN_004f6480` -> vtable slot at
+`(*DAT_007c8cc0)+0x84`).
+
+The type-7 branch has the doubled-alpha formula (`unit_draw.c:193-203`):
+
+```c
+if (local_28 == 0 && local_54 != 0) {           // bright pass gate
+    uVar8 = (param_2 & 0xff) * 2;               // double the alpha
+    local_c = 7;                                // draw type = 7
+    if (uVar8 < 0x41)  uVar8 = 0x40;            // floor at 0x40
+    if (uVar8 > 0xfe)  uVar8 = 0xff;            // ceiling at 0xff
+    param_2 = (param_2 & 0xffffff00) | uVar8;
+    FUN_004f6480(local_b4, x, y, param_2, 7, palette);
+}
+```
+
+- `local_54 = FUN_00464370()` — cursor hover check ("is this the unit
+  under the cursor"), which lighting.md confirms doubles a hovered unit's
+  light. Not the ghostly gate.
+- `local_28 = FUN_004db360(&local_c, local_40)` in
+  `.\ENGINE\GfxUtil.cpp` — a state-driven draw-type override reading
+  stat 0xb5 and the layer's state at `+0x12d`. This IS the state /
+  ghostly path in game.exe, but the +0x16 & 0x40 bit itself isn't read
+  here — the ghostly mod's link is through the stat / state pipeline
+  (untraced this pass).
+
+**Ponytail note:** the formula above (double the alpha, clamp
+[0x40, 0xff], draw type 7) is the same shape D2 uses for both the
+cursor highlight and the ghostly effect — the difference is which gate
+sets `local_c = 7`. Wiring it in d2d for cursor hover is the smaller,
+verified port; the +0x16 → 0x40 → type 7 hookup for champion-Ghostly
+monsters needs a second trace of `FUN_004db360` and stat 0xb5's
+setter (a state or a stat FUN_005a1080 sets after `|= 0x40`).
+
+Concrete examples of monsters that carry `|= 0x40`: any champion mob
+rolled with cpick 36 (Blood Moor fallen1 champions, Cold Plains
+zombies etc.). No unique monster is Ghostly by default in vanilla —
+it's rolled per-pack on champion mods only.
