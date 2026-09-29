@@ -1054,19 +1054,68 @@ per-class picker rows; game.exe reads the value from the SkillDesc record
 Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
 - ✅ icon size 48, bottom-left anchor: match FUN_004a9870.
 - ✅ generic-vs-class icon fallback: match (via `scene->generic_skill_icons`).
-- ❓ `kLeftX=117` / `kRightX=kScreenWidth-165` (line 33): game.exe's HUD-bar
-  button positions aren't confirmed yet — need to find the bar-bg blit
-  caller with the two icons drawn on top.
-- ❓ row layout: our `rows(on_left)` groups by class first then general
-  (line 60), rows 48 px apart above the button. Game.exe uses SkillDesc
-  ListRow directly — our own iteration may not match ListRow's per-class
-  layout.
-- ❓ hotkey label position (`x + 2, y - 12`, line 148): game.exe's label
-  offset in the picker isn't traced.
+- ✅ ±48 column step: match.
+- ❌ `kLeftX = 117`: game.exe uses **80** (`MOV EDX, 0x50` at 0x004aa820).
+- ❌ `kRightX = kScreenWidth - 165`: game.exe uses **screen_width - 128**
+  (`LEA ESI, [EAX - 0x80]; MOV EDX, ESI` at 0x004aa847 / 0x004aa88d).
+- ❌ row categorisation: our `rows(on_left)` groups general first then
+  class pages 1..3. Game.exe reads **SkillDesc byte at offset +5** (0..4)
+  and iterates 0..4 outer-first (`if (local_c == *(char*)(iVar2 + 5))`
+  in FUN_004aa3a0). 0 is general, 1..4 are class categories — five rows
+  max, not four.
+- ➖ hotkey label: **game.exe does not draw hotkey text on picker icons**
+  (FUN_004aa3a0 renders icons only, no text). Ours is a d2d addition;
+  no game.exe layout to match.
 
-Follow-on (out of scope this pass): XrefsTo FUN_004a9870 and DAT_007c0300
-(965-byte state block written by FUN_004a8a30 — likely per-slot picker
-state) to find the picker-draw loop and confirm ListRow/ListPos math.
+### Traced 2026-09-29 (2nd HUD pass)
+
+Picker top-level: **FUN_004aa7e0** (`.\\UI\\spellsel.cpp`) calls picker draw
+**FUN_004aa3a0** up to four times per frame — one for each of {left / right
+button} × {"current class" / "other" categories}. Argument shape (ECX + EDX
+fastcall, rest ignored — Ghidra guesses `param_3..5` from stack junk):
+
+| call | button | initial X (EDX)          | notes                          |
+|---:|---|---|---|
+| 1  | left  | `0x50 = 80`              | (`MOV EDX, 0x50` @ 0x004aa820) |
+| 2  | right | `[0x0071146c] - 0x80`    | screen width − 128             |
+| 3  | left  | `0x50`                   | second pass, current-class     |
+| 4  | right | screen width − 128       | second pass                    |
+
+Inside **FUN_004aa3a0**:
+- `local_8 = DAT_00711470 + -0x56` — row-0 (general) Y anchor is
+  `screen_height − 86`. Icons draw bottom-left anchored, so the general
+  row occupies `[y − 48, y]`, i.e. `[screen_height − 134, screen_height − 86]`.
+- Outer loop `local_c = 0..4` — five categories. On first hit in a category,
+  `local_8 -= 0x30` (48). Row N (N≥1) sits at `screen_height − 86 − N * 48`.
+- Row selector: `local_c == *(char *)(iVar2 + 5)`, where `iVar2` is the
+  SkillDesc record base. **SkillDesc byte @ +5 is `ListRow`**, values 0..4.
+- Column X step for the picker is `±48` (via **FUN_004a9a00**: `return
+  in_EAX ± 0x30`). Left picker grows rightward from `X = 80`, right picker
+  grows leftward from `X = screen_width − 128`.
+- Duplicate suppression: `local_134[uVar3]` masked by `*(byte*)(iVar2 + 6)`
+  (SkillDesc byte @ +6 — a "listcolumn" / group id). A second skill with
+  the same group id is skipped so both hands of a stat-shared pair only
+  show once.
+- Per-row Y is cached at `DAT_007c070c` (row 1), `_0710` (2), `_0714` (3),
+  `_0718` (4) for later hover math.
+
+Picker state block layout (DAT_007c0300..):
+- `0x0300` — x-coord table (int32 × 240)
+- `0x03f0` — y-coord table (int32 × 240) — but note `+0x3c` offset within
+  loop: actually stride is 0xf0 = 240 entries in each of x/y/tooltip/id.
+- `0x04e0` — tooltip string handle (FUN_00643ce0 from spellsel.cpp line 573)
+- `0x05d0` — skill id table (int32 × 240, initialised to 0xffffffff)
+- `0x06c0` — count (byte), `0x06c1` — panel_first flag
+- `0x06c8` / `0x0768` / `0x07b8` — per-button (left/right) currently
+  hovered slot indices; `0x07fc` — "picker is on second pass" flag.
+
+Hit rect (**FUN_004a9bd0** and **FUN_004a9e60**): `[x, x+0x30] × [y-0x30, y]`.
+
+**SkillDesc.txt record (0x120 bytes each) — offsets seen so far:**
+- `+5` — `ListRow` (byte, 0..4)
+- `+6` — `ListPos` / column group (byte, dup-suppression key)
+- `+7` — `IconCel` (byte, cel index into class Skillicon DC6)
+
 The Assassin's charge indicator lives in a different `.\\SKILLS\\SkillBar.cpp`
 (singular, 006e32cc → FUN_005da120 / FUN_005d9f70 / FUN_005d8f50, all in
 the 005dxxxx SkillAss range).
@@ -1091,10 +1140,46 @@ lookup is not in these functions — the setmode path calls the same
 effective-speed reducer used for IAS / FCR (grep confirms no `0x78` /
 `* 120` constant in the PlrModes range).
 
-Not modelled: game.exe's published discrete breakpoint tables (per class,
-per mode) — `frames_left = base - trunc(base * E / 256)`. The port's
-continuous formula (`len * 100 / (100 + E)`) reproduces the same speed-up
-but not the exact frame-count jumps at each breakpoint. Verification:
-Barb A1 base 16 frames, FHR 0 → 16 (0 % faster), FHR 27 → E = 22, `16 * 100
-/ 122 = 13.1` frames. D2's Barb-1H breakpoints are 9 / 20 / 42 / 86 / 280 →
-14 / 13 / 12 / 11 / 10 frames; ours smooths through the same range.
+Second pass (2026-09-29): FHR / FBR do **not** share FCR's formula.
+The port's `rules::speed_frames` (which matches Sorc SC exactly) is off
+by 1 – 4 frames against community FHR breakpoints:
+
+| Stat | Base | Value | speed_frames | Published |
+|---|---:|---:|---:|---:|
+| Barb 1H FHR | 9 | 86 | 6 | 4 |
+| Sorc FHR | 15 | 117 | 10 | 8 |
+| Paladin FHR | 7 | 200 | 4 | 1 |
+| Necro FHR | 10 | 152 | 6 | 2 |
+
+Game.exe evidence supports the "not a formula" reading: `imul r, r, 0x78`
+(the fingerprint of `120 * v / (120 + v)` inline) has **zero hits** in the
+whole `.text` — so FCR is not computed that way either, community's
+"emergent from formula" story notwithstanding. But raw byte scans for
+per-class breakpoint tables also failed:
+
+- `07 0f 1b 30 56 c8` (Barb 1H breakpoints as u8s) — 0 hits.
+- `07 00 00 00 0f 00 00 00 …` (as u32s) — 0 hits.
+- `09 08 07 06 05 04 03` (Barb 1H frame counts, descending) — 0 hits.
+- `0f 0e 0d 0c 0b 0a 09 08` (Sorc frame counts) — 0 hits.
+
+So neither the FCR-shape formula nor the raw-byte breakpoint tables are
+in game.exe as expected. The mechanism is one of:
+
+1. A packed / interleaved table (e.g. per-`(class, mode)` struct at a
+   fixed offset), reached indirectly — needs a decompile of the setmode
+   path that reads stat 99 / 102.
+2. A different formula shape (e.g. `frames_left = base - lookup(E)` with
+   a single shared lookup) that FCR's Sorc-SC verification happened to
+   satisfy by coincidence.
+
+Follow-on hunt: decompile the call chain from `set_pmode(kModeGH)` (client
+FUN_004a???? or server 0x0057???? PlrModes range) all the way to the
+frame-count assignment. `FUN_0057d28e` reads stat 0x66 (FBR) and does an
+arithmetic `(FBR + sign) >> 3` (FBR / 8), which is a hit-in-the-dark clue:
+the 8-way divide might index a packed byte per class.
+
+Port state: `rules::speed_frames` is correct for FCR / Sorc SC (verified),
+close but slow for FHR / FBR at high stat values (players get hit for
+1 – 4 more frames than in game.exe). Ship as-is until the real mechanism
+lands; the ponytail note in `combat.hpp` next to `speed_frames` should
+call out the FHR / FBR imprecision.
