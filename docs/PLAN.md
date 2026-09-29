@@ -392,7 +392,9 @@ Combat
   skill without a path; what each part approximates is in skills.md.
 - Champion / unique behaviour mods (the mod functions at 0x73c008 past
   the stat ones): enchanted, cursed, mana burn, teleport, spectral hit,
-  multishot, aura enchanted. Rolls, stats and names are built.
+  multishot, aura enchanted; the champion kinds (ghostly, fanatic,
+  possessed, berserker; 2026-09-29). Rolls, stats and names are built.
+  Left: the ghostly see-through draw (client flag 0x40).
 - Formulas taken from the published rules, not traced (combat.md): hit
   chance, the damage order, crushing blow divisors, block, hit recovery
   thresholds, FHR/FBR breakpoint tables, mana regen base.

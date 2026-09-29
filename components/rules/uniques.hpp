@@ -169,6 +169,10 @@ struct BossStats {
     std::array<int, 6> res_add{};               // + DR%, MR%, fire, light, cold, poison resist (ResDm..ResPo order)
     bool double_defense = false;                // stone skin
     int elem = -1, elem_min_pct = 0, elem_max_pct = 0;   // enchanted: the MonLvl damage % it adds as that element (0 fire, 1 light, 2 cold)
+    int elem_len = 0;                           // ghostly: its cold's length (frames)
+    int life_after_pct = 0;                     // possessed +100, berserker -75: after the hp% rows (FUN_005a0d20)
+    int defense_pct = 0;                        // fanatic: item_armor_percent -70
+    int phys_resist = -1;                       // ghostly: damageresist set to 80
 };
 // ponytail: resistance adds skip FUN_005a1370's "at most two immunities"
 // bookkeeping only as far as the monster's own base resists count (they
@@ -189,13 +193,36 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     } else if (kind == Boss::minion) {
         stats.hp_pct = umods.constants[std::size_t(1 + difficulty_index)];
     }
-    if (champion) {                                                      // FUN_005a0e80
+    // A champion's kind: 16 champion, or 36 ghostly .. 39 berserker (one
+    // cpick each). All but the berserker run FUN_005a0e80 (level, exp,
+    // damage and to-hit bonus, speed: ghostly -33, fanatic as `fast`,
+    // else +20, none without a MonStats Velocity).
+    const auto has = [&](int id) { return std::ranges::find(mods, id) != mods.end(); };
+    const bool berserk = has(umod::berserk);
+    if (champion) stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];   // FUN_005a0dc0, the champion rows
+    if (champion && !berserk) {                                          // FUN_005a0e80
         stats.level_add += unique ? -1 : 2;
         stats.exp_mult = 3;
-        stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];
         stats.tohit_pct += umods.constants[10] * kBossBonus[std::size_t(difficulty_index)] / 100;
         stats.dmg_pct += umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100;
-        stats.velocity_pct += 20;
+        if (type.velocity > 0)
+            stats.velocity_pct += has(umod::ghostly) ? -33 : has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
+    }
+    if (has(umod::ghostly)) {                                            // FUN_005a1080: DR 80, cold from the champion rows, length 150
+        stats.phys_resist = 80;
+        stats.elem = 2;
+        stats.elem_min_pct = umods.constants[std::size_t(22 + difficulty_index)];
+        stats.elem_max_pct = umods.constants[std::size_t(25 + difficulty_index)];
+        stats.elem_len = 150;
+    }
+    if (has(umod::fanatic)) stats.defense_pct = -70;                     // FUN_005a11f0
+    if (has(umod::possessed)) stats.life_after_pct = 100;                // FUN_005a1230
+    if (berserk) {                                                       // FUN_005a1280: life -75 %, +300 % x the bonus to damage and to-hit
+        // ponytail: FUN_00463900 == 0x76 halves the damage part; that
+        // class test isn't mapped.
+        stats.life_after_pct = -75;
+        stats.dmg_pct += 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
+        stats.tohit_pct += 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
         auto& resist_add = stats.res_add;

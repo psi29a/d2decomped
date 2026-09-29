@@ -365,18 +365,22 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.mods = mods;
     monster.super = super;
     monster.stats.hit_points += monster.stats.hit_points * boss.hp_pct / 100;
+    monster.stats.hit_points = std::max(monster.stats.hit_points + monster.stats.hit_points * boss.life_after_pct / 100, 1);
+    monster.stats.armor_class += monster.stats.armor_class * boss.defense_pct / 100;
+    if (boss.phys_resist >= 0) monster.boss_res[0] = boss.phys_resist - type_info.diff[std::size_t(std::clamp(difficulty, 0, 2))].res[0];
     monster.stats.exp *= boss.exp_mult;
     for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max, &monster.stats.a2_min, &monster.stats.a2_max }) *damage += *damage * boss.dmg_pct / 100;
     monster.stats.to_hit += monster.stats.to_hit * boss.tohit_pct / 100;
     if (boss.double_defense) monster.stats.armor_class *= 2;
-    monster.boss_res = boss.res_add;
+    if (boss.phys_resist < 0) monster.boss_res = boss.res_add;
+    else { const int set = monster.boss_res[0]; monster.boss_res = boss.res_add; monster.boss_res[0] = set; }
     monster.boss_speed = boss.velocity_pct;
     if (boss.elem >= 0 && !game_data.monsters.lvl.empty()) {                      // enchanted: MonLvl damage x %
         const auto& level_row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(monster.stats.level), game_data.monsters.lvl.size() - 1)];
         const int damage_pct = level_row.damage[std::size_t(std::clamp(difficulty, 0, 2))];
         int put = 0;
         for (auto& element : monster.stats.elements)
-            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), 0, put++ ? "A2" : "A1" };
+            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), boss.elem_len, put++ ? "A2" : "A1" };
     }
     // Mana burn (FUN_005a1f90): manadrainmin / max (stats 62 / 63) = MonLvl
     // damage x the elemental % rows for its kind.

@@ -172,6 +172,21 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   - 16 champion (FUN_005a0e80): level − 1 (net + 2), experience − 2/5 (×
     3), +dmg% (stat 0x19) and +tohit% (0x77) from rows 11 / 10 scaled by
     the difficulty's +0x34 percentage, velocity + 20 %;
+  - the champion kinds (one of 16 / 36..39 by cpick, each weight 1):
+    36 ghostly (FUN_005a1080): monster data +0x16 |= 0x40 (drawn
+    see-through; the client's blend isn't traced), damageresist (stat
+    0x24) set to 80, FUN_005a0e80 with speed −33 %, then cold (stats
+    0x36 / 0x37 += MonLvl DM, L-DM in an expansion game, for its level ×
+    constants rows 22 / 25 + difficulty %; 0x38 length += 150);
+    37 fanatic (FUN_005a11f0): item_armor_percent (0x10) set to −70,
+    FUN_005a0e80 with speed as `fast` (2048 / Velocity − 128, 10..100);
+    38 possessed (FUN_005a1230): +0x16 |= 0x20, life +100 %
+    (FUN_005a0d20, EDI = the %), FUN_005a0e80 (+20 %);
+    39 berserker (FUN_005a1280): life −75 %, then damage % (0x19) and
+    to-hit % (0x77) + 300 × DifficultyLevels +0x34 / 100 (the damage part
+    halved when FUN_00463900 gives 0x76); no FUN_005a0e80: no level,
+    experience or speed change. FUN_005a0e80's speed needs MonStats
+    Velocity > 0. d2d: `boss_stats` (test_monsters).
   - 5 strong (FUN_005a17e0): rows 15 / 13 (unique) or 14 / 12 (minion);
   - 6 fast (FUN_005a1910): velocity % = 2048 / MonStats Velocity − 128,
     10..100;
