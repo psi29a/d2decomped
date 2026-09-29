@@ -234,6 +234,8 @@ struct Skill {
     bool prgstack = false;                 // a release runs srvprgfunc 1..n, not just n (FUN_005d5220)
     std::string srvmissileb, srvmissilec;  // +0x4a / +0x4c: 2 / 3 charges' missile (FUN_005d3cf0)
     int page = 0;                          // SkillDesc SkillPage: 1..3 its class's tabs
+    int list_row = 0;                      // SkillDesc ListRow: the picker row (0..4, general at 0)
+    int list_pos = 0;                      // SkillDesc ListPool: dup-suppression group within a row
     int icon = 0;                          // SkillDesc IconCel
     std::string str_name;                  // SkillDesc "str name"
 };

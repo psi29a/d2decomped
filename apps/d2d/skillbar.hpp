@@ -1,14 +1,13 @@
 // The skill bar: the left and right skill buttons on the control panel
-// (panel.cpp FUN_00496cf0: x 117 and screen width - 165, bottom on the
-// screen's bottom edge), the picker a click on one opens, and the skill
-// hotkeys (F1-F8). The chosen skills and hotkeys start from the save
-// (header +0x38..0x87); a character's level in a skill is its points plus
-// item bonuses (components/rules/skills.hpp).
-// ponytail: kLeftX / kRightX are our own; game.exe uses 80 and
-// screen_width - 128 for the PICKER's fan anchor (spellsel.cpp
-// FUN_004aa7e0 EDX = 0x50 / [0x71146c] - 0x80), and rows keyed by
-// SkillDesc byte +5 (ListRow, 0..4), not our class-first grouping. See
-// docs/research/re/skills.md "Skill HUD" for the picker's real layout.
+// and the picker a click on one opens, plus the skill hotkeys (F1-F8).
+// The chosen skills and hotkeys start from the save (header
+// +0x38..0x87); a character's level in a skill is its points plus item
+// bonuses (components/rules/skills.hpp). The picker's fan anchors and
+// per-row iteration follow spellsel.cpp FUN_004aa7e0 (kLeftX = 0x50,
+// kRightX = screen_width - 0x80, up to five rows keyed by SkillDesc
+// ListRow 0..4). docs/research/re/skills.md "Skill HUD" has the trace.
+// ponytail: game.exe doesn't draw hotkey labels on the picker icons;
+// this is a d2d addition (font_small "F1"..).
 #pragma once
 
 #include "common.hpp"
@@ -36,7 +35,13 @@ struct SkillBar {
     int left = 0, right = 0;               // Skills.txt ids (0: Attack)
     int picking = 0;                       // the picker open: 1 left, 2 right, 0 none
 
-    static constexpr int kLeftX = 117, kRightX = int(kScreenWidth) - 165, kIcon = 48;
+    // Buttons: panel.cpp draws the left / right skill icons on the HUD bar
+    // (game.exe positions not fully traced; d2d's guess). Picker: spellsel.cpp
+    // FUN_004aa7e0 fans out from EDX = 0x50 / [screen width] - 0x80.
+    static constexpr int kButtonLeftX = 117, kButtonRightX = int(kScreenWidth) - 165;
+    static constexpr int kPickerLeftX = 80, kPickerRightX = int(kScreenWidth) - 128;
+    static constexpr int kIcon = 48;
+    static constexpr std::size_t kRows = 5;    // SkillDesc ListRow 0..4
 
     [[nodiscard]] int cls() const { return std::max(character.character_class, 0); }
     // The skill's level, as the World works it out (fight.hpp skill_level).
@@ -59,14 +64,16 @@ struct SkillBar {
         picking = 0;
     }
 
-    // The picker's rows, bottom up: the general skills, then each of the
-    // class's tabs (SkillDesc page 1..3) that has one to offer.
-    // ponytail: game.exe's picker layout isn't traced; this is D2's by eye —
-    // rows 48 px apart above the button, the right one growing leftwards.
+    // The picker's rows, bottom up, keyed on SkillDesc ListRow (0..4):
+    // row 0 the general skills (Attack, Throw, Unsummon, Town Portal),
+    // 1..4 the class's own. Rows that have nothing to offer collapse; the
+    // remainder stack immediately above the button. spellsel.cpp
+    // FUN_004aa7e0's four-panel fan.
     [[nodiscard]] std::vector<std::vector<int>> rows(bool on_left) const {
-        std::vector<std::vector<int>> out(4);
+        std::vector<std::vector<int>> out(kRows);
         for (const auto& skill : scene->skills.rows)
-            if (skill.id >= 0 && usable(skill.id, on_left)) out[skill.cls.empty() ? 0 : std::size_t(std::clamp(skill.page, 1, 3))].push_back(skill.id);
+            if (skill.id >= 0 && usable(skill.id, on_left))
+                out[std::size_t(std::clamp(skill.list_row, 0, int(kRows) - 1))].push_back(skill.id);
         std::erase_if(out, [](const auto& row) { return row.empty(); });
         return out;
     }
@@ -74,7 +81,7 @@ struct SkillBar {
     // buttons' top edge), or {-1, -1}.
     [[nodiscard]] std::pair<int, int> picker_at(const std::vector<std::vector<int>>& rows, bool on_left, int row, int col) const {
         if (row < 0 || std::size_t(row) >= rows.size()) return { -1, -1 };
-        const int x = on_left ? kLeftX + col * kIcon : kRightX - col * kIcon;
+        const int x = on_left ? kPickerLeftX + col * kIcon : kPickerRightX - col * kIcon;
         return { x, int(kScreenHeight) - kIcon * (row + 1) };
     }
     // The skill under (mx, my) in the open picker, or -1.
@@ -102,8 +109,8 @@ struct SkillBar {
         }
         const int was = picking;
         picking = 0;
-        if (on_button(mouse.x, mouse.y, kLeftX)) { picking = was == 1 ? 0 : 1; return true; }
-        if (on_button(mouse.x, mouse.y, kRightX)) { picking = was == 2 ? 0 : 2; return true; }
+        if (on_button(mouse.x, mouse.y, kButtonLeftX)) { picking = was == 1 ? 0 : 1; return true; }
+        if (on_button(mouse.x, mouse.y, kButtonRightX)) { picking = was == 2 ? 0 : 2; return true; }
         return was != 0;
     }
     // F1..F8: with a picker open, give the hovered skill that key (the
@@ -139,8 +146,8 @@ struct SkillBar {
             const auto& frame = spr.frame(0, std::uint32_t(skill->icon));
             blit_sprite(framebuffer, frame, pal, x, y - int(frame.height) + 1);
         };
-        icon(left, kLeftX, int(kScreenHeight));
-        icon(right, kRightX, int(kScreenHeight));
+        icon(left, kButtonLeftX, int(kScreenHeight));
+        icon(right, kButtonRightX, int(kScreenHeight));
         if (!picking) return;
         const bool on_left = picking == 1;
         const auto row_list = rows(on_left);

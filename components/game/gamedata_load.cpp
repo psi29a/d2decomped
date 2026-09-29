@@ -462,6 +462,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (skill_row.cls == d2d::rules::kClassCode[class_index]) skill_tables.class_ids[class_index].push_back(id);
         if (const auto found = desc_row.find(skill_row.desc); found != desc_row.end()) {
             skill_row.page = num(skill_desc.get(found->second, "SkillPage"));
+            skill_row.list_row = num(skill_desc.get(found->second, "ListRow"));
+            skill_row.list_pos = num(skill_desc.get(found->second, "ListPool"));
             skill_row.icon = num(skill_desc.get(found->second, "IconCel"));
             skill_row.str_name = skill_desc.get(found->second, "str name");
         }

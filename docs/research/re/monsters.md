@@ -174,10 +174,11 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     the difficulty's +0x34 percentage, velocity + 20 %;
   - the champion kinds (one of 16 / 36..39 by cpick, each weight 1):
     36 ghostly (FUN_005a1080): monster data +0x16 |= 0x40 (drawn
-    see-through; the client's blend isn't traced), damageresist (stat
-    0x24) set to 80, FUN_005a0e80 with speed −33 %, then cold (stats
-    0x36 / 0x37 += MonLvl DM, L-DM in an expansion game, for its level ×
-    constants rows 22 / 25 + difficulty %; 0x38 length += 150);
+    see-through — see `### Ghostly blend (client flag 0x40)` below),
+    damageresist (stat 0x24) set to 80, FUN_005a0e80 with speed −33 %,
+    then cold (stats 0x36 / 0x37 += MonLvl DM, L-DM in an expansion game,
+    for its level × constants rows 22 / 25 + difficulty %; 0x38 length
+    += 150);
     37 fanatic (FUN_005a11f0): item_armor_percent (0x10) set to −70,
     FUN_005a0e80 with speed as `fast` (2048 / Velocity − 128, 10..100);
     38 possessed (FUN_005a1230): +0x16 |= 0x20, life +100 %
