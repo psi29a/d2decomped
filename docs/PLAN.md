@@ -549,8 +549,8 @@ covers only the paths those two take). Next, in order:
 2. The caves and crypts on the Den's maze generator, with the cave theme
    rooms (FUN_006735f0).
 3. The presets: Tristram, the Monastery, the Catacombs.
-Still open in the Blood Moor: random object groups (FUN_00552610); the Portal
-Shrine; the camp's hidden river-edge walls
+Still open in the Blood Moor: random object groups (FUN_00552610); the
+camp's hidden river-edge walls
 (game.exe keeps them as wall tiles; drawn or only blocking isn't traced).
 
 **Step 3 — networking** (the deferred item 7 above).

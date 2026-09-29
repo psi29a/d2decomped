@@ -195,7 +195,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 d2d::log::info("warping shrine: {} is now a {}", monster.npc.name, boss.kind == d2d::rules::Boss::champion ? "champion" : "unique");
             }
         }
-        d2d::log::info("shrine {} (code {}){}", row, shrine.code, shrine.code == 16 || shrine.code == 17 ? ", not built" : "");
+        d2d::log::info("shrine {} (code {})", row, shrine.code);
     }
 
 auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
