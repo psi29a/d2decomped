@@ -416,10 +416,16 @@ auto World::use_warp() -> void {
             d2d::log::info("not implemented: level {} (a warp from level {})", warp.destination, level->id);
             return;
         }
+        // FUN_005550b0: the other side's warp tile unit (FUN_006195a0), the
+        // free spot nearest it, then a walk of its LvlWarp ExitWalk from there.
         const auto back = std::ranges::find(destination->warps, level->id, &Level::Warp::destination);
-        const float arrive_x = back == destination->warps.end() ? float(destination->ds1.width()) / 2 : back->x + back->exit_x;
-        const float arrive_y = back == destination->warps.end() ? float(destination->ds1.height()) / 2 : back->y + back->exit_y;
+        const float arrive_x = back == destination->warps.end() ? float(destination->ds1.width()) / 2 : back->unit_x;
+        const float arrive_y = back == destination->warps.end() ? float(destination->ds1.height()) / 2 : back->unit_y;
         arrive(destination, arrive_x, arrive_y, "a warp");
+        if (back != destination->warps.end()) {
+            target_x = player.x + back->exit_x; target_y = player.y + back->exit_y;
+            player.walking = true;
+        }
     }
 
 auto World::arrive(const Level* destination, float arrive_x, float arrive_y, const char* how) -> void {

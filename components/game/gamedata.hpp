@@ -157,9 +157,11 @@ struct Level {
     std::pair<float, float> start{ -1.f, -1.f };            // cells: where a player joining arrives; see load_world
     std::pair<float, float> portal_spot{ -1.f, -1.f };      // cells: a town's portal arrival (DS1 special 33, spawn index 11)
     // Its warps (the units its hidden warp tiles make): cell, the level
-    // it leads to (Levels.txt Vis), and where someone arriving through it
-    // stands (its LvlWarp ExitWalk, subtiles from the cell).
-    struct Warp { float x, y; int destination; float exit_x, exit_y; };
+    // it leads to (Levels.txt Vis), its LvlWarp ExitWalk (cells), and where
+    // its tile unit stands (cells: the cell x 5 + LvlWarp Offset subtiles).
+    // Someone arriving through it lands at the free spot nearest the unit,
+    // then walks ExitWalk on from there (FUN_005550b0).
+    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; };
     std::vector<Warp> warps;
     // Its rooms' preset units (drlg level_room_tiles, proven against
     // game.exe): level-relative subtiles; load_npcs / load_monsters make

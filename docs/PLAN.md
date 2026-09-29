@@ -426,8 +426,7 @@ Act 1 levels and rendering
   boosts, skill, gem, warping; the other magic shrines only log) and
   chests open, lock (keys) and drop their act chest TC; traps fire
   firebolts and poison (docs/research/re/objects.md). Missing: the unique
-  behaviour mods, the other traps; warp arrival spots are a guess
-  (LvlWarp ExitWalk).
+  behaviour mods. Warp arrival traced (drlg.md "Taking a warp").
 - Rendering: cell-granular wall sorting, no item colour tints on composites,
   the neighbour level's NPCs drawn standing at their start.
 
@@ -551,7 +550,7 @@ covers only the paths those two take). Next, in order:
    rooms (FUN_006735f0).
 3. The presets: Tristram, the Monastery, the Catacombs.
 Still open in the Blood Moor: random object groups (FUN_00552610); the Portal
-Shrine; warp arrival spots (a guess); the camp's hidden river-edge walls
+Shrine; the camp's hidden river-edge walls
 (game.exe keeps them as wall tiles; drawn or only blocking isn't traced).
 
 **Step 3 — networking** (the deferred item 7 above).

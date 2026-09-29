@@ -646,9 +646,24 @@ Conditions those results hold under, so they aren't overstated:
 | Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
 | Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
-| The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player (LvlWarp ExitWalk read as subtiles from the warp's cell) and what counts as clicking one (2 cells, not LvlWarp's Select box) are guesses | wired up; warp arrival not diffed |
+| The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival traced, not diffed |
 | What the server does with units: superunique mods and stat bonuses, minion placement, MonPlace units; objects' behaviour (shrines, chests); monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | partly built, not diffed |
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
 `outdoor_data.hpp`, `tests/test_outdoor.cpp`; the app's `load_wilderness`
 and `Town::cross_level`.
+
+### Taking a warp (FUN_005550b0)
+
+The server's warp: FUN_006195a0(the tile unit's room, its class) finds
+the room on the other side through the room's tile links (FUN_0066ab00,
+room +0x4c, made by FUN_0066be10 with the other side's LvlWarp record)
+and in its unit list (+0x74, next +0xe8) the tile unit (type 5) of the
+linked class, with that record. The player is put at the free spot
+nearest that unit (FUN_0064e7b0, collision 0x1c09, FUN_00554ea0), then
+told to walk (FUN_005809d0(0, 2, ..)) to that spot + the record's
+ExitWalkX / ExitWalkY (subtiles, +0x14 / +0x18). The tile unit stands at
+its tile's cell × 5 + LvlWarp OffsetX / OffsetY (FUN_0066e1c0). The
+record comes by id and direction (FUN_0061f310: 'b', or 'l' / 'r' for
+wall orientations 10 / 11, FUN_0066e160); act 1's are all 'b'. d2d:
+`Level::Warp::unit_x/unit_y`, `World::use_warp`.

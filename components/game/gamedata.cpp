@@ -608,9 +608,9 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
         if (room.seed) level.room1_seeds[std::size_t(room.seed - made.data())] = room.room1_seed;
     for (const auto& room : built)
         for (const auto& unit : room.units) level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags });
-    // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk.
-    // ponytail: ExitWalk read as subtiles from the warp's cell; check the
-    // arrival spot against game.exe when it matters.
+    // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
+    // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
+    const auto slots = d2d::drlg::warp_slots(assets, level.id);
     if (const auto row = d2d::drlg::level_row(assets.levels, level.id))
         for (const auto& room : built)
             for (const auto& warp : room.warps) {
@@ -625,7 +625,9 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
                         exit_y = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkY"))) / 5;
                         break;
                     }
-                level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y });
+                const auto& slot = slots[std::size_t(warp.slot)];
+                level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y,
+                                        (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5 });
             }
     finish_level(level);
     return placed;
