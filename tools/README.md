@@ -9,6 +9,7 @@ Scripts, converters, and RE helpers used during decompilation.
 | `mpq-cat/` | Writes files from the game's MPQ stack (1.14d patch first) to stdout. | `build/tools/mpq-cat/mpq-cat <mpq dir> 'data\global\excel\Levels.txt'` |
 | `drlg-dump/` | Our level generator's output in `emu/drlg.py`'s text form. | `build/tools/drlg-dump/drlg-dump <mpq dir> <seed> [level]` |
 | `iso-dump/` | Lists or extracts the install ISO. | `build/tools/iso-dump/iso-dump` |
+| `validate-linux.sh` | The CI Linux job (apt deps + configure + build + clang-tidy + ctest) in an ubuntu:26.04 container against the current tree; catches checks the mac clang doesn't run (identifier-length, include-cleaner) before a push. Uses its own `build-linux/`. | `tools/validate-linux.sh` |
 
 Python tools are uv projects with their own `.venv` (`uv sync`, then
 `uv run`), never system pip.
