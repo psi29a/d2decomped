@@ -549,7 +549,13 @@ covers only the paths those two take). Next, in order:
 2. The caves and crypts on the Den's maze generator, with the cave theme
    rooms (FUN_006735f0).
 3. The presets: Tristram, the Monastery, the Catacombs.
-Still open in the Blood Moor: random object groups (FUN_00552610).
+Still open in the Blood Moor: random object groups (FUN_00552610). Traced
+(objects.md "Random object groups per room"): the algorithm, the guard
+subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's
+row layout are down. Not built yet — its per-slot room-seed step happens
+before monster population, so an emu-side oracle that also runs 552610 has
+to land alongside the C++ port to keep the Blood Moor's monster count
+matching.
 
 **Step 3 — networking** (the deferred item 7 above).
 

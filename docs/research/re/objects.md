@@ -253,3 +253,97 @@ ponytail: the caster-side spot is the nearest free 0.6 cells south of the
 player, not game.exe's search; hover names are the destination level's
 name (untraced); Lit1 while opening isn't used.
 
+## Random object groups per room (FUN_00552610, 2026-09-29)
+
+Called from FUN_0052d160 (room populate) between the room's preset units
+(FUN_005559a0) and its monster population (FUN_0054ec90); see monsters.md
+"When a room populates". So its seed steps happen **before** monsters roll,
+and building it changes every subsequent monster/champion roll in the room.
+
+**Inputs.** Levels.txt ObjGrp0..7 (`+0xe5..+0xec`, bytes: objgroup.txt row
+via the Offset column) and ObjPrb0..7 (`+0xed..+0xf4`, bytes: 0..100).
+objgroup.txt (`data\global\excel\objgroup.txt`) columns:
+`GroupName, Offset, ID0, DENSITY0, PROB0, ID1..PROB7, SHRINES, WELLS`
+(28 in all). The compiled `objgroup.bin` has a 4-byte header (u32 = 133
+rows in 1.14d) then 0x34-byte records indexed by **Offset**: 8 x u32 ids
+(0x00..0x1f, objects.txt row), 8 x u8 densities (0x20..0x27, passed to
+PopulateFn as `param`), 8 x u8 probs (0x28..0x2f, cumulative weights that
+sum to 100), 4 tail bytes (SHRINES / WELLS, unread by 552610). Rows Act 1
+outdoors touch:
+
+| Off | Name | Ids | Densities | Probs |
+|---|---|---|---|---|
+| 3 | Indoor Chests | 5, 6 | 48, 48 | 50, 50 |
+| 4 | Rogues for act1 w/o staked rogues | 54, 55, 56 | 30, 30, 30 | 37, 37, 26 |
+| 5 | sewer shrines | 279..282 | 0 | 25 each |
+| 6 | Cave Wells | 138, 275, 276, 277 | 0 | 25 each |
+| 7 | Crypt caskets | 3, 28 | 125, 125 | 75, 25 |
+| 33 | outsideforestobj1 | 139, 140, 144 | 30, 30, 30 | 25, 50, 25 |
+| 34 | outsideforestobj2 | 141, 139 | 30, 30 | 50, 50 |
+| 38 | outside forest object 3 | 155, 174, 175 | 30, 30, 30 | 34, 33, 33 |
+
+**Algorithm** (fastcall(game, room1); room1 seed = `{s, 666}` at room1+0x6c;
+LCG step is `s = s * 0x6ac690c5 + high`, standard drlg step):
+
+1. Level record `lvl = game.levels[room.level_id]` (rec 0x220 bytes).
+2. Eligibility (`FUN_00552560`): pass on all four of `FUN_0061a210` == 0
+   (room flag 0x30000 not set on the LEVEL, not a wilderness reveal),
+   `FUN_0061a1f0(room)` != 0 (real level id), `FUN_0061abb0(room)` == 0
+   (room-status +0x48 not "1", i.e. not town), and `FUN_0061ab00(room)` == 0
+   (a byte at `level_record+0x1d0`, not yet named — probably a "no object
+   groups" gate). Then bump the objrgn per-level entry's counter (+4) and
+   cache its target (+8, `0x7fffffff` → FUN_0061abf0 result). A final
+   density throttle (`FUN_00552400`) can also veto.
+3. For slot i = 0..7:
+   a. Step room seed once. `roll = seed % 100`.
+   b. Density-skip: if the objrgn slot's `weight*128/count > 96` and the
+      objgroup row's byte +0x167 is set, force `roll = 100`.
+   c. If `lvl.ObjGrp[i] != 0` and `roll <= lvl.ObjPrb[i]`:
+      Step seed again. Walk the 8 entries of `objgroup[ObjGrp[i]]`,
+      accumulating `probs`; on the first index where `roll2 % 100 < acc`,
+      look up objects.txt row for that id, check `+0x172 <= difficulty`
+      (some level-gate byte), read `+0x1b2` as the **PopulateFn index**
+      (< 10; asserts otherwise), call
+      `PopulateFn[fn](param, obj_id, density=100)` (fastcall) where param
+      is the objgroup entry's byte at +0x20+j.
+
+**Populate-fn table** (0x731d00, 10 x u32; d2d game.exe 1.14d):
+
+| Idx | Address | Handles |
+|---|---|---|
+| 0 | 0 | (unused, asserts if row < 10 but ptr == 0) |
+| 1 | 00550c20 | object-id 3 (barrels), 79, 1, 4, 89, 208, 209 (per switch) |
+| 2 | 00552b50 | |
+| 3 | 00551470 | |
+| 4 | 00551850 | |
+| 5 | 00551c00 | |
+| 6 | 00551690 | |
+| 7 | 00551200 | |
+| 8 | 005516c0 | |
+| 9 | 00551580 | |
+
+Each PopulateFn draws from the **object seed** (game+0x10f0, `objrgn.cpp`,
+FUN_00546c60) — not the room seed — to pick a subtile and place the unit
+via FUN_00555230, which itself steps the game seed once (per monsters.md
+"Every unit made steps the game seed").
+
+**objrgn init** (FUN_00546c60, `.\OBJECTS\objrgn.cpp`): game+0x10f0 is
+allocated as an 0x1110-byte struct at game start; one game-seed step
+(matches the second step monsters.md notes); then for each level 1..N a
+per-level 0x90 struct is allocated at `objrgn+0x48+id*4`: `+0` = a Levels
+byte, `+8` = 0x7fffffff sentinel, `+0x1c` = -1. Also 8 "buckets" at
+`objrgn+0x28..+0x44` count objects.txt rows by their byte at `+0xb2`, with
+per-bucket arrays at `objrgn+0x8..+0x24`.
+
+**Ripple on d2d today.** Currently d2d's Blood Moor matches game.exe (155
+monsters at seed 3, 107 fallen1 / 24 quillrat1 / 24 zombie1) because the
+emu oracle also skips 552610 (it only calls FUN_006194a0 for level alloc,
+not FUN_0052d160). Adding 552610 to d2d without adding it to the oracle
+will change every subsequent room-seed roll and break the count. The port
+therefore needs its oracle side (emu drives per-room populate) landed
+alongside the C++ implementation.
+
+**d2d today.** `components/game/objgroup.hpp` loads objgroup.txt (raw rows
+kept for the port). Levels ObjGrp / ObjPrb aren't parsed yet, and the
+placement itself isn't built.
+

@@ -365,10 +365,11 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 - The stat init after the look (FUN_00573cb0: life on the unit seed,
   FUN_006538a0), and the unit seed's later rolls (champion / unique,
   party and group counts: the room's here).
-- Random object groups per room (FUN_00552610: Levels ObjGrp0..7 /
-  ObjPrb0..7, objgroup.txt, objects.txt PopulateFn through 0x731d00) aren't
-  built: the Blood Moor's dead rogues and forest objects, and their steps
-  of the game seed.
+- Random object groups per room (FUN_00552610): traced but not built. See
+  objects.md "Random object groups per room". Its slot-per-loop room-seed
+  step comes before monster population, so building it will shift every
+  subsequent monster/champion roll — the emu oracle needs it too before the
+  port can be verified.
 
 Seed 3's Blood Moor: 155 monsters (107 fallen1, 24 quillrat1, 24 zombie1).
 
