@@ -101,7 +101,11 @@ struct Level {
     // level_room_tiles, proven against game.exe): layer 0 wall, 1 floor,
     // 2 shadow, in the order the rooms add them. Filled for generated
     // levels; when present it replaces tile_lookup for drawing and walking.
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; };
+    // `hidden`: a floor or wall whose word has bit 31 (DS1 hidden,
+    // FillBlanks, style-30 floors): tile flag 8, which the client's draws
+    // skip (FUN_004de410, FUN_004dea70: & 0x408) and collision doesn't
+    // (FUN_0064c790).
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; };
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,

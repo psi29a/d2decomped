@@ -32,3 +32,14 @@ draw (`FUN_004dedf0`) skips only tiles flagged 0x400 (alpha 0) or 8
 
 d2d cuts a see-through circle in roofs round the player by default
 (deviations.md improvement 4; `--toggle trans_roof=off` for game.exe's).
+
+## Hidden tiles
+
+A floor or wall word with bit 31 (the DS1's hidden bit; FillBlanks
+fillers and style-30 sequence 0/1 floors get it too, FUN_0066e9b0) still
+becomes a tile of the room, flagged 8 (FUN_0066dc50 walls, FUN_0066dde0
+floors; shadows don't take it, FUN_0066df40). Collision stamps every tile
+of the room whatever its flags (FUN_0064c790), so a hidden tile blocks;
+the client's tile and wall draws skip `flags & 0x408` (FUN_004de410,
+FUN_004dea70), so it isn't drawn. The camp's river edge is such walls.
+d2d: `Level::Pick::hidden`, and the DS1 path stamps hidden cells.

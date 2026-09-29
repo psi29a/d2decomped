@@ -254,7 +254,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level->picks.empty()) {                   // the tiles game.exe picked: floors, then shadows
                 for (const int layer : { 1, 2 })
                     for (const auto& pick : cell_level->picks[off])
-                        if (pick.layer == layer) { blit_cell(cell_x, cell_y, *pick.tile, layer); if (layer == 1) splash(*pick.tile); }
+                        if (pick.layer == layer && !pick.hidden) { blit_cell(cell_x, cell_y, *pick.tile, layer); if (layer == 1) splash(*pick.tile); }
                 continue;
             }
 
@@ -420,7 +420,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level->picks.empty()) {
                 int wall_index = 0;
                 for (const auto& pick : cell_level->picks[off])
-                    if (pick.layer == 0 && pick.orient != 13) draw_wall(pick.orient, *pick.tile, wall_index++);
+                    if (pick.layer == 0 && pick.orient != 13 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++);
                 continue;
             }
             int wall_index = 0;

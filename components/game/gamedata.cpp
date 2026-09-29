@@ -555,11 +555,13 @@ void finish_level(Level& level) {
     for (int cell_y = 0; cell_y < map.height(); ++cell_y)
         for (int cell_x = 0; cell_x < map.width(); ++cell_x) {
             const std::size_t off = std::size_t(cell_y) * std::size_t(map.width()) + std::size_t(cell_x);
+            // Hidden ones too: game.exe keeps them as tiles (flag 8) that
+            // block but aren't drawn (FUN_0064c790) — the camp's river edge.
             for (const auto& layer : map.floors())
-                if (!layer.cells[off].hidden && (layer.cells[off].prop1 & 2)) stamp(cell_x, cell_y, layer.cells[off].style, layer.cells[off].sequence, 0);
+                if (layer.cells[off].prop1 & 2) stamp(cell_x, cell_y, layer.cells[off].style, layer.cells[off].sequence, 0);
             for (const auto& layer : map.walls()) {
                 const auto& cell = layer.cells[off];
-                if (cell.hidden || cell.wall_type == 0 || cell.wall_type == 13 || cell.wall_type == 15) continue;
+                if (cell.wall_type == 0 || cell.wall_type == 13 || cell.wall_type == 15) continue;
                 stamp(cell_x, cell_y, cell.style, cell.sequence, cell.wall_type);
                 if (cell.wall_type == 3) stamp(cell_x, cell_y, cell.style, cell.sequence, 4);   // a corner's second tile (FUN_0066e9b0)
             }
@@ -600,7 +602,8 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             const auto found = dt1s.archive.find(tile.file);
             if (found == dt1s.archive.end() || std::size_t(tile.index) >= found->second->size()) continue;
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
-                { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)] });
+                { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)],
+                  tile.layer != 2 && (tile.word & 0x80000000u) != 0 });
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);
