@@ -3,16 +3,21 @@
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.
 // A trailing `tiles` adds every room's tiles (as drlg.py <seed> <level> tiles).
 #include <maze.hpp>
+#include <monsters.hpp>
+#include <montypes.hpp>
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
 #include <tile_pick.hpp>
+#include <txt.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -26,6 +31,28 @@ using namespace d2d::drlg;
 
 static bool g_units = false;                            // print rooms' units instead of their tiles
 static bool g_seeds = false;                            // print rooms' room1 seeds instead of their tiles
+static bool g_objgroups = false;                        // print per-room object-group picks (FUN_00552610)
+static d2d::txt::Table g_objgroup_table;                // objgroup.txt, loaded once
+static std::array<std::uint8_t, 8> g_obj_group{}, g_obj_prob{};   // Levels ObjGrp / ObjPrb of the target level
+
+static std::vector<d2d::rules::ObjGroup> load_obj_groups(const d2d::txt::Table& table) {
+    std::vector<d2d::rules::ObjGroup> groups;
+    auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
+    int max_offset = 0;
+    for (std::size_t row_index = 0; row_index < table.size(); ++row_index) max_offset = std::max(max_offset, num(table.get(row_index, "Offset")));
+    groups.assign(std::size_t(max_offset) + 1, {});
+    for (std::size_t row_index = 0; row_index < table.size(); ++row_index) {
+        const int off = num(table.get(row_index, "Offset"));
+        if (off < 0 || off > max_offset) continue;
+        auto& group = groups[std::size_t(off)];
+        for (int i = 0; i < 8; ++i) {
+            group.id[std::size_t(i)]      = num(table.get(row_index, "ID" + std::to_string(i)));
+            group.density[std::size_t(i)] = std::uint8_t(num(table.get(row_index, "DENSITY" + std::to_string(i))));
+            group.weight[std::size_t(i)]  = std::uint8_t(num(table.get(row_index, "PROB" + std::to_string(i))));
+        }
+    }
+    return groups;
+}
 
 static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id, const RoomDt1s* dt1s = nullptr) {
     std::ostringstream out;
@@ -115,6 +142,27 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
             }
             built.clear();
         }
+        if (g_objgroups) {
+            const auto groups = load_obj_groups(g_objgroup_table);
+            d2d::rules::LevelMon level_mon;
+            level_mon.obj_group = g_obj_group;
+            level_mon.obj_prob  = g_obj_prob;
+            pf("objgrp");
+            for (const auto value : g_obj_group) pf(" %d", value);
+            pf(" objprb");
+            for (const auto value : g_obj_prob) pf(" %d", value);
+            pf("\nrooms %zu\n", built.size());
+            for (std::size_t room_index = 0; room_index < built.size(); ++room_index) {
+                const auto& room = built[room_index];
+                d2d::rules::Rng room_seed{ room.room1_seed };
+                const auto picks = d2d::rules::place_object_groups(level_mon, groups, room_seed, int(room_index), int(built.size()));
+                pf("room %d,%d seed %08x post %08x picks", room.x, room.y, room.room1_seed, room_seed.low);
+                if (picks.empty()) pf(" -");
+                else for (const auto& pick : picks) pf(" obj%dd%d", pick.object_id, int(pick.density));
+                pf("\n");
+            }
+            built.clear();
+        }
         for (const auto& room : built) {
             const auto found = assets.data.presets.find(room.seed->def);
             const auto mask = room.plain ? room.plain->dt1_mask : found != assets.data.presets.end() ? found->second.dt1_mask : 0u;
@@ -145,7 +193,16 @@ int main(int argc, char** argv) {
     load_outdoor_assets(assets, [&](const std::string& path) { return mpqs.try_read(path); });
     g_units = argc > 4 && std::string(argv[argc - 1]) == "units";
     g_seeds = argc > 4 && std::string(argv[argc - 1]) == "seeds";
-    const bool tiles = argc > 4 && (std::string(argv[argc - 1]) == "tiles" || g_units || g_seeds);
+    g_objgroups = argc > 4 && std::string(argv[argc - 1]) == "objgroups";
+    const bool tiles = argc > 4 && (std::string(argv[argc - 1]) == "tiles" || g_units || g_seeds || g_objgroups);
+    if (g_objgroups) {
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\objgroup.txt)")) g_objgroup_table = d2d::txt::Table(*bytes);
+        if (const auto row = level_row(assets.levels, id))
+            for (int i = 0; i < 8; ++i) {
+                g_obj_group[std::size_t(i)] = std::uint8_t(to_int(assets.levels.get(*row, "ObjGrp" + std::to_string(i))));
+                g_obj_prob[std::size_t(i)]  = std::uint8_t(to_int(assets.levels.get(*row, "ObjPrb" + std::to_string(i))));
+            }
+    }
     RoomDt1s dt1s;
     if (tiles) {
         const auto row = level_row(assets.levels, id);
