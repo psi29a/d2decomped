@@ -345,13 +345,21 @@ alongside the C++ implementation.
 
 **d2d today.** `d2d::rules::place_object_groups` (monsters.hpp) runs the
 seed steps of the algorithm — 8 unconditional room-seed steps plus one
-extra per fired slot, and returns which objgroup entry was picked; called
-from `populate()` in gamedata.cpp before the room's monsters roll so
-subsequent rolls (champion count, monster placement) stay on the same
-seed path game.exe walks. Levels.txt ObjGrp0..7 / ObjPrb0..7 land on
-`LevelMon`; objgroup.txt on `GameData::obj_groups`. Not built: the
-PopulateFn call itself (needs the object seed + unit maker), and the
-FUN_00552560 / FUN_00552400 guard subsystem (`ponytail`: first room in a
-level matches game.exe; later rooms diverge once the throttle would kick
-in).
+extra per fired slot, and returns which objgroup entry was picked. Called
+per room at `build_level` time (gamedata.cpp) with the room's index and
+the level's room count so the throttle can fire past 75 % population, the
+picks land in `Level::npcs` alongside preset objects (positions are a
+naive object-seed pick, not the PopulateFn's own), and the post-552610
+seed is cached on `Level::post_object_group_seeds`. `populate()` then
+feeds that cached seed to `SpawnRoom` so monster rolls line up with
+game.exe's without recomputing 552610 per tick. Levels.txt ObjGrp0..7 /
+ObjPrb0..7 land on `LevelMon`; objgroup.txt on `GameData::obj_groups`;
+objects.txt PopulateFn byte isn't parsed (the pick uses `add_object` to
+compute mode / trap / shrine like a preset object). On the Blood Moor's
+default map seed: 34 random object-group placements land in the level.
+
+Not built: bit-exact PopulateFn positions (`FUN_00731d00`'s 9 handlers
+each have their own subtile-pick algorithm on the object seed), and the
+objgroup +0x167 gate that game.exe reads with an objgroup id as if it
+were an objects.txt row (a likely bug we skip).
 

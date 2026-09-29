@@ -130,21 +130,29 @@ struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; };
 // objgroup entry. The picked object's placement (FUN_00731d00's
 // PopulateFns) draws the object seed instead, not the room seed — so
 // stepping the room seed here is what monster population needs.
-// ponytail: the guard (FUN_00552560 / FUN_00552400: the objrgn per-level
-// counter, target, and density throttle) isn't modeled, so the first
-// room in a level matches game.exe and later rooms may diverge once the
-// throttle would kick in. Not built here: calling the PopulateFn to
-// actually place the object; that needs the object seed and unit maker.
+// `rooms_populated_before` and `rooms_total` are the objrgn per-level
+// counter and target (FUN_00552560 / FUN_00552400): the density throttle
+// forces the roll to 100 (a guaranteed miss) once more than 75 % of the
+// level has been populated. Approximates game.exe's model of the target
+// (level room count via FUN_00642be0) and skips the objgroup +0x167 gate
+// (it reads objgroup ids as if they were objects.txt rows — a likely
+// game.exe bug). The seed still steps once per slot regardless.
+// Not built here: calling the PopulateFn to actually place the object;
+// that needs the object seed and unit maker.
 struct ObjectGroupPick {
     int object_id = 0;
     std::uint8_t density = 0;
 };
 inline std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mon,
                                                         const std::vector<ObjGroup>& obj_groups,
-                                                        Rng& room_seed) {
+                                                        Rng& room_seed,
+                                                        int rooms_populated_before = 0,
+                                                        int rooms_total = 0) {
     std::vector<ObjectGroupPick> picks;
+    const bool throttle = rooms_total > 0 && rooms_populated_before * 128 / rooms_total > 96;
     for (int i = 0; i < 8; ++i) {
-        const int roll = int(room_seed.next() % 100);
+        int roll = int(room_seed.next() % 100);
+        if (throttle) roll = 100;
         const std::uint8_t group_id = level_mon.obj_group[std::size_t(i)];
         const std::uint8_t prob     = level_mon.obj_prob[std::size_t(i)];
         if (group_id == 0 || roll > prob) continue;

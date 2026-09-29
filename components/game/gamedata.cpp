@@ -287,7 +287,13 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     const std::size_t first = spawns.size();
     auto& pop = state.pop;
     const auto& made = level.rooms[made_index];
-    const std::uint32_t seed = made_index < level.room1_seeds.size() ? level.room1_seeds[made_index] : made.seed;
+    // The seed monsters roll on is the room1 seed after FUN_00552610 has
+    // stepped it (Level::post_object_group_seeds; build_level records the
+    // post-552610 seed per room). Falls back to the raw room1 seed for
+    // levels that have no object-group placement pass.
+    const std::uint32_t seed = made_index < level.post_object_group_seeds.size() && level.post_object_group_seeds[made_index] != 0
+                             ? level.post_object_group_seeds[made_index]
+                             : made_index < level.room1_seeds.size() ? level.room1_seeds[made_index] : made.seed;
     d2d::rules::SpawnRoom room{ made.x * 5, made.y * 5, made.width * 5, made.height * 5, d2d::rules::Rng{ seed } };
     // Not within WarpDist (2025 = 45^2 subtiles) of where players come
     // in: the camp for the Blood Moor, the warps for a level entered by one.
@@ -403,11 +409,6 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
     }
-    // Random object groups (FUN_00552610) — its seed steps come before
-    // monster population. The picks aren't placed yet (that needs the
-    // object seed and the PopulateFn dispatch); the seed steps alone keep
-    // the monster rolls aligned with game.exe.
-    (void)d2d::rules::place_object_groups(level.mon, game_data.obj_groups, room.seed);
     d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
     if (spawns.size() > first)
         d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
@@ -751,11 +752,14 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // ponytail: not bit-exact placement — the picks match game.exe's row
     // choice, but the positions do not.
     const std::size_t npcs_before_groups = level->npcs.size();
+    level->post_object_group_seeds.assign(level->rooms.size(), 0);
     for (std::size_t room_index = 0; room_index < level->rooms.size(); ++room_index) {
         const auto& made = level->rooms[room_index];
         const std::uint32_t seed = room_index < level->room1_seeds.size() ? level->room1_seeds[room_index] : made.seed;
         d2d::rules::Rng room_seed{ seed };
-        const auto picks = d2d::rules::place_object_groups(level->mon, game_data.obj_groups, room_seed);
+        const auto picks = d2d::rules::place_object_groups(level->mon, game_data.obj_groups, room_seed,
+                                                            int(room_index), int(level->rooms.size()));
+        level->post_object_group_seeds[room_index] = room_seed.low;
         for (const auto& pick : picks) {
             for (int retry = 0; retry < 12; ++retry) {
                 const int subtile_x = made.x * 5 + int(rgn(std::max(1, made.width * 5)));

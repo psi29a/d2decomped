@@ -166,6 +166,16 @@ int main() {
         for (int step = 0; step < 8; ++step) (void)mirror2.next();
         assert(seed2.low == mirror2.low);
         assert(no_picks.empty());
+        // Throttle: past 75 % of the level's rooms, every roll's forced
+        // to 100 (a guaranteed miss for any ObjPrb < 100); seed still
+        // steps once per slot.
+        LevelMon rarer = slotted;
+        rarer.obj_prob = { 99, 0, 99, 0, 0, 0, 0, 0 };
+        Rng throttled_seed{ 7 }, throttled_mirror{ 7 };
+        const auto throttled_picks = place_object_groups(rarer, groups, throttled_seed, 25, 30);
+        for (int step = 0; step < 8; ++step) (void)throttled_mirror.next();
+        assert(throttled_seed.low == throttled_mirror.low);
+        assert(throttled_picks.empty());
     }
     std::puts("ok");
 }

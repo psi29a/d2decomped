@@ -177,6 +177,12 @@ struct Level {
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
     std::vector<std::uint32_t> room1_seeds;            // by `rooms` index
+    // The room seed after FUN_00552610 stepped it (objects.md "Random
+    // object groups per room"): what populate() feeds monster rolls, so
+    // the throttle build_level applied does not have to be re-derived
+    // per tick. Empty on levels built before object-group placement (the
+    // camp: no rooms).
+    std::vector<std::uint32_t> post_object_group_seeds;   // by `rooms` index
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
