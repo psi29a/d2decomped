@@ -743,7 +743,37 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         npc.y = (float(unit.y) + 0.5f) / 5;
         level->npcs.push_back(std::move(npc));
     }
+    // Random object groups (FUN_00552610): the same picks a room's
+    // populate() rolls, made here at build time so they land in Level::npcs
+    // and render alongside preset objects. Positions come from the object
+    // seed on a naive fits check; game.exe uses the room's outdoor rect
+    // and a subtile pick per PopulateFn.
+    // ponytail: not bit-exact placement — the picks match game.exe's row
+    // choice, but the positions do not.
+    const std::size_t npcs_before_groups = level->npcs.size();
+    for (std::size_t room_index = 0; room_index < level->rooms.size(); ++room_index) {
+        const auto& made = level->rooms[room_index];
+        const std::uint32_t seed = room_index < level->room1_seeds.size() ? level->room1_seeds[room_index] : made.seed;
+        d2d::rules::Rng room_seed{ seed };
+        const auto picks = d2d::rules::place_object_groups(level->mon, game_data.obj_groups, room_seed);
+        for (const auto& pick : picks) {
+            for (int retry = 0; retry < 12; ++retry) {
+                const int subtile_x = made.x * 5 + int(rgn(std::max(1, made.width * 5)));
+                const int subtile_y = made.y * 5 + int(rgn(std::max(1, made.height * 5)));
+                const std::size_t before = level->npcs.size();
+                add_object(game_data, builder.objects, builder.obj_row, *level, pick.object_id, subtile_x, subtile_y, rgn);
+                if (level->npcs.size() > before) {
+                    auto& placed = level->npcs.back();
+                    if (level->unit_blocked(placed.x, placed.y)) { level->npcs.pop_back(); continue; }
+                    break;
+                }
+                break;   // add_object refused (unknown id); no retry needed
+            }
+        }
+    }
     stamp_footprints(*level);
+    if (const std::size_t groups_placed = level->npcs.size() - npcs_before_groups; groups_placed > 0)
+        d2d::log::info("  {}: {} random object-group placements", level->name, groups_placed);
     d2d::log::info("  {} built ({} ms)", level->name, d2d::log::ms() - start_ms);
     return level;
 }
