@@ -19,7 +19,10 @@ apt-get install -y --no-install-recommends \
     qt6-base-dev libgl1-mesa-dev \
     libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
     clang-tidy
-cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+# -Wshadow -Werror as a proxy for MSVC C4458 (variable shadows a class
+# member) so a rename like fight.cpp'"'"'s Fight::rooms_up parameter fails
+# here instead of on the Windows CI leg.
+cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wshadow -Werror"
 cmake --build build-linux -- -k 0
 python3 -c "import json; print(\"\n\".join(sorted({e[\"file\"] for e in json.load(open(\"build-linux/compile_commands.json\")) if \"/_deps/\" not in e[\"file\"] and \"/build\" not in e[\"file\"]})))" > build-linux/tidy_files.txt
 xargs -P 4 -n 1 clang-tidy -p build-linux --quiet --extra-arg=-Wno-unknown-warning-option < build-linux/tidy_files.txt
