@@ -343,7 +343,15 @@ will change every subsequent room-seed roll and break the count. The port
 therefore needs its oracle side (emu drives per-room populate) landed
 alongside the C++ implementation.
 
-**d2d today.** `components/game/objgroup.hpp` loads objgroup.txt (raw rows
-kept for the port). Levels ObjGrp / ObjPrb aren't parsed yet, and the
-placement itself isn't built.
+**d2d today.** `d2d::rules::place_object_groups` (monsters.hpp) runs the
+seed steps of the algorithm — 8 unconditional room-seed steps plus one
+extra per fired slot, and returns which objgroup entry was picked; called
+from `populate()` in gamedata.cpp before the room's monsters roll so
+subsequent rolls (champion count, monster placement) stay on the same
+seed path game.exe walks. Levels.txt ObjGrp0..7 / ObjPrb0..7 land on
+`LevelMon`; objgroup.txt on `GameData::obj_groups`. Not built: the
+PopulateFn call itself (needs the object seed + unit maker), and the
+FUN_00552560 / FUN_00552400 guard subsystem (`ponytail`: first room in a
+level matches game.exe; later rooms diverge once the throttle would kick
+in).
 

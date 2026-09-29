@@ -123,6 +123,46 @@ struct Population {
 // A room to populate: its rect in subtiles and its seed.
 struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; };
 
+// Random object groups per room (FUN_00552610, objects.md "Random object
+// groups per room"). Runs before the room's monsters (FUN_0054ec90), on
+// the room1 seed. Per slot i = 0..7: one seed step for the roll, and
+// (when ObjGrp[i] != 0 and roll <= ObjPrb[i]) a second step to pick the
+// objgroup entry. The picked object's placement (FUN_00731d00's
+// PopulateFns) draws the object seed instead, not the room seed — so
+// stepping the room seed here is what monster population needs.
+// ponytail: the guard (FUN_00552560 / FUN_00552400: the objrgn per-level
+// counter, target, and density throttle) isn't modeled, so the first
+// room in a level matches game.exe and later rooms may diverge once the
+// throttle would kick in. Not built here: calling the PopulateFn to
+// actually place the object; that needs the object seed and unit maker.
+struct ObjectGroupPick {
+    int object_id = 0;
+    std::uint8_t density = 0;
+};
+inline std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mon,
+                                                        const std::vector<ObjGroup>& obj_groups,
+                                                        Rng& room_seed) {
+    std::vector<ObjectGroupPick> picks;
+    for (int i = 0; i < 8; ++i) {
+        const int roll = int(room_seed.next() % 100);
+        const std::uint8_t group_id = level_mon.obj_group[std::size_t(i)];
+        const std::uint8_t prob     = level_mon.obj_prob[std::size_t(i)];
+        if (group_id == 0 || roll > prob) continue;
+        if (std::size_t(group_id) >= obj_groups.size()) continue;
+        const int weight_roll = int(room_seed.next() % 100);
+        const auto& group = obj_groups[std::size_t(group_id)];
+        int accumulated = 0;
+        for (int j = 0; j < 8 && group.id[std::size_t(j)] != 0; ++j) {
+            accumulated += group.weight[std::size_t(j)];
+            if (weight_roll < accumulated) {
+                picks.push_back({ group.id[std::size_t(j)], group.density[std::size_t(j)] });
+                break;
+            }
+        }
+    }
+    return picks;
+}
+
 namespace monster_detail {
 
 // FUN_005b2a00's placement: rings of 3 subtiles around (x, y) out to

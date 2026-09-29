@@ -403,6 +403,11 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
     }
+    // Random object groups (FUN_00552610) — its seed steps come before
+    // monster population. The picks aren't placed yet (that needs the
+    // object seed and the PopulateFn dispatch); the seed steps alone keep
+    // the monster rolls aligned with game.exe.
+    (void)d2d::rules::place_object_groups(level.mon, game_data.obj_groups, room.seed);
     d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
     if (spawns.size() > first)
         d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);

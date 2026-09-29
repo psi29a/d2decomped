@@ -141,5 +141,31 @@ int main() {
         (void)expect(1);
         assert(look[0] == 0 && look[1] == 0 && look[2] == expect(3) && unit_seed.low == expect.low);
     }
+    // Random object groups (FUN_00552610): 8 unconditional room-seed steps,
+    // plus one more per slot whose roll <= ObjPrb picks an entry; the
+    // entry is picked by cumulative weight on the second roll.
+    {
+        std::vector<ObjGroup> groups(6);
+        groups[5] = { .id = { 100, 200, 0, 0, 0, 0, 0, 0 }, .density = { 30, 30 }, .weight = { 40, 60 } };   // 40 % id 100, 60 % id 200
+        LevelMon slotted;
+        slotted.obj_group = { 5, 0, 5, 0, 0, 0, 0, 0 };   // slots 0 and 2 rolled with a group
+        slotted.obj_prob  = { 100, 0, 100, 0, 0, 0, 0, 0 };  // always fire
+        Rng room_seed{ 7 }, mirror{ 7 };
+        const auto picks = place_object_groups(slotted, groups, room_seed);
+        // 8 outer + 2 inner (slots 0 and 2 both fired) = 10 steps.
+        for (int step = 0; step < 10; ++step) (void)mirror.next();
+        assert(room_seed.low == mirror.low);
+        assert(picks.size() == 2);
+        for (const auto& pick : picks) {
+            assert((pick.object_id == 100 || pick.object_id == 200) && pick.density == 30);
+        }
+        // ObjPrb 0 fires nothing: 8 steps only, no picks.
+        LevelMon empty_level;                    // all zeros
+        Rng seed2{ 11 }, mirror2{ 11 };
+        const auto no_picks = place_object_groups(empty_level, groups, seed2);
+        for (int step = 0; step < 8; ++step) (void)mirror2.next();
+        assert(seed2.low == mirror2.low);
+        assert(no_picks.empty());
+    }
     std::puts("ok");
 }
