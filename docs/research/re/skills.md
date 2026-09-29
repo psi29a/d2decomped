@@ -112,8 +112,8 @@ operand callback, function table, function count, context):
 | 0x16 | `c ? a : b` |
 | anything else | end: the top of the stack is the result |
 
-The function table (0x745774, 7 entries with arity): 0x6436e0 and
-0x6436f0 (two arguments; by shape min and max), 0x643700 `rand(a, b)`,
+The function table (0x745774, 7 entries with arity): 0x6436e0 `min(a, b)`
+and 0x6436f0 `max(a, b)` (decompiled 2026-09-29), 0x643700 `rand(a, b)`,
 0x646c00 (a skill reference), 0x643740 (a missile field, FUN_0064b340),
 0x643770 `stat(id, base / accr / mod)`, 0x646c60 (skill field, three
 arguments).
@@ -137,9 +137,64 @@ m3en m3ex m3el, 35..37 m1rn m2rn m3rn, 38 edns, 39 edxs, 40 ulvl, 41 blvl,
   throw).
 The keywords aren't in game.exe's strings: they come from skillcalc.txt /
 misscalc.txt, which FUN_00612750 loads, so game.exe can compile the calc
-text itself (the compiler isn't traced; 1.14d also ships the compiled
-.bin). d2d can compile the Skills.txt text to the same ops with the same
+text itself (see below). 1.14d also ships the compiled .bin.
+d2d compiles the Skills.txt text to the same ops with the same
 operand and function lists.
+
+### The calc-text compiler (2026-09-29)
+
+Entry, per-calc-string field on the Skills.txt loader (`FUN_00613f80`):
+
+```
+FUN_00611bd0(text, out_field_offset, record_base)
+  buf[1024]; len = FUN_006c1ae0(text, buf, 1024, LAB_00611930, LAB_006119e0, FUN_006119f0)
+  if (len > 0) *((u32*)(record_base + out_field_offset)) = FUN_006118b0(pool=0x0096bc78, buf, len)
+  else                                                     ... = 0xffffffff
+```
+
+`FUN_006118b0` copies the bytecode into a shared pool (`DAT_0096bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. For missiles, the mirror wrapper is `FUN_00611c70` (same shape, `FUN_00661880` as its lookup with the misscalc table).
+
+**Compiler**: `FUN_006c1ae0(text, out_buf, buf_size, name→fn_tag_cb, fn_tag→arity_cb, ident→operand_cb)`. It's a **shunting-yard** with an operator stack of 64 slots (`local_151[]` for token classes, `auStack_114[]` for values). The tokenizer is `FUN_006c11c0`; the byte emitter is `FUN_006c18a0` (bounds-check + write); the arity-at-pop lookup is `FUN_006c1820`.
+
+Token class → emitted VM op (matches the VM table at line 100+):
+
+| token | meaning | emits |
+|---|---|---|
+| 0 | operand (identifier / number) | 4 / 5 / 6 (via the operand callback, then push mark `0x02` on op stack) |
+| 1 | close paren / end sub-expr | pop until matching `0x02` mark (or `0x01` call marker) |
+| 3 | `+` | 0x10 |
+| 4 | `-` | 0x11 (binary) or 0x15 (unary, when no operand precedes) |
+| 5 | `*` | 0x12 |
+| 6 | `/` | 0x13 |
+| 7 | `?` (top-level ternary hook) | 0x16 |
+| 8 | (paired with 7 at pop) | 0x17 |
+| 9 | `**` (power) | 0x14 |
+| 10..15 | `<= < > >= == !=` | 0x0c 0x0a 0x0b 0x0d 0x0e 0x0f |
+| 16 | `?` (call-site ternary) | routes through `FUN_006c19c0` |
+| 17 | `:` | routes through `FUN_006c1a50` |
+| 18 | function-call opener | push `0x01` + fn tag onto op stack |
+
+After the token loop, the compiler runs **the VM itself (`FUN_006c0bc0`) with no operand/function callbacks** over the emitted bytecode, then trims and re-terminates: this is **constant folding at compile time**. Purely-literal subexpressions collapse to a single `push const` op.
+
+**Function-name → tag** (`LAB_00611930`, string equality, `FUN_00413590`):
+
+| name | tag | runtime entry (0x745774[]) | arity | shape |
+|---|---:|---|---:|---|
+| `min` | 0 | 0x6436e0 | 2 | `min(a, b)` |
+| `max` | 1 | 0x6436f0 | 2 | `max(a, b)` |
+| `rand` | 2 | 0x643700 | 2 | `rand(a, b)` |
+| `skill` | 3 | 0x646c00 | 2 | skill(id_via_'Name', field) |
+| `miss` | 4 | 0x643740 | 2 | missile field (`FUN_0064b340`) |
+| `stat` | 5 | 0x643770 | 2 | `stat(id, base/accr/mod)` |
+| `sklvl` | 6 | 0x646c60 | 3 | `skill('Name', 'blvl', ctx)` (arity 3 via `LAB_006119e0`: `(tag==6) ? 3 : 2`) |
+
+This **resolves the "which of 0x6436e0 / 0x6436f0 is min vs max" question**: table[0] is `min`, table[1] is `max`.
+
+**Identifier → operand** (`FUN_006119f0` for skillcalc, `FUN_00661880` for misscalc): packs the first four chars of the identifier as a little-endian `uint32` (padded with `' '` if shorter) and looks it up in `FUN_006bd130(skillcalc[], key, 1)`. Identifiers longer than 4 chars are effectively truncated at 4 for lookup — which matches how skillcalc.txt keys `ln12`, `par1`, `edmn` etc. all fit in 4 bytes. `*param_2` returns 1 for "found in the special keyword tables" (`skills`, `events`, `states`, `hitclass`, `colors`), else 0 for "operand".
+
+Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-byte operand id), larger ones 5 (2-byte) or 6 (4-byte). The operand id is the skillcalc.txt row number (matches d2d's compiler and the runtime table already documented in **The calc language** above).
+
+**Bottom line**: our compiler in `components/rules/skills.hpp` produces bytecode indistinguishable from game.exe's for every calc string that isn't malformed, provided we run the same VM over it as a constant-folding pass after emitting. 565/566 calcs already compile in our tests; the sole miss (Bone Wall's `par34`) is a Skills.txt data typo game.exe also can't parse (it stores 0xffffffff for that record).
 
 ### Melee skills, start to finish
 - **srvstfunc** (e.g. [32] Bash, FUN_005d7ea0):
@@ -810,14 +865,83 @@ operand and function lists.
   monster, Double Throw's toht, Vine Attack / the cyclers (the vines'
   published behaviour).
 
+### Cast rate (FCR)
+
+The "breakpoints" everyone quotes are emergent: game.exe stores a formula
+and per-class base frames, not a table. What's stored:
+
+- **Per-class base frames** in `data\global\animdata.d2` (570 304 bytes, 256
+  hash blocks of `u32 count` then `count` × 160-byte records; each record is
+  `char cofname[8]` + `u32 frames_per_dir` + `u32 anim_speed` +
+  `u32 flag_count` + 144 bytes of flags). Read via
+  `build/tools/mpq-cat/mpq-cat <mpq> 'data\global\animdata.d2'`. The SC
+  (spellcast) frames for the 1.14d ship data, all HTH weapon-mode:
+
+  | Class | cof | base frames |
+  |---|---|---:|
+  | Amazon (AM) | AMSCHTH | 20 |
+  | Assassin (AI) | AISCHTH | 17 |
+  | Barbarian (BA) | BASCHTH | 14 |
+  | Druid (DZ) | DZSCHTH | 15 |
+  | Necromancer (NE) | NESCHTH | 16 |
+  | Paladin (PA) | PASCHTH | 16 |
+  | Sorceress (SO) | SOSCHTH | 14 |
+
+  The Sorceress "lightning family" cast (Charged Bolt, Nova, Lightning,
+  Chain Lightning, Thunder Storm) is anim S1 not SC. `SOS1HTH` in the same
+  file is also 14 frames — what matters for the port is the animation the
+  skill's `anim` column names.
+
+- **The formula.** `EFCR = FCR × 120 / (120 + FCR)` (integer truncated), the
+  same diminishing return as `rules::effective_speed` in
+  `components/rules/combat.hpp:164`. Then
+
+  ```
+  frames_shown = ceil(base_frames × 256 / (256 + floor(256 × EFCR / 100)))
+  ```
+
+  Not traced from a specific FUN_ yet (no cast-rate `.cpp` string source in
+  `game-strings.tsv`; `updateanimrate` at 0x006ea5d8 is an
+  `itemstatcost.txt` op-column keyword parsed by FUN_00637a00, not the
+  frame-count calc). What's built into `rules::attack_ticks` already uses
+  the same shape for IAS, so the port only needs to swap `wsm` → `0`, the
+  IAS stat → FCR (stat 105), and `frames` → the class's SC (or S1) base.
+
+- **Verification.** Running the formula against `SOSCHTH` base = 14 sweeps
+  through breakpoints `[0, 9, 20, 37, 63, 105, 200]` matching the community
+  Sorc SC numbers exactly — that's what proves the formula is right (the
+  breakpoints are 1-frame drops of `frames_shown` across FCR 0..300).
+  Per-class emergent breakpoints for reference (FCR value → resulting
+  frame count):
+
+  | Class | Base | Breakpoints (FCR → frames) |
+  |---|---:|---|
+  | Amazon | 20 | 0→20 7→19 14→18 22→17 32→16 48→15 68→14 99→13 152→12 |
+  | Assassin | 17 | 0→17 8→16 16→15 27→14 42→13 65→12 102→11 174→10 |
+  | Barbarian | 14 | 0→14 9→13 20→12 37→11 63→10 105→9 200→8 |
+  | Druid | 15 | 0→15 9→14 19→13 32→12 54→11 86→10 152→9 |
+  | Necromancer | 16 | 0→16 9→15 18→14 30→13 48→12 75→11 125→10 232→9 |
+  | Paladin | 16 | 0→16 9→15 18→14 30→13 48→12 75→11 125→10 232→9 |
+  | Sorceress | 14 | 0→14 9→13 20→12 37→11 63→10 105→9 200→8 |
+
+- **Port.** Nothing lives as a "breakpoint table". A single helper next to
+  `rules::attack_ticks` — take `base_frames` from an animdata.d2 loader
+  keyed on the player's cof name, plus stat 105 (`kFasterCast`) as input —
+  replaces every `ponytail: FCR as a rate bonus` note in
+  `components/game/fight.hpp` (lines 269, 546, 736). animdata.d2 already
+  needs loading for FHR / FBR too (same file, GH / BL modes) — one
+  reader covers all three speed stats.
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
-- The calc text compiler (d2d writes its own), and which of 0x6436e0 /
-  0x6436f0 is min and which max.
-- Cast rate (FCR) breakpoints and the per-class animation tables for
-  FHR / FBR.
+- Which `FUN_` reads stat 105 into the SC animation's `frames_shown` (the
+  formula and inputs above are traced; the exact call site isn't). A hunt
+  for `imul 0x78` (120) around PlrModes.cpp (FUN_0057eec0..FUN_00581050)
+  would land it.
+- Per-class animation tables for FHR / FBR (same animdata.d2 file, GH /
+  BL modes; the formula is the same as FCR).
 - The skill bar and picker layout (SkillsBar.cpp / SkillsPal.cpp).
 
 ## Plan (phases, each shippable)
@@ -896,3 +1020,81 @@ operand and function lists.
    what isn't built). Was: auras as states on units in
    range, summons as monsters on the player's side (the merc code), the
    Assassin charges (srvprgfunc through srvdofunc), traps.
+
+### Skill HUD (SkillsBar / SkillsPal)
+
+The `.\\SKILLS\\SkillsBar.cpp` / `.\\SKILLS\\SkillsPal.cpp` asserts sit in
+the SERVER-side skill-use path (D2Game, 004c83c0..004c9b40), not the
+client HUD. They gate can-cast, pick a slot in world space, and emit the
+"cast this" command. Line numbers seen: Bar 0x1ba (FUN_004c83c0), 0x237
+(FUN_004c85b0), 0x3a2 (FUN_004c8d90), 0x469 / 0x499 / 0x49f (FUN_004c9120);
+Pal 0x176 / 0x1ca (FUN_004c9b40). None of them draws icons.
+
+The client HUD (D2Client) lives at 004a8xxx..004aaxxx. Init page:
+FUN_00453d90 calls FUN_004a8a30 (loads `Spells\\Skillicon` into
+DAT_007c07f8 — the generic 48-cel file) and FUN_004aa920 (loads
+`Spells\\skltree_<class>_back` into DAT_00724bf0 + class*0x22). Per-class
+skill sprites are lazy: FUN_004a8c80 loads `Spells\\<CC>Skillicon` on
+first use into DAT_00724ac0 + class*0x22 (class table has 7 entries × 0x22
+bytes: Am So Ne Pa Ba Dr As); FUN_004a8c00 frees the lot.
+
+Icon draw is FUN_004a9870(short\* sid, ctx, arg3, hover_mode, x, y,
+panel_first): class from FUN_00645040(sid) → 0..6 (or generic if ≥7),
+IconCel byte from SkillDesc.txt at `[0xb8c] + row*0x120 + 7` where the row
+is Skills.txt `+0x194 SkillDesc`, cel then blitted with FUN_004f64b0.
+Hit-rect is `[x, x+0x30] × [y-0x30, y]` — **icons are 48×48, anchored
+bottom-left**, exactly what our `SkillBar::draw` at
+`apps/d2d/skillbar.hpp:126` does.
+
+SkillDesc.txt columns: `iconcel` (string @ 006e77f4) and `ListRow` (@
+006e7808) are loaded in FUN_00613f80 (the excel loader). ListRow drives
+per-class picker rows; game.exe reads the value from the SkillDesc record
+(0x120 bytes) alongside iconcel. Pass to trace the offset next.
+
+Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
+- ✅ icon size 48, bottom-left anchor: match FUN_004a9870.
+- ✅ generic-vs-class icon fallback: match (via `scene->generic_skill_icons`).
+- ❓ `kLeftX=117` / `kRightX=kScreenWidth-165` (line 33): game.exe's HUD-bar
+  button positions aren't confirmed yet — need to find the bar-bg blit
+  caller with the two icons drawn on top.
+- ❓ row layout: our `rows(on_left)` groups by class first then general
+  (line 60), rows 48 px apart above the button. Game.exe uses SkillDesc
+  ListRow directly — our own iteration may not match ListRow's per-class
+  layout.
+- ❓ hotkey label position (`x + 2, y - 12`, line 148): game.exe's label
+  offset in the picker isn't traced.
+
+Follow-on (out of scope this pass): XrefsTo FUN_004a9870 and DAT_007c0300
+(965-byte state block written by FUN_004a8a30 — likely per-slot picker
+state) to find the picker-draw loop and confirm ListRow/ListPos math.
+The Assassin's charge indicator lives in a different `.\\SKILLS\\SkillBar.cpp`
+(singular, 006e32cc → FUN_005da120 / FUN_005d9f70 / FUN_005d8f50, all in
+the 005dxxxx SkillAss range).
+
+### Hit-recovery (FHR) and block-rate (FBR)
+
+Same shape as FCR / IAS: an effective rate on the stat, then the animation
+plays that much faster. Formula in `components/rules/combat.hpp:164`
+(`effective_speed`, cap 120): `E = 120 * v / (120 + v)`. Applied at
+`components/game/fight.cpp:163` for kModeGH / kModeBL / kModeSC:
+`len = base_ms * 100 / (100 + E)`. Stats read at `combat.hpp:142` are 99
+(FHR), 102 (FBR), 105 (FCR).
+
+Base frames come from `animdata.d2` (loaded `gamedata_load.cpp:850`),
+keyed by `<class token><weapon><mode>` (e.g. `BAHTHGH` = Barb + HTH + GH).
+`player_anim(mode)` returns the frame count and rate; the reduction is
+applied on top.
+
+Game.exe anchors: PlrModes.cpp source string @ 0x006e17e0 (16 xrefs into
+0x0057eec0..0x00581050 handling each mode transition); the FHR / FBR table
+lookup is not in these functions — the setmode path calls the same
+effective-speed reducer used for IAS / FCR (grep confirms no `0x78` /
+`* 120` constant in the PlrModes range).
+
+Not modelled: game.exe's published discrete breakpoint tables (per class,
+per mode) — `frames_left = base - trunc(base * E / 256)`. The port's
+continuous formula (`len * 100 / (100 + E)`) reproduces the same speed-up
+but not the exact frame-count jumps at each breakpoint. Verification:
+Barb A1 base 16 frames, FHR 0 → 16 (0 % faster), FHR 27 → E = 22, `16 * 100
+/ 122 = 13.1` frames. D2's Barb-1H breakpoints are 9 / 20 / 42 / 86 / 280 →
+14 / 13 / 12 / 11 / 10 frames; ours smooths through the same range.
