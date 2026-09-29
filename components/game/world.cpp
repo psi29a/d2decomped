@@ -89,6 +89,13 @@ auto World::view() const -> View {
             if (portal[std::size_t(k)].level == level)
                 view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
         view.npc_states = npc_states;
+        view.npc_states.resize(level->npcs.size());
+        for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
+            const auto found = other_npcs.find(neighbour.level);
+            auto states = found != other_npcs.end() ? found->second : npc_start(*neighbour.level);
+            states.resize(neighbour.level->npcs.size());
+            view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
+        }
         if (now < fight.boost.until) view.boost = fight.boost.stats;
         view.aura = fight.aura;
         view.gold_lost = int(gold_lost);
@@ -288,6 +295,7 @@ auto World::enter(const Character& entering) -> void {
         held.reset();
         store = {};
         level = &game_data->town;                     // a game starts in the camp (set_map_seed may have rebuilt it)
+        other_npcs.clear();
         npc_states = npc_start(*level);
         interact_npc = pick_item = take_warp = -1;
         wanted_near = nullptr;
@@ -332,11 +340,22 @@ auto World::spawn_merc() -> void {
         }
     }
 
+auto World::swap_npcs(const Level* from) -> void {
+        if (from) other_npcs[from] = std::move(npc_states);
+        if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
+            npc_states = std::move(found->second);
+            other_npcs.erase(found);
+        } else {
+            npc_states = npc_start(*level);
+        }
+    }
+
 auto World::respawn(std::uint32_t now_ms) -> void {
         if (level != &game_data->town) {
             events.push_back(ev::LevelChanged{ level, false });
+            const Level* from = level;
             level = &game_data->town;
-            npc_states = npc_start(*level);
+            swap_npcs(from);
             interact_npc = pick_item = -1;
         }
         take_warp = -1;
@@ -372,10 +391,11 @@ auto World::cross_level() -> void {
             if (merc) shift(*merc);
             fight.pets_cross(level, neighbour.level, dx, dy);
             events.push_back(ev::LevelChanged{ level, true });
+            const Level* from = level;
             level = neighbour.level;
             fight.enter(level);
             loot.enter(level);
-            npc_states = npc_start(*level);
+            swap_npcs(from);
             interact_npc = -1;
             d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), player.x, player.y);
             return;
@@ -445,7 +465,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         loot.enter(level);
-        npc_states = npc_start(*level);
+        swap_npcs(from);
         interact_npc = pick_item = take_warp = take_portal = -1;
         if (level->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through {} from {}", level_name(*level), free_x, free_y, how, level_name(*from));
@@ -872,6 +892,11 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             if (!player.walking) player.path.clear();
         }
         npc_patrol(*level, npc_states, talking, now_ms, elapsed, crowd);
+        for (const auto& neighbour : level->nearby) {           // over the edge, still in play
+            auto& states = other_npcs[neighbour.level];
+            if (states.size() != neighbour.level->npcs.size()) states = npc_start(*neighbour.level);
+            npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
+        }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, now_ms, elapsed, crowd);

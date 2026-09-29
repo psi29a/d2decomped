@@ -120,18 +120,21 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             units.back().shadow = npc.root != "objects";
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
-        // gate, Flavie), as they stand: D2 draws the rooms round the player
-        // whichever level they're in. Not clickable from here (npc -3).
-        // ponytail: NPCs at their start, where npc_start puts them on
-        // crossing (the World steps only the player's level); quest-gated
-        // ones (Cain) left out.
+        // gate, Flavie, patrolling rogues), where they are now: D2 draws the
+        // rooms round the player whichever level they're in. Their states
+        // follow this level's in `npcs` (World::View::npc_states). Not
+        // clickable from here (npc -3); quest-gated ones (Cain) left out.
         static const std::string no_name;
+        std::size_t next_state = level.npcs.size();
         for (const auto& neighbour : level.nearby)
             for (const auto& npc : neighbour.level->npcs) {
-                if (npc.quest) continue;
-                const float x = npc.x + float(neighbour.dx), y = npc.y + float(neighbour.dy);
+                const UnitState* state = next_state < npcs.size() ? &npcs[next_state] : nullptr;
+                ++next_state;
+                if (npc.quest || (state && state->hidden)) continue;
+                const float x = (state ? state->x : npc.x) + float(neighbour.dx), y = (state ? state->y : npc.y) + float(neighbour.dy);
                 if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
-                units.push_back({ x, y, &scene.npc_anim(npc, npc.mode), 0, &no_name, 0, -3 });
+                const auto mode = state && state->walking ? std::string_view("WL") : state && !state->mode.empty() ? state->mode : std::string_view(npc.mode);
+                units.push_back({ x, y, &scene.npc_anim(npc, mode), state ? state->dir : 0, &no_name, state ? state->mode_ms : 0, -3 });
                 units.back().shadow = npc.root != "objects";
             }
         if (merc && merc_state)                    // npc -2: not an NPC-menu unit

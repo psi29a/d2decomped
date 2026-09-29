@@ -427,8 +427,8 @@ Act 1 levels and rendering
   chests open, lock (keys) and drop their act chest TC; traps fire
   firebolts and poison (docs/research/re/objects.md). Missing: the unique
   behaviour mods. Warp arrival traced (drlg.md "Taking a warp").
-- Rendering: cell-granular wall sorting, no item colour tints on composites,
-  the neighbour level's NPCs drawn standing at their start.
+- Rendering: cell-granular wall sorting, no item colour tints on composites.
+  The neighbour level's NPCs patrol and are drawn where they are (2026-09-29).
 
 Town
 - Warriv's "go east", waypoint travel, the hire list's widget and offer

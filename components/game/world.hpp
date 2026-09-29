@@ -33,6 +33,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -86,7 +87,9 @@ struct View {
     // The player's corpses where they stand: their look when they fell.
     struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
     std::vector<Corpse> corpses;
-    std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
+    // The level's NPCs as they patrol, then each Level::nearby level's in
+    // that order (its npcs.size() each, its own cells).
+    std::vector<UnitState> npc_states;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
@@ -126,6 +129,9 @@ struct World {
     std::optional<UnitState> merc;          // the save's mercenary, following
     const Npc* merc_npc = nullptr;
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
+    // Other levels' NPCs, kept while the player's away; the neighbours'
+    // keep patrolling (game.exe runs every unit in the rooms in play).
+    std::unordered_map<const Level*, std::vector<UnitState>> other_npcs;
     d2d::rules::Rng rng{ 0x2545f491u };    // rolls (the client's stock, talk topics, gambles, merc offers too)
     Cues  cues{ game_data };                   // world sounds due later
     Loot  loot{ game_data, level, character, player, rng, cues };                       // on the ground (loot.hpp)
@@ -245,6 +251,9 @@ struct World {
     // stay as they are.
     // ponytail: D2 leaves a corpse holding the gear and takes gold; not yet.
     void respawn(std::uint32_t now_ms);
+    // The player came to `level` from `from`: `from`'s NPC states are kept,
+    // `level`'s taken back (made at their start the first time).
+    void swap_npcs(const Level* from);
 
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::nearby), so the player
