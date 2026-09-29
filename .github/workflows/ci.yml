@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     timeout-minutes: 120
     env:
       # Hash relative paths so ccache hits survive a moved workspace
@@ -34,12 +35,27 @@ jobs:
           # libsdl3-dev is only in 25.04+; ubuntu-latest (24.04) lacks it.
           - os: ubuntu-26.04
             name: Linux (GCC)
+          # Same ubuntu 26.04 packages in a container, so a `docker run
+          # ubuntu:26.04` locally reproduces the runner. Uses the runner's
+          # default gcc (26.04 ships gcc-15, C++26-capable).
+          - os: ubuntu-latest
+            container: ubuntu:26.04
+            name: Linux (GCC, Docker)
           - os: macos-latest
             name: macOS (Clang)
           - os: windows-latest
             name: Windows (MSVC)
 
     steps:
+      # Container images are minimal: git for checkout, sudo so the shared
+      # install step below runs the same way on runner and container.
+      - name: Prepare container (Linux, Docker)
+        if: matrix.container
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y --no-install-recommends git ca-certificates sudo
+
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -47,8 +63,9 @@ jobs:
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build build-essential pkg-config \
+          sudo apt-get install -y cmake ninja-build build-essential pkg-config python3 findutils \
             libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev clang-tidy
 
