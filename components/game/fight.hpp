@@ -783,10 +783,10 @@ struct Fight {
     // last one's are kept as they were; nothing in flight follows.
     // Its monsters come as its rooms come into play (rooms_up).
     void enter(const Level* destination);
-    // The player at (x, y) in `at`: the rooms coming into play round the
-    // player populate (player_moved), their monsters joining `monsters`
+    // The player at (x, y) in `level`: the rooms coming into play round
+    // the player populate (player_moved), their monsters joining `monsters`
     // or the level's `kept`. `arrived`: just came in through a warp.
-    void rooms_up(const Level& at, float x, float y, bool arrived);
+    void rooms_up(const Level& level, float x, float y, bool arrived);
 };
 
 }  // namespace d2d::game
