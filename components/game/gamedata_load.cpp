@@ -746,11 +746,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
         d2d::rules::add_auto_treasure(game_data.rules, weapons_by_level, armor_by_level);
     }
-    auto keys = [&](const char* file_name, const char* col, bool all) {
+    auto keys = [&](const char* file_name, const char* column, bool all) {
         std::vector<std::string> values;
         if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
             const d2d::txt::Table table(*bytes, all);
-            for (std::size_t row = 0; row < table.size(); ++row) values.emplace_back(table.get(row, col));
+            for (std::size_t row = 0; row < table.size(); ++row) values.emplace_back(table.get(row, column));
         }
         return values;
     };
@@ -1042,7 +1042,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const int layout_index = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0
                     : cls == "Transmogrify Box2" ? 2 : -1;
         if (layout_index < 0) continue;
-        auto num = [&](const char* col) { return std::atoi(std::string(inv.get(row, col)).c_str()); };
+        auto num = [&](const char* column) { return std::atoi(std::string(inv.get(row, column)).c_str()); };
         auto& layout = layout_index == 2 ? game_data.cube_layout : game_data.stash_layout[std::size_t(layout_index)];
         layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
         layout.cols = num("gridX"); layout.rows = num("gridY");
@@ -1055,7 +1055,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     for (std::size_t class_index = 0; class_index < 7; ++class_index)
         for (std::size_t row = 0; row < inv.size(); ++row) {
             if (inv.get(row, "class") != kInvClass[class_index]) continue;
-            auto num = [&](std::string col) { return std::atoi(std::string(inv.get(row, col)).c_str()); };
+            auto num = [&](std::string column) { return std::atoi(std::string(inv.get(row, column)).c_str()); };
             auto& layout = game_data.inv_layout[class_index];
             layout.panel_x = num("invLeft"); layout.panel_y = num("invTop");
             layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
@@ -1110,7 +1110,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
     }
     for (std::size_t class_index = 0; class_index < 7 && class_index < charstats.size(); ++class_index) {
-        auto per = [&](const char* col) { return std::atoi(std::string(charstats.get(class_index, col)).c_str()); };
+        auto per = [&](const char* column) { return std::atoi(std::string(charstats.get(class_index, column)).c_str()); };
         game_data.class_gains[class_index] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
                                  per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };

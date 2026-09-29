@@ -6,6 +6,7 @@
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <mpq.hpp>
+#include <rules.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
@@ -22,6 +23,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>

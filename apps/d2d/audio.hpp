@@ -220,9 +220,9 @@ struct Audio {
         }
     }
     void crossfade_music(const GameData& game_data, int index) {
-        auto fade_of = [&](int index, bool fading_in) {
-            if (index <= 0 || std::size_t(index) >= game_data.sounds.size()) return std::uint64_t(0);
-            return std::uint64_t(fading_in ? game_data.sounds[std::size_t(index)].fade_in : game_data.sounds[std::size_t(index)].fade_out) * kTickMs;
+        auto fade_of = [&](int sound, bool fading_in) {
+            if (sound <= 0 || std::size_t(sound) >= game_data.sounds.size()) return std::uint64_t(0);
+            return std::uint64_t(fading_in ? game_data.sounds[std::size_t(sound)].fade_in : game_data.sounds[std::size_t(sound)].fade_out) * kTickMs;
         };
         stop(music_old);
         if (music.src) {

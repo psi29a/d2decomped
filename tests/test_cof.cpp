@@ -56,8 +56,8 @@ int main() {
         const auto raw = archive.read(R"(data\global\CHARS\BA\COF\BATN1HS.COF)");
         d2d::cof::Cof cof(raw);
         assert(cof.directions() == 16);
-        auto before = [&](std::size_t dir, std::uint8_t first, std::uint8_t second) {
-            const auto row = cof.priority(d2d::cof::Cof::priority_row(dir, cof.directions()), 0);
+        auto before = [&](std::size_t direction, std::uint8_t first, std::uint8_t second) {
+            const auto row = cof.priority(d2d::cof::Cof::priority_row(direction, cof.directions()), 0);
             return std::ranges::find(row, first) < std::ranges::find(row, second);
         };
         constexpr std::uint8_t kTorso = 1, kRightHand = 5;
