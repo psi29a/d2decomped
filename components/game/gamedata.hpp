@@ -183,6 +183,9 @@ struct Level {
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
     std::vector<std::uint32_t> room1_seeds;            // by `rooms` index
+    // Rooms holding a hidden warp tile (room2 flag 0x800000, FUN_0066e360):
+    // FUN_0054ebc0 (FUN_0066bb20) populates none there. By `rooms` index.
+    std::vector<bool> warp_rooms;
     // The room seed after FUN_00552610 stepped it (objects.md "Random
     // object groups per room"): what populate() feeds monster rolls, so
     // the throttle build_level applied does not have to be re-derived
@@ -640,6 +643,10 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 // level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
+// Every room of the level populated at once, by (y, x): tools/emu/monsters.py's
+// order, for diffing against game.exe (drlg-dump monsters). Returns each
+// room (Level::rooms index) in that order with its first spawn's index.
+std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level);
 void stamp_footprints(Level& level);
 // An object's footprint into (solid) or out of the walk grid, leaving the
 // subtiles a tile blocks too (FUN_0064de30 / FUN_0064dc00).

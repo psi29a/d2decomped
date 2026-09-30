@@ -414,7 +414,16 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
     }
-    d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
+    // FUN_0054ebc0: counted, but none in a room flagged 0x800000 — a warp
+    // tile's (FUN_0066e360) or one whose near list reaches a town
+    // (FUN_0066bd50, FUN_006426a0).
+    d2d::log::info("TRACE room {},{} game {:08x} room {:08x}", made.x, made.y, spawning.game.low, room.seed.low);
+    const auto near = near_list(game_data, level, int(made_index));
+    if ((made_index < level.warp_rooms.size() && level.warp_rooms[made_index])
+        || std::ranges::any_of(near, [&](const NearRoom& other) { return other.level == &game_data.town; }))
+        ++pop.rooms_done;
+    else
+        d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
     if (spawns.size() > first)
         d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
 }
@@ -459,6 +468,17 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     return grown;
 }
 
+
+std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level) {
+    std::vector<std::pair<std::size_t, std::size_t>> order;
+    for (std::size_t i = 0; i < level.rooms.size(); ++i) order.push_back({ i, 0 });
+    std::ranges::sort(order, {}, [&](const auto& room) { return std::pair(level.rooms[room.first].y, level.rooms[room.first].x); });
+    for (auto& [room, first] : order) {
+        first = spawning.levels[&level].spawns.size();
+        populate(game_data, spawning, level, room);
+    }
+    return order;
+}
 
 // Footprints into the walk grid, centred on each unit's subtile: an
 // object's when it collides in its start mode (HasCollision0..7), noting
@@ -656,8 +676,12 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);
+    level.warp_rooms.assign(made.size(), false);
     for (const auto& room : built)
-        if (room.seed) level.room1_seeds[std::size_t(room.seed - made.data())] = room.room1_seed;
+        if (room.seed) {
+            level.room1_seeds[std::size_t(room.seed - made.data())] = room.room1_seed;
+            level.warp_rooms[std::size_t(room.seed - made.data())] = !room.warps.empty();
+        }
     for (const auto& room : built)
         for (const auto& unit : room.units) level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags });
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
