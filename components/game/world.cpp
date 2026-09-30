@@ -109,7 +109,23 @@ auto World::view() const -> View {
         for (const auto& state : fight.self_states) view.buffs.push_back(state.skill);
         view.day = day;
         view.den_cleared = den.state >= 4;
-        view.den_state = den.state; view.den_log = den.log; view.den_left = std::max(den_left, 0);
+        {   // FUN_00544190: a record's +0xe8 if it has one (Tools), else FUN_00543f90
+            // ponytail: worked out as the view's built, not sent as it changes;
+            // the send's skip for done quests (bits 0 / 15 without 13 / 14) reads as 0.
+            const auto& quest_bits = character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
+            const int clvl = int(character.stats.get(d2d::d2s::kLevel));
+            view.quest_log = { 0, std::uint8_t(den.log_state(quest_bits)), std::uint8_t(burial.log_state(quest_bits)),
+                               std::uint8_t(tools.log_state(quest_bits, holding_malus(), clvl)), std::uint8_t(cain.log_state(quest_bits)),
+                               std::uint8_t(tower.log_state(quest_bits)), std::uint8_t(andy.log_state(quest_bits)) };
+            for (int quest = 1; quest < 7; ++quest) {
+                const bool b0 = d2d::rules::qbit(quest_bits, quest, 0) || d2d::rules::qbit(quest_bits, quest, 15);
+                if (b0 && !d2d::rules::qbit(quest_bits, quest, 13) && !d2d::rules::qbit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
+            }
+            const bool done[7] = { false, den.state >= 4, burial.state >= 4, tools.game_returned, cain.rescued_flag, tower.dead, andy.log == 0xd };
+            for (std::size_t quest = 1; quest < 7; ++quest)
+                view.game_quests[quest] = std::uint16_t((done[quest] ? 1 << 13 : 0) | (closed_at_join[quest] ? 1 << 15 : 0));
+        }
+        view.den_left = std::max(den_left, 0);
         {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
@@ -444,29 +460,24 @@ auto World::new_game() -> void {
         loot.kept.clear();
         loot.ground_level = level;
         cues.due.clear();
+        // The first join (FUN_00546270): quests the player's done or closed
+        // are shut for the game (FUN_00544410, game flag 15), every quest's
+        // join runs, then the chain from quest 1.
+        for (int quest = 1; quest < 7; ++quest)
+            closed_at_join[std::size_t(quest)] = d2d::rules::qbit(quests(), quest, 0) || d2d::rules::qbit(quests(), quest, 15);
         den = {};
         den.join(quests());
         andy = {};
         andy.join(quests());
         burial = {};
         burial.join(quests());
-        if (d2d::rules::qbit(quests(), 1, 0) || d2d::rules::qbit(quests(), 1, 15)) burial.chain();   // the Den's closed: its +0xf0 passes on (FUN_00590620)
         tower = {};
         tower.join(quests());
-        // The chain (+0xf0 from quest 1, FUN_00546270; +0x10: 2 -> 4 -> 3)
-        // reaches Tools past the Den, the Burial Grounds and Cain done or
-        // closed (off for the game).
-        // ponytail: a quest finished in this game (state 5) doesn't pass
-        // it on until the next game.
         tools = {};
-        tools.join(quests());
-        if (std::ranges::all_of(std::array{ 1, 2, 4 }, [&](int quest) { return d2d::rules::qbit(quests(), quest, 0) || d2d::rules::qbit(quests(), quest, 15); })) tools.open();
+        tools.join(quests(), carries("hdm"));
         cain = {};
         cain.join(quests(), carries("bks"), carries("bkd"));
-        // The chain from quest 2 (FUN_00593d70) as the first join runs it.
-        // ponytail: quests 1 and 2 read as done or closed by their bits.
-        using d2d::rules::qbit;
-        if ((qbit(quests(), 1, 0) || qbit(quests(), 1, 15)) && (qbit(quests(), 2, 0) || qbit(quests(), 2, 15))) cain.open();
+        chain(1);
         cain.camp_spawn();
         den_left = -1;
         den_log_at = 0;
@@ -1004,18 +1015,23 @@ auto World::deal(const Command& command) -> bool {
             if (std::size_t(message->npc) >= level->npcs.size()) return true;
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;
             if (!std::ranges::contains(quest_talk(hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
-            if (tower.said(quests(), hc_idx, message->string)) d2d::log::info("The Forgotten Tower: done");
+            if (tower.said(quests(), hc_idx, message->string)) { d2d::log::info("The Forgotten Tower: done"); chain(5); }   // FUN_00594960
             if (andy.said(quests(), hc_idx, message->string)) {
                 d2d::log::info("Sisters to the Slaughter: done, Warriv's caravan goes east");
             }
+            const int tools_was = tools.state;
             if (tools.said(quests(), hc_idx, message->string, holding_malus())) {   // FUN_00544160: the malus goes
+                if (tools_was == 4 && tools.state == 5) chain(3);   // FUN_00591490: its own +0xf0
+                else if (tools.active && tools.carried_in) andy.chain();   // data+0xa1: quest 6's +0xf0
                 if (held && held->code == "hdm") held.reset();
                 else if (const auto malus = std::ranges::find(character.items, std::string("hdm"), &d2d::d2s::Item::code); malus != character.items.end()) character.items.erase(malus);
                 d2d::log::info("Tools of the Trade: the malus is back, Charsi's imbue is due");
             }
             using Said = d2d::rules::CainQuest::Said;
             const auto scroll = std::ranges::find(character.items, std::string_view("bks"), &d2d::d2s::Item::code);
+            const bool cain_flagged = cain.rescued_flag;
             const auto cain_said = cain.said(quests(), hc_idx, message->string, scroll != character.items.end());
+            if (cain_said == Said::ring && !cain_flagged && d2d::rules::qbit(quests(), 4, 13)) chain(4);   // FUN_00592250: the game's (4, 13) goes on
             if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item
                 scroll->code = "bkd";
                 d2d::log::info("Search for Cain: Akara deciphered the scroll");
@@ -1027,12 +1043,16 @@ auto World::deal(const Command& command) -> bool {
                 loot.take(loot.ground.size() - 1);
                 d2d::log::info("Search for Cain: done, Akara's ring");
             }
+            const int den_was = den.state, burial_was = burial.state;
             if (den.said(quests(), hc_idx, message->string)) {
                 ++character.stats.values[d2d::d2s::kSkillPts];
                 d2d::log::info("Den of Evil: Akara's reward, a skill point");
-                if (den.state == 5) burial.chain();       // the Den's +0xf0 (FUN_00590620)
+                if (den_was != 5 && den.state == 5) chain(1);   // FUN_0058fdd0
             }
-            if (burial.said(quests(), hc_idx, message->string)) kashya_merc();
+            if (burial.said(quests(), hc_idx, message->string)) {
+                kashya_merc();
+                if (burial_was != 5 && burial.state == 5) chain(2);   // FUN_00590980
+            }
             return true;
         }
         return false;

@@ -28,15 +28,26 @@ inline void qset(QuestBits& quest_bits, int quest, int bit, bool set = true) {
 // (kind 2) under the quest's name.
 struct QuestMsg { int string = 0; bool greet = false; };
 
+// The quest log's state the server sends a player for a quest whose record
+// has no log function of its own (+0xe8 0, FUN_00543f90): `done` is the
+// record's +0xd, the state it's over from; 12 reads "another player's".
+[[nodiscard]] inline int quest_log(const QuestBits& quest_bits, int quest, int state, int log, int done) {
+    const bool b13 = qbit(quest_bits, quest, 13), b14 = qbit(quest_bits, quest, 14);
+    if (state < done) return b14 || (quest == 4 && log == 6 && !b13) ? 12 : log;
+    if (b13) return log;
+    if (quest == 4 && b14) return state == 6 ? 12 : log;
+    return quest == 10 ? (log != 4 ? 12 : 4) : 12;
+}
+
 // The Den of Evil, one game's (the quest record at FUN_00590720). Quest 1
 // in the flags; bits: 0 done, 1 reward due, 2 given, 3 / 4 in the Den,
 // 13 cleared in this game, 14 cleared by someone else, 15 closed.
-// ponytail: one player — the party and late-joiner lists are left out,
-// and the quest log's state (+0xb) is kept only for the bit it picks.
+// ponytail: one player — the party and late-joiner lists are left out.
 struct DenQuest {
     static constexpr int kQuest = 1, kAkara = 148, kDen = 8;
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
+    bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
 
     // A player's bits for the state (LAB_0058fc90).
     void mark(QuestBits& quest_bits) const {
@@ -46,11 +57,16 @@ struct DenQuest {
     }
     // The player joins: the state from their flags (LAB_00590690).
     void join(const QuestBits& quest_bits) {
-        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) return;
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) { active = false; return; }
         if (qbit(quest_bits, kQuest, 4)) { log = 2; state = 3; }
         else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
         else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
     }
+    // The chain reached it (+0xf0, FUN_00590620). True: it passes on to
+    // quest 2's (+0x10).
+    [[nodiscard]] bool chain() const { return state == 5 || !active; }
+    // The quest log's state (+0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
     // Into the Den (FUN_00590470, level 8).
     void enter_den(QuestBits& quest_bits) {
         const bool bumped = state == 1 || state == 2;
@@ -104,12 +120,13 @@ struct DenQuest {
     }
     // The player heard `string` from `npc` (FUN_0058fdd0, packet 0x31).
     // True: Akara's reward — a skill point (stat 5 + 1), done; quest 41
-    // (her respec) opens; bits 2..11 cleared (FUN_0065c3e0).
+    // (her respec) opens; bits 2..11 cleared (FUN_0065c3e0). The state
+    // going to 5 runs the chain (+0xf0), then log 13 (FUN_0058fbe0).
     bool said(QuestBits& quest_bits, int npc, int string) {
         if (npc != kAkara) return false;
         if (string == 64) { state = 2; mark(quest_bits); return false; }
         if (string != 76 || !qbit(quest_bits, kQuest, 1)) return false;
-        if (qbit(quest_bits, kQuest, 13) && state != 5) state = 5;
+        if (qbit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 0xd; }
         qset(quest_bits, kQuest, 0);
         qset(quest_bits, kQuest, 1, false);
         qset(quest_bits, 41, 13);
@@ -154,6 +171,8 @@ struct BurialQuest {
         if (state == 0 && open) state = 1;
         return state == 5 || !open;
     }
+    // The quest log's state (+0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
     // A tick (40 ms).
     void tick() {
         if (log_in > 0 && --log_in == 0) log = 3;
@@ -184,7 +203,8 @@ struct BurialQuest {
         return (state == 1 && !qbit(quest_bits, kQuest, 1)) || qbit(quest_bits, kQuest, 1);
     }
     // The player heard `string` from `npc` (FUN_00590980). True: Kashya's
-    // reward — done, and a free hireling (FUN_00579180).
+    // reward — done, and a free hireling (FUN_00579180). The state going
+    // to 5 runs the chain (+0xf0).
     bool said(QuestBits& quest_bits, int npc, int string) {
         if (npc != kKashya) return false;
         if (string == 81) { pending = true; state = 2; mark(quest_bits); return false; }
@@ -237,7 +257,8 @@ struct AndyQuest {
     static constexpr int kQuest = 6, kCain = 265, kAkara = 148, kKashya = 150, kWarriv = 155, kAndariel = 156, kLair = 37, kLut = 40;
     int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
     int log = 0;        // +0xb
-    int start_in = 20;  // ticks to the start timer (0x5968e0: 0x14, then 0x596580)
+    int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
+    bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
     int after_kill = 0; // +0x192: ticks since Andariel died (timer 0x596500), 0 not running
     bool cain = false, akara = false, kashya = false, rewarded = false;
     bool cain_pending = false;   // +0x195: Cain gave it, the log waits for the talk to close
@@ -250,11 +271,16 @@ struct AndyQuest {
     }
     // The player joins (0x596900).
     void join(const QuestBits& quest_bits) {
-        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) return;
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) { active = false; return; }
         if (qbit(quest_bits, kQuest, 4)) { log = 2; state = 3; }
         else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
         else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
     }
+    // The chain reached it (+0xf0, FUN_005968e0): the start timer runs. It
+    // passes on no further (+0x10 is 0x25, the next act's).
+    void chain() { if (state == 0 && active) start_in = 20; }
+    // The quest log's state (+0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
     // A tick (40 ms). 1: the kill's town portal is due at the player, if
     // they're in Andariel's lair (tick 10, FUN_00596490).
     int tick() {
@@ -368,8 +394,14 @@ struct CainQuest {
     bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
     bool missed = false, thanked = false, rewarded = false;
 
-    // State 0 → 1 (FUN_00593d70, the chain from quest 2's +0xf0).
-    void open() { if (state == 0 && active) state = 1; }
+    // The chain reached it (+0xf0, FUN_00593d70, from quest 2's): state
+    // 0 → 1. True: it passes on to quest 3's (+0x10).
+    bool open() {
+        if (state == 0 && active) { state = 1; return false; }
+        return state == 6 || !active;
+    }
+    // The quest log's state (+0xd 6).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 6); }
     // A player's bits for the state (LAB_00592130).
     void mark(QuestBits& quest_bits) const {
         if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
@@ -432,7 +464,8 @@ struct CainQuest {
     // The player heard `string` from `npc` (FUN_00592250). decipher: Akara
     // takes the scroll (bks) for the deciphered one (bkd, FUN_005466b0 ilvl
     // 0, quality 2); ring: her reward, a ring (Normal ilvl 7 magic,
-    // Nightmare 30 / Hell 60 rare).
+    // Nightmare 30 / Hell 60 rare). With bit 13, the game's flag (4, 13)
+    // going on runs the chain (+0xf0).
     enum class Said { none, decipher, ring };
     Said said(QuestBits& quest_bits, int npc, int string, bool bks) {
         if (npc == kCampCain) {
@@ -453,7 +486,7 @@ struct CainQuest {
         rewarded = true;
         if (qbit(quest_bits, kQuest, 13)) {
             log = 0xd; state = 6;
-            rescued_flag = true;   // ponytail: then +0xf0, the chain to quest 3 (Tools), is that quest's to take
+            rescued_flag = true;
         }
         if (closed_join) rescued_flag = true;
         return Said::ring;
@@ -592,6 +625,11 @@ struct TowerQuest {
         else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
         else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
     }
+    // The chain reached it (+0xf0, FUN_00595240). True: it passes on to
+    // quest 3's (+0x10).
+    [[nodiscard]] bool chain() const { return state == 5; }
+    // The quest log's state (+0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
     // A tick (40 ms): the kill's timer sets the log to 13.
     void tick() {
         if (log_in > 0 && --log_in == 0 && state == 5) log = 13;
@@ -701,6 +739,7 @@ struct ToolsQuest {
     bool dropped = false;    // data+1 / +0x98 == 2: the stand's used
     bool given = false, returned = false;   // data[2] / data[3]: the log waits for the talk to close
     bool game_returned = false;             // the game's flag 13 (FUN_00544720(3, 0xd))
+    bool carried_in = false;                // data+0xa1: the player joined holding the malus
 
     // A player's bits for the state (0x591340).
     void mark(QuestBits& quest_bits) const {
@@ -710,7 +749,8 @@ struct ToolsQuest {
     }
     // The player joins (FUN_00591ed0); a first player with it done or
     // closed turns it off for the game (FUN_00546270, FUN_00544410).
-    void join(const QuestBits& quest_bits) {
+    void join(const QuestBits& quest_bits, bool holding = false) {
+        carried_in = holding;
         if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) { active = false; return; }
         if (qbit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
         else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
@@ -752,7 +792,9 @@ struct ToolsQuest {
     }
     // The player heard `string` from `npc` (FUN_00591490). True: Charsi
     // took the malus back (the caller removes it, FUN_00544160) — the
-    // imbue's due (bits 13 and 1) and "quest complete" (0xca7).
+    // imbue's due (bits 13 and 1) and "quest complete" (0xca7). The state
+    // going 4 → 5 runs the chain (+0xf0); else, the malus carried into the
+    // game, quest 6's (+0x10) runs directly.
     bool said(QuestBits& quest_bits, int npc, int string, bool holding) {
         if (npc != kCharsi) return false;
         if (string == 146) { state = 2; given = true; return false; }
@@ -815,6 +857,83 @@ struct ToolsQuest {
     }
 };
 
+// The chain from `quest` (its +0xf0, on through +0x10 while one passes
+// on): 1 → 2 → 4 → 3 → 6, 5 → 3 (the records' +0x10). The first join runs
+// it from quest 1 (FUN_00546270).
+inline void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain, TowerQuest& tower, ToolsQuest& tools, AndyQuest& andy) {
+    for (;;) {
+        switch (quest) {
+        case 1: if (!den.chain()) return; quest = 2; break;
+        case 2: if (!burial.chain()) return; quest = 4; break;
+        case 4: if (!cain.open()) return; quest = 3; break;
+        case 5: if (!tower.chain()) return; quest = 3; break;
+        case 3: if (!tools.open()) return; quest = 6; break;
+        default: andy.chain(); return;
+        }
+    }
+}
+
+// The quest log (client side, QuestLog.cpp).
+// What the log says about a quest (FUN_004a1950): its record (0x7237a4 on,
+// 64 bytes a quest: name, the message to replay once done, the reward's
+// state - 1 (-1 none), then {string, message} a log state: state s at
+// [2s + 1], [2s + 2]; 3725 none), by the log state the server sent (s), the
+// player's flags and the game's (FUN_004b32e0). `shown` (+0x266): 0 done,
+// its animation still to play (bit 12 clear), 1 done, 2 hidden, 3 shown.
+// The Den's states 3 / 4 add the count ("Monsters remaining: " N, 3739 for
+// one or none).
+// ponytail: single player (DAT_007a0610 0: 3729, never 3730).
+inline constexpr std::array<std::array<std::uint16_t, 29>, 6> kQuestLogRecords = { {
+    { 3714, 76, 4, 3735, 64, 3736, 64, 3737, 64, 3738, 64, 3740, 64, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      3740, 64, 3728, 3725, 3727, 3725, 3726, 64 },
+    { 3715, 92, 2, 3741, 81, 3742, 81, 3743, 81, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      3743, 81, 3728, 3725, 3727, 3725, 3726, 81 },
+    { 3716, 163, 0xffff, 3755, 146, 3756, 146, 3733, 146, 3732, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      3757, 163, 3728, 3725, 3727, 3725, 3726, 146 },
+    { 3717, 123, 0xffff, 3744, 97, 3745, 97, 3746, 97, 3747, 97, 3748, 97, 3749, 97, 3734, 97, 3725, 3725, 3725, 3725,
+      3750, 97, 3728, 3725, 3727, 3725, 3726, 97 },
+    { 3718, 127, 0xffff, 3751, 127, 3754, 127, 3752, 127, 3753, 127, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      3725, 3725, 3728, 3725, 3727, 3725, 3726, 127 },
+    { 3719, 184, 9, 3758, 166, 3759, 166, 3761, 166, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
+      3760, 166, 3728, 3725, 3727, 3725, 3726, 184 },
+} };
+struct QuestText { int string = 0, count = -1, speech = 0, shown = 2; };
+struct QuestState {
+    std::array<std::uint8_t, 7> log{};     // the log state the server sent, by quest (the view's quest_log)
+    std::array<std::uint16_t, 7> game{};   // the game's quest flags (the view's game_quests)
+    int den_left = 0;                      // DAT_007bf2a4
+};
+inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
+    if (quest < 1 || quest > 6) return {};
+    const auto& rec = kQuestLogRecords[std::size_t(quest - 1)];
+    auto flag = [&](int bit) { return d2d::rules::qbit(quest_bits, quest, bit); };
+    auto game = [&](int bit) { return (quest_state.game[std::size_t(quest)] >> bit & 1) != 0; };
+    auto entry = [&](int string, int speech, int shown) {
+        return QuestText{ string == 3725 ? 0 : string, -1, speech == 3725 ? 0 : speech, shown };
+    };
+    const bool b0 = flag(0), b1 = flag(1), b13 = flag(13);
+    int s = quest_state.log[std::size_t(quest)];
+    if (b0) {                                               // done: 13 in this game, 11 before
+        s = b13 ? 13 : 11;
+        return entry(rec[std::size_t(2 * s + 1)], rec[1], flag(12) ? 1 : 0);
+    }
+    if (b13 && b1 && rec[2] != 0xffff) {                    // the reward's due
+        s = rec[2] + 1;
+        return entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], 3);
+    }
+    if (b1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3);
+    if (s == 0)
+        return (game(13) || game(15)) && !b13 && !b1 ? entry(3729, 3725, 3) : QuestText{};
+    if (s > 13) return {};
+    if (quest == 1) {                                       // the Den (name 3714): its count
+        QuestText text = entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3);
+        if (s == 3 || s == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
+        return text;
+    }
+    int line = rec[std::size_t(2 * s + 1)];
+    if ((!b13 && !b1 && game(13)) || flag(14) || line == 3727) line = 3729;
+    return entry(line, rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3);
+}
 // The quest a message is about, for the Talk submenu's label: its name's
 // string id (0x722678), 0 none.
 [[nodiscard]] inline int quest_name(int message) {

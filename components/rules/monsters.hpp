@@ -445,4 +445,308 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
     return { x, y };
 }
 
+// The per-type MonAI thinks (the MonAI table 0x73ca18 + AI * 16: {target
+// search, init, think, ...}; FUN_005b15d0), each ending in one AI helper:
+//   idle n       FUN_005de080: stand n frames
+//   a1 / a2 / s2 FUN_005ddf90(4 / 5 / 9): attack the target (the Fallen's S2: a taunt)
+//   skill n      FUN_005dead0: Skill(n+1) in Sk(n+1)mode at the target
+//   walk n       FUN_005dec80 / FUN_005ded40, flags n: walk at the target
+//                (flags 2: can't set off, rand(100) < 70 wander 4, else stand 10)
+//   run          FUN_005ded20 / FUN_005defb0: run at it
+//   approach     FUN_005def80: walk at it
+//   keep n x     FUN_005de6d0: walk to x subtiles off it, n at most
+//   circle n x   FUN_005df7d0: one seed step (x: its low byte >= 0x80), walk round it
+//   wander x y   FUN_005de200: walk to (x, y) subtiles off, four seed steps
+//   none         already on its way (a back-off, FUN_005defe0 / FUN_005df140)
+//   die          FUN_005ddfc0(0): into DT, flagged 0x20000 (a nest done laying)
+//   around n x y FUN_005df680: walk to (x, y) subtiles off the target, four seed steps
+//   home         FUN_005dede0: walk back to its spawn point (Blood Raven's command 10)
+//   skill n x y  as skill, at (x, y) subtiles off the target when set (Blood Raven's raise)
+// A think's rand(100)s are one step each of the monster's seed (+0x20),
+// drawn here in game.exe's order; a skill test with no skill (-1) draws
+// nothing.
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, untraced };
+struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
+struct ThinkIn {
+    std::array<int, 8> aip{};                   // aip1..8 for its difficulty
+    bool in_melee = false, got_hit = false;     // got hit: the last mode it left was GH (FUN_005dd2b0)
+    int dist = 0;                               // AI distance to the target, subtiles
+    int difficulty = 0, level = 0, life_pct = 100;
+    std::array<bool, 3> skill{};                // Skill1..3 set
+    int* state = nullptr;                       // the AI's scratch word (AI control +0x14)
+    // The Fallen's: it leads its group (FUN_0058f0d0), its command (1:
+    // charge; FUN_0058ee80, 0 none), a unit dying (DT) within 15 subtiles;
+    // a Shaman's corpse to raise; set when it sends its group command 1
+    // (FUN_0058f730).
+    bool leader = false, dying = false, corpse = false;
+    int* command = nullptr;
+    bool* rally = nullptr;
+    // A nest's: the game frame, its second scratch word (+0x18: laid so
+    // far), whether the spot its young come out on is free (FUN_005fd350).
+    int frame = 0;
+    int* state2 = nullptr;
+    bool spot_free = true;
+    int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
+};
+
+inline bool traced_ai(std::string_view ai) {
+    static constexpr std::array<std::string_view, 17> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
+                                                               "BloodRaven", "SkeletonMage" };
+    return std::ranges::contains(kTraced, ai);
+}
+
+// FUN_005de200(r): one side r off, the other rand(r), on the seed's low
+// bit; the next two low bits negate x, then y.
+inline Think think_wander(Rng& rng, int r) {
+    Think out{ MonAct::wander, r, r, r };
+    if ((rng.next() & 1) == 0) out.x = rng(r); else out.y = rng(r);
+    if (rng.next() & 1) out.x = -out.x;
+    if (rng.next() & 1) out.y = -out.y;
+    return out;
+}
+inline Think think_circle(Rng& rng, int n) { return { MonAct::circle, n, (rng.next() & 0xff) >= 0x80 ? 1 : 0 }; }
+// FUN_005dec80 flags 2 when the walk can't set off.
+inline Think walk_failed(Rng& rng) { return rng(100) < 70 ? think_wander(rng, 4) : Think{ MonAct::idle, 10 }; }
+
+// `away(n, run)` backs off n subtiles from the target (FUN_005defe0 walking,
+// FUN_005df140 running) and says whether it set off.
+template <class Away>
+Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
+    const auto& aip = in.aip;
+    auto r = [&] { return rng(100); };
+    auto a1_or_a2 = [&](int chance) { return Think{ r() < chance ? MonAct::a1 : MonAct::a2 }; };
+    const Think idle2{ MonAct::idle, aip[1] }, walk{ MonAct::walk, 7 };
+    // Skeleton (2, FUN_005efcf0; hellbovine too).
+    if (ai == "Skeleton") {
+        if (!in.in_melee) { if (r() < aip[0]) return walk; }
+        else if (r() < aip[2]) return a1_or_a2(aip[3]);
+        return idle2;
+    }
+    // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
+    // within aip2; else wanders 3, bar in the Burial Grounds (level 17).
+    if (ai == "Zombie") {
+        if (in.in_melee) return a1_or_a2(aip[3]);
+        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != 17) return think_wander(rng, 3);
+        return { MonAct::run };
+    }
+    // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
+    // shot within 15); below, it backs off under 3, walks in past 15, else
+    // aip4 % shoots, aip2 % circles, else stands 10.
+    // ponytail: the second target search (FUN_005ddc30) taken as its target.
+    if (ai == "Bighead") {
+        if (!in.in_melee && in.got_hit) return { MonAct::a2 };
+        if (in.life_pct >= aip[0]) {
+            if (in.in_melee) return { MonAct::a1 };
+            if (in.dist < 15 && r() < aip[2]) return { MonAct::a2 };
+            return walk;
+        }
+        if (in.dist < 3) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a2 };
+        if (in.dist > 15) return { MonAct::approach, 6 };
+        if (r() < aip[3]) return { MonAct::a2 };
+        if (r() >= aip[1]) return { MonAct::idle, 10 };
+        return think_circle(rng, 3);
+    }
+    // BloodHawk (5, FUN_005f00e0): aip1 % a charge (state 1: a swing when
+    // it lands in melee), else wanders (aip2 %: 4, else 3) past 3 subtiles;
+    // in melee aip3 % a swing; else backs off 4, or swings.
+    if (ai == "BloodHawk") {
+        const bool charged = *in.state == 1;
+        *in.state = 0;
+        if (charged && in.in_melee) return { MonAct::a1 };
+        if (!in.in_melee) {
+            if (r() < aip[0]) { *in.state = 1; return { MonAct::walk, 0 }; }
+            if (in.dist > 3) return think_wander(rng, r() < aip[1] ? 4 : 3);
+        } else if (r() < aip[2]) return { MonAct::a1 };
+        return away(4, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
+    }
+    // Brute (7, FUN_005efb80): walks in without a draw; in melee aip3 % a
+    // swing (aip4 % A1), else aip3 % circles 4, else stands 15.
+    if (ai == "Brute") {
+        if (!in.in_melee) return walk;
+        if (r() < aip[2]) return a1_or_a2(aip[3]);
+        if (r() < aip[2]) return think_circle(rng, 4);
+        return { MonAct::idle, 15 };
+    }
+    // Wraith (9, FUN_005f0a20) and Goatman (12, FUN_005f12a0): aip1 % close
+    // in (the wraith drifts up to 12 subtiles), in melee aip3 % A1, else
+    // stand aip2.
+    if (ai == "Wraith" || ai == "Goatman") {
+        if (!in.in_melee) { if (r() < aip[0]) return ai == "Wraith" ? Think{ MonAct::keep, 12, 0 } : walk; }
+        else if (r() < aip[2]) return { MonAct::a1 };
+        return idle2;
+    }
+    // CorruptRogue (10, FUN_005f0b00): runs at a target past 20 - 3 x
+    // difficulty (FUN_00573930's difficulty); in melee aip3 % A1, else
+    // aip1 % close in (aip5 % running).
+    if (ai == "CorruptRogue") {
+        if (in.dist > 20 - 3 * in.difficulty) return { MonAct::run };
+        if (in.in_melee) return r() < aip[2] ? Think{ MonAct::a1 } : idle2;
+        if (r() >= aip[0]) return idle2;
+        return r() < aip[4] ? Think{ MonAct::run } : walk;
+    }
+    // QuillRat (14, FUN_005f1140): A1 in melee, spikes (A2) when hit;
+    // wanders (aip4, at least 3) at aip1 or more; else aip2 % a back-off
+    // of aip4 first, then the spikes.
+    // ponytail: the leader's command (FUN_0058ee80) to shoot isn't sent.
+    if (ai == "QuillRat") {
+        if (in.in_melee) return { MonAct::a1 };
+        if (in.got_hit) return { MonAct::a2 };
+        const int roam = std::max(aip[3], 3);
+        if (in.dist >= aip[0]) return think_wander(rng, roam);
+        if (r() >= aip[1]) {
+            if (away(aip[3] & 0xff, false)) return { MonAct::none };
+            if (in.dist > 3) return think_wander(rng, roam);
+        }
+        return { MonAct::a2 };
+    }
+    // CorruptArcher (35, FUN_005f5a20): shoots a foe it's hit by; under 6,
+    // aip4 % runs 12 off; past aip8, aip1 % walks in; past aip5 runs in;
+    // else aip2 % a shot (Skill2 aip6 %, Skill3 aip7 %, else Skill1 or A1).
+    // ponytail: its target search (FUN_005ddc30) is the think's target; with
+    // none the driver doesn't call it, so the 50 % circle is left out.
+    if (ai == "CorruptArcher") {
+        if (!in.in_melee && in.got_hit) return { MonAct::a1 };
+        if (in.dist < 6 && r() < aip[3] && away(12, true)) return { MonAct::none };
+        if (aip[7] > 0 && aip[7] < in.dist && r() < aip[0]) return { MonAct::approach, aip[7] };
+        if (aip[4] < in.dist) return { MonAct::run };
+        if (r() >= aip[1]) return { MonAct::idle, aip[2] };
+        if (in.skill[1] && r() < aip[5]) return { MonAct::skill, 1 };
+        if (in.skill[2] && r() < aip[6]) return { MonAct::skill, 2 };
+        return in.skill[0] ? Think{ MonAct::skill, 0 } : Think{ MonAct::a1 };
+    }
+    // CorruptLancer (36, FUN_005f5d50): runs in past aip5 (state 1: it
+    // strikes on arrival); at range aip1 % closes in (aip4 % running);
+    // in melee aip2 % (or on arrival) Skill1..3 at aip6..8 %, else A1.
+    if (ai == "CorruptLancer") {
+        if (aip[4] < in.dist) { *in.state = 1; return { MonAct::run }; }
+        if (!in.in_melee) {
+            if (r() >= aip[0]) return { MonAct::idle, aip[2] };
+            return r() >= aip[3] ? Think{ MonAct::approach, 3 } : Think{ MonAct::run };
+        }
+        if (*in.state == 0 && r() >= aip[1]) return { MonAct::idle, aip[2] };
+        *in.state = 0;
+        for (int skill = 0; skill < 3; ++skill)
+            if (in.skill[std::size_t(skill)] && r() < aip[std::size_t(5 + skill)]) return { MonAct::skill, skill };
+        return { MonAct::a1 };
+    }
+    // SkeletonBow (37, FUN_005f6070): shoots a foe it's hit by; past 19,
+    // aip3 % keeps aip5 off (aip4 at most a go), else stands 20; else aip1
+    // % shoots, 20 % circles 3, else stands aip2.
+    if (ai == "SkeletonBow") {
+        if (in.got_hit) return { MonAct::a1 };
+        if (in.dist > 19) return r() < aip[2] ? Think{ MonAct::keep, aip[3], aip[4] } : Think{ MonAct::idle, 20 };
+        if (r() < aip[0]) return { MonAct::a1 };
+        if (r() < 20) return think_circle(rng, 3);
+        return idle2;
+    }
+    // Fallen (6, FUN_005f02c0): with a unit dying near, it backs off 12 from
+    // its target, dropping its command (a seed step: 1 in 20 a scream).
+    // Charging (command 1) it walks in, then aip3 % swings (aip4 % A1),
+    // else stands 5. Otherwise: hit, it walks in; a leader within 15 aip1 %
+    // taunts (S2) and sets its group charging; aip2 or nearer it walks in,
+    // else 30 % wanders 3; in melee aip3 % (or on a scare, state 1) swings,
+    // else 30 % taunts, else stands 10.
+    // ponytail: the stand-10 outside NU is left out (our moves re-think
+    // mid-way, game.exe's at their end); commands other than 1 never come.
+    if (ai == "Fallen") {
+        if (in.dying) {
+            *in.state = 1; *in.command = 0;
+            if (away(12, false)) { (void)rng.next(); return { MonAct::none }; }
+        }
+        if (*in.command == 1) {
+            if (!in.in_melee) return { MonAct::walk, 0 };
+            if (r() >= aip[2]) return { MonAct::idle, 5 };
+            return a1_or_a2(aip[3]);
+        }
+        if (!in.in_melee && in.got_hit) return { MonAct::walk, 0 };
+        if (in.dist < 15 && in.leader && r() < aip[0]) { *in.rally = true; return { MonAct::s2 }; }
+        if (!in.in_melee) {
+            if (in.dist <= aip[1]) return walk;
+            return r() < 30 ? think_wander(rng, 3) : Think{ MonAct::idle, 10 };
+        }
+        if (*in.state != 0 || r() < aip[2]) { *in.state = 0; return a1_or_a2(aip[3]); }
+        return r() < 30 ? Think{ MonAct::s2 } : Think{ MonAct::idle, 10 };
+    }
+    // FallenShaman (13, FUN_005f1440): in melee aip3 % A1; aip1 % sets its
+    // group charging; with a corpse (FUN_005dd0b0) aip1 % raises it
+    // (Skill1); within aip5, aip2 % a fire bolt (Skill2), rolled again for
+    // its second target search (FUN_005ddc30); else aip3 % circles 3, else
+    // stands 10.
+    // ponytail: the second target search taken as its target.
+    if (ai == "FallenShaman") {
+        if (in.in_melee && r() < aip[2]) return { MonAct::a1 };
+        if (r() < aip[0]) *in.rally = true;
+        if (in.corpse && r() < aip[0] && in.skill[0]) return { MonAct::skill, 0 };
+        for (int search = 0; search < 2; ++search)
+            if (in.dist < aip[4] && r() < aip[1]) return { MonAct::skill, 1 };
+        if (r() >= aip[2]) return { MonAct::idle, 10 };
+        return think_circle(rng, 3);
+    }
+    // FoulCrowNest (43, FUN_005f6650; init FUN_005f6630 keeps the frame in
+    // the state): past 20 stands 25; once it's laid aip3 it collapses;
+    // every aip1 frames it lays (Skill1, Nest) where there's room; else
+    // stands 20 + a seed step % 10.
+    if (ai == "FoulCrowNest") {
+        if (in.dist > 20) return { MonAct::idle, 25 };
+        if (*in.state2 >= aip[2]) return { MonAct::die };
+        if (in.skill[0] && std::abs(in.frame - *in.state) >= aip[0]) {
+            *in.state = in.frame;
+            if (in.spot_free) { ++*in.state2; return { MonAct::skill, 0 }; }
+        }
+        return { MonAct::idle, int(rng.next() % 10) + 20 };
+    }
+    // BloodRaven (59, FUN_005e6320; init FUN_005e6300 clears the flag):
+    // past 45 stands 5; 50 or more from home (her command 10, set at her
+    // first think) she heads back until within 5 (the flag: *command);
+    // past 20 she closes to a spot half as far off (12 at least); every
+    // think adds 3 to the state, and out of melee, with fewer than 8 + 2 *
+    // difficulty raised (state2), rand(100) < state raises a zombie (Nest)
+    // 5..19 off the target; past 5, 5 % moves 12 about the target, else
+    // not hit 80 % strikes ((difficulty + 4) * 10 % Quick Strike, else A1),
+    // else circles 4; within 5, 30 % backs off to 12 running, else A1.
+    // ponytail: the walks home / about the target and the circle always
+    // set off; the second target search (FUN_005ddc30) is the target.
+    if (ai == "BloodRaven") {
+        if (in.dist > 45) return { MonAct::idle, 5 };
+        if (in.home_dist >= 50) *in.command = 1;
+        if (*in.command && in.home_dist > 5) return { MonAct::home };
+        *in.command = 0;
+        auto around = [&](int n) { auto out = think_wander(rng, n); out.act = MonAct::around; return out; };
+        if (in.dist > 20) return around(std::max(in.dist >> 1, 12));
+        *in.state += 3;
+        if (in.skill[0] && !in.in_melee && *in.state2 < in.difficulty * 2 + 8 && r() < *in.state) {
+            const int far = rng(15) + 5;
+            int x = far, y = far;
+            if (rng.next() & 1) y = rng(far); else x = rng(far);
+            if (rng.next() & 1) x = -x;
+            if (rng.next() & 1) y = -y;
+            ++*in.state2; *in.state = 0;
+            return { MonAct::skill, 0, x, y };
+        }
+        if (in.dist > 5) {
+            if (r() < 5) return around(12);
+            if (!in.got_hit && r() < 80) return in.skill[1] && r() < (in.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 };
+            return think_circle(rng, 4);             // FUN_005df7d0(4, 1): its walk flagged 4
+        }
+        if (r() < 30 && away(12 - in.dist, true)) return { MonAct::none };
+        return { MonAct::a1 };
+    }
+    // SkeletonMage (FUN_005f96c0): past aip2, aip3 % closes to aip2; within
+    // aip4, aip5 % backs off 5 (blocked: A1); within aip6, aip1 % shoots
+    // (A1, MissA1); past aip2 aip3 % again closes in; else aip7 % circles 4,
+    // else stands aip8.
+    // ponytail: its target search (FUN_005ddc30) is the think's target, so
+    // the first test comes round twice.
+    if (ai == "SkeletonMage") {
+        if (aip[1] < in.dist && r() < aip[2]) return { MonAct::approach, aip[1] };
+        if (in.dist <= aip[3] && r() < aip[4]) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
+        if (in.dist < aip[5] && r() < aip[0]) return { MonAct::a1 };
+        if (aip[1] < in.dist && r() < aip[2]) return { MonAct::approach, aip[1] };
+        if (r() >= aip[6]) return { MonAct::idle, aip[7] };
+        return think_circle(rng, 4);
+    }
+    return { MonAct::untraced };
+}
+
 }  // namespace d2d::rules

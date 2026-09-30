@@ -190,33 +190,17 @@ struct QuestLog {
     bool close_down = false, last_down = false;
 };
 
-// An icon's frame: 26 not started, 0 under way (25 while selected), 24 done
-// (frames 1..24 are the done animation, played once the quest completes).
-// ponytail: under way = any flag bit but 0 set; the questdone plate for a
-// selected finished quest isn't drawn.
-inline int quest_icon_frame(const d2d::rules::QuestBits& quest_bits, int quest, bool selected) {
-    if (d2d::rules::qbit(quest_bits, quest, 0)) return 24;
-    for (int bit = 1; bit < 16; ++bit) if (d2d::rules::qbit(quest_bits, quest, bit)) return selected ? 25 : 0;
-    return 26;
-}
-// What the log says about a quest (FUN_004a1950): its record (the Den's at
-// 0x7237a4: name, the message to replay, then {string, message} a log state:
-// state s at [2s + 1], [2s + 2]), by the log state the server keeps, or 13
-// done here, 11 done in a previous game, 12 another player's. State 4 adds
-// the count ("Monsters remaining: " N, 3739 for one).
-// ponytail: the Den's record only.
-inline constexpr std::array<std::uint16_t, 29> kDenLog = { 3714, 76, 4, 3735, 64, 3736, 64, 3737, 64, 3738, 64, 3740, 64,
-    3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3740, 64, 3728, 3725, 3727, 3725, 3726, 64 };
-struct QuestText { int string = 0, count = -1, speech = 0; };
-struct QuestState { int den_state = 1, den_log = 0, den_left = 0; };
-inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
-    using d2d::rules::qbit;
-    if (quest != 1) return {};
-    const int log_index = qbit(quest_bits, 1, 0) ? (quest_state.den_state == 5 ? 13 : 11) : qbit(quest_bits, 1, 14) ? 12 : quest_state.den_log;
-    if (log_index < 1 || std::size_t(2 * log_index + 2) >= kDenLog.size()) return {};
-    QuestText text{ kDenLog[std::size_t(2 * log_index + 1)], -1, kDenLog[std::size_t(2 * log_index + 2)] };
-    if (log_index == 4) { if (quest_state.den_left == 1) text.string = 3739; else text.count = quest_state.den_left; }
-    return text;
+// What the log says about a quest (d2d::rules::quest_text, FUN_004a1950).
+using d2d::rules::QuestState;
+using d2d::rules::QuestText;
+using d2d::rules::quest_text;
+// An icon's frame by `shown` (FUN_004a34f0): 2 → 26 (not started), 3 → 0
+// (25 while selected), 1 → 24 (done); 0 is the done animation, frames 1..24
+// (100 ms each, cursor_questdone at the first), then 24.
+// ponytail: the questdone plate a selected finished quest draws instead
+// isn't here.
+inline int quest_icon_frame(int shown, bool selected) {
+    return shown == 2 ? 26 : shown == 3 ? (selected ? 25 : 0) : 24;
 }
 // Its buttons on the bottom line (FUN_004a34f0): close (the store buttons'
 // frames 10 / 11) at x 0x116 and questlast (replay the quest's message) at
