@@ -173,7 +173,9 @@ struct Level {
     // its tile unit stands (cells: the cell x 5 + LvlWarp Offset subtiles).
     // Someone arriving through it lands at the free spot nearest the unit,
     // then walks ExitWalk on from there (FUN_005550b0).
-    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; };
+    // pair: its Levels.txt slot's rank among the row's slots to the same
+    // level (FUN_0066c220 links the k-th one to the other side's k-th back).
+    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; int slot = 0, pair = 0; };
     std::vector<Warp> warps;
     // Its rooms' preset units (drlg level_room_tiles, proven against
     // game.exe): level-relative subtiles; load_npcs / load_monsters make

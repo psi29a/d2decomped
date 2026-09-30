@@ -143,6 +143,7 @@ struct World {
     int   take_warp = -1;                  // the warp of `level` the player is walking to
     int   interact_npc = -1;               // the object / NPC being walked to
     int   pick_item = -1;                  // the ground item being walked to (its unit id)
+    bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     struct Door { int mode = 0; std::uint32_t when = 0; };
@@ -151,10 +152,11 @@ struct World {
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     // The player's town portal: [0] where it was cast, [1] its twin in town
     // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair. [2]:
-    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930).
+    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930), [3]
+    // its twin in Tristram back to them.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    std::array<Portal, 3> portal{};
-    int take_portal = -1;                  // the portal (0 / 1 / 2) the player is walking to
+    std::array<Portal, 4> portal{};
+    int take_portal = -1;                  // the portal (0..3) the player is walking to
     // The player's corpses (FUN_0057f700): where they fell, what they wore
     // and had in hand, 75% of the experience the death took; at most 16.
     struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;
@@ -237,7 +239,7 @@ struct World {
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     // The OperateFns `operate` handles; one-shot ones stay used (operated).
     // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
-    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26 }, operate_fn) || is_door(operate_fn); }
+    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26, 30 }, operate_fn) || is_door(operate_fn); }
     static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
     // A door, trap door or secret door (rules::door_mode): its new mode,
     // footprint and sound.
@@ -311,6 +313,11 @@ struct World {
     void blood_raven_died(std::uint32_t now_ms);
     void kashya_merc();
     void countess_died(std::uint32_t now_ms);
+    // The Countess's treasure (missile 332, towerchestspawner, one a chest
+    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300).
+    struct Treasure { const Level* level; int npc; int left; };
+    std::vector<Treasure> treasure;
+    void tower_treasure(std::uint32_t now_ms);
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus
@@ -319,6 +326,13 @@ struct World {
     void malus_stand(int npc_index, std::uint32_t now_ms);
     // The Search for Cain's objects (the tree, the stones, the Gibbet).
     void cain_operate(int npc_index, std::uint32_t now_ms);
+    // Tristram Cain (FUN_005e7880, AI NpcOutOfTown, with the a1q4 record's
+    // +0x67 / +0x9c target, +0x95 portal): `npc` his Level::npcs slot in
+    // Tristram (-1: not out), `stage` the AI data's +0x14 (-1: the Gibbet
+    // still opening), `tries` +0x18, `next` his next think.
+    struct CainWalk { int npc = -1, stage = -1, tries = 0; float x = 0, y = 0, portal_x = 0, portal_y = 0; std::uint32_t next = 0; };
+    CainWalk cain_walk;
+    void cain_step(std::uint32_t now_ms, float elapsed);
     // Whether the player carries an item of `code`.
     [[nodiscard]] bool carries(std::string_view code) const;
     void set_waypoint(int index) { if (index >= 0 && index < 40) character.header.waypoints[std::size_t(character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }

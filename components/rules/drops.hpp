@@ -93,7 +93,7 @@ namespace detail {
 // One class's picks (a frame of FUN_0055a6d0's stack); false once `max`
 // items dropped (the whole roll stops).
 inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std::array<int, 4> mod, int ilvl, Rng& rng, std::vector<Drop>& out,
-                       int& count, int max, int players, int magic_find, int depth) {
+                       int& count, int max, int players, int magic_find, int depth, int forced = 0) {
     for (int i = 0; i < 4; ++i) mod[std::size_t(i)] = std::max(mod[std::size_t(i)], treasure.mod[std::size_t(i)]);
     int total = 0;
     for (const auto& [name, chance] : treasure.items) total += chance;
@@ -119,13 +119,13 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
         for (const auto& [name, chance] : treasure.items) {
             if (roll >= chance) { roll -= chance; continue; }
             if (const auto sub = tables.treasure.find(name); sub != tables.treasure.end()) {
-                if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, players, magic_find, depth + 1)) return false;
+                if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, players, magic_find, depth + 1, forced)) return false;
             } else if (name.starts_with("gld")) {
                 const auto multiplier_at = name.find("mul=");
                 out.push_back({ "gld", 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) });
                 if (++count >= max) return false;
             } else if (tables.item_info.contains(name)) {
-                out.push_back({ name, roll_quality(tables, name, ilvl, mod, rng, magic_find) });
+                out.push_back({ name, forced ? forced : roll_quality(tables, name, ilvl, mod, rng, magic_find) });
                 if (++count >= max) return false;
             }
             break;
@@ -142,16 +142,17 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // `ilvl`. Negative picks: no NoDrop roll, the n-th of |picks| is the entry
 // whose running weight passes n (the Countess: her item TC, then her rune
 // TC), stopping at the weights' total. At most `max` items (6) in all.
+// A nonzero `forced` quality (the tower chest's 4) replaces the quality roll.
 // ponytail: TreasureClassEx's unique / set item entries (flags 1 / 2: Cow
 // King's classes only) and the m4 / m5 flag draws (bin +0x30 / +0x32,
 // always 0) aren't here; every item counts (game.exe doesn't count one
 // FUN_00555da0 finds no floor for, but Level::nearest_free always finds one).
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int ilvl, Rng& rng, std::vector<Drop>& out,
-                       int players = 1, int magic_find = 0, int max = 6) {
+                       int players = 1, int magic_find = 0, int max = 6, int forced = 0) {
     const auto found = tables.treasure.find(treasure_class);
     if (found == tables.treasure.end()) return;
     int count = 0;
-    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, players, magic_find, 0);
+    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, players, magic_find, 0, forced);
 }
 
 // The auto classes (FUN_006541c0): for each ItemTypes row with

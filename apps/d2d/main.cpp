@@ -271,6 +271,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // it when the player leaves the game or quits; the roster is read again.
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     town.world.characters = g_no_save ? nullptr : &characters;
+    town.world.autoloot_gold = g_autoloot;
     if (screen == Screen::InGame && scene) {
         set_map_seed(*scene, game_seed(character.header));
         town.enter();   // --start-screen ingame: the class and name given
@@ -746,7 +747,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof)");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
@@ -797,6 +798,7 @@ int main(int argc, char** argv) {
     {
         static const std::pair<std::string_view, bool*> kToggles[] = {
             { "trans_roof", &g_roof_cutout },   // the see-through circle in roofs round the player
+            { "autoloot", &g_autoloot },        // gold walked over goes into the purse
         };
         std::string_view rest = toggles;
         while (!rest.empty()) {
@@ -807,7 +809,7 @@ int main(int argc, char** argv) {
             const auto name = item.substr(0, equals_at), value = equals_at == std::string_view::npos ? std::string_view("on") : item.substr(equals_at + 1);
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof; values on|off)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot; values on|off)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";

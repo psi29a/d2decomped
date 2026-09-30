@@ -26,7 +26,7 @@ struct MonType {
     std::array<int, 2> minion{ -1, -1 };        // minion1/2 rows
     std::array<int, 3> level{};                 // Level, Level(N), Level(H)
     int velocity = 0, run = 0;
-    bool spawnable = false, killable = false, melee = false;   // isSpawn (MonStats flag bit 0), killable, isMelee
+    bool spawnable = false, killable = false, melee = false, open_doors = false;   // isSpawn (MonStats flag bit 0), killable, isMelee, opendoors
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     std::string miss_a1, miss_a2;               // MissA1 / MissA2: what an A1 / A2 attack fires (sk_archer1: skbowarrow1, quillrat1: spike1)

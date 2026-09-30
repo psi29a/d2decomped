@@ -7,17 +7,20 @@
 #include <drops.hpp>
 #include <gamedata_load.hpp>
 #include <monsters.hpp>
+#include <quests.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace d2d::game;
@@ -106,5 +109,37 @@ int main() {
     assert(view.level && view.level->id == 1 && !view.dead);
     assert(!view.level->unit_blocked(view.player.x, view.player.y));
     std::printf("OK: %s in level %d at (%.1f, %.1f)\n", character.name.c_str(), view.level->id, view.player.x, view.player.y);
+
+    // d2d's autoloot (deviations.md #5): gold under the player goes into the purse.
+    const auto purse = world.character.stats.get(d2d::d2s::kGold);
+    world.loot.put({ .code = "gld", .gold = 7 }, world.player.x, world.player.y, 1, world.fight.spawning.game, 26 * kTickMs);
+    std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
+    world.tick({}, 26 * kTickMs, 25 * kTickMs);
+    assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+
+    // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
+    // comes out, walks off, opens his portal, walks back in: camp Cain due.
+    // (The 1.14d tables: the CD's leave Tristram's presets unplaced.)
+    if (!patch) return 0;
+    const auto* tristram = data->level(d2d::rules::CainQuest::kTristram);
+    const auto gibbet = std::ranges::find(tristram->npcs, 10, &Npc::operate_fn);
+    const auto cain_npc = std::ranges::find(tristram->npcs, d2d::rules::CainQuest::kCain, &Npc::hc_idx);
+    assert(gibbet != tristram->npcs.end() && cain_npc != tristram->npcs.end());
+    const auto cain_index = std::size_t(cain_npc - tristram->npcs.begin());
+    const auto* camp = world.level;
+    world.level = tristram;
+    std::tie(world.player.x, world.player.y) = tristram->nearest_free(gibbet->x + 2, gibbet->y + 2);
+    world.swap_npcs(camp);
+    assert(world.npc_states[cain_index].hidden);
+    world.operate(int(gibbet - tristram->npcs.begin()), 26 * kTickMs);
+    assert(world.cain_walk.npc == int(cain_index) && !world.cain.camp_due);
+    float cain_moved = 0;
+    for (std::uint32_t tick = 27; tick < 27 + 750 && !world.cain.camp_due; ++tick) {
+        world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
+        const auto& cain_state = world.npc_states[cain_index];
+        if (!cain_state.hidden) cain_moved = std::max(cain_moved, std::hypot(cain_state.x - cain_npc->x, cain_state.y - cain_npc->y));
+    }
+    assert(world.cain.camp_due && world.cain_walk.npc < 0 && world.npc_states[cain_index].hidden && cain_moved > 0.3f);
+    std::printf("OK: Tristram Cain walked %.2f cells and took his portal\n", cain_moved);
     return 0;
 }
