@@ -755,6 +755,10 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             centre(unit.x / 5, unit.y / 5);
             pop.ways.push_back({ unit.x / 5 * 5, unit.y / 5 * 5 });
         }
+    // FUN_0066b2b0 (type 0xb): with neither a waypoint room nor a warp room,
+    // the start spot is the centre of the room holding the level's middle less 2.
+    // ponytail: no room there (FUN_0066ae70's pick) adds none.
+    if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
     level.group_rooms.assign(level.rooms.size(), {});
     level.post_object_group_seeds.assign(level.rooms.size(), {});
     level.room_spawns.assign(level.rooms.size(), {});

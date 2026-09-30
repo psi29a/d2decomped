@@ -897,7 +897,9 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     level->id = id;
     level->type = d2d::drlg::to_int(assets.levels.get(*row, "LevelType"));
     level->name = std::string(assets.levels.get(*row, "LevelName"));
-    const bool outdoor = std::ranges::any_of(game_data.act1_layout, [&](const auto& placement) { return placement.level == id; });
+    // A preset the layout places (the Monastery Gate, DrlgType 2) builds as a preset: its rooms (64x18: an 8x2 row) are the DS1's.
+    const bool outdoor = d2d::drlg::to_int(assets.levels.get(*row, "DrlgType")) == 3 &&
+                         std::ranges::any_of(game_data.act1_layout, [&](const auto& placement) { return placement.level == id; });
     if (!(outdoor ? build_outdoor(game_data, *builder.mpqs, assets, *level) : build_maze(game_data, *builder.mpqs, assets, *level, *row))) return nullptr;
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     for (std::size_t row_index = 0; row_index < builder.levels.size(); ++row_index) {
