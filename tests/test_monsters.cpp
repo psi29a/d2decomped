@@ -295,6 +295,24 @@ int main() {
         in.aip[1] = 100; in.dist = 14; rng = Rng{ 2 };
         const auto fire = mon_think("FallenShaman", in, rng, no_away);
         assert(fire.act == MonAct::skill && fire.n == 1 && steps(2, rng) == 2);
+        // FoulCrowNest: lays every aip1 frames (no draw), else stands 20..29
+        // on a seed step; blocked, the clock restarts all the same; done
+        // laying aip3, it collapses.
+        int laid = 0;
+        state = 0;
+        in = { .aip = { 100, 0, 2 }, .dist = 10, .skill = { true }, .state = &state, .frame = 150, .state2 = &laid };
+        rng = Rng{ 4 };
+        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::skill && state == 150 && laid == 1 && steps(4, rng) == 0);
+        in.frame = 200; rng = Rng{ 4 };
+        Rng expect{ 4 };
+        const auto wait = mon_think("FoulCrowNest", in, rng, no_away);
+        assert(wait.act == MonAct::idle && wait.n == int(expect.next() % 10) + 20 && steps(4, rng) == 1);
+        in.frame = 250; in.spot_free = false; rng = Rng{ 4 };
+        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::idle && state == 250 && laid == 1);
+        laid = 2;
+        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::die);
+        in.dist = 21;
+        assert(mon_think("FoulCrowNest", in, rng, no_away).n == 25);
     }
     std::puts("ok");
 }

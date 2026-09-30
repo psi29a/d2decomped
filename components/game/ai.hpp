@@ -146,10 +146,10 @@ struct Monster {
     int skill = -1, skill_frame = 0, skill_x = 0, skill_y = 0;
     bool wandering = false;
     // The MonAI thinks: the last mode it left other than NU (monster data
-    // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch word (+0x14),
-    // its command (the Fallen's 1: charge), the corpse a skill raises.
+    // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch words (+0x14,
+    // +0x18), its command (the Fallen's 1: charge), the corpse a skill raises.
     std::string_view left_mode = "NU";
-    int ai_state = 0, ai_command = 0, skill_unit = -1;
+    int ai_state = 0, ai_state2 = 0, ai_command = 0, skill_unit = -1;
     [[nodiscard]] bool alive() const { return hit_points > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
@@ -307,9 +307,10 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // Andariel and the traced MonAI types think their own way instead: see
 // rules::andariel_think / rules::mon_think. A1 / A2 fire MissA1 / MissA2.
 // `pack`: all the level's monsters, `monster` among them (its group, the
-// dying, corpses to raise).
+// dying, corpses to raise); `born`: gets what it lays (a nest's young).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
-                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {});
+                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
+                    std::vector<Monster>* born = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

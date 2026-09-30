@@ -458,10 +458,11 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 //   circle n x   FUN_005df7d0: one seed step (x: its low byte >= 0x80), walk round it
 //   wander x y   FUN_005de200: walk to (x, y) subtiles off, four seed steps
 //   none         already on its way (a back-off, FUN_005defe0 / FUN_005df140)
+//   die          FUN_005ddfc0(0): into DT, flagged 0x20000 (a nest done laying)
 // A think's rand(100)s are one step each of the monster's seed (+0x20),
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
-enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, untraced };
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, untraced };
 struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
 struct ThinkIn {
     std::array<int, 8> aip{};                   // aip1..8 for its difficulty
@@ -477,11 +478,16 @@ struct ThinkIn {
     bool leader = false, dying = false, corpse = false;
     int* command = nullptr;
     bool* rally = nullptr;
+    // A nest's: the game frame, its second scratch word (+0x18: laid so
+    // far), whether the spot its young come out on is free (FUN_005fd350).
+    int frame = 0;
+    int* state2 = nullptr;
+    bool spot_free = true;
 };
 
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 14> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
-                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman" };
+    static constexpr std::array<std::string_view, 15> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -671,6 +677,19 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
             if (in.dist < aip[4] && r() < aip[1]) return { MonAct::skill, 1 };
         if (r() >= aip[2]) return { MonAct::idle, 10 };
         return think_circle(rng, 3);
+    }
+    // FoulCrowNest (43, FUN_005f6650; init FUN_005f6630 keeps the frame in
+    // the state): past 20 stands 25; once it's laid aip3 it collapses;
+    // every aip1 frames it lays (Skill1, Nest) where there's room; else
+    // stands 20 + a seed step % 10.
+    if (ai == "FoulCrowNest") {
+        if (in.dist > 20) return { MonAct::idle, 25 };
+        if (*in.state2 >= aip[2]) return { MonAct::die };
+        if (in.skill[0] && std::abs(in.frame - *in.state) >= aip[0]) {
+            *in.state = in.frame;
+            if (in.spot_free) { ++*in.state2; return { MonAct::skill, 0 }; }
+        }
+        return { MonAct::idle, int(rng.next() % 10) + 20 };
     }
     return { MonAct::untraced };
 }

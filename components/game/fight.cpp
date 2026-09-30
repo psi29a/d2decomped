@@ -2372,12 +2372,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (now_ms < amplified[k]) foes[k].fighter.dr_pct -= 100;
             monster_auras(foes, now_ms);
             for (const auto& pet : pets) foes.push_back(pet_foe(pet));
+            std::vector<Monster> born;
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born))
                     killed(i, now_ms);                           // on the player's thorns
             }
+            for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
             monster_states(now_ms);
