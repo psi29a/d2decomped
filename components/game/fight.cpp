@@ -1139,7 +1139,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms) -> void {
         if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
         fallen_scatter(*game_data, monsters, monster_index, rng, now_ms);
         loot.drop(monster, now_ms);
-        kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level });
+        kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }
 
 auto Fight::merc_fighter() const -> d2d::rules::Fighter {

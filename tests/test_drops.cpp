@@ -45,6 +45,18 @@ int main() {
         assert(out.size() == 2);
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
     }
+    // Negative picks (the Countess): each entry in turn by its weight, no
+    // NoDrop, never past the weights' total.
+    tables.treasure["Countess"] = { .picks = -4, .nodrop = 5, .items = { { "Gold", 1 }, { "hp1", 2 }, { "rin", 1 } } };
+    tables.treasure["Cpot"] = { .picks = -2, .items = { { "hp1", 1 } } };
+    {
+        std::vector<Drop> out;
+        roll_drops(tables, "Countess", 1, rng, out);
+        assert(out.size() == 4 && out[0].code == "gld" && out[1].code == "hp1" && out[2].code == "hp1" && out[3].code == "rin");
+        out.clear();
+        roll_drops(tables, "Cpot", 1, rng, out);
+        assert(out.size() == 1);
+    }
     // Chests: act 1's A below a third of the way from the Blood Moor (1)
     // to Catacombs 4 (11), B below two thirds, else C.
     assert(chest_tc(0, 0, 1, 1, 11) == "Act 1 Chest A" && chest_tc(0, 1, 4, 1, 11) == "Act 1 (N) Chest B");

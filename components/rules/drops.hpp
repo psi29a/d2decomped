@@ -50,8 +50,11 @@ inline int roll_quality(const Tables& tables, const std::string& code, int ilvl,
 // rolls NoDrop against the entries' weights; a class entry resolves in
 // turn (the highest quality modifiers on the way win), "gld" is gold
 // (",mul=N": times N/256).
+// Negative picks (FUN_0055a6d0): no NoDrop roll; the n-th of |picks| is
+// the entry whose running weight passes n (the Countess: her item TC,
+// then her rune TC), stopping at the weights' total.
 // ponytail: single player NoDrop as written (no player-count scaling),
-// no negative picks, the gold amount isn't traced (mlvl + rand(8 mlvl)).
+// the gold amount isn't traced (mlvl + rand(8 mlvl)).
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int mlvl, Rng& rng, std::vector<Drop>& out,
                        std::array<int, 4> mod = {}, int depth = 0) {
     const auto found = tables.treasure.find(treasure_class);
@@ -60,10 +63,16 @@ inline void roll_drops(const Tables& tables, const std::string& treasure_class, 
     for (int i = 0; i < 4; ++i) mod[std::size_t(i)] = std::max(mod[std::size_t(i)], treasure.mod[std::size_t(i)]);
     int total = treasure.nodrop;
     for (const auto& [item_name, chance] : treasure.items) total += chance;
-    for (int pick = 0; pick < std::max(treasure.picks, 1); ++pick) {
-        int roll = rng(total);
-        if (roll < treasure.nodrop) continue;
-        roll -= treasure.nodrop;
+    for (int pick = 0; pick < std::max(std::abs(treasure.picks), 1); ++pick) {
+        int roll = 0;
+        if (treasure.picks < 0) {
+            if (pick >= total - treasure.nodrop) break;
+            roll = pick;
+        } else {
+            roll = rng(total);
+            if (roll < treasure.nodrop) continue;
+            roll -= treasure.nodrop;
+        }
         for (const auto& [name, chance] : treasure.items) {
             if (roll >= chance) { roll -= chance; continue; }
             if (name.starts_with("gld")) {
