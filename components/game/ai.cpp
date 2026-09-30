@@ -321,6 +321,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     if (nest && monster.ai_state == 0) monster.ai_state = frame;
     in.frame = frame; in.state2 = &monster.ai_state2;
     in.spot_free = !level.unit_blocked(unit.x + float(type_info.spawn_x) / 5, unit.y + float(type_info.spawn_y) / 5);
+    in.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90
         unit.dir = direction16(dx, dy);
         set_mode(game_data, monster, mode, now_ms);
@@ -366,6 +367,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             act = d2d::rules::walk_failed(rng);
             break;
         case MonAct::wander: walk_to(act.x, act.y, false); return true;
+        case MonAct::around: walk_to(target_x - x + act.x, target_y - y + act.y, false); return true;
+        case MonAct::home: walk_to(subtile(monster.home_x) - x, subtile(monster.home_y) - y, false); return true;
         case MonAct::keep: {                                       // FUN_005de4e0: toward, or from, the target to keep x off
             const int go = std::min(std::abs(best - act.x), act.n), sign = best < act.x ? -1 : 1;
             const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, go);
@@ -390,6 +393,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             use(seq->mode, id);
             monster.mode_until = now_ms + seq->frames * game_data.npc_timing(monster.npc, seq->mode).ms_per_frame();
             monster.skill_unit = name == "Resurrect" ? corpse : -1;
+            // Where a Nest's young come out: Blood Raven's spot off the
+            // target, else spawnx / spawny off itself.
+            monster.skill_x = act.x || act.y ? target_x + act.x : x + type_info.spawn_x;
+            monster.skill_y = act.x || act.y ? target_y + act.y : y + type_info.spawn_y;
             if (monster.skill_unit >= 0) unit.dir = direction16(pack[std::size_t(corpse)].unit.x - unit.x, pack[std::size_t(corpse)].unit.y - unit.y);
             return true;
         }
@@ -455,13 +462,16 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             monster.struck = true;
             const auto& shot = monster.mode == "A1" ? type_info.miss_a1 : type_info.miss_a2;   // MissA1 / MissA2
             const auto fired = shot.empty() || !attack ? game_data.missiles.end() : game_data.missiles.find(shot);
-            if (monster.skill < 0 && fired != game_data.missiles.end()) {           // fire: at the foe, from here
+            // Quick Strike (srvdofunc 92, FUN_005cbf90 -> FUN_0056ecb0): its
+            // srvmissilea raven1, Blood Raven's MissA1 too.
+            if ((monster.skill < 0 || skill("Quick Strike")) && fired != game_data.missiles.end()) {   // fire: at the foe, from here
                 const auto& missile_info = fired->second;
                 const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(dist, 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
-                x.src.a2_min = monster.stats.a2_min * missile_info.src_damage / 128 + missile_info.min;
-                x.src.a2_max = monster.stats.a2_max * missile_info.src_damage / 128 + missile_info.max;
+                const bool first = monster.mode == "A1";                       // an A1 shot carries A1's damage
+                x.src.a2_min = (first ? monster.stats.a1_min : monster.stats.a2_min) * missile_info.src_damage / 128 + missile_info.min;
+                x.src.a2_max = (first ? monster.stats.a1_max : monster.stats.a2_max) * missile_info.src_damage / 128 + missile_info.max;
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.
@@ -476,11 +486,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     }
             } else if (skill("ShamanFire")) {                                 // srvdofunc 85: srvmissilea shafire1, + TransLvl
                 andariel_missile(game_data, monster, "shafire" + std::to_string(1 + type_info.trans_lvl), dx, dy, now_ms, missiles);
-            } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn, spawnx / spawny off, in spawnmode
+            } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // ponytail: the young's flags (0x4020000) and the skill's
                 // state on them (Skills +0xe6) unread; a normal monster.
                 if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end()) {
-                    auto laid = make_monster(game_data, young->second, unit.x + float(type_info.spawn_x) / 5, unit.y + float(type_info.spawn_y) / 5, rng, monster.difficulty);
+                    auto laid = make_monster(game_data, young->second, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5, rng, monster.difficulty);
                     laid.aware = true;
                     if (type_info.spawn_mode != "NU" && !type_info.spawn_mode.empty()) set_mode(game_data, laid, type_info.spawn_mode, now_ms);
                     born->push_back(std::move(laid));

@@ -313,6 +313,32 @@ int main() {
         assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::die);
         in.dist = 21;
         assert(mon_think("FoulCrowNest", in, rng, no_away).n == 25);
+        // BloodRaven: past 45 stands 5; far from home she heads back (the
+        // flag holds until within 5); past 20 closes in (4 steps); a raise
+        // is rand(100) + rand(15) + three bits (6 steps), 5..19 off.
+        int back = 0, raised = 0;
+        state = 0;
+        in = { .dist = 46, .skill = { true, true }, .state = &state, .command = &back, .state2 = &raised };
+        rng = Rng{ 5 };
+        assert(mon_think("BloodRaven", in, rng, no_away).n == 5 && steps(5, rng) == 0);
+        in.dist = 10; in.home_dist = 50;
+        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::home && back == 1);
+        in.home_dist = 6;
+        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::home && steps(5, rng) == 0);
+        in.dist = 30; in.home_dist = 5;
+        const auto br_close = mon_think("BloodRaven", in, rng, no_away);
+        assert(back == 0 && br_close.act == MonAct::around && br_close.n == 15 && steps(5, rng) == 4 && state == 0);
+        in.dist = 10; state = 97; rng = Rng{ 5 };
+        const auto br_raise = mon_think("BloodRaven", in, rng, no_away);
+        const int far = std::max(std::abs(br_raise.x), std::abs(br_raise.y));
+        assert(br_raise.act == MonAct::skill && br_raise.n == 0 && far >= 5 && far < 20 && raised == 1 && state == 0 && steps(5, rng) == 6);
+        in.in_melee = true; in.dist = 3; rng = Rng{ 5 };                  // in melee no raise; 30 % backs off, else A1
+        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::a1 && steps(5, rng) == 1 && state == 3);
+        in.in_melee = false; in.got_hit = true; in.dist = 10; raised = 8; rng = Rng{ 5 };   // raised enough; hit: no strike
+        expect = Rng{ 5 };
+        const bool about = expect(100) < 5;
+        const auto hit = mon_think("BloodRaven", in, rng, no_away);
+        assert(hit.act == (about ? MonAct::around : MonAct::circle) && steps(5, rng) == (about ? 5 : 2));
     }
     std::puts("ok");
 }

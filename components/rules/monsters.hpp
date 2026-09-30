@@ -459,10 +459,13 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 //   wander x y   FUN_005de200: walk to (x, y) subtiles off, four seed steps
 //   none         already on its way (a back-off, FUN_005defe0 / FUN_005df140)
 //   die          FUN_005ddfc0(0): into DT, flagged 0x20000 (a nest done laying)
+//   around n x y FUN_005df680: walk to (x, y) subtiles off the target, four seed steps
+//   home         FUN_005dede0: walk back to its spawn point (Blood Raven's command 10)
+//   skill n x y  as skill, at (x, y) subtiles off the target when set (Blood Raven's raise)
 // A think's rand(100)s are one step each of the monster's seed (+0x20),
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
-enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, untraced };
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, untraced };
 struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
 struct ThinkIn {
     std::array<int, 8> aip{};                   // aip1..8 for its difficulty
@@ -483,11 +486,13 @@ struct ThinkIn {
     int frame = 0;
     int* state2 = nullptr;
     bool spot_free = true;
+    int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
 };
 
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 15> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
-                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest" };
+    static constexpr std::array<std::string_view, 16> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
+                                                               "BloodRaven" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -690,6 +695,42 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
             if (in.spot_free) { ++*in.state2; return { MonAct::skill, 0 }; }
         }
         return { MonAct::idle, int(rng.next() % 10) + 20 };
+    }
+    // BloodRaven (59, FUN_005e6320; init FUN_005e6300 clears the flag):
+    // past 45 stands 5; 50 or more from home (her command 10, set at her
+    // first think) she heads back until within 5 (the flag: *command);
+    // past 20 she closes to a spot half as far off (12 at least); every
+    // think adds 3 to the state, and out of melee, with fewer than 8 + 2 *
+    // difficulty raised (state2), rand(100) < state raises a zombie (Nest)
+    // 5..19 off the target; past 5, 5 % moves 12 about the target, else
+    // not hit 80 % strikes ((difficulty + 4) * 10 % Quick Strike, else A1),
+    // else circles 4; within 5, 30 % backs off to 12 running, else A1.
+    // ponytail: the walks home / about the target and the circle always
+    // set off; the second target search (FUN_005ddc30) is the target.
+    if (ai == "BloodRaven") {
+        if (in.dist > 45) return { MonAct::idle, 5 };
+        if (in.home_dist >= 50) *in.command = 1;
+        if (*in.command && in.home_dist > 5) return { MonAct::home };
+        *in.command = 0;
+        auto around = [&](int n) { auto out = think_wander(rng, n); out.act = MonAct::around; return out; };
+        if (in.dist > 20) return around(std::max(in.dist >> 1, 12));
+        *in.state += 3;
+        if (in.skill[0] && !in.in_melee && *in.state2 < in.difficulty * 2 + 8 && r() < *in.state) {
+            const int far = rng(15) + 5;
+            int x = far, y = far;
+            if (rng.next() & 1) y = rng(far); else x = rng(far);
+            if (rng.next() & 1) x = -x;
+            if (rng.next() & 1) y = -y;
+            ++*in.state2; *in.state = 0;
+            return { MonAct::skill, 0, x, y };
+        }
+        if (in.dist > 5) {
+            if (r() < 5) return around(12);
+            if (!in.got_hit && r() < 80) return in.skill[1] && r() < (in.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 };
+            return think_circle(rng, 4);             // FUN_005df7d0(4, 1): its walk flagged 4
+        }
+        if (r() < 30 && away(12 - in.dist, true)) return { MonAct::none };
+        return { MonAct::a1 };
     }
     return { MonAct::untraced };
 }
