@@ -5,6 +5,12 @@ Lord of Destruction game engine. It aims to reproduce the original game's
 behavior, using version 1.14d as its reference. The long-term goal is a
 drop-in replacement, with optional features beyond the original game.
 
+## Why
+
+I want to play Diablo II with my daughter, natively on Linux. No Wine, no
+emulation layer: a game engine that runs on our machines, reads the game
+data we own, and lets us adventure together.
+
 ## What to expect
 
 D2Decomp is an unfinished, single-player project—not the original game or a
