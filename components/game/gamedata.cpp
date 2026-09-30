@@ -685,10 +685,16 @@ void finish_level(Level& level) {
         for (int cell_y = 0; cell_y < map.height(); ++cell_y)
             for (int cell_x = 0; cell_x < map.width(); ++cell_x)
                 for (const auto& pick : level.picks[std::size_t(cell_y) * std::size_t(map.width()) + std::size_t(cell_x)]) {
-                    if (pick.unstamped) continue;
-                    if (pick.layer == 1 || (pick.layer == 0 && pick.orient != 13 && pick.orient != 15)) stamp_tile(cell_x, cell_y, *pick.tile);
+                    if (!pick.stamp) continue;
+                    if (pick.layer == 1 || (pick.layer == 0 && pick.orient != 13 && pick.orient != 15)) stamp_tile(cell_x, cell_y, *pick.stamp);
                     for (int k = 0; k < 25 && pick.cell; ++k) level.walk[std::size_t(cell_y * 5 + k / 5) * std::size_t(walk_width) + std::size_t(cell_x * 5 + k % 5)] |= pick.cell;
                 }
+        for (const auto& patch : level.patches)
+            for (int k = 0; k < 25; ++k) {
+                auto& at = level.walk[std::size_t(patch.y * 5 + 4 - k / 5) * std::size_t(walk_width) + std::size_t(patch.x * 5 + k % 5)];
+                if (patch.old_tile) at &= std::uint8_t(~patch.old_tile->subtile_flags[std::size_t(k)]);
+                if (patch.tile) at |= patch.tile->subtile_flags[std::size_t(k)];
+            }
         return;
     }
     for (int cell_y = 0; cell_y < map.height(); ++cell_y)
@@ -735,30 +741,57 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     const int width = level.ds1.width(), height = level.ds1.height();
     level.picks.assign(std::size_t(width) * std::size_t(height), {});
     std::size_t placed = 0;
-    // FUN_0064c900: each room's grid takes the tiles of its near rooms built
-    // before it (room1s come up newest first in `made`), clipped to its rect
-    // (FUN_0064c790, FUN_00619df0). So a tile past its owner's rect stamps
-    // only if the room it lands in is newer.
+    // FUN_0064c900: each room's grid takes, as it comes up (`built` order),
+    // the tiles of the near rooms already up, clipped to its rect (FUN_0064c790,
+    // FUN_00619df0): a tile past its owner's rect (a maze room's shared edge)
+    // stamps only if the room it lies in came up after its owner. A later
+    // room re-picking a shared tile patches the grid it lies in, if that's up
+    // (FUN_0064c860: old tile's flags off, the new one's on).
     // ponytail: build order as population brings the whole level up; a
     // player walking in builds rooms in the order he nears them.
-    auto unstamped = [&](const auto& room, int x, int y) {
-        auto holds = [&](const auto& r) { return x >= r.x && y >= r.y && x < r.x + r.width && y < r.y + r.height; };
-        if (!room.seed || holds(room)) return false;
-        for (std::size_t i = 0; i < made.size(); ++i)
-            if (holds(made[i])) return made.data() + i > room.seed;
-        return false;
+    auto tile_of = [&](const d2d::drlg::Dt1File* file, int index) -> const d2d::dt1::Tile* {
+        const auto found = file ? dt1s.archive.find(file) : dt1s.archive.end();
+        return found == dt1s.archive.end() || index < 0 || std::size_t(index) >= found->second->size() ? nullptr : &found->second->tiles()[std::size_t(index)];
     };
-    for (const auto& room : built)
-        for (const auto& tile : room.tiles) {
-            if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height || !tile.file || tile.index < 0) continue;
-            const auto found = dt1s.archive.find(tile.file);
-            if (found == dt1s.archive.end() || std::size_t(tile.index) >= found->second->size()) continue;
+    auto holder = [&](std::size_t owner, int x, int y) {
+        auto holds = [&](const d2d::drlg::BuiltRoom& r) { return x >= r.x && y >= r.y && x < r.x + r.width && y < r.y + r.height; };
+        if (holds(built[owner])) return int(owner);
+        for (std::size_t k = 0; k < built.size(); ++k)
+            if (holds(built[k])) return int(k);
+        return -1;
+    };
+    // FUN_0066db20's tile flags as FUN_0064c790 stamps them (2 / 0x40 / 0x80: 0x10, 0x01, 0x04).
+    auto cell_of = [](std::uint32_t word) { return std::uint8_t((word & 0x10000000u ? 0x10 : 0) | (word & 0x20000u ? 0x01 : 0) | (word & 0x10000u ? 0x04 : 0)); };
+    struct Share { int step; const d2d::drlg::BuiltRoom::Share* at; };
+    std::vector<Share> shares;
+    for (std::size_t k = 0; k < built.size(); ++k)
+        for (const auto& share : built[k].shares) shares.push_back({ int(k), &share });
+    level.patches.clear();
+    for (const auto& [step, at] : shares) {
+        const auto& tile = built[std::size_t(at->owner)].tiles[std::size_t(at->tile)];
+        const int in = holder(std::size_t(at->owner), tile.x, tile.y);
+        if (in >= 0 && in < step && (at->old_file != at->file || at->old_index != at->index))
+            level.patches.push_back({ tile.x, tile.y, tile_of(at->old_file, at->old_index), tile_of(at->file, at->index) });
+    }
+    for (std::size_t owner = 0; owner < built.size(); ++owner)
+        for (std::size_t index = 0; index < built[owner].tiles.size(); ++index) {
+            const auto& tile = built[owner].tiles[index];
+            if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height) continue;
+            const auto drawn = tile_of(tile.file, tile.index);
+            if (!drawn) continue;
+            // What it was when the room it lies in came up: none if that came up first.
+            const int in = holder(owner, tile.x, tile.y);
+            const d2d::dt1::Tile* stamp = in >= 0 && int(owner) > in ? nullptr : drawn;
+            std::uint8_t cell = std::uint8_t(cell_of(tile.word) | (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11 ? 0x10 : 0));   // a door or warp wall is flag 2 too
+            for (const auto& [step, at] : shares) {
+                if (std::size_t(at->owner) != owner || std::size_t(at->tile) != index) continue;
+                if (in < 0 || step <= in) cell |= cell_of(at->word);
+                else if (stamp && (at->old_file != at->file || at->old_index != at->index)) { stamp = tile_of(at->old_file, at->old_index); break; }
+            }
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
-                { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)],
+                { std::uint8_t(tile.layer), std::uint8_t(tile.orient), drawn,
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
-                  std::uint8_t((tile.word & 0x10000000u || (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11) ? 0x10 : 0) |   // FUN_0066db20: a door or warp wall is flag 2 too
-                                (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)),
-                  unstamped(room, tile.x, tile.y) });
+                  cell, stamp });
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);

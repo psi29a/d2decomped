@@ -112,10 +112,14 @@ struct Level {
     // (FUN_0064c790).
     // `cell`: what its word ORs over the whole cell (FUN_0066dde0's tile
     // flags 2 / 0x40 / 0x80 as FUN_0064c790 stamps them: 0x10, 0x01, 0x04).
-    // `unstamped`: past its room's rect (a maze room's shared edge row) into
-    // a room built before its own, so drawn but not in collision (set_level_tiles).
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; bool unstamped = false; };
+    // `stamp`: what collision took of it (set_level_tiles): the tile as it
+    // was when the room it lies in came up, none if that was before its own.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; };
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
+    // Shared tiles re-picked after the room they lie in came up: that grid's
+    // cell loses the old tile's flags and takes the new one's (FUN_0064c860).
+    struct Patch { int x, y; const d2d::dt1::Tile* old_tile; const d2d::dt1::Tile* tile; };
+    std::vector<Patch> patches;
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
     // 0x08 blocks player walking (DT1 subtile flag bits).

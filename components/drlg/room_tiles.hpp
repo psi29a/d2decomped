@@ -67,6 +67,13 @@ struct BuiltRoom {
     // populating the room rolls.
     std::uint32_t room1_seed = 0;
     std::vector<Area> areas;                            // FUN_0066d110's, newest first; empty: the whole room (FUN_0066ccb0)
+    // The neighbours' tiles it shared (FUN_0066e740), in order: owner (rooms
+    // index), its tile, this room's word (OR'd into the tile's flags,
+    // FUN_0066db20), the tile before and after any re-pick. game.exe patches
+    // a re-picked tile into the collision of the room it lies in, if that's
+    // up (FUN_0064c860).
+    struct Share { int owner, tile; std::uint32_t word; const Dt1File* old_file; int old_index; const Dt1File* file; int index; };
+    std::vector<Share> shares;
     std::uint32_t vis = 0;                              // FUN_00667970: 0x10 << slot, a preset's slot wall (orientation 10/11, style < 8, sequence 0 / 4 or hidden)
     // FUN_00667970's tile infos of type 0xb (orientation 10/11, style 30..33 ->
     // sequence, sequence + 5, 10, 11; level +0x2c): level-relative tiles, the
@@ -373,6 +380,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             }
             const bool blank = tile->orient == 0 && tile->file && tile->index >= 0 && tile->file->tiles[std::size_t(tile->index)].style == 30
                                && tile->file->tiles[std::size_t(tile->index)].seq == 0;
+            const auto* old_file = tile->file;
+            const int old_index = tile->index;
             if (orient != tile->orient || blank) {
                 const auto owner = std::size_t(neighbour - rooms.data());   // FUN_0066d820 on the tile's room
                 const auto [tile_file, tile_index] = pick_tile(lists[owner], rngs[owner], orient, word);
@@ -380,6 +389,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 tile->file = tile_file;
                 tile->index = tile_index;
             }
+            room.shares.push_back({ int(neighbour - rooms.data()), int(tile - neighbour->tiles.data()), word, old_file, old_index, tile->file, tile->index });   // FUN_0066db20 on its flags
             if (tile->orient == 8 || tile->orient == 9) door(tile, word, tile->orient, x, y);
         };
         auto word = [&](std::uint32_t tile_word, int tile_orient, int x, int y, bool fill) {       // FUN_0066e9b0
