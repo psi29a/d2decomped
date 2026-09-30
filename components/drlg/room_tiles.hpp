@@ -42,6 +42,10 @@ struct PlacedTile {
     int next = -1;                                      // tile +0x20: the next in its chain (room.tiles index)
     bool door = false;                                  // flags & 0x20: its door unit made (FUN_0066d9e0)
 };
+// A room's area (FUN_0066ca50's entry): level-relative tiles, right /
+// bottom exclusive; id its flood label, skip (+0x20) where it began on a blank floor.
+struct Area { int left, top, right, bottom; std::uint32_t id; bool skip; };
+
 struct BuiltRoom {
     int x, y, width = 8, height = 8, kind = 1;                   // level-relative tiles
     std::vector<PlacedTile> tiles;                      // in the order game.exe adds them
@@ -62,6 +66,7 @@ struct BuiltRoom {
     // tiles' seed stepped once more; room1 +0x6c, {this, 666}): what
     // populating the room rolls.
     std::uint32_t room1_seed = 0;
+    std::vector<Area> areas;                            // FUN_0066d110's, newest first; empty: the whole room (FUN_0066ccb0)
 };
 
 namespace room_tiles_detail {
@@ -100,6 +105,90 @@ inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, 
             if (second.x + second.width <= first.x || second.y + second.height <= first.y) std::swap(close_rooms[i], close_rooms[i + 1]);
         }
     return close_rooms;
+}
+
+// FUN_0066d110 (a LvlPrest Logicals preset): the room cut into areas by
+// its walls. blocks: FUN_0066c870's wall cells (own layer-0 walls, near
+// rooms' non-floor chain tiles inside it); FUN_0066c580 labels them by
+// flood (FUN_0066c3d0) over the wall orientations; FUN_0066ca50 splits
+// the labels into rects. orients / floors: the (w+1)x(h+1) wall layer 0
+// orientation and floor layer 0 word slices.
+inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const std::vector<std::size_t>& nearby,
+                        const std::vector<std::uint32_t>& orients, const std::vector<std::uint32_t>& floors) {
+    static constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
+    static constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
+    static constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
+                                         { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
+    auto& room = rooms[self];
+    const int w = room.width + 1, h = room.height + 1;
+    std::vector<std::uint32_t> labels(std::size_t(w * h));
+    std::vector<char> walls(std::size_t(w * h));
+    auto blocks = [](const PlacedTile& t) {                                                         // FUN_0066db20 flags
+        const bool hidden = (t.word & 0x20000000u) || (t.file && t.index >= 0 && (t.file->tiles[std::size_t(t.index)].material & 4));
+        return t.layer == 0 && t.orient != 13 && t.orient != 15 && ((t.word >> 18) & 3) == 0 && !hidden;
+    };
+    auto mark = [&](const PlacedTile& t) {
+        if (t.x >= room.x && t.y >= room.y && t.x <= room.x + room.width && t.y <= room.y + room.height && blocks(t))
+            walls[std::size_t((t.y - room.y) * w + t.x - room.x)] = 1;
+    };
+    for (const auto& t : room.tiles) mark(t);
+    for (const auto other : nearby) {
+        if (other == self || !rooms[other].upper) continue;
+        for (const auto& c : rooms[other].chains)
+            if (!c.floor)
+                for (int i = c.head; i != -1; i = rooms[other].tiles[std::size_t(i)].next) mark(rooms[other].tiles[std::size_t(i)]);
+    }
+    std::uint32_t label = 0;
+    auto flood = [&](auto&& flood, int x, int y, int dir) -> void {                                 // FUN_0066c3d0
+        for (;;) {
+            if (x < 0 || y < 0 || x >= w || y >= h) return;
+            const auto at = std::size_t(y * w + x);
+            if (labels[at] & 0x10000000u) return;
+            if (!walls[at]) {
+                labels[at] = label;
+                for (int d = 0; d < 4; ++d) flood(flood, x + kDx[d], y + kDy[d], d);
+                return;
+            }
+            const auto v = orients.empty() ? 0u : orients[at] & 0xff;
+            const int mask = kMask[(v < 20 ? kRow[v] : -1) + 1][dir + 1];
+            if (mask & 1) labels[at] = label;
+            if ((mask & 2) && dir != 2) flood(flood, x + 1, y, 0);
+            if ((mask & 4) && dir != 3) flood(flood, x, y + 1, 1);
+            if ((mask & 8) && dir != 0) flood(flood, x - 1, y, 2);
+            if ((mask & 0x10) && dir != 1) flood(flood, x, y - 1, 3);
+            if (!(mask & 0x20)) return;
+            ++x; ++y; dir = -1;
+        }
+    };
+    std::uint32_t count = 0;
+    for (int y = 0; y < h; ++y)                                                                     // FUN_0066c580
+        for (int x = 0; x < w; ++x) {
+            const auto at = std::size_t(y * w + x);
+            if (labels[at] & 0x10000000u) continue;
+            label = (++count & 0xfffffffu) | 0x10000000u;
+            if ((floors[at] & 0x1e0ff00u) == 0x1e00000u || (floors[at] & 0x80000000u)) label |= 0x20000000u;
+            flood(flood, x, y, -1);
+        }
+    std::vector<char> claimed(std::size_t(w * h));                                                  // FUN_0066ca50
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            if (claimed[std::size_t(y * w + x)]) continue;
+            const auto value = labels[std::size_t(y * w + x)], id = value & 0xfffffffu;
+            auto same = [&](int cx, int cy) { return !claimed[std::size_t(cy * w + cx)] && (labels[std::size_t(cy * w + cx)] & 0xfffffffu) == id; };
+            int x1 = x + 1;
+            while (x1 < w && same(x1, y)) ++x1;
+            int y1 = y + 1;
+            for (; y1 < h; ++y1) {
+                bool row = true;
+                for (int cx = x; cx < x1 && row; ++cx) row = same(cx, y1);
+                if (!row) break;
+            }
+            for (int cy = y; cy < y1; ++cy)
+                for (int cx = x; cx < x1; ++cx) claimed[std::size_t(cy * w + cx)] = 1;
+            Area area{ room.x + x, room.y + y, std::min(room.x + x1, room.x + room.width), std::min(room.y + y1, room.y + room.height), id, (value & 0x20000000u) != 0 };
+            if (area.left >= room.x + room.width || area.top >= room.y + room.height) area.left = area.top = area.right = area.bottom = 0;
+            room.areas.insert(room.areas.begin(), area);
+        }
 }
 
 }  // namespace room_tiles_detail
@@ -169,7 +258,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             auto& list = found->second;
             for (auto unit_it = list.begin(); unit_it != list.end();) {
                 if (unit_it->x >= room.x * 5 && unit_it->y >= room.y * 5 && unit_it->x < (room.x + room.width) * 5 && unit_it->y < (room.y + room.height) * 5) {
-                    room.units.insert(room.units.begin(), { unit_it->type, unit_it->id, unit_it->mode, unit_it->x - room.x * 5, unit_it->y - room.y * 5, unit_it->flags });
+                    room.units.insert(room.units.begin(), { unit_it->type, unit_it->id, unit_it->mode, unit_it->x - room.x * 5, unit_it->y - room.y * 5, unit_it->flags, unit_it->path });
                     unit_it = list.erase(unit_it);
                 } else {
                     ++unit_it;
@@ -396,6 +485,9 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             edges(words, 0x84);
             walk(words, nullptr, false);
         }
+        if (pre->logicals)
+            logic_areas(rooms, room_index, nearby, map->walls().empty() ? Words{} : slice(map->walls()[0], true),
+                        [&] { auto words = map->floors().empty() ? Words(std::size_t(slice_w * slice_h)) : slice(map->floors()[0], false); edges(words, 0x84); return words; }());
         room.room1_seed = rng.next();
     }
     return rooms;

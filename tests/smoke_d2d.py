@@ -346,6 +346,7 @@ try:
     # the town's sends the player to it once 10 s have passed since the
     # last level change; they arrive beside it.
     cmd("debug wp 1")
+    cmd("debug stat 7 256000"); cmd("debug stat 6 256000")   # 1000 life: the Cold Plains' own may kill a level 10 standing by
     wp = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
     for _ in range(30):
         cmd(f"cmd waypoint {wp[4]} 3"); frames(30)

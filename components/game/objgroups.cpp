@@ -455,23 +455,11 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
         }
     }
-    if (const char* path = std::getenv("OG_GRID")) {   // SCRATCH
-        FILE* f = std::fopen(path, "w");
-        for (int y = 0; y < pop.height; ++y) for (int x = 0; x < pop.width; ++x) if (pop.at(x, y) != 0x27 || true) std::fprintf(f, "%d,%d %x\n", x, y, pop.at(x, y));
-        std::fclose(f);
-        f = std::fopen((std::string(path) + ".picks").c_str(), "w");
-        for (int y = 0; y < level.ds1.height(); ++y) for (int x = 0; x < level.ds1.width(); ++x) {
-            std::fprintf(f, "%d,%d", x, y);
-            if (!level.picks.empty()) for (const auto& p : level.picks[std::size_t(y) * std::size_t(level.ds1.width()) + std::size_t(x)]) std::fprintf(f, " l%d o%d h%d f%x s%d,%d r%d m%x", p.layer, p.orient, int(p.hidden), p.tile->subtile_flags[0], p.tile->style, p.tile->sequence, p.tile->rarity_frame_index, p.tile->material_flags);
-            std::fprintf(f, "\n");
-        }
-        std::fclose(f);
-    }
     int themes = 0;
     for (std::size_t row = 0; row < builder.levels.size(); ++row)
         if (std::atoi(std::string(builder.levels.get(row, "Id")).c_str()) == level.id) themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
     level.group_rooms.assign(level.rooms.size(), {});
-    level.post_object_group_seeds.assign(level.rooms.size(), 0);
+    level.post_object_group_seeds.assign(level.rooms.size(), {});
     std::size_t placed = 0;
     for (std::size_t i = 0; i < level.rooms.size(); ++i) {
         const auto& made = level.rooms[i];
@@ -480,11 +468,10 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         pop.out = &level.group_rooms[i];
         pop.seed.next();                                                                           // FUN_0054f060
         pop.presets(i);
-        if (std::getenv("OG_TRACE")) std::fprintf(stderr, "T presets %d,%d rgn %08x\n", made.x, made.y, pop.rgn.low);
         pop.out->pre = pop.seed.low;
-        if (std::getenv("OG_TRACE")) std::fprintf(stderr, "T room %d,%d rgn %08x %08x flags %x counter %d target %d\n", made.x, made.y, pop.rgn.low, pop.rgn.high, level.room_flags[i], pop.counter, pop.target);
-        if (pop.open(i, themes)) { if (std::getenv("OG_TRACE")) std::fprintf(stderr, "T  open rgn %08x %08x\n", pop.rgn.low, pop.rgn.high); pop.groups(); }
-        pop.out->post = level.post_object_group_seeds[i] = pop.seed.low;
+        if (pop.open(i, themes)) pop.groups();
+        pop.out->post = pop.seed.low;
+        level.post_object_group_seeds[i] = pop.seed;
         pop.out->rgn = pop.rgn.low;
         placed += pop.out->made.size();
     }

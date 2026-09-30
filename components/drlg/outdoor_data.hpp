@@ -84,7 +84,8 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
                   to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
         for (int i = 0; i < 6; ++i) preset.maps[std::size_t(i)] = ds1(prest.get(row, "File" + std::to_string(i + 1)));
-        preset.populate = to_int(prest.get(row, "Populate"), 1);
+        preset.populate = to_int(prest.get(row, "Populate"));
+        preset.logicals = to_int(prest.get(row, "Logicals"));
         assets.data.presets[def] = preset;
     }
     const auto sub = table("LvlSub.txt");

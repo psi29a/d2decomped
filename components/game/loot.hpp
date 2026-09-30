@@ -61,11 +61,14 @@ struct Loot {
         ground_level = destination;
     }
 
+    std::vector<bool> found_uniques;       // the game's one-per-game uniques (game +0x1b24)
     // A kill's loot (MonStats TreasureClass1 for the difficulty) round
-    // where it fell. Magic and better come unidentified.
+    // where it fell, rolled off the monster's unit seed (+0x20: nothing
+    // draws on it between the death and FUN_0055a6d0; Find Item rolls on
+    // from where the kill left it). Magic and better come unidentified.
     // ponytail: D2 spreads drops by its own pattern (not traced); here each
     // goes to the nearest free spot within half a cell.
-    void drop(const Monster& monster, std::uint32_t now_ms) {
+    void drop(Monster& monster, d2d::rules::Rng& game_seed, std::uint32_t now_ms) {
         const int diff = character.header.active_difficulty();
         // Champions drop from TreasureClass2, uniques from 3, superuniques
         // from their SuperUniques TC (for the difficulty).
@@ -76,22 +79,37 @@ struct Loot {
                               : monster.boss == d2d::rules::Boss::champion && !type_info.tc_champion[difficulty_index].empty() ? type_info.tc_champion[difficulty_index]
                               : monster.boss == d2d::rules::Boss::unique && !type_info.tc_unique[difficulty_index].empty()     ? type_info.tc_unique[difficulty_index]
                                                                                                    : type_info.diff[difficulty_index].treasure_class;
+        // FUN_005a6600: TreasureClass4 while its quest isn't done; then
+        // FUN_0055afa0 moves it on by the monster's level past normal.
+        const auto& quest_tc = type_info.tc_quest[difficulty_index];
+        const auto& header = character.header;
+        const bool quest_open = type_info.tc_quest_id && !quest_tc.empty() && !header.quest_flag(diff, type_info.tc_quest_id, 15)
+                                && !header.quest_flag(diff, type_info.tc_quest_id, 1) && !header.quest_flag(diff, type_info.tc_quest_id, type_info.tc_quest_cp);
+        const auto rolled = d2d::rules::tc_upgrade(game_data->rules, quest_open ? quest_tc : treasure_class, diff > 0 && !type_info.tc_fixed ? monster.stats.level : 0);
+        // ponytail: no magic find, one player.
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, treasure_class, monster.stats.level, rng, drops);
-        for (const auto& dropped : drops) put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, now_ms);
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops);
+        for (const auto& dropped : drops) put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == kHellBovine);
     }
-    // One drop round (x, y).
-    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, std::uint32_t now_ms) {
+    static constexpr int kHellBovine = 0x187;   // MonStats: FUN_0055a550 flags its drops 1: the Cow King set (29) drops
+    // One drop round (x, y). A made item (FUN_00555230) takes two steps of
+    // the game seed (+0xd0): its unit seed {low, 666} (FUN_00552df0), then
+    // its own {low, 666} (FUN_00552e90); gold's coins come off the first.
+    // ponytail: the scatter comes off the shared rng.
+    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false) {
         {
             GroundItem ground_item;
             std::tie(ground_item.x, ground_item.y) = level->nearest_free(x + float(rng(11) - 5) / 10, y + float(rng(11) - 5) / 10);
             ground_item.now_ms = now_ms;
             if (dropped.code == "gld") {
                 ground_item.item.code = "gld";
-                ground_item.gold = dropped.gold;
-                ground_item.label = std::to_string(dropped.gold) + " Gold";
+                d2d::rules::Rng unit_seed{ game_seed.next() };
+                game_seed.next();
+                ground_item.gold = dropped.gold ? dropped.gold : d2d::rules::gold_amount(ilvl, dropped.mul, unit_seed);
+                ground_item.label = std::to_string(ground_item.gold) + " Gold";
             } else {
-                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, dropped.quality, rng);
+                d2d::rules::Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
+                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, dropped.quality, item_seed, &unit_seed, &found_uniques, bovine);
                 ground_item.item.identified = dropped.quality <= 3;
                 const auto lines = item_lines(*game_data, ground_item.item, int(character.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }

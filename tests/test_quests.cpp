@@ -49,11 +49,14 @@ int main() {
     other_den.enter_den(other_bits);
     assert(other_den.killed(other_bits, 0) == DenQuest::Kill::cleared && other_den.talk(other_bits, 148)[0].string == 76);
 
-    // Sisters to the Slaughter: available 20 ticks in; Cain gives it;
+    // Sisters to the Slaughter: available 20 ticks after the chain reaches it; Cain gives it;
     // the Catacombs; Andariel's kill (portal at tick 10, log 3 at 12);
     // Warriv's reward, once.
     QuestBits andy_bits{};
     AndyQuest andy;
+    andy.tick();
+    assert(andy.start_in == 0 && andy.state == 0);                                   // no timer till the chain
+    andy.chain();
     for (int i = 0; i < 19; ++i) andy.tick();
     assert(andy.state == 0 && andy.talk(andy_bits, AndyQuest::kCain).empty());
     andy.tick();
@@ -244,5 +247,93 @@ int main() {
     CainQuest next_game;
     next_game.join(cain_bits, false, false);
     assert(!next_game.active && next_game.camp_spawn() && next_game.stones_init() && !next_game.stones_init());
+
+    // The log state sent for a record without its own (FUN_00543f90).
+    QuestBits log_bits{};
+    assert(quest_log(log_bits, 1, 3, 2, 4) == 2 && quest_log(log_bits, 1, 5, 13, 4) == 12);
+    qset(log_bits, 1, 13);
+    assert(quest_log(log_bits, 1, 5, 13, 4) == 13);
+    qset(log_bits, 1, 14);
+    assert(quest_log(log_bits, 1, 3, 2, 4) == 12);
+    assert(quest_log(log_bits, 4, 5, 6, 6) == 12 && quest_log(log_bits, 4, 6, 13, 6) == 12);   // Cain: missed the rescue
+    qset(log_bits, 4, 13);
+    assert(quest_log(log_bits, 4, 5, 6, 6) == 6);
+
+    // The log (FUN_004a1950): hidden till there's something to say.
+    QuestBits text_bits{};
+    QuestState log_state{};
+    for (int quest = 1; quest <= 6; ++quest) assert(quest_text(text_bits, quest, log_state).shown == 2);
+    log_state.log[1] = 1;
+    auto text = quest_text(text_bits, 1, log_state);
+    assert(text.string == 3735 && text.speech == 64 && text.shown == 3 && text.count == -1);
+    log_state.log[1] = 4; log_state.den_left = 5;
+    text = quest_text(text_bits, 1, log_state);
+    assert(text.string == 3738 && text.count == 5);
+    log_state.den_left = 1;
+    assert(quest_text(text_bits, 1, log_state).string == 3739);
+    qset(text_bits, 1, 13); qset(text_bits, 1, 1);                                     // the reward's due: state 4 + 1
+    text = quest_text(text_bits, 1, log_state);
+    assert(text.string == 3740 && text.speech == 64 && text.count == -1);
+    qset(text_bits, 1, 1, false); qset(text_bits, 1, 0);                              // done in this game: the animation
+    text = quest_text(text_bits, 1, log_state);
+    assert(text.string == 3726 && text.speech == 76 && text.shown == 0);
+    qset(text_bits, 1, 12);
+    assert(quest_text(text_bits, 1, log_state).shown == 1);
+    qset(text_bits, 1, 13, false);                                                    // done in a game before
+    text = quest_text(text_bits, 1, log_state);
+    assert(text.string == 3728 && text.speech == 76);
+    log_state.log[2] = 2;
+    assert(quest_text(text_bits, 2, log_state).string == 3742 && quest_text(text_bits, 2, log_state).speech == 81);
+    qset(text_bits, 6, 13); qset(text_bits, 6, 1);                                     // Andariel's reward due: state 10
+    assert(quest_text(text_bits, 6, log_state).string == 3760 && quest_text(text_bits, 6, log_state).speech == 166);
+    log_state.log[3] = 0xd; qset(text_bits, 3, 13);                                    // Tools: no reward state, the server's 13
+    text = quest_text(text_bits, 3, log_state);
+    assert(text.string == 3726 && text.speech == 146 && text.shown == 0);
+    log_state.log[4] = 12;                                                             // another player's: 3727 reads 3729
+    assert(quest_text(text_bits, 4, log_state).string == 3729);
+    log_state.game[5] = 1 << 13;                                                       // the Countess dead in this game, not by us
+    text = quest_text(text_bits, 5, log_state);
+    assert(text.string == 3729 && text.speech == 0 && text.shown == 3);
+    qset(text_bits, 5, 1); qset(text_bits, 5, 15);                                     // closed with the reward due: state 10, none
+    assert(quest_text(text_bits, 5, log_state).shown == 2);
+    qset(text_bits, 2, 1); qset(text_bits, 2, 15);
+    assert(quest_text(text_bits, 2, log_state).string == 3743);
+
+    // The chain (+0xf0 / +0x10: 1 → 2 → 4 → 3 → 6, 5 → 3), from quest 1 at
+    // the first join (FUN_00546270).
+    struct Game {
+        DenQuest den; BurialQuest burial; CainQuest cain; TowerQuest tower; ToolsQuest tools; AndyQuest andy;
+        explicit Game(const QuestBits& bits) {
+            den.join(bits); burial.join(bits); cain.join(bits, false, false); tower.join(bits); tools.join(bits); andy.join(bits);
+            run(1);
+        }
+        void run(int quest) { chain(quest, den, burial, cain, tower, tools, andy); }
+    };
+    QuestBits chain_bits{};
+    Game fresh(chain_bits);
+    assert(fresh.burial.state == 0 && fresh.cain.state == 0 && fresh.tools.state == 0 && fresh.andy.start_in == 0);
+    fresh.den.state = 5;                                                               // Akara's reward (FUN_0058fdd0)
+    fresh.run(1);
+    assert(fresh.burial.state == 1 && fresh.cain.state == 0);
+    fresh.tower.state = 5;                                                             // the Countess's success talk (FUN_00594960)
+    fresh.run(5);
+    assert(fresh.tools.state == 1 && fresh.andy.start_in == 0);
+    fresh.cain.state = 6;                                                             // Akara's ring (FUN_00592250)
+    fresh.run(4);
+    assert(fresh.tools.state == 1);                                                    // Tools holds it
+    fresh.tools.state = 5;                                                             // the malus back (FUN_00591490)
+    fresh.run(3);
+    assert(fresh.andy.start_in == 20);
+    qset(chain_bits, 1, 0);
+    assert(Game(chain_bits).burial.state == 1 && Game(chain_bits).cain.state == 0);
+    qset(chain_bits, 2, 15);
+    assert(Game(chain_bits).cain.state == 1 && Game(chain_bits).tools.state == 0);
+    qset(chain_bits, 4, 0);
+    assert(Game(chain_bits).tools.state == 1 && Game(chain_bits).andy.start_in == 0);
+    qset(chain_bits, 3, 0);
+    Game late_game(chain_bits);
+    assert(late_game.andy.start_in == 20);
+    for (int i = 0; i < 20; ++i) late_game.andy.tick();
+    assert(late_game.andy.state == 1);
     std::puts("ok");
 }

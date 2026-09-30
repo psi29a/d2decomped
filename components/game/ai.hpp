@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -145,6 +146,18 @@ struct Monster {
     // unit.goal) rather than a chase.
     int skill = -1, skill_frame = 0, skill_x = 0, skill_y = 0;
     bool wandering = false;
+    // The MonAI thinks: the last mode it left other than NU (monster data
+    // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch words (+0x14,
+    // +0x18), its command (the Fallen's 1: charge), the corpse a skill raises.
+    std::string_view left_mode = "NU";
+    int ai_state = 0, ai_state2 = 0, ai_command = 0, skill_unit = -1;
+    // Its unit seed (+0x20) as its look left it: what its thinks draw. A
+    // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd), its
+    // map AI's points (subtiles), half freeze durations (stat 0x76).
+    d2d::rules::Rng seed;
+    int special = 0;
+    std::vector<std::pair<int, int>> path;
+    bool half_freeze = false;
     [[nodiscard]] bool alive() const { return hit_points > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
@@ -208,6 +221,7 @@ struct Missile {
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     std::vector<std::pair<int, std::uint32_t>> hit_at;   // NextHit: when it last struck each monster
+    const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
 };
 
 // Direction 0..31 in D2's DCC order for a world step, like direction16:
@@ -231,11 +245,42 @@ inline int direction32(float dx, float dy) {
 template <class HitsMonster>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
                      std::uint32_t now_ms, float elapsed, HitsMonster&& hits_monster) {
+    std::vector<Missile> laid;
+    const int frame = int(now_ms / 40);
     std::erase_if(ms_, [&](Missile& missile) {
         missile.x += missile.velocity_x * elapsed; missile.y += missile.velocity_y * elapsed;
         if (now_ms >= missile.dies || level.blocked(missile.x, missile.y, 0x04)) return true;
         if (missile.visual_only) return false;
         if (missile.friendly) return hits_monster(missile);
+        // A monster's fire wall: the maker (do 6) lays SubMissile1 where it
+        // is each frame; the fire (do 5) burns a foe within half a cell each
+        // frame, once a frame for the cast (they share `struck`), its row's
+        // element in 256ths less resistance and magic damage reduction.
+        // ponytail: the 256ths a burn leaves over round up by chance, not
+        // kept on the foe's life; DamageRate unread.
+        if (missile.info && (missile.info->srv_do == 5 || missile.info->srv_do == 6) && missile.row) {
+            if (missile.frame == frame) return false;
+            missile.frame = frame;
+            if (missile.sub) {
+                Missile fire = missile;
+                fire.info = missile.sub; fire.sub = nullptr; fire.velocity_x = fire.velocity_y = 0; fire.born = now_ms;
+                fire.dies = now_ms + std::uint32_t(std::max(missile.sub->range + missile.sub->lev_range * missile.level, 1)) * 40;
+                laid.push_back(std::move(fire));
+                return false;
+            }
+            if (missile.info->srv_do != 5) return false;
+            std::erase_if(*missile.struck, [&](int key) { return key / 16 < frame; });
+            for (auto& foe : foes) {
+                const int key = frame * 16 + int(&foe - foes.data());
+                if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.5f || std::ranges::contains(*missile.struck, key)) continue;
+                missile.struck->push_back(key);
+                const auto& row = *missile.row;
+                const int burn = std::max(d2d::rules::resisted(rng.range(row.elo, row.ehi), foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]) - foe.fighter.mdr * 256, 0);
+                foe.damage += burn >> 8;
+                if (int(rng(256)) < (burn & 255)) ++foe.damage;
+            }
+            return false;
+        }
         for (auto& foe : foes) {
             if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.4f) continue;
             const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
@@ -247,6 +292,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         }
         return false;
     });
+    std::ranges::move(laid, std::back_inserter(ms_));
 }
 
 // A random unique's name (the client's FUN_004ac870): on {name seed, 666},
@@ -291,23 +337,21 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // aidel ticks between attacks;
 // otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
 // random spot within 3 cells.
-// ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
-// game.exe's per-AI think functions not traced); distances and timings
-// by eye; chasing goes straight at the player, sliding to a stop at walls.
+// ponytail: an AI whose think isn't traced (rules::traced_ai) gets one
+// melee think (MonStats aip1..8 unread); distances and timings by eye;
+// chasing goes straight at the player, sliding to a stop at walls.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.
-// Andariel (MonStats AI "Andariel") thinks her own way instead: see
-// rules::andariel_think.
+// Andariel and the traced MonAI types think their own way instead: see
+// rules::andariel_think / rules::mon_think. A1 / A2 fire MissA1 / MissA2.
+// `pack`: all the level's monsters, `monster` among them (its group, the
+// dying, corpses to raise); `born`: gets what it lays (a nest's young).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
-                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles);
-
-// Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
-// the others of its group within 10 cells run for 2-3 s.
-// ponytail: the Fallen think function isn't traced; group = spawn group.
-void fallen_scatter(const GameData& game_data, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t now_ms);
+                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
+                    std::vector<Monster>* born = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

@@ -558,6 +558,16 @@ Waypoint travel within Act 1 is in (C→S 0x49, dark wilderness waypoints).
 Sisters to the Slaughter (quest 6) is in: talk, alerts, Andariel's death
 hook (gems, progression, the lair portal), Warriv's Go East (Act 2 itself
 not yet).
+**Checkpoint 2026-09-30, later.** All six Act 1 quests are in (Den, Burial
+Grounds + Kashya's merc, Tools of the Trade + Charsi's imbue, Search for
+Cain + Tristram, Forgotten Tower, Sisters to the Slaughter); doors and the
+dungeon objects (containers, stands, wells, bookshelves, exploding
+barrels); 17 Act 1 MonAI thinks including Blood Raven; walk-through level
+links (Levels.txt Vis with Warp -1: Outer Cloister ↔ Barracks, Inner
+Cloister ↔ Cathedral); lone warp units (the Forgotten Tower's stairs).
+Open: the quest log text past the Den and the in-game quest chain,
+bit-exact object groups, dungeon monster population, drops, the Countess's
+AI and superunique specials.
 
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard

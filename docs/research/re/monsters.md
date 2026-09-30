@@ -108,15 +108,24 @@ closeness stands in for the border flags.
 
 ## Room population — FUN_0054ec90
 
-Per room rect (tiles × 5 = subtiles), `(h/3)·(w/3)` rolls of the **game**
-seed: `seed % 100000 <= density` (density capped at 10000) spawns:
+Per area of the room's list (FUN_0061ad50: id +0x28 set, +0x20 clear, rect
+not empty), `(h·5/3)·(w·5/3)` rolls of the **game** seed: `seed % 100000 <=
+density` (density capped at 10000) spawns. A LvlPrest row with Logicals gets
+its areas by walls (FUN_0066d110: flood FUN_0066c580 / FUN_0066c3d0, split
+FUN_0066ca50, newest first); any other room one whole-room area
+(FUN_0066ccb0, w × h tiles). Spots are drawn in the area (FUN_0054dac0) and
+must carry its id (FUN_0061b130). Diffed bit-exact on every Logicals room of
+act 1 (against the emulator's FUN_0061ad50 lists, seeds 1-3).
+Each object an object group makes before (FUN_00552560) steps the game seed
+once (FUN_00555230 → FUN_00552df0): the loop's start moves with them.
 
 1. FUN_005bde80: `room_seed(total rarity) + 1`, walk the entries subtracting
    rarity until < 1. (MonStats `spawn` may replace the pick 80 % of the
    time for flagged monsters; no act 1 wilderness monster has one.)
 2. FUN_005be020 (room seed): unique/champion if under MonUMin (chance rising
    with rooms done) or under MonUMax (6 %); else a group. Its 1/2 results
-   both become "group". Normal act 1 has MonUMin/Max 0 — one roll, a group.
+   both become "group". MonUMin/Max come from Levels +0x28 / +0x2b + difficulty
+   (FUN_005479c0); normal Cold Plains has 1 / 1.
 3. Group size MinGrp..MaxGrp, but 1..1 for BaseId 19 (fallen1) and 91
    (scarab1) — FUN_0054ec40. sparsePopulate: `game_seed % 100 > sparse` skips.
 4. FUN_0054df80 → FUN_0054dc40: up to 20 random spots in the room rect
@@ -140,8 +149,8 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   `rand(100) < rooms_done·100 / rooms_in_level` (+4, counted by
   FUN_0054ebc0 each room; +0xc); else while under MonUMax (+0x2bd), a unique
   when `rand(100) < 6`; else one more roll, 1 or 2, and FUN_0054ec90 turns 1
-  into 2: a group. Normal act 1 has MonUMin / MonUMax 0; the Blood Moor
-  has 4 / 5 in nightmare, 7 / 9 in hell; the Den of Evil none.
+  into 2: a group. Normal Cold Plains has MonUMin / MonUMax 1 / 1; the
+  Blood Moor has 4 / 5 in nightmare, 7 / 9 in hell; the Den of Evil none.
 - **The unique** (FUN_0054ec90 → FUN_005a43e0(game, room, 1, 0, 0, 1)): a
   type picked again (FUN_005bde80 unique flag: nightmare / hell from the
   region's rarity list; normal from Levels.txt umon1..), placed like a
@@ -314,12 +323,12 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 |---|---|---|
 | 0x02 | place_unique_pack | a type from the level's unique list (FUN_005bde80 unique flag), then FUN_005a43e0 with (0, 0): a **random spot in the room** (FUN_0054dc40), not the marker; mods and minions as a random unique |
 | 0x03 | place_champion | a type from the unique list at the marker, made a champion (FUN_005a48c0 mod 16), then FUN_0054e1e0: `rand(3) + 1` more champions of it, radius 4 (the monster's own seed) |
-| 0x04 | place_rogue_warner | MonStats 0x10a (Flavie) |
+| 0x04 | place_rogue_warner | MonStats 0x10a (Flavie) at the marker (radius −1 only); an NPC, but made here, and she blocks later spots |
 | 0x05 | place_bloodraven | MonStats 0x10b (Blood Raven) |
-| 0x08 | place_tightspotboss | MonStats 0x11c, flag 8 |
+| 0x08 | place_tightspotboss | MonStats 0x11c at the marker (radius −1 only), flag 8 |
 | 0x0a / 0x0b | place_tentacle_ns / _ew | FUN_0054da60: MonStats 0x105's chain by the level (act 3) |
 | 0x11, 0x12 | place_fallen, place_fallenshaman | one monster at the marker: base 0x13 (fallen1) / 0x3a (fallenshaman1) → the level's own (FUN_0063ec70) → FUN_0054e2a0 |
-| 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); the dead ones spawn in mode 12 (dead) |
+| 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); 0x1d..0x20 (bases 0x1c5, 0x1ec — 0x211 in level 0x6e —, 0x20a, 0x1b6; 0x54e9a0..) try radius −1 then 4 in mode 12 (dead), unit +0xc4 \|= 0x2000000; 0x1b6 then rolls rand(50) on its own seed for a FUN_005417d0 event |
 | 0x18, 0x1a | place_impgroup, place_miniongroup | FUN_0054e090 (act 5, not traced) |
 | 0x00, 0x06, 0x07, 0x09, 0x0c..0x10, 0x13..0x15, 0x21..0x24 | nothing, the river monsters, amphibian, fallennest, fetishnest, talking / dumb guards, maggots, mosquitonest, **group25..group100** | **nothing** (the default; group ids 0x21..0x24 are past the table: `index − 2 > 0x1e`) |
 

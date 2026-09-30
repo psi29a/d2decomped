@@ -753,10 +753,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
                 if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
-                if (skill.srvdofunc == 72) { loot.drop(corpse, now_ms); break; }
+                if (skill.srvdofunc == 72) { loot.drop(corpse, spawning.game, now_ms); break; }
                 const int tier = std::clamp(1 + int(character.stats.get(d2d::d2s::kLevel)) / 12, 1, 5);
                 const std::string code = rng(20) == 0 ? "rvs" : (rng(2) ? "hp" : "mp") + std::to_string(tier);
-                loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, now_ms);
+                loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
                 break;
             }
             default: break;
@@ -1130,15 +1130,14 @@ auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_
     }
 
 auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms) -> void {
-        const auto& monster = monsters[monster_index];
+        auto& monster = monsters[monster_index];
         const auto save_class = std::size_t(std::max(character.character_class, 0));
         auto exp = d2d::rules::kill_exp(monster.stats.exp, int(character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
         exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
-        fallen_scatter(*game_data, monsters, monster_index, rng, now_ms);
-        loot.drop(monster, now_ms);
+        loot.drop(monster, spawning.game, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }
 
@@ -1731,6 +1730,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(player_combat.attack_rating, target.armor_class, clvl, target.level);
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
+        if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) { blow.chill_ticks = std::max(blow.chill_ticks, freeze); blow.stun_ticks = std::max(blow.stun_ticks, freeze); }
         land(monster_index, blow, true, now_ms);
     }
@@ -2373,12 +2373,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (now_ms < amplified[k]) foes[k].fighter.dr_pct -= 100;
             monster_auras(foes, now_ms);
             for (const auto& pet : pets) foes.push_back(pet_foe(pet));
+            std::vector<Monster> born;
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born))
                     killed(i, now_ms);                           // on the player's thorns
             }
+            for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
             monster_states(now_ms);
