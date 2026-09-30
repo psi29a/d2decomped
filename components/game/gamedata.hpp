@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -375,7 +376,7 @@ struct GameData {
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
     struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> treasure_classes;
-                         std::array<int, 3> utrans{}; };   // Utrans by difficulty: its colour
+                         std::array<int, 3> utrans{}; bool autopos = false, stacks = false; };   // Utrans by difficulty: its colour; AutoPos, Stacks
     std::vector<SuperUnique> superuniques;
     d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
     std::array<std::vector<std::string>, 3> unique_names;   // UniquePrefix / Suffix / Appellation, resolved
@@ -623,6 +624,7 @@ struct Spawning {
     d2d::rules::Rng game;
     std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
     std::unordered_map<const Level*, LevelState> levels;
+    std::bitset<128> superuniques;                         // spawned this game (game +0x1d30)
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
 };

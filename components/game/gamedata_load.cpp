@@ -313,7 +313,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.superuniques.push_back({ found ? u16_to_latin1(*found) : key, row(superuniques_table.get(row_index, "Class")), num(superuniques_table.get(row_index, "MinGrp")),
                                            num(superuniques_table.get(row_index, "MaxGrp")), mods,
                                            { std::string(superuniques_table.get(row_index, "TC")), std::string(superuniques_table.get(row_index, "TC(N)")), std::string(superuniques_table.get(row_index, "TC(H)")) },
-                                           { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) } });
+                                           { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) },
+                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0 });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a

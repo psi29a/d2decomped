@@ -380,21 +380,26 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
             }
             continue;
         }
-        // A superunique (FUN_005a49b0): at its spot, its mods, then
+        // A superunique (FUN_005a49b0): once a game unless Stacks, at its
+        // spot or (AutoPos) a random one in the room (FUN_0054dc40, no
+        // entrance check), its mods and MonUMod 22 (questcomplete), then
         // MinGrp..MaxGrp (each + difficulty when both are set) of minion1
         // (else its own type) at radius 3 (FUN_005a0c00 / FUN_005b23c0).
         // ponytail: its unique stat bonuses and TC come in the fight / loot;
-        // the per-superunique specials (the Countess, the Smith ...) aren't
-        // built; its mods roll the room seed, not the monster's own.
+        // the per-superunique specials (the Countess' stat 0x76, AI 0xd and
+        // quest 5, the Cow King's quest 4) wait for quest-unit binding
+        // (FUN_005436b0); its mods roll the room seed, not the monster's own.
         const int superunique_index = unit.id - nmon;
         const auto& sup = game_data.superuniques[std::size_t(superunique_index)];
-        if (sup.type < 0) continue;
-        int leader_x, leader_y;
-        if (!place(room, unit.x, unit.y, -1, fits, leader_x, leader_y) && !place(room, unit.x, unit.y, 5, fits, leader_x, leader_y)) continue;
+        if (sup.type < 0 || (!sup.stacks && spawning.superuniques.test(std::size_t(superunique_index)))) continue;
+        int spot_x = unit.x, spot_y = unit.y, leader_x, leader_y;
+        if (sup.autopos && !d2d::rules::room_spot(room, fits, [](int, int) { return false; }, spot_x, spot_y)) continue;
+        if (!place(room, spot_x, spot_y, -1, fits, leader_x, leader_y) && !place(room, spot_x, spot_y, 5, fits, leader_x, leader_y)) continue;
+        spawning.superuniques.set(std::size_t(superunique_index));
         const int lead = int(spawns.size());
-        spawns.push_back({ sup.type, leader_x, leader_y, -1, superunique_index, d2d::rules::Boss::superunique,
-                           d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, room.seed), 0,
-                           spawning.game.next() });
+        auto mods = d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, room.seed);
+        mods.push_back(22);
+        spawns.push_back({ sup.type, leader_x, leader_y, -1, superunique_index, d2d::rules::Boss::superunique, std::move(mods), 0, spawning.game.next() });
         const int minion = monsters.types[std::size_t(sup.type)].minion[0] >= 0 ? monsters.types[std::size_t(sup.type)].minion[0] : sup.type;
         const int low = sup.min_grp + (sup.min_grp && sup.max_grp ? difficulty : 0), high = sup.max_grp + (sup.min_grp && sup.max_grp ? difficulty : 0);
         const int count = room.seed.range(low, std::max(low, high));
