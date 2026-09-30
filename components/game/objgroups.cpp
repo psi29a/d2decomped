@@ -732,21 +732,27 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         }
     }
     int themes = 0, position = 0;
-    std::uint32_t slots = 0;                                                                       // 0x10 << slot with a Warp (FUN_0066af30)
+    std::uint32_t slots = 0, shared = 0;                                                           // 0x10 << slot with a Warp (FUN_0066af30); its Vis another slot's too
     for (std::size_t row = 0; row < builder.levels.size(); ++row)
         if (std::atoi(std::string(builder.levels.get(row, "Id")).c_str()) == level.id) {
             themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
             pop.warp_dist = std::atoi(std::string(builder.levels.get(row, "WarpDist")).c_str());
             position = std::atoi(std::string(builder.levels.get(row, "Position")).c_str());
-            for (int k = 0; k < 8; ++k)
+            int vis[8];
+            for (int k = 0; k < 8; ++k) {
+                vis[k] = std::atoi(std::string(builder.levels.get(row, "Vis" + std::to_string(k))).c_str());
                 if (std::atoi(std::string(builder.levels.get(row, "Warp" + std::to_string(k))).c_str()) != -1) slots |= 0x10u << k;
+                for (int j = 0; j < k; ++j)
+                    if (vis[k] && vis[j] == vis[k]) shared |= 0x10u << k | 0x10u << j;
+            }
         }
     // The level's own warp table (FUN_0066aec0: its +0x90 override, the
-    // Blood Moor's one Den of Evil way in of Warp3..6) keeps a slot only if it placed a warp.
+    // Blood Moor's one Den of Evil way in of Warp3..6) keeps one of the slots
+    // sharing a Vis: the one that placed a warp.
     // ponytail: read off the warps built, not game.exe's override list.
     std::uint32_t warped = 0;
     for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
-    slots &= warped;
+    slots &= ~shared | warped;
     // FUN_00642480: the centres of rooms with a warp slot's wall (a walk-through exit has no warp).
     for (std::size_t i = 0; i < level.rooms.size(); ++i)
         if (level.room_flags[i] & slots) pop.ways.push_back({ (level.rooms[i].x + level.rooms[i].width / 2) * 5, (level.rooms[i].y + level.rooms[i].height / 2) * 5 });
