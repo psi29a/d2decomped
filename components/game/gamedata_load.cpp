@@ -727,7 +727,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto tcx = txt("TreasureClassEx");
         for (std::size_t row = 0; row < tcx.size(); ++row) {
             auto number = [&](std::string column) { return std::atoi(std::string(tcx.get(row, column)).c_str()); };
-            d2d::rules::TreasureClass treasure_class{ std::max(number("Picks"), 1), number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {} };
+            d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {} };
             for (int i = 1; i <= 10; ++i) {
                 auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
                 std::erase(item, '"');

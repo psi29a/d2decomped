@@ -73,5 +73,42 @@ int main() {
     assert(andy.said(andy_bits, AndyQuest::kWarriv, 183) && qbit(andy_bits, 6, 0) && !qbit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
     assert(!andy.said(andy_bits, AndyQuest::kWarriv, 183) && !andy.alert(andy_bits, AndyQuest::kWarriv));
     assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
+
+    // The Forgotten Tower: the tome read first (log 1); the Tower (log 4),
+    // cellar 5 (log 2); the Countess's kill is the completion; the success
+    // talk once, its replay until the player leaves town.
+    QuestBits tower_bits{};
+    TowerQuest tower;
+    assert(tower.talk(tower_bits, 150).empty() && !tower.alert(tower_bits, 150));
+    tower.read_tome(tower_bits);
+    assert(tower.state == 2 && tower.log == 1 && tower.tome_early && qbit(tower_bits, 5, 2));
+    assert(tower.talk(tower_bits, 150)[0].string == 133 && !tower.talk(tower_bits, 150)[0].greet);
+    tower.enter(tower_bits, 1, 3);                                                   // out of town: state 3, no mark
+    assert(tower.state == 3 && !qbit(tower_bits, 5, 3) && tower.talk(tower_bits, 147)[0].string == 139);
+    tower.enter(tower_bits, 6, TowerQuest::kTower);
+    assert(tower.log == 4 && qbit(tower_bits, 5, 6));
+    TowerQuest tower_again;
+    tower_again.join(tower_bits);
+    assert(tower_again.state == 3 && tower_again.log == 4);
+    tower.enter(tower_bits, 24, TowerQuest::kCellar);
+    assert(tower.state == 3 && tower.log == 2 && qbit(tower_bits, 5, 4));
+    assert(tower.killed(tower_bits, true) && qbit(tower_bits, 5, 0) && qbit(tower_bits, 5, 13) && tower.state == 5);
+    assert(!tower.killed(tower_bits, true));                                         // once
+    for (int i = 0; i < 6; ++i) tower.tick();
+    assert(tower.log == 2);
+    tower.tick();
+    assert(tower.log == 13);
+    assert(tower.alert(tower_bits, 150) && !tower.alert(tower_bits, TowerQuest::kQuest) && !tower.alert(tower_bits, 155));
+    assert(tower.talk(tower_bits, 155)[0].string == 141 && tower.talk(tower_bits, 155)[0].greet);
+    assert(tower.said(tower_bits, 155, 141) && !tower.due && tower.told);
+    assert(!tower.said(tower_bits, 150, 140) && tower.talk(tower_bits, 150)[0].string == 140 && !tower.talk(tower_bits, 150)[0].greet);
+    tower.enter(tower_bits, 1, 2);
+    assert(tower.talk(tower_bits, 150).empty());
+    // Not in cellar 5 at her death: bit 14, nothing to say.
+    QuestBits away_bits{};
+    TowerQuest away;
+    away.enter(away_bits, 6, TowerQuest::kTower);
+    assert(away.state == 2 && away.log == 3 && qbit(away_bits, 5, 2));
+    assert(!away.killed(away_bits, false) && qbit(away_bits, 5, 14) && !qbit(away_bits, 5, 0) && away.talk(away_bits, 150).empty());
     std::puts("ok");
 }

@@ -237,6 +237,131 @@ struct AndyQuest {
     static constexpr const char* kStandard[7] = { "gsv", "gsr", "gsb", "gsy", "gsg", "gsw", "sku" };
 };
 
+// The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
+// Quest 5; bits: 0 done (set at the kill: no reward talk), 2..6 progress,
+// 13 took part, 14 not there.
+// ponytail: one player — lists A / B (rec+0x18) are `told` / `due`, the
+// cellar-5 list and party passes are left out; rec+9 (active) is taken as
+// always set, so the tome never starts read (InitFn 4, FUN_00595a00).
+struct TowerQuest {
+    static constexpr int kQuest = 5, kTower = 20, kCellar = 25, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
+    int state = 0;      // +0xc: 0 init, 2 started, 3 cellar / out of town, 5 Countess dead (1 and 4 unused)
+    int log = 0;        // +0xb
+    int log_in = 0;     // ticks to the kill's timer (0x5954c0, 7), 0 not running
+    bool told = false;  // list A: had their success talk
+    bool due = false;   // list B: killed her in cellar 5, the success talk due
+    bool dead = false;  // d+0x118: rec+0xc0 is gone
+    bool first_talk = false;   // d+0x11a
+    bool tome_early = false;   // d+0x11b: the tome read while log == 0
+
+    // A player's bits for the state (LAB_00594890; 0x59494c by log).
+    void mark(QuestBits& quest_bits) const {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        if (state == 2) qset(quest_bits, kQuest, 2);
+        if (state == 3 && log >= 1 && log <= 4) qset(quest_bits, kQuest, log + 2);
+    }
+    // The player joins (LAB_00595860).
+    void join(const QuestBits& quest_bits) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) return;
+        if (qbit(quest_bits, kQuest, 4)) { state = 3; log = 1; }
+        else if (qbit(quest_bits, kQuest, 6)) { state = 3; log = 4; }
+        else if (qbit(quest_bits, kQuest, 5)) { state = 2; log = 3; }
+        else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+        else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
+    }
+    // A tick (40 ms): the kill's timer sets the log to 13.
+    void tick() {
+        if (log_in > 0 && --log_in == 0 && state == 5) log = 13;
+    }
+    // The Moldy Tome read (OperateFn 6, FUN_00594e70), then its message
+    // 127 heard.
+    void read_tome(QuestBits& quest_bits) {
+        if (state < 2) { state = 2; if (log == 0) tome_early = true; }
+        said(quest_bits, -1, kTome);
+    }
+    // What `npc` says about it (FUN_00594c50): blocks at 0x737ed8 by the
+    // state (0x7382ac: -1, -1, 0, 1, 2, 3, -1).
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+        struct E { int npc, string; bool greet; };
+        static const std::vector<E> kBlocks[4] = {
+            { { 150, 133, false }, { 155, 132, false }, { 154, 129, false }, { 148, 130, false }, { 265, 131, false }, { 147, 128, false } },
+            { { 150, 134, false }, { 155, 136, false }, { 154, 137, false }, { 148, 138, false }, { 265, 135, false }, { 147, 139, false } },
+            { { 150, 140, true }, { 155, 141, true }, { 154, 144, true }, { 148, 143, true }, { 265, 145, true }, { 147, 142, true } },
+            { { 150, 140, false }, { 155, 141, false }, { 154, 144, false }, { 148, 143, false }, { 265, 145, false }, { 147, 142, false } },
+        };
+        const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
+        if (b0 && !b13) return {};
+        if (state > 3 && !due && !told) return {};
+        int block = -1;
+        if (due) block = 2;
+        else if (b0) { if (!told) return {}; block = 3; }
+        else if (state >= 2 && state <= 5) block = state - 2;
+        std::vector<QuestMsg> out;
+        if (block >= 0)
+            for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
+        return out;
+    }
+    // The balloon over `npc` (FUN_005952c0): the success talk's due, not
+    // with Warriv or Gheed.
+    [[nodiscard]] bool alert(const QuestBits&, int npc) const {
+        return due && (npc == 150 || npc == 154 || npc == 148 || npc == 265);
+    }
+    // The player heard `string` from `npc` (FUN_00594960). True: the first
+    // success talk after the kill — the chain opens (rec+0xf0, FUN_00595240
+    // → quest 3's).
+    bool said(QuestBits& quest_bits, int npc, int string) {
+        if (string == kTome) {                         // no NPC check
+            bool changed = false;
+            if (tome_early) {
+                if (log == 0) { log = 1; changed = true; }
+                if (log == 3) { log = 2; changed = true; if (state < 3) state = 3; }
+            }
+            if (state < 2) { state = 2; mark(quest_bits); }
+            else if (changed) mark(quest_bits);
+            return false;
+        }
+        const bool town = npc == 154 || npc == 150 || npc == 265 || npc == 155 || npc == 148 || npc == 147;
+        if (!town || string < 140 || string > 145) return false;
+        bool chain = false;
+        if (qbit(quest_bits, kQuest, 13) && first_talk) { first_talk = false; state = 5; chain = true; }
+        if (due) { due = false; told = true; }
+        return chain;
+    }
+    // The player went from level `from` to `to` (FUN_00595010).
+    void enter(QuestBits& quest_bits, int from, int to) {
+        if (to == kTower) {
+            if (state == 0) { state = 2; log = 3; }
+            else if (state <= 3 && log == 1) log = 4;
+            else return;
+            mark(quest_bits);
+        } else if (to == kCellar) {
+            if (state > 3 || log == 2) return;
+            state = 3; log = 2;
+            mark(quest_bits);
+        } else if (from == 1) {                        // out of town
+            if (state == 2) { if (!qbit(quest_bits, kQuest, 0)) state = 3; }
+            else if (state == 5) told = false;         // FUN_00594740 (then rec+0xa = 0 once both lists are empty)
+        }
+    }
+    // The Countess died (FUN_00595710, once: rec+0xc0 is cleared). True:
+    // the player's kill for the quest (FUN_00594f10: in cellar 5 — bits 13
+    // and 0, the voice); elsewhere bit 14. The 7-tick timer starts.
+    bool killed(QuestBits& quest_bits, bool in_cellar) {
+        if (dead) return false;
+        dead = true;
+        state = 5;
+        first_talk = true;
+        log_in = 7;
+        if (qbit(quest_bits, kQuest, 0)) return false;
+        if (!in_cellar) { qset(quest_bits, kQuest, 14); return false; }
+        qset(quest_bits, kQuest, 13);
+        qset(quest_bits, kQuest, 0);
+        qset(quest_bits, kQuest, 1, false);
+        due = true;
+        return true;
+    }
+};
+
 // The quest a message is about, for the Talk submenu's label: its name's
 // string id (0x722678), 0 none.
 [[nodiscard]] inline int quest_name(int message) {

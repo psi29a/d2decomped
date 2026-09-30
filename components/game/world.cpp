@@ -150,6 +150,16 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (key->quantity > 1) --key->quantity;
             else character.items.erase(key);
         }
+        // The Moldy Tome (OperateFn 6, FUN_00594e70): opens once (mode 0 → 1),
+        // read every time.
+        // ponytail: its text (message 127 to the player, FUN_005456a0) isn't
+        // shown; the read goes straight to the quest's heard callback.
+        if (object.operate_fn == 6) {
+            operated.try_emplace({ level, npc_index }, now_ms);
+            tower.read_tome(quests());
+            d2d::log::info("The Forgotten Tower: read the Moldy Tome");
+            return;
+        }
         operated[{ level, npc_index }] = now_ms;
         if (object.operate_fn == 4) {
             const auto& area_levels = game_data->area_level;
@@ -327,6 +337,8 @@ auto World::new_game() -> void {
         den.join(quests());
         andy = {};
         andy.join(quests());
+        tower = {};
+        tower.join(quests());
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -352,6 +364,7 @@ auto World::spawn_merc() -> void {
 auto World::swap_npcs(const Level* from) -> void {
         arrived_at = now;
         if (from && from != level) andy.enter(quests(), from->id, level->id);
+        if (from && from != level) tower.enter(quests(), from->id, level->id);
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -416,6 +429,7 @@ auto World::cross_level() -> void {
 auto World::quest_talk(int hc_idx) -> std::vector<d2d::rules::QuestMsg> {
         auto out = den.talk(quests(), hc_idx);
         std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(tower.talk(quests(), hc_idx), std::back_inserter(out));
         return out;
     }
 
@@ -430,6 +444,18 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
             loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, now_ms);
         d2d::log::info("Sisters to the Slaughter: Andariel is dead, return to Warriv");
+    }
+
+// The Countess's death hook (FUN_00595710): the quest's bits and, for the
+// player's kill, their complete_tower line (unit event 0x25). Her drop is
+// her SuperUniques TC's (negative picks: an item and a rune roll).
+// ponytail: the tower treasure (FUN_005954f0: towerchestspawner missiles
+// at the LargeChestR chests, InitFn 47) isn't built.
+auto World::countess_died(std::uint32_t now_ms) -> void {
+        if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar)) return;
+        static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+        if (character.header.cls < 7) cues.cue(std::format("{}_act1_complete_tower", kClass[character.header.cls]), now_ms, player.x, player.y);
+        d2d::log::info("The Forgotten Tower: the Countess is dead");
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -693,6 +719,7 @@ auto World::deal(const Command& command) -> bool {
             if (std::size_t(message->npc) >= level->npcs.size()) return true;
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;
             if (!std::ranges::contains(quest_talk(hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
+            if (tower.said(quests(), hc_idx, message->string)) d2d::log::info("The Forgotten Tower: done");
             if (andy.said(quests(), hc_idx, message->string)) {
                 d2d::log::info("Sisters to the Slaughter: done, Warriv's caravan goes east");
             }
@@ -808,7 +835,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            const bool usable = (npc.operate_fn == 2 || npc.operate_fn == 4) && !npc.preoperated && !operated.contains({ level, interact->npc });
+            const bool usable = ((npc.operate_fn == 2 || npc.operate_fn == 4) && !npc.preoperated && !operated.contains({ level, interact->npc })) || npc.operate_fn == 6;
             if (npc.operate_fn == 32 || npc.operate_fn == 23 || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
@@ -860,6 +887,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step();
             if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
+            tower.tick();
         }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -906,7 +934,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto& state = npc_states[std::size_t(interact_npc)];
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             if (std::hypot(npc_x - player.x, npc_y - player.y) < 2.f) {
-                if (npc.operate_fn == 2 || npc.operate_fn == 4) {
+                if (npc.operate_fn == 2 || npc.operate_fn == 4 || npc.operate_fn == 6) {
                     operate(interact_npc, now_ms);
                 } else if (npc.operate_fn == 32) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });
@@ -970,7 +998,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx);
+            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx)
+                                  || tower.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
@@ -984,6 +1013,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         use_portal(now_ms);
         }
         for (const auto& kill : fight.kills) if (kill.type == d2d::rules::AndyQuest::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
+        for (const auto& kill : fight.kills) if (kill.super == d2d::rules::TowerQuest::kCountess) countess_died(now_ms);
         fight.kills.clear();
         cross_level();
         fight.rooms_up(*level, player.x, player.y, false);
