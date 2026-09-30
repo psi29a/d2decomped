@@ -413,7 +413,7 @@ Spawning
   2026-09-28, monsters.md "When a room populates"); left: tiles still
   come up at load, the camp's room order; the +0x20 seed for group counts.
   A monster's look is game.exe's pick from its unit seed (done 2026-09-28).
-  Random object groups (Levels ObjGrp, FUN_00552610) aren't built. (The game seed, regions and object seed match game.exe.)
+  Random object groups (FUN_00552610) are built and match game.exe (2026-09-30).
 
 Act 1 levels and rendering
 - Built: Rogue Encampment, Blood Moor, Cold Plains, Stony Field, Dark
@@ -569,13 +569,14 @@ Open: the quest log text past the Den and the in-game quest chain,
 bit-exact object groups, dungeon monster population, drops, the Countess's
 AI and superunique specials.
 
-Still open in the Blood Moor: random object groups (FUN_00552610). Traced
-(objects.md "Random object groups per room"): the algorithm, the guard
-subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's
-row layout are down. Not built yet — its per-slot room-seed step happens
-before monster population, so an emu-side oracle that also runs 552610 has
-to land alongside the C++ port to keep the Blood Moor's monster count
-matching.
+**Checkpoint 2026-09-30, placement.** Random object groups and monster
+placement match game.exe on levels 2–39 (`diff_drlg.py 1-50 <level>
+monsters|objgroups`; objgroups: L23 seed 18 and L26 differ from our drlg).
+Collision is built per room as it comes up (FUN_0064c900), with shared-edge
+patches (FUN_0064c860); ponytail: in live play the room order follows the
+player, not the oracle's. Still open: object drops on the shared rng, drop
+scatter, the Tristram portal position, L26's room layout, the HC smoke's
+extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
 
 **Step 3 — networking** (the deferred item 7 above).
 

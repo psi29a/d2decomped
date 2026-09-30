@@ -24,7 +24,7 @@ quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
 | Launcher and asset formats | ✅ 100% |
 | Act I levels | ✅ 100% (38 of 38; maps match the original's) |
 | Act I quests | ✅ 100% (6 of 6) |
-| Act I matching the original exactly | Maps and item drops ✅; monster placement in progress |
+| Act I matching the original exactly | Maps, item drops, monster and object placement ✅; a few details left |
 | Acts II–V | Not started |
 | Single player, softcore and hardcore | ✅ Runs as a one-player client/server, like the original |
 | Multiplayer over TCP/IP (a d2d host) | Not started |
