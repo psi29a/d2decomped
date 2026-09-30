@@ -112,6 +112,7 @@ struct Spawn {
     // the unit is made (FUN_00555230 → FUN_00552df0), what its look rolls.
     std::uint32_t seed = 0;
     std::vector<std::pair<int, int>> path;                    // its preset's map AI points (FUN_00555910), subtiles
+    bool dead = false;                                        // made in mode 12 (FUN_0054e600's dead MonPlace codes)
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
@@ -123,8 +124,9 @@ struct Population {
     const UMods* umods = nullptr;
 };
 
-// A room to populate: its rect in subtiles and its seed.
-struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; };
+// A room to populate: its rect in subtiles, its seed, its areas
+// (FUN_0061ad50: x, y, width, height subtiles) and the one room_spot draws in (-1: the room).
+struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; std::vector<std::array<int, 4>> areas; int area = -1; };
 
 // Random object groups per room (FUN_00552610, objects.md "Random object
 // groups per room"). Runs before the room's monsters (FUN_0054ec90), on
@@ -150,13 +152,14 @@ inline std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mo
                                                         const std::vector<ObjGroup>& obj_groups,
                                                         Rng& room_seed,
                                                         int rooms_populated_before = 0,
-                                                        int rooms_total = 0) {
+                                                        int rooms_total = 0,
+                                                        const std::vector<std::uint8_t>* subclass = nullptr) {   // objects.txt SubClass by Id: only those throttle
     std::vector<ObjectGroupPick> picks;
     const bool throttle = rooms_total > 0 && rooms_populated_before * 128 / rooms_total > 96;
     for (int i = 0; i < 8; ++i) {
         int roll = int(room_seed.next() % 100);
-        if (throttle) roll = 100;
         const std::uint8_t group_id = level_mon.obj_group[std::size_t(i)];
+        if (throttle && (!subclass || (group_id < subclass->size() && (*subclass)[group_id]))) roll = 100;
         const std::uint8_t prob     = level_mon.obj_prob[std::size_t(i)];
         if (group_id == 0 || roll > prob) continue;
         if (std::size_t(group_id) >= obj_groups.size()) continue;
@@ -226,7 +229,8 @@ inline int pick_type(const Region& reg, Rng& seed) {
 // top left), 20 tries, not by an entrance, where a monster fits.
 template <class Fits, class Near>
 bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, int& spot_y) {
-    const int room_x = room.x + 1, room_y = room.y + 1, room_width = room.x + room.width - room_x, room_height = room.y + room.height - room_y;
+    const auto rect = room.area >= 0 ? room.areas[std::size_t(room.area)] : std::array<int, 4>{ room.x, room.y, room.width, room.height };   // FUN_0054dac0
+    const int room_x = rect[0] + 1, room_y = rect[1] + 1, room_width = rect[0] + rect[2] - room_x, room_height = rect[1] + rect[3] - room_y;
     for (int tries = 0; tries < 20; ++tries) {
         const int x = room.seed(room_width) + room_x, y = room.seed(room_height) + room_y;
         if (near_entrance(x, y)) continue;
@@ -263,8 +267,8 @@ void boss_pack(const Monsters& monsters, int utype, int leader_x, int leader_y, 
 
 // Populate one room (FUN_0054ec90): one roll of the game seed per 3x3
 // subtiles against the density; a hit picks a type by rarity
-// (FUN_005bde80), rolls unique-or-group (FUN_005be020; no uniques while
-// MonUMin/Max are 0, as in normal act 1), then places a group
+// (FUN_005bde80), rolls unique-or-group (FUN_005be020; MonUMin/Max from
+// FUN_005479c0, e.g. 1 / 1 in normal Cold Plains), then places a group
 // (FUN_0054df80): a free spot at a random point of the room (20 tries,
 // not within WarpDist of an entrance, FUN_0054dc40), the leader there,
 // PartyMin..Max minions round it (FUN_005b2830, radius 4), then
@@ -284,7 +288,9 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
     if (reg.types.empty() || density <= 0) return;
     density = std::min(density, 10000);
     auto spot = [&](int& spot_x, int& spot_y) { return room_spot(room, fits, near_entrance, spot_x, spot_y); };
-    for (int tries = (room.height / 3) * (room.width / 3); tries > 0; --tries) {
+    if (room.areas.empty()) room.areas.push_back({ room.x, room.y, room.width, room.height });
+    for (room.area = 0; room.area < int(room.areas.size()); ++room.area)   // FUN_0054ec90: per area
+    for (int tries = (room.areas[std::size_t(room.area)][3] / 3) * (room.areas[std::size_t(room.area)][2] / 3); tries > 0; --tries) {
         if (int(game.next() % 100000) > density) continue;
         const int type = pick_type(reg, room.seed);
         const auto& type_info = monsters.types[std::size_t(type)];
@@ -301,8 +307,8 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
             // unique pick: NM / hell use the region's list), at a spot
             // (FUN_005a09e0), champion or unique (FUN_005a0760), then a
             // champion's pack (FUN_0054e1e0) or a unique's minions (FUN_005a0c00).
-            // ponytail: normal's pick from Levels.txt umon1.. isn't there (act 1
-            // normal has MonUMin / MonUMax 0); a monster's own seed (unit
+            // ponytail: normal's pick from Levels.txt umon1.. isn't there (the
+            // region's list stands in); a monster's own seed (unit
             // +0x20) is the room's here; MonStats `spawn` replacement skipped.
             const int utype = pick_type(reg, room.seed);
             int spot_x, spot_y, leader_x, leader_y;
@@ -325,12 +331,21 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
             if (who >= 0 && std::size_t(who) < monsters.types.size() && place(room, leader_x, leader_y, radius, fits, found_x, found_y))
                 out.push_back({ who, found_x, found_y, leader, -1, Boss::none, {}, 0, game.next() });
         };
+        // The counts roll the leader's own seed (unit +0x20): its look and
+        // one stat roll (FUN_00573xxx) as made, the party (FUN_005b2830),
+        // then MinGrp - 1 + rand(MaxGrp - MinGrp + 1) more (FUN_0054df80).
+        Rng unit_seed{ out[std::size_t(leader)].seed };
+        const std::vector<Components>* sets = nullptr;
+        for (std::size_t i = 0; i < reg.types.size() && i < reg.components.size(); ++i)
+            if (reg.types[i].first == type) sets = &reg.components[i];
+        (void)monster_look(sets, type_info.choices, unit_seed);
+        unit_seed.next();
         if (type_info.minion[0] >= 0) {                         // FUN_005b2830
-            const int count = room.seed.range(type_info.party_min, type_info.party_max);
+            const int count = unit_seed.range(type_info.party_min, type_info.party_max);
             const int kinds = type_info.minion[1] >= 0 ? 2 : 1;
             for (int i = 0; i < count; ++i) nearby(type_info.minion[std::size_t(i % kinds)], 4);
         }
-        for (int extra = room.seed(high - low + 1) + low - 1; extra > 0; --extra) nearby(type, 3);
+        for (int extra = unit_seed(high - low + 1) + low - 1; extra > 0; --extra) nearby(type, 3);
     }
 }
 

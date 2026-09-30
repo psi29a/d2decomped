@@ -81,7 +81,7 @@ struct Monsters {
 // Levels.txt monster columns for one level.
 struct LevelMon {
     std::array<int, 3> density{};               // MonDen, (N), (H): chance in 100000 per 3x3 subtiles
-    std::array<int, 3> umin{}, umax{};          // MonUMin/Max (normal has none in 1.14d act 1)
+    std::array<int, 3> umin{}, umax{};          // MonUMin/Max (FUN_005479c0: Levels +0x28 / +0x2b + difficulty)
     bool wander = false;                        // MonWndr
     int num_mon = 0;                            // NumMon
     bool ranged_first = false;                  // rangedspawn (level def +0x31)

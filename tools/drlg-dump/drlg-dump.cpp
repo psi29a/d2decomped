@@ -1,7 +1,10 @@
 // drlg-dump <mpq dir> <map seed> [level] — our generator's level in the
 // same text form as tools/emu/drlg.py prints game.exe's, for diffing.
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.
-// A trailing `tiles` adds every room's tiles (as drlg.py <seed> <level> tiles).
+// A trailing `tiles` adds every room's tiles (as drlg.py <seed> <level> tiles);
+// `monsters` prints each room's population (as monsters.py <seed> <level>;
+// $DIFFICULTY 0..2).
+#include <gamedata_load.hpp>
 #include <maze.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
@@ -195,11 +198,49 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
 #undef pf
 }
 
+// Every room of the level populated in (y, x) order on a fresh game
+// (d2d::game::populate_level), one line per room that spawned.
+static std::string dump_monsters(d2d::game::GameData& game_data, std::uint32_t seed, int id) {
+    d2d::game::set_map_seed(game_data, seed);
+    const auto* level = game_data.level(id);
+    if (!level) return "";
+    const char* difficulty = std::getenv("DIFFICULTY");
+    auto spawning = d2d::game::start_spawning(game_data, difficulty ? std::atoi(difficulty) : 0);
+    const auto order = d2d::game::populate_level(game_data, spawning, *level);
+    const auto& spawns = spawning.levels[level].spawns;
+    std::ostringstream out;
+    for (std::size_t k = 0; k < order.size(); ++k) {
+        const auto [room, first] = order[k];
+        const std::size_t end = k + 1 < order.size() ? order[k + 1].second : spawns.size();
+        if (first == end) continue;
+        out << "mon " << level->rooms[room].x << ',' << level->rooms[room].y << ':';
+        for (std::size_t i = first; i < end; ++i)
+            out << ' ' << spawns[i].type << '@' << spawns[i].x << ',' << spawns[i].y << (spawns[i].dead ? "m12" : "") << '/' << (spawns[i].leader >= 0 ? std::size_t(spawns[i].leader) - first : i - first);
+        out << '\n';
+    }
+    return out.str();
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::fprintf(stderr, "usage: drlg-dump <mpq dir> <map seed> [level]\n"); return 2; }
     const fs::path dir = argv[1];
     const std::string range = argv[2];
     const int id = argc > 3 ? std::atoi(argv[3]) : 2;
+    if (std::string(argv[argc - 1]) == "monsters") {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game_data = d2d::game::load_game_data(dir, patch ? patch : "", 0);
+        if (!game_data) return 1;
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        for (auto seed = first;; ++seed) {
+            const auto text = dump_monsters(*game_data, seed, id);
+            if (dash == std::string::npos) std::fputs(text.c_str(), stdout);
+            else std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << text;
+            if (seed == last) break;
+        }
+        return 0;
+    }
     d2d::mpq::Stack mpqs;
     if (const char* patch = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(patch);
     for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / name)) mpqs.push(dir / name);
