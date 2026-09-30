@@ -826,10 +826,9 @@ bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::
     level.world_x = outdoor_level.rect.x;
     level.world_y = outdoor_level.rect.y;
     const auto placed = set_level_tiles(level, assets, dt1s, outdoor.rooms, outdoor.plain, notes);
-    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {        // a plain room's cell flags 0x80 (a path, FUN_00552560 skips) and 0x30000 (waypoint)
+    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {        // a plain room's cell flag 0x30000 (waypoint); its 0x80 (a path) is road_rooms, not a room2 flag
         const auto& room = outdoor.rooms[i];
         const auto cell = std::size_t(room.y / 8) * std::size_t(outdoor.cells_wide) + std::size_t(room.x / 8);
-        if (room.kind == 1 && cell < outdoor.g2c.size()) level.room_flags[i] |= outdoor.g2c[cell] & 0x80;
         if (room.kind == 1 && cell < outdoor.g18.size()) level.room_flags[i] |= outdoor.g18[cell] & 0x30000;
     }
     for (const auto& room : outdoor.rooms)

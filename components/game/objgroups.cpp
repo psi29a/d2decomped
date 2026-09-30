@@ -652,7 +652,7 @@ struct Populator {
     // FUN_00552560: whether the room gets groups, counting it.
     bool open(std::size_t index, int themes) {
         const auto flags = level.room_flags[index];
-        if ((flags & 0x30000) || (flags & 0x800000) || (flags & 0x80)) return false;
+        if ((flags & 0x30000) || (flags & 0x800000) || (index < level.road_rooms.size() && level.road_rooms[index])) return false;   // FUN_0066ba90: a plain room on a path
         if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t f) { return !(f & 0x800000); }));
         ++counter;
         if (themes) {                                                                              // FUN_00552400
