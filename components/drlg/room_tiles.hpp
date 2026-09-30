@@ -169,7 +169,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             auto& list = found->second;
             for (auto unit_it = list.begin(); unit_it != list.end();) {
                 if (unit_it->x >= room.x * 5 && unit_it->y >= room.y * 5 && unit_it->x < (room.x + room.width) * 5 && unit_it->y < (room.y + room.height) * 5) {
-                    room.units.insert(room.units.begin(), { unit_it->type, unit_it->id, unit_it->mode, unit_it->x - room.x * 5, unit_it->y - room.y * 5, unit_it->flags });
+                    room.units.insert(room.units.begin(), { unit_it->type, unit_it->id, unit_it->mode, unit_it->x - room.x * 5, unit_it->y - room.y * 5, unit_it->flags, unit_it->path });
                     unit_it = list.erase(unit_it);
                 } else {
                     ++unit_it;

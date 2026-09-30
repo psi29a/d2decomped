@@ -1730,6 +1730,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(player_combat.attack_rating, target.armor_class, clvl, target.level);
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
+        if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) { blow.chill_ticks = std::max(blow.chill_ticks, freeze); blow.stun_ticks = std::max(blow.stun_ticks, freeze); }
         land(monster_index, blow, true, now_ms);
     }

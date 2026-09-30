@@ -350,6 +350,37 @@ int main() {
         assert(mage_in.act == MonAct::approach && mage_in.n == 9 && steps(6, rng) == 1);
         in.dist = 20; in.aip[2] = 0; in.aip[6] = 100; rng = Rng{ 6 };
         assert(mon_think("SkeletonMage", in, rng, no_away).act == MonAct::circle && steps(6, rng) == 4);
+        // GargoyleTrap (aip 24 20 12 15): a shot's aip3 waits first; within
+        // 5 of an axis and aip1 it rolls aip2 %; else stands aip4, no draw.
+        state = 7;
+        in = { .aip = { 24, 100, 12, 15 }, .dist = 10, .skill = { true }, .state = &state, .off_x = 3, .off_y = 9 };
+        rng = Rng{ 7 };
+        const auto trap_wait = mon_think("GargoyleTrap", in, rng, no_away);
+        assert(trap_wait.act == MonAct::idle && trap_wait.n == 7 && state == 0 && steps(7, rng) == 0);
+        assert(mon_think("GargoyleTrap", in, rng, no_away).act == MonAct::skill && state == 12 && steps(7, rng) == 1);
+        state = 0; in.off_x = 6; rng = Rng{ 7 };
+        const auto trap_off = mon_think("GargoyleTrap", in, rng, no_away);
+        assert(trap_off.act == MonAct::idle && trap_off.n == 15 && steps(7, rng) == 0);
+        // The Countess (FUN_005e5c50): away from home's room she walks back;
+        // a target elsewhere gets the firewall from home only; the map AI
+        // points in turn, then rand(100); 700 frames on they start over.
+        const std::pair<int, int> path[] = { { 1, 2 }, { 3, 4 } };
+        int fired = 0, when = 0;
+        in = { .aip = { 0, 5, 100 }, .in_melee = true, .dist = 30, .state = &fired, .frame = 10, .state2 = &when };
+        rng = Rng{ 8 };
+        assert(countess_think(in, { .away = true }, path, rng).act == MonAct::home);
+        assert(countess_think(in, { .target_away = true }, path, rng).act == MonAct::home);
+        assert(countess_think(in, { .target_away = true, .at_home = true }, path, rng).n == 10 && steps(8, rng) == 0);
+        in.dist = 5;
+        const auto first = countess_think(in, {}, path, rng), second = countess_think(in, {}, path, rng);
+        assert(first.act == MonAct::point && first.x == 1 && second.y == 4 && fired == 2 && when == 10 && steps(8, rng) == 0);
+        assert(countess_think(in, {}, path, rng).act == MonAct::a1 && steps(8, rng) == 1);
+        in.frame = 711;
+        assert(countess_think(in, {}, path, rng).act == MonAct::a1 && fired == 0);
+        assert(countess_think(in, {}, path, rng).act == MonAct::point);
+        in.home_dist = 41;
+        assert(countess_think(in, {}, path, rng).act == MonAct::home);
+        assert(d2d::rules::monster_skill_level(10, 2) == 17);
     }
     std::puts("ok");
 }
