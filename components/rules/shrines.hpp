@@ -113,10 +113,12 @@ inline std::string chest_tc(int act, int difficulty, int alvl, int lo_alvl, int 
 // a type 1..8, FUN_004bc500), then objects.txt Lockable chests lock at
 // rand(100) < MonLvl1 / 2 + 8 (flag 0x80); one more step. MonLvl1: the
 // classic normal column (Levels +0x10), whatever the difficulty.
+// The trap alone is InitFn 2 (beds, bookshelves, rat nests, guard corpses).
+inline int roll_trap(int mlvl1, Rng& seed) { return seed(100) < mlvl1 / 8 + 5 ? seed.range(1, 8) : 0; }
 struct ChestInit { int trap = 0; bool locked = false; };
 inline ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
     ChestInit chest;
-    if (seed(100) < mlvl1 / 8 + 5) chest.trap = seed.range(1, 8);
+    chest.trap = roll_trap(mlvl1, seed);
     if (lockable && seed(100) < mlvl1 / 2 + 8) chest.locked = true;
     seed.next();
     return chest;
@@ -156,11 +158,47 @@ inline constexpr ObjectSound kObjectSounds[] = {
     { 290, 0, "object_door_metal_close" }, { 290, 2, "object_door_metal_open" }, { 291, 0, "object_door_metal_close" }, { 291, 2, "object_door_metal_open" },
     { 292, 0, "object_door_metal_close" }, { 292, 2, "object_door_metal_open" }, { 293, 0, "object_door_metal_close" }, { 293, 2, "object_door_metal_open" },
     { 294, 0, "object_door_wood_close" }, { 294, 2, "object_door_wood_open" }, { 295, 0, "object_door_wood_close" }, { 295, 2, "object_door_wood_open" },
+    { 1, 1, "object_casket" }, { 3, 1, "object_casket" }, { 50, 1, "object_casket" }, { 51, 1, "object_casket" }, { 53, 1, "object_casket" }, { 79, 1, "object_casket" },
+    { 7, 1, "object_wood_break_1" }, { 46, 1, "object_wood_break_1" }, { 11, 1, "object_barrel_explode" }, { 28, 1, "object_grave" },
+    { 54, 1, "object_corpse_roll" }, { 55, 1, "object_corpse_roll" }, { 56, 1, "object_corpse_roll" }, { 326, 1, "object_corpse_roll" },
+    { 57, 1, "object_corpse_drop" }, { 58, 1, "object_corpse_drop" }, { 155, 1, "object_stone_large" }, { 159, 1, "object_stone_large" },
+    { 163, 1, "object_shrine_hell_2" }, { 169, 1, "skeleton_walk_1" }, { 174, 1, "object_stone_small" }, { 175, 1, "object_stone_small" },
+    { 247, 1, "object_bed" }, { 248, 1, "object_bed" }, { 289, 1, "object_bed" },
+    { 104, 2, "object_armorstand" }, { 105, 2, "object_armorstand" }, { 106, 2, "object_weaponrack" }, { 107, 2, "object_weaponrack" },
+    { 179, 2, "object_bookshelf" }, { 180, 2, "object_bookshelf" },
+    { 111, 1, "object_well" }, { 111, 2, "object_well" }, { 113, 1, "object_well" }, { 113, 2, "object_well" }, { 115, 1, "object_well" }, { 115, 2, "object_well" },
+    { 130, 1, "object_well" }, { 130, 2, "object_well" }, { 138, 1, "object_well" }, { 138, 2, "object_well" },
 };
 inline std::string_view object_sound(int id, int mode) {
     for (const auto& entry : kObjectSounds) if (entry.id == id && entry.mode == mode) return entry.sound;
     return {};
 }
+// An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
+// weapon (FUN_005841d0 -> FUN_00559630): one of the spawnable bases up to
+// item level `ilvl` (the area level, less one above 1), all alike
+// (FUN_00555e70 / FUN_00555fb0: rand(count)). "" when there's none.
+// ponytail: the pool is the auto armoN / weapN classes' (spawnable) bases in
+// their order, not armor.txt / weapons.txt row order; the act re-roll in
+// FUN_00555e00 and the rack's 6 tries past ItemTypes flag 2 aren't here.
+inline std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& seed) {
+    std::vector<std::string> pool;
+    for (int level = 3; level <= 87; level += 3)
+        if (const auto found = tables.treasure.find(std::format("{}{}", weapon ? "weap" : "armo", level)); found != tables.treasure.end())
+            for (const auto& [code, chance] : found->second.items)
+                if (const auto base = tables.item_base.find(code); base != tables.item_base.end() && base->second.level <= std::max(ilvl, 1)) pool.push_back(code);
+    return pool.empty() ? std::string() : pool[std::size_t(seed(int(pool.size())))];
+}
+// A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
+// Parm1 / 256 of their maxima, stamina always; false when none was short
+// (the well keeps its charge). Every well's Parm1 128, Parm3 3.
+// ponytail: the poison / freeze cures and the merc's drink aren't here.
+inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana, std::int64_t& stamina, std::int64_t max_stamina) {
+    bool drank = false;
+    for (auto [value, max] : { std::pair{ &life, max_life }, { &mana, max_mana }, { &stamina, max_stamina } })
+        if (*value < max) { *value = std::min(*value + (128 * max >> 8), max); drank = true; }
+    return drank;
+}
+
 // What a trap springs (the table at 0x732cec): 1..4 and 6 a trap monster
 // at the chest (FUN_00582420) that acts once (its Trap-* AI, aip2 1) and
 // dies: 1 trap-lightning's MissA1 chainlightning, 2 / 6 trap-firebolt's

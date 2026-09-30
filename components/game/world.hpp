@@ -228,11 +228,16 @@ struct World {
     // log; D2's operate range is 2 cells here.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     // The OperateFns `operate` handles; one-shot ones stay used (operated).
-    static bool operable(int operate_fn) { return operate_fn == 2 || operate_fn == 4 || is_door(operate_fn); }
+    // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
+    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26 }, operate_fn) || is_door(operate_fn); }
     static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
     // A door, trap door or secret door (rules::door_mode): its new mode,
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
+    // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
+    // whoever's within 3 subtiles and sets off the unopened ones nearer
+    // than 3.
+    void explode(int npc_index, std::uint32_t now_ms);
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
@@ -243,7 +248,8 @@ struct World {
     // ponytail: the AI's range check (aip1) is skipped — the player opening
     // the chest is always close; chainlightning doesn't hop; trapfirebolt's
     // fireexplode isn't spawned.
-    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
+    // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
+    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.

@@ -145,6 +145,67 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         const auto& object = level->npcs[std::size_t(npc_index)];
         const int diff = character.header.active_difficulty();
         if (is_door(object.operate_fn)) { operate_door(npc_index, now_ms); return; }
+        if (object.operate_fn == 7) { explode(npc_index, now_ms); return; }
+        const auto& area_levels = game_data->area_level;
+        auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(std::clamp(diff, 0, 2))] : 1; };
+        const int here = alvl(level->id);
+        auto drop_chest = [&](int rounds) {          // the act's chest class (FUN_00585b90), `rounds` times
+            const auto [low, high] = d2d::rules::kChestLevels[0];
+            const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
+            std::vector<d2d::rules::Drop> drops;
+            for (int round = 0; round < rounds; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, here, rng, drops);
+            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, now_ms);
+            return drops.size();
+        };
+        auto to_mode = [&](int mode) {               // FUN_00624690, its sound (0x7295f8) and footprint (FUN_00623830)
+            set_footprint(*level, object, object.collision >> mode & 1);
+            if (const auto sound = d2d::rules::object_sound(object.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
+        };
+        if (object.operate_fn == 22) {               // a well (FUN_005858a0): 2 x Parm2 drinks (InitFn 16), NU -> OP -> ON
+            auto& well = doors.try_emplace({ level, npc_index }, Door{ 0, 0 }).first->second;
+            auto& stat_values = character.stats.values;
+            if (well.mode >= 2 || !d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
+                                                           stat_values[kStamina], stat_values[kMaxStamina])) return;
+            well = { well.mode + 1, now_ms };
+            to_mode(well.mode);
+            d2d::log::info("well {}: mode {}", npc_index, kObjectModes[std::size_t(well.mode)]);
+            return;
+        }
+        // Containers: a casket (1, FUN_00586410) opens only when its round
+        // drops; an urn (3, FUN_005866c0) and a barrel (5, FUN_005868a0)
+        // drop at rand(100) < 21, a corpse or crate (14, FUN_005867a0)
+        // always. Caskets and barrels raise one of the level's undead at
+        // (seed % 10000) & ~0x1fff (FUN_005474c0 / FUN_00582280); all but the
+        // barrel spring their trap (InitFn 2's; FUN_00582510).
+        // ponytail: the barrel's opening step for a player (FUN_006439b0 /
+        // FUN_00580a70) and the events (FUN_005417d0) aren't here.
+        if (const int op = object.operate_fn; op == 1 || op == 3 || op == 5 || op == 14) {
+            if (op == 1 && drop_chest(1) == 0) return;
+            operated[{ level, npc_index }] = now_ms;
+            to_mode(1);
+            if ((op == 1 || op == 5) && (rng.next() % 10000 & 0xffffe000u)) spring_trap(8, object.x, object.y, here, now_ms, 1);
+            if (op == 14) drop_chest(1);
+            if ((op == 3 || op == 5) && rng(100) < 21) drop_chest(1);
+            if (const int trap = force >= 0 ? force : object.trap; trap && op != 5) spring_trap(trap, object.x, object.y, here, now_ms);
+            d2d::log::info("opened object {} (op {})", npc_index, op);
+            return;
+        }
+        // An armor stand's armor (19) or a weapon rack's weapon (20) at the
+        // area level less one; a bookshelf (26, FUN_00584060): 13 in 20 a
+        // scroll, else a tome, of town portal or identify (seed & 1).
+        if (const int op = object.operate_fn; op == 19 || op == 20 || op == 26) {
+            operated[{ level, npc_index }] = now_ms;
+            to_mode(2);
+            const int ilvl = here > 1 ? here - 1 : here;
+            if (op == 26) {
+                const bool scroll = rng(20) < 13;
+                loot.put({ .code = std::string(rng.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk") }, object.x, object.y, here, now_ms);
+            } else if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, rng); !code.empty()) {
+                loot.put({ .code = code, .quality = d2d::rules::roll_quality(game_data->rules, code, ilvl, {}, rng) }, object.x, object.y, ilvl, now_ms);
+            }
+            d2d::log::info("opened object {} (op {})", npc_index, op);
+            return;
+        }
         if (object.operate_fn == 4 && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
             const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == 0 && item.panel == 1 && item.code == "key"; });
             if (key == character.items.end()) { d2d::log::info("I need a key."); return; }
@@ -153,16 +214,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         }
         operated[{ level, npc_index }] = now_ms;
         if (object.operate_fn == 4) {
-            const auto& area_levels = game_data->area_level;
-            auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(std::clamp(diff, 0, 2))] : 1; };
-            const auto [low, high] = d2d::rules::kChestLevels[0];
-            const auto treasure_class = d2d::rules::chest_tc(0, diff, alvl(level->id), alvl(low), alvl(high));
-            std::vector<d2d::rules::Drop> drops;
             const int rounds = d2d::rules::chest_rounds(object.locked, rng);
-            for (int round = 0; round < rounds; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, alvl(level->id), rng, drops);
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, alvl(level->id), now_ms);
-            d2d::log::info("opened a chest: {} x{} ({} drops){}", treasure_class, rounds, drops.size(), object.trap ? std::format(", trap {}", object.trap) : "");
-            if (const int trap = force >= 0 ? force : object.trap) spring_trap(trap, object.x, object.y, alvl(level->id), now_ms);
+            const auto drops = drop_chest(rounds);
+            d2d::log::info("opened a chest: x{} ({} drops){}", rounds, drops, object.trap ? std::format(", trap {}", object.trap) : "");
+            if (const int trap = force >= 0 ? force : object.trap) spring_trap(trap, object.x, object.y, here, now_ms);
             return;
         }
         const int row = force >= 0 ? force : object.shrine;
@@ -242,7 +297,31 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
-auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
+auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
+        using namespace d2d::d2s;
+        const auto& barrel = level->npcs[std::size_t(npc_index)];
+        operated[{ level, npc_index }] = now_ms;
+        if (const auto sound = d2d::rules::object_sound(barrel.object_id, 1); !sound.empty()) cues.cue(sound, now_ms, barrel.x, barrel.y);
+        // FUN_005dfa00: life / 32 .. life / 8 of what it has (Damage 100 %).
+        // ponytail: its hit roll (at least 65 %) is taken as a hit; a
+        // monster's life in whole points, not the game's 256ths.
+        auto near = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
+        auto blast = [&](std::int64_t life) { const auto low = std::max<std::int64_t>(life >> 5, 1); return low + rng(int(std::max(life >> 3, low + 1) - low + 1)); };
+        auto& stat_values = character.stats.values;
+        if (near(player.x, player.y, 3) && stat_values[kLife] > 0) stat_values[kLife] -= blast(stat_values[kLife]);
+        if (merc && near(merc->x, merc->y, 3) && fight.merc_life > 0) fight.merc_life -= blast(fight.merc_life);
+        if (fight.mon_level == level)
+            for (std::size_t k = 0; k < fight.monsters.size(); ++k)
+                if (auto& monster = fight.monsters[k]; monster.alive() && near(monster.unit.x, monster.unit.y, 3) && hurt(*game_data, monster, int(blast(monster.hit_points)), now_ms))
+                    fight.killed(k, now_ms);
+        for (std::size_t k = 0; k < level->npcs.size(); ++k)          // the next barrels along (class 11, still NU)
+            if (const auto& other = level->npcs[k]; other.object_id == 11 && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)
+                explode(int(k), now_ms);
+        set_footprint(*level, barrel, barrel.collision >> 1 & 1);
+        d2d::log::info("barrel {} exploded", npc_index);
+    }
+
+auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead) -> void {
         const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
         if (trap == 5 || trap == 7) {                  // FUN_00582380: large at the chest, small a subtile east
             fires.push_back({ level, &game_data->trap_fires[0], x, y });
@@ -258,7 +337,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             int type = fam;
             const auto& types = game_data->monsters.types;
             for (const int monstats_row : level->region[std::size_t(diff)]) if (types[std::size_t(monstats_row)].base == types[std::size_t(fam)].base) { type = monstats_row; break; }
-            const int count = int(rng.next() & 1) + 1;
+            const int count = undead ? undead : int(rng.next() & 1) + 1;
             for (int k = 0; k < count; ++k) {
                 const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
                 auto monster = make_monster(*game_data, type, free_x, free_y, rng, diff);
@@ -842,7 +921,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            const bool usable = is_door(npc.operate_fn) || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
+            const bool usable = is_door(npc.operate_fn) || npc.operate_fn == 22 || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
             if (npc.operate_fn == 32 || npc.operate_fn == 23 || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }

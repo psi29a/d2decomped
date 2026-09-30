@@ -528,6 +528,15 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         npc.trap = chest.trap; npc.locked = chest.locked;
         if (npc.locked) if (auto locked_name = lookup_string(game_data, "lockedchest")) npc.name = u16_to_latin1(*locked_name);
     }
+    if (objects.get(row, "InitFn") == "2") {      // a trap alone (FUN_0054fbb0)
+        const auto& area_levels = game_data.area_level;
+        npc.trap = d2d::rules::roll_trap(std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1, rgn);
+    }
+    // The gold placeholder (InitFn 28, FUN_0054f8c0): ON, then 1..9 piles
+    // at rand(4), rand(4) subtiles off it, where free in its room.
+    // ponytail: only its seed steps; the piles (FUN_00559300) aren't dropped and it stays NU (a dummy: nothing draws it).
+    if (objects.get(row, "InitFn") == "28")
+        for (int piles = rgn(9) + 1; piles > 0; --piles) { rgn.next(); rgn.next(); }
     npc.preoperated = objects.get(row, "PreOperate") == "1" && rgn(14) == 0;
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
