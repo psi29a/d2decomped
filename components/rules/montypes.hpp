@@ -59,6 +59,7 @@ struct MonType {
     std::string base_w;                         // BaseW
     std::array<std::vector<std::string>, 16> parts;   // HDv..S8v components, per layer present
     std::array<std::uint8_t, 16> choices{};     // HDv..S8v list lengths, every layer (MonStats2 +0x15)
+    int pieces = 0;                             // TotalPieces (MonStats2 +0xec)
 };
 
 // MonLvl.txt, by level: the base values MonStats' percentages apply to.

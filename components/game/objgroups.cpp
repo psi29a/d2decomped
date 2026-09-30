@@ -104,12 +104,25 @@ struct Populator {
     // each at rand(4), rand(4) off it, dropped (FUN_00559300) where clear
     // (0x3f11) and the last spot tried inside its room is too (sic). A pile
     // is an item: two game-seed steps (FUN_00552df0, FUN_00552e90) and
-    // 0x200 at the free subtile nearest (x + 2, y + 3) (FUN_0064dea0).
-    // ponytail: FUN_0064dea0's path check (FUN_0066a670) isn't taken.
+    // 0x200 at the free subtile nearest (x + 2, y + 3) (FUN_0064dea0) with
+    // no 0x801 on the walk back to the spot (FUN_0066a670: expfield.d2's
+    // steps, FUN_0066a5d0).
     void piles(d2d::rules::Rng gold, int x, int y) {
         auto inside_room = [&](int at_x, int at_y) { return at_x >= room.x && at_y >= room.y && at_x < room.x + room.w && at_y < room.y + room.h; };
-        auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 1, 1, 0x3e01); };
+        auto walk = [&](int at_x, int at_y, int to_x, int to_y) {
+            static constexpr int kDx[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kDy[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
+            auto dir = [&] { return game_data.field[std::size_t((at_y - to_y + 128) * 256 + at_x - to_x + 128)]; };
+            if (game_data.field.empty()) return true;
+            if (hit(at_x, at_y, 1, 1, 0x801)) return false;
+            for (;;) {
+                const auto step = dir();
+                at_x += kDx[step]; at_y += kDy[step];
+                if (dir() == 8) return true;
+                if (hit(at_x, at_y, 1, 1, 0x801)) return false;
+            }
+        };
         int last_x = x, last_y = y;
+        auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 1, 1, 0x3e01) && walk(at_x, at_y, last_x, last_y); };
         for (int count = gold(9) + 1; count > 0; --count) {
             const int dx = int(gold.next() & 3), dy = int(gold.next() & 3);
             if (!inside_room(last_x + dx, last_y + dy)) continue;
@@ -345,11 +358,11 @@ struct Populator {
             for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
                 if (region.types[i].first == type) sets = &region.components[i];
             // FUN_00547bc0: a type the region lacks joins it (13 at most) with
-            // its sets on this seed (FUN_005bdb20) when it has 3+ layers
+            // its sets on this seed (FUN_005bdb20) when TotalPieces > 2
             // (MonStats2 +0xec); else its look rolls every layer.
             const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
             if (!sets && !special && region.types.size() < 13 && type >= 0 && std::size_t(type) < types.size()
-                && std::ranges::count_if(types[std::size_t(type)].choices, [](int c) { return c > 0; }) > 2) {
+                && types[std::size_t(type)].pieces > 2) {
                 region.types.emplace_back(type, 0);
                 region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
                 sets = &region.components.back();
