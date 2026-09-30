@@ -69,6 +69,19 @@ int main() {
     populate_room(monsters, reg, 0, { 0, 0, 40, 40, Rng{ 1 } }, rng1, fits, near_way, none);
     assert(none.empty());
 
+    // FUN_0054ec90's areas: (h/3)*(w/3) game-seed tries each, spots only in
+    // the area drawn (nothing fits here, so every hit is one step too).
+    {
+        SpawnRoom split{ 0, 0, 40, 40, Rng{ 5 }, { { 0, 0, 30, 30 }, { 30, 30, 10, 9 } } };
+        Rng game{ 9 }, mirror{ 9 };
+        populate_room(monsters, reg, 10000, split, game, [](int, int) { return false; }, near_way, none);
+        for (int step = 0; step < 100 + 9; ++step) (void)mirror.next();
+        assert(none.empty() && game.low == mirror.low && game.high == mirror.high);
+        std::vector<Spawn> in_area;
+        populate_room(monsters, reg, 10000, SpawnRoom{ 0, 0, 40, 40, Rng{ 5 }, { { 30, 30, 10, 10 } } }, game, fits, near_way, in_area);
+        for (const auto& spawn : in_area) assert(spawn.leader != &spawn - in_area.data() || (spawn.x > 30 && spawn.y > 30));
+    }
+
     // Stats: zombie level 1 in normal = 7 HP x 101..181 %.
     Rng stats_rng{ 3 };
     for (int i = 0; i < 50; ++i) {

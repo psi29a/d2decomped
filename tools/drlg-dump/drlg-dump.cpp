@@ -215,7 +215,7 @@ static std::string dump_monsters(d2d::game::GameData& game_data, std::uint32_t s
         if (first == end) continue;
         out << "mon " << level->rooms[room].x << ',' << level->rooms[room].y << ':';
         for (std::size_t i = first; i < end; ++i)
-            out << ' ' << spawns[i].type << '@' << spawns[i].x << ',' << spawns[i].y << '/' << (spawns[i].leader >= 0 ? std::size_t(spawns[i].leader) - first : i - first);
+            out << ' ' << spawns[i].type << '@' << spawns[i].x << ',' << spawns[i].y << (spawns[i].dead ? "m12" : "") << '/' << (spawns[i].leader >= 0 ? std::size_t(spawns[i].leader) - first : i - first);
         out << '\n';
     }
     return out.str();

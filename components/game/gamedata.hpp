@@ -183,9 +183,17 @@ struct Level {
     d2d::rules::LevelMon mon;
     std::vector<d2d::drlg::Outdoor::RoomSeed> rooms;
     std::vector<std::uint32_t> room1_seeds;            // by `rooms` index
-    // Rooms holding a hidden warp tile (room2 flag 0x800000, FUN_0066e360):
-    // FUN_0054ebc0 (FUN_0066bb20) populates none there. By `rooms` index.
-    std::vector<bool> warp_rooms;
+    // Rooms flagged 0x800000 as built: a hidden warp tile's (FUN_0066e360)
+    // or a preset's with LvlPrest Populate 0 (FUN_00666680). FUN_0054ebc0
+    // (FUN_0066bb20) populates none there. By `rooms` index.
+    std::vector<bool> nopop_rooms;
+    // Each room's areas (FUN_0061ad50's list, newest first): a Logicals
+    // preset's by walls (drlg BuiltRoom::areas), else the whole room
+    // (FUN_0066ccb0). FUN_0054ec90 rolls each. By `rooms` index.
+    std::vector<std::vector<d2d::drlg::Area>> room_areas;
+    // Plain outdoor rooms on a road cell (g2c 0x80; room data +0x54 & 0x80):
+    // FUN_00552560 (FUN_0061abb0) places no object groups there.
+    std::vector<bool> road_rooms;
     // The room seed after FUN_00552610 stepped it (objects.md "Random
     // object groups per room"): what populate() feeds monster rolls, so
     // the throttle build_level applied does not have to be re-derived
@@ -393,6 +401,7 @@ struct GameData {
     std::vector<std::array<int, 4>> area_level;        // Levels.txt MonLvl1Ex..3Ex, then classic MonLvl1, by Id
     std::vector<d2d::rules::LevelMon> level_mon;       // Levels.txt monster columns, by Id
     std::vector<d2d::rules::ObjGroup> obj_groups;      // objgroup.txt rows by Offset (FUN_00552610)
+    std::vector<std::uint8_t> obj_subclass;            // objects.txt SubClass by Id (+0x167: 552610's throttle, 0x40 a waypoint)
     std::uint32_t map_seed = 3;                        // act layout + levels (3: townE1)
     std::vector<d2d::drlg::Placed> act1_layout;        // where act 1's levels sit (act tiles)
     // Mercenary units by hireling.txt Id (the save's merc type): the
@@ -627,6 +636,7 @@ struct Spawning {
         d2d::rules::Population pop;
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+        int group_rooms = 0, group_total = 0;              // FUN_00552560's counters (+4, +8)
     };
     int difficulty = 0;
     d2d::rules::Rng game;

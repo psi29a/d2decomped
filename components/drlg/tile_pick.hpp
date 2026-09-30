@@ -15,7 +15,7 @@
 namespace d2d::drlg {
 
 // A DT1's tile headers, what the pick reads (0x60-byte records from +0x110).
-struct Dt1Head { int orient = 0, style = 0, seq = 0, rarity = 0; };
+struct Dt1Head { int orient = 0, style = 0, seq = 0, rarity = 0, material = 0; };   // material: +6
 struct Dt1File {
     std::string name;                                   // lower-case file name
     std::vector<Dt1Head> tiles;                         // file order
@@ -26,7 +26,7 @@ template <class Bytes> Dt1File dt1_heads(std::string name, const Bytes& bytes) {
     const int count = read_i32(0x10c), off = read_i32(0x110);
     for (int i = 0; i < count; ++i) {
         const auto header = std::size_t(off) + std::size_t(i) * 0x60;
-        file.tiles.push_back({ read_i32(header + 0x14), read_i32(header + 0x18), read_i32(header + 0x1c), read_i32(header + 0x20) });
+        file.tiles.push_back({ read_i32(header + 0x14), read_i32(header + 0x18), read_i32(header + 0x1c), read_i32(header + 0x20), (read_i32(header + 4) >> 16) & 0xffff });
     }
     return file;
 }

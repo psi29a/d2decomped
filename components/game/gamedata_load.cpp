@@ -129,7 +129,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
         return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup");
+    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup"), objects = txt("objects");
+    for (std::size_t row_index = 0; row_index < objects.size(); ++row_index) game_data.obj_subclass.push_back(std::uint8_t(std::atoi(std::string(objects.get(row_index, "SubClass")).c_str())));
     if (monstats.size() == 0 || ms2.size() == 0) return;
     // objgroup.txt by Offset (0..132 in 1.14d): a rare column outside 0..N
     // still gets a slot, so we size by max Offset + 1.

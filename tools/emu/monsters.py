@@ -51,7 +51,7 @@ def dump(e, seed, lid, difficulty=0):
     """One line per room with monsters, rooms by (y, x): `mon <x>,<y>: <class>@<x>,<y>[m<mode>]/<leader> ...`,
     level-relative tiles for the room and subtiles for the monsters; <leader> is the index (in the line) of
     the first monster its placement made: a preset unit (FUN_00555910), a group (FUN_0054df80) or a boss
-    and its company (FUN_005a43e0 from FUN_0054ec90)."""
+    and its company (FUN_005a43e0 from FUN_0054ec90). Flavie (266) is left out: an NPC, not a spawn."""
     g = new_game(e, seed, difficulty)
     act = act_of(e, g, lid)
     lvl = drlg.find_level(e, e.r32(act + 0x48), lid)
@@ -60,7 +60,7 @@ def dump(e, seed, lid, difficulty=0):
     made, lead = [], [0]
     def on_make(mu, addr, size, _):       # FUN_00555230(ECX type, EDX class; x, y, game, room1, 1, mode, flags)
         sp = mu.reg_read(UC_X86_REG_ESP)
-        if mu.reg_read(UC_X86_REG_ECX) == 1:
+        if mu.reg_read(UC_X86_REG_ECX) == 1 and mu.reg_read(UC_X86_REG_EDX) != 266:
             made.append((mu.reg_read(UC_X86_REG_EDX), e.s32(sp + 4) - x0, e.s32(sp + 8) - y0, e.s32(sp + 0x14), lead[0]))
     def on_group(mu, addr, size, _):
         ret = e.r32(mu.reg_read(UC_X86_REG_ESP))
