@@ -6,6 +6,7 @@
 #include <rules.hpp>
 #include <uniques.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -176,6 +177,28 @@ int main() {
         for (int step = 0; step < 8; ++step) (void)throttled_mirror.next();
         assert(throttled_seed.low == throttled_mirror.low);
         assert(throttled_picks.empty());
+    }
+    // Andariel (MonAI 34): distances, facing, her think's draws, the spray's sweep.
+    {
+        assert(ai_distance(3, -4) == 5 && ai_distance(0, 0) == 0);
+        assert(unit_distance(0, 0, 3, 2) == 0 && unit_distance(4, 0, 3, 2) == 1 && unit_distance(5, 0, 3, 2) == 3 && unit_distance(0, 9, 3, 2) == 14);
+        assert(direction64(0, 0, 5, 0) == 56 && direction64(0, 0, 0, 5) == 7 && direction64(0, 0, 3, 3) == 0 && direction64(9, 9, 6, 6) == 32);
+        const std::array<int, 8> aip{ 30, 10, 30, 50 };
+        for (const bool in_melee : { true, false })
+            for (std::uint32_t seed = 1; seed < 50; ++seed) {
+                Rng rng{ seed }, mirror{ seed };
+                const auto act = andariel_think(in_melee, aip, rng);
+                AndarielAct want = AndarielAct::walk;
+                if (in_melee) want = mirror(100) < 30 ? AndarielAct::spray : AndarielAct::melee;
+                else if (mirror(100) < 10) want = AndarielAct::idle;
+                else if (mirror(100) < 30) want = mirror(100) < 50 ? AndarielAct::spray : AndarielAct::bolt;
+                assert(act == want && rng.low == mirror.low);
+            }
+        Rng rng{ 3 };
+        assert(andariel_think(false, { 0, 0, 100, 0 }, rng) == AndarielAct::bolt && andariel_think(true, { 100 }, rng) == AndarielAct::spray);
+        // Facing +x+y: frame 4 aims 3 across the ring point, 8 at it, 12 3 the other way.
+        assert(andariel_spray_aim(0, 4) == std::pair(0, 6) && andariel_spray_aim(0, 8) == std::pair(3, 3) && andariel_spray_aim(0, 12) == std::pair(6, 0));
+        assert(andariel_spray_aim(56, 8) == std::pair(3, 0) && andariel_spray_aim(0, 0) == andariel_spray_aim(0, 4));
     }
     std::puts("ok");
 }
