@@ -385,21 +385,26 @@ struct Populator {
         if (sup && sup->autopos && !d2d::rules::room_spot(spawn, fits, [](int, int) { return false; }, x, y)) { seed = spawn.seed; return; }
         if (place(spawn, x, y, -1, fits, spot_x, spot_y) || (retry > 0 && place(spawn, x, y, retry, fits, spot_x, spot_y))) {
             auto own = made(row, spot_x, spot_y);
-            if (pack == 3) {
-                own.next();                                                 // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
-                for (int count = own(3) + 1; count > 0; --count)
-                    if (int at_x, at_y; place(spawn, spot_x, spot_y, 4, fits, at_x, at_y)) made(row, at_x, at_y);
-            } else if (sup) {
+            auto party = [&](d2d::rules::Rng& leader, int at_x, int at_y) {      // FUN_005b2830
+                if (row < 0 || std::size_t(row) >= types.size() || types[std::size_t(row)].minion[0] < 0) return;
+                const auto& type = types[std::size_t(row)];
+                const int kinds = type.minion[1] >= 0 ? 2 : 1;
+                for (int i = 0, count = leader.range(type.party_min, type.party_max); i < count; ++i)
+                    if (int to_x, to_y; (size = size_of(type.minion[std::size_t(i % kinds)])) && place(spawn, at_x, at_y, 4, fits, to_x, to_y)) made(type.minion[std::size_t(i % kinds)], to_x, to_y);
+            };
+            if (sup) {
                 superuniques.set(std::size_t(superunique));
                 const int minion = types[std::size_t(row)].minion[0] >= 0 ? types[std::size_t(row)].minion[0] : row;
                 size = size_of(minion);
                 for (int count = own.range(sup->min_grp, sup->max_grp); count > 0; --count)
                     if (int at_x, at_y; place(spawn, spot_x, spot_y, 3, fits, at_x, at_y)) made(minion, at_x, at_y);
-            } else if (row >= 0 && std::size_t(row) < types.size() && types[std::size_t(row)].minion[0] >= 0) {
-                const auto& type = types[std::size_t(row)];
-                const int kinds = type.minion[1] >= 0 ? 2 : 1;
-                for (int i = 0, count = own.range(type.party_min, type.party_max); i < count; ++i)
-                    if (int at_x, at_y; (size = size_of(type.minion[std::size_t(i % kinds)])) && place(spawn, spot_x, spot_y, 4, fits, at_x, at_y)) made(type.minion[std::size_t(i % kinds)], at_x, at_y);
+            } else {
+                party(own, spot_x, spot_y);
+                if (pack == 3) {                                            // each champion through FUN_005b2f20: its own party
+                    own.next();                                             // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
+                    for (int count = own(3) + 1; count > 0; --count)
+                        if (int at_x, at_y; (size = size_of(row)) && place(spawn, spot_x, spot_y, 4, fits, at_x, at_y)) { auto next = made(row, at_x, at_y); party(next, at_x, at_y); }
+                }
             }
         }
         seed = spawn.seed;
