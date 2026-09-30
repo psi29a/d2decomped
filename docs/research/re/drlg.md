@@ -582,6 +582,19 @@ sequence < 4) through tile +0x20 — the same link the edge-sharing chains
 use — so a later room's FUN_0066e4c0 misses tiles past the first such
 floor and adds its own copy.
 
+**Doors** (FUN_0066d9e0): an orientation 8 / 9 wall makes a door unit —
+hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->
+FUN_0066db20), or shared with a neighbour after the merge (FUN_0066e740,
+also when the neighbour's tile has flags & 1). FUN_0066d960 finds the
+row: 0x6eefc8 `{level, first, last}` (inclusive), then 0x6ef188 28-byte
+rows `{style, seq, orientation 9, id, type, dx, dy}` matching the word's
+style / seq. The unit sits at (x − room x)×5 + dx, (y − room y)×5 + dy,
+dropped when outside the current room; type 1 is a monster (mode 1),
+objects 0x5b / 0x5c roll 1 in 3 on the room seed (FUN_0045c390). A made
+door sets the tile's flags |= 0x20 so the room sharing it doesn't repeat
+it. Act 1: Barracks / Jail rows 0–3, Tristram 4–6, Monastery / Outer
+Cloister 5–9, Catacombs 10–11 (+12 on 37), all objects.
+
 d2d: `components/drlg/maze.hpp` (`generate_maze`, `generate_preset`). The Den of Evil
 (LvlMaze Rooms 1) is the first room, the entrance and the Den's own room:
 three 24×24 caves, 27 rooms. 1.14d's LvlMaze.txt has one Rooms column
@@ -656,6 +669,7 @@ values (seed 3) so a regression shows without the emulator.
 | Grids, rooms (theme rooms, specials of 9 / 10, preset levels) | caves 9–16 | 1–50 |
 | Every room's tiles and units (sizeless presets' KillEdge, the warp-list quirk) | caves 9–16 | 1–20 |
 | Grids, rooms (Depend positions, Courtyard 1's file) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–10 (27: 1–30) |
+| Every room's tiles and units (KillEdge column, shared warp walls, doors) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–20 |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -682,12 +696,11 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Preset levels' tiles / units: 20, 26, 27, 38 tiles and 20, 26, 27, 32, 33, 37 units differ | not fixed |
 | Other maze level types (crypts 4, Barracks 7, Jail 8, Catacombs 10; act 2+) | theme bases known, specials not ported |
 | Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest (not diffed) on the seed of the room that copies them (room +0x14); a maze's (FUN_00667970) not ported. In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
-| Hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (act 1 outdoors and the Den don't reach them) |
+| Doors outside act 1 (FUN_0066d9e0's type 1 and objects 0x5b / 0x5c), tile word bit 4 on non-plain paths beyond what these levels hit | not ported |
 | Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
 | The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival traced, not diffed |

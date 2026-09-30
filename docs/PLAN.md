@@ -542,11 +542,11 @@ names and per-file includes, checked in CI; the monster regions, game
 seed and object seed traced and matching game.exe (monsters.md,
 objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
 `diff_drlg.py 1-10 <level>` over Act 1: the Den and every outdoor level
-(2–7, 17, 39) match game.exe on every seed, grids through tiles and
-units; the other caves, crypts and presets on none yet. Next, in order:
-1. The caves and crypts on the Den's maze generator, with the cave theme
-   rooms (FUN_006735f0); each joins `kBuiltLevels` once `diff_drlg` matches.
-2. The presets: Tristram, the Monastery, the Catacombs.
+(2–7, 17, 39), the caves (9–16) and the preset levels (20, 25–27,
+32, 33, 37, 38) match game.exe on every seed, grids through tiles and
+units. Next: the other maze level types on the Den's generator, each
+joining `kBuiltLevels` once `diff_drlg` matches — crypts (LevelType 4:
+18, 19, 21–24), Barracks (28), Jail (29–31), Catacombs (34–36).
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard
 subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's

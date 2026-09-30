@@ -40,6 +40,7 @@ struct PlacedTile {
     int index;
     std::uint32_t word;
     int next = -1;                                      // tile +0x20: the next in its chain (room.tiles index)
+    bool door = false;                                  // flags & 0x20: its door unit made (FUN_0066d9e0)
 };
 struct BuiltRoom {
     int x, y, width = 8, height = 8, kind = 1;                   // level-relative tiles
@@ -68,6 +69,18 @@ namespace room_tiles_detail {
 inline constexpr std::array<int, 20> kOrientClass = { -1, 0, 1, 2, -1, 3, 4, 5, -2, -2, -1, -1, -1, -2, -1, -1, -1, -1, -1, -1 };   // 0x6ef620
 inline constexpr std::array<int, 42> kOrientMerge = { 0, 1, 3, 3, 4, 1, 3, 1, 1, 2, 3, 4, 3, 2, 2, 3, 3, 3, 4, 3, 3,              // 0x6ef574
                                                       3, 1, 3, 3, 4, 5, 6, 1, 3, 2, 3, 4, 3, 6, 2, 1, 2, 3, 4, 1, 2 };
+
+// Door objects of orientation 8 / 9 walls (FUN_0066d960): level -> first,
+// last row (0x6eefc8), each row {style, seq, orientation 9, object, dx, dy}
+// (0x6ef188; all act 1's are type 2, objects).
+struct DoorLevel { int level, first, last; };
+inline constexpr std::array<DoorLevel, 12> kDoorLevels = { { { 28, 0, 3 }, { 29, 0, 3 }, { 30, 0, 3 }, { 31, 0, 3 }, { 26, 4, 6 }, { 27, 4, 6 },
+                                                           { 32, 5, 9 }, { 33, 5, 9 }, { 34, 10, 11 }, { 35, 10, 11 }, { 36, 10, 11 }, { 37, 10, 12 } } };
+struct DoorRow { int style, seq, is9, id, dx, dy; };
+inline constexpr std::array<DoorRow, 13> kDoorRows = { { { 7, 0, 1, 14, 5, 0 }, { 7, 0, 0, 13, 0, 5 }, { 5, 0, 1, 16, 0, 0 }, { 5, 0, 0, 15, 0, 0 },
+                                                       { 6, 0, 1, 27, 5, -2 }, { 4, 0, 1, 24, 1, 2 }, { 4, 0, 0, 23, 0, 0 }, { 4, 3, 1, 25, 1, 0 },
+                                                       { 1, 2, 0, 62, 0, 3 }, { 1, 2, 1, 63, 3, 0 }, { 0, 0, 1, 16, 0, 0 }, { 0, 0, 0, 64, 0, 0 },
+                                                       { 2, 0, 1, 47, 5, 0 } } };
 
 // FUN_0066bc20 + FUN_0066bbc0: the level's rooms (list order) within a
 // 6-tile gap on both axes, itself included, then bubble-sorted so a room
@@ -193,6 +206,39 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             }
             return nullptr;
         };
+        // FUN_0066d9e0: an orientation 8 / 9 wall's door, once per tile
+        // (`tile` null for a hidden one), inside this room.
+        // ponytail: act 1's rows only; other acts' type 1 and objects 0x5b / 0x5c (a 1-in-3 roll on the room seed) not ported.
+        auto door = [&](PlacedTile* tile, std::uint32_t tile_word, int tile_orient, int x, int y) {
+            if (tile && tile->door) return;
+            const int is9 = (tile ? tile->orient : tile_orient) == 9;
+            const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
+            for (const auto& door_level : room_tiles_detail::kDoorLevels) {
+                if (door_level.level != level) continue;
+                for (int row_index = door_level.first; row_index <= door_level.last; ++row_index) {
+                    const auto& row = room_tiles_detail::kDoorRows[std::size_t(row_index)];
+                    if (row.style != style || row.seq != seq || row.is9 != is9) continue;
+                    const int unit_x = (x - room.x) * 5 + row.dx, unit_y = (y - room.y) * 5 + row.dy;
+                    if (unit_x < 0 || unit_y < 0 || unit_x >= room.width * 5 || unit_y >= room.height * 5) return;
+                    room.units.insert(room.units.begin(), { 2, row.id, 0, unit_x, unit_y, 0 });
+                    if (tile) tile->door = true;
+                    return;
+                }
+            }
+        };
+        auto warp_unit = [&](const WarpSlot& warp_slot, int x, int y) {                           // FUN_0066e1c0
+            if (warp_slot.id < 0 || x - room.x == room.width || y - room.y == room.height) return false;
+            room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
+            return true;
+        };
+        // FUN_0066e260: a visible warp wall's unit (seq 0 / 4) and, when
+        // its LvlWarp row is lit, its lit twin (seq | Tiles).
+        auto warp_wall = [&](std::uint32_t tile_word, int tile_orient, int x, int y) {
+            const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
+            const auto& warp_slot = slots[std::size_t(style)];
+            const bool placed = (seq != 0 && seq != 4) || warp_unit(warp_slot, x, y);
+            if (placed && warp_slot.lit) add(0, x, y, tile_orient, tile_word | std::uint32_t(warp_slot.tiles) << 8);
+        };
         auto shared = [&](std::uint32_t word, int tile_orient, int x, int y) {               // FUN_0066e940
             PlacedTile* tile = nullptr;
             BuiltRoom* neighbour = nullptr;
@@ -207,12 +253,13 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 auto& linked = chain(tile_orient == 0);
                 room.tiles[added].next = linked.head;
                 linked.head = int(added);
+                if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, word);
-                if (tile_orient == 10 || tile_orient == 11) note("drlg: warp wall tiles (FUN_0066e260) not implemented");
+                if (tile_orient == 10 || tile_orient == 11) warp_wall(word, tile_orient, x, y);
                 return;
             }
             // FUN_0066e740: the neighbour's tile stays unless the orientations merge differently.
-            if (tile->word & 0x80) return;                                          // its flags & 1
+            if (tile->word & 0x80) { if (tile->orient == 8 || tile->orient == 9) door(tile, word, tile->orient, x, y); return; }   // its flags & 1
             int orient = tile_orient;
             if (!(word & 0x80)) {
                 const int cls = tile_orient >= 0 && tile_orient < 20 ? kOrientClass[std::size_t(tile_orient)] : -1;
@@ -236,18 +283,14 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 tile->file = tile_file;
                 tile->index = tile_index;
             }
-        };
-        auto warp_unit = [&](const WarpSlot& warp_slot, int x, int y) {                           // FUN_0066e1c0
-            if (warp_slot.id < 0 || x - room.x == room.width || y - room.y == room.height) return false;
-            room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
-            return true;
+            if (tile->orient == 8 || tile->orient == 9) door(tile, word, tile->orient, x, y);
         };
         auto word = [&](std::uint32_t tile_word, int tile_orient, int x, int y, bool fill) {       // FUN_0066e9b0
             const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
             if ((tile_orient == 10 || tile_orient == 11) && style > 7) return;
             if (tile_orient == 0 && style == 30 && seq <= 1) tile_word |= 0x80000000u;
             if (tile_word & 0x80000000u) {
-                if ((tile_orient == 8 || tile_orient == 9) && (level < 111 || (level > 112 && level != 117))) { note("drlg: hidden orientation 8/9 tiles (FUN_0066d9e0) not implemented"); return; }
+                if ((tile_orient == 8 || tile_orient == 9) && (level < 111 || (level > 112 && level != 117))) { door(nullptr, tile_word, tile_orient, x, y); return; }
                 if (tile_orient == 10 || tile_orient == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
@@ -286,13 +329,10 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 room.tiles.push_back({ 1, x, y, 0, tile_file, tile_index, (tile_word & ~0x80u) | 0x80000000u });
             }
             if (tile_word & 1) {
-                add(0, x, y, tile_orient, tile_word);
+                const auto added = add(0, x, y, tile_orient, tile_word);
+                if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], tile_word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, tile_word);
-                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) {     // FUN_0066e260
-                    const auto& warp_slot = slots[std::size_t(style)];
-                    const bool placed = (seq != 0 && seq != 4) || warp_unit(warp_slot, x, y);
-                    if (placed && warp_slot.lit) add(0, x, y, tile_orient, tile_word | std::uint32_t(warp_slot.tiles) << 8);   // its lit twin
-                }
+                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) warp_wall(tile_word, tile_orient, x, y);
             }
             if (tile_word & 0x8000000u) add(2, x, y, 13, tile_word);
         };
@@ -326,7 +366,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             for (int i = 0; i < 9; ++i) for (const int edge : { i, 72 + i, i * 9, i * 9 + 8 }) words[std::size_t(edge)] |= value;
         };
         const int pre_w = pre->width ? pre->width : map->width() - 1, pre_h = pre->height ? pre->height : map->height() - 1;   // a sizeless preset fills the level
-        const bool kill_x = room.x + room.width == room.seed->preset_x + pre_w, kill_y = room.y + room.height == room.seed->preset_y + pre_h;   // KillEdge is 1 on every act 1 preset
+        const bool kill_x = pre->kill_edge && room.x + room.width == room.seed->preset_x + pre_w, kill_y = pre->kill_edge && room.y + room.height == room.seed->preset_y + pre_h;
         const int words_wide = kill_x ? 8 : 9, words_high = kill_y ? 8 : 9;
         auto walk = [&](const std::array<std::uint32_t, 81>& words, const std::array<std::uint32_t, 81>* orient, bool fill) {   // FUN_0066ec10
             for (int y = 0; y < words_high; ++y)

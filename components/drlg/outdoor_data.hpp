@@ -82,7 +82,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
         if (def < 2 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (not the town, 1)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
-                  to_int(prest.get(row, "LevelId")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
+                  to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
         for (int i = 0; i < 6; ++i) preset.maps[std::size_t(i)] = ds1(prest.get(row, "File" + std::to_string(i + 1)));
         assets.data.presets[def] = preset;
     }
