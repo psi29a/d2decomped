@@ -382,7 +382,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                     for (const auto& entry : kQuestLog)
                         if (entry.act == quest_log.act && entry.slot == quest_log.slot)
                             if (const auto text = quest_text(character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))], entry.quest,
-                                                          { view.den_state, view.den_log, view.den_left }); text.speech)
+                                                          { view.quest_log, view.game_quests, view.den_left }); text.speech)
                                 replay_speech = text.speech;
                 quest_log.close_down = quest_log.last_down = false;
             }
@@ -852,7 +852,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open
             && draw_quest_log(framebuffer, *scene, quest_log, character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))],
-                              { view.den_state, view.den_log, view.den_left }, frame_ms))
+                              { view.quest_log, view.game_quests, view.den_left }, frame_ms))
             questdone_sound = true;                    // cursor_questdone
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats,
