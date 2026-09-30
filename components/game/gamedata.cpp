@@ -594,7 +594,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
         npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, rgn);
     }
-    if (objects.get(row, "InitFn") == "3") {      // a chest: its trap and lock (FUN_0054fcb0)
+    if (objects.get(row, "InitFn") == "3" || objects.get(row, "InitFn") == "57") {      // a chest: its trap and lock (FUN_0054fcb0; 57: FUN_0054fd90)
         const auto& area_levels = game_data.area_level;
         const int mlvl1 = std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1;
         const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", rgn);

@@ -86,6 +86,7 @@ struct LevelMon {
     int num_mon = 0;                            // NumMon
     bool ranged_first = false;                  // rangedspawn (level def +0x31)
     std::vector<int> mon, nmon;                 // mon1.., nmon1.. rows (normal / NM+hell)
+    std::vector<int> umon;                      // umon1..: normal's unique picks (FUN_005bde80)
     // Random object groups per room (FUN_00552610, objects.md): each ObjGrp
     // is an objgroup.txt row (Offset), rolled with the matching ObjPrb
     // (0..100) on the room1 seed.

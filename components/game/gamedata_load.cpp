@@ -368,6 +368,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 1; i <= 25; ++i) {
             if (const int monstats_row = row(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
             if (const int monstats_row = row(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
+            if (const int monstats_row = row(text("umon" + std::to_string(i))); monstats_row >= 0) level_mon.umon.push_back(monstats_row);
         }
         for (int i = 0; i < 8; ++i) {
             level_mon.obj_group[std::size_t(i)] = std::uint8_t(num(text("ObjGrp" + std::to_string(i))));
