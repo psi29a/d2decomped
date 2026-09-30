@@ -224,6 +224,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
             type_info.pieces = num(ms2.get(monstats2_row, "TotalPieces"));
+            type_info.spawn_col = num(ms2.get(monstats2_row, "spawnCol"));
             for (std::size_t layer = 0; layer < 16; ++layer) {
                 auto variants = split_variants(ms2.get(monstats2_row, kVariant[layer]));
                 type_info.choices[layer] = std::uint8_t(variants.size());

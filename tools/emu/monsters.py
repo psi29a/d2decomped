@@ -4,9 +4,10 @@
 
 A game (FUN_00530930's part that matters: seeds, regions, object seed,
 sunitproxy, quests), act 1 allocated as the server does (FUN_0053ac70),
-every room of the level brought up (FUN_0061b730), then each room's pass
-(FUN_0052d0f0: presets, FUN_00542b40, object groups, FUN_0054ec90) in
-the level's room order sorted by (y, x).
+every room of the level brought up (FUN_0061b730, level-list order), then
+each room's pass (FUN_0052d0f0: presets, FUN_00542b40, object groups,
+FUN_0054ec90) the way FUN_0052d160 walks the act's room1 list (newest
+first), as objgroups.py does.
 """
 import struct
 import sys
@@ -48,7 +49,7 @@ def act_of(e, g, lid, act=0):
 
 
 def dump(e, seed, lid, difficulty=0):
-    """One line per room with monsters, rooms by (y, x): `mon <x>,<y>: <class>@<x>,<y>[m<mode>]/<leader> ...`,
+    """One line per room with monsters, in population order: `mon <x>,<y>: <class>@<x>,<y>[m<mode>]/<leader> ...`,
     level-relative tiles for the room and subtiles for the monsters; <leader> is the index (in the line) of
     the first monster its placement made: a preset unit (FUN_00555910), a group (FUN_0054df80) or a boss
     and its company (FUN_005a43e0 from FUN_0054ec90). Flavie (266) is left out: an NPC, not a spawn."""
@@ -67,20 +68,24 @@ def dump(e, seed, lid, difficulty=0):
         if addr != 0x5a43e0 or 0x54ec90 <= ret < 0x54eee0: lead[0] = len(made)
     hooks = [e.mu.hook_add(UC_HOOK_CODE, on_make, begin=0x555230, end=0x555230)]
     hooks += [e.mu.hook_add(UC_HOOK_CODE, on_group, begin=a, end=a) for a in (0x555910, 0x54df80, 0x5a43e0)]
-    rooms = []
+    rooms = set()
     r = e.r32(lvl + 0x10)
     while r:
-        e.call(0x61b730, ecx=r)             # every room up first (room1, tiles, collision)
-        rooms.append(r)
+        e.call(0x61b730, ecx=r)             # every room up first (room1, tiles, collision), level-list order
+        rooms.add(r)
         r = e.r32(r + 0x24)
     out = []
     try:
-        for r in sorted(rooms, key=lambda r: (e.s32(r + 0x38), e.s32(r + 0x34))):
-            del made[:]
-            e.call(0x52d0f0, ecx=g, edx=e.r32(r + 0x30))
-            if made:
-                out.append(f"mon {e.s32(r + 0x34) - x0 // 5},{e.s32(r + 0x38) - y0 // 5}: "
-                           + " ".join(f"{c}@{x},{y}{'' if m == 1 else f'm{m}'}/{l}" for c, x, y, m, l in made))
+        room1 = e.call(0x61a180, act)       # then FUN_0052d160's walk: the act's room1 list, newest first
+        while room1:
+            r = e.r32(room1 + 0x10)
+            if r in rooms:
+                del made[:]
+                e.call(0x52d0f0, ecx=g, edx=room1)
+                if made:
+                    out.append(f"mon {e.s32(r + 0x34) - x0 // 5},{e.s32(r + 0x38) - y0 // 5}: "
+                               + " ".join(f"{c}@{x},{y}{'' if m == 1 else f'm{m}'}/{l}" for c, x, y, m, l in made))
+            room1 = e.r32(room1 + 0x7c)
     finally:
         for h in hooks: e.mu.hook_del(h)
     return "\n".join(out)

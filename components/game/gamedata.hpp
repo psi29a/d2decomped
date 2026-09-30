@@ -201,6 +201,9 @@ struct Level {
     // The room seed after FUN_00552610 stepped it (place_objects): what
     // populate() rolls its monsters on. Empty for the camp (no rooms).
     std::vector<d2d::rules::Rng> post_object_group_seeds;   // by `rooms` index
+    // Each room's monsters in normal as a fresh game makes them
+    // (place_objects: presets, then FUN_0054ec90); leaders index the room's list.
+    std::vector<std::vector<d2d::rules::Spawn>> room_spawns;   // by `rooms` index
     // The room2 flags FUN_00552560 reads (0x800000, 0x30000; 0x80 a
     // plain room's path), and each unit's room, by `rooms` index.
     std::vector<std::uint32_t> room_flags;

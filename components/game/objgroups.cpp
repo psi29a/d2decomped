@@ -327,16 +327,111 @@ struct Populator {
         }
     }
 
-    // FUN_005b2a00 at a preset monster's spot (FUN_0054e490), then its
-    // footprint, then its party (FUN_005b2830: PartyMin..Max on its own
-    // seed, minion1 / minion2 in turn, radius 4 round it, FUN_005b23c0).
+    // The area FUN_0054ec90 is populating (FUN_0061ad50's, subtiles; w 0:
+    // none, the room's rect bounds a placement), the room's index, its
+    // monsters (Level::room_spawns) and where the placement in hand starts
+    // in them, and the region's counts (+4 rooms done, +0xc total, +0x2c8 uniques).
+    struct Box { int x = 0, y = 0, w = 0, h = 0; std::uint32_t id = 0; };
+    Box area{};
+    std::size_t index = 0;
+    std::vector<d2d::rules::Spawn>* spawns = nullptr;
+    int leader = 0;
+    d2d::rules::Population pop;
+
+    [[nodiscard]] const d2d::rules::MonType* type_at(int type) const {
+        return type >= 0 && std::size_t(type) < game_data.monsters.types.size() ? &game_data.monsters.types[std::size_t(type)] : nullptr;
+    }
+    [[nodiscard]] int size_of(int type) const { const auto* t = type_at(type); return t ? t->size : 2; }
+    // FUN_0061b130 → FUN_0066ce30: the id of the room's area holding a subtile.
+    [[nodiscard]] std::uint32_t area_id(int x, int y) const {
+        if (index < level.room_areas.size())
+            for (const auto& a : level.room_areas[index])
+                if (x / 5 >= a.left && y / 5 >= a.top && x / 5 < a.right && y / 5 < a.bottom) return a.id;
+        return 0xffffffff;
+    }
+    // FUN_005b2a00's test (FUN_0064d9b0): the type's shape (MonStats2 SizeX:
+    // 1 a subtile, 2 a plus, 3 a box, more never fits) against its spawnCol's mask.
+    // ponytail: spawnCol 1 takes FUN_005b2700 (no ring walk) in game.exe; act 1 has none.
+    [[nodiscard]] bool fits(int type, int x, int y) const {
+        static constexpr int kMask[4] = { 0x3c01, 0x1c0, 0x3f11, 0 };
+        const auto* t = type_at(type);
+        const int col = t ? t->spawn_col : 0;
+        return size_of(type) <= 3 && !hit_shape(x, y, size_of(type), col > 0 && col < 4 ? kMask[col] : 0x3c01);
+    }
+    [[nodiscard]] d2d::rules::SpawnRoom bounds(bool in_area) const {
+        return in_area ? d2d::rules::SpawnRoom{ area.x, area.y, area.w, area.h, seed } : d2d::rules::SpawnRoom{ room.x, room.y, room.w, room.h, seed };
+    }
+    // FUN_005b2a00 round (x, y) out to radius (-1: the spot only), in the
+    // area being populated when `bound` (its rect and its id), else the room.
+    bool put(int type, int x, int y, int radius, bool bound, int& out_x, int& out_y) {
+        const bool in_area = bound && area.w > 0;
+        auto at = bounds(in_area);
+        const bool ok = d2d::rules::monster_detail::place(at, x, y, radius, [&](int tx, int ty) { return (!in_area || area_id(tx, ty) == area.id) && fits(type, tx, ty); }, out_x, out_y);
+        seed = at.seed;
+        return ok;
+    }
+    // FUN_0054dc40: 20 random spots of the area (else the room) where
+    // `type` fits, none within WarpDist of an entrance (FUN_0054db50) if `near`.
+    bool spot(int type, bool near, int& out_x, int& out_y) {
+        const bool in_area = area.w > 0;
+        auto at = bounds(in_area);
+        auto by_way = [&](int x, int y) {
+            return near && std::ranges::any_of(ways, [&](const auto& w) { return (x - w.first) * (x - w.first) + (y - w.second) * (y - w.second) < warp_dist; });
+        };
+        const bool ok = d2d::rules::room_spot(at, [&](int tx, int ty) { return (!in_area || area_id(tx, ty) == area.id) && fits(type, tx, ty); }, by_way, out_x, out_y);
+        seed = at.seed;
+        return ok;
+    }
+    // FUN_00555230 for a monster, FUN_00552df0: its seed off the game's.
+    // Its footprint: 0x100 in its shape, 0x1000 in the one a size down.
+    // A monster's own seed takes its look (FUN_00573cb0, rules::monster_look)
+    // and one stat roll as it's made. Recorded in the room's spawns (NPCs aside).
+    d2d::rules::Rng made(int type, int at_x, int at_y) {
+        const auto& types = game_data.monsters.types;
+        stamp_shape(at_x, at_y, size_of(type), 0x100);
+        stamp_shape(at_x, at_y, size_of(type) - 1, 0x1000);
+        const auto value = game.next();
+        d2d::rules::Rng own{ value };
+        const std::vector<d2d::rules::Components>* sets = nullptr;
+        for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
+            if (region.types[i].first == type) sets = &region.components[i];
+        // FUN_00547bc0: a type the region lacks joins it (13 at most) with
+        // its sets on this seed (FUN_005bdb20) when TotalPieces > 2
+        // (MonStats2 +0xec); else its look rolls every layer.
+        const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
+        if (!sets && !special && region.types.size() < 13 && type_at(type) && types[std::size_t(type)].pieces > 2) {
+            region.types.emplace_back(type, 0);
+            region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
+            sets = &region.components.back();
+        }
+        if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
+        own.next();
+        // FUN_005d6b60: an oninit MonEquip row rolls its slot and makes its item (2 game steps).
+        // ponytail: act 1's only oninit row is Blood Raven's bow; read MonEquip.txt for more.
+        if (type_at(type) && types[std::size_t(type)].id == "bloodraven") { own(1); game.next(); game.next(); }
+        const bool npc = type_at(type) && std::size_t(type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(type)];
+        if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value });
+        return own;
+    }
+    void tag(std::size_t at, d2d::rules::Boss kind, std::vector<int> mods = {}, int name_seed = 0) {
+        if (!spawns || at >= spawns->size()) return;
+        auto& s = (*spawns)[at];
+        s.boss = kind; s.mods = std::move(mods); s.name_seed = name_seed;
+    }
+    // FUN_005b2830: PartyMin..Max on the leader's seed, minion1 / minion2 in
+    // turn, radius 4 round it in its room (FUN_005b23c0, no party of their own).
+    void party(int row, d2d::rules::Rng& own, int at_x, int at_y) {
+        const auto* type = type_at(row);
+        if (!type || type->minion[0] < 0) return;
+        const int kinds = type->minion[1] >= 0 ? 2 : 1;
+        for (int i = 0, count = own.range(type->party_min, type->party_max); i < count; ++i)
+            if (int to_x, to_y; put(type->minion[std::size_t(i % kinds)], at_x, at_y, 4, false, to_x, to_y)) made(type->minion[std::size_t(i % kinds)], to_x, to_y);
+    }
+
+    // FUN_005b2a00 at a preset monster's spot (FUN_0054e490), then its party.
     // A superunique (FUN_005a49b0): once a level unless Stacks, at a random
     // spot of the room with AutoPos (FUN_0054dc40), else radius 5; then
     // MinGrp..MaxGrp of minion1 (else its own type) at radius 3 (FUN_005a0c00).
-    // ponytail: fits is a plus of walls, objects and monsters (0x3c01);
-    // game.exe's FUN_0064d9b0 tests the monster's own collision shape.
-    // A monster's own seed takes its look (FUN_00573cb0, rules::monster_look)
-    // and one stat roll as it's made, then the counts.
     // ponytail: the superunique once-a-game bit is per level here.
     // `pack` (FUN_0054e600, MonPlace 2 / 3, `row` picked off the region):
     // 2 a unique pack (FUN_005a43e0): made at a random spot of the room
@@ -344,84 +439,136 @@ struct Populator {
     // champion roll: its mods on its own seed), 3..6 minions at radius 3
     // (FUN_005a0c00, own seed); 3 a champion (at the spot) and own(3) + 1 more at radius 4 (FUN_0054e1e0).
     void monster(int row, int x, int y, int retry, int superunique = -1, int pack = 0) {
-        using d2d::rules::monster_detail::place;
+        using d2d::rules::Boss;
         const auto& types = game_data.monsters.types;
-        d2d::rules::SpawnRoom spawn{ room.x, room.y, room.w, room.h, seed };
-        auto size_of = [&](int type) { return type >= 0 && std::size_t(type) < types.size() ? types[std::size_t(type)].size : 2; };
-        int size = 2;                                                   // the shape of the one being placed
-        auto fits = [&](int at_x, int at_y) { return !hit_shape(at_x, at_y, size, 0x3c01); };
-        auto made = [&](int type, int at_x, int at_y) {                // FUN_00552df0: its seed off the game's
-            // its footprint: 0x100 in its shape, 0x1000 in the one a size down
-            stamp_shape(at_x, at_y, size_of(type), 0x100);
-            stamp_shape(at_x, at_y, size_of(type) - 1, 0x1000);
-            d2d::rules::Rng own{ game.next() };
-            const std::vector<d2d::rules::Components>* sets = nullptr;
-            for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
-                if (region.types[i].first == type) sets = &region.components[i];
-            // FUN_00547bc0: a type the region lacks joins it (13 at most) with
-            // its sets on this seed (FUN_005bdb20) when TotalPieces > 2
-            // (MonStats2 +0xec); else its look rolls every layer.
-            const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
-            if (!sets && !special && region.types.size() < 13 && type >= 0 && std::size_t(type) < types.size()
-                && types[std::size_t(type)].pieces > 2) {
-                region.types.emplace_back(type, 0);
-                region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
-                sets = &region.components.back();
-            }
-            if (type >= 0 && std::size_t(type) < types.size()) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
-            own.next();
-            // FUN_005d6b60: an oninit MonEquip row rolls its slot and makes its item (2 game steps).
-            // ponytail: act 1's only oninit row is Blood Raven's bow; read MonEquip.txt for more.
-            if (type >= 0 && std::size_t(type) < types.size() && types[std::size_t(type)].id == "bloodraven") { own(1); game.next(); game.next(); }
-            return own;
-        };
         const auto* sup = superunique >= 0 ? &game_data.superuniques[std::size_t(superunique)] : nullptr;
         if (sup) {
             if (sup->type < 0 || (!sup->stacks && superuniques.test(std::size_t(superunique)))) return;
             row = sup->type;
             retry = 5;
         }
-        int spot_x, spot_y;
-        size = size_of(row);
+        const auto first = spawns ? spawns->size() : 0;
         if (pack == 2) {
-            auto near = [&](int at_x, int at_y) { return std::ranges::any_of(ways, [&](const auto& w) { return (at_x - w.first) * (at_x - w.first) + (at_y - w.second) * (at_y - w.second) < warp_dist; }); };
-            if (d2d::rules::room_spot(spawn, fits, near, x, y) && place(spawn, x, y, -1, fits, x, y)) {
+            if (spot(row, true, x, y) && put(row, x, y, -1, false, x, y)) {
                 auto own = made(row, x, y);
                 const auto& type = types[std::size_t(row)];
-                (void)d2d::rules::roll_boss(game_data.umods, type, 0, false, own, false);
-                size = size_of(type.minion[0] >= 0 ? type.minion[0] : row);
+                auto boss = d2d::rules::roll_boss(game_data.umods, type, 0, false, own, false);
+                const int minion = type.minion[0] >= 0 ? type.minion[0] : row;
                 for (int count = own(4) + 3; count > 0; --count)
-                    if (int at_x, at_y; place(spawn, x, y, 3, fits, at_x, at_y)) made(type.minion[0] >= 0 ? type.minion[0] : row, at_x, at_y);
+                    if (int at_x, at_y; put(minion, x, y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+                tag(first, Boss::unique, std::move(boss.mods), int(own.next() & 0xffff));
             }
-            seed = spawn.seed;
             return;
         }
-        if (sup && sup->autopos && !d2d::rules::room_spot(spawn, fits, [](int, int) { return false; }, x, y)) { seed = spawn.seed; return; }
-        if (place(spawn, x, y, -1, fits, spot_x, spot_y) || (retry > 0 && place(spawn, x, y, retry, fits, spot_x, spot_y))) {
-            auto own = made(row, spot_x, spot_y);
-            auto party = [&](d2d::rules::Rng& leader, int at_x, int at_y) {      // FUN_005b2830
-                if (row < 0 || std::size_t(row) >= types.size() || types[std::size_t(row)].minion[0] < 0) return;
-                const auto& type = types[std::size_t(row)];
-                const int kinds = type.minion[1] >= 0 ? 2 : 1;
-                for (int i = 0, count = leader.range(type.party_min, type.party_max); i < count; ++i)
-                    if (int to_x, to_y; (size = size_of(type.minion[std::size_t(i % kinds)])) && place(spawn, at_x, at_y, 4, fits, to_x, to_y)) made(type.minion[std::size_t(i % kinds)], to_x, to_y);
-            };
-            if (sup) {
-                superuniques.set(std::size_t(superunique));
-                const int minion = types[std::size_t(row)].minion[0] >= 0 ? types[std::size_t(row)].minion[0] : row;
-                size = size_of(minion);
-                for (int count = own.range(sup->min_grp, sup->max_grp); count > 0; --count)
-                    if (int at_x, at_y; place(spawn, spot_x, spot_y, 3, fits, at_x, at_y)) made(minion, at_x, at_y);
-            } else {
-                party(own, spot_x, spot_y);
-                if (pack == 3) {                                            // each champion through FUN_005b2f20: its own party
-                    own.next();                                             // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
-                    for (int count = own(3) + 1; count > 0; --count)
-                        if (int at_x, at_y; (size = size_of(row)) && place(spawn, spot_x, spot_y, 4, fits, at_x, at_y)) { auto next = made(row, at_x, at_y); party(next, at_x, at_y); }
+        if (sup && sup->autopos && !spot(row, false, x, y)) return;
+        int spot_x, spot_y;
+        if (!put(row, x, y, -1, false, spot_x, spot_y) && !(retry > 0 && put(row, x, y, retry, false, spot_x, spot_y))) return;
+        auto own = made(row, spot_x, spot_y);
+        if (sup) {
+            superuniques.set(std::size_t(superunique));
+            std::vector<int> mods;
+            for (const int id : sup->mods) if (id != 24) mods.push_back(id);
+            mods.push_back(22);                                         // questcomplete
+            tag(first, Boss::superunique, std::move(mods));
+            if (spawns && first < spawns->size()) (*spawns)[first].super = superunique;
+            const int minion = types[std::size_t(row)].minion[0] >= 0 ? types[std::size_t(row)].minion[0] : row;
+            for (int count = own.range(sup->min_grp, sup->max_grp); count > 0; --count)
+                if (int at_x, at_y; put(minion, spot_x, spot_y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+            return;
+        }
+        party(row, own, spot_x, spot_y);
+        if (pack == 3) {                                                // each champion through FUN_005b2f20: its own party
+            tag(first, Boss::champion, { d2d::rules::umod::champion });
+            own.next();                                                 // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
+            for (int count = own(3) + 1; count > 0; --count)
+                if (int at_x, at_y; put(row, spot_x, spot_y, 4, false, at_x, at_y)) {
+                    const auto at = spawns ? spawns->size() : 0;
+                    auto next = made(row, at_x, at_y);
+                    tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    party(row, next, at_x, at_y);
                 }
+        }
+    }
+
+    // FUN_0054ec90 (FUN_0054ebc0 counting the room first): per area of the
+    // room (id set, not skipped, not empty) (h / 3) * (w / 3) rolls of the
+    // game seed against the density; a hit picks a type by rarity
+    // (FUN_005bde80) and rolls unique or group (FUN_005be020), all on the room seed.
+    // ponytail: MonStats `spawn` replacements (FUN_005bde80's 80 %) aren't taken.
+    void populate(bool none) {
+        ++pop.rooms_done;
+        const int density = std::min(level.mon.density[0], 10000);
+        if (none || density <= 0 || pop.rooms_total == 0 || index >= level.room_areas.size()) return;
+        for (const auto& a : level.room_areas[index]) {
+            if (!a.id || a.skip || (!a.left && !a.right)) continue;
+            area = { a.left * 5, a.top * 5, (a.right - a.left) * 5, (a.bottom - a.top) * 5, a.id };
+            for (int tries = (area.h / 3) * (area.w / 3); tries > 0; --tries) {
+                if (int(game.next() % 100000) > density) continue;
+                if (region.types.empty()) { area = {}; return; }
+                const int type = d2d::rules::pick_type(region, seed);
+                bool boss = false;                                      // FUN_005be020: its 1 and 2 both a group
+                if (pop.uniques < pop.umin) boss = seed(100) < pop.rooms_done * 100 / pop.rooms_total;
+                if (!boss && pop.uniques < pop.umax) boss = seed(100) < 6;
+                if (!boss) (void)seed(100);
+                if (boss) unique();
+                else group(type);
             }
         }
-        seed = spawn.seed;
+        area = {};
+    }
+    // FUN_005a43e0 from FUN_0054ec90: normal's pick is a Levels umon
+    // (FUN_005bde80), made at a random spot of the area (FUN_005a09e0, no
+    // party), counted (FUN_005a0320), champion or unique on its own seed
+    // (FUN_005a0760); a unique's 3..6 minions at radius 3 (FUN_005a0c00),
+    // a champion's 1..3 more champions at radius 4, each with its party (FUN_0054e1e0).
+    // ponytail: NM / hell's pick is the region's; this is normal's.
+    void unique() {
+        using d2d::rules::Boss;
+        const auto& umon = level.mon.umon;
+        const int row = umon.empty() ? 0 : umon[std::size_t(seed(int(umon.size())))];
+        if (!type_at(row)) return;
+        leader = int(spawns->size());
+        int x, y;
+        if (!spot(row, true, x, y) || !put(row, x, y, -1, true, x, y)) return;
+        const auto first = spawns->size();
+        auto own = made(row, x, y);
+        ++pop.uniques;
+        auto boss = d2d::rules::roll_boss(game_data.umods, *type_at(row), 0, true, own, false);
+        if (boss.kind == Boss::champion) {
+            tag(first, Boss::champion, std::move(boss.mods), boss.name_seed);
+            for (int count = own(3) + 1; count > 0; --count)
+                if (int at_x, at_y; put(row, x, y, 4, true, at_x, at_y)) {
+                    const auto at = spawns->size();
+                    auto next = made(row, at_x, at_y);
+                    tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    party(row, next, at_x, at_y);
+                }
+            return;
+        }
+        const int minion = type_at(row)->minion[0] >= 0 ? type_at(row)->minion[0] : row;   // FUN_005a0bb0
+        for (int count = own(4) + 3; count > 0; --count)
+            if (int at_x, at_y; put(minion, x, y, 3, true, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
+        tag(first, Boss::unique, std::move(boss.mods), int(own.next() & 0xffff));   // FUN_005a2120: rndname after the minions
+    }
+    // FUN_0054df80: MinGrp..MaxGrp (1..1 for Fallen and scarabs,
+    // FUN_0054ec40), sparsePopulate on the game seed, a random spot of the
+    // area, the leader and its party, then rand(max - min + 1) + min - 1
+    // more of its type at radius 3 in the area, each with its party.
+    // ponytail: the extra object for a leader of class 0x210 isn't made; act 1 has none.
+    void group(int row) {
+        const auto* type = type_at(row);
+        if (!type) return;
+        int low = type->min_grp, high = type->max_grp;
+        if (type->base == 19 || type->base == 91) low = high = 1;
+        if (type->sparse && type->sparse < int(game.next() % 100)) return;
+        if (!low || !high || low > high) return;
+        leader = int(spawns->size());
+        int x, y;
+        if (!spot(row, true, x, y) || !put(row, x, y, -1, true, x, y)) return;
+        auto own = made(row, x, y);
+        party(row, own, x, y);
+        for (int extra = own(high - low + 1) + low - 1; extra > 0; --extra)
+            if (int at_x, at_y; put(row, x, y, 3, true, at_x, at_y)) { auto next = made(row, at_x, at_y); party(row, next, at_x, at_y); }
     }
 
     // A preset past objects.txt (FUN_0054f490's table at 0x731d28): 574-579 a
@@ -470,6 +617,7 @@ struct Populator {
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
             if (level.unit_rooms[i] != int(index) || unit.type != 1 || (unit.flags & 1) || unit.id < 0) continue;
+            leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
                 const auto row = game_data.mon_bin[std::size_t(unit.id)];
                 const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
@@ -485,7 +633,11 @@ struct Populator {
             }
             else if ((code == 0x02 || code == 0x03) && !level.mon.umon.empty())                         // FUN_005bde80: normal's pick is a umon
                 monster(level.mon.umon[std::size_t(seed(int(level.mon.umon.size())))], unit.x, unit.y, 0, -1, code);
-            else if (unit.id < nmon + nsu) monster(-1, unit.x, unit.y, 0, unit.id - nmon);
+            else if (unit.id < nmon + nsu) {
+                monster(-1, unit.x, unit.y, 0, unit.id - nmon);
+                if (std::size_t(leader) < spawns->size())                                              // FUN_00555910: the preset's map AI
+                    for (const auto& [off_x, off_y] : unit.path) (*spawns)[std::size_t(leader)].path.emplace_back(unit.x + off_x, unit.y + off_y);
+            }
         }
     }
 
@@ -580,6 +732,12 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             for (int k = 0; k < 8; ++k)
                 if (std::atoi(std::string(builder.levels.get(row, "Warp" + std::to_string(k))).c_str()) != -1) slots |= 0x10u << k;
         }
+    // The level's own warp table (FUN_0066aec0: its +0x90 override, the
+    // Blood Moor's one Den of Evil way in of Warp3..6) keeps a slot only if it placed a warp.
+    // ponytail: read off the warps built, not game.exe's override list.
+    std::uint32_t warped = 0;
+    for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
+    slots &= warped;
     // FUN_00642480: the centres of rooms with a warp slot's wall (a walk-through exit has no warp).
     for (std::size_t i = 0; i < level.rooms.size(); ++i)
         if (level.room_flags[i] & slots) pop.ways.push_back({ (level.rooms[i].x + level.rooms[i].width / 2) * 5, (level.rooms[i].y + level.rooms[i].height / 2) * 5 });
@@ -590,7 +748,6 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
                 return;
             }
     };
-    for (const auto& warp : level.warps) centre(int(std::floor(warp.x)), int(std::floor(warp.y)));
     for (const auto& unit : level.units)
         if (unit.type == 2 && (pop.obj(unit.id, "SubClass") & 0x40)) {                            // a waypoint: its room and its tile
             centre(unit.x / 5, unit.y / 5);
@@ -598,12 +755,20 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         }
     level.group_rooms.assign(level.rooms.size(), {});
     level.post_object_group_seeds.assign(level.rooms.size(), {});
+    level.room_spawns.assign(level.rooms.size(), {});
+    // FUN_0054ebc0: none in a room flagged 0x800000 or nopop; the level's total (FUN_00642be0) leaves them out.
+    auto none = [&](std::size_t i) { return (i < level.nopop_rooms.size() && level.nopop_rooms[i]) || (level.room_flags[i] & 0x800000); };
+    int total = 0;
+    for (std::size_t i = 0; i < level.rooms.size(); ++i) total += !none(i);
+    pop.pop = { 0, total, 0, level.mon.umin[0], level.mon.umax[0], 0, &game_data.umods };
     std::size_t placed = 0;
     for (std::size_t i = 0; i < level.rooms.size(); ++i) {
         const auto& made = level.rooms[i];
         pop.room = { made.x * 5, made.y * 5, made.width * 5, made.height * 5 };
         pop.seed = d2d::rules::Rng{ i < level.room1_seeds.size() ? level.room1_seeds[i] : made.seed };
         pop.out = &level.group_rooms[i];
+        pop.index = i;
+        pop.spawns = &level.room_spawns[i];
         // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
         // rolls a wanderer (FUN_0054eff0: under 3 in 100).
         // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
@@ -614,6 +779,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         pop.out->post = pop.seed.low;
         level.post_object_group_seeds[i] = pop.seed;
         pop.out->rgn = pop.rgn.low;
+        pop.populate(none(i));
         placed += pop.out->made.size();
     }
     level.group_rgn = pop.rgn.low;

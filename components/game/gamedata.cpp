@@ -298,6 +298,19 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     const std::size_t first = spawns.size();
     auto& pop = state.pop;
     const auto& made = level.rooms[made_index];
+    // Normal's monsters as place_objects made them, game.exe's to the subtile.
+    // ponytail: as a fresh game populates the level room by room in list
+    // order; a real game's seed and order have moved on. NM / hell below.
+    if (difficulty == 0 && made_index < level.room_spawns.size()) {
+        for (auto spawn : level.room_spawns[made_index]) {
+            if (spawn.leader >= 0) spawn.leader += int(first);
+            if (spawn.super >= 0) spawning.superuniques.set(std::size_t(spawn.super));
+            spawns.push_back(std::move(spawn));
+        }
+        if (spawns.size() > first)
+            d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
+        return;
+    }
     // The room1 seed: one step (FUN_0054f060), the preset units, the object
     // groups (FUN_00552610), then the population (FUN_0052d0f0).
     // ponytail: FUN_0054f060's rare FUN_0054eff0 branch isn't there.
@@ -525,8 +538,7 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 
 std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level) {
     std::vector<std::pair<std::size_t, std::size_t>> order;
-    for (std::size_t i = 0; i < level.rooms.size(); ++i) order.push_back({ i, 0 });
-    std::ranges::sort(order, {}, [&](const auto& room) { return std::pair(level.rooms[room.first].y, level.rooms[room.first].x); });
+    for (std::size_t i = 0; i < level.rooms.size(); ++i) order.push_back({ i, 0 });   // FUN_0052d160: the list, newest first
     for (auto& [room, first] : order) {
         first = spawning.levels[&level].spawns.size();
         populate(game_data, spawning, level, room);
