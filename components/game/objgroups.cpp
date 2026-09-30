@@ -284,7 +284,10 @@ struct Populator {
         };
         auto made = [&](int type, int at_x, int at_y) {                // FUN_00552df0: its seed off the game's
             const int size = type >= 0 && std::size_t(type) < types.size() ? types[std::size_t(type)].size : 2;
-            stamp(at_x, at_y, size, size, 0x2000);
+            // its footprint: 0x100 in its shape (MonStats2 +8: a subtile, a plus, a box), 0x1000 where it stands
+            if (size == 2) { stamp(at_x, at_y, 3, 1, 0x100); stamp(at_x, at_y, 1, 3, 0x100); }
+            else stamp(at_x, at_y, size, size, 0x100);
+            stamp(at_x, at_y, 1, 1, 0x1000);
             d2d::rules::Rng own{ game.next() };
             const std::vector<d2d::rules::Components>* sets = nullptr;
             for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
