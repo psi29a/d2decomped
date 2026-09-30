@@ -28,6 +28,7 @@ struct Preset {
     int width = 0, height = 0, files = 0, scan = 0, pops = 0, level_id = 0, kill_edge = 1;   // level_id: LvlPrest LevelId
     std::uint32_t dt1_mask = 0;                         // which LvlTypes files its rooms load
     std::array<const d2d::ds1::Map*, 6> maps{};
+    int populate = 1;                                   // LvlPrest Populate: 0 flags its rooms 0x800000 (no object groups, FUN_00552560)
 };
 // LvlSub.txt, one row: the stamp sheet and its odds per theme.
 struct Sub {

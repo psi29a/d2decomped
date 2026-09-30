@@ -11,6 +11,7 @@ The monsters (FUN_0054ec90) are left out: this is the placement a level
 gets before any of them stand in its rooms.
 
 One line per room: its cell, the room seed going into 552610 and after,
+the object seed after the room,
 and each object it made (FUN_00555230: objects.txt id @ level subtile);
 then the object seed after the last room.
 """
@@ -54,7 +55,7 @@ def dump(e, seed, lid):
         pre, n = e.r32(room1 + 0x6c), len(made)
         e.call(0x552610, ecx=game, edx=room1)
         objs = "".join(f" {i}@{x},{y}" for t, i, x, y in made[n:])
-        out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0} seed {pre:08x} post {e.r32(room1 + 0x6c):08x}{objs}")
+        out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0} seed {pre:08x} post {e.r32(room1 + 0x6c):08x} rgn {e.r32(e.r32(game + 0x10f0)):08x}{objs}")
         room1 = e.r32(room1 + 0x7c)
     e.mu.hook_del(hook)
     out.append(f"rgn {e.r32(e.r32(game + 0x10f0)):08x}")

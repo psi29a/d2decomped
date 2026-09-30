@@ -110,7 +110,9 @@ struct Level {
     // FillBlanks, style-30 floors): tile flag 8, which the client's draws
     // skip (FUN_004de410, FUN_004dea70: & 0x408) and collision doesn't
     // (FUN_0064c790).
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; };
+    // `cell`: what its word ORs over the whole cell (FUN_0066dde0's tile
+    // flags 2 / 0x40 / 0x80 as FUN_0064c790 stamps them: 0x10, 0x01, 0x04).
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; };
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
@@ -189,6 +191,17 @@ struct Level {
     // per tick. Empty on levels built before object-group placement (the
     // camp: no rooms).
     std::vector<std::uint32_t> post_object_group_seeds;   // by `rooms` index
+    // The room2 flags FUN_00552560 reads (0x800000, 0x30000; 0x80 a
+    // plain room's path), and each unit's room, by `rooms` index.
+    std::vector<std::uint32_t> room_flags;
+    std::vector<int> unit_rooms;                       // by `units` index
+    // What populating each room made before its monsters (place_objects,
+    // tools/emu objgroups.py's lines): the room seed going into 552610 and
+    // after, the object seed after it, each group object (objects.txt id,
+    // level subtile); the object seed after the last room.
+    struct GroupRoom { std::uint32_t pre = 0, post = 0, rgn = 0; std::vector<std::array<int, 3>> made; };
+    std::vector<GroupRoom> group_rooms;                // by `rooms` index
+    std::uint32_t group_rgn = 0;
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
@@ -665,6 +678,7 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);
+void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level);
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& game_data, const Level& level);
