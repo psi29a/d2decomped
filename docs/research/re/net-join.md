@@ -358,6 +358,35 @@ difficulty 0, expansion 1, ladder 0). So the refusal doesn't stop the game
 queue's accept packets; a client must act on B4 and ignore what follows.
 No character entered the host's game.
 
+### Full join (same day, same host)
+
+`tools/emu/join_live.py <save.d2s> [host]` joined with a real level-99 save
+(`Mule_abcd.d2s`, 2516 bytes), stayed 15 s, left with `[69]`, and saved the
+returned B3 chunks.
+
+- In the world (`[04]`) 0.28 s after connect; socket closed by the host at 15.3 s.
+- 307 packets, all split by game.exe's own size table (VA 0x730ae8) plus the
+  variable rules: no desync, no unknown id.
+- Order: `01 00 02`, C answers `6b`, then `59` (assign player) **before**
+  `03`/`04`, then `aa 76 94 22 27 23 5e 28 29 0b 5f`, stats `1d/1e/1f`, items `9c/9d`.
+- Histogram (id x count): 00x1 01x1 02x1 03x1 04x1 05x1 06x1 07x10 0bx1 0dx1
+  15x2 1cx1 1dx19 1ex6 1fx9 20x5 22x2 23x4 27x1 28x1 29x1 48x3 51x24 53x1
+  59x2 5ax1 5bx2 5ex1 5fx1 65x2 67x12 6dx19 75x1 76x2 7bx5 7ex1 7fx1 81x1
+  8bx1 8cx2 8dx2 8fx3 94x1 95x1 96x1 9cx40 9dx26 9ex18 9fx2 a0x10 a8x4 aax13
+  acx11 b0x1 b3x10.
+- Leave: 10 B3 chunks (2516/2516 bytes), `B0`, then `05 06`, then close, as
+  `FUN_005303d0` predicts.
+- Save-back differs from the sent save in 13 bytes, all header:
+  | Offset | Sent | Returned | Meaning |
+  |---|---|---|---|
+  | 0x0c | `8ee003a5` | `4e5607a5` | checksum |
+  | 0x30 | `bba6e660` | `b642bd6a` | save timestamp |
+  | 0xa8..0xaa | `00 00 84` | `80 00 00` | difficulty bytes: Hell act 5 → Normal act 1 (the host's game) |
+  | 0xab | `7543c724` | `f221f26c` | map id → the host game's seed 0x6cf221f2 |
+
+  Items, stats, skills, quests and waypoints came back byte-identical: the
+  host rewrites only where the character last was.
+
 ## Keep-alive and timeouts
 
 - **Ping** (C->S 0x6d, 13 bytes; `FUN_00477dd0`). The main loop (`FUN_0044efa0`) calls it, and it sends at most once every 5000 ms. Layout:
