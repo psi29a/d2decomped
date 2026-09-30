@@ -114,6 +114,15 @@ int main() {
     int trapped = 0;
     for (int i = 0; i < 1000; ++i) { Rng trap_rng{ std::uint32_t(i) }; trapped += roll_trap(40, trap_rng) > 0; }   // 10 % at MonLvl1 40
     assert(trapped > 60 && trapped < 140);
+    // Charsi's imbue (FUN_00579d60): a normal / superior / low item of a
+    // base with bitfield1 & 1 comes back rare, ilvl clvl + 4 past 5.
+    tables.item_base["hax"].bitfield1 = 1;
+    d2d::d2s::Item axe{ .code = "hax", .quality = 2 };
+    assert(imbuable(tables, axe));
+    const auto imbued = imbue_item(tables, axe, 8, rng);
+    assert(imbued.code == "hax" && imbued.quality == 6 && imbued.ilvl == 12 && !imbuable(tables, imbued));
+    axe.quality = 4;
+    assert(!imbuable(tables, axe));
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");
 }

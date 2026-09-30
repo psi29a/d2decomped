@@ -852,14 +852,31 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     return level;
 }
 
+// The levels `id` walks into, no warp between (Levels.txt Vis with Warp -1:
+// the Outer Cloister's gate to the Barracks, the Inner Cloister's to the Cathedral).
+std::vector<int> walk_links(const GameData& game_data, int id) {
+    std::vector<int> out;
+    if (!game_data.builder) return out;
+    const auto& levels = game_data.builder->levels;
+    if (const auto row = d2d::drlg::level_row(levels, id))
+        for (int i = 0; i < 8; ++i) {
+            const int vis = d2d::drlg::to_int(levels.get(*row, "Vis" + std::to_string(i)));
+            if (vis > 0 && d2d::drlg::to_int(levels.get(*row, "Warp" + std::to_string(i))) == -1) out.push_back(vis);
+        }
+    return out;
+}
+
 // A finished build into GameData::levels (nullptr: tried, not built); an act
-// level is linked with the act levels already there, both ways.
+// level is linked with the act levels already there, both ways, and with the
+// levels it walks into.
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level) {
     auto in_act = [&](int level_id) { return std::ranges::any_of(game_data.act1_layout, [&](const auto& placement) { return placement.level == level_id; }); };
-    if (level && in_act(id)) {
+    if (level) {
+        const auto walks = walk_links(game_data, id);
+        auto linked = [&](int level_id) { return (in_act(id) && in_act(level_id)) || std::ranges::contains(walks, level_id); };
         std::vector<const Level*> others;
-        if (game_data.town.ds1.width() > 0) others.push_back(&game_data.town);
-        for (const auto& [level_id, built] : game_data.levels) if (built && in_act(level_id)) others.push_back(built.get());
+        if (game_data.town.ds1.width() > 0 && linked(game_data.town.id)) others.push_back(&game_data.town);
+        for (const auto& [level_id, built] : game_data.levels) if (built && linked(level_id)) others.push_back(built.get());
         for (const Level* other_level : others) {
             level->nearby.push_back({ other_level, other_level->world_x - level->world_x, other_level->world_y - level->world_y });
             other_level->nearby.push_back({ level.get(), level->world_x - other_level->world_x, level->world_y - other_level->world_y });
@@ -909,6 +926,7 @@ void want_nearby(const GameData& game_data, const Level& level) {
             if (other_placement.level != level.id && other_placement.x <= placement->x + placement->width && placement->x <= other_placement.x + other_placement.width && other_placement.y <= placement->y + placement->height && placement->y <= other_placement.y + other_placement.height)
                 game_data.want_level(other_placement.level);
     for (const auto& warp : level.warps) game_data.want_level(warp.destination);
+    for (const int walk : walk_links(game_data, level.id)) game_data.want_level(walk);
 }
 
 }  // namespace d2d::game

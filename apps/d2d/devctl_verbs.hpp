@@ -107,7 +107,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
-                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>\n");
+                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
+                                " | goeast <npc> | imbue <npc> | said <npc> <string> | chat <npc|-1>\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {

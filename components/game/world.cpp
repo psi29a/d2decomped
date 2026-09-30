@@ -437,6 +437,7 @@ auto World::enter(const Character& entering) -> void {
 
 auto World::new_game() -> void {
         fight.new_game(character.header.active_difficulty());
+        set_waypoint(0);                          // the town's is always active (FUN_00661030 forces index 0 as the save loads)
         day = {};                                 // a new game starts at sunrise
         day_at = now;
         loot.ground.clear();
