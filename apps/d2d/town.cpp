@@ -673,7 +673,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2002) || (hovered_npc <= -3000 && hovered_npc > -3016))
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2003) || (hovered_npc <= -3000 && hovered_npc > -3016))
                 out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ world_x, world_y, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims

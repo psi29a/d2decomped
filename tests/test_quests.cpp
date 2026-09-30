@@ -2,6 +2,7 @@
 // rewards once; a later game picks the state up from the flags.
 #include <quests.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 
@@ -73,5 +74,64 @@ int main() {
     assert(andy.said(andy_bits, AndyQuest::kWarriv, 183) && qbit(andy_bits, 6, 0) && !qbit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
     assert(!andy.said(andy_bits, AndyQuest::kWarriv, 183) && !andy.alert(andy_bits, AndyQuest::kWarriv));
     assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
+
+    // The Search for Cain: Akara gives it; out of town; the tree's scroll;
+    // Akara deciphers it; the stones in order (a wrong one ignored); the
+    // Gibbet; camp Cain; Akara's ring, once.
+    QuestBits cain_bits{};
+    CainQuest cain;
+    cain.join(cain_bits, false, false);
+    cain.open();
+    assert(cain.state == 1 && cain.alert(cain_bits, CainQuest::kAkara) && cain.talk(cain_bits, CainQuest::kAkara, false)[0].string == 97);
+    assert(cain.talk(cain_bits, CainQuest::kAkara, false)[0].greet && cain.talk(cain_bits, 150, false).empty());
+    cain.said(cain_bits, CainQuest::kAkara, 97, false);
+    cain.talk_closed(cain_bits, CainQuest::kAkara);
+    assert(cain.state == 2 && cain.log == 1 && qbit(cain_bits, 4, 2) && cain.talk(cain_bits, 150, false)[0].string == 98);
+    cain.enter(cain_bits, 1, 2);
+    assert(cain.state == 3 && qbit(cain_bits, 4, 3) && cain.talk(cain_bits, CainQuest::kAkara, false)[0].string == 104);
+    assert(cain.tree(cain_bits, false) && cain.state == 4 && cain.log == 2 && !cain.tree(cain_bits, false));
+    assert(cain.alert(cain_bits, CainQuest::kAkara, true) && !cain.alert(cain_bits, CainQuest::kAkara, false));
+    assert(cain.talk(cain_bits, CainQuest::kAkara, true)[0].string == 112 && cain.talk(cain_bits, 150, false)[0].string == 105);
+    assert(cain.said(cain_bits, CainQuest::kAkara, 112, false) == CainQuest::Said::none);
+    assert(cain.said(cain_bits, CainQuest::kAkara, 112, true) == CainQuest::Said::decipher && cain.state == 5 && cain.deciphered);
+    cain.talk_closed(cain_bits, CainQuest::kAkara);
+    assert(cain.log == 3 && cain.talk(cain_bits, CainQuest::kAkara, false)[0].string == 117);
+    std::uint32_t lo = 1, hi = 666;
+    cain.stone_order(lo, hi);
+    auto order = cain.order;
+    std::ranges::sort(order);
+    assert(order == (std::array<int, 5>{ 17, 18, 19, 20, 21 }) && lo != 1);
+    assert(cain.stone(cain_bits, cain.order[0], false, true) == CainQuest::Stone::none);            // no bkd
+    assert(cain.stone(cain_bits, cain.order[1], true, true) == CainQuest::Stone::none);             // out of order
+    for (int i = 0; i < 4; ++i) assert(cain.stone(cain_bits, cain.order[std::size_t(i)], true, true) == CainQuest::Stone::lit);
+    assert(cain.stone(cain_bits, cain.order[4], true, true) == CainQuest::Stone::portal && cain.log == 4 && qbit(cain_bits, 4, 4));
+    assert(cain.stone(cain_bits, cain.order[4], true, true) == CainQuest::Stone::none);
+    assert(cain.gibbet(cain_bits, true) && qbit(cain_bits, 4, 1) && qbit(cain_bits, 4, 13) && !cain.gibbet(cain_bits, true));
+    cain.rescued();
+    assert(cain.log == 6 && !cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1) && cain.camp_cain);
+    assert(cain.alert(cain_bits, CainQuest::kCampCain) && cain.talk(cain_bits, CainQuest::kCampCain, false)[0].string == 123);
+    cain.said(cain_bits, CainQuest::kCampCain, 123, false);
+    assert(!cain.alert(cain_bits, CainQuest::kCampCain) && !cain.talk(cain_bits, CainQuest::kCampCain, false)[0].greet);
+    assert(cain.alert(cain_bits, CainQuest::kAkara) && cain.talk(cain_bits, CainQuest::kAkara, false)[0].string == 118);
+    assert(cain.said(cain_bits, CainQuest::kAkara, 118, false) == CainQuest::Said::ring && qbit(cain_bits, 4, 0) && !qbit(cain_bits, 4, 1));
+    assert(cain.state == 6 && cain.log == 0xd && cain.rescued_flag);
+    assert(cain.said(cain_bits, CainQuest::kAkara, 118, false) == CainQuest::Said::none);
+
+    // Not rescued before Act 2: the Rogues get him (bit 14, camp Cain's
+    // other line); a later game with it done has camp Cain from the start.
+    QuestBits late_bits{};
+    CainQuest late;
+    late.join(late_bits, false, false);
+    late.open();
+    late.enter(late_bits, 1, CainQuest::kLut);
+    assert(late.state == 7 && late.log == 5 && qbit(late_bits, 4, 14) && late.missed && late.camp_due);
+    assert(late.enter(late_bits, CainQuest::kLut, 1) && late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 125);
+    late.said(late_bits, CainQuest::kCampCain, 125, false);
+    assert(late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 123);    // game.exe's: rec+0x1c, not list B yet
+    late.said(late_bits, CainQuest::kCampCain, 123, false);
+    assert(late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 125 && !late.talk(late_bits, CainQuest::kCampCain, false)[0].greet);
+    CainQuest next_game;
+    next_game.join(cain_bits, false, false);
+    assert(!next_game.active && next_game.camp_spawn() && next_game.stones_init() && !next_game.stones_init());
     std::puts("ok");
 }

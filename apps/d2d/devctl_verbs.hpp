@@ -103,6 +103,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "belt" && verb_args.size() >= 3) town.net.send(cmd::UseBelt{ int_arg(2, 0) });
         else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
+        else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>\n");
         return std::string("ok\n");
@@ -178,12 +180,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
         }
-        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // shrines / chests: index, cell, kind, shrine row, mode
+        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // shrines / chests / quest objects: index, cell, kind, shrine row / objects.txt Id, mode
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
-                if (const auto& npc = town.level->npcs[i]; npc.operate_fn == 2 || npc.operate_fn == 4)
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : "chest",
-                                       npc.operate_fn == 2 ? npc.shrine : npc.trap, npc.locked ? "locked" : "-",
+                if (const auto& npc = town.level->npcs[i]; npc.operate_fn == 2 || npc.operate_fn == 4 || npc.operate_fn == 9 || npc.operate_fn == 10 || npc.operate_fn == 12)
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : "quest",
+                                       npc.operate_fn == 2 ? npc.shrine : npc.operate_fn == 4 ? npc.trap : npc.object, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";
         }

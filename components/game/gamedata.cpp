@@ -492,6 +492,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.root   = "objects";
     npc.code   = std::string(objects.get(row, "Token"));
     npc.operate_fn = std::atoi(std::string(objects.get(row, "OperateFn")).c_str());
+    npc.object = oid;
     if (objects.get(row, "Mode1") == "1") npc.op_frames = std::atoi(std::string(objects.get(row, "FrameCnt1")).c_str());
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
         npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, rgn);

@@ -146,10 +146,11 @@ struct World {
     struct Fire { const Level* level; const Npc* npc; float x, y; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     // The player's town portal: [0] where it was cast, [1] its twin in town
-    // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair.
+    // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair. [2]:
+    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930).
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    std::array<Portal, 2> portal{};
-    int take_portal = -1;                  // the portal (0 / 1) the player is walking to
+    std::array<Portal, 3> portal{};
+    int take_portal = -1;                  // the portal (0 / 1 / 2) the player is walking to
     // The player's corpses (FUN_0057f700): where they fell, what they wore
     // and had in hand, 75% of the experience the death took; at most 16.
     struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;
@@ -169,6 +170,7 @@ struct World {
     int next_item_id = 1;                  // the next item's unit id
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
+    d2d::rules::CainQuest cain;            // and The Search for Cain
     int den_left = -1;                     // its monsters alive when last counted
     std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
     // The quest flags of the difficulty played.
@@ -286,6 +288,10 @@ struct World {
     void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
     std::vector<d2d::rules::QuestMsg> quest_talk(int hc_idx);   // every quest's messages from that NPC
     void andariel_died(const Fight::Kill& kill, std::uint32_t now_ms);
+    // The Search for Cain's objects (the tree, the stones, the Gibbet).
+    void cain_operate(int npc_index, std::uint32_t now_ms);
+    // Whether the player carries an item of `code`.
+    [[nodiscard]] bool carries(std::string_view code) const;
     void set_waypoint(int index) { if (index >= 0 && index < 40) character.header.waypoints[std::size_t(character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:

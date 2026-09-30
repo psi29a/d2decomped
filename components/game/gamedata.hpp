@@ -61,6 +61,7 @@ struct Npc {
     std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
     float velocity = 3;                  // MonStats Velocity
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    int object = 0;                      // objects.txt Id (0: a monster)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
     int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
