@@ -143,6 +143,8 @@ struct World {
     int   pick_item = -1;                  // the ground item being walked to (its unit id)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
+    struct Door { int mode = 0; std::uint32_t when = 0; };
+    std::map<std::pair<const Level*, int>, Door> doors;   // doors used: their mode (0..7), when it changed
     struct Fire { const Level* level; const Npc* npc; float x, y; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     // The player's town portal: [0] where it was cast, [1] its twin in town
@@ -225,6 +227,12 @@ struct World {
     // ponytail: magic shrines (16..22) other than gem and warping only
     // log; D2's operate range is 2 cells here.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    // The OperateFns `operate` handles; one-shot ones stay used (operated).
+    static bool operable(int operate_fn) { return operate_fn == 2 || operate_fn == 4 || is_door(operate_fn); }
+    static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
+    // A door, trap door or secret door (rules::door_mode): its new mode,
+    // footprint and sound.
+    void operate_door(int npc_index, std::uint32_t now_ms);
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its

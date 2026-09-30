@@ -144,6 +144,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         using namespace d2d::d2s;
         const auto& object = level->npcs[std::size_t(npc_index)];
         const int diff = character.header.active_difficulty();
+        if (is_door(object.operate_fn)) { operate_door(npc_index, now_ms); return; }
         if (object.operate_fn == 4 && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
             const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == 0 && item.panel == 1 && item.code == "key"; });
             if (key == character.items.end()) { d2d::log::info("I need a key."); return; }
@@ -210,6 +211,35 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             }
         }
         d2d::log::info("shrine {} (code {})", row, shrine.code);
+    }
+
+auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
+        const auto& door = level->npcs[std::size_t(npc_index)];
+        auto& state = doors.try_emplace({ level, npc_index }, Door{ mode_index(door.mode), 0 }).first->second;
+        int mode = -1;
+        if (door.operate_fn == 18) {                   // secret door (FUN_00583ff0): slides open (OP), once
+            if (state.mode == 0) mode = 1;
+        } else if (door.operate_fn == 16) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
+            // ponytail: the level's nearest warp for the room's warp unit.
+            if (state.mode == 0) mode = 2;
+            else if (state.mode == 2 && !level->warps.empty())
+                take_warp = int(std::ranges::min_element(level->warps, {}, [&](const Level::Warp& warp) { return std::hypot(warp.x - door.x, warp.y - door.y); }) - level->warps.begin());
+        } else if (now_ms - state.when >= 500) {       // a door (FUN_00581d40): is anyone in the doorway?
+            // ponytail: a unit's own subtile, not its collision pattern.
+            auto in_door = [&](float x, float y) {
+                const int sub_x = int(x * 5) - (int(door.x * 5) - door.size_x / 2), sub_y = int(y * 5) - (int(door.y * 5) - door.size_y / 2);
+                return sub_x >= 0 && sub_y >= 0 && sub_x < door.size_x && sub_y < door.size_y;
+            };
+            bool occupied = in_door(player.x, player.y) || (merc && in_door(merc->x, merc->y));
+            if (fight.mon_level == level)
+                for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.x, monster.unit.y));
+            mode = d2d::rules::door_mode(state.mode, occupied);
+        }
+        if (mode < 0) return;
+        state = { mode, now_ms };
+        set_footprint(*level, door, door.collision >> mode & 1);   // FUN_00623830 out / FUN_00620a70 back in
+        if (const auto sound = d2d::rules::object_sound(door.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, door.x, door.y);
+        d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
 auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
@@ -330,6 +360,10 @@ auto World::new_game() -> void {
         den_left = -1;
         den_log_at = 0;
         operated.clear();
+        for (const auto& [id, built] : game_data->levels)       // doors back as the level made them
+            for (const auto& npc : built->npcs)
+                if (is_door(npc.operate_fn)) set_footprint(*built, npc, npc.collision >> mode_index(npc.mode) & 1);
+        doors.clear();
         fires.clear();
         portal = {};
         take_portal = -1;
@@ -808,7 +842,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            const bool usable = (npc.operate_fn == 2 || npc.operate_fn == 4) && !npc.preoperated && !operated.contains({ level, interact->npc });
+            const bool usable = is_door(npc.operate_fn) || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
             if (npc.operate_fn == 32 || npc.operate_fn == 23 || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
@@ -874,6 +908,9 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 npc_states[npc_index].mode = back ? std::string_view{} : now_ms - when_ms < std::uint32_t(npc.op_frames) * 40u ? "OP" : "ON";
             entry = back ? operated.erase(entry) : std::next(entry);
         }
+        for (const auto& [key, door] : doors)                  // doors in the mode they were left in
+            if (key.first == level && std::size_t(key.second) < npc_states.size())
+                std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&*merc);
@@ -906,7 +943,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto& state = npc_states[std::size_t(interact_npc)];
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             if (std::hypot(npc_x - player.x, npc_y - player.y) < 2.f) {
-                if (npc.operate_fn == 2 || npc.operate_fn == 4) {
+                if (operable(npc.operate_fn)) {
                     operate(interact_npc, now_ms);
                 } else if (npc.operate_fn == 32) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });

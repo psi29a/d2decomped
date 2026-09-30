@@ -460,21 +460,46 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 }
 
 
-// Footprints into the walk grid, centred on each unit's subtile.
+// Footprints into the walk grid, centred on each unit's subtile: an
+// object's when it collides in its start mode (HasCollision0..7), noting
+// the subtiles a tile blocks as well (Npc::walls) for set_footprint.
 // (Quest-gated units like Cain stay out of it: they're not always there.)
 // ponytail: static — fine while NPCs only idle; moving units need a
 // separate occupancy layer.
+// ponytail: one walk bit (0x01) for every footprint; game.exe's object
+// flags (FUN_006209d0: 0x400, a door 0x800 | 0x06) aren't split out.
 void stamp_footprints(Level& level) {
     const int walk_width = level.ds1.width() * 5, walk_height = level.ds1.height() * 5;
     if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
-    for (const auto& npc : level.npcs) {
+    for (auto& npc : level.npcs) {
         if (!npc.path.empty() || npc.quest) continue;   // walkers don't hold a spot
         const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
+        int bit = 0;
         for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
-            for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x)
-                if (x >= 0 && y >= 0 && x < walk_width && y < walk_height)
-                    level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)] |= 0x01;
+            for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit)
+                if (x >= 0 && y >= 0 && x < walk_width && y < walk_height && bit < 32
+                    && level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)] & 0x01) npc.walls |= 1u << bit;
+        set_footprint(level, npc, npc.root != "objects" || npc.collision >> mode_index(npc.mode) & 1);
     }
+}
+
+void set_footprint(const Level& level, const Npc& npc, bool solid) {
+    const int walk_width = level.ds1.width() * 5, walk_height = level.ds1.height() * 5;
+    if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
+    const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
+    int bit = 0;
+    for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
+        for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit) {
+            if (x < 0 || y < 0 || x >= walk_width || y >= walk_height) continue;
+            auto& cell = level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)];
+            if (solid) cell |= 0x01;
+            else if (bit >= 32 || !(npc.walls >> bit & 1)) cell &= std::uint8_t(~0x01);
+        }
+}
+
+int mode_index(std::string_view mode) {
+    const auto found = std::ranges::find(kObjectModes, mode);
+    return found == kObjectModes.end() ? 0 : int(found - kObjectModes.begin());
 }
 
 // A type-2 object at subtile (sx, sy): objects.txt Id `oid` (through
@@ -517,11 +542,14 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         auto name_found = lookup_string(game_data, key);
         npc.name = name_found ? u16_to_latin1(*name_found) : key;
     }
-    // Blocks walking in its start mode (HasCollision0 = NU, 2 = ON).
-    if (objects.get(row, lit_mode ? "HasCollision2" : "HasCollision0") == "1") {
-        npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
-        npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());
+    // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
+    npc.object_id = oid;
+    for (std::size_t mode = 0; mode < 8; ++mode) {
+        if (objects.get(row, "HasCollision" + std::to_string(mode)) == "1") npc.collision |= std::uint8_t(1u << mode);
+        if (objects.get(row, "Selectable" + std::to_string(mode)) == "1") npc.selectable |= std::uint8_t(1u << mode);
     }
+    npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
+    npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());
     for (std::size_t layer = 0; layer < 16; ++layer)
         if (objects.get(row, kLayerCode[layer]) == "1") npc.comp[layer] = "lit";
     if (npc.code.empty()) return;

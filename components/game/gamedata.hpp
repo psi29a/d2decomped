@@ -61,6 +61,10 @@ struct Npc {
     std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
     float velocity = 3;                  // MonStats Velocity
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    int object_id = 0;                   // an object's objects.txt Id
+    std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
+    std::uint8_t selectable = 0;         // its Selectable0..7, the same way
+    std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
     int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
@@ -111,7 +115,8 @@ struct Level {
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
     // 0x08 blocks player walking (DT1 subtile flag bits).
-    std::vector<std::uint8_t> walk;
+    // Mutable: a door's footprint comes and goes as it's used (set_footprint).
+    mutable std::vector<std::uint8_t> walk;
     std::vector<Npc> npcs;                             // what its DS1 places (and Cain)
     // The levels next to it in the act, (dx, dy) = their origin minus
     // ours, in cells. Past this map's edge, collision and
@@ -636,6 +641,12 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
 void stamp_footprints(Level& level);
+// An object's footprint into (solid) or out of the walk grid, leaving the
+// subtiles a tile blocks too (FUN_0064de30 / FUN_0064dc00).
+void set_footprint(const Level& level, const Npc& npc, bool solid);
+// An object's mode tokens, and the index of one (0 when unknown).
+inline constexpr std::array<std::string_view, 8> kObjectModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
+int mode_index(std::string_view mode);
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
 inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {

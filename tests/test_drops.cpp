@@ -84,6 +84,10 @@ int main() {
     Rng gold_rng{ 5 };
     assert(gem_shrine(tables, inv, gold_rng).empty() && inv[1].code == "gfv" && inv[0].code == "gpv");
     assert(gem_shrine(tables, inv, gold_rng).substr(0, 2) == "gc");
+    // Doors (FUN_00581d40): closed opens; open closes, or sticks while occupied.
+    assert(door_mode(0, true) == 2 && door_mode(2, false) == 0 && door_mode(2, true) == 5);
+    assert(door_mode(5, true) == -1 && door_mode(5, false) == 0 && door_mode(1, false) == -1);
+    assert(object_sound(15, 2) == "object_door_wood_open" && object_sound(13, 0) == "object_door_metal_close" && object_sound(15, 1).empty());
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");
 }

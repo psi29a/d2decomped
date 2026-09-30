@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <format>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -127,6 +128,38 @@ inline ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
 inline int chest_rounds(bool locked, Rng& seed) {
     const bool full = seed(100) > 24;
     return locked ? 2 : full ? 1 : 0;
+}
+// A door operated (OperateFn 8, FUN_00581d40; its modes NU OP ON S1..S4 are
+// 0..6), at least 500 ms after its last change (unit +0xd4): closed (0)
+// opens (2); open, or stuck (5), it closes (0) when no one stands in it
+// (FUN_0064d800, mask 0x8180), else it sticks at 5. -1: no change.
+// ponytail: the 0x8000 blocker (mode 4) and the locked door (6, a key)
+// aren't here: no Act 1 door starts in either.
+inline int door_mode(int mode, bool occupied) {
+    if (mode == 0) return 2;
+    if (mode != 2 && mode != 5) return -1;
+    return !occupied ? 0 : mode == 5 ? -1 : 5;
+}
+// The client's object sounds (0x7295f8 by objects.txt Id: a Sounds.txt
+// row for each mode it enters, FUN_004cb380), for the objects operated
+// here.
+struct ObjectSound { int id; int mode; std::string_view sound; };
+inline constexpr ObjectSound kObjectSounds[] = {
+    { 13, 0, "object_door_metal_close" }, { 13, 2, "object_door_metal_open" }, { 14, 0, "object_door_metal_close" }, { 14, 2, "object_door_metal_open" },
+    { 15, 0, "object_door_wood_close" }, { 15, 2, "object_door_wood_open" }, { 16, 0, "object_door_wood_close" }, { 16, 2, "object_door_wood_open" },
+    { 23, 0, "object_door_gate_close" }, { 23, 2, "object_door_gate_open" }, { 24, 0, "object_door_gate_close" }, { 24, 2, "object_door_gate_open" },
+    { 25, 0, "object_door_gate_close" }, { 25, 2, "object_door_gate_open" }, { 47, 0, "object_door_gate_close" }, { 47, 2, "object_door_gate_open" },
+    { 27, 0, "object_door_wood_close" }, { 27, 1, "object_door_wood_open" },
+    { 62, 0, "object_door_wood_close" }, { 62, 2, "object_door_wood_open" }, { 63, 0, "object_door_wood_close" }, { 63, 2, "object_door_wood_open" },
+    { 64, 0, "object_door_wood_close" }, { 64, 2, "object_door_wood_open" }, { 74, 0, "object_door_wood_close" }, { 74, 2, "object_door_wood_open" },
+    { 75, 0, "object_door_wood_close" }, { 75, 2, "object_door_wood_open" }, { 129, 1, "object_door_secret" },
+    { 290, 0, "object_door_metal_close" }, { 290, 2, "object_door_metal_open" }, { 291, 0, "object_door_metal_close" }, { 291, 2, "object_door_metal_open" },
+    { 292, 0, "object_door_metal_close" }, { 292, 2, "object_door_metal_open" }, { 293, 0, "object_door_metal_close" }, { 293, 2, "object_door_metal_open" },
+    { 294, 0, "object_door_wood_close" }, { 294, 2, "object_door_wood_open" }, { 295, 0, "object_door_wood_close" }, { 295, 2, "object_door_wood_open" },
+};
+inline std::string_view object_sound(int id, int mode) {
+    for (const auto& entry : kObjectSounds) if (entry.id == id && entry.mode == mode) return entry.sound;
+    return {};
 }
 // What a trap springs (the table at 0x732cec): 1..4 and 6 a trap monster
 // at the chest (FUN_00582420) that acts once (its Trap-* AI, aip2 1) and
