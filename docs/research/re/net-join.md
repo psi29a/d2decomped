@@ -198,6 +198,10 @@ start. d2d doesn't need the probe.
 | C | TCP connect to host:4000 | `FUN_0052a680` |
 | S | `[AF 01]`, 2 bytes, **raw** (no header, not compressed) | `FUN_0052b720` |
 
+**Seen on the wire (2026-09-30):** a real 1.14d host, running an open TCP/IP game on the
+LAN, accepted a connection on port 4000 and sent exactly the 2 bytes `af 01`, unframed. That
+matches `FUN_0052b720`. Nothing past this point has been checked against a live host yet.
+
 Everything after this is compressed and framed, in both phases of the client.
 The client's connect loop (`FUN_0044bad0`) pops system packets through `FUN_0045c850`:
 0xAF sets `DAT_007a0618` = 1, and 0xB0 clears it.
