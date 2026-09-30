@@ -490,9 +490,9 @@ struct ThinkIn {
 };
 
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 16> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 17> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
-                                                               "BloodRaven" };
+                                                               "BloodRaven", "SkeletonMage" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -731,6 +731,20 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         }
         if (r() < 30 && away(12 - in.dist, true)) return { MonAct::none };
         return { MonAct::a1 };
+    }
+    // SkeletonMage (FUN_005f96c0): past aip2, aip3 % closes to aip2; within
+    // aip4, aip5 % backs off 5 (blocked: A1); within aip6, aip1 % shoots
+    // (A1, MissA1); past aip2 aip3 % again closes in; else aip7 % circles 4,
+    // else stands aip8.
+    // ponytail: its target search (FUN_005ddc30) is the think's target, so
+    // the first test comes round twice.
+    if (ai == "SkeletonMage") {
+        if (aip[1] < in.dist && r() < aip[2]) return { MonAct::approach, aip[1] };
+        if (in.dist <= aip[3] && r() < aip[4]) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
+        if (in.dist < aip[5] && r() < aip[0]) return { MonAct::a1 };
+        if (aip[1] < in.dist && r() < aip[2]) return { MonAct::approach, aip[1] };
+        if (r() >= aip[6]) return { MonAct::idle, aip[7] };
+        return think_circle(rng, 4);
     }
     return { MonAct::untraced };
 }

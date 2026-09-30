@@ -472,6 +472,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const bool first = monster.mode == "A1";                       // an A1 shot carries A1's damage
                 x.src.a2_min = (first ? monster.stats.a1_min : monster.stats.a2_min) * missile_info.src_damage / 128 + missile_info.min;
                 x.src.a2_max = (first ? monster.stats.a1_max : monster.stats.a2_max) * missile_info.src_damage / 128 + missile_info.max;
+                if (first)                                                     // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
+                    for (auto& element : x.src.elements) element.mode = element.mode == "A1" ? "A2" : "";
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.

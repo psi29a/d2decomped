@@ -339,6 +339,17 @@ int main() {
         const bool about = expect(100) < 5;
         const auto hit = mon_think("BloodRaven", in, rng, no_away);
         assert(hit.act == (about ? MonAct::around : MonAct::circle) && steps(5, rng) == (about ? 5 : 2));
+        // SkeletonMage (aip 35 9 30 5 0 18 20 5, skmage_*1): within 18 aip1 %
+        // shoots (aip5 0: the back-off draws but never goes); else circles 4
+        // (one more step) or stands 5; past 9 the close-in is rolled twice.
+        in = { .aip = { 100, 9, 30, 5, 0, 18, 20, 5 }, .dist = 4, .state = &state };
+        rng = Rng{ 6 };
+        assert(mon_think("SkeletonMage", in, rng, no_away).act == MonAct::a1 && steps(6, rng) == 2);
+        in.dist = 30; in.aip[2] = 100; rng = Rng{ 6 };
+        const auto mage_in = mon_think("SkeletonMage", in, rng, no_away);
+        assert(mage_in.act == MonAct::approach && mage_in.n == 9 && steps(6, rng) == 1);
+        in.dist = 20; in.aip[2] = 0; in.aip[6] = 100; rng = Rng{ 6 };
+        assert(mon_think("SkeletonMage", in, rng, no_away).act == MonAct::circle && steps(6, rng) == 4);
     }
     std::puts("ok");
 }
