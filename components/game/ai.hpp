@@ -145,6 +145,11 @@ struct Monster {
     // unit.goal) rather than a chase.
     int skill = -1, skill_frame = 0, skill_x = 0, skill_y = 0;
     bool wandering = false;
+    // The MonAI thinks: the last mode it left other than NU (monster data
+    // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch words (+0x14,
+    // +0x18), its command (the Fallen's 1: charge), the corpse a skill raises.
+    std::string_view left_mode = "NU";
+    int ai_state = 0, ai_state2 = 0, ai_command = 0, skill_unit = -1;
     [[nodiscard]] bool alive() const { return hit_points > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
@@ -291,23 +296,21 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // aidel ticks between attacks;
 // otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
 // random spot within 3 cells.
-// ponytail: one melee think for every AI type (MonStats AI / aip1..8 and
-// game.exe's per-AI think functions not traced); distances and timings
-// by eye; chasing goes straight at the player, sliding to a stop at walls.
+// ponytail: an AI whose think isn't traced (rules::traced_ai) gets one
+// melee think (MonStats aip1..8 unread); distances and timings by eye;
+// chasing goes straight at the player, sliding to a stop at walls.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.
-// Andariel (MonStats AI "Andariel") thinks her own way instead: see
-// rules::andariel_think.
+// Andariel and the traced MonAI types think their own way instead: see
+// rules::andariel_think / rules::mon_think. A1 / A2 fire MissA1 / MissA2.
+// `pack`: all the level's monsters, `monster` among them (its group, the
+// dying, corpses to raise); `born`: gets what it lays (a nest's young).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
-                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles);
-
-// Fallen scatter when one of their pack dies (MonStats AI "Fallen"):
-// the others of its group within 10 cells run for 2-3 s.
-// ponytail: the Fallen think function isn't traced; group = spawn group.
-void fallen_scatter(const GameData& game_data, std::vector<Monster>& ms_, std::size_t dead, d2d::rules::Rng& rng, std::uint32_t now_ms);
+                    std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
+                    std::vector<Monster>* born = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

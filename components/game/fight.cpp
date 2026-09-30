@@ -1137,7 +1137,6 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms) -> void {
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
-        fallen_scatter(*game_data, monsters, monster_index, rng, now_ms);
         loot.drop(monster, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }
@@ -2373,12 +2372,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (now_ms < amplified[k]) foes[k].fighter.dr_pct -= 100;
             monster_auras(foes, now_ms);
             for (const auto& pet : pets) foes.push_back(pet_foe(pet));
+            std::vector<Monster> born;
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born))
                     killed(i, now_ms);                           // on the player's thorns
             }
+            for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
             monster_states(now_ms);
