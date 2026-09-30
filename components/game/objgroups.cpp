@@ -218,15 +218,15 @@ struct Populator {
         }
     }
     // FUN_00551850: barrels, objects.txt 7's size and spacing, 8 at most.
-    void barrels(int id, int density, int prob) {
+    void barrels(int density, int prob) {
         if (!gate(prob)) return;
         const int sx = obj(7, "SizeX"), sy = obj(7, "SizeY"), space_x = obj(7, "Xspace"), space_y = obj(7, "Yspace");
         int placed = 0;
         for (int left = count(density), tries = left * 2; left > 0 && tries > 0; --tries) {
-            rgn.next();
+            const int first = rgn.next() % 3 ? 7 : 11;                                             // 0x551933: 1 in 3 exploding
             int x = room.x + rgn(room.w), y = room.y + rgn(room.h);
             if (!fits_near(x, y, sx, sy)) continue;
-            make(id, x, y, true);
+            make(first, x, y, true);
             if (++placed >= 8) return;
             bool ok = true;
             for (int in_cluster = 1;;) {
@@ -500,7 +500,7 @@ struct Populator {
                 case 1: cluster(id, density, 100); break;
                 case 2: shrine(id, 100); break;
                 case 3: scatter(id, density, 100); break;
-                case 4: barrels(id, density, 100); break;
+                case 4: barrels(density, 100); break;
                 case 6: companion(scatter(id, density, 100)); break;
                 case 7: layout(id, 100); break;
                 case 8: well(id, 100); break;
