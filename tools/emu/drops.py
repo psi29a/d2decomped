@@ -3,6 +3,7 @@
     uv run python drops.py 1-20000          # diff tools/drop-dump against game.exe, one job per seed
     uv run python drops.py 1-20000 print    # just game.exe's lines
     uv run python drops.py tables           # every class's entries, game.exe vs ours
+    uv run python drops.py items 1-20000    # made items (seeds, gold, base rolls, unique / set picks) vs ours
 
 A job is (seed, class, level, ilvl, players, mf): FUN_00654e00 moves the
 class on by level (as FUN_0055afa0 does past normal), then FUN_0055a6d0
@@ -10,6 +11,15 @@ rolls it off a monster whose unit seed is {seed, 666}, expansion, no
 killer (FUN_005585d0, the killer's magic find, hooked to answer mf). FUN_0055a550 (make the item) is hooked to record what it's asked
 for, so the unit seed is the only state the roll touches. The line is what
 dropped (code:quality, *mul for gold) and the seed's low word after.
+
+Items: a job is (seed, code, ilvl, quality, bovine). A fake item unit
+takes its seeds off a game seed {seed, 666} as FUN_00555230 does
+(FUN_00552df0: unit +0x20; FUN_00552e90: item data +4), version 101 and
+the ilvl; FUN_00557ab0 rolls its coins / stack / durability / defence
+(FUN_00627260, set stat, hooked to record them), then FUN_005566b0 (unique)
+or FUN_005c2940 (set) picks off its own seed on a game whose one-per-game
+list (+0x1b24) carries on from job to job. A failed pick triples (unique)
+or doubles (set) the durability, as FUN_00557450 goes on to.
 
 Runtime classes: DAT_0096c5ec, stride 0x2c; 0 empty, 1..160 the auto
 classes (bow weap mele armo abow x 3..96), 161 + TreasureClassEx row after.
@@ -60,15 +70,23 @@ def item_codes(e):
 
 
 class Oracle:
-    def __init__(self):
+    def __init__(self, items=False):
         self.e = e = drlg.boot()
         self.names = class_names(e)
         self.codes = item_codes(e)
         self.index = {n: i for i, n in enumerate(self.names) if n}
         self.game, self.unit = e.alloc(0x2000), e.alloc(0x200)
         e.w32(self.game + 0x70, 1)                     # expansion
+        e.w32(self.game + 0x78, 101)                   # the item version (expansion)
         e.w32(self.unit, 1)                            # a monster
         self.made, self.players, self.mf = [], 1, 0
+        if items:
+            self.stats = {}
+            self.item, self.data, self.args, self.seed = e.alloc(0x200), e.alloc(0x200), e.alloc(0x100), e.alloc(8)
+            e.hook(0x627260, lambda e: self.stats.__setitem__(e.arg(1), e.arg(2)), 4)   # set stat: recorded
+            e.hook(0x625480, lambda e: self.stats.get(e.arg(1), 0), 3)
+            e.hook(0x65fec0, lambda e: 0, 6)           # the item's event / packet
+            return
 
         def make(e):                                   # FUN_0055a550(ecx item; game, quality, unique/set index, flags)
             self.made.append([self.codes[e.mu.reg_read(UC_X86_REG_ECX) & 0xFFFF], e.arg(1), 0])
@@ -92,6 +110,35 @@ class Oracle:
         e.call(0x55a6d0, 0, rec, 0, ilvl, 0, 0, 0, 0, ecx=self.game, edx=self.unit)
         items = "".join(f" {c}:{q}" + (f"*{m}" if m else "") for c, q, m in self.made)
         return f"{seed:08x} {tc}@{lvl}>{up} i{ilvl} p{players} m{mf}:{items} -> {e.r32(self.unit + 0x20):08x}"
+
+    def make(self, seed, code, ilvl, quality, bovine):
+        e = self.e
+        item, data, args, gs = self.item, self.data, self.args, self.seed
+        for a, n in ((item, 0x200), (data, 0x200), (args, 0x100)): e.mu.mem_write(a, b"\0" * n)
+        e.w32(item, 4)
+        e.w32(item + 4, self.codes.index(code))
+        e.w32(item + 0x14, data)
+        e.w32(gs, seed)
+        e.w32(gs + 4, 666)
+        e.call(0x552df0, ecx=item, edx=gs)
+        e.call(0x552e90, ecx=item, edx=gs)
+        unit_seed, own_seed = e.r32(item + 0x20), e.r32(data + 4)
+        e.call(0x62a6c0, item, 101)
+        e.call(0x628220, item, ilvl)
+        e.w32(args + 0xc, ilvl)
+        e.w32(args + 0x80, bovine)
+        e.w32(args + 0xfc, item)                       # FUN_00557ab0's EDX: where the item's pointer is
+        self.stats = {}
+        e.call(0x557ab0, args, 0, ecx=self.game, edx=args + 0xfc)
+        pick = -1
+        if quality in (5, 7):
+            ok = e.call(0x5566b0, self.game, item, args) if quality == 7 else e.call(0x5c2940, ecx=item, edx=args)
+            if ok & 0xFF: pick = struct.unpack("<i", struct.pack("<I", e.call(0x629da0, item)))[0]
+            elif self.stats.get(0x49, 0):
+                for s in (0x48, 0x49): self.stats[s] = min(self.stats[s] * (3 if quality == 7 else 2), 255)
+        st = self.stats
+        return (f"{seed:08x} {code} i{ilvl} q{quality}{' cow' if bovine else ''}: seeds {unit_seed:08x} {own_seed:08x} gold {st.get(0xe, 0)}"
+                f" qty {st.get(0x46, 0)} dur {st.get(0x48, 0)}/{st.get(0x49, 0)} def {st.get(0x1f, 0)} pick {pick} -> {e.r32(gs):08x}")
 
     def entries(self, i):
         """Class i as `name:prob` over its entries (the expansion cumulative, +0xc total)."""
@@ -118,7 +165,31 @@ def run_ours(args, stdin):
                           capture_output=True, text=True, check=True).stdout.splitlines()[-stdin.count("\n"):]
 
 
+def item_jobs(o, first, last):
+    """Every base in turn at varied ilvls and qualities; every other job a unique or set base, picked."""
+    uniques = sorted({r["code"] for r in txt_rows(o.e, "UniqueItems") if r.get("code") in o.codes})
+    sets = sorted({r["item"] for r in txt_rows(o.e, "SetItems") if r.get("item") in o.codes})
+    for s in range(first, last + 1):
+        seed, ilvl = (s * 0x9E3779B1) & 0xFFFFFFFF, 1 + s * 13 % 99
+        if s % 2: yield seed, o.codes[s // 2 % len(o.codes)], ilvl, (2, 4, 6, 3)[s // 2 % 4], 0
+        elif s % 4: yield seed, uniques[s // 4 % len(uniques)], ilvl, 7, 0
+        else: yield seed, sets[s // 4 % len(sets)], ilvl, 5, int(s % 3 == 0)
+
+
 def main():
+    if sys.argv[1] == "items":
+        o = Oracle(items=True)
+        first, last = (int(v, 0) for v in sys.argv[2].split("-"))
+        todo = list(item_jobs(o, first, last))
+        game = [o.make(*j) for j in todo]
+        if sys.argv[-1] == "print":
+            print("\n".join(game))
+            return
+        ours = run_ours(["items"], "".join("\t".join(map(str, j)) + "\n" for j in todo))
+        bad = [(g, u) for g, u in zip(game, ours) if g != u]
+        for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
+        print(f"{len(game) - len(bad)}/{len(game)} items match game.exe")
+        sys.exit(1 if bad or len(game) != len(ours) else 0)
     o = Oracle()
     if sys.argv[1] == "tables":
         game = [f"{n} {o.index[n]}:" + "".join(" " + x for x in o.entries(o.index[n])) for n in o.names if n]

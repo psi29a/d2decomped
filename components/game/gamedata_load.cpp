@@ -717,7 +717,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
                                           std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
-                                          number("bitfield1"), number("quest") > 0, number("unique") > 0 };
+                                          number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack") };
                 if (table->get(row, "spawnable") != "1") continue;
                 for (std::size_t vendor = 0; vendor < 17; ++vendor) {
                     const std::string vendor_name = kVendorCol[vendor];
@@ -999,6 +999,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.prefixes = affixes("MagicPrefix");
         game_data.rules.suffixes = affixes("MagicSuffix");
+        const auto set_names = keys("Sets", "index", false);
         auto specials = [&](const char* file_name, const char* code_col, int props) {
             std::vector<d2d::rules::Special> values;
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
@@ -1012,6 +1013,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                             special.mods.push_back({ std::string(prop_code), std::string(table.get(row, "par" + suffix)),
                                                 num(table.get(row, "min" + suffix)), num(table.get(row, "max" + suffix)) });
                     }
+                    special.ladder = table.get(row, "ladder") == "1";
+                    special.nolimit = table.get(row, "nolimit") == "1";
+                    if (const auto set_row = std::ranges::find(set_names, table.get(row, "set")); set_row != set_names.end() && code_col[0] == 'i')
+                        special.set = int(set_row - set_names.begin());
                     values.push_back(std::move(special));
                 }
             }

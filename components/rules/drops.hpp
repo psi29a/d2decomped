@@ -65,11 +65,12 @@ inline int roll_quality(const Tables& tables, const std::string& code, int ilvl,
     return normal < 1 || rng(normal) < 128 ? 2 : 1;
 }
 
-// A gold pile's coins (FUN_00557ab0, off the new item's own seed): ilvl +
-// rand(5 ilvl), at least 1; a ",mul=N" entry scales it by N / 256
-// (FUN_0055a6d0).
+// A gold pile's coins (FUN_00557ab0, the first draw on the new item's
+// unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
+// a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
 // ponytail: gold find (FUN_005589a0: + killer stat 0x4f %) isn't applied.
 inline int gold_amount(int ilvl, int mul, Rng& item_seed) {
+    ilvl = std::max(ilvl, 1);
     const int gold = std::max(ilvl + item_seed(5 * ilvl), 1);
     return mul ? gold * mul >> 8 : gold;
 }
@@ -143,7 +144,8 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // TC), stopping at the weights' total. At most `max` items (6) in all.
 // ponytail: TreasureClassEx's unique / set item entries (flags 1 / 2: Cow
 // King's classes only) and the m4 / m5 flag draws (bin +0x30 / +0x32,
-// always 0) aren't here; a failed placement (FUN_00555da0) still counts.
+// always 0) aren't here; every item counts (game.exe doesn't count one
+// FUN_00555da0 finds no floor for, but Level::nearest_free always finds one).
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int ilvl, Rng& rng, std::vector<Drop>& out,
                        int players = 1, int magic_find = 0, int max = 6) {
     const auto found = tables.treasure.find(treasure_class);

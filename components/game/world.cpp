@@ -170,8 +170,11 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto [low, high] = d2d::rules::kChestLevels[0];
             const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
             std::vector<d2d::rules::Drop> drops;
-            for (int round = 0; round < rounds; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, here, rng, drops);
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, now_ms);
+            // Qualities roll at item level A..C = 0..2 (FUN_00585b90 passes
+            // its tier); the items are made at the area level (FUN_0055a550).
+            // ponytail: the shared rng stands in for the chest's unit seed.
+            for (int round = 0; round < rounds; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, treasure_class.back() - 'A', rng, drops);
+            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
             return drops.size();
         };
         auto to_mode = [&](int mode) {               // FUN_00624690, its sound (0x7295f8) and footprint (FUN_00623830)
@@ -216,9 +219,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const int ilvl = here > 1 ? here - 1 : here;
             if (op == 26) {
                 const bool scroll = rng(20) < 13;
-                loot.put({ .code = std::string(rng.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk") }, object.x, object.y, here, now_ms);
+                loot.put({ .code = std::string(rng.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk") }, object.x, object.y, here, fight.spawning.game, now_ms);
             } else if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, rng); !code.empty()) {
-                loot.put({ .code = code, .quality = d2d::rules::roll_quality(game_data->rules, code, ilvl, {}, rng) }, object.x, object.y, ilvl, now_ms);
+                loot.put({ .code = code, .quality = d2d::rules::roll_quality(game_data->rules, code, ilvl, {}, rng) }, object.x, object.y, ilvl, fight.spawning.game, now_ms);
             }
             d2d::log::info("opened object {} (op {})", npc_index, op);
             return;
@@ -258,7 +261,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (shrine.code == 17) open_portal_at(player.x + 1, player.y + 1, now_ms);   // portal (FUN_00582a30): 5 subtiles on each axis
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, character.items, rng); !code.empty())
-                loot.put({ .code = code }, player.x, player.y, 1, now_ms);
+                loot.put({ .code = code }, player.x, player.y, 1, fight.spawning.game, now_ms);
         // Storm (FUN_00582da0): everyone about loses Arg0 % of their life.
         // ponytail: "about" as within 30 cells (game.exe's unit search
         // over Arg1 isn't traced).
@@ -273,7 +276,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // (gpm) potions at the player's feet (FUN_005830e0 / FUN_00583410).
         if (shrine.code == 21 || shrine.code == 22)
             for (int count = shrine.arg0 + rng(std::max(shrine.arg1 - shrine.arg0, 0)); count > 0; --count)
-                loot.put({ .code = shrine.code == 21 ? "opm" : "gpm" }, player.x, player.y, 1, now_ms);
+                loot.put({ .code = shrine.code == 21 ? "opm" : "gpm" }, player.x, player.y, 1, fight.spawning.game, now_ms);
         if ((shrine.code == 19 || shrine.code == 21 || shrine.code == 22) && fight.mon_level == level)
             fight.shrine_missiles(shrine.code, object.x, object.y, int(character.stats.get(kLevel)), now_ms);
         if (shrine.code == 20 && fight.mon_level == level) {   // warping (FUN_00583050): the nearest plain monster turns boss
@@ -369,6 +372,9 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             for (int k = 0; k < count; ++k) {
                 const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
                 auto monster = make_monster(*game_data, type, free_x, free_y, rng, diff);
+                // Its unit seed: a step of the game seed (FUN_00552df0), what its drops roll off.
+                // ponytail: its look doesn't draw on it first, as spawn_monsters' does.
+                monster.seed = d2d::rules::Rng{ fight.spawning.game.next() };
                 monster.aware = true;
                 fight.add_monster(std::move(monster));
             }
@@ -613,7 +619,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
         if (stand != d2d::rules::ToolsQuest::Stand::drop) return;
         const auto& area_levels = game_data->area_level;
         const int alvl = std::size_t(level->id) < area_levels.size() ? area_levels[std::size_t(level->id)][std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))] : 1;
-        loot.put({ .code = "hdm" }, object.x, object.y, alvl, now_ms);
+        loot.put({ .code = "hdm" }, object.x, object.y, alvl, fight.spawning.game, now_ms);
         d2d::log::info("Tools of the Trade: the Horadric Malus");
     }
 
@@ -626,7 +632,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         const int diff = character.header.active_difficulty();
         character.header.progression = std::uint8_t(std::max<int>(character.header.progression, diff * (character.header.expansion() ? 5 : 4) + 1));
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
-            loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, now_ms);
+            loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         d2d::log::info("Sisters to the Slaughter: Andariel is dead, return to Warriv");
     }
 
@@ -688,7 +694,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (object.operate_fn == 12) {
             if (!cain.tree(quest_bits, carries("bks") || carries("bkd"))) return;
             operated[{ level, npc_index }] = now_ms;
-            loot.put({ .code = "bks" }, object.x, object.y, 1, now_ms);
+            loot.put({ .code = "bks" }, object.x, object.y, 1, fight.spawning.game, now_ms);
             d2d::log::info("Search for Cain: the Scroll of Inifuss");
             return;
         }
@@ -804,7 +810,7 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
         std::int64_t lost = std::min(lvl, 20) * total / 100;
         if (total - lost < std::int64_t(lvl) * 500) lost = std::max<std::int64_t>(0, total - std::int64_t(lvl) * 500);
         lost = std::min(lost, purse);
-        if (purse - lost > 0) loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, now_ms);
+        if (purse - lost > 0) loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, fight.spawning.game, now_ms);
         stat_values[kGold] = 0;
         gold_lost = lost;
         d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", exp_lost, lost, purse - lost);
@@ -1039,7 +1045,7 @@ auto World::deal(const Command& command) -> bool {
             if (cain_said == Said::ring) {            // FUN_005466b0: into the inventory, else at the feet
                 static constexpr int kIlvl[3] = { 7, 30, 60 };
                 const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
-                loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, player.x, player.y, kIlvl[diff], now);
+                loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, player.x, player.y, kIlvl[diff], fight.spawning.game, now);
                 loot.take(loot.ground.size() - 1);
                 d2d::log::info("Search for Cain: done, Akara's ring");
             }

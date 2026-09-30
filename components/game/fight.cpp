@@ -753,10 +753,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
                 if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
-                if (skill.srvdofunc == 72) { loot.drop(corpse, now_ms); break; }
+                if (skill.srvdofunc == 72) { loot.drop(corpse, spawning.game, now_ms); break; }
                 const int tier = std::clamp(1 + int(character.stats.get(d2d::d2s::kLevel)) / 12, 1, 5);
                 const std::string code = rng(20) == 0 ? "rvs" : (rng(2) ? "hp" : "mp") + std::to_string(tier);
-                loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, now_ms);
+                loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
                 break;
             }
             default: break;
@@ -1130,14 +1130,14 @@ auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_
     }
 
 auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms) -> void {
-        const auto& monster = monsters[monster_index];
+        auto& monster = monsters[monster_index];
         const auto save_class = std::size_t(std::max(character.character_class, 0));
         auto exp = d2d::rules::kill_exp(monster.stats.exp, int(character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
         exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
-        loot.drop(monster, now_ms);
+        loot.drop(monster, spawning.game, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }
 

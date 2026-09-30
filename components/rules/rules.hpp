@@ -75,6 +75,7 @@ struct ItemBase {
     int bitfield1 = 0;                                 // Items +0xdc (bit 0: an imbue can take it, FUN_00629c80)
     bool quest = false;                                // Items +0x12a: a quest item
     bool only_unique = false;                          // Items +0x129 (unique): drops unique
+    int spawn_stack = 0;                               // misc.txt spawnstack (Items +0xec)
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -102,7 +103,9 @@ struct Affix {
     std::vector<Mod> mods;
 };
 // UniqueItems / SetItems row (without separators, as the save's IDs).
-struct Special { std::string code; int level = 0, rarity = 1; bool enabled = true; std::vector<Mod> mods; };
+// UniqueItems / SetItems row: ladder (flag 8) never drops outside a ladder
+// game, nolimit (flag 2) isn't one per game; set: its Sets.txt row.
+struct Special { std::string code; int level = 0, rarity = 1; bool enabled = true; std::vector<Mod> mods; bool ladder = false, nolimit = false; int set = -1; };
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
@@ -750,10 +753,22 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6
 // rare, 7 unique; set/unique fall back to rare when none fits),
 // identified, with its defence and durability rolled.
+// A made drop (FUN_00558d90) passes its unit seed (+0x20): the base rolls
+// (FUN_00557ab0) come off it: arrows / bolts (ItemTypes Quiver) min +
+// rand(max - min); armor durability rand(dur / 2) + dur / 2 (at most 255),
+// then defence minac + rand(maxac - minac + 1); a weapon's stack then its
+// durability; misc stacks min + rand(spawnstack - min). `rng` is then its
+// own seed (item data +4): the unique (FUN_005566b0) / set (FUN_005c25c0)
+// pick is its first draw. `found_uniques` is the game's one-per-game list
+// (+0x1b24): a unique found already fails (but a quest item's); one found
+// is added unless nolimit. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
+// A failed unique turns rare with 3x durability, a set 2x (FUN_00557450).
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
-// prefix, 1/4 suffix, 1/2 both; unique/set picks weigh rarity but skip
-// the "nolimit"/one-per-game rules; no set bonus lists.
-inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng) {
+// prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules and
+// forced picks (struct +0x40) aren't here; no set bonus lists; without a
+// unit seed everything comes off `rng` (stores, gambling, imbue).
+inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
+                                    Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
@@ -761,26 +776,38 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     const auto* info = info_of(tables, item);
     const auto found = tables.item_base.find(code);
     const int qlvl = found != tables.item_base.end() ? found->second.level : 1;
-    if (found != tables.item_base.end()) {
+    const std::string type = info ? info->type : std::string{};
+    if (found != tables.item_base.end() && unit_seed) {
+        const auto& base = found->second;
+        auto& seed = *unit_seed;
+        auto stack = [&](int bound) { item.quantity = std::max(base.min_stack + seed(bound - base.min_stack), 1); };
+        auto durability = [&] {
+            item.durability = std::min(seed(base.durability >> 1) + (base.durability >> 1), 255);
+            item.max_durability = std::min(base.durability, 255);
+        };
+        if (type == "bowq" || type == "xboq") stack(base.max_stack);
+        else if (info && info->kind == 1) { durability(); item.defense = seed.range(base.minac, base.maxac); }
+        else if (info && info->kind == 2) { if (base.stackable) stack(base.max_stack); durability(); }
+        else if (base.stackable) stack(base.spawn_stack < base.min_stack || base.spawn_stack == 0 ? std::max(base.min_stack, base.max_stack) : base.spawn_stack);
+    } else if (found != tables.item_base.end()) {
         if (info && info->kind == 1) item.defense = rng.range(found->second.minac, found->second.maxac);
         if ((item.max_durability = found->second.durability) > 0) item.durability = item.max_durability;
     }
-    const std::string type = info ? info->type : std::string{};
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
     // their quantity. ponytail: superior items' own bonuses aren't rolled.
     if (quality <= 3) {
         item.quality = std::max(quality, 1);
-        if (found != tables.item_base.end() && found->second.stackable) item.quantity = rng.range(found->second.min_stack, found->second.max_stack);
+        if (!unit_seed && found != tables.item_base.end() && found->second.stackable) item.quantity = rng.range(found->second.min_stack, found->second.max_stack);
         return item;
     }
     auto special = [&](const std::vector<Special>& list) {
+        auto fits = [&](const Special& row) { return row.enabled && !row.ladder && row.code == code && row.level <= item.ilvl && (row.set != 29 || bovine); };
         int total = 0, pick = -1;
-        for (std::size_t i = 0; i < list.size(); ++i)
-            if (list[i].enabled && list[i].code == code && list[i].level <= item.ilvl) total += std::max(1, list[i].rarity);
+        for (const auto& row : list) if (fits(row)) total += std::max(1, row.rarity);
         if (total == 0) return -1;
         int roll = rng(total);
         for (std::size_t i = 0; i < list.size() && pick < 0; ++i) {
-            if (!list[i].enabled || list[i].code != code || list[i].level > item.ilvl) continue;
+            if (!fits(list[i])) continue;
             if (roll < std::max(1, list[i].rarity)) pick = int(i);
             else roll -= std::max(1, list[i].rarity);
         }
@@ -788,11 +815,22 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     };
     if (quality == 7 || quality == 5) {
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
-        if (const int special_row = special(list); special_row >= 0) {
+        int special_row = special(list);
+        if (quality == 7 && special_row >= 0 && found_uniques && found != tables.item_base.end() && !found->second.quest) {
+            if (found_uniques->size() <= std::size_t(special_row)) found_uniques->resize(std::size_t(special_row) + 1);
+            if ((*found_uniques)[std::size_t(special_row)]) special_row = -1;
+            else if (!list[std::size_t(special_row)].nolimit) (*found_uniques)[std::size_t(special_row)] = true;
+        }
+        if (special_row >= 0) {
             item.quality = quality;
             (quality == 7 ? item.unique_id : item.set_id) = special_row;
             for (const auto& mod : list[std::size_t(special_row)].mods) apply_mod(tables, mod, item.props, rng);
             return item;
+        }
+        if (item.max_durability > 0) {
+            const int times = quality == 7 ? 3 : 2;
+            item.durability = std::min(item.durability * times, 255);
+            item.max_durability = std::min(item.max_durability * times, 255);
         }
         quality = 6;
     }
