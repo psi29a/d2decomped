@@ -18,6 +18,9 @@ struct MonType {
     std::string id, code, name_key, ai_name;         // Id, Code, NameStr, AI
     std::string montype;                        // MonType (MonUMod exclusions)
     std::array<std::string, 3> tc_champion, tc_unique;   // TreasureClass2 / 3 by difficulty
+    std::array<std::string, 3> tc_quest;        // TreasureClass4: while quest TCQuestId isn't done (flags 15, 1, TCQuestCP)
+    int tc_quest_id = 0, tc_quest_cp = 0;
+    bool tc_fixed = false;                      // noRatio or boss (MonStats +0xc & 0x44): its TC never moves on by level
     int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
     int min_grp = 0, max_grp = 0, party_min = 0, party_max = 0, sparse = 0, rarity = 0;
     std::array<int, 2> minion{ -1, -1 };        // minion1/2 rows

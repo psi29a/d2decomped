@@ -39,6 +39,11 @@ Needs the launcher's `bin/game.exe` (found through the launcher's
     name and a stack of return addresses, so you add them as you go.
   - `backtrace()` scans the stack for code addresses. It's a heuristic,
     not an unwind.
+- `drops.py`: the drop roller (FUN_0055a6d0) as an oracle. It diffs
+  `build/tools/drop-dump` over a seed range (`drops.py 1-100000`), or
+  every treasure class's entries (`drops.py tables`). Item creation is
+  hooked, so only the dropper's seed moves. See
+  `docs/research/re/drops.md`.
 - `drlg.py`: the level generator as an oracle.
   - `boot()` loads every data table (FUN_00619300(0, 1, 1), about 1.4 s
     warm), including the LvlPrest and LvlSub DS1s.

@@ -1,6 +1,6 @@
 // Drops over hand-made tables: auto weapN classes, gold (and its
-// multiplier), NoDrop odds, quality rolls (rings at least magic, potions
-// plain).
+// multiplier), NoDrop odds and players, quality rolls (rings at least
+// magic, potions plain), the 6-item cap, TC upgrades.
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <rules.hpp>
@@ -16,14 +16,21 @@ using namespace d2d::rules;
 int main() {
     Tables tables;
     tables.item_info["hax"] = { .type = "axe", .kind = 2 };
+    tables.item_info["big"] = { .type = "axe", .kind = 2 };
     tables.item_info["rin"] = { .type = "ring", .kind = 0 };
     tables.item_info["hp1"] = { .type = "hpot", .kind = 0 };
     tables.types["ring"].always_magic = true;
+    tables.types["hpot"].always_normal = true;
+    tables.types["axe"] = { .equiv = { "weap", "" }, .rarity = 3 };
+    tables.types["weap"].treasure_class = true;
     tables.item_base["hax"] = { .level = 1, .normcode = "hax" };
-    tables.item_rarity = { { "hax", 3 }, { "big", 1 } };
+    tables.item_base["big"] = { .level = 5 };
+    tables.item_base["rin"].level = 1;
+    tables.item_base["hp1"].level = 1;
     tables.quality_ratio[0] = { { { 400, 1, 6400 }, { 160, 2, 5600 }, { 100, 2, 3200 }, { 34, 3, 192 }, { 12, 8, 0 }, { 2, 2, 0 } } };
-    d2d::rules::add_auto_treasure(tables, { { "hax", 1 }, { "big", 5 } }, {});
-    assert(tables.treasure.at("weap3").items.size() == 1 && tables.treasure.at("weap6").items[0].first == "big");
+    d2d::rules::add_auto_treasure(tables, { "axe", "weap" }, { { "hax", "axe", "", 1 }, { "big", "axe", "", 5 }, { "old", "axe", "", 0 } });
+    assert(tables.treasure.at("weap3").items.size() == 1 && tables.treasure.at("weap6").items[0].first == "big" && tables.treasure.at("weap6").items[0].second == 3);
+    assert(tables.treasure.at("weap96").items.empty() && !tables.treasure.contains("axe3"));
     tables.treasure["Gold"] = { .items = { { "gld", 1 } } };
     tables.treasure["Rich"] = { .items = { { "gld,mul=1280", 1 } } };
     tables.treasure["Half"] = { .nodrop = 1, .items = { { "weap3", 1 } } };
@@ -33,18 +40,52 @@ int main() {
     for (int i = 0; i < 1000; ++i) {
         std::vector<Drop> out;
         roll_drops(tables, "Gold", 1, rng, out);
-        assert(out.size() == 1 && out[0].code == "gld" && out[0].gold >= 1 && out[0].gold <= 8);
+        assert(out.size() == 1 && out[0].code == "gld" && out[0].gold == 0 && out[0].mul == 0);
+        const int coins = gold_amount(1, 0, rng);                          // ilvl + rand(5 ilvl)
+        assert(coins >= 1 && coins <= 5);
         out.clear();
         roll_drops(tables, "Rich", 2, rng, out);
-        assert(out[0].gold >= 10 && out[0].gold <= 85);                  // (2 + 0..15) x 5
+        const int rich = gold_amount(2, out[0].mul, rng);
+        assert(out[0].mul == 1280 && rich >= 10 && rich <= 55);              // (2 + 0..9) x 5
         out.clear();
         roll_drops(tables, "Half", 1, rng, out);
-        for (const auto& x : out) { assert(x.code == "hax" && x.quality >= 2 && x.quality <= 7); ++dropped; magic += x.quality >= 4; }
+        for (const auto& x : out) { assert(x.code == "hax" && x.quality >= 1 && x.quality <= 7); ++dropped; magic += x.quality >= 4; }
         out.clear();
         roll_drops(tables, "Two", 1, rng, out);
         assert(out.size() == 2);
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
     }
+    assert(dropped > 400 && dropped < 600 && magic > 0);
+    // Quality (FUN_00558640): one draw per step off the dropper's seed; a
+    // 1024 modifier makes the odds 0, so that quality wins without a draw.
+    {
+        Rng seed{ 3 }, copy = seed;
+        assert(roll_quality(tables, "hax", 1, { 1024, 0, 0, 0 }, seed) == 7 && seed.low == copy.low);
+        assert(roll_quality(tables, "hp1", 1, {}, seed) == 2 && seed.low == copy.low);
+        roll_quality(tables, "rin", 1, {}, seed);
+        copy.next(); copy.next(); copy.next();                              // unique, set, rare lost: magic
+        assert(seed.low == copy.low);
+    }
+    // At most 6 items (FUN_0055a6d0's max) however many picks.
+    tables.treasure["Lots"] = { .picks = 9, .items = { { "hp1", 1 } } };
+    {
+        std::vector<Drop> out;
+        roll_drops(tables, "Lots", 1, rng, out);
+        assert(out.size() == 6);
+    }
+    // More players: NoDrop 1 of 2 at /players 3 (n = 2) is 1 * 1/4 / (3/4)
+    // = 0, so every pick drops.
+    for (int i = 0; i < 50; ++i) {
+        std::vector<Drop> out;
+        roll_drops(tables, "Half", 1, rng, out, 3);
+        assert(out.size() == 1);
+    }
+    // Levels move a class on within its group (FUN_00654e00).
+    tables.treasure["G A"] = { .group = 7, .level = 1, .next = "G B" };
+    tables.treasure["G B"] = { .group = 7, .level = 10, .next = "G C" };
+    tables.treasure["G C"] = { .group = 7, .level = 20 };
+    assert(tc_upgrade(tables, "G A", 0) == "G A" && tc_upgrade(tables, "G A", 9) == "G A" && tc_upgrade(tables, "G A", 10) == "G B");
+    assert(tc_upgrade(tables, "G A", 99) == "G C" && tc_upgrade(tables, "G B", 5) == "G B");
     // Negative picks (the Countess): each entry in turn by its weight, no
     // NoDrop, never past the weights' total.
     tables.treasure["Countess"] = { .picks = -4, .nodrop = 5, .items = { { "Gold", 1 }, { "hp1", 2 }, { "rin", 1 } } };

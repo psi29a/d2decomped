@@ -45,17 +45,24 @@ struct ItemType {
     std::string cls;
     bool beltable = false;
     bool always_magic = false, can_rare = true, always_normal = false;   // Magic / Rare / Normal columns
+    bool treasure_class = false;       // TreasureClass: game.exe makes <code>3 .. <code>96 classes of it
+    int rarity = 1;                    // Rarity: its bases' weight in those classes
 };
 // TreasureClassEx.txt row: picks, the NoDrop weight, quality modifiers
 // (Unique, Set, Rare, Magic, in 1024ths off the odds) and the weighted
-// entries (item codes, other classes, "gld" or "gld,mul=N").
+// entries (item codes, other classes, "gld" or "gld,mul=N"; Prob >= 1).
+// group / level: a monster's level moves it on to the group's next rows
+// (FUN_00654e00); `next` is that row's name ("" past the group's last).
 struct TreasureClass {
     int picks = 1, nodrop = 0;
     std::array<int, 4> mod{};
     std::vector<std::pair<std::string, int>> items;
+    int group = 0, level = 0;
+    std::string next;
 };
-// ItemRatio.txt (LoD rows) per [uber][unique, set, rare, magic, superior, normal]:
-// odds base, level divisor, minimum.
+// ItemRatio.txt per [class specific * 2 + uber][unique, set, rare, magic,
+// superior, normal]: odds base, level divisor, minimum (FUN_00637910: the
+// highest Version <= 100, i.e. the LoD rows).
 struct QualityRatio { int base = 0, divisor = 1, min = 0; };
 struct ItemBase {
     int minac = 0, maxac = 0, cost = 0;
@@ -67,6 +74,7 @@ struct ItemBase {
     std::string better_gem;                            // misc.txt BetterGem ("" or "non": none)
     int bitfield1 = 0;                                 // Items +0xdc (bit 0: an imbue can take it, FUN_00629c80)
     bool quest = false;                                // Items +0x12a: a quest item
+    bool only_unique = false;                          // Items +0x129 (unique): drops unique
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -155,11 +163,10 @@ struct Tables {
     std::vector<std::string> gamble;                       // gamble.txt codes
     std::array<GambleRates, 3> gamble_rates{};
     std::vector<Hireling> hirelings;                       // hireling.txt rows
-    // Drops: TreasureClassEx by name (plus the auto weapN / armoN classes),
-    // ItemRatio, and each base's weapons/armor.txt rarity.
+    // Drops: TreasureClassEx by name (plus the auto weapN / armoN classes)
+    // and ItemRatio.
     std::unordered_map<std::string, TreasureClass> treasure;
-    std::array<std::array<QualityRatio, 6>, 2> quality_ratio{};
-    std::unordered_map<std::string, int> item_rarity;
+    std::array<std::array<QualityRatio, 6>, 4> quality_ratio{};
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
     // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once).
     struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false; };

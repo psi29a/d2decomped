@@ -4,17 +4,21 @@
 // it loads GameData and plays a new character for a second.
 #include <character.hpp>
 #include <character_store.hpp>
+#include <drops.hpp>
 #include <gamedata_load.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 using namespace d2d::game;
 
@@ -53,6 +57,35 @@ int main() {
     if (patch) {                                                  // the 1.14d tables (the CD's differ)
         if (hash != 0x69b556c850c6632eull) std::printf("%s", regions.c_str());
         assert(hash == 0x69b556c850c6632eull);
+    }
+
+    // Act 1's drops as game.exe rolls them (tools/emu drops.py act1 prints
+    // the same lines): its classes sorted, the jobs of drops.py jobs().
+    std::vector<std::string> act1;
+    for (const auto& [name, treasure] : data->rules.treasure)
+        if (name.starts_with("Act 1 ") || name.starts_with("Andariel") || name.starts_with("Countess") || name.starts_with("Cow")) act1.push_back(name);
+    std::sort(act1.begin(), act1.end());
+    std::string drops;
+    for (std::uint32_t job = 1; job <= 3000; ++job) {
+        const std::string& name = act1[job % act1.size()];
+        const int level = int(job * 37 % 100), ilvl = int(1 + job * 13 % 99), players = int(1 + job % 8);
+        const int magic_find = std::array{ 0, 0, 0, 50, 110, 250, 600, -100 }[job / 8 % 8];
+        d2d::rules::Rng seed{ job * 0x9E3779B1u };
+        const auto moved = d2d::rules::tc_upgrade(data->rules, name, level);
+        std::vector<d2d::rules::Drop> dropped;
+        d2d::rules::roll_drops(data->rules, moved, ilvl, seed, dropped, players, magic_find);
+        char text[128];
+        std::snprintf(text, sizeof text, "%08x %s@%d>%s i%d p%d m%d:", job * 0x9E3779B1u, name.c_str(), level, moved.c_str(), ilvl, players, magic_find);
+        drops += text;
+        for (const auto& drop : dropped) drops += " " + drop.code + ":" + std::to_string(drop.quality) + (drop.mul ? "*" + std::to_string(drop.mul) : "");
+        std::snprintf(text, sizeof text, " -> %08x\n", seed.low);
+        drops += text;
+    }
+    std::uint64_t drops_hash = 0xcbf29ce484222325;
+    for (const char letter : drops) drops_hash = (drops_hash ^ std::uint8_t(letter)) * 0x100000001b3;
+    if (patch) {
+        if (drops_hash != 0x86f78a5cf5373648ull) std::printf("%s%016llx\n", drops.c_str(), (unsigned long long)drops_hash);
+        assert(drops_hash == 0x86f78a5cf5373648ull);
     }
 
     d2d::rules::Rng rng(7);

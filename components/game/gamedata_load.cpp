@@ -168,6 +168,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.min_grp = num(text("MinGrp")); type_info.max_grp = num(text("MaxGrp"));
         type_info.party_min = num(text("PartyMin")); type_info.party_max = num(text("PartyMax"));
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
+        type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
+        type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
@@ -201,6 +203,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             per_difficulty.to_block = num(text("ToBlock" + x));
             type_info.tc_champion[std::size_t(difficulty)] = text("TreasureClass2" + x);
             type_info.tc_unique[std::size_t(difficulty)] = text("TreasureClass3" + x);
+            type_info.tc_quest[std::size_t(difficulty)] = text("TreasureClass4" + x);
             per_difficulty.drain = text("Drain" + x).empty() ? 100 : num(text("Drain" + x));
             per_difficulty.cold_effect = num(text("coldeffect" + x));
             for (int element = 0; element < 3; ++element) {
@@ -679,18 +682,26 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 std::atoi(std::string(table->get(row, "reqstr")).c_str()), std::atoi(std::string(table->get(row, "reqdex")).c_str()),
                 std::atoi(std::string(table->get(row, "levelreq")).c_str()), std::string(table->get(row, "flippyfile")),
                 std::string(table->get(row, "dropsound")), std::atoi(std::string(table->get(row, "dropsfxframe")).c_str()) };
+    std::vector<std::string> type_order;
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
+        type_order.push_back(code);
         game_data.rules.types[code] = {
             { std::string(types.get(row, "Equiv1")), std::string(types.get(row, "Equiv2")) },
             { d2d::rules::body_slot(types.get(row, "BodyLoc1")), d2d::rules::body_slot(types.get(row, "BodyLoc2")) },
             std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
-            types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1" };
+            types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1",
+            types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
     }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
             "Hralti", "Alkor", "Ormus", "Elzix", "Asheara", "Cain", "Halbu", "Jamella", "Malah", "Larzuk", "Drehya" };
-        std::vector<std::pair<std::string, int>> weapons_by_level, armor_by_level;
+        std::vector<d2d::rules::AutoBase> auto_bases;   // the auto classes' candidates, items-table order
+        for (const auto* table : { &weapons, &armor, &misc })
+            for (std::size_t row = 0; row < table->size(); ++row)
+                if (table->get(row, "spawnable") == "1" && std::atoi(std::string(table->get(row, "quest")).c_str()) == 0)
+                    auto_bases.push_back({ std::string(table->get(row, "code")), std::string(table->get(row, "type")), std::string(table->get(row, "type2")),
+                                           std::atoi(std::string(table->get(row, "level")).c_str()) });
         for (const auto* table : { &armor, &weapons, &misc })
             for (std::size_t row = 0; row < table->size(); ++row) {
                 const std::string code(table->get(row, "code"));
@@ -706,10 +717,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
                                           std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
-                                          number("bitfield1"), number("quest") > 0 };
+                                          number("bitfield1"), number("quest") > 0, number("unique") > 0 };
                 if (table->get(row, "spawnable") != "1") continue;
-                game_data.rules.item_rarity[code] = number("rarity");
-                if (table != &misc && number("level") > 0) (table == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, number("level"));
                 for (std::size_t vendor = 0; vendor < 17; ++vendor) {
                     const std::string vendor_name = kVendorCol[vendor];
                     d2d::rules::VendorItem vendor_item{ code, number(vendor_name + "Min"), number(vendor_name + "Max"), number(vendor_name + "MagicMin"), number(vendor_name + "MagicMax"),
@@ -728,23 +737,34 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             else continue;
             game_data.rules.potions.emplace(std::string(misc.get(row, "code")), potion);
         }
-        // Drops: TreasureClassEx, ItemRatio (the LoD, non-class rows), auto classes.
+        // Drops: TreasureClassEx (FUN_006547d0; entries under Prob 1 dropped),
+        // ItemRatio (FUN_00637910: the highest Version per class / uber), auto classes.
         const auto tcx = txt("TreasureClassEx");
+        std::string last_name;
+        int last_group = 0;
         for (std::size_t row = 0; row < tcx.size(); ++row) {
             auto number = [&](std::string column) { return std::atoi(std::string(tcx.get(row, column)).c_str()); };
-            d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {} };
+            d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {},
+                                                      number("group"), number("level"), {} };
             for (int i = 1; i <= 10; ++i) {
                 auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
                 std::erase(item, '"');
-                if (!item.empty()) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
+                if (!item.empty() && number("Prob" + std::to_string(i)) >= 1) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
             }
-            game_data.rules.treasure.emplace(std::string(tcx.get(row, "Treasure Class")), std::move(treasure_class));
+            std::string name(tcx.get(row, "Treasure Class"));
+            if (last_group != 0 && treasure_class.group == last_group) game_data.rules.treasure[last_name].next = name;
+            last_name = name;
+            last_group = treasure_class.group;
+            game_data.rules.treasure.emplace(std::move(name), std::move(treasure_class));
         }
         const auto ratio = txt("ItemRatio");
+        std::array<int, 4> ratio_version{ -1, -1, -1, -1 };
         for (std::size_t row = 0; row < ratio.size(); ++row) {
-            if (ratio.get(row, "Version") != "1" || ratio.get(row, "Class Specific") != "0") continue;
             auto number = [&](std::string column) { return std::atoi(std::string(ratio.get(row, column)).c_str()); };
-            auto& ratios = game_data.rules.quality_ratio[ratio.get(row, "Uber") == "1" ? 1 : 0];
+            const auto which = std::size_t((number("Class Specific") ? 2 : 0) + (number("Uber") ? 1 : 0));
+            if (number("Version") > 100 || number("Version") < ratio_version[which]) continue;
+            ratio_version[which] = number("Version");
+            auto& ratios = game_data.rules.quality_ratio[which];
             ratios[0] = { number("Unique"), number("UniqueDivisor"), number("UniqueMin") };
             ratios[1] = { number("Set"), number("SetDivisor"), number("SetMin") };
             ratios[2] = { number("Rare"), number("RareDivisor"), number("RareMin") };
@@ -752,7 +772,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             ratios[4] = { number("HiQuality"), number("HiQualityDivisor"), 0 };
             ratios[5] = { number("Normal"), number("NormalDivisor"), 0 };
         }
-        d2d::rules::add_auto_treasure(game_data.rules, weapons_by_level, armor_by_level);
+        d2d::rules::add_auto_treasure(game_data.rules, type_order, auto_bases);
     }
     auto keys = [&](const char* file_name, const char* column, bool all) {
         std::vector<std::string> values;
