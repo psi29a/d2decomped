@@ -268,10 +268,12 @@ outside of a non-rectangular outline; a no-op on rectangles.
    ((w−2)·(h−2), n swaps of two rolls), then the first 5 free of 0x1b81
    get +0x18 |= 0x1000 << k (table 0x6f061c), +0x2c |= 0x1000, k = k+1
    & 3 — the plain room there stamps that SubShrine row;
-6. FUN_00680580, the Blood Moor: Pond (46) by a road (FUN_00674920(46,
-   −1)); FUN_006804e0(0, 47): `rand & 3 == 0` → two Cottage 1 (47), else
-   one (with a nonzero argument, a second roll `& 1` adds def 49); Stone
-   Fill 1 and 2 (29, 30) anywhere (FUN_00674730(def, −1, 0, 0xf)).
+6. FUN_00680580, per level. FUN_006804e0(extra, def): `rand & 3 == 0`
+   → two of def by a road, else one (when extra, a second roll `& 1` adds
+   def 49 by a road). The Blood Moor: Pond (46) by a road
+   (FUN_00674920(46, −1)), FUN_006804e0(0, 47), Stone Fill 1 and 2 (29,
+   30) anywhere (FUN_00674730(def, −1, 0, 0xf)). Cold Plains:
+   FUN_006804e0(1, 48), Fallen Camp Bishibosh (44), 29, 30 anywhere.
 
 Level 39 (Moo Moo Farm) runs border types 0..3 only.
 
@@ -294,7 +296,9 @@ nothing = don't care. On a match, variant k = `rand(variants)` at x +
 
 The finish (FUN_006750f0) turns cells into rooms: a preset anchor
 (+0x2c 0x200 and +0x04 set) becomes a preset room (FUN_00666ed0 on the
-level seed, FUN_00667ed0), other preset cells nothing, 0x100 cells
+level seed, FUN_00667ed0: when the LvlPrest row has Scan or Pops,
+FUN_00667970 first rolls its DS1's units to stay (FUN_00667620) on the
+level seed, then the rooms are allocated), other preset cells nothing, 0x100 cells
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
@@ -637,10 +641,11 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Other outdoor levels (Cold Plains, Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, waypoints (FUN_00674b70), per-level fills | not ported |
+| Cold Plains: waypoint (FUN_00674b70), fills | Cold Plains | same (grids, rooms, tiles, units) |
+| Other outdoor levels (Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, the random waypoint, per-level fills | not ported |
 | Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
 | Other maze level types (crypts, act 2+) | not ported |
-| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp), not diffed; a maze's (FUN_00667970) not ported: in the preset record's order, one step each of the seed of the room that copies them (room +0x14; a maze: the level's, +0x1c4) — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
+| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest (not diffed) on the seed of the room that copies them (room +0x14); a maze's (FUN_00667970) not ported. In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
 | Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |

@@ -197,7 +197,7 @@ used and listed in `docs/research/re/unverified.md` until it is.
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
-combat and skills) and the Den of Evil. Next: Cold Plains and the rest
+combat and skills), the Den of Evil and Cold Plains. Next: the rest
 of Act 1.
 
 ## Open questions
@@ -272,7 +272,7 @@ D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
    so collision, pathing and drawing carry on across the edge; walk over
    the town's bridge and `Town::cross_level` hands the player (path,
    merc, automap, music) to the Blood Moor. Walking toward a level that
-   isn't built (Cold Plains) logs "not implemented". ponytail: the
+   isn't built (Stony Field) logs "not implemented". ponytail: the
    neighbour's NPCs aren't drawn across the edge.
 E. **Monsters** — spawning done: game.exe's monster region and room
    population (docs/research/re/monsters.md, `components/rules/monsters.hpp`,
@@ -416,7 +416,7 @@ Spawning
   Random object groups (Levels ObjGrp, FUN_00552610) aren't built. (The game seed, regions and object seed match game.exe.)
 
 Act 1 levels and rendering
-- Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
+- Built: Rogue Encampment, Blood Moor, Cold Plains. Not built: Stony Field,
   Dark Wood, Black Marsh, Tamoe Highland, the other caves/crypts,
   Tristram, Monastery through the Catacombs.
 - Built and proven against game.exe (layout and tiles): the Blood Moor
@@ -517,7 +517,7 @@ standalone server later.
    Raven); superunique minions MinGrp..MaxGrp (+ difficulty) at radius 3.
    Left: a maze's roll, the superunique specials (Countess, Smith, ...),
    quest objects' behaviour.
-2. Outdoor levels: Cold Plains, Stony Field, Dark Wood, Black Marsh,
+2. Outdoor levels: Stony Field, Dark Wood, Black Marsh,
    Tamoe Highland, the Burial Grounds, Tristram; each checked against
    game.exe like the Blood Moor.
 3. Dungeons: the caves and holes (Cave, Underground Passage, Hole, Pit),
@@ -540,11 +540,10 @@ library (`d2d::game`) builds and plays without the client; descriptive
 names and per-file includes, checked in CI; the monster regions, game
 seed and object seed traced and matching game.exe (monsters.md,
 objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
-`diff_drlg.py 1-10 <level>` over Act 1: the Blood Moor and the Den match
-game.exe on every seed, the 36 other levels on none yet (our generator
+`diff_drlg.py 1-10 <level>` over Act 1: the Blood Moor, Cold Plains and the Den match
+game.exe on every seed, the 35 other levels on none yet (our generator
 covers only the paths those two take). Next, in order:
-1. Cold Plains (level 3), then the other outdoor levels that share its
-   generator (Stony Field, Dark Wood, Black Marsh, Tamoe Highland); each
+1. The other outdoor levels on Cold Plains' generator (Stony Field, Dark Wood, Black Marsh, Tamoe Highland); each
    joins `kBuiltLevels` once `diff_drlg` matches.
 2. The caves and crypts on the Den's maze generator, with the cave theme
    rooms (FUN_006735f0).
@@ -609,7 +608,7 @@ Left for those, ranked:
 Then:
 
 6. Saving .d2s.
-7. Cold Plains and the rest of Act 1's outdoor levels.
+7. The rest of Act 1's outdoor levels.
 8. Skill fidelity: pet AI, the shapeshifted look, the approximations
    listed in skills.md.
 

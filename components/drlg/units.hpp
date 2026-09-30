@@ -60,8 +60,8 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
     return list;
 }
 
-// FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); none of
-// act 1's outdoor or cave presets carry them.
+// FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); act 1's
+// Cottages 2 (Cott4A.ds1) carries one.
 inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
     if (unit.type == 1) {
         if (unit.id < ids.monstats) return unit.id == 0xcc || unit.id == 0xcd || unit.id == 0x173 || unit.id == 0x174;
@@ -71,10 +71,11 @@ inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
     return unit.type == 2 && (unit.id == 0xc4 || unit.id == 0x105 || unit.id == 0x245);
 }
 
-// FUN_00667620's roll for one of those: a step of `seed` (the room's
-// outdoors), kept on its low word — monsters 1 in 3, MonPlace group25 3 in
-// 4, group50 1 in 2, group75 1 in 4 (group100 never rolls), objects 0xc4 /
-// 0x105 1 in 2, 0x245 3 in 4. `Seed` is d2d::rules::Rng.
+// FUN_00667620's roll for one of those: a step of `seed` (outdoors the
+// level's for a preset with Scan or Pops, else the room's), kept on its low
+// word — monsters 1 in 3, MonPlace group25 3 in 4, group50 1 in 2, group75 1
+// in 4 (group100 never rolls), objects 0xc4 / 0x105 1 in 2, 0x245 3 in 4.
+// `Seed` is d2d::rules::Rng.
 template <class Seed>
 bool stays(const Unit& unit, const UnitIds& ids, Seed& seed) {
     if (!rolled_unit(unit, ids)) return true;

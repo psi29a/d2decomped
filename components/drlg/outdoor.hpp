@@ -77,6 +77,8 @@ struct Outdoor {
         std::uint32_t seed = 0;
         int width = 8, height = 8, kind = 1;                     // kind 1 plain, 2 preset
         int def = 0, file = 0, preset_x = 0, preset_y = 0;          // a preset room's LvlPrest def, file and the preset's origin
+        bool rolled = false;                                        // Scan or Pops: its units rolled at generation, these stayed
+        std::vector<Unit> units;
     };
     std::vector<RoomSeed> rooms;
     std::vector<PlainRoom> plain;                       // plain rooms' words, cell order
@@ -764,12 +766,38 @@ struct Gen {
             --count;
         }
     }
+    void waypoint() {
+        if (level.rect.level == 3) {                                            // by the Blood Moor's exit
+            int slot = 8;
+            for (const auto& n : level.neighbours) if (n.rect.level == 2) slot = n.slot;
+            const std::uint32_t bit = slot < 8 ? 1u << (slot + 4) : 0;
+            for (int y = 0; y < cells_high; ++y)
+                for (int x = 0; x < cells_wide; ++x) {
+                    if (!(g18.get(x, y) & bit) || !(g2c.get(x, y) & 0x400)) continue;
+                    const int wx = std::clamp(x, 1, cells_wide - 2), wy = std::clamp(y, 1, cells_high - 2);
+                    g18.op(wx, wy, 0x20000, 0);
+                    g2c.op(wx, wy, 0x800, 0);
+                    return;
+                }
+        }
+        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2)) {
+            if (!free_cell(x + 1, y + 1)) continue;
+            g18.op(x + 1, y + 1, 0x10000, 0);
+            g2c.op(x + 1, y + 1, 0x800, 0);
+            return;
+        }
+    }
+    void cottages(int def, bool extra) {                                        // FUN_006804e0
+        if ((seed.next() & 3) == 0) { by_road(def, -1); by_road(def, -1); return; }
+        by_road(def, -1);
+        if (extra && (seed.next() & 1)) by_road(49, -1);
+    }
     void fills() {
-        if (level.rect.level != 2) { note("drlg: fills for level " + std::to_string(level.rect.level) + " not implemented"); return; }
-        by_road(46, -1);                                                        // pond
-        const auto roll = seed.next();                                             // FUN_006804e0(0, 47)
-        by_road(47, -1);
-        if ((roll & 3) == 0) by_road(47, -1);
+        switch (level.rect.level) {
+        case 2: by_road(46, -1); cottages(47, false); break;                   // pond
+        case 3: cottages(48, true); anywhere(44, -1, 0, 0xf); break;
+        default: note("drlg: fills for level " + std::to_string(level.rect.level) + " not implemented"); return;
+        }
         anywhere(29, -1, 0, 0xf);
         anywhere(30, -1, 0, 0xf);
     }
@@ -940,7 +968,7 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
     gen.transitions();
     gen.border_subs(3);
     out.roads = gen.roads();
-    if (level.rect.level >= 3 && level.rect.level <= 6) gen.note("drlg: waypoint placement (FUN_00674b70) not implemented");
+    if (level.rect.level >= 3 && level.rect.level <= 6) gen.waypoint();
     gen.shrines(5);
     gen.fills();
 
@@ -974,10 +1002,17 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
                 if (!preset) { gen.note("drlg: LvlPrest def " + std::to_string(def) + " missing"); continue; }
                 (void)gen.seed(preset->files);                   // FUN_00666ed0: rolled, then replaced
                 const int file = int((flags >> 16) & 0xf);
+                const auto* map = file < 6 ? preset->maps[std::size_t(file)] : nullptr;
+                // FUN_00667970: with Scan or Pops the units roll to stay now, on the level seed.
+                const bool rolled = map && (preset->scan || preset->pops);
+                std::vector<Unit> units;
+                if (rolled) {
+                    units = ds1_units(*map, data.ids);
+                    std::erase_if(units, [&](const Unit& unit) { return !stays(unit, data.ids, gen.seed); });
+                }
                 for (int tile_y = 0; tile_y < preset->height; tile_y += 8)
                     for (int tile_x = 0; tile_x < preset->width; tile_x += 8)
-                        out.rooms.push_back({ cell_x * 8 + tile_x, cell_y * 8 + tile_y, alloc().low, 8, 8, 2, def, int((flags >> 16) & 0xf), cell_x * 8, cell_y * 8 });
-                const auto* map = file < 6 ? preset->maps[std::size_t(file)] : nullptr;
+                        out.rooms.push_back({ cell_x * 8 + tile_x, cell_y * 8 + tile_y, alloc().low, 8, 8, 2, def, file, cell_x * 8, cell_y * 8, rolled, units });
                 if (!map) { gen.note("drlg: preset " + std::to_string(def) + " file " + std::to_string(file) + " not loaded"); continue; }
                 const int origin_x = cell_x * 8, origin_y = cell_y * 8;
                 for (int y = 0; y < preset->height && y < map->height() && origin_y + y < height; ++y)

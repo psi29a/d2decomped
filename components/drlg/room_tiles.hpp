@@ -126,12 +126,15 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             auto key = std::pair{ room.seed->preset_x, room.seed->preset_y };
             auto found = preset_units.find(key);
             if (found == preset_units.end()) {
-                auto list = ds1_units(*map, data.ids);
+                auto list = room.seed->rolled ? room.seed->units : ds1_units(*map, data.ids);
                 // FUN_00667620: some roll to stay, in the loader's order, on
-                // the seed of the room bringing them up (outdoors; a maze
-                // rolls at generation on the level's seed). The tiles' seed
-                // is reset after (FUN_0066ee40), so they don't shift.
-                if (plain.empty()) {                    // a maze (generate_maze has no plain rooms)
+                // the seed of the room bringing them up (outdoors, presets
+                // without Scan or Pops; those and a maze roll at generation on
+                // the level's seed). The tiles' seed is reset after
+                // (FUN_0066ee40), so they don't shift.
+                if (room.seed->rolled) {
+                    // already rolled
+                } else if (plain.empty()) {                    // a maze (generate_maze has no plain rooms)
                     if (std::ranges::any_of(list, [&](const Unit& unit) { return rolled_unit(unit, data.ids); }))
                         note("drlg: a maze's preset units that roll to stay (FUN_00667970, the level seed) not implemented");
                 } else {

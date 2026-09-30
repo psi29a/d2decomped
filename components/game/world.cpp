@@ -420,7 +420,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
     }
 
 auto World::level_name(const Level& level) -> const char* {
-        return level.id == 1 ? "Rogue Encampment" : level.id == 2 ? "Blood Moor" : level.id == 8 ? "Den of Evil" : "?";
+        return level.id == 1 ? "Rogue Encampment" : level.id == 2 ? "Blood Moor" : level.id == 3 ? "Cold Plains" : level.id == 8 ? "Den of Evil" : "?";
     }
 
 auto World::use_warp() -> void {
