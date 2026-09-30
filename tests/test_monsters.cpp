@@ -200,5 +200,67 @@ int main() {
         assert(andariel_spray_aim(0, 4) == std::pair(0, 6) && andariel_spray_aim(0, 8) == std::pair(3, 3) && andariel_spray_aim(0, 12) == std::pair(6, 0));
         assert(andariel_spray_aim(56, 8) == std::pair(3, 0) && andariel_spray_aim(0, 0) == andariel_spray_aim(0, 4));
     }
+    // The MonAI thinks: each rand(100) one seed step, a wander four, a circle one.
+    {
+        auto steps = [](std::uint32_t seed, Rng& rng) { Rng count{ seed }; int n = 0; while (count.low != rng.low || count.high != rng.high) { (void)count.next(); ++n; } return n; };
+        auto no_away = [](int, bool) { return false; };
+        auto ok_away = [](int, bool) { return true; };
+        int state = 0;
+        ThinkIn in{ .aip = { 60, 15, 75, 75 }, .state = &state };
+        for (std::uint32_t seed = 1; seed < 50; ++seed) {           // Skeleton: aip1 % walk, in melee aip3 % (aip4 % A1) else stand aip2
+            for (const bool in_melee : { false, true }) {
+                in.in_melee = in_melee;
+                Rng rng{ seed }, mirror{ seed };
+                const auto act = mon_think("Skeleton", in, rng, no_away);
+                MonAct want = MonAct::idle;
+                if (!in_melee) { if (mirror(100) < 60) want = MonAct::walk; }
+                else if (mirror(100) < 75) want = mirror(100) < 75 ? MonAct::a1 : MonAct::a2;
+                assert(act.act == want && rng.low == mirror.low && (want != MonAct::idle || act.n == 15));
+            }
+        }
+        in = { .aip = { 30, 10, 0, 20 }, .dist = 12, .state = &state };   // Zombie: out of aip2, wanders 3 (4 steps), in the Burial Grounds runs
+        Rng rng{ 5 };
+        const auto wander = mon_think("Zombie", in, rng, no_away);
+        assert(wander.act == MonAct::wander && steps(5, rng) == 4 && std::abs(wander.x) <= 3 && std::abs(wander.y) <= 3 && (std::abs(wander.x) == 3 || std::abs(wander.y) == 3));
+        in.level = 17; rng = Rng{ 5 };
+        assert(mon_think("Zombie", in, rng, no_away).act == MonAct::run && steps(5, rng) == 0);
+        in.level = 2; in.got_hit = true; rng = Rng{ 5 };
+        assert(mon_think("Zombie", in, rng, no_away).act == MonAct::run && steps(5, rng) == 0);
+        // QuillRat: past aip2's roll it backs off aip4; blocked and close, spikes.
+        in = { .aip = { 10, 0, 0, 2 }, .dist = 3, .state = &state };
+        rng = Rng{ 9 };
+        assert(mon_think("QuillRat", in, rng, ok_away).act == MonAct::none && steps(9, rng) == 1);
+        rng = Rng{ 9 };
+        assert(mon_think("QuillRat", in, rng, no_away).act == MonAct::a2 && steps(9, rng) == 1);
+        in.dist = 10; rng = Rng{ 9 };
+        assert(mon_think("QuillRat", in, rng, no_away).act == MonAct::wander && steps(9, rng) == 4);
+        // CorruptArcher: close, a blocked run-off falls through to the shot rolls.
+        in = { .aip = { 60, 100, 14, 100, 20, 0, 0, 12 }, .dist = 4, .state = &state };
+        rng = Rng{ 3 };
+        assert(mon_think("CorruptArcher", in, rng, no_away).act == MonAct::a1 && steps(3, rng) == 2);
+        in.dist = 15; rng = Rng{ 3 };
+        const auto closer = mon_think("CorruptArcher", in, rng, no_away);
+        assert(closer.act == MonAct::approach && closer.n == 12 && steps(3, rng) == 1);
+        in.dist = 30; in.aip[0] = 0; rng = Rng{ 3 };
+        assert(mon_think("CorruptArcher", in, rng, no_away).act == MonAct::run && steps(3, rng) == 1);
+        // CorruptLancer: a run in past aip5 strikes on arrival without the aip2 roll.
+        in = { .aip = { 60, 0, 9, 0, 15 }, .dist = 20, .state = &state };
+        rng = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::run && state == 1 && steps(4, rng) == 0);
+        in.dist = 1; in.in_melee = true; rng = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::a1 && state == 0 && steps(4, rng) == 0);
+        rng = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::idle && steps(4, rng) == 1);
+        // CorruptRogue runs in past 20 - 3 x difficulty; Brute's circle is a seed step more.
+        in = { .aip = { 60, 15, 75, 100, 20 }, .dist = 15, .difficulty = 2, .state = &state };
+        rng = Rng{ 6 };
+        assert(mon_think("CorruptRogue", in, rng, no_away).act == MonAct::run && steps(6, rng) == 0);
+        in = { .aip = { 0, 0, 100, 45 }, .in_melee = true, .state = &state };
+        in.aip[2] = 0; rng = Rng{ 6 };
+        assert(mon_think("Brute", in, rng, no_away).act == MonAct::idle && steps(6, rng) == 2);
+        in.aip[2] = 100; rng = Rng{ 6 };
+        assert(mon_think("Brute", in, rng, no_away).act != MonAct::circle && steps(6, rng) == 2);
+        assert(!traced_ai("Fallen") && mon_think("Fallen", in, rng, no_away).act == MonAct::untraced);
+    }
     std::puts("ok");
 }

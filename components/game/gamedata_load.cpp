@@ -171,7 +171,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
-        type_info.miss_a2 = text("MissA2");
+        type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
+        for (std::size_t skill = 0; skill < 3; ++skill) type_info.skill[skill] = text("Skill" + std::to_string(skill + 1));
+        type_info.spawn = text("spawn"); type_info.spawn_mode = text("spawnmode"); type_info.spawn_x = num(text("spawnx")); type_info.spawn_y = num(text("spawny"));
         type_info.undead = text("hUndead") == "1" || text("lUndead") == "1"; type_info.demon = text("demon") == "1";
         for (int element = 0; element < 3; ++element) {
             static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
@@ -207,7 +209,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto found = ms2_rows.find(std::string(text("MonStatsEx")));
         if (found != ms2_rows.end()) {
             const auto monstats2_row = found->second;
-            type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1);
+            type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
             for (std::size_t layer = 0; layer < 16; ++layer) {
@@ -278,7 +280,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
-        for (const auto& type_info : monsters.types) used = used || type_info.miss_a2 == name;
+        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
         if (!used) continue;
         GameData::MissileInfo missile_info;
         missile_info.name = name;

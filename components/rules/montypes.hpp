@@ -26,7 +26,10 @@ struct MonType {
     bool spawnable = false, killable = false, melee = false;   // isSpawn (MonStats flag bit 0), killable, isMelee
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
-    std::string miss_a2;                        // MissA2: what an A2 attack fires (quillrat1: spike1)
+    std::string miss_a1, miss_a2;               // MissA1 / MissA2: what an A1 / A2 attack fires (sk_archer1: skbowarrow1, quillrat1: spike1)
+    std::array<std::string, 3> skill;           // Skill1..3 (Skills.txt names; "" none): the MonAI thinks' skills
+    std::string spawn, spawn_mode;              // spawn / spawnmode: what Nest lays (crownest1: foulcrow1, NU)
+    int spawn_x = 0, spawn_y = 0;               // spawnx / spawny: where, off the layer (subtiles)
     std::string sound;                          // MonSound: its MonSounds.txt row
     // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
     std::array<std::string, 3> el_mode;
@@ -46,7 +49,7 @@ struct MonType {
     };
     std::array<Diff, 3> diff{};
     // MonStats2.
-    int size = 2;                               // SizeX
+    int size = 2, melee_rng = 0;                // SizeX, MeleeRng (in melee: unit_distance within it + 1)
     std::string base_w;                         // BaseW
     std::array<std::vector<std::string>, 16> parts;   // HDv..S8v components, per layer present
     std::array<std::uint8_t, 16> choices{};     // HDv..S8v list lengths, every layer (MonStats2 +0x15)

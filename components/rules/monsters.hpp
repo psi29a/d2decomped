@@ -445,4 +445,184 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
     return { x, y };
 }
 
+// The per-type MonAI thinks (the MonAI table 0x73ca18 + AI * 16: {target
+// search, init, think, ...}; FUN_005b15d0), each ending in one AI helper:
+//   idle n       FUN_005de080: stand n frames
+//   a1 / a2      FUN_005ddf90(4 / 5): attack the target
+//   skill n      FUN_005dead0: Skill(n+1) in Sk(n+1)mode at the target
+//   walk n       FUN_005dec80 / FUN_005ded40, flags n: walk at the target
+//                (flags 2: can't set off, rand(100) < 70 wander 4, else stand 10)
+//   run          FUN_005ded20 / FUN_005defb0: run at it
+//   approach     FUN_005def80: walk at it
+//   keep n x     FUN_005de6d0: walk to x subtiles off it, n at most
+//   circle n x   FUN_005df7d0: one seed step (x: its low byte >= 0x80), walk round it
+//   wander x y   FUN_005de200: walk to (x, y) subtiles off, four seed steps
+//   none         already on its way (a back-off, FUN_005defe0 / FUN_005df140)
+// A think's rand(100)s are one step each of the monster's seed (+0x20),
+// drawn here in game.exe's order; a skill test with no skill (-1) draws
+// nothing.
+enum class MonAct : std::uint8_t { idle, a1, a2, skill, walk, run, approach, keep, circle, wander, none, untraced };
+struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
+struct ThinkIn {
+    std::array<int, 8> aip{};                   // aip1..8 for its difficulty
+    bool in_melee = false, got_hit = false;     // got hit: the last mode it left was GH (FUN_005dd2b0)
+    int dist = 0;                               // AI distance to the target, subtiles
+    int difficulty = 0, level = 0, life_pct = 100;
+    std::array<bool, 3> skill{};                // Skill1..3 set
+    int* state = nullptr;                       // the AI's scratch word (AI control +0x14)
+};
+
+inline bool traced_ai(std::string_view ai) {
+    static constexpr std::array<std::string_view, 12> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow" };
+    return std::ranges::contains(kTraced, ai);
+}
+
+// FUN_005de200(r): one side r off, the other rand(r), on the seed's low
+// bit; the next two low bits negate x, then y.
+inline Think think_wander(Rng& rng, int r) {
+    Think out{ MonAct::wander, r, r, r };
+    if ((rng.next() & 1) == 0) out.x = rng(r); else out.y = rng(r);
+    if (rng.next() & 1) out.x = -out.x;
+    if (rng.next() & 1) out.y = -out.y;
+    return out;
+}
+inline Think think_circle(Rng& rng, int n) { return { MonAct::circle, n, (rng.next() & 0xff) >= 0x80 ? 1 : 0 }; }
+// FUN_005dec80 flags 2 when the walk can't set off.
+inline Think walk_failed(Rng& rng) { return rng(100) < 70 ? think_wander(rng, 4) : Think{ MonAct::idle, 10 }; }
+
+// `away(n, run)` backs off n subtiles from the target (FUN_005defe0 walking,
+// FUN_005df140 running) and says whether it set off.
+template <class Away>
+Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
+    const auto& aip = in.aip;
+    auto r = [&] { return rng(100); };
+    auto a1_or_a2 = [&](int chance) { return Think{ r() < chance ? MonAct::a1 : MonAct::a2 }; };
+    const Think idle2{ MonAct::idle, aip[1] }, walk{ MonAct::walk, 7 };
+    // Skeleton (2, FUN_005efcf0; hellbovine too).
+    if (ai == "Skeleton") {
+        if (!in.in_melee) { if (r() < aip[0]) return walk; }
+        else if (r() < aip[2]) return a1_or_a2(aip[3]);
+        return idle2;
+    }
+    // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
+    // within aip2; else wanders 3, bar in the Burial Grounds (level 17).
+    if (ai == "Zombie") {
+        if (in.in_melee) return a1_or_a2(aip[3]);
+        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != 17) return think_wander(rng, 3);
+        return { MonAct::run };
+    }
+    // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
+    // shot within 15); below, it backs off under 3, walks in past 15, else
+    // aip4 % shoots, aip2 % circles, else stands 10.
+    // ponytail: the second target search (FUN_005ddc30) taken as its target.
+    if (ai == "Bighead") {
+        if (!in.in_melee && in.got_hit) return { MonAct::a2 };
+        if (in.life_pct >= aip[0]) {
+            if (in.in_melee) return { MonAct::a1 };
+            if (in.dist < 15 && r() < aip[2]) return { MonAct::a2 };
+            return walk;
+        }
+        if (in.dist < 3) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a2 };
+        if (in.dist > 15) return { MonAct::approach, 6 };
+        if (r() < aip[3]) return { MonAct::a2 };
+        if (r() >= aip[1]) return { MonAct::idle, 10 };
+        return think_circle(rng, 3);
+    }
+    // BloodHawk (5, FUN_005f00e0): aip1 % a charge (state 1: a swing when
+    // it lands in melee), else wanders (aip2 %: 4, else 3) past 3 subtiles;
+    // in melee aip3 % a swing; else backs off 4, or swings.
+    if (ai == "BloodHawk") {
+        const bool charged = *in.state == 1;
+        *in.state = 0;
+        if (charged && in.in_melee) return { MonAct::a1 };
+        if (!in.in_melee) {
+            if (r() < aip[0]) { *in.state = 1; return { MonAct::walk, 0 }; }
+            if (in.dist > 3) return think_wander(rng, r() < aip[1] ? 4 : 3);
+        } else if (r() < aip[2]) return { MonAct::a1 };
+        return away(4, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
+    }
+    // Brute (7, FUN_005efb80): walks in without a draw; in melee aip3 % a
+    // swing (aip4 % A1), else aip3 % circles 4, else stands 15.
+    if (ai == "Brute") {
+        if (!in.in_melee) return walk;
+        if (r() < aip[2]) return a1_or_a2(aip[3]);
+        if (r() < aip[2]) return think_circle(rng, 4);
+        return { MonAct::idle, 15 };
+    }
+    // Wraith (9, FUN_005f0a20) and Goatman (12, FUN_005f12a0): aip1 % close
+    // in (the wraith drifts up to 12 subtiles), in melee aip3 % A1, else
+    // stand aip2.
+    if (ai == "Wraith" || ai == "Goatman") {
+        if (!in.in_melee) { if (r() < aip[0]) return ai == "Wraith" ? Think{ MonAct::keep, 12, 0 } : walk; }
+        else if (r() < aip[2]) return { MonAct::a1 };
+        return idle2;
+    }
+    // CorruptRogue (10, FUN_005f0b00): runs at a target past 20 - 3 x
+    // difficulty (FUN_00573930's difficulty); in melee aip3 % A1, else
+    // aip1 % close in (aip5 % running).
+    if (ai == "CorruptRogue") {
+        if (in.dist > 20 - 3 * in.difficulty) return { MonAct::run };
+        if (in.in_melee) return r() < aip[2] ? Think{ MonAct::a1 } : idle2;
+        if (r() >= aip[0]) return idle2;
+        return r() < aip[4] ? Think{ MonAct::run } : walk;
+    }
+    // QuillRat (14, FUN_005f1140): A1 in melee, spikes (A2) when hit;
+    // wanders (aip4, at least 3) at aip1 or more; else aip2 % a back-off
+    // of aip4 first, then the spikes.
+    // ponytail: the leader's command (FUN_0058ee80) to shoot isn't sent.
+    if (ai == "QuillRat") {
+        if (in.in_melee) return { MonAct::a1 };
+        if (in.got_hit) return { MonAct::a2 };
+        const int roam = std::max(aip[3], 3);
+        if (in.dist >= aip[0]) return think_wander(rng, roam);
+        if (r() >= aip[1]) {
+            if (away(aip[3] & 0xff, false)) return { MonAct::none };
+            if (in.dist > 3) return think_wander(rng, roam);
+        }
+        return { MonAct::a2 };
+    }
+    // CorruptArcher (35, FUN_005f5a20): shoots a foe it's hit by; under 6,
+    // aip4 % runs 12 off; past aip8, aip1 % walks in; past aip5 runs in;
+    // else aip2 % a shot (Skill2 aip6 %, Skill3 aip7 %, else Skill1 or A1).
+    // ponytail: its target search (FUN_005ddc30) is the think's target; with
+    // none the driver doesn't call it, so the 50 % circle is left out.
+    if (ai == "CorruptArcher") {
+        if (!in.in_melee && in.got_hit) return { MonAct::a1 };
+        if (in.dist < 6 && r() < aip[3] && away(12, true)) return { MonAct::none };
+        if (aip[7] > 0 && aip[7] < in.dist && r() < aip[0]) return { MonAct::approach, aip[7] };
+        if (aip[4] < in.dist) return { MonAct::run };
+        if (r() >= aip[1]) return { MonAct::idle, aip[2] };
+        if (in.skill[1] && r() < aip[5]) return { MonAct::skill, 1 };
+        if (in.skill[2] && r() < aip[6]) return { MonAct::skill, 2 };
+        return in.skill[0] ? Think{ MonAct::skill, 0 } : Think{ MonAct::a1 };
+    }
+    // CorruptLancer (36, FUN_005f5d50): runs in past aip5 (state 1: it
+    // strikes on arrival); at range aip1 % closes in (aip4 % running);
+    // in melee aip2 % (or on arrival) Skill1..3 at aip6..8 %, else A1.
+    if (ai == "CorruptLancer") {
+        if (aip[4] < in.dist) { *in.state = 1; return { MonAct::run }; }
+        if (!in.in_melee) {
+            if (r() >= aip[0]) return { MonAct::idle, aip[2] };
+            return r() >= aip[3] ? Think{ MonAct::approach, 3 } : Think{ MonAct::run };
+        }
+        if (*in.state == 0 && r() >= aip[1]) return { MonAct::idle, aip[2] };
+        *in.state = 0;
+        for (int skill = 0; skill < 3; ++skill)
+            if (in.skill[std::size_t(skill)] && r() < aip[std::size_t(5 + skill)]) return { MonAct::skill, skill };
+        return { MonAct::a1 };
+    }
+    // SkeletonBow (37, FUN_005f6070): shoots a foe it's hit by; past 19,
+    // aip3 % keeps aip5 off (aip4 at most a go), else stands 20; else aip1
+    // % shoots, 20 % circles 3, else stands aip2.
+    if (ai == "SkeletonBow") {
+        if (in.got_hit) return { MonAct::a1 };
+        if (in.dist > 19) return r() < aip[2] ? Think{ MonAct::keep, aip[3], aip[4] } : Think{ MonAct::idle, 20 };
+        if (r() < aip[0]) return { MonAct::a1 };
+        if (r() < 20) return think_circle(rng, 3);
+        return idle2;
+    }
+    return { MonAct::untraced };
+}
+
 }  // namespace d2d::rules

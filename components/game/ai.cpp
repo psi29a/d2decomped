@@ -100,9 +100,10 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 }
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
+    if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
     monster.unit.mode_ms = now_ms;
-    monster.unit.walking = mode == "WL";
+    monster.unit.walking = mode == "WL" || mode == "RN";
     monster.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0 : now_ms + game_data.npc_timing(monster.npc, mode).length_ms();
 }
 
@@ -184,88 +185,147 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const c
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
 }
 
-// Andariel's frame outside an attack (MonAI 34 "Andariel": the driver
-// FUN_005b1740, target search FUN_005de890 / FUN_005dd7f0, think
-// FUN_005f5830; rules::andariel_think). Her walk goes on between thinks;
-// at a think she takes the nearest foe within aidist (0: 35) by the AI's
-// distance, or with none stands (10 frames, the nearest - 10 from 25
-// subtiles off, 25 from 35); in melee is unit_distance within MeleeRng
-// (0) + 1. A walk that can't set off: 70 % a random walk of 4 subtiles
-// (FUN_005de200), else stand 10.
-// ponytail: her rand(100)s on the fight's rng, not her unit seed (+0x20);
+// A traced MonAI's frame outside an attack (the driver FUN_005b1740:
+// target search FUN_005de890 / FUN_005dd7f0, then the AI's think; Andariel
+// MonAI 34 FUN_005f5830 -> rules::andariel_think, the rest
+// rules::mon_think). A move goes on between thinks — at a foe (a walk or
+// run at it) or to a spot (a wander, back-off, keep-off, circle). At a
+// think it takes the nearest foe within aidist (0: 35) by the AI's
+// distance; with none it stands (10 frames, the nearest - 10 from 25
+// subtiles off, 25 from 35), or wanders near home 2-5 s apart where the
+// level lets its monsters wander. In melee is unit_distance within
+// MeleeRng + 1. A walk with flags 2 that can't set off: 70 % a random
+// walk of 4 subtiles (FUN_005de200), else stand 10. Returns false for an
+// AI whose think isn't traced.
+// ponytail: rand(100)s on the fight's rng, not the unit seed (+0x20);
 // first-sight speech (FUN_005b1140), door opening and the no-target
-// wander (FUN_005dd2b0 / FUN_0064d910) left out; in melee skips the
-// path test (FUN_00622aa0, mask 0x804); a walk re-thinks every aidel
-// frames (game.exe: at the path's end); a foe is the player, the merc,
-// pets alike (game.exe: players first).
-void andariel(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
-              float walk, const Crowd& crowd) {
+// wander (FUN_0064d910; the old home wander stands in) left out; in melee
+// skips the path test (FUN_00622aa0, mask 0x804); a move re-thinks every
+// aidel frames or at its end (game.exe: at the path's end); a foe is the
+// player, the merc, pets alike (game.exe: players first); paths
+// (FUN_005de190) as straight lines, a circle as a walk to the point n
+// subtiles to the side of the target; a back-off sets off when its end
+// and first step are open; no teleporting mod.
+bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
+           float walk, float run, const Crowd& crowd) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
+    const bool andariel = type_info.ai_name == "Andariel";
+    if (!andariel && !d2d::rules::traced_ai(type_info.ai_name)) return false;
     auto idle = [&](int frames) {                                  // FUN_005de080
         if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
         monster.wandering = false;
         monster.next_act = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
     };
-    if (monster.mode == "WL") {
+    const bool has_run = game_data.npc_timing(monster.npc, "RN").directions > 0;   // RN falls back to WL
+    auto set_off = [&](bool running, bool to_spot) {
+        const std::string_view mode = running && has_run ? "RN" : "WL";
+        if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
+        monster.wandering = to_spot;
+        monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
+    };
+    if (monster.mode == "WL" || monster.mode == "RN") {
+        const float step = monster.mode == "RN" ? run : walk;
         if (monster.wandering) {
-            const bool there = std::hypot(unit.goal_x - unit.x, unit.goal_y - unit.y) <= walk;
+            const bool there = std::hypot(unit.goal_x - unit.x, unit.goal_y - unit.y) <= step;
             if (there) { unit.x = unit.goal_x; unit.y = unit.goal_y; }
-            if (there || !monster_step(level, monster, unit.goal_x, unit.goal_y, walk, crowd)) idle(0);
+            if (there || !monster_step(level, monster, unit.goal_x, unit.goal_y, step, crowd)) { set_mode(game_data, monster, "NU", now_ms); monster.wandering = false; }
         } else {
             const Foe* chased = nullptr;
             for (const auto& foe : foes)
                 if (foe.alive && (!chased || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(chased->x - unit.x, chased->y - unit.y))) chased = &foe;
-            if (!chased || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, walk, crowd)) set_mode(game_data, monster, "NU", now_ms);
+            if (!chased || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, step, crowd)) set_mode(game_data, monster, "NU", now_ms);
         }
     }
-    if (now_ms < monster.next_act) return;
+    if (now_ms < monster.next_act) return true;
     const int x = subtile(unit.x), y = subtile(unit.y);
     const int reach = per_difficulty.aidist > 0 ? per_difficulty.aidist : 35;
     Foe* target = nullptr;
     int best = reach, nearest = 0x7fffffff;
     for (auto& foe : foes) {
-        if (!foe.alive) continue;
+        if (!foe.alive || (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f)) continue;   // blind: arm's length
         const int distance = d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y);
         nearest = std::min(nearest, distance);
         if (distance < 0x37 && distance < best) { target = &foe; best = distance; }
     }
     monster.aware = target != nullptr;
-    if (!target) { idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25); return; }
+    auto walk_to = [&](int off_x, int off_y, bool running) {       // to a spot, subtiles off
+        unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
+        set_off(running, true);
+    };
+    if (!target) {
+        if (andariel || !level.mon.wander || monster.mode != "NU") { idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25); return true; }
+        const float angle = float(rng(360)) * 3.14159265f / 180, radius = float(rng(300)) / 100;
+        unit.goal_x = monster.home_x + std::cos(angle) * radius;
+        unit.goal_y = monster.home_y + std::sin(angle) * radius;
+        set_off(false, true);
+        monster.next_act = now_ms + 2000 + std::uint32_t(rng(3000));
+        return true;
+    }
+    const int target_x = subtile(target->x), target_y = subtile(target->y);
     const float dx = target->x - unit.x, dy = target->y - unit.y;
-    const bool in_melee = d2d::rules::unit_distance(subtile(target->x) - x, subtile(target->y) - y, type_info.size, 2) <= 0 + 1;
+    d2d::rules::ThinkIn in{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
+    in.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, 2) <= type_info.melee_rng + 1;
+    in.got_hit = monster.left_mode == "GH";
+    in.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
+    for (std::size_t skill = 0; skill < 3; ++skill) in.skill[skill] = !type_info.skill[skill].empty();
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90
         unit.dir = direction16(dx, dy);
         set_mode(game_data, monster, mode, now_ms);
         monster.skill = skill; monster.struck = false; monster.wandering = false;
-        monster.skill_frame = 0; monster.skill_x = subtile(target->x); monster.skill_y = subtile(target->y);
+        monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y;
+        attack_starts(game_data, monster, mode, rng);
     };
-    switch (d2d::rules::andariel_think(in_melee, per_difficulty.aip, rng)) {
-        case d2d::rules::AndarielAct::spray: use("SC", kAndrialSpray); break;   // SQ: seq_andarielspray plays SC
-        case d2d::rules::AndarielAct::melee: use("A1", -1); break;
-        case d2d::rules::AndarielAct::bolt: use("A1", kAndyPoisonBolt); break;
-        case d2d::rules::AndarielAct::idle: idle(5); break;
-        case d2d::rules::AndarielAct::walk:                        // FUN_005dec80 -> FUN_005deb60, flags 7
-            if (step_toward(level, monster, dx, dy, walk, crowd)) {
-                if (monster.mode != "WL") set_mode(game_data, monster, "WL", now_ms);
-                monster.wandering = false;
-                monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
-            } else if (rng(100) < 70) {                            // FUN_005de200(4)
-                // One side is 4 off, the other rand(4), on the seed's low
-                // bit; the next two low bits negate x, then y.
-                int off_x = 4, off_y = 4;
-                if ((rng.next() & 1) == 0) off_x = rng(4); else off_y = rng(4);
-                if (rng.next() & 1) off_x = -off_x;
-                if (rng.next() & 1) off_y = -off_y;
-                unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
-                set_mode(game_data, monster, "WL", now_ms);
-                monster.wandering = true;
-                monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
-            } else {
-                idle(10);
-            }
+    // FUN_005defe0 / FUN_005df140: n subtiles on from the target, by axis.
+    auto away = [&](int n, bool running) {
+        const int off_x = n * ((x > target_x) - (x < target_x)), off_y = n * ((y > target_y) - (y < target_y));
+        const float goal_x = (float(x + off_x) + 0.5f) / 5, goal_y = (float(y + off_y) + 0.5f) / 5;
+        const float span = std::max(std::hypot(goal_x - unit.x, goal_y - unit.y), 0.01f), probe = std::min(0.2f, span);
+        if (level.unit_blocked(goal_x, goal_y) || level.unit_blocked(unit.x + (goal_x - unit.x) / span * probe, unit.y + (goal_y - unit.y) / span * probe)) return false;
+        walk_to(off_x, off_y, running);
+        return true;
+    };
+    using d2d::rules::MonAct;
+    d2d::rules::Think act;
+    if (andariel) {
+        using d2d::rules::AndarielAct;
+        switch (d2d::rules::andariel_think(in.in_melee, in.aip, rng)) {
+            case AndarielAct::spray: use("SC", kAndrialSpray); return true;   // SQ: seq_andarielspray plays SC
+            case AndarielAct::bolt: use("A1", kAndyPoisonBolt); return true;
+            case AndarielAct::melee: act = { MonAct::a1 }; break;
+            case AndarielAct::idle: act = { MonAct::idle, 5 }; break;
+            case AndarielAct::walk: act = { MonAct::walk, 7 }; break;
+        }
+    } else {
+        act = d2d::rules::mon_think(type_info.ai_name, in, rng, away);
+    }
+    for (;;) switch (act.act) {
+        case MonAct::idle: idle(act.n); return true;
+        case MonAct::a1: use("A1", -1); return true;
+        case MonAct::a2: use("A2", -1); return true;
+        case MonAct::walk: case MonAct::approach: case MonAct::run:  // FUN_005deb60 at the target
+            if (step_toward(level, monster, dx, dy, act.act == MonAct::run && has_run ? run : walk, crowd)) { set_off(act.act == MonAct::run, false); return true; }
+            if (act.act != MonAct::walk || !(act.n & 2)) { idle(0); return true; }
+            act = d2d::rules::walk_failed(rng);
             break;
+        case MonAct::wander: walk_to(act.x, act.y, false); return true;
+        case MonAct::keep: {                                       // FUN_005de4e0: toward, or from, the target to keep x off
+            const int go = std::min(std::abs(best - act.x), act.n), sign = best < act.x ? -1 : 1;
+            const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, go);
+            int step_x = sum ? across * go / sum : 0, step_y = sum ? down * go / sum : 0;
+            while (sum && step_x + step_y < go) { ++step_x; ++step_y; }
+            walk_to(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign, false);
+            return true;
+        }
+        case MonAct::circle: {                                     // FUN_005df7d0
+            const float side = act.x ? 1.f : -1.f, length = std::max(std::hypot(dx, dy), 0.01f), off = float(act.n) / 5;
+            unit.goal_x = target->x - dy / length * off * side; unit.goal_y = target->y + dx / length * off * side;
+            set_off(false, true);
+            return true;
+        }
+        case MonAct::skill: idle(0); return true;                  // ponytail: no Act 1 skill for these AIs yet
+        case MonAct::none: case MonAct::untraced: return true;
     }
 }
 
@@ -314,8 +374,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     if (monster.mode == "A1" || monster.mode == "A2") {
         if (!monster.struck && now_ms >= unit.mode_ms + game_data.npc_timing(monster.npc, monster.mode).action_ms()) {
             monster.struck = true;
-            if (monster.mode == "A2" && miss != game_data.missiles.end()) {         // fire: at the foe, from here
-                const auto& missile_info = miss->second;
+            const auto& shot = monster.mode == "A1" ? type_info.miss_a1 : type_info.miss_a2;   // MissA1 / MissA2
+            const auto fired = shot.empty() ? game_data.missiles.end() : game_data.missiles.find(shot);
+            if (monster.skill < 0 && fired != game_data.missiles.end()) {           // fire: at the foe, from here
+                const auto& missile_info = fired->second;
                 const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(dist, 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
@@ -371,7 +433,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (!monster_step(level, monster, unit.x - dx, unit.y - dy, cells_per_sec(float(type_info.run)) * elapsed * chill, crowd)) monster.flee_until = 0;
         return false;
     }
-    if (type_info.ai_name == "Andariel") { andariel(game_data, level, monster, foes, rng, now_ms, walk, crowd); return false; }
+    const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed, 10)) / 100;
+    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd)) return false;
     // Blind (Dim Vision, Cloak of Shadows): it doesn't see past arm's length.
     if (foe.alive && (dist < 8 || (monster.aware && dist < 16)) && (now_ms >= monster.blind_until || dist < 1.5f)) {
         monster.aware = true;
@@ -406,7 +469,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         // Shooters (MissA2) shoot from up to 7 cells: each think (aidel)
         // the aip2 chance to fire, else close in.
-        // ponytail: aip2 read as the shoot chance; QuillRat's think isn't traced.
+        // ponytail: aip2 read as the shoot chance; for AIs not traced.
         if (miss != game_data.missiles.end() && dist < 7 && now_ms >= monster.next_act) {
             monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
             if (rng(100) < std::max(type_info.diff[std::size_t(monster.difficulty)].aip[1], 1)) {
