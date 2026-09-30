@@ -132,7 +132,8 @@ up, right, down, left. FUN_0067ce20 splices each neighbour into the
 edge of its side (0: v0→v1, 1: v1→v2, 2: v2→v3, 3: v3→v0), working in
 c-space (c = −1 on the up and left edges, else 1) with the edge from s
 to e and the neighbour's span [A, B] on that axis (A its near end): A
-≤ s ≤ B → the corner vertex gets flag 1 (| 2 for the town) and, if B <
+≤ s ≤ B → the corner vertex gets flag 1 (| 2 when the neighbour is a
+preset level, DrlgType 2: the town, the Monastery Gate — FUN_00677680) and, if B <
 e, a vertex at B is inserted after it; s < A ≤ e → a vertex at A is
 inserted after the corner, flagged the same, then one at B if B < e.
 Inserts always go right after the corner, which is why the list is
@@ -240,8 +241,9 @@ outside of a non-rectangular outline; a no-op on rectangles.
      lower} (defs 4..15: {2,2} {0,3} {1,1} {3,0} {0,2} {0,1} {1,0}
      {2,0} {2,3} {1,3} {3,1} {3,2}); flags & 0x14 also gets a bridge
      (FUN_0067fd20): r = rand(h−2), rows (i + r) % (h−2) + 1 in turn,
-     the first where (x+2, y) is free of 0x1b81 — and (x−1, y) too
-     unless flags & 4 — and both river cells hold file 3 gets def 28
+     the first where (x−1, y) is free of 0x1b81 — and (x+2, y) too
+     unless flags & 4 (that branch jumps past the x+2 setup) — and
+     both river cells hold file 3 gets def 28
      file 1 at x, file 2 + (flags & 4 ≠ 0) at x+1;
    - flags & 0x20 (no entrance yet): a cliff cave (def 25 on a def-16
      cell, 24 on 17), scanning rows or columns first on `rand & 1`;
@@ -274,8 +276,18 @@ outside of a non-rectangular outline; a no-op on rectangles.
    (FUN_00674920(46, −1)), FUN_006804e0(0, 47), Stone Fill 1 and 2 (29,
    30) anywhere (FUN_00674730(def, −1, 0, 0xf)). Cold Plains:
    FUN_006804e0(1, 48), Fallen Camp Bishibosh (44), 29, 30 anywhere.
+   With `a(d)` anywhere, `r(d)` by a road, `c(e, d)` FUN_006804e0 —
+   Stony Field (4): r(160 Cairn Stones), r(45), a(162), c(1, 47),
+   c(0, 42), a(31), no 29 / 30; Dark Wood (5): a(161 Inifuss), a(41),
+   a(40), c(1, 48), c(0, 43), 29, 30; Black Marsh (6): a(163 Tower),
+   a(38), a(39), c(1, 47), c(0, 42), 29, 30; Tamoe Highland (7):
+   c(1, 48), c(0, 43), a(31), no 29 / 30; Burial Grounds (17): def 108
+   at (1, 1) only; Moo Moo Farm (39): a(50), a(46), a(31), a(38),
+   a(39), 29, 30.
 
-Level 39 (Moo Moo Farm) runs border types 0..3 only.
+Steps 2–4 and the shrines are levels 2..7 only; Burial Grounds (17) gets
+the outline, borders and fills, Moo Moo Farm (39) those plus border
+types 0..3 in a row.
 
 **Border LvlSub** (FUN_006752a0(type) → FUN_00670750): the LvlSub
 engine on the cell grid. For each LvlSub row of the type (Border*.ds1,
@@ -488,7 +500,11 @@ edge, else 9. FillBlanks: an empty floor cell inside the room picks style
 warp tile (orientation 10/11, style = warp slot ≤ 7) makes the warp unit
 (FUN_0066e1c0) and, when the slot's LvlWarp row has LitVersion, a 2×2
 lit floor up-left of it (FUN_0066e360: style = the tile's sequence,
-sequences 4..7, offsets 0x6ef554).
+sequences 4..7, offsets 0x6ef554). A visible one (FUN_0066e260, not
+on level 133) keeps its wall; at sequence 0 or 4 it places the warp unit
+and stops there if that fails; then a LitVersion slot adds a twin wall
+at the same spot, sequence | LvlWarp Tiles << 8 (the cliff cave's
+lit mouth).
 
 Room tiles as game.exe keeps them (room +0x54): walls +0x08 count /
 +0x14 array, floors +0x0c / +0x1c, shadows +0x10 / +0x24; 0x30-byte
@@ -615,6 +631,9 @@ values (seed 3) so a regression shows without the emulator.
 | Every room's units (room +0x5c, list order): preset monsters, superuniques (Corpsefire), objects (shrines, torches, chests), LvlSub stamp objects, Flavie at the border opening, warp units | Blood Moor | 1–1500, 0xfffffe00–0xffffffff |
 | Every room's units | Den of Evil | 1–1500 |
 | Every room's room1 seed (room1 +0x6c: the tiles' seed stepped once, what population rolls) | Blood Moor, Den of Evil | 1–300 |
+| Grids, rooms, flags (cliffs, cliff caves, bridges, waypoints, fills) | Cold Plains (3), Stony Field (4), Dark Wood (5), Black Marsh (6), Tamoe Highland (7) | 1–100 |
+| Grids, rooms | Burial Grounds (17), Moo Moo Farm (39) | 1–10 |
+| Every room's tiles and units (lit warp walls, Scan / Pops presets) | levels 2–7, 17, 39 | 1–20 |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -641,14 +660,12 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Cold Plains: waypoint (FUN_00674b70), fills | Cold Plains | same (grids, rooms, tiles, units) |
-| Other outdoor levels (Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, the random waypoint, per-level fills | not ported |
 | Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
 | Other maze level types (crypts, act 2+) | not ported |
 | Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest (not diffed) on the seed of the room that copies them (room +0x14); a maze's (FUN_00667970) not ported. In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
-| Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
+| Hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (act 1 outdoors and the Den don't reach them) |
 | Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
 | The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival traced, not diffed |

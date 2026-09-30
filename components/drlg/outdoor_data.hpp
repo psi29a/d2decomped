@@ -136,7 +136,7 @@ inline std::array<WarpSlot, 8> warp_slots(const OutdoorAssets& assets, int id) {
         for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row)
             if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) == warp)
                 slots[std::size_t(i)] = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, to_int(assets.lvl_warp.get(warp_row, "OffsetX")),
-                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")) };
+                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")), to_int(assets.lvl_warp.get(warp_row, "Tiles")) };
     }
     return slots;
 }

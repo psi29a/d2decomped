@@ -29,8 +29,9 @@
 namespace d2d::drlg {
 
 // A level's warp slot (Levels.txt Warp0..7): its LvlWarp row — Id, lit
-// (LitVersion), and the warp unit's offset from its tile (OffsetX / Y).
-struct WarpSlot { int id = -1; bool lit = false; int off_x = 0, off_y = 0; };
+// (LitVersion), the warp unit's offset from its tile (OffsetX / Y), and
+// the lit wall's sequence bits (Tiles).
+struct WarpSlot { int id = -1; bool lit = false; int off_x = 0, off_y = 0, tiles = 0; };
 
 // A tile a room holds: level-relative x, y; the word it came from.
 struct PlacedTile {
@@ -233,6 +234,11 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 tile->index = tile_index;
             }
         };
+        auto warp_unit = [&](const WarpSlot& warp_slot, int x, int y) {                           // FUN_0066e1c0
+            if (warp_slot.id < 0 || x - room.x == room.width || y - room.y == room.height) return false;
+            room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
+            return true;
+        };
         auto word = [&](std::uint32_t tile_word, int tile_orient, int x, int y, bool fill) {       // FUN_0066e9b0
             const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
             if ((tile_orient == 10 || tile_orient == 11) && style > 7) return;
@@ -242,8 +248,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 if (tile_orient == 10 || tile_orient == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
-                    if (warp_slot.id >= 0 && x - room.x != room.width && y - room.y != room.height)   // the warp unit
-                        room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
+                    warp_unit(warp_slot, x, y);
                     if (warp_slot.lit)
                         for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
                             const std::uint32_t warp_word = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;
@@ -267,7 +272,11 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (tile_word & 1) {
                 add(0, x, y, tile_orient, tile_word);
                 if (tile_orient == 3) add(0, x, y, 4, tile_word);
-                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) note("drlg: warp wall tiles (FUN_0066e260) not implemented");
+                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) {     // FUN_0066e260
+                    const auto& warp_slot = slots[std::size_t(style)];
+                    const bool placed = (seq != 0 && seq != 4) || warp_unit(warp_slot, x, y);
+                    if (placed && warp_slot.lit) add(0, x, y, tile_orient, tile_word | std::uint32_t(warp_slot.tiles) << 8);   // its lit twin
+                }
             }
             if (tile_word & 0x8000000u) add(2, x, y, 13, tile_word);
         };

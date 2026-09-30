@@ -197,8 +197,8 @@ used and listed in `docs/research/re/unverified.md` until it is.
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
-combat and skills), the Den of Evil and Cold Plains. Next: the rest
-of Act 1.
+combat and skills), the Den of Evil and every Act 1 outdoor level.
+Next: the rest of Act 1.
 
 ## Open questions
 
@@ -416,9 +416,10 @@ Spawning
   Random object groups (Levels ObjGrp, FUN_00552610) aren't built. (The game seed, regions and object seed match game.exe.)
 
 Act 1 levels and rendering
-- Built: Rogue Encampment, Blood Moor, Cold Plains. Not built: Stony Field,
-  Dark Wood, Black Marsh, Tamoe Highland, the other caves/crypts,
-  Tristram, Monastery through the Catacombs.
+- Built: Rogue Encampment, Blood Moor, Cold Plains, Stony Field, Dark
+  Wood, Black Marsh, Tamoe Highland, Burial Grounds, Moo Moo Farm. Not
+  built: the other caves/crypts, Tristram, Monastery through the
+  Catacombs.
 - Built and proven against game.exe (layout and tiles): the Blood Moor
   and the Den of Evil; click the cave mouth to go in, the stairs to come
   back. Preset units (proven too) put in the shrines, torches, chests,
@@ -540,14 +541,12 @@ library (`d2d::game`) builds and plays without the client; descriptive
 names and per-file includes, checked in CI; the monster regions, game
 seed and object seed traced and matching game.exe (monsters.md,
 objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
-`diff_drlg.py 1-10 <level>` over Act 1: the Blood Moor, Cold Plains and the Den match
-game.exe on every seed, the 35 other levels on none yet (our generator
-covers only the paths those two take). Next, in order:
-1. The other outdoor levels on Cold Plains' generator (Stony Field, Dark Wood, Black Marsh, Tamoe Highland); each
-   joins `kBuiltLevels` once `diff_drlg` matches.
-2. The caves and crypts on the Den's maze generator, with the cave theme
-   rooms (FUN_006735f0).
-3. The presets: Tristram, the Monastery, the Catacombs.
+`diff_drlg.py 1-10 <level>` over Act 1: the Den and every outdoor level
+(2–7, 17, 39) match game.exe on every seed, grids through tiles and
+units; the other caves, crypts and presets on none yet. Next, in order:
+1. The caves and crypts on the Den's maze generator, with the cave theme
+   rooms (FUN_006735f0); each joins `kBuiltLevels` once `diff_drlg` matches.
+2. The presets: Tristram, the Monastery, the Catacombs.
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard
 subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's
@@ -608,7 +607,7 @@ Left for those, ranked:
 Then:
 
 6. Saving .d2s.
-7. The rest of Act 1's outdoor levels.
+7. The rest of Act 1's caves, crypts and presets.
 8. Skill fidelity: pet AI, the shapeshifted look, the approximations
    listed in skills.md.
 

@@ -593,7 +593,7 @@ struct LevelDt1s {
 };
 
 // The levels d2d builds so far (the rest of Act 1 comes with its research).
-constexpr std::array kBuiltLevels{ 2, 3, 8 };
+constexpr std::array kBuiltLevels{ 2, 3, 4, 5, 6, 7, 8, 17, 39 };
 
 // A composite's COF and timing (the World's part of a composite).
 struct CofAnim { d2d::cof::Cof cof; GameData::AnimTiming timing; std::string path; bool ok = false; };
