@@ -35,7 +35,33 @@ std::vector<std::pair<float, float>> walk_path(const Level& level, float x, floa
     std::vector<std::pair<float, float>> pts;
     for (const auto& [step_x, step_y] : steps) pts.emplace_back(centre(step_x), centre(step_y));
     if (!steps.empty() && steps.back() == std::pair(sub(goal_x), sub(goal_y)) && !blocked(goal_x, goal_y)) pts.back() = { goal_x, goal_y };
+    // No wall in any subtile one of the unit's five probes (unit_blocked's
+    // plus) crosses on the way: every subtile the line touches, not
+    // samples along it, so wherever follow_path's steps land on it they
+    // stand clear (samples let a corner through that stopped the walk).
+    auto walls_clear = [&](float from_x, float from_y, float to_x, float to_y) {
+        for (const auto [offset_x, offset_y] : { std::pair{ 0.f, 0.f }, { -0.2f, 0.f }, { 0.2f, 0.f }, { 0.f, -0.2f }, { 0.f, 0.2f } }) {
+            const float ax = (from_x + offset_x) * 5, ay = (from_y + offset_y) * 5, bx = (to_x + offset_x) * 5, by = (to_y + offset_y) * 5;
+            int cx = int(std::floor(ax)), cy = int(std::floor(ay));
+            const int step_x = bx > ax ? 1 : -1, step_y = by > ay ? 1 : -1;
+            const float delta_x = bx != ax ? 1 / std::abs(bx - ax) : HUGE_VALF, delta_y = by != ay ? 1 / std::abs(by - ay) : HUGE_VALF;
+            float next_x = bx != ax ? (step_x > 0 ? float(cx + 1) - ax : ax - float(cx)) * delta_x : HUGE_VALF;
+            float next_y = by != ay ? (step_y > 0 ? float(cy + 1) - ay : ay - float(cy)) * delta_y : HUGE_VALF;
+            for (int left = std::abs(int(std::floor(bx)) - cx) + std::abs(int(std::floor(by)) - cy);; --left) {
+                if (level.blocked(centre(cx), centre(cy))) return false;
+                if (left <= 0) break;
+                if (next_x < next_y) { cx += step_x; next_x += delta_x; }
+                else if (next_y < next_x) { cy += step_y; next_y += delta_y; }
+                else {                                                     // through a corner: both sides
+                    if (level.blocked(centre(cx + step_x), centre(cy)) || level.blocked(centre(cx), centre(cy + step_y))) return false;
+                    cx += step_x; cy += step_y; next_x += delta_x; next_y += delta_y; --left;
+                }
+            }
+        }
+        return true;
+    };
     auto clear = [&](float from_x, float from_y, float to_x, float to_y) {
+        if (!walls_clear(from_x, from_y, to_x, to_y)) return false;
         const int step_count = int(std::hypot(to_x - from_x, to_y - from_y) / 0.05f) + 1;
         for (int i = 1; i <= step_count; ++i)
             if (blocked(from_x + (to_x - from_x) * float(i) / float(step_count), from_y + (to_y - from_y) * float(i) / float(step_count))) return false;

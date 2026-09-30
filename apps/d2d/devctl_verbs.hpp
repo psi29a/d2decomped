@@ -104,11 +104,14 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
         else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
+        else if (verb == "hand" && verb_args.size() >= 3) town.net.send(cmd::ToCursor{ int_arg(2) });
+        else if (verb == "use" && verb_args.size() >= 3) town.net.send(cmd::UseItem{ int_arg(2) });
+        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ 1, int_arg(2), int_arg(3) });
         else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
-                                " | goeast <npc> | imbue <npc> | said <npc> <string> | chat <npc|-1>\n");
+                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {
@@ -407,7 +410,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         std::string out;
         for (const auto& item : character.items) {
             out += "[" + item.code + " loc=" + std::to_string(item.location) + " slot=" + std::to_string(item.slot)
-                 + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel)
+                 + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel) + " id=" + std::to_string(item.id)
                  + std::format(" size={}x{}", d2d::rules::item_size(scene->rules, item.code).first, d2d::rules::item_size(scene->rules, item.code).second)
                  + " at=" + std::to_string(item.column) + "," + std::to_string(item.row) + "]\n";
             for (const auto& line : item_lines(*scene, item, int(character.stats.get(d2d::d2s::kLevel))))

@@ -151,10 +151,11 @@ struct World {
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     // The player's town portal: [0] where it was cast, [1] its twin in town
     // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair. [2]:
-    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930).
+    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930), [3]
+    // its twin in Tristram back to them.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    std::array<Portal, 3> portal{};
-    int take_portal = -1;                  // the portal (0 / 1 / 2) the player is walking to
+    std::array<Portal, 4> portal{};
+    int take_portal = -1;                  // the portal (0..3) the player is walking to
     // The player's corpses (FUN_0057f700): where they fell, what they wore
     // and had in hand, 75% of the experience the death took; at most 16.
     struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;

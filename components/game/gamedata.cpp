@@ -891,7 +891,10 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // (object_seed); game.exe has one for the game, drawn as rooms come up.
     auto rgn = object_seed(game_data.map_seed);
     for (const auto& unit : level->units) {
-        if (unit.type == 2) add_object(game_data, builder.objects, builder.obj_row, *level, unit.id, unit.x, unit.y, rgn);
+        // Group object 580 (FUN_0054f490 -> FUN_0054f370) is the Countess's
+        // LargeChestR (371) in cellar 5.
+        // ponytail: its picks elsewhere (and groups 574..582) aren't made.
+        if (unit.type == 2) add_object(game_data, builder.objects, builder.obj_row, *level, unit.id == 580 && id == d2d::rules::TowerQuest::kCellar ? 371 : unit.id, unit.x, unit.y, rgn);
         if (unit.type != 1 || unit.id < 0 || std::size_t(unit.id) >= game_data.mon_bin.size()) continue;
         const auto bin_row = game_data.mon_bin[std::size_t(unit.id)];
         if (!game_data.mon_is_npc[bin_row] || game_data.mon_npc[bin_row].code.empty()) continue;

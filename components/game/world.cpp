@@ -92,9 +92,9 @@ auto World::view() const -> View {
         for (const auto& fire : fires) if (fire.level == level) view.fires.push_back({ fire.x, fire.y, fire.npc });
         for (std::size_t k = 0; k < corpses.size(); ++k)
             if (corpses[k].level == level) view.corpses.push_back({ corpses[k].x, corpses[k].y, corpses[k].dir, corpses[k].gfx, int(k) });
-        for (int k = 0; k < 3; ++k)
+        for (int k = 0; k < 4; ++k)
             if (portal[std::size_t(k)].level == level)
-                view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, k == 2 ? d2d::rules::CainQuest::kTristram : portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
+                view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, k >= 2 ? portal[std::size_t(5 - k)].level ? portal[std::size_t(5 - k)].level->id : d2d::rules::CainQuest::kTristram : portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
         view.npc_states = npc_states;
         view.npc_states.resize(level->npcs.size());
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
@@ -688,8 +688,6 @@ auto World::kashya_merc() -> void {
 // The Countess's death hook (FUN_00595710): the quest's bits and, for the
 // player's kill, their complete_tower line (unit event 0x25). Her drop is
 // her SuperUniques TC's (negative picks: an item and a rune roll).
-// ponytail: the tower treasure (FUN_005954f0: towerchestspawner missiles
-// at the LargeChestR chests, InitFn 47) isn't built.
 auto World::countess_died(std::uint32_t now_ms) -> void {
         const bool quest_kill = tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar);
         // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
@@ -1012,7 +1010,15 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             const Level* tristram = game_data->level(d2d::rules::CainQuest::kTristram);
             if (!tristram || tristram->ds1.width() == 0) { d2d::log::info("not implemented: level 38 (the Cairn Stones' portal)"); return; }
             const auto back = std::ranges::find(tristram->npcs, 60, &Npc::object_id);
-            arrive(tristram, back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y + 0.6f, "the Cairn Stones' portal");
+            // ponytail: no object 60 among Tristram's presets (the server makes it); its twin stands at the map's centre.
+            const float back_x = back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back_y = back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y;
+            if (portal[3].level != tristram) portal[3] = { tristram, back_x, back_y, now_ms };
+            arrive(tristram, portal[3].x, portal[3].y + 0.6f, "the Cairn Stones' portal");
+            return;
+        }
+        if (take_portal == 3) {                       // back to the Cairn Stones
+            take_portal = -1;
+            arrive(portal[2].level, portal[2].x, portal[2].y + 0.6f, "the Cairn Stones' portal");
             return;
         }
         const auto& other_end = portal[std::size_t(1 - take_portal)];
@@ -1282,7 +1288,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 take_corpse = -3000 - interact->npc;
                 return;
             }
-            if (interact->npc <= -2000 && interact->npc > -2003) {                       // a town portal (the client names them -2000 - k)
+            if (interact->npc <= -2000 && interact->npc > -2004) {                       // a town portal (the client names them -2000 - k)
                 const auto& entry_portal = portal[std::size_t(-2000 - interact->npc)];
                 if (entry_portal.level != level) return;
                 walk_to(entry_portal.x, entry_portal.y, true);
@@ -1471,17 +1477,17 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
-        fight.world(in_moor, now_ms, elapsed, crowd);
         // A monster that opens doors (MonStats opendoors) whose way is shut by
         // a door (FUN_005b0f50, each think: its path's next collision has
         // 0x800) operates it as the player would (FUN_00584540 → OperateFn 8)
-        // and stands 5 frames.
-        // ponytail: "in its way" read as stopped (NU) while aware, within a
+        // and stands 5 frames; before the think it would have had.
+        // ponytail: "in its way" read as standing or walking (NU / WL: a
+        // chase pressed on the door walks in place) while aware, within a
         // cell of a closed door's footprint; game.exe's path collision test
         // (FUN_00648eb0) and door search (FUN_005dd0b0) aren't ported.
         if (fight.mon_level == level)
             for (auto& monster : fight.monsters) {
-                if (!monster.alive() || !monster.aware || monster.mode != "NU" || now_ms < monster.next_act
+                if (!monster.alive() || !monster.aware || (monster.mode != "NU" && monster.mode != "WL") || now_ms < monster.next_act
                     || !game_data->monsters.types[std::size_t(monster.type)].open_doors) continue;
                 for (std::size_t i = 0; i < level->npcs.size(); ++i) {
                     const auto& door = level->npcs[i];
@@ -1494,6 +1500,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     break;
                 }
             }
+        fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         use_warp();
