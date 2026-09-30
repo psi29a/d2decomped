@@ -356,6 +356,9 @@ struct Populator {
             }
             if (type >= 0 && std::size_t(type) < types.size()) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
             own.next();
+            // FUN_005d6b60: an oninit MonEquip row rolls its slot and makes its item (2 game steps).
+            // ponytail: act 1's only oninit row is Blood Raven's bow; read MonEquip.txt for more.
+            if (type >= 0 && std::size_t(type) < types.size() && types[std::size_t(type)].id == "bloodraven") { own(1); game.next(); game.next(); }
             return own;
         };
         const auto* sup = superunique >= 0 ? &game_data.superuniques[std::size_t(superunique)] : nullptr;
