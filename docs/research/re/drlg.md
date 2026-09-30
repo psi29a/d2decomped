@@ -477,8 +477,12 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   picks it (rolling this room's seed) and chains it. Found →
   FUN_0066e740 keeps the neighbour's tile unless its word had 0x80, or
   the orientations merge (tables 0x6ef620, 0x6ef574) to something else,
-  or it's a style-30 / sequence-0 floor, when it re-picks on this room's
-  seed and overwrites the neighbour's tile.
+  or it's a style-30 / sequence-0 floor, when it re-picks and overwrites
+  the neighbour's tile — on the neighbour's seed and DT1s (FUN_0066d820
+  with ECX = the tile's room, 0x66e8f2; an added orientation 3 wall's
+  pick at 0x66e87c is this room's). The neighbour's seed has already
+  stepped once for its room1 (the walk's end), and every such re-pick
+  moves it on.
 - So edge tiles, and everything picked after them in the room, depend on
   which rooms are up first. The game brings rooms up as the player gets
   near; d2d brings them up in the level's room list order (newest first,
@@ -488,13 +492,14 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   emulator that's zeros (a 0×0 group that stamps nothing); on real
   hardware it's whatever follows the allocation.
 
-**Preset-room details:** the room keeps a 9×9 slice of every DS1 layer
-(presets' DS1s include the shared edge row and column), FUN_006667d0
-ORs 0x84 into every edge cell (walls layer 0, floors, shadow; floors are
-| 0x80 throughout), and the walk (FUN_00666ac0: floor layers, the first
-with FillBlanks, then wall layers, then the shadow) is 8 wide / high
+**Preset-room details:** the room keeps a (w+1)×(h+1) slice of every DS1
+layer (presets' DS1s include the shared edge row and column), FUN_006667d0
+ORs 0x84 into every edge cell (walls layer 0, floors, shadow) and the
+layer's index << 18 into wall layers past the first and every floor layer
+(FUN_0067c590 with op 0, OR), and the walk (FUN_00666ac0: floor layers, the first
+with FillBlanks, then wall layers, then the shadow) is one short
 where KillEdge is set and the room sits on the preset's right / bottom
-edge, else 9. FillBlanks: an empty floor cell inside the room picks style
+edge. FillBlanks: an empty floor cell inside the room picks style
 30 sequence 0 (0x1e00100 on level 74). The room seed is fresh
 (`{room +4, 666}`): nothing between reset and walk rolls it. A hidden
 warp tile (orientation 10/11, style = warp slot ≤ 7) makes the warp unit
@@ -670,6 +675,8 @@ values (seed 3) so a regression shows without the emulator.
 | Every room's tiles and units (sizeless presets' KillEdge, the warp-list quirk) | caves 9–16 | 1–20 |
 | Grids, rooms (Depend positions, Courtyard 1's file) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–10 (27: 1–30) |
 | Every room's tiles and units (KillEdge column, shared warp walls, doors) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–20 |
+| Grids, rooms, tiles, units (the ring / star makers, their specials, 12×12 rooms, re-picks on the owner's seed, the bring-up roll) | crypts 18, 19, 21–24; Jail 29–31; Catacombs 34–36 | 1–10 |
+| The Barracks' placement by level 27 (FUN_00673120, docs/research/re/drlg-barracks.md): the anchor probes, Court Connect, Next / Forge in rolled order, the rect from the rooms' box; level 27's file from the layout, else its own roll on its level seed (the layout's value 0 leaves it) | Barracks 28 | 1–20 |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -696,8 +703,8 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Other maze level types (crypts 4, Barracks 7, Jail 8, Catacombs 10; act 2+) | theme bases known, specials not ported |
-| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest (not diffed) on the seed of the room that copies them (room +0x14); a maze's (FUN_00667970) not ported. In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
+| Act 2+ maze types; the Barracks' cross-level link to 27 (FUN_0066b790) | not ported |
+| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest on the seed of the room that copies them (room +0x14, the whole {low, high} — a maze room's was stepped once, so its high word isn't 666; diffed on the Jail and Catacombs). In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
 | Doors outside act 1 (FUN_0066d9e0's type 1 and objects 0x5b / 0x5c), tile word bit 4 on non-plain paths beyond what these levels hit | not ported |

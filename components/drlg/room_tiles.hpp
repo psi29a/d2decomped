@@ -119,6 +119,9 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             for (const auto& plain_room : plain) if (plain_room.x == made_room->x && plain_room.y == made_room->y) room.plain = &plain_room;
         rooms.push_back(std::move(room));
     }
+    // Each room's tile seed and DT1s outlive its walk: a later room re-picking a shared tile rolls the owner's.
+    std::vector<d2d::rules::Rng> rngs(rooms.size());
+    std::vector<decltype(room_dt1_list(0u, dt1s))> lists(rooms.size());
     std::map<std::pair<int, int>, std::vector<Unit>> preset_units;   // by the preset's origin: units no room has taken yet
     for (std::size_t room_index = 0; room_index < rooms.size(); ++room_index) {
         auto& room = rooms[room_index];
@@ -149,11 +152,9 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 // (FUN_0066ee40), so they don't shift.
                 if (room.seed->rolled) {
                     // already rolled
-                } else if (plain.empty()) {                    // a maze (generate_maze has no plain rooms)
-                    if (std::ranges::any_of(list, [&](const Unit& unit) { return rolled_unit(unit, data.ids); }))
-                        note("drlg: a maze's preset units that roll to stay (FUN_00667970, the level seed) not implemented");
                 } else {
                     d2d::rules::Rng roll{ room.seed->seed };
+                    if (plain.empty()) roll.high = room.seed->seed_high;   // a maze / preset level: the room's whole seed (FUN_00667890)
                     std::erase_if(list, [&](const Unit& unit) { return !stays(unit, data.ids, roll); });
                 }
                 std::ranges::reverse(list);             // copied into the preset's list front-first again (FUN_00667510)
@@ -175,10 +176,10 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 }
             }
         }
-        const auto list = room_dt1_list(room.plain ? room.plain->dt1_mask : pre->dt1_mask, dt1s);
+        const auto& list = lists[room_index] = room_dt1_list(room.plain ? room.plain->dt1_mask : pre->dt1_mask, dt1s);
         const auto nearby = near_rooms(rooms, room_index);
         // Reset by FUN_0066ee40; a plain room's init (grass, roads, stamps) rolls it on.
-        auto rng = room.plain ? room.plain->seed : d2d::rules::Rng{ room.seed->seed };
+        auto& rng = rngs[room_index] = room.plain ? room.plain->seed : d2d::rules::Rng{ room.seed->seed };
         if (room.plain)
             for (const auto& tile : room.plain->tiles) room.tiles.push_back({ tile.layer, room.x + tile.x, room.y + tile.y, tile.orient, tile.file, tile.index, 0 });
         auto pick = [&](int orient, std::uint32_t word) { return pick_tile(list, rng, orient, word); };
@@ -278,7 +279,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             const bool blank = tile->orient == 0 && tile->file && tile->index >= 0 && tile->file->tiles[std::size_t(tile->index)].style == 30
                                && tile->file->tiles[std::size_t(tile->index)].seq == 0;
             if (orient != tile->orient || blank) {
-                const auto [tile_file, tile_index] = pick(orient, word);
+                const auto owner = std::size_t(neighbour - rooms.data());   // FUN_0066d820 on the tile's room
+                const auto [tile_file, tile_index] = pick_tile(lists[owner], rngs[owner], orient, word);
                 tile->orient = orient;
                 tile->file = tile_file;
                 tile->index = tile_index;
@@ -346,36 +348,39 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             room.room1_seed = rng.next();
             continue;
         }
-        // A preset room (FUN_006667d0 then FUN_00666ac0): its 9x9 slice of each
-        // DS1 layer, edges | 0x84 (floors | 0x80 throughout); walked floors
-        // (the first with FillBlanks), walls, shadow, 8 wide / high where
+        // A preset room (FUN_006667d0 then FUN_00666ac0): its (w+1)x(h+1) slice
+        // of each DS1 layer, edges | 0x84, layers past the first | index << 18; walked
+        // floors (the first with FillBlanks), walls, shadow, one short where
         // KillEdge meets the preset's own right / bottom edge.
         const int origin_x = room.x - room.seed->preset_x, origin_y = room.y - room.seed->preset_y;
+        const int slice_w = room.width + 1, slice_h = room.height + 1;
+        using Words = std::vector<std::uint32_t>;
         auto slice = [&](const d2d::ds1::Layer& source, bool orient) {
-            std::array<std::uint32_t, 81> words{};
-            for (int y = 0; y < 9; ++y)
-                for (int x = 0; x < 9; ++x) {
+            Words words(std::size_t(slice_w * slice_h));
+            for (int y = 0; y < slice_h; ++y)
+                for (int x = 0; x < slice_w; ++x) {
                     const int source_x = origin_x + x, source_y = origin_y + y;
                     if (source_x < 0 || source_y < 0 || source_x >= map->width() || source_y >= map->height()) continue;
                     const auto& tile = source.cells[std::size_t(source_y) * std::size_t(map->width()) + std::size_t(source_x)];
-                    words[std::size_t(y * 9 + x)] = orient ? std::uint32_t(tile.wall_type) | tile.wall_zero << 8 : d2d::ds1::Map::word(tile);
+                    words[std::size_t(y * slice_w + x)] = orient ? std::uint32_t(tile.wall_type) | tile.wall_zero << 8 : d2d::ds1::Map::word(tile);
                 }
             return words;
         };
-        auto edges = [](std::array<std::uint32_t, 81>& words, std::uint32_t value) {
-            for (int i = 0; i < 9; ++i) for (const int edge : { i, 72 + i, i * 9, i * 9 + 8 }) words[std::size_t(edge)] |= value;
+        auto edges = [&](Words& words, std::uint32_t value) {
+            for (int x = 0; x < slice_w; ++x) { words[std::size_t(x)] |= value; words[std::size_t((slice_h - 1) * slice_w + x)] |= value; }
+            for (int y = 0; y < slice_h; ++y) { words[std::size_t(y * slice_w)] |= value; words[std::size_t(y * slice_w + slice_w - 1)] |= value; }
         };
         const int pre_w = pre->width ? pre->width : map->width() - 1, pre_h = pre->height ? pre->height : map->height() - 1;   // a sizeless preset fills the level
         const bool kill_x = pre->kill_edge && room.x + room.width == room.seed->preset_x + pre_w, kill_y = pre->kill_edge && room.y + room.height == room.seed->preset_y + pre_h;
-        const int words_wide = kill_x ? 8 : 9, words_high = kill_y ? 8 : 9;
-        auto walk = [&](const std::array<std::uint32_t, 81>& words, const std::array<std::uint32_t, 81>* orient, bool fill) {   // FUN_0066ec10
+        const int words_wide = kill_x ? slice_w - 1 : slice_w, words_high = kill_y ? slice_h - 1 : slice_h;
+        auto walk = [&](const Words& words, const Words* orient, bool fill) {   // FUN_0066ec10
             for (int y = 0; y < words_high; ++y)
                 for (int x = 0; x < words_wide; ++x)
-                    word(words[std::size_t(y * 9 + x)], orient ? int((*orient)[std::size_t(y * 9 + x)] & 0xff) : 0, room.x + x, room.y + y, fill);
+                    word(words[std::size_t(y * slice_w + x)], orient ? int((*orient)[std::size_t(y * slice_w + x)] & 0xff) : 0, room.x + x, room.y + y, fill);
         };
         for (std::size_t layer_index = 0; layer_index < map->floors().size(); ++layer_index) {
             auto words = slice(map->floors()[layer_index], false);
-            for (auto& tile_word : words) tile_word |= 0x80;                // FUN_0067c590
+            for (auto& tile_word : words) tile_word |= std::uint32_t(layer_index) << 18;   // FUN_0067c590
             edges(words, 0x84);
             walk(words, nullptr, layer_index == 0);
         }
@@ -383,7 +388,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             auto words = slice(map->walls()[layer_index], false);
             const auto orients = slice(map->walls()[layer_index], true);
             if (layer_index == 0) edges(words, 0x84);
-            else for (auto& tile_word : words) tile_word |= 0x80;           // FUN_0067c590
+            else for (auto& tile_word : words) tile_word |= std::uint32_t(layer_index) << 18;   // FUN_0067c590
             walk(words, &orients, false);
         }
         if (!map->shadows().empty()) {

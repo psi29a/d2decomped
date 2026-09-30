@@ -64,7 +64,7 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
         const bool preset_level = to_int(assets.levels.get(*row, "DrlgType")) == 2;
         const int width = to_int(assets.levels.get(*row, "SizeX")), height = to_int(assets.levels.get(*row, "SizeY"));
         const auto [origin_x, origin_y] = level_origin(assets.levels, *row);
-        pf("level %d at %d,%d size %dx%d\n", id, origin_x, origin_y, width, height);
+        std::array<int, 4> rect{ origin_x, origin_y, width, height };
         MazeDef maze;
         for (std::size_t row_index = 0; row_index < assets.lvl_maze.size(); ++row_index)
             if (to_int(assets.lvl_maze.get(row_index, "Level"), -1) == id) {
@@ -74,9 +74,18 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
                 maze.height = to_int(assets.lvl_maze.get(row_index, "SizeY"));
                 maze.merge = to_int(assets.lvl_maze.get(row_index, "Merge"));
             }
+        maze.type = to_int(assets.levels.get(*row, "LevelType"));
         std::vector<std::string> notes;
-        auto rooms = preset_level ? generate_preset(assets.data, id, width, height, level_seed(seed, id), notes, id == 27 ? courtyard_file(act1_from_map_seed(level_defs(assets.levels), seed), act_seed(seed)) : -1)
-                                  : generate_maze(assets.data, maze, id, width, height, level_seed(seed, id), 0, notes);
+        int court_file = id == 27 || id == 28 ? courtyard_file(act1_from_map_seed(level_defs(assets.levels), seed), act_seed(seed)) : -1;
+        if (const auto court = level_row(assets.levels, 27); id == 28 && court) {
+            auto court_seed = level_seed(seed, 27);
+            court_file = preset_file(assets.data, 27, court_seed, court_file);
+            const auto [court_x, court_y] = level_origin(assets.levels, *court);
+            rect = { court_x, court_y, to_int(assets.levels.get(*court, "SizeX")), to_int(assets.levels.get(*court, "SizeY")) };
+        }
+        auto rooms = preset_level ? generate_preset(assets.data, id, width, height, level_seed(seed, id), notes, court_file)
+                                  : generate_maze(assets.data, maze, id, width, height, level_seed(seed, id), 0, notes, court_file, &rect);
+        pf("level %d at %d,%d size %dx%d\n", id, rect[0], rect[1], rect[2], rect[3]);
         auto sorted = rooms;
         std::ranges::sort(sorted, {}, [](const auto& room) { return std::tuple(room.y, room.x); });
         pf("rooms %zu\n", sorted.size());

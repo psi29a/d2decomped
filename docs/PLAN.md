@@ -547,6 +547,14 @@ objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
 units. Next: the other maze level types on the Den's generator, each
 joining `kBuiltLevels` once `diff_drlg` matches — crypts (LevelType 4:
 18, 19, 21–24), Barracks (28), Jail (29–31), Catacombs (34–36).
+**Checkpoint 2026-09-30.** Every Act 1 level now builds and matches
+game.exe on `diff_drlg.py` (grids, tiles, units): crypts (18, 19, 21–24),
+Jail (29–31), Catacombs (34–36) and the Barracks (28, placed beside the
+courtyard). `kBuiltLevels` holds 2–39. Next: the rest of Act 1's play —
+quests 2–6, Andariel, waypoint travel, preset specials (superunique
+rules, quest objects), random object groups; research in
+docs/research/re/quests-act1.md, act1-end.md, preset-specials.md.
+
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard
 subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's

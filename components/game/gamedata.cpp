@@ -676,18 +676,28 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
             maze.height = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "SizeY"));
             maze.merge = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Merge"));
         }
+    maze.type = d2d::drlg::to_int(assets.levels.get(row, "LevelType"));
     const bool preset_level = d2d::drlg::to_int(assets.levels.get(row, "DrlgType")) == 2;
     if (maze.width == 0 && !preset_level) { d2d::log::warn("{}: no LvlMaze row", level.name); return false; }
     std::vector<std::string> notes;
     const int size_x = d2d::drlg::to_int(assets.levels.get(row, "SizeX")), size_y = d2d::drlg::to_int(assets.levels.get(row, "SizeY"));
     const auto seed = d2d::drlg::level_seed(game_data.map_seed, level.id);
-    auto made = preset_level ? d2d::drlg::generate_preset(assets.data, level.id, size_x, size_y, seed, notes,
-                                                          level.id == 27 ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1)
-                             : d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, seed, 0, notes);
+    int court_file = level.id == 27 || level.id == 28 ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1;
+    const auto [origin_x, origin_y] = d2d::drlg::level_origin(assets.levels, row);
+    std::array<int, 4> rect{ origin_x, origin_y, size_x, size_y };
+    if (const auto court = d2d::drlg::level_row(assets.levels, 27); level.id == 28 && court) {   // the Barracks sits beside level 27
+        auto court_seed = d2d::drlg::level_seed(game_data.map_seed, 27);
+        court_file = d2d::drlg::preset_file(assets.data, 27, court_seed, court_file);
+        const auto [court_x, court_y] = d2d::drlg::level_origin(assets.levels, *court);
+        rect = { court_x, court_y, d2d::drlg::to_int(assets.levels.get(*court, "SizeX")), d2d::drlg::to_int(assets.levels.get(*court, "SizeY")) };
+    }
+    auto made = preset_level ? d2d::drlg::generate_preset(assets.data, level.id, size_x, size_y, seed, notes, court_file)
+                             : d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, seed, 0, notes, court_file, &rect);
     int width = 0, height = 0;
     for (const auto& room : made) { width = std::max(width, room.x + room.width); height = std::max(height, room.y + room.height); }
     level.ds1 = d2d::ds1::Map(width, height, 4, 2);
-    std::tie(level.world_x, level.world_y) = d2d::drlg::level_origin(assets.levels, row);
+    level.world_x = rect[0];
+    level.world_y = rect[1];
     const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     const auto placed = set_level_tiles(level, assets, dt1s, made, {}, notes);
     level.rooms = std::move(made);

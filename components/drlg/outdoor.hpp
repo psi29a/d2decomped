@@ -79,6 +79,7 @@ struct Outdoor {
         int def = 0, file = 0, preset_x = 0, preset_y = 0;          // a preset room's LvlPrest def, file and the preset's origin
         bool rolled = false;                                        // Scan or Pops: its units rolled at generation, these stayed
         std::vector<Unit> units;
+        std::uint32_t seed_high = 666;                              // a maze / preset level room's seed was stepped: its high word (the bring-up roll)
     };
     std::vector<RoomSeed> rooms;
     std::vector<PlainRoom> plain;                       // plain rooms' words, cell order
