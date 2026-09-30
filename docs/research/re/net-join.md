@@ -365,7 +365,7 @@ No character entered the host's game.
 returned B3 chunks.
 
 - In the world (`[04]`) 0.28 s after connect; socket closed by the host at 15.3 s.
-- 307 packets, all split by game.exe's own size table (VA 0x730ae8) plus the
+- 295 packets, all split by game.exe's own size table (VA 0x730ae8) plus the
   variable rules: no desync, no unknown id.
 - Order: `01 00 02`, C answers `6b`, then `59` (assign player) **before**
   `03`/`04`, then `aa 76 94 22 27 23 5e 28 29 0b 5f`, stats `1d/1e/1f`, items `9c/9d`.
