@@ -145,6 +145,132 @@ void npc_patrol(const Level& level, std::vector<UnitState>& npcs, std::array<int
     }
 }
 
+namespace {
+
+constexpr int kAndrialSpray = 164, kAndyPoisonBolt = 201;
+int subtile(float cells) { return int(std::floor(cells * 5)); }
+
+// Straight at (dx, dy) cells off, else sidestep round whoever's in the way.
+bool step_toward(const Level& level, Monster& monster, float dx, float dy, float walk, const Crowd& crowd) {
+    auto& unit = monster.unit;
+    for (const float turn : { 0.f, 0.785f, -0.785f, 1.571f, -1.571f }) {
+        const float cosine = std::cos(turn), sine = std::sin(turn);
+        if (monster_step(level, monster, unit.x + dx * cosine - dy * sine, unit.y + dx * sine + dy * cosine, walk, crowd)) return true;
+    }
+    return false;
+}
+
+// One of Andariel's skill missiles (FUN_0059fa30, flags 0x20): from her
+// toward (dx, dy) cells, its Missiles.txt row's damage at skill level 1
+// (Sk1lvl / Sk2lvl): physical in 256ths (SrcDamage 0: none of hers), its
+// poison per frame over ELen as the total. ToHit 0: it always hits.
+// ponytail: velocity as cells_per_sec(Vel) like every missile here, not
+// FUN_0059fa30's x75/100; NM / Hell skill levels as 1.
+void andariel_missile(const GameData& game_data, const Monster& monster, const char* name, float dx, float dy, std::uint32_t now_ms,
+                      std::vector<Missile>& missiles) {
+    const auto found = game_data.missiles.find(name);
+    if (found == game_data.missiles.end()) return;
+    const auto& missile_info = found->second;
+    const auto poison = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev,
+                                               missile_info.hitshift, missile_info.elen, missile_info.elen_lev, 1);
+    d2d::rules::MonStats stats;
+    stats.level = monster.stats.level;
+    stats.to_hit = 1 << 20;
+    stats.a2_min = missile_info.min >> 8; stats.a2_max = std::max(missile_info.max >> 8, stats.a2_min);
+    if (poison.etype >= 0)
+        stats.elements[0] = { poison.etype, 100, int(std::int64_t(poison.elo) * poison.elen >> 8), int(std::int64_t(poison.ehi) * poison.elen >> 8), poison.elen, "A2" };
+    const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(std::hypot(dx, dy), 0.01f);
+    missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
+                         now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
+}
+
+// Andariel's frame outside an attack (MonAI 34 "Andariel": the driver
+// FUN_005b1740, target search FUN_005de890 / FUN_005dd7f0, think
+// FUN_005f5830; rules::andariel_think). Her walk goes on between thinks;
+// at a think she takes the nearest foe within aidist (0: 35) by the AI's
+// distance, or with none stands (10 frames, the nearest - 10 from 25
+// subtiles off, 25 from 35); in melee is unit_distance within MeleeRng
+// (0) + 1. A walk that can't set off: 70 % a random walk of 4 subtiles
+// (FUN_005de200), else stand 10.
+// ponytail: her rand(100)s on the fight's rng, not her unit seed (+0x20);
+// first-sight speech (FUN_005b1140), door opening and the no-target
+// wander (FUN_005dd2b0 / FUN_0064d910) left out; in melee skips the
+// path test (FUN_00622aa0, mask 0x804); a walk re-thinks every aidel
+// frames (game.exe: at the path's end); a foe is the player, the merc,
+// pets alike (game.exe: players first).
+void andariel(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
+              float walk, const Crowd& crowd) {
+    auto& unit = monster.unit;
+    const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
+    auto idle = [&](int frames) {                                  // FUN_005de080
+        if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+        monster.wandering = false;
+        monster.next_act = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
+    };
+    if (monster.mode == "WL") {
+        if (monster.wandering) {
+            const bool there = std::hypot(unit.goal_x - unit.x, unit.goal_y - unit.y) <= walk;
+            if (there) { unit.x = unit.goal_x; unit.y = unit.goal_y; }
+            if (there || !monster_step(level, monster, unit.goal_x, unit.goal_y, walk, crowd)) idle(0);
+        } else {
+            const Foe* chased = nullptr;
+            for (const auto& foe : foes)
+                if (foe.alive && (!chased || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(chased->x - unit.x, chased->y - unit.y))) chased = &foe;
+            if (!chased || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, walk, crowd)) set_mode(game_data, monster, "NU", now_ms);
+        }
+    }
+    if (now_ms < monster.next_act) return;
+    const int x = subtile(unit.x), y = subtile(unit.y);
+    const int reach = per_difficulty.aidist > 0 ? per_difficulty.aidist : 35;
+    Foe* target = nullptr;
+    int best = reach, nearest = 0x7fffffff;
+    for (auto& foe : foes) {
+        if (!foe.alive) continue;
+        const int distance = d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y);
+        nearest = std::min(nearest, distance);
+        if (distance < 0x37 && distance < best) { target = &foe; best = distance; }
+    }
+    monster.aware = target != nullptr;
+    if (!target) { idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25); return; }
+    const float dx = target->x - unit.x, dy = target->y - unit.y;
+    const bool in_melee = d2d::rules::unit_distance(subtile(target->x) - x, subtile(target->y) - y, type_info.size, 2) <= 0 + 1;
+    auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90
+        unit.dir = direction16(dx, dy);
+        set_mode(game_data, monster, mode, now_ms);
+        monster.skill = skill; monster.struck = false; monster.wandering = false;
+        monster.skill_frame = 0; monster.skill_x = subtile(target->x); monster.skill_y = subtile(target->y);
+    };
+    switch (d2d::rules::andariel_think(in_melee, per_difficulty.aip, rng)) {
+        case d2d::rules::AndarielAct::spray: use("SC", kAndrialSpray); break;   // SQ: seq_andarielspray plays SC
+        case d2d::rules::AndarielAct::melee: use("A1", -1); break;
+        case d2d::rules::AndarielAct::bolt: use("A1", kAndyPoisonBolt); break;
+        case d2d::rules::AndarielAct::idle: idle(5); break;
+        case d2d::rules::AndarielAct::walk:                        // FUN_005dec80 -> FUN_005deb60, flags 7
+            if (step_toward(level, monster, dx, dy, walk, crowd)) {
+                if (monster.mode != "WL") set_mode(game_data, monster, "WL", now_ms);
+                monster.wandering = false;
+                monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
+            } else if (rng(100) < 70) {                            // FUN_005de200(4)
+                // One side is 4 off, the other rand(4), on the seed's low
+                // bit; the next two low bits negate x, then y.
+                int off_x = 4, off_y = 4;
+                if ((rng.next() & 1) == 0) off_x = rng(4); else off_y = rng(4);
+                if (rng.next() & 1) off_x = -off_x;
+                if (rng.next() & 1) off_y = -off_y;
+                unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
+                set_mode(game_data, monster, "WL", now_ms);
+                monster.wandering = true;
+                monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
+            } else {
+                idle(10);
+            }
+            break;
+    }
+}
+
+}  // namespace
+
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles) {
     auto& unit = monster.unit;
@@ -168,6 +294,23 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     const float dx = foe.x - unit.x, dy = foe.y - unit.y, dist = std::hypot(dx, dy);
     const auto miss = type_info.miss_a2.empty() ? game_data.missiles.end() : game_data.missiles.find(type_info.miss_a2);
+    // Andariel's spray (AndrialSpray: srvstfunc 46 FUN_005cb4d0 keeps where
+    // the target stood, srvdofunc 88 FUN_005cb580 fires): SC frames 4..12
+    // (MonSeq seq_andarielspray's events; AnimData ANSCHTH's agree) each
+    // send one andarielspray from her at rules::andariel_spray_aim.
+    if (monster.mode == "SC" && monster.skill == kAndrialSpray) {
+        const int frame = int((now_ms - unit.mode_ms) / game_data.npc_timing(monster.npc, "SC").ms_per_frame());
+        const int x = subtile(unit.x), y = subtile(unit.y);
+        while (monster.skill_frame < std::min(frame, 12))
+            if (++monster.skill_frame >= 4) {
+                const auto [aim_x, aim_y] = d2d::rules::andariel_spray_aim(d2d::rules::direction64(x, y, monster.skill_x, monster.skill_y), monster.skill_frame);
+                andariel_missile(game_data, monster, "andarielspray", float(aim_x) / 5, float(aim_y) / 5, now_ms, missiles);
+            }
+        if (now_ms < monster.mode_until) return false;
+        set_mode(game_data, monster, "NU", now_ms);
+        monster.skill = -1;
+        monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
+    }
     if (monster.mode == "A1" || monster.mode == "A2") {
         if (!monster.struck && now_ms >= unit.mode_ms + game_data.npc_timing(monster.npc, monster.mode).action_ms()) {
             monster.struck = true;
@@ -190,6 +333,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         y.velocity_x = side_x / side_distance * speed; y.velocity_y = side_y / side_distance * speed; y.dir = direction32(side_x, side_y);
                         missiles.push_back(y);
                     }
+            } else if (monster.skill == kAndyPoisonBolt) {                     // FUN_0056ecb0: one andypoisonbolt at the target
+                andariel_missile(game_data, monster, "andypoisonbolt", dx, dy, now_ms, missiles);
             } else if (foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
@@ -215,6 +360,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         if (now_ms < monster.mode_until) return false;
         set_mode(game_data, monster, "NU", now_ms);
+        monster.skill = -1;
         monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
     }
     // Chilled, it moves at coldeffect % slower.
@@ -225,6 +371,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (!monster_step(level, monster, unit.x - dx, unit.y - dy, cells_per_sec(float(type_info.run)) * elapsed * chill, crowd)) monster.flee_until = 0;
         return false;
     }
+    if (type_info.ai_name == "Andariel") { andariel(game_data, level, monster, foes, rng, now_ms, walk, crowd); return false; }
     // Blind (Dim Vision, Cloak of Shadows): it doesn't see past arm's length.
     if (foe.alive && (dist < 8 || (monster.aware && dist < 16)) && (now_ms >= monster.blind_until || dist < 1.5f)) {
         monster.aware = true;
@@ -270,12 +417,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 return false;
             }
         }
-        // Straight at the player, else sidestep round whoever's in the way.
-        bool moved = false;
-        for (const float turn : { 0.f, 0.785f, -0.785f, 1.571f, -1.571f }) {
-            const float cosine = std::cos(turn), sine = std::sin(turn);
-            if ((moved = monster_step(level, monster, unit.x + dx * cosine - dy * sine, unit.y + dx * sine + dy * cosine, walk, crowd))) break;
-        }
+        const bool moved = step_toward(level, monster, dx, dy, walk, crowd);
         if (moved != (monster.mode == "WL")) set_mode(game_data, monster, moved ? "WL" : "NU", now_ms);
         return false;
     }

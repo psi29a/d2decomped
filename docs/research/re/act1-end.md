@@ -338,8 +338,9 @@ The walk path itself may draw more; see `FUN_005deb60` flag 2 below.
     - flag 1 → `FUN_005dd230(1)` (when the AI ctrl exists);
     - flag 2 → `rand100() < 70 ? FUN_005de200(4) : idle 10`.
 - **`FUN_005de200(mon, r)`**: random wander.
-  - x/y come from `FUN_0045c3e0(r)`. LCG bit order picks which one is taken first.
-  - Two more LCG steps follow; bit 1 of each negates x, then y.
+  - One LCG step: low bit 0 → y = r, x = `FUN_0045c3e0(seed, r)`; low bit 1 → x = r, y = `FUN_0045c3e0(seed, r)`.
+    `FUN_0045c3e0` is the plain rand(n): one step, `lo % n` (`lo & (n-1)` for a power of two), 0 when n < 1.
+  - Two more LCG steps follow; the low bit of each negates x, then y.
   - Then `FUN_005deb60(0, WL, x+ux, y+uy, 1, 0)`.
 - **`FUN_005de190(ECX=mon, EDX=k, a, b)`** → `FUN_005a6260(monData+0x2c, k, a, b)`:
   - +0x18 = k;
@@ -391,7 +392,7 @@ The walk path itself may draw more; see `FUN_005deb60` flag 2 below.
   - `DIR32` (`FUN_0063e7e0`) is dx `DAT_006ea998` and dy `DAT_006ea978`, both signed bytes:
     ```
     dx: 0,-1,-1,-1,0,1,1,1, 0,-1,-2,-2,-2,-2,-2,-1, 0,1,2,2,2,2,2,1, 0,-3,-3,-3,0,3,3,3
-    dy:-1,-1,0,1,1,1,0,-1, -2,-2,-2,-1,0,1,2,2, 2,2,2,2,2,-1,-2,-2, -3,-3,0,3,3,3,0,-3
+    dy:-1,-1,0,1,1,1,0,-1, -2,-2,-2,-1,0,1,2,2, 2,2,2,1,0,-1,-2,-2, -3,-3,0,3,3,3,0,-3
     ```
   - `DAT_006e3188[d8]` = `29,28,27,26,25,24,31,30`.
   - `DAT_006e3140[d8][f]` (99 means no offset):
@@ -406,7 +407,7 @@ The walk path itself may draw more; see `FUN_005deb60` flag 2 below.
   - Vel 15, Range 40; Pierce, CollideKill, ResultFlags 4;
   - dmg 1792..2560 +1280/lvl (in 1/256 units, so 7..10 +5 per level);
   - poison: EMin 32 / EMax 64 +32/lvl; ELen 400 +10/lvl. Param1 193 and Param2 103 are client-side.
-- Neither spray skill has a Skills.txt `seqnum`. The SQ event frames therefore come from Andariel's AnimData (AN SQ), not from MonSeq. Nothing named "seq_andarielspray" drives the server. The f-clamp covers frames 4..12, which is consistent with 9 event frames there. That event list is in AnimData.d2, not game.exe, and I have not verified it.
+- The SQ event frames come from MonSeq.txt `seq_andarielspray` (MonStats Sk1mode): 18 frames of SC, event 2 on frames 4..12. AnimData ANSCHTH has the same events. So one cast fires 9 sprays, f = 0..8, matching the f-clamp.
 
 ### Death
 
@@ -419,8 +420,9 @@ The walk path itself may draw more; see `FUN_005deb60` flag 2 below.
 
 ### Open
 
-- The AN SQ AnimData event frames (the number of spray missiles per cast).
-- The body of `FUN_0045c3e0` (wander offsets).
+- Resolved: the spray's event frames (MonSeq, above) and `FUN_0045c3e0` (rand(n)).
+- The direction `FUN_0064fdc0` → `FUN_0064fc60`: the smaller delta ×127 / the larger (16.16, 32-bit) indexes a 128-entry table @ `0x6eb7e0` of `{vx, vy, eighth}`. The eighth steps up at 13, 26, 39, 53, 68, 85 and 105, then folds into its octant; 0 faces +x+y.
+- In melee `FUN_00622c40(mon, tgt, 0)`: `FUN_00641530` distance ≤ MonStats2 MeleeRng (+0xe; Andariel 0) + 1, then a path test (`FUN_00622aa0`, mask 0x804). Close up (both sizes < 4, deltas < 8), `FUN_00641530` reads the 8×8 table @ `0x6eb180`, one less when either size is 3.
 
 ## a1q6 Sisters to the Slaughter (quest 6) and the move to Act 2
 

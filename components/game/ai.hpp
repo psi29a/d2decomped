@@ -139,6 +139,12 @@ struct Monster {
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
     std::uint32_t blind_until = 0;
     bool in_aura = false;                     // within the player's aura (its auratargetstate: Conviction's convicted ...)
+    // Andariel's think (MonAI 34): the skill its mode is using (-1 a plain
+    // swing), the last SC frame the spray fired, where its target stood
+    // when the spray began (subtiles), a random walk under way (to
+    // unit.goal) rather than a chase.
+    int skill = -1, skill_frame = 0, skill_x = 0, skill_y = 0;
+    bool wandering = false;
     [[nodiscard]] bool alive() const { return hit_points > 0; }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
@@ -293,6 +299,8 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.
+// Andariel (MonStats AI "Andariel") thinks her own way instead: see
+// rules::andariel_think.
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles);
 
