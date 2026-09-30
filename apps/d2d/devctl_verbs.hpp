@@ -102,6 +102,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "select" && verb_args.size() >= 4) town.net.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
         else if (verb == "belt" && verb_args.size() >= 3) town.net.send(cmd::UseBelt{ int_arg(2, 0) });
         else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>\n");
         return std::string("ok\n");
@@ -322,8 +323,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         }
         if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n> (quests)
             int keep = args.size() >= 3 ? std::atoi(args[2].c_str()) : 0;
-            for (auto& monster : town.world.fight.monsters)
-                if (monster.alive() && keep-- <= 0) hurt(*scene, monster, monster.hit_points, town.world.now);
+            auto& monsters = town.world.fight.monsters;
+            for (std::size_t i = 0; i < monsters.size(); ++i)
+                if (monsters[i].alive() && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)

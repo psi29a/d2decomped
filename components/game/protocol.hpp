@@ -70,6 +70,8 @@ struct CloseTrade {};
 // Akara's Reset Stat/Skill Points, confirmed ("ok" sends game.exe's 0x38
 // to her; d2d tells it apart with kind 3).
 struct Respec { int npc = -1; };
+// 0x38 (game.exe's kind 0, arg the level): Warriv's "Go East" to Lut Gholein.
+struct GoEast { int npc = -1; };
 // 0x53 / 0x54: run or walk.
 struct Run { bool running = false; };
 // 0x2f: the NPC the player's talking with (its menu, speech or store open;
@@ -86,7 +88,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::GoEast>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -166,6 +168,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? 0x53 : 0x54);
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(0x2f).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(0x31).i32(message.npc).i32(message.string);
+        else if constexpr (std::is_same_v<T, cmd::GoEast>) out.u8(0x38).u8(4).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Waypoint>) out.u8(0x49).i32(message.npc).i32(message.level);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, command);
@@ -199,7 +202,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case 0x23: command = cmd::ToBelt{ i32() }; break;
         case 0x38: {
             const int kind = byte(), npc = i32();
-            command = kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
+            command = kind == 4 ? Command{ cmd::GoEast{ npc } } : kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
             break;
         }
         case 0x32: command = cmd::Buy{ i32() }; break;

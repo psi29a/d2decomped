@@ -47,5 +47,31 @@ int main() {
     DenQuest other_den;
     other_den.enter_den(other_bits);
     assert(other_den.killed(other_bits, 0) == DenQuest::Kill::cleared && other_den.talk(other_bits, 148)[0].string == 76);
+
+    // Sisters to the Slaughter: available 20 ticks in; Cain gives it;
+    // the Catacombs; Andariel's kill (portal at tick 10, log 3 at 12);
+    // Warriv's reward, once.
+    QuestBits andy_bits{};
+    AndyQuest andy;
+    for (int i = 0; i < 19; ++i) andy.tick();
+    assert(andy.state == 0 && andy.talk(andy_bits, AndyQuest::kCain).empty());
+    andy.tick();
+    assert(andy.state == 1 && andy.alert(andy_bits, AndyQuest::kCain) && andy.talk(andy_bits, AndyQuest::kCain)[0].string == 166);
+    andy.said(andy_bits, AndyQuest::kCain, 166);
+    andy.talk_closed(AndyQuest::kCain);
+    assert(andy.state == 2 && andy.log == 1 && qbit(andy_bits, 6, 2) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 171);
+    andy.enter(andy_bits, 1, 2);
+    assert(andy.state == 3 && qbit(andy_bits, 6, 3) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 177);
+    andy.enter(andy_bits, 36, AndyQuest::kLair);
+    assert(andy.killed(andy_bits, true) && andy.state == 4 && qbit(andy_bits, 6, 1) && qbit(andy_bits, 6, 13) && andy.cain);
+    assert(!andy.killed(andy_bits, true));                                            // no second drop
+    int portal_tick = 0;
+    for (int i = 2; i <= 12; ++i) if (andy.tick()) portal_tick = i;
+    assert(portal_tick == 10 && andy.log == 3 && andy.after_kill == 0);
+    assert(andy.alert(andy_bits, AndyQuest::kWarriv) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 183 && andy.talk(andy_bits, AndyQuest::kWarriv)[0].greet);
+    assert(andy.talk(andy_bits, AndyQuest::kCain)[0].string == 184 && andy.talk(andy_bits, 154)[0].string == 180);
+    assert(andy.said(andy_bits, AndyQuest::kWarriv, 183) && qbit(andy_bits, 6, 0) && !qbit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
+    assert(!andy.said(andy_bits, AndyQuest::kWarriv, 183) && !andy.alert(andy_bits, AndyQuest::kWarriv));
+    assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
     std::puts("ok");
 }

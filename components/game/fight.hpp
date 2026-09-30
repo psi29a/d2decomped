@@ -479,6 +479,8 @@ struct Fight {
     // experience, its pack may scatter, it drops its loot.
     // ponytail: the merc's own experience share isn't kept.
     void killed(std::size_t monster_index, std::uint32_t now_ms);
+    struct Kill { int type; float x, y; int level; };
+    std::vector<Kill> kills;                       // since the World last looked (its quests' death hooks)
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;

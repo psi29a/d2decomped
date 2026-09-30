@@ -119,4 +119,134 @@ struct DenQuest {
     }
 };
 
+// Sisters to the Slaughter, one game's (a1q6.cpp, the record at
+// FUN_00596990). Quest 6; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
+// the Catacombs, 13 took part, 14 cleared by someone else, 15 closed.
+// ponytail: one player — the Cain / Akara / Kashya lists (+0x000 / +0x084
+// / +0x108) and the rewarded list (rec+0x1c) are a bool each for them.
+struct AndyQuest {
+    static constexpr int kQuest = 6, kCain = 265, kAkara = 148, kKashya = 150, kWarriv = 155, kAndariel = 156, kLair = 37, kLut = 40;
+    int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
+    int log = 0;        // +0xb
+    int start_in = 20;  // ticks to the start timer (0x5968e0: 0x14, then 0x596580)
+    int after_kill = 0; // +0x192: ticks since Andariel died (timer 0x596500), 0 not running
+    bool cain = false, akara = false, kashya = false, rewarded = false;
+    bool cain_pending = false;   // +0x195: Cain gave it, the log waits for the talk to close
+
+    // A player's bits for the state (0x595bd0).
+    void mark(QuestBits& quest_bits) const {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        if (state == 2) qset(quest_bits, kQuest, 2);
+        if (state == 3) qset(quest_bits, kQuest, log == 1 ? 3 : 4);
+    }
+    // The player joins (0x596900).
+    void join(const QuestBits& quest_bits) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) return;
+        if (qbit(quest_bits, kQuest, 4)) { log = 2; state = 3; }
+        else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+        else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
+    }
+    // A tick (40 ms). 1: the kill's town portal is due at the player, if
+    // they're in Andariel's lair (tick 10, FUN_00596490).
+    int tick() {
+        if (start_in > 0 && --start_in == 0 && state == 0) state = 1;
+        if (after_kill == 0) return 0;
+        ++after_kill;
+        if (after_kill == 12) {
+            if (log != 3 && log != 0xd) log = 3;
+            after_kill = 0;
+        }
+        return after_kill == 10;
+    }
+    // What `npc` says about it (FUN_00595e20): blocks at 0x7382e0 by the
+    // state (0x7382c4: -1, 0, 1, 2, 3, 4).
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+        struct E { int npc, string; bool greet; };
+        static const std::vector<E> kBlocks[5] = {
+            { { kCain, 166, true } },
+            { { kAkara, 168, false }, { kKashya, 172, false }, { 154, 169, false }, { kCain, 167, false }, { 147, 170, false }, { kWarriv, 171, false } },
+            { { kKashya, 178, false }, { kWarriv, 177, false }, { 147, 175, false }, { kCain, 173, false }, { 154, 176, false }, { kAkara, 174, false } },
+            { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
+            { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
+        };
+        const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
+        const bool listed = (npc == kCain && cain) || (npc == kAkara && akara) || (npc == kKashya && kashya);
+        const bool cak = npc == kCain || npc == kAkara || npc == kKashya;
+        int block = -1;
+        if (listed) block = 3;
+        else if (qbit(quest_bits, kQuest, 1)) block = cak ? 4 : 3;
+        else if (rewarded) block = 4;
+        else if (state == 1 && npc == kCain && !b0) block = 0;
+        else if (state != 0 && !(b0 && !b13) && !(state >= 4 && !b13) && !(b0 && b13)) block = state - 1;
+        std::vector<QuestMsg> out;
+        if (block >= 0 && block <= 4)
+            for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
+        return out;
+    }
+    // The balloon over `npc` (FUN_005967f0).
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
+        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1);
+        if (npc == kCain) return cain || (!b0 && state == 1 && !b1);
+        if (npc == kWarriv) return !b0 && b1;
+        return (npc == kAkara && akara) || (npc == kKashya && kashya);
+    }
+    // The player heard `string` from `npc` (FUN_00595c60). True: Warriv's
+    // reward — done (bit 0), and the quest's complete message.
+    bool said(QuestBits& quest_bits, int npc, int string) {
+        if (npc == kCain && string == 166) { state = 2; cain_pending = true; mark(quest_bits); }
+        if (npc == kCain && string == 184) cain = false;
+        if (npc == kAkara && string == 179) akara = false;
+        if (npc == kKashya && string == 181) kashya = false;
+        if (npc != kWarriv || string != 183 || !qbit(quest_bits, kQuest, 1)) return false;
+        if (qbit(quest_bits, kQuest, 13)) { log = 0xd; state = 5; }
+        qset(quest_bits, kQuest, 1, false);
+        qset(quest_bits, kQuest, 0);
+        rewarded = true;
+        return true;
+    }
+    // The talk with `npc` closed (0x595b80).
+    void talk_closed(int npc) {
+        if (npc == kCain && cain_pending) { log = 1; cain_pending = false; }
+    }
+    // The player went from level `from` to `to` (FUN_00596010).
+    void enter(QuestBits& quest_bits, int from, int to) {
+        if (to < 34 || to > 37) {
+            if (state == 4 && to == kLut) state = 5;
+            else if (from == 1 && state == 2 && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
+            return;
+        }
+        if (state <= 2) state = 3;
+        if (to == kLair && log < 2) log = 1;
+        mark(quest_bits);
+    }
+    // Andariel died (FUN_005965a0). True: the player's kill for the quest
+    // (bits 13 and 1, FUN_00596210) — Act 2 opens and her quest drop is
+    // due: two chipped gems, one standard. `in_lair`: the player's in her
+    // level (FUN_00596260: the lists).
+    // ponytail: a merc's kill counts as the player's.
+    bool killed(QuestBits& quest_bits, bool in_lair) {
+        const bool first = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
+        if (first) { qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1); }
+        if (in_lair && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 15)) cain = akara = kashya = true;
+        after_kill = 1;
+        state = 4;
+        return first;
+    }
+    // Her quest drop's codes (0x7361dc chipped, 0x736444 standard), by lo % 7.
+    static constexpr const char* kChipped[7] = { "gcv", "gcr", "gcb", "gcy", "gcg", "gcw", "skc" };
+    static constexpr const char* kStandard[7] = { "gsv", "gsr", "gsb", "gsy", "gsg", "gsw", "sku" };
+};
+
+// The quest a message is about, for the Talk submenu's label: its name's
+// string id (0x722678), 0 none.
+[[nodiscard]] inline int quest_name(int message) {
+    if (message >= 64 && message <= 80) return 3714;       // Den of Evil
+    if (message >= 81 && message <= 96) return 3715;       // Sisters' Burial Grounds
+    if (message >= 97 && message <= 126) return 3717;      // The Search for Cain
+    if (message >= 127 && message <= 145) return 3718;     // The Forgotten Tower
+    if (message >= 146 && message <= 165) return 3716;     // Tools of the Trade
+    if (message >= 166 && message <= 184) return 3719;     // Sisters to the Slaughter
+    return 0;
+}
+
 }  // namespace d2d::rules

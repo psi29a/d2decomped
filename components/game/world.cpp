@@ -325,6 +325,8 @@ auto World::new_game() -> void {
         cues.due.clear();
         den = {};
         den.join(quests());
+        andy = {};
+        andy.join(quests());
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -348,6 +350,8 @@ auto World::spawn_merc() -> void {
     }
 
 auto World::swap_npcs(const Level* from) -> void {
+        arrived_at = now;
+        if (from && from != level) andy.enter(quests(), from->id, level->id);
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -407,6 +411,25 @@ auto World::cross_level() -> void {
             d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), player.x, player.y);
             return;
         }
+    }
+
+auto World::quest_talk(int hc_idx) -> std::vector<d2d::rules::QuestMsg> {
+        auto out = den.talk(quests(), hc_idx);
+        std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
+        return out;
+    }
+
+// Andariel's death hook (FUN_005965a0): the quest's bits; the player's
+// kill for it opens Act 2 (the save's progression, FUN_00538680) and
+// drops two chipped gems and a standard one (0x7361dc / 0x736444).
+// ponytail: loot's rng, not the game's quest rng (game+0x10f4).
+auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
+        if (!andy.killed(quests(), level->id == d2d::rules::AndyQuest::kLair)) return;
+        const int diff = character.header.active_difficulty();
+        character.header.progression = std::uint8_t(std::max<int>(character.header.progression, diff * (character.header.expansion() ? 5 : 4) + 1));
+        for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
+            loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, now_ms);
+        d2d::log::info("Sisters to the Slaughter: Andariel is dead, return to Warriv");
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -469,7 +492,6 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             merc->path.clear();
             std::tie(merc->x, merc->y) = level->nearest_free(free_x + 1, free_y + 1);
         }
-        arrived_at = now;
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         loot.enter(level);
@@ -632,8 +654,25 @@ auto World::deal(const Command& command) -> bool {
             d2d::log::info("Akara reset the stat and skill points");
             return true;
         }
+        // Warriv's caravan (FUN_00579d60, hcIdx 0x9b): once quest 6 is done,
+        // to Lut Gholein; Act 2 opens (FUN_005467e0: quest 7 bits 0 and 13)
+        // and its town's waypoint is active.
+        if (const auto* east = std::get_if<cmd::GoEast>(&command)) {
+            using d2d::rules::qbit;
+            if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::AndyQuest::kWarriv
+                || !qbit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
+            if (!qbit(quests(), 7, 0)) { d2d::rules::qset(quests(), 7, 0); d2d::rules::qset(quests(), 7, 13); }
+            andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
+            set_waypoint(waypoint_index(*game_data, d2d::rules::AndyQuest::kLut));
+            d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein)");
+            return true;
+        }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { running = run->running; return true; }
-        if (const auto* chat = std::get_if<cmd::Chat>(&command)) { talking = { chat->npc, -1, -1 }; return true; }
+        if (const auto* chat = std::get_if<cmd::Chat>(&command)) {
+            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) andy.talk_closed(level->npcs[std::size_t(talking[0])].hc_idx);
+            talking = { chat->npc, -1, -1 };
+            return true;
+        }
         // FUN_0054c5d0 / FUN_00584f60: not within 10 s of the last level
         // change, only to another active waypoint; arrival by its preset
         // (tile + 3 subtiles, FUN_0066ad80), which lights up if it's dark.
@@ -653,7 +692,10 @@ auto World::deal(const Command& command) -> bool {
         if (const auto* message = std::get_if<cmd::QuestMessage>(&command)) {   // only what that NPC has to say
             if (std::size_t(message->npc) >= level->npcs.size()) return true;
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;
-            if (!std::ranges::contains(den.talk(quests(), hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
+            if (!std::ranges::contains(quest_talk(hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
+            if (andy.said(quests(), hc_idx, message->string)) {
+                d2d::log::info("Sisters to the Slaughter: done, Warriv's caravan goes east");
+            }
             if (den.said(quests(), hc_idx, message->string)) {
                 ++character.stats.values[d2d::d2s::kSkillPts];
                 d2d::log::info("Den of Evil: Akara's reward, a skill point");
@@ -815,7 +857,10 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         item_ids();
         // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
         if (now_ms - day_at > 1000) day_at = now_ms;
-        for (; now_ms - day_at >= kTickMs; day_at += kTickMs) day.step();
+        for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
+            day.step();
+            if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
+        }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt, minutes; 0 never).
@@ -883,7 +928,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                         using d2d::rules::qbit;
                         if (qbit(quest_bits, 1, 0) && !qbit(quest_bits, 41, 1) && !qbit(quest_bits, 41, 0)) { d2d::rules::qset(quest_bits, 41, 13); d2d::rules::qset(quest_bits, 41, 1); }
                     }
-                    events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, den.talk(quests(), npc.hc_idx) });
+                    events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, quest_talk(npc.hc_idx) });
                 }
                 player.walking = false; interact_npc = -1;
             } else if (!player.walking) {
@@ -925,7 +970,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx);
+            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
@@ -938,6 +983,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         }
         use_portal(now_ms);
         }
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::AndyQuest::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
+        fight.kills.clear();
         cross_level();
         fight.rooms_up(*level, player.x, player.y, false);
         if (!fight.dead()) fight.apply_regen(now_ms, last_ms);

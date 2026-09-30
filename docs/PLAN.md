@@ -555,6 +555,9 @@ quests 2–6, Andariel, preset specials (superunique
 rules, quest objects), random object groups; research in
 docs/research/re/quests-act1.md, act1-end.md, preset-specials.md.
 Waypoint travel within Act 1 is in (C→S 0x49, dark wilderness waypoints).
+Sisters to the Slaughter (quest 6) is in: talk, alerts, Andariel's death
+hook (gems, progression, the lair portal), Warriv's Go East (Act 2 itself
+not yet).
 
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard
