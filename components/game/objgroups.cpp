@@ -597,7 +597,10 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         pop.room = { made.x * 5, made.y * 5, made.width * 5, made.height * 5 };
         pop.seed = d2d::rules::Rng{ i < level.room1_seeds.size() ? level.room1_seeds[i] : made.seed };
         pop.out = &level.group_rooms[i];
-        pop.seed.next();                                                                           // FUN_0054f060
+        // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
+        // rolls a wanderer (FUN_0054eff0: under 3 in 100).
+        // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
+        if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
         pop.presets(i);
         pop.out->pre = pop.seed.low;
         if (pop.open(i, themes)) pop.groups();
