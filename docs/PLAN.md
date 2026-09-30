@@ -551,9 +551,10 @@ joining `kBuiltLevels` once `diff_drlg` matches — crypts (LevelType 4:
 game.exe on `diff_drlg.py` (grids, tiles, units): crypts (18, 19, 21–24),
 Jail (29–31), Catacombs (34–36) and the Barracks (28, placed beside the
 courtyard). `kBuiltLevels` holds 2–39. Next: the rest of Act 1's play —
-quests 2–6, Andariel, waypoint travel, preset specials (superunique
+quests 2–6, Andariel, preset specials (superunique
 rules, quest objects), random object groups; research in
 docs/research/re/quests-act1.md, act1-end.md, preset-specials.md.
+Waypoint travel within Act 1 is in (C→S 0x49, dark wilderness waypoints).
 
 Still open in the Blood Moor: random object groups (FUN_00552610). Traced
 (objects.md "Random object groups per room"): the algorithm, the guard

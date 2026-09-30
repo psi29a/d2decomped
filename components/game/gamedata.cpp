@@ -507,7 +507,8 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
-                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4);   // shrines / chests: NU until used
+                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4   // shrines / chests: NU until used
+                 && (npc.operate_fn != 23 || std::ranges::contains(std::array{ 1, 40, 75, 103, 109 }, into.id)));   // waypoints: on in towns (InitFn 17)
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.

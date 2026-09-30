@@ -78,13 +78,15 @@ struct Chat { int npc = -1; };
 // 0x31: the player heard quest message `string` from NPC `npc` (Akara's
 // "Den of Evil" starts the quest, her "successful" hands out the reward).
 struct QuestMessage { int npc = -1, string = 0; };
+// 0x49: travel from waypoint object `npc` to the waypoint of `level`.
+struct Waypoint { int npc = -1, level = 0; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -164,6 +166,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? 0x53 : 0x54);
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(0x2f).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(0x31).i32(message.npc).i32(message.string);
+        else if constexpr (std::is_same_v<T, cmd::Waypoint>) out.u8(0x49).i32(message.npc).i32(message.level);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, command);
     return out.bytes;
@@ -208,6 +211,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case 0x53: case 0x54: command = cmd::Run{ bytes[0] == 0x53 }; break;
         case 0x2f: command = cmd::Chat{ i32() }; break;
         case 0x31: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
+        case 0x49: { const int npc = i32(); command = cmd::Waypoint{ npc, i32() }; break; }
         default: return std::nullopt;
     }
     if (!input.ok || input.offset != bytes.size()) return std::nullopt;

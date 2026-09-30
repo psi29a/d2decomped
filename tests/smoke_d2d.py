@@ -342,6 +342,25 @@ try:
     cmd(f"debug warp -0.2 {lv[3]}"); frames(6)
     assert cmd("debug level").split()[1] == "1"
 
+    # Waypoint travel (C->S 0x49): Cold Plains' waypoint (index 1) active,
+    # the town's sends the player to it once 10 s have passed since the
+    # last level change; they arrive beside it.
+    cmd("debug wp 1")
+    wp = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
+    for _ in range(30):
+        cmd(f"cmd waypoint {wp[4]} 3"); frames(30)
+        lv = cmd("debug level").split()
+        if lv[1] == "3":
+            break
+    assert lv[1] == "3", f"waypoint travel didn't reach the Cold Plains: {lv}"
+    there = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
+    assert abs(float(there[5]) - float(lv[2])) < 3 and abs(float(there[6]) - float(lv[3])) < 3, (there, lv)
+    for _ in range(30):
+        cmd(f"cmd waypoint {there[4]} 1"); frames(30)
+        if cmd("debug level").split()[1] == "1":
+            break
+    assert cmd("debug level").split()[1] == "1", "waypoint travel back to camp failed"
+
     # Saving (character_store.hpp): gold set, saved, out to the roster and
     # back in; the gold is still there, the original kept as .d2s.bak.
     name = state()["name"]

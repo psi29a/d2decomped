@@ -618,7 +618,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
         }
         // Waypoint panel: tabs switch acts, cancel (or the row of the
         // level you're in) closes it.
-        // ponytail: no travel yet — another row closes the panel too.
         if (waypoint.open) {
             const bool on_cancel = mouse.x >= kCharPanelX + 0x111 && mouse.x < kCharPanelX + 0x111 + 0x24
                                 && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
@@ -626,8 +625,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (mouse.press_this_frame) {
                 if (const int tab = waypoint_tab_at(character.header, character.expansion, mouse.x, mouse.y); tab >= 0) waypoint.tab = tab;
                 else if (const int row = waypoint_row_at(*scene, waypoint, character.header, mouse.x, mouse.y); row >= 0) {
-                    d2d::log::info("not implemented: waypoint travel to {}",
-                                   scene->waypoint_levels[std::size_t(waypoint.tab)][std::size_t(row)].name);
+                    net.send(cmd::Waypoint{ waypoint.npc, scene->waypoint_levels[std::size_t(waypoint.tab)][std::size_t(row)].level });
                     waypoint = {};
                 }
             }
@@ -743,7 +741,7 @@ auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
             return;
         }
         if (open_ui.kind == ev::OpenUI::waypoint) {
-            waypoint = { .open = true };
+            waypoint = { .open = true, .npc = open_ui.npc };
             inv_open = char_open = stash_open = cube_open = quest_log.open = false;
             return;
         }

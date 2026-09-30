@@ -159,6 +159,7 @@ struct World {
     int last_pmode = -1;                   // the player's mode at the last tick (death's stages)
     std::int64_t exp_lost = 0;             // what the last death took
     std::uint32_t now = 0;                 // the tick's time
+    std::uint32_t arrived_at = 0;          // when the player last changed level (pcdata+0x160)
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
     const CharacterStore* characters = nullptr;   // where the character is saved
@@ -282,6 +283,7 @@ struct World {
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
     // comes along; the automap and monsters are the new level's.
     void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
+    void set_waypoint(int index) { if (index >= 0 && index < 40) character.header.waypoints[std::size_t(character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
     // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the

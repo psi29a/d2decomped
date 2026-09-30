@@ -143,7 +143,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 //   447..481), "Cancel" (0x1022) on hover.
 struct WaypointUI {
     bool open = false;
-    int tab = 0, hover = -1;
+    int tab = 0, hover = -1, npc = -1;                // npc: the waypoint object touched
     bool cancel_down = false;
 };
 constexpr int kWpIconBottom[9] = { 89, 125, 161, 197, 234, 270, 306, 342, 378 };

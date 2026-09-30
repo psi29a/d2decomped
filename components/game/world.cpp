@@ -38,6 +38,13 @@
 
 namespace d2d::game {
 
+// Levels.txt Waypoint: a level's index in the waypoint bits (FUN_00660e00), -1 none.
+static int waypoint_index(const GameData& game_data, int level_id) {
+    for (const auto& act_levels : game_data.waypoint_levels)
+        if (const auto found = std::ranges::find(act_levels, level_id, &GameData::WaypointLevel::level); found != act_levels.end()) return found->waypoint;
+    return -1;
+}
+
 auto World::quests() -> d2d::rules::QuestBits& { return character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))]; }
 
 auto World::item_ids() -> void {
@@ -462,6 +469,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             merc->path.clear();
             std::tie(merc->x, merc->y) = level->nearest_free(free_x + 1, free_y + 1);
         }
+        arrived_at = now;
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         loot.enter(level);
@@ -626,6 +634,22 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { running = run->running; return true; }
         if (const auto* chat = std::get_if<cmd::Chat>(&command)) { talking = { chat->npc, -1, -1 }; return true; }
+        // FUN_0054c5d0 / FUN_00584f60: not within 10 s of the last level
+        // change, only to another active waypoint; arrival by its preset
+        // (tile + 3 subtiles, FUN_0066ad80), which lights up if it's dark.
+        if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
+            const int index = waypoint_index(*game_data, travel->level);
+            if (now - arrived_at < 10000 || std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != 23
+                || travel->level == level->id || !character.header.waypoint(character.header.active_difficulty(), index)) return true;
+            const Level* destination = game_data->level(travel->level);
+            if (!destination || destination->ds1.width() == 0) { d2d::log::info("not implemented: level {} (a waypoint)", travel->level); return true; }
+            const auto found = std::ranges::find(destination->npcs, 23, &Npc::operate_fn);
+            const float arrive_x = found == destination->npcs.end() ? float(destination->ds1.width()) / 2 : std::floor(found->x) + 0.6f;
+            const float arrive_y = found == destination->npcs.end() ? float(destination->ds1.height()) / 2 : std::floor(found->y) + 0.6f;
+            if (found != destination->npcs.end() && found->mode == "NU") operated.try_emplace({ destination, int(found - destination->npcs.begin()) }, now);
+            arrive(destination, arrive_x, arrive_y, "a waypoint");
+            return true;
+        }
         if (const auto* message = std::get_if<cmd::QuestMessage>(&command)) {   // only what that NPC has to say
             if (std::size_t(message->npc) >= level->npcs.size()) return true;
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;
@@ -842,10 +866,13 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 } else if (npc.operate_fn == 32) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });
                 } else if (npc.operate_fn == 23) {
-                    // Touching it activates it (the town's: wp 0).
-                    // ponytail: town only; a wilderness waypoint would need its level.
-                    character.header.waypoints[std::size_t(character.header.active_difficulty())][0] |= 1;
-                    events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
+                    // FUN_00584e30: touching activates this level's waypoint
+                    // (the town's, index 0, always is); an unlit one lights
+                    // up (mode 1 → 2) and the panel waits for the next touch.
+                    set_waypoint(0);
+                    set_waypoint(waypoint_index(*game_data, level->id));
+                    if (npc.mode == "NU" && !operated.contains({ level, interact_npc })) operated[{ level, interact_npc }] = now_ms;
+                    else events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
                 } else {
                     if (d2d::rules::is_healer(npc.hc_idx)) d2d::rules::heal(character.stats);
                     // In Hell, a Den of Evil done before the reset existed

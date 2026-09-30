@@ -101,8 +101,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "skillpt" && verb_args.size() >= 3) town.net.send(cmd::SkillPoint{ int_arg(2, 0) });
         else if (verb == "select" && verb_args.size() >= 4) town.net.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
         else if (verb == "belt" && verb_args.size() >= 3) town.net.send(cmd::UseBelt{ int_arg(2, 0) });
+        else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
-                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot>\n");
+                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {
@@ -150,6 +151,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         if (args.size() >= 4 && args[1] == "blocked" && town.level) {   // can a unit stand at (x, y)?
             return std::format("ok {}\n", int(town.level->unit_blocked(std::strtof(args[2].c_str(), nullptr),
                                                                    std::strtof(args[3].c_str(), nullptr))));
+        }
+        if (args.size() >= 3 && args[1] == "wp") {         // activate waypoint index n
+            town.world.set_waypoint(std::atoi(args[2].c_str()));
+            return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "warp") {       // put the player at cell (x, y)
             town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
