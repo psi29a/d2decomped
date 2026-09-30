@@ -519,12 +519,13 @@ Gaps, most important first:
    - Also missing: the Tristram portal (FUN_00592d50), Cain spawns
      (FUN_00593290 / FUN_00592960), the Akara/Charsi/Kashya turn-ins and the
      Andariel gem drop.
-4. Ordinary dungeon objects are not built:
-   - op 1/3/14 (casket, urn, corpse: FUN_00585b90 + FUN_00582510)
-   - op 5/7 (barrels), 8/16/18 (doors), 19/20 (armor stand, weapon rack),
-     22 (well), 26 (bookshelf), 30 (trap)
-   - InitFn 2 (urn frame) and 28 (gold placeholder, which consumes room seed:
-     it matters for seed parity in level 25)
+4. Ordinary dungeon objects are built (World::operate): ops 1/3/5/7/14,
+   8/16/18, 19/20, 22 and 26, plus InitFn 2 (the trap roll, not an urn frame)
+   and InitFn 28 (its seed steps only; the gold piles are not dropped). Still
+   missing:
+   - op 30 (trap)
+   - monster door opening (FUN_005b0f50)
+   - the locked door (mode 6) and the 0x8000-blocked door (mode 4)
 5. Type-2 object groups >= 0x23e (FUN_0054f490, table 0x731d28) only step the
    seed. The MonPlace codes 4, 8, 10/11, 0x18/0x1a and 0x1d..0x20 (dead
    monsters, mode 0xc) have no cases, and the MonStats 0x1b6 event is missing.

@@ -179,11 +179,11 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
         }
-        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // shrines / chests: index, cell, kind, shrine row, mode
+        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // operable objects: index, cell, kind (shrine, chest, opN), shrine row / trap, mode
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
-                if (const auto& npc = town.level->npcs[i]; npc.operate_fn == 2 || npc.operate_fn == 4)
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : "chest",
+                if (const auto& npc = town.level->npcs[i]; npc.operate_fn > 0 && npc.root == "objects")
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : std::format("op{}", npc.operate_fn),
                                        npc.operate_fn == 2 ? npc.shrine : npc.trap, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";

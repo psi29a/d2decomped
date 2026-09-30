@@ -96,6 +96,24 @@ int main() {
     Rng gold_rng{ 5 };
     assert(gem_shrine(tables, inv, gold_rng).empty() && inv[1].code == "gfv" && inv[0].code == "gpv");
     assert(gem_shrine(tables, inv, gold_rng).substr(0, 2) == "gc");
+    // Doors (FUN_00581d40): closed opens; open closes, or sticks while occupied.
+    assert(door_mode(0, true) == 2 && door_mode(2, false) == 0 && door_mode(2, true) == 5);
+    assert(door_mode(5, true) == -1 && door_mode(5, false) == 0 && door_mode(1, false) == -1);
+    assert(object_sound(15, 2) == "object_door_wood_open" && object_sound(13, 0) == "object_door_metal_close" && object_sound(15, 1).empty());
+    // A well: half the maxima back, capped; nothing short, no drink.
+    std::int64_t life = 10, mana = 100, stamina = 0;
+    assert(well_drink(life, 100, mana, 100, stamina, 40) && life == 60 && mana == 100 && stamina == 20);
+    life = 100; stamina = 40;
+    assert(!well_drink(life, 100, mana, 100, stamina, 40));
+    // A stand's item: a base from the auto classes up to its level.
+    tables.item_base["lea"].level = 3; tables.item_base["gth"].level = 60;
+    tables.treasure["armo3"].items = { { "lea", 1 } };
+    tables.treasure["armo60"].items = { { "gth", 1 } };
+    Rng stand_rng{ 9 };
+    assert(stand_item(tables, false, 5, stand_rng) == "lea" && stand_item(tables, false, 2, stand_rng).empty() && stand_item(tables, true, 5, stand_rng) == "hax");
+    int trapped = 0;
+    for (int i = 0; i < 1000; ++i) { Rng trap_rng{ std::uint32_t(i) }; trapped += roll_trap(40, trap_rng) > 0; }   // 10 % at MonLvl1 40
+    assert(trapped > 60 && trapped < 140);
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");
 }
