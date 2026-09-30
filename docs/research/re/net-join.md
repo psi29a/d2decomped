@@ -338,6 +338,26 @@ S: [04] [5A ...] ...     (world)
 C: 6D (13) every 5 s
 ```
 
+## Live check (2026-09-30, a real 1.14d host on the LAN)
+
+A stale-version join against an open TCP/IP game hosted by an unmodified
+1.14d game.exe (the host in the Rogue Encampment):
+
+| Step | Bytes |
+|---|---|
+| connect | `af 01` raw |
+| C `[68]`, version 0x0d, token 1, class 0, name "Probe" | 37 bytes |
+| S frame 1 | `04 05 46 9c` → decompressed `b4 10 00 00 00` |
+| S frame 2 | `06 7a 09 a5 f5 c0` → decompressed `01 00 04 00 10 00 01 00` `00` `02` |
+
+Confirmed: the 1-byte frame header (length including itself), the Huffman
+table read from the user's game.exe, and B4 reason 0x10 for a bad version.
+Not expected: after the B4 the host still flushed `[01] [00] [02]` before
+closing (game flags 0x00100004: expansion 0x100000 plus bit 0x4, unexplained;
+difficulty 0, expansion 1, ladder 0). So the refusal doesn't stop the game
+queue's accept packets; a client must act on B4 and ignore what follows.
+No character entered the host's game.
+
 ## Keep-alive and timeouts
 
 - **Ping** (C->S 0x6d, 13 bytes; `FUN_00477dd0`). The main loop (`FUN_0044efa0`) calls it, and it sends at most once every 5000 ms. Layout:
