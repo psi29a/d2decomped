@@ -76,8 +76,17 @@ struct Loot {
                               : monster.boss == d2d::rules::Boss::champion && !type_info.tc_champion[difficulty_index].empty() ? type_info.tc_champion[difficulty_index]
                               : monster.boss == d2d::rules::Boss::unique && !type_info.tc_unique[difficulty_index].empty()     ? type_info.tc_unique[difficulty_index]
                                                                                                    : type_info.diff[difficulty_index].treasure_class;
+        // FUN_005a6600: TreasureClass4 while its quest isn't done; then
+        // FUN_0055afa0 moves it on by the monster's level past normal.
+        const auto& quest_tc = type_info.tc_quest[difficulty_index];
+        const auto& header = character.header;
+        const bool quest_open = type_info.tc_quest_id && !quest_tc.empty() && !header.quest_flag(diff, type_info.tc_quest_id, 15)
+                                && !header.quest_flag(diff, type_info.tc_quest_id, 1) && !header.quest_flag(diff, type_info.tc_quest_id, type_info.tc_quest_cp);
+        const auto rolled = d2d::rules::tc_upgrade(game_data->rules, quest_open ? quest_tc : treasure_class, diff > 0 && !type_info.tc_fixed ? monster.stats.level : 0);
+        // ponytail: the shared rng stands in for the monster's unit seed
+        // (unit +0x20) FUN_0055a6d0 rolls off; no magic find, one player.
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, treasure_class, monster.stats.level, rng, drops);
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, rng, drops);
         for (const auto& dropped : drops) put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, now_ms);
     }
     // One drop round (x, y).
@@ -88,8 +97,8 @@ struct Loot {
             ground_item.now_ms = now_ms;
             if (dropped.code == "gld") {
                 ground_item.item.code = "gld";
-                ground_item.gold = dropped.gold;
-                ground_item.label = std::to_string(dropped.gold) + " Gold";
+                ground_item.gold = dropped.gold ? dropped.gold : d2d::rules::gold_amount(ilvl, dropped.mul, rng);
+                ground_item.label = std::to_string(ground_item.gold) + " Gold";
             } else {
                 ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, dropped.quality, rng);
                 ground_item.item.identified = dropped.quality <= 3;
