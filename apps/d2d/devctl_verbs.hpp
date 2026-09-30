@@ -104,6 +104,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
         else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
+        else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>\n");
         return std::string("ok\n");
@@ -184,7 +186,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
                 if (const auto& npc = town.level->npcs[i]; npc.operate_fn > 0 && npc.root == "objects")
                     out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : std::format("op{}", npc.operate_fn),
-                                       npc.operate_fn == 2 ? npc.shrine : npc.trap, npc.locked ? "locked" : "-",
+                                       npc.operate_fn == 2 ? npc.shrine : npc.operate_fn == 4 ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";
         }

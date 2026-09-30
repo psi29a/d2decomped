@@ -346,6 +346,220 @@ struct AndyQuest {
     static constexpr const char* kStandard[7] = { "gsv", "gsr", "gsb", "gsy", "gsg", "gsw", "sku" };
 };
 
+// The Search for Cain, one game's (a1q4.cpp, the record at FUN_005971b0).
+// Quest 4; bits: 0 done, 1 reward due, 2 Akara told, 3 under way, 4 the
+// stones done, 10 the Cow King dead, 13 took part in the rescue, 14 missed
+// it, 15 closed. Fields are the record's data (rec+0x18) bytes.
+// ponytail: one player — lists A (+0xb4, missed the rescue), B (+0x138,
+// heard Cain's thanks) and the rewarded list (rec+0x1c) are a bool each;
+// the party's bits, the voices and the quest-item-gone rewind (+0xc4,
+// FUN_00592c80: d2d's scrolls only go by the quest) are left out.
+struct CainQuest {
+    static constexpr int kQuest = 4, kAkara = 148, kCain = 146, kCampCain = 265, kTown = 1, kStony = 4, kTristram = 38, kLut = 40;
+    int state = 0;      // +0xc: 0 init, 1 open, 2 Akara told, 3 out of town, 4 scroll, 5 deciphered / stones, 6 done, 7 the Rogues got him
+    int log = 0;        // +0xb
+    bool active = true; // rec+9: closed at join by bit 0 or 15 (FUN_00544410)
+    std::array<int, 5> order{};  // +0x00: the stone (objects.txt Id 17..21) to touch at step i
+    int touched = 0;    // +0x0c
+    int throttle = 0;   // +0x2c: the "need the scroll" voice's
+    bool ordered = false, rejoined = false, stones_open = false, deciphered = false, stones_done = false;   // +0x4a, +0x4c, +0x4d, +0x4e, +0x4f
+    bool resolved = false, camp_cain = false, camp_due = false, akara_log = false, closed_join = false;    // +0x50, +0x51, +0x52, +0x53, +0x63
+    bool decipher_log = false, portal_made = false, tree_used = false;                                     // +0x64, +0x45, +0x58
+    bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
+    bool missed = false, thanked = false, rewarded = false;
+
+    // State 0 → 1 (FUN_00593d70, the chain from quest 2's +0xf0).
+    void open() { if (state == 0 && active) state = 1; }
+    // A player's bits for the state (LAB_00592130).
+    void mark(QuestBits& quest_bits) const {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        if (state == 2) qset(quest_bits, kQuest, 2);
+        else if (state > 2 && state < 6) qset(quest_bits, kQuest, 3);
+    }
+    // The player joins, carrying the scroll (bks) / the deciphered one (bkd) (FUN_00597030).
+    void join(const QuestBits& quest_bits, bool bks, bool bkd) {
+        active = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 15);
+        if (!active) {
+            camp_due = true;
+            if (qbit(quest_bits, kQuest, 0)) rescued_flag = true;
+            else closed_join = true;
+            rejoined = stones_open = true;
+        } else if (qbit(quest_bits, kQuest, 4)) {
+            log = 4; state = 5;
+            rejoined = deciphered = stones_open = tree_used = true;
+        } else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+        else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
+        if (bkd) { state = 5; log = 3; deciphered = tree_used = true; }
+        else if (bks) { state = 4; log = 2; tree_used = true; }
+    }
+    // What `npc` says about it (FUN_00592580): blocks at 0x737668, by the
+    // state (0x737648: -1, 0, 1, 2, 3, 4).
+    // ponytail: the bkd a player still carries once the stones are done
+    // isn't taken here (the fifth stone took the only one).
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks) const {
+        struct E { int npc, string; bool greet; };
+        static const std::vector<E> kBlocks[10] = {
+            { { kAkara, 97, true } },
+            { { kAkara, 99, false }, { 150, 98, false }, { 154, 100, false }, { 147, 102, false }, { 155, 101, false } },
+            { { 150, 105, false }, { 155, 107, false }, { 154, 103, false }, { kAkara, 104, false }, { 147, 106, false } },
+            { { 150, 108, false }, { 155, 111, false }, { 154, 109, false }, { kAkara, 112, true }, { 147, 110, false } },
+            { { 150, 113, false }, { 155, 116, false }, { 154, 114, false }, { kAkara, 117, false }, { 147, 115, false } },
+            { { 150, 119, false }, { 155, 122, false }, { 154, 121, false }, { kCampCain, 123, true }, { kAkara, 118, true }, { 147, 120, false } },
+            { { kCampCain, 125, true } },
+            { { kCampCain, 123, false }, { kAkara, 118, false }, { 147, 120, false } },
+            { { kCampCain, 125, false } },
+            { { kCain, 124, true } },
+        };
+        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13), b14 = qbit(quest_bits, kQuest, 14);
+        int block = -1;
+        if (npc == kCampCain && !thanked && b13) block = 5;
+        else if (b1) block = npc == kCampCain && thanked ? 7 : 5;
+        else if (missed) block = 6;
+        else if (rewarded) block = npc == kCampCain && !thanked ? 5 : b14 ? 8 : b0 ? 7 : -1;
+        else if (!b14 && state != 0 && !b0 && !qbit(quest_bits, kQuest, 15)) block = bks ? 3 : state == 4 ? 2 : state <= 5 ? state - 1 : -1;
+        if (npc == kCain) block = 9;
+        std::vector<QuestMsg> out;
+        if (block >= 0)
+            for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
+        return out;
+    }
+    // The balloon over `npc` (FUN_00592fb0).
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool bks = false) const {
+        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13);
+        if (npc == kAkara) return (state == 4 && !b0 && !b1 && bks) || (state == 1 && !b0 && !b1) || (state == 6 && b13 && !b0) || b1;
+        return npc == kCampCain && (missed || (!thanked && b13));
+    }
+    // The player heard `string` from `npc` (FUN_00592250). decipher: Akara
+    // takes the scroll (bks) for the deciphered one (bkd, FUN_005466b0 ilvl
+    // 0, quality 2); ring: her reward, a ring (Normal ilvl 7 magic,
+    // Nightmare 30 / Hell 60 rare).
+    enum class Said { none, decipher, ring };
+    Said said(QuestBits& quest_bits, int npc, int string, bool bks) {
+        if (npc == kCampCain) {
+            if (string == 125) { rewarded = true; missed = false; }
+            if (string == 126 || string == 123) thanked = true;
+            return Said::none;
+        }
+        if (npc != kAkara) return Said::none;
+        if (string == 97) { akara_log = true; state = 2; return Said::none; }
+        if (string == 112 && bks) {
+            decipher_log = deciphered = true;
+            state = 5; log = 3;
+            return Said::decipher;
+        }
+        if (string != 118 || !qbit(quest_bits, kQuest, 1)) return Said::none;
+        qset(quest_bits, kQuest, 0);
+        qset(quest_bits, kQuest, 1, false);
+        rewarded = true;
+        if (qbit(quest_bits, kQuest, 13)) {
+            log = 0xd; state = 6;
+            rescued_flag = true;   // ponytail: then +0xf0, the chain to quest 3 (Tools), is that quest's to take
+        }
+        if (closed_join) rescued_flag = true;
+        return Said::ring;
+    }
+    // The talk with `npc` closed (FUN_005921b0).
+    void talk_closed(QuestBits& quest_bits, int npc) {
+        if (npc != kAkara) return;
+        if (akara_log) { log = 1; akara_log = false; mark(quest_bits); }
+        if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; }
+    }
+    // The player went from level `from` to `to` (FUN_00596de0). True:
+    // camp Cain's due in the camp (FUN_00592960).
+    bool enter(QuestBits& quest_bits, int from, int to) {
+        if (to == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
+        const bool fresh = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
+        if (from == kTown) {
+            rewarded = missed = false;
+            // ponytail: marked now, not at the next event 4 (FUN_00592e20)
+            if (fresh && state == 2) { state = 3; mark(quest_bits); }
+        }
+        if (to == kTown) return camp_spawn();
+        if (to == kLut && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
+        return false;
+    }
+    // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
+    bool camp_spawn() {
+        if (!camp_due || camp_cain) return false;
+        camp_cain = true; camp_due = false;
+        return true;
+    }
+    // Not rescued before Act 2: the Rogues get him (FUN_00597310; the Lut
+    // Gholein arrival's the same, with the tree's mode). FUN_00596ca0(0, 1)
+    // resolves it; the players still in it missed it (FUN_00592b10).
+    void rogues(QuestBits& quest_bits) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1) || resolved || state >= 6) return;
+        resolved = true;
+        if (!camp_cain) camp_due = true;
+        state = 7; log = 5;
+        rescued_flag = true;
+        qset(quest_bits, kQuest, 14);
+        missed = true;
+    }
+    // The Tree of Inifuss (OperateFn 12, FUN_00593af0). True: the scroll
+    // (bks) drops at the tree.
+    bool tree(const QuestBits& quest_bits, bool has_scroll) {
+        if (!active || state >= 6 || tree_used || qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1) || has_scroll) return false;
+        state = 4; log = 2;
+        tree_used = true;
+        return true;
+    }
+    // The stones' order from the quest rng (game+0x10f4 +0x18, drawn on in
+    // place; FUN_00592e90): seed = lo * 0x6ac690c5 + hi; step n goes to
+    // slot lo % 5 if it's free.
+    void stone_order(std::uint32_t& lo, std::uint32_t& hi) {
+        order = {};
+        for (int n = 0; n < 5;) {
+            const std::uint64_t seed = std::uint64_t(lo) * 0x6ac690c5u + hi;
+            lo = std::uint32_t(seed); hi = std::uint32_t(seed >> 32);
+            if (!order[lo % 5]) order[lo % 5] = 17 + n++;
+        }
+        ordered = true;
+    }
+    // A Cairn Stone (objects.txt Id `stone`, OperateFn 9, FUN_00593710);
+    // `fresh`: it's still mode 0. lit: it lights; portal: the fifth — the
+    // bkd goes, CairnStones (missile 0x120) opens the way to Tristram.
+    enum class Stone { none, lit, portal };
+    Stone stone(QuestBits& quest_bits, int stone, bool bkd, bool fresh) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return Stone::none;
+        if (!bkd) { ++throttle; return Stone::none; }
+        if (!active || state > 5 || stones_done) return Stone::none;
+        state = 5;
+        if (stone != order[std::size_t(touched)]) return Stone::none;   // out of order: ignored, kept
+        ++touched;
+        if (!fresh) return Stone::none;
+        if (touched < 5) return Stone::lit;
+        stones_done = true;
+        if (log < 4) { log = 4; qset(quest_bits, kQuest, 4); }
+        return Stone::portal;
+    }
+    // The stones as Stony Field comes up (InitFn 6, FUN_005935e0). True:
+    // the portal's re-made at StoneAlpha (FUN_00592d50: x + 4, y + 4).
+    bool stones_init() {
+        if (active && !rejoined) return false;
+        rejoined = false;
+        if (portal_made) return false;
+        return portal_made = true;
+    }
+    // The Gibbet (OperateFn 10, FUN_00593480), `fresh` its mode 0. True: it
+    // opens, the player took part (bits 13, 1).
+    bool gibbet(QuestBits& quest_bits, bool fresh) {
+        if (!active || resolved || state >= 6) return false;
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1) || !fresh) return false;
+        qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1);
+        return true;
+    }
+    // The Gibbet's opened (its mode end, FUN_00593290), Tristram Cain not
+    // made: a town portal's due by it (x + 6, y + 6) and he goes straight
+    // to the camp (+0x52).
+    // ponytail: game.exe's spawn (FUN_005b2f20, monster 0x92 at x + 3,
+    // y + 3, who walks to his own portal) isn't here — its failure path is.
+    void rescued() {
+        if (!camp_cain) camp_due = true;
+        log = 6;
+    }
+};
+
 // The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
 // Quest 5; bits: 0 done (set at the kill: no reward talk), 2..6 progress,
 // 13 took part, 14 not there.

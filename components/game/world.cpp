@@ -92,9 +92,9 @@ auto World::view() const -> View {
         for (const auto& fire : fires) if (fire.level == level) view.fires.push_back({ fire.x, fire.y, fire.npc });
         for (std::size_t k = 0; k < corpses.size(); ++k)
             if (corpses[k].level == level) view.corpses.push_back({ corpses[k].x, corpses[k].y, corpses[k].dir, corpses[k].gfx, int(k) });
-        for (int k = 0; k < 2; ++k)
+        for (int k = 0; k < 3; ++k)
             if (portal[std::size_t(k)].level == level)
-                view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
+                view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, k == 2 ? d2d::rules::CainQuest::kTristram : portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
         view.npc_states = npc_states;
         view.npc_states.resize(level->npcs.size());
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
@@ -223,6 +223,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             d2d::log::info("The Forgotten Tower: read the Moldy Tome");
             return;
         }
+        if (object.operate_fn == 9 || object.operate_fn == 10 || object.operate_fn == 12) { cain_operate(npc_index, now_ms); return; }
         operated[{ level, npc_index }] = now_ms;
         if (object.operate_fn == 4) {
             const int rounds = d2d::rules::chest_rounds(object.locked, rng);
@@ -431,8 +432,7 @@ auto World::enter(const Character& entering) -> void {
         spawn_merc();
         new_game();
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
-            if (const int quest = level->npcs[i].quest)
-                npc_states[i].hidden = !character.header.quest_flag(character.header.active_difficulty(), quest, 0);
+            if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
     }
 
 auto World::new_game() -> void {
@@ -460,6 +460,13 @@ auto World::new_game() -> void {
         tools = {};
         tools.join(quests());
         if (std::ranges::all_of(std::array{ 1, 2, 4 }, [&](int quest) { return d2d::rules::qbit(quests(), quest, 0) || d2d::rules::qbit(quests(), quest, 15); })) tools.open();
+        cain = {};
+        cain.join(quests(), carries("bks"), carries("bkd"));
+        // The chain from quest 2 (FUN_00593d70) as the first join runs it.
+        // ponytail: quests 1 and 2 read as done or closed by their bits.
+        using d2d::rules::qbit;
+        if ((qbit(quests(), 1, 0) || qbit(quests(), 1, 15)) && (qbit(quests(), 2, 0) || qbit(quests(), 2, 15))) cain.open();
+        cain.camp_spawn();
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -492,6 +499,7 @@ auto World::swap_npcs(const Level* from) -> void {
         if (from && from != level) burial.enter(quests(), from->id, level->id);
         if (from && from != level) tower.enter(quests(), from->id, level->id);
         if (from && from != level) tools.enter(quests(), from->id);
+        if (from && from != level) cain.enter(quests(), from->id, level->id);
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -499,6 +507,19 @@ auto World::swap_npcs(const Level* from) -> void {
         } else {
             npc_states = npc_start(*level);
         }
+        for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
+            if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
+        // The stones come up (FUN_005935e0): the portal again, the stones lit.
+        if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
+            for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                const auto& stone = level->npcs[i];
+                if (stone.operate_fn != 9) continue;
+                operated.try_emplace({ level, int(i) }, 0u);
+                if (stone.object_id == 17 && !portal[2].level) {
+                    const auto [x, y] = level->nearest_free(stone.x + 4, stone.y + 4);
+                    portal[2] = { level, x, y, now };
+                }
+            }
     }
 
 auto World::respawn(std::uint32_t now_ms) -> void {
@@ -559,6 +580,7 @@ auto World::quest_talk(int hc_idx) -> std::vector<d2d::rules::QuestMsg> {
         std::ranges::copy(burial.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(tower.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(tools.talk(quests(), hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel))), std::back_inserter(out));
+        std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks")), std::back_inserter(out));
         return out;
     }
 
@@ -636,6 +658,50 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
         static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
         if (character.header.cls < 7) cues.cue(std::format("{}_act1_complete_tower", kClass[character.header.cls]), now_ms, player.x, player.y);
         d2d::log::info("The Forgotten Tower: the Countess is dead");
+    }
+
+auto World::carries(std::string_view code) const -> bool { return std::ranges::contains(character.items, code, &d2d::d2s::Item::code); }
+
+// The tree (OperateFn 12) drops the scroll by it; the stones (9) light in
+// the deciphered scroll's order, the fifth opening the way to Tristram at
+// StoneLambda (x + 6, y - 3); the Gibbet (10) frees Cain.
+// ponytail: the world's rng stands in for the game's quest rng
+// (game+0x10f4); CairnStones' missile and the portal's red look aren't
+// drawn; the Gibbet's town portal is the player's own pair.
+auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
+        using Cain = d2d::rules::CainQuest;
+        const auto& object = level->npcs[std::size_t(npc_index)];
+        const bool fresh = !operated.contains({ level, npc_index });
+        auto& quest_bits = quests();
+        if (object.operate_fn == 12) {
+            if (!cain.tree(quest_bits, carries("bks") || carries("bkd"))) return;
+            operated[{ level, npc_index }] = now_ms;
+            loot.put({ .code = "bks" }, object.x, object.y, 1, now_ms);
+            d2d::log::info("Search for Cain: the Scroll of Inifuss");
+            return;
+        }
+        if (object.operate_fn == 10) {
+            if (!cain.gibbet(quest_bits, fresh)) return;
+            operated[{ level, npc_index }] = now_ms;
+            cain.rescued();
+            open_portal_at(object.x + 6, object.y + 6, now_ms);
+            d2d::log::info("Search for Cain: Cain is free, he's gone to the camp");
+            return;
+        }
+        if (!cain.ordered) {
+            cain.stone_order(rng.low, rng.high);
+            d2d::log::info("Search for Cain: the stones' order {} {} {} {} {}", cain.order[0], cain.order[1], cain.order[2], cain.order[3], cain.order[4]);
+        }
+        const auto lit = cain.stone(quest_bits, object.object_id, carries("bkd"), fresh);
+        if (lit == Cain::Stone::none) return;
+        operated[{ level, npc_index }] = now_ms;
+        if (lit == Cain::Stone::lit) return;
+        character.items.erase(std::ranges::find(character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
+        const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
+        const auto [x, y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
+        portal[2] = { level, x, y, now_ms };
+        cues.cue("object_townportal", now_ms, x, y);
+        d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", x, y);
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -781,21 +847,30 @@ auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms)
         if (level == &town || town.portal_spot.first < 0) return;
         const auto [x, y] = level->nearest_free(portal_x, portal_y);
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
-        portal = { Portal{ level, x, y, now_ms }, Portal{ &town, town_x, town_y, now_ms } };
+        portal[0] = { level, x, y, now_ms };
+        portal[1] = { &town, town_x, town_y, now_ms };
         cues.cue("object_townportal", now_ms, x, y);
         d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), x, y, town_x, town_y);
     }
 
 auto World::use_portal(std::uint32_t now_ms) -> void {
-        if (take_portal < 0 || !portal[0].level) return;
+        if (take_portal < 0 || !portal[std::size_t(take_portal)].level) return;
         const auto& taken = portal[std::size_t(take_portal)];
         if (taken.level != level || std::hypot(taken.x - player.x, taken.y - player.y) > 2.f) {
             if (!player.walking) take_portal = -1;
             return;
         }
+        cues.cue("player_townportal_enter", now_ms, player.x, player.y);
+        if (take_portal == 2) {                       // to Tristram, by its own portal back (object 60)
+            take_portal = -1;
+            const Level* tristram = game_data->level(d2d::rules::CainQuest::kTristram);
+            if (!tristram || tristram->ds1.width() == 0) { d2d::log::info("not implemented: level 38 (the Cairn Stones' portal)"); return; }
+            const auto back = std::ranges::find(tristram->npcs, 60, &Npc::object_id);
+            arrive(tristram, back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y + 0.6f, "the Cairn Stones' portal");
+            return;
+        }
         const auto& other_end = portal[std::size_t(1 - take_portal)];
         take_portal = -1;
-        cues.cue("player_townportal_enter", now_ms, player.x, player.y);
         arrive(other_end.level, other_end.x, other_end.y + 0.6f, "a town portal");
     }
 
@@ -838,7 +913,16 @@ auto World::deal(const Command& command) -> bool {
             if (found != character.items.end()) d2d::rules::store_repair(tables, store, *found, character.stats);
             return true;
         }
-        if (std::holds_alternative<cmd::Identify>(command)) { d2d::rules::identify_all(character.items); return true; }
+        // Cain's identify (FUN_00578460): 100 gold an item, all at once, unless
+        // quest 4's done or its reward's due. ponytail: the purse only.
+        if (std::holds_alternative<cmd::Identify>(command)) {
+            auto& gold = character.stats.values[d2d::d2s::kGold];
+            const int fee = d2d::rules::qbit(quests(), 4, 0) || d2d::rules::qbit(quests(), 4, 1) ? 0 : d2d::rules::unidentified(character.items) * 100;
+            if (gold < fee) return true;
+            gold -= fee;
+            d2d::rules::identify_all(character.items);
+            return true;
+        }
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
             if (hire->offer >= 0 && std::size_t(hire->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(hire->offer)], character.header, character.stats))
                 spawn_merc();
@@ -869,6 +953,7 @@ auto World::deal(const Command& command) -> bool {
                 || !qbit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             if (!qbit(quests(), 7, 0)) { d2d::rules::qset(quests(), 7, 0); d2d::rules::qset(quests(), 7, 13); }
             andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
+            cain.enter(quests(), level->id, d2d::rules::CainQuest::kLut);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
             set_waypoint(waypoint_index(*game_data, d2d::rules::AndyQuest::kLut));
             d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein)");
             return true;
@@ -889,9 +974,12 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { running = run->running; return true; }
         if (const auto* chat = std::get_if<cmd::Chat>(&command)) {
-            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) andy.talk_closed(level->npcs[std::size_t(talking[0])].hc_idx);
-            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) burial.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
-            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) tools.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
+            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) {
+                andy.talk_closed(level->npcs[std::size_t(talking[0])].hc_idx);
+                burial.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
+                tools.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
+                cain.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
+            }
             talking = { chat->npc, -1, -1 };
             return true;
         }
@@ -923,6 +1011,20 @@ auto World::deal(const Command& command) -> bool {
                 if (held && held->code == "hdm") held.reset();
                 else if (const auto malus = std::ranges::find(character.items, std::string("hdm"), &d2d::d2s::Item::code); malus != character.items.end()) character.items.erase(malus);
                 d2d::log::info("Tools of the Trade: the malus is back, Charsi's imbue is due");
+            }
+            using Said = d2d::rules::CainQuest::Said;
+            const auto scroll = std::ranges::find(character.items, std::string_view("bks"), &d2d::d2s::Item::code);
+            const auto cain_said = cain.said(quests(), hc_idx, message->string, scroll != character.items.end());
+            if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item
+                scroll->code = "bkd";
+                d2d::log::info("Search for Cain: Akara deciphered the scroll");
+            }
+            if (cain_said == Said::ring) {            // FUN_005466b0: into the inventory, else at the feet
+                static constexpr int kIlvl[3] = { 7, 30, 60 };
+                const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
+                loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, player.x, player.y, kIlvl[diff], now);
+                loot.take(loot.ground.size() - 1);
+                d2d::log::info("Search for Cain: done, Akara's ring");
             }
             if (den.said(quests(), hc_idx, message->string)) {
                 ++character.stats.values[d2d::d2s::kSkillPts];
@@ -1025,7 +1127,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 take_corpse = -3000 - interact->npc;
                 return;
             }
-            if (interact->npc <= -2000 && interact->npc > -2002) {                       // a town portal (the client names them -2000 - k)
+            if (interact->npc <= -2000 && interact->npc > -2003) {                       // a town portal (the client names them -2000 - k)
                 const auto& entry_portal = portal[std::size_t(-2000 - interact->npc)];
                 if (entry_portal.level != level) return;
                 walk_to(entry_portal.x, entry_portal.y, true);
@@ -1039,7 +1141,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
             const bool usable = is_door(npc.operate_fn) || npc.operate_fn == 22 || npc.operate_fn == 6 || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
-            if (npc.operate_fn == 32 || npc.operate_fn == 23 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
+            const bool quest_object = npc.operate_fn == 9 || npc.operate_fn == 10 || npc.operate_fn == 12;   // the quest says what it does
+            if (npc.operate_fn == 32 || npc.operate_fn == 23 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || quest_object || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
         const auto& use_skill = std::get<cmd::UseSkill>(command);
@@ -1141,7 +1244,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto& state = npc_states[std::size_t(interact_npc)];
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             if (std::hypot(npc_x - player.x, npc_y - player.y) < 2.f) {
-                if (operable(npc.operate_fn) || npc.operate_fn == 6 || npc.operate_fn == d2d::rules::ToolsQuest::kStand) {
+                if (operable(npc.operate_fn) || npc.operate_fn == 6 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || npc.operate_fn == 9 || npc.operate_fn == 10 || npc.operate_fn == 12) {
                     operate(interact_npc, now_ms);
                 } else if (npc.operate_fn == 32) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });
@@ -1209,7 +1312,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx)
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
-                                  || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)));
+                                  || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
+                                  || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
