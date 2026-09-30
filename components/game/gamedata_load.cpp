@@ -173,7 +173,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
-        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
+        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
         for (std::size_t skill = 0; skill < 3; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
                                                    type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }

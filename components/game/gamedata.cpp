@@ -12,6 +12,7 @@
 #include <mpq.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
+#include <quests.hpp>
 #include <room_tiles.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -615,6 +616,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
                  && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4   // shrines / chests: NU until used
+                 && npc.operate_fn != 9 && npc.operate_fn != 10   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
                  && (npc.operate_fn != 23 || std::ranges::contains(std::array{ 1, 40, 75, 103, 109 }, into.id)));   // waypoints: on in towns (InitFn 17)
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
@@ -772,8 +774,10 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
                     break;
                 }
             const auto& slot = slots[std::size_t(warp.slot)];
+            int pair = 0;
+            for (int k = 0; k < warp.slot; ++k) pair += d2d::drlg::to_int(assets.levels.get(*row, "Vis" + std::to_string(k))) == destination;
             level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y,
-                                    (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5 });
+                                    (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5, warp.slot, pair });
         }
     finish_level(level);
     return placed;
@@ -894,6 +898,17 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         auto npc = game_data.mon_npc[bin_row];
         npc.x = (float(unit.x) + 0.5f) / 5;
         npc.y = (float(unit.y) + 0.5f) / 5;
+        level->npcs.push_back(std::move(npc));
+    }
+    // Tristram Cain (monster 0x92): the Gibbet's opening makes him at its
+    // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
+    // (World::cain_walk).
+    if (const auto gibbet = std::ranges::find(level->npcs, 26, &Npc::object_id);
+        id == d2d::rules::CainQuest::kTristram && gibbet != level->npcs.end() && d2d::rules::CainQuest::kCain < int(game_data.mon_bin.size())) {
+        auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::CainQuest::kCain)]];
+        npc.x = gibbet->x + 0.6f;
+        npc.y = gibbet->y + 0.6f;
+        npc.quest = d2d::rules::CainQuest::kQuest;   // out of the walk grid
         level->npcs.push_back(std::move(npc));
     }
     // Random object groups (FUN_00552610): the same picks a room's

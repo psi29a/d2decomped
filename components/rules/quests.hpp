@@ -582,15 +582,17 @@ struct CainQuest {
         qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1);
         return true;
     }
-    // The Gibbet's opened (its mode end, FUN_00593290), Tristram Cain not
-    // made: a town portal's due by it (x + 6, y + 6) and he goes straight
-    // to the camp (+0x52).
-    // ponytail: game.exe's spawn (FUN_005b2f20, monster 0x92 at x + 3,
-    // y + 3, who walks to his own portal) isn't here — its failure path is.
-    void rescued() {
-        if (!camp_cain) camp_due = true;
+    // The Gibbet's opened (its mode end, FUN_00593290): Tristram Cain
+    // (monster 0x92) comes out at x + 3, y + 3 and walks to his own portal
+    // (World::cain_walk). `spawned` false (no room for him): a town portal's
+    // due by it (x + 6, y + 6) and he goes straight to the camp (+0x52).
+    void rescued(bool spawned) {
+        if (!spawned && !camp_cain) camp_due = true;
         log = 6;
     }
+    // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
+    // camp Cain's due (FUN_005940e0 → FUN_00592960).
+    void portal_entered() { camp_due = true; }
 };
 
 // The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
@@ -601,12 +603,16 @@ struct CainQuest {
 // always set, so the tome never starts read (InitFn 4, FUN_00595a00).
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = 20, kCellar = 25, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
+    // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
+    // Param1, Param2, Param3).
+    static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5;
     int state = 0;      // +0xc: 0 init, 2 started, 3 cellar / out of town, 5 Countess dead (1 and 4 unused)
     int log = 0;        // +0xb
     int log_in = 0;     // ticks to the kill's timer (0x5954c0, 7), 0 not running
     bool told = false;  // list A: had their success talk
     bool due = false;   // list B: killed her in cellar 5, the success talk due
     bool dead = false;  // d+0x118: rec+0xc0 is gone
+    bool treasure = false;   // d+0x119: her treasure's spawners made
     bool first_talk = false;   // d+0x11a
     bool tome_early = false;   // d+0x11b: the tome read while log == 0
 

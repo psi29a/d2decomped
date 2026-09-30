@@ -66,6 +66,12 @@ int main() {
         copy.next(); copy.next(); copy.next();                              // unique, set, rare lost: magic
         assert(seed.low == copy.low);
     }
+    // A forced quality (the tower chest's 4, FUN_00585b90) replaces the roll.
+    {
+        std::vector<Drop> out;
+        roll_drops(tables, "Two", 1, rng, out, 1, 0, 6, 4);
+        assert(out.size() == 2 && out[0].quality == 4 && out[1].quality == 4);
+    }
     // At most 6 items (FUN_0055a6d0's max) however many picks.
     tables.treasure["Lots"] = { .picks = 9, .items = { { "hp1", 1 } } };
     {

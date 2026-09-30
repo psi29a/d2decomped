@@ -181,6 +181,22 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             set_footprint(*level, object, object.collision >> mode & 1);
             if (const auto sound = d2d::rules::object_sound(object.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         };
+        // A trap object (30: "a trap", the exploding chest; FUN_00581cd0): a
+        // physical then a fire blast on its opener (FUN_005dfa00 types 0, 1:
+        // life / 32 .. life / 8 each), then mode 1.
+        // ponytail: as explode's, the hit roll is taken as a hit; the fire
+        // half isn't resisted; the event (FUN_005417d0) isn't here.
+        if (object.operate_fn == 30) {
+            auto& life = character.stats.values[d2d::d2s::kLife];
+            for (int blast = 0; blast < 2 && life > 0; ++blast) {
+                const auto low = std::max<std::int64_t>(life >> 5, 1);
+                life -= low + rng(int(std::max<std::int64_t>(life >> 3, low + 1) - low + 1));
+            }
+            operated[{ level, npc_index }] = now_ms;
+            to_mode(1);
+            d2d::log::info("trap object {} went off", npc_index);
+            return;
+        }
         if (object.operate_fn == 22) {               // a well (FUN_005858a0): 2 x Parm2 drinks (InitFn 16), NU -> OP -> ON
             auto& well = doors.try_emplace({ level, npc_index }, Door{ 0, 0 }).first->second;
             auto& stat_values = character.stats.values;
@@ -493,6 +509,8 @@ auto World::new_game() -> void {
                 if (is_door(npc.operate_fn)) set_footprint(*built, npc, npc.collision >> mode_index(npc.mode) & 1);
         doors.clear();
         fires.clear();
+        treasure.clear();
+        cain_walk = {};
         portal = {};
         take_portal = -1;
         take_corpse = -1;
@@ -526,7 +544,8 @@ auto World::swap_npcs(const Level* from) -> void {
             npc_states = npc_start(*level);
         }
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
-            if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
+            if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest)
+                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::CainQuest::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
         // The stones come up (FUN_005935e0): the portal again, the stones lit.
         if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
             for (std::size_t i = 0; i < level->npcs.size(); ++i) {
@@ -672,10 +691,107 @@ auto World::kashya_merc() -> void {
 // ponytail: the tower treasure (FUN_005954f0: towerchestspawner missiles
 // at the LargeChestR chests, InitFn 47) isn't built.
 auto World::countess_died(std::uint32_t now_ms) -> void {
-        if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar)) return;
+        const bool quest_kill = tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar);
+        // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
+        // a towerchestspawner (missile 332) at each chest of cellar 5 (object
+        // 371, InitFn 47 lists up to 8).
+        // ponytail: the invisible owner (monster 326 at her death spot) isn't
+        // made; the chests are the level's, not the ones whose rooms came up.
+        if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
+            tower.treasure = true;
+            for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
+                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == 371) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureFrames });
+        }
+        if (!quest_kill) return;
         static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
         if (character.header.cls < 7) cues.cue(std::format("{}_act1_complete_tower", kClass[character.header.cls]), now_ms, player.x, player.y);
         d2d::log::info("The Forgotten Tower: the Countess is dead");
+    }
+
+// The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
+// Range 400, Param1 150, Param2 2, Param3 5). At Range - Param1 left the
+// chest opens (FUN_00585e00, mode 0 only): the act's chest class three
+// times with quality forced magic (FUN_00585b90, EDX 4), then two each of
+// hp / mp by act (+2 past normal: 0x731f4c / 0x731f60, FUN_00558450 /
+// FUN_005584c0), then mode 2. From then on every Param2 * 4 frames a gold
+// pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
+// ponytail: the world's rng stands in for the missile's and the chest's
+// seeds; it runs only while the player's on its level (game.exe: while
+// its room's up); the end event (unit event 0x5c at 1 left) isn't sent;
+// the missile's lifetime taken as Range (LevRange 1 at level 0).
+auto World::tower_treasure(std::uint32_t now_ms) -> void {
+        using Tower = d2d::rules::TowerQuest;
+        for (auto& spawner : treasure) {
+            if (spawner.level != level || spawner.left <= 0) continue;
+            const auto& chest = level->npcs[std::size_t(spawner.npc)];
+            const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
+            const auto& area_levels = game_data->area_level;
+            auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(diff)] : 1; };
+            const int here = alvl(level->id);
+            if (spawner.left == Tower::kTreasureFrames - Tower::kTreasureOpen && !operated.contains({ level, spawner.npc })) {
+                const auto [low, high] = d2d::rules::kChestLevels[0];
+                const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
+                std::vector<d2d::rules::Drop> drops;
+                for (int round = 0; round < 3; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, treasure_class.back() - 'A', rng, drops, 1, 0, 6, 4);
+                for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
+                for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms);
+                operated[{ level, spawner.npc }] = now_ms;
+                d2d::log::info("The Forgotten Tower: the Countess's chest opens ({} drops)", drops.size());
+            }
+            if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
+                const int radius = Tower::kTreasureRadius;
+                const float off_x = float(rng(2 * radius + 1) - radius) / 5, off_y = float(rng(2 * radius + 1) - radius) / 5;
+                const auto [x, y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
+                loot.put({ .code = "gld" }, x, y, here, fight.spawning.game, now_ms);
+            }
+            --spawner.left;
+        }
+    }
+
+// Tristram Cain's AI (FUN_005e7880), a think each time he stops: the
+// first notes where he stands (FUN_005944b0) and heads 3 subtiles on
+// (x + 3, y + 3); up to 6 goes while more than 1 off; then the town
+// portal (object 189) at the noted spot (FUN_005943b0), and back to it
+// for up to 6 more thinks, stepping in (FUN_005944f0: camp Cain due).
+// ponytail: the portal isn't drawn or put in the level, a spot with no
+// room isn't shifted on 3 (FUN_00463740), and the thinks' idles (1, 20
+// frames) stand in for the AI's own tick.
+auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
+        if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
+        const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
+        auto& unit = npc_states[std::size_t(cain_walk.npc)];
+        if (unit.walking) {
+            unit.walking = follow_path(*level, unit, cells_per_sec(npc.velocity) * elapsed);
+            if (unit.walking) return;
+            unit.path.clear();
+        }
+        if (now_ms < cain_walk.next) return;
+        const auto walk = [&](float x, float y) {
+            unit.path = walk_path(*level, unit.x, unit.y, x, y);
+            unit.walking = !unit.path.empty();
+        };
+        const auto off = [&](float x, float y) { return d2d::rules::ai_distance(int(x * 5) - int(unit.x * 5), int(y * 5) - int(unit.y * 5)); };
+        if (cain_walk.stage < 0) {
+            unit.hidden = false;
+            cain_walk.portal_x = unit.x; cain_walk.portal_y = unit.y;
+            cain_walk.x = unit.x + 0.6f; cain_walk.y = unit.y + 0.6f;
+            cain_walk.stage = 1;
+            cain_walk.next = now_ms + 40;
+            return;
+        }
+        if (cain_walk.stage < 2) {
+            if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
+            cues.cue("object_townportal", now_ms, cain_walk.portal_x, cain_walk.portal_y);
+            d2d::log::info("Search for Cain: Cain opens a portal at ({:.1f}, {:.1f})", cain_walk.portal_x, cain_walk.portal_y);
+            cain_walk.stage = 2;
+            cain_walk.next = now_ms + 20 * 40;
+            return;
+        }
+        if (++cain_walk.stage < 8 && off(cain_walk.portal_x, cain_walk.portal_y) != 0) { walk(cain_walk.portal_x, cain_walk.portal_y); return; }
+        cain.portal_entered();
+        unit.hidden = true;
+        cain_walk.npc = -1;
+        d2d::log::info("Search for Cain: Cain has gone to the camp");
     }
 
 auto World::carries(std::string_view code) const -> bool { return std::ranges::contains(character.items, code, &d2d::d2s::Item::code); }
@@ -685,7 +801,8 @@ auto World::carries(std::string_view code) const -> bool { return std::ranges::c
 // StoneLambda (x + 6, y - 3); the Gibbet (10) frees Cain.
 // ponytail: the world's rng stands in for the game's quest rng
 // (game+0x10f4); CairnStones' missile and the portal's red look aren't
-// drawn; the Gibbet's town portal is the player's own pair.
+// drawn. Cain walks out (cain_step); with no room for him the portal
+// FUN_0056d130 opens at x + 6, y + 6 is the player's own pair.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -701,9 +818,12 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (object.operate_fn == 10) {
             if (!cain.gibbet(quest_bits, fresh)) return;
             operated[{ level, npc_index }] = now_ms;
-            cain.rescued();
-            open_portal_at(object.x + 6, object.y + 6, now_ms);
-            d2d::log::info("Search for Cain: Cain is free, he's gone to the camp");
+            const auto found = std::ranges::find(level->npcs, Cain::kCain, &Npc::hc_idx);
+            const bool spawned = found != level->npcs.end();
+            cain.rescued(spawned);
+            if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
+            else open_portal_at(object.x + 6, object.y + 6, now_ms);
+            d2d::log::info("Search for Cain: Cain is free");
             return;
         }
         if (!cain.ordered) {
@@ -758,7 +878,15 @@ auto World::use_warp() -> void {
         }
         // FUN_005550b0: the other side's warp tile unit (FUN_006195a0), the
         // free spot nearest it, then a walk of its LvlWarp ExitWalk from there.
-        const auto back = std::ranges::find(destination->warps, level->id, &Level::Warp::destination);
+        // The tile's linked (FUN_0066c220) to the other side's k-th slot back
+        // here, k its own rank among its row's slots there; none placed: the
+        // lowest slot back that is.
+        // ponytail: several tiles of one slot take the first built (game.exe:
+        // the first room of its list, then the first unit of its room).
+        auto back = std::ranges::find_if(destination->warps, [&](const Level::Warp& other) { return other.destination == level->id && other.pair == warp.pair; });
+        if (back == destination->warps.end())
+            for (auto it = destination->warps.begin(); it != destination->warps.end(); ++it)
+                if (it->destination == level->id && (back == destination->warps.end() || it->slot < back->slot)) back = it;
         const float arrive_x = back == destination->warps.end() ? float(destination->ds1.width()) / 2 : back->unit_x;
         const float arrive_y = back == destination->warps.end() ? float(destination->ds1.height()) / 2 : back->unit_y;
         arrive(destination, arrive_x, arrive_y, "a warp");
@@ -1222,6 +1350,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
             burial.tick();
             tower.tick();
+            tower_treasure(day_at);
         }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -1331,6 +1460,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             if (!player.walking) player.path.clear();
         }
         npc_patrol(*level, npc_states, talking, now_ms, elapsed, crowd);
+        cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
             if (states.size() != neighbour.level->npcs.size()) states = npc_start(*neighbour.level);
@@ -1342,6 +1472,28 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
         fight.world(in_moor, now_ms, elapsed, crowd);
+        // A monster that opens doors (MonStats opendoors) whose way is shut by
+        // a door (FUN_005b0f50, each think: its path's next collision has
+        // 0x800) operates it as the player would (FUN_00584540 → OperateFn 8)
+        // and stands 5 frames.
+        // ponytail: "in its way" read as stopped (NU) while aware, within a
+        // cell of a closed door's footprint; game.exe's path collision test
+        // (FUN_00648eb0) and door search (FUN_005dd0b0) aren't ported.
+        if (fight.mon_level == level)
+            for (auto& monster : fight.monsters) {
+                if (!monster.alive() || !monster.aware || monster.mode != "NU" || now_ms < monster.next_act
+                    || !game_data->monsters.types[std::size_t(monster.type)].open_doors) continue;
+                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                    const auto& door = level->npcs[i];
+                    if (door.operate_fn != 8) continue;
+                    const auto state = doors.find({ level, int(i) });
+                    if ((state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
+                    if (std::abs(monster.unit.x - door.x) > float(door.size_x) / 10 + 1 || std::abs(monster.unit.y - door.y) > float(door.size_y) / 10 + 1) continue;
+                    operate_door(int(i), now_ms);
+                    monster.next_act = now_ms + 5 * 40;
+                    break;
+                }
+            }
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         use_warp();

@@ -221,8 +221,13 @@ int main() {
     assert(cain.stone(cain_bits, cain.order[4], true, true) == CainQuest::Stone::portal && cain.log == 4 && qbit(cain_bits, 4, 4));
     assert(cain.stone(cain_bits, cain.order[4], true, true) == CainQuest::Stone::none);
     assert(cain.gibbet(cain_bits, true) && qbit(cain_bits, 4, 1) && qbit(cain_bits, 4, 13) && !cain.gibbet(cain_bits, true));
-    cain.rescued();
-    assert(cain.log == 6 && !cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1) && cain.camp_cain);
+    cain.rescued(true);                                      // Tristram Cain walks to his portal: not due yet
+    assert(cain.log == 6 && !cain.camp_due && !cain.enter(cain_bits, CainQuest::kTristram, 1));
+    CainQuest no_room;                                       // his spawn failed: straight to the camp
+    no_room.rescued(false);
+    assert(no_room.camp_due && no_room.log == 6);
+    cain.portal_entered();
+    assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1) && cain.camp_cain);
     assert(cain.alert(cain_bits, CainQuest::kCampCain) && cain.talk(cain_bits, CainQuest::kCampCain, false)[0].string == 123);
     cain.said(cain_bits, CainQuest::kCampCain, 123, false);
     assert(!cain.alert(cain_bits, CainQuest::kCampCain) && !cain.talk(cain_bits, CainQuest::kCampCain, false)[0].greet);
