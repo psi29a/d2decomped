@@ -25,7 +25,7 @@ namespace d2d::drlg {
 // LvlPrest.txt, what the generator needs: size in tiles, file count, the
 // loaded File1..6 (null when absent), and the columns that roll units.
 struct Preset {
-    int width = 0, height = 0, files = 0, scan = 0, pops = 0;
+    int width = 0, height = 0, files = 0, scan = 0, pops = 0, level_id = 0;   // level_id: LvlPrest LevelId
     std::uint32_t dt1_mask = 0;                         // which LvlTypes files its rooms load
     std::array<const d2d::ds1::Map*, 6> maps{};
 };

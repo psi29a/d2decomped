@@ -39,13 +39,14 @@ struct PlacedTile {
     const Dt1File* file;
     int index;
     std::uint32_t word;
+    int next = -1;                                      // tile +0x20: the next in its chain (room.tiles index)
 };
 struct BuiltRoom {
     int x, y, width = 8, height = 8, kind = 1;                   // level-relative tiles
     std::vector<PlacedTile> tiles;                      // in the order game.exe adds them
-    // Edge tiles other rooms can find (FUN_0066e4c0): chains of tile
-    // indices, newest first, chains newest first; floor chains vs the rest.
-    struct Chain { bool floor; std::vector<std::size_t> tiles; };
+    // Edge tiles other rooms can find (FUN_0066e4c0): linked through
+    // PlacedTile::next from the newest, chains newest first; floor chains vs the rest.
+    struct Chain { bool floor; int head = -1; };
     std::vector<Chain> chains;
     // Hidden warp tiles (orientation 10/11, style = the level's warp slot):
     // level-relative cell and slot — where the warp unit stands (FUN_0066e1c0).
@@ -175,7 +176,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         };
         auto chain = [&](bool floor) -> BuiltRoom::Chain& {                    // FUN_0066e620's node
             for (auto& existing : room.chains) if (existing.floor == floor) return existing;
-            room.chains.insert(room.chains.begin(), BuiltRoom::Chain{ floor, {} });
+            room.chains.insert(room.chains.begin(), BuiltRoom::Chain{ floor });
             return room.chains.front();
         };
         // FUN_0066e4c0: a chained tile of room N at (x, y) this word can share.
@@ -183,8 +184,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (!neighbour.upper || x < neighbour.x || y < neighbour.y || x > neighbour.x + neighbour.width || y > neighbour.y + neighbour.height) return nullptr;
             for (auto& existing : neighbour.chains) {
                 if (existing.floor != floor) continue;
-                for (const auto tile_index : existing.tiles) {
-                    auto& tile = neighbour.tiles[tile_index];
+                for (int tile_index = existing.head; tile_index != -1; tile_index = neighbour.tiles[std::size_t(tile_index)].next) {
+                    auto& tile = neighbour.tiles[std::size_t(tile_index)];
                     if (tile.x == x && tile.y == y && tile.orient != 4 && (tile.orient == 13 || !(word & 0x8000000u))
                         && ((tile.word >> 18) & 3) == ((word >> 18) & 3))
                         return &tile;
@@ -203,7 +204,9 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 if ((tile_orient == 10 || tile_orient == 11) && !(x >= room.x && y >= room.y && x < room.x + room.width && y < room.y + room.height)) return;
                 chain(tile_orient == 0);
                 const auto added = add(tile_orient == 0 ? 1 : tile_orient == 13 ? 2 : 0, x, y, tile_orient, word);
-                chain(tile_orient == 0).tiles.insert(chain(tile_orient == 0).tiles.begin(), added);
+                auto& linked = chain(tile_orient == 0);
+                room.tiles[added].next = linked.head;
+                linked.head = int(added);
                 if (tile_orient == 3) add(0, x, y, 4, word);
                 if (tile_orient == 10 || tile_orient == 11) note("drlg: warp wall tiles (FUN_0066e260) not implemented");
                 return;
@@ -249,12 +252,25 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
                     warp_unit(warp_slot, x, y);
-                    if (warp_slot.lit)
-                        for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
-                            const std::uint32_t warp_word = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;
-                            const auto [tile_file, tile_index] = pick(0, warp_word);
-                            room.tiles.push_back({ 1, x - 1 + (k & 1), y - 1 + (k >> 1), 0, tile_file, tile_index, warp_word });
-                        }
+                    if (!warp_slot.lit) return;
+                    for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
+                        const std::uint32_t warp_word = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;
+                        const auto [tile_file, tile_index] = pick(0, warp_word);
+                        room.tiles.push_back({ 1, x - 1 + (k & 1), y - 1 + (k >> 1), 0, tile_file, tile_index, warp_word });
+                    }
+                    // FUN_0066e360 then lists the room's unlit warp floors
+                    // (style = seq, sequence < 4) through tile +0x20 — the
+                    // share chains' link, so it cuts / reroutes them.
+                    // ponytail: a fresh list per warp; a warp record reused by a second warp would chain onto the first's.
+                    int warp_list = -1;
+                    for (std::size_t i = 0; i < room.tiles.size(); ++i) {
+                        auto& tile = room.tiles[i];
+                        if (tile.layer != 1 || !tile.file || tile.index < 0) continue;
+                        const auto& info = tile.file->tiles[std::size_t(tile.index)];
+                        if (info.style != seq || info.seq >= 4) continue;
+                        tile.next = warp_list;
+                        warp_list = int(i);
+                    }
                     return;
                 }
             }
@@ -309,7 +325,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         auto edges = [](std::array<std::uint32_t, 81>& words, std::uint32_t value) {
             for (int i = 0; i < 9; ++i) for (const int edge : { i, 72 + i, i * 9, i * 9 + 8 }) words[std::size_t(edge)] |= value;
         };
-        const bool kill_x = room.x + room.width == room.seed->preset_x + pre->width, kill_y = room.y + room.height == room.seed->preset_y + pre->height;   // KillEdge is 1 on every act 1 preset
+        const int pre_w = pre->width ? pre->width : map->width() - 1, pre_h = pre->height ? pre->height : map->height() - 1;   // a sizeless preset fills the level
+        const bool kill_x = room.x + room.width == room.seed->preset_x + pre_w, kill_y = room.y + room.height == room.seed->preset_y + pre_h;   // KillEdge is 1 on every act 1 preset
         const int words_wide = kill_x ? 8 : 9, words_high = kill_y ? 8 : 9;
         auto walk = [&](const std::array<std::uint32_t, 81>& words, const std::array<std::uint32_t, 81>* orient, bool fill) {   // FUN_0066ec10
             for (int y = 0; y < words_high; ++y)

@@ -553,8 +553,12 @@ the level seed, as outdoors).
    and freeing on a miss, per try), links it, redoes the anchor's preset,
    and makes the new room the special.
 5. FUN_00642590 moves every room so the rooms' top-left is the level's.
-6. FUN_006735f0 (not level 8): a few rooms become theme variants
-   (def + 15) — not ported yet.
+6. **Theme rooms** (FUN_006735f0, not level 8): base by LevelType (3 →
+   0x34, 4 → 0x6c, 7 → 0xa7, 8 → 0xcd, 10 → 0x101, …); at = rand % 15; a
+   0..14 permutation gets 15 swaps (two rolls % 15 each). Up to
+   max(2, rooms / 5 + 1) rooms over rooms × 2 tries: each try takes the
+   first unmarked listed room with def == base + perm[at] (def += 15,
+   file −1, marked), then at = (at + 1) % 15.
 7. **Presets** (FUN_00673a60, list order): FUN_00666ed0 rolls
    rand(Files) for the file; a room with a fixed file keeps its own, a
    plain cave (0x34 < def < 0x44) takes the level's rotation for that def
@@ -563,7 +567,22 @@ the level seed, as outdoors).
    one when the preset is under 13×13, else one per 8×8 block (rows, then
    columns), each allocated in turn.
 
-d2d: `components/drlg/maze.hpp` (`generate_maze`). The Den of Evil
+A **preset level** (DrlgType 2, FUN_00668100) is one preset: the first
+LvlPrest row with that LevelId (FUN_0061f0e0), its file rolled on the
+level seed (FUN_00666ed0) unless the level's record (+0x14 [1]) already
+holds one, then FUN_00667ed0 (a sizeless preset takes the level's size).
+Only Courtyard 1 (27) is set ahead: the act layout (FUN_00677180) rolls
+it on the act seed from the side the Black Marsh went — above 2 −
+(rand & 1), below ~rand & 1. A level with a Depend sits at its OffsetX /
+Y plus that level's (FUN_00642d10: 27 on 26, 33 on 32).
+
+Tile quirk (FUN_0066e360): a hidden lit warp, after its 2×2 lit floor,
+lists every unlit warp floor in the room (DT1 style = the warp's seq,
+sequence < 4) through tile +0x20 — the same link the edge-sharing chains
+use — so a later room's FUN_0066e4c0 misses tiles past the first such
+floor and adds its own copy.
+
+d2d: `components/drlg/maze.hpp` (`generate_maze`, `generate_preset`). The Den of Evil
 (LvlMaze Rooms 1) is the first room, the entrance and the Den's own room:
 three 24×24 caves, 27 rooms. 1.14d's LvlMaze.txt has one Rooms column
 (the game reads the .bin); d2d uses it for every difficulty.
@@ -634,6 +653,9 @@ values (seed 3) so a regression shows without the emulator.
 | Grids, rooms, flags (cliffs, cliff caves, bridges, waypoints, fills) | Cold Plains (3), Stony Field (4), Dark Wood (5), Black Marsh (6), Tamoe Highland (7) | 1–100 |
 | Grids, rooms | Burial Grounds (17), Moo Moo Farm (39) | 1–10 |
 | Every room's tiles and units (lit warp walls, Scan / Pops presets) | levels 2–7, 17, 39 | 1–20 |
+| Grids, rooms (theme rooms, specials of 9 / 10, preset levels) | caves 9–16 | 1–50 |
+| Every room's tiles and units (sizeless presets' KillEdge, the warp-list quirk) | caves 9–16 | 1–20 |
+| Grids, rooms (Depend positions, Courtyard 1's file) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–10 (27: 1–30) |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -660,8 +682,8 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
-| Other maze level types (crypts, act 2+) | not ported |
+| Preset levels' tiles / units: 20, 26, 27, 38 tiles and 20, 26, 27, 32, 33, 37 units differ | not fixed |
+| Other maze level types (crypts 4, Barracks 7, Jail 8, Catacombs 10; act 2+) | theme bases known, specials not ported |
 | Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest (not diffed) on the seed of the room that copies them (room +0x14); a maze's (FUN_00667970) not ported. In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |

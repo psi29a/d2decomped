@@ -44,6 +44,44 @@ struct Room {
 
 }  // namespace maze_detail
 
+// FUN_00667ed0: a Scan / Pops preset rolls its DS1 units on the level
+// seed (FUN_00667970), then one room under 13x13, else 8x8 rooms, each
+// allocation stepping the seed.
+inline void preset_rooms(const OutdoorData& data, const Preset& preset, int def, int file, int x, int y, int fallback_w, int fallback_h,
+                         d2d::rules::Rng& seed, std::vector<Outdoor::RoomSeed>& out) {
+    const int width = preset.width && preset.height ? preset.width : fallback_w, height = preset.width && preset.height ? preset.height : fallback_h;
+    const auto* map = file >= 0 && file < 6 ? preset.maps[std::size_t(file)] : nullptr;
+    const bool rolled = map && (preset.scan || preset.pops);
+    std::vector<Unit> units;
+    if (rolled) {
+        units = ds1_units(*map, data.ids);
+        std::erase_if(units, [&](const Unit& unit) { return !stays(unit, data.ids, seed); });
+    }
+    const bool one = width < 13 && height < 13;
+    for (int tile_y = 0; tile_y < height; tile_y += 8)                          // FUN_00666680
+        for (int tile_x = 0; tile_x < width; tile_x += 8) {
+            seed.next();
+            d2d::rules::Rng room_seed{ seed.low };
+            room_seed.next();
+            out.push_back({ x + tile_x, y + tile_y, room_seed.low, one ? width : std::min(8, width - tile_x), one ? height : std::min(8, height - tile_y), 2, def, file, x, y, rolled, units });
+            if (one) return;
+        }
+}
+
+// A preset level (DrlgType 2, FUN_00668100): the first LvlPrest row for
+// the level, its file rolled on the level seed (the act may override it),
+// then the finish.
+inline std::vector<Outdoor::RoomSeed> generate_preset(const OutdoorData& data, int level, int level_w, int level_h, d2d::rules::Rng seed, std::vector<std::string>& notes,
+                                                     int file_override = -1) {
+    std::vector<Outdoor::RoomSeed> out;
+    const auto found = std::ranges::find_if(data.presets, [&](const auto& entry) { return entry.second.level_id == level; });
+    if (found == data.presets.end()) { notes.push_back("drlg: no preset for level " + std::to_string(level)); return out; }
+    int file = seed(found->second.files);                                       // FUN_00666ed0
+    if (file_override != -1) file = file_override;                              // level +0x14 [1], set by the act layout
+    preset_rooms(data, found->second, found->first, file, 0, 0, level_w, level_h, seed, out);   // a sizeless preset fills the level
+    return out;
+}
+
 // An act 1 cave (LevelType 3) from its seed: every 8x8 (or smaller preset)
 // room in the order game.exe makes them, level-relative, kind 2 with its
 // preset def, file and the preset's origin.
@@ -165,12 +203,36 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         if (level == 9) special(kSpecials[3][std::size_t(turn)]);
         if (level == 10) special(kSpecials[4][std::size_t(turn)]);
     }
-    if (level != 8) notes.push_back("drlg: cave theme rooms (FUN_006735f0) not implemented");
 
     // Level-relative from the rooms' top-left (FUN_00642590).
     int min_x = rooms[std::size_t(list.front())].x, min_y = rooms[std::size_t(list.front())].y;
     for (const int other_index : list) { min_x = std::min(min_x, rooms[std::size_t(other_index)].x); min_y = std::min(min_y, rooms[std::size_t(other_index)].y); }
     for (const int other_index : list) { rooms[std::size_t(other_index)].x -= min_x; rooms[std::size_t(other_index)].y -= min_y; }
+
+    // Theme rooms (FUN_006735f0): up to rooms / 5 + 1 (at least 2) plain
+    // rooms of def base + perm[i] become def + 15, file rolled later.
+    // ponytail: base 0x34 is LevelType 3's; crypts (4) use 0x6c.
+    if (level != 8) {
+        constexpr int base = 0x34;
+        int at = int(seed.next() % 15);
+        std::array<int, 15> perm{};
+        for (int i = 0; i < 15; ++i) perm[std::size_t(i)] = i;
+        for (int i = 0; i < 15; ++i) {
+            const auto first = seed.next() % 15, second = seed.next() % 15;
+            std::swap(perm[first], perm[second]);
+        }
+        int left = std::max(2, int(list.size()) / 5 + 1);
+        for (int tries = int(list.size()) * 2; left && tries; --tries, at = (at + 1) % 15)
+            for (const int other_index : list) {
+                auto& room = rooms[std::size_t(other_index)];
+                if (room.special || room.def != perm[std::size_t(at)] + base) continue;
+                room.special = true;
+                room.def += 15;
+                room.file = -1;
+                --left;
+                break;
+            }
+    }
 
     // Each maze room becomes its preset's rooms (FUN_00673a60), list order.
     std::unordered_map<int, int> rotation;              // level +0x1cc
@@ -187,21 +249,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             if (rot == rotation.end()) rot = rotation.emplace(room.def, seed(preset.files)).first;
             file = rot->second = preset.files ? (rot->second + 1) % preset.files : 0;
         }
-        const int preset_width = preset.width && preset.height ? preset.width : room.width, preset_height = preset.width && preset.height ? preset.height : room.height;
-        if (preset_width < 13 && preset_height < 13) {                        // FUN_00667ed0: one room
-            seed.next();
-            d2d::rules::Rng room_seed{ seed.low };
-            room_seed.next();
-            out.push_back({ room.x, room.y, room_seed.low, preset_width, preset_height, 2, room.def, file, room.x, room.y });
-            continue;
-        }
-        for (int tile_y = 0; tile_y < preset_height; tile_y += 8)               // else 8x8 rooms (FUN_00666680)
-            for (int tile_x = 0; tile_x < preset_width; tile_x += 8) {
-                seed.next();
-                d2d::rules::Rng room_seed{ seed.low };
-                room_seed.next();
-                out.push_back({ room.x + tile_x, room.y + tile_y, room_seed.low, std::min(8, preset_width - tile_x), std::min(8, preset_height - tile_y), 2, room.def, file, room.x, room.y });
-            }
+        preset_rooms(data, preset, room.def, file, room.x, room.y, room.width, room.height, seed, out);
     }
     return out;
 }

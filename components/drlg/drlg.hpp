@@ -200,4 +200,16 @@ inline int town_file(const std::vector<Placed>& layout) {
     return -1;
 }
 
+// Courtyard 1's preset file (LvlPrest File1..3), from the side the Black
+// Marsh went (FUN_00677180): above rolls File2 / File3, below File1 /
+// File2 on the act seed; else -1, its own roll.
+inline int courtyard_file(const std::vector<Placed>& layout, d2d::rules::Rng act_seed) {
+    for (const auto& placement : layout) {
+        if (placement.level != 6) continue;
+        if (placement.dir == 1) return 2 - int(act_seed.next() & 1);
+        if (placement.dir == 3) return 1 - int(act_seed.next() & 1);
+    }
+    return -1;
+}
+
 }  // namespace d2d::drlg

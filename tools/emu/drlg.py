@@ -64,7 +64,7 @@ def dump(e, lvl):
     while r:
         rx, ry, rw, rh = (s32(r + 0x34 + 4 * i) for i in range(4))
         extra = ""
-        if e.r32(lvl) == 1 and e.r32(r + 0x48) == 2:   # a maze level: which preset, file, and where it starts
+        if e.r32(lvl) in (1, 2) and e.r32(r + 0x48) == 2:   # a maze or preset level: which preset, file, and where it starts
             pi = e.r32(e.r32(r + 0x20) + 8)
             extra = f" def {e.r32(pi)} file {e.s32(pi + 4)} at {e.s32(pi + 0x10) - x},{e.s32(pi + 0x14) - y}"
         rooms.append((ry - y, rx - x, rw, rh, e.r32(r + 0x48), e.r32(r + 4), extra))

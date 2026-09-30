@@ -60,9 +60,11 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
     std::ostringstream out;
     char buffer[256];
 #define pf(...) (std::snprintf(buffer, sizeof buffer, __VA_ARGS__), out << buffer)   // a literal format each time (-Wformat-security)
-    if (const auto row = level_row(assets.levels, id); row && to_int(assets.levels.get(*row, "DrlgType")) == 1) {
+    if (const auto row = level_row(assets.levels, id); row && (to_int(assets.levels.get(*row, "DrlgType")) == 1 || to_int(assets.levels.get(*row, "DrlgType")) == 2)) {
+        const bool preset_level = to_int(assets.levels.get(*row, "DrlgType")) == 2;
         const int width = to_int(assets.levels.get(*row, "SizeX")), height = to_int(assets.levels.get(*row, "SizeY"));
-        pf("level %d at %d,%d size %dx%d\n", id, to_int(assets.levels.get(*row, "OffsetX")), to_int(assets.levels.get(*row, "OffsetY")), width, height);
+        const auto [origin_x, origin_y] = level_origin(assets.levels, *row);
+        pf("level %d at %d,%d size %dx%d\n", id, origin_x, origin_y, width, height);
         MazeDef maze;
         for (std::size_t row_index = 0; row_index < assets.lvl_maze.size(); ++row_index)
             if (to_int(assets.lvl_maze.get(row_index, "Level"), -1) == id) {
@@ -73,7 +75,8 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
                 maze.merge = to_int(assets.lvl_maze.get(row_index, "Merge"));
             }
         std::vector<std::string> notes;
-        auto rooms = generate_maze(assets.data, maze, id, width, height, level_seed(seed, id), 0, notes);
+        auto rooms = preset_level ? generate_preset(assets.data, id, width, height, level_seed(seed, id), notes, id == 27 ? courtyard_file(act1_from_map_seed(level_defs(assets.levels), seed), act_seed(seed)) : -1)
+                                  : generate_maze(assets.data, maze, id, width, height, level_seed(seed, id), 0, notes);
         auto sorted = rooms;
         std::ranges::sort(sorted, {}, [](const auto& room) { return std::tuple(room.y, room.x); });
         pf("rooms %zu\n", sorted.size());

@@ -664,7 +664,7 @@ bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::
     return true;
 }
 
-// A maze level (the Den of Evil): drlg generate_maze from its level seed,
+// A maze or preset level (the caves): drlg generate_maze / generate_preset from its level seed,
 // its preset rooms' tiles picked as game.exe picks them. It sits apart
 // from the act's outdoor levels; its warps lead out.
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row) {
@@ -676,15 +676,18 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
             maze.height = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "SizeY"));
             maze.merge = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Merge"));
         }
-    if (maze.width == 0) { d2d::log::warn("{}: no LvlMaze row", level.name); return false; }
+    const bool preset_level = d2d::drlg::to_int(assets.levels.get(row, "DrlgType")) == 2;
+    if (maze.width == 0 && !preset_level) { d2d::log::warn("{}: no LvlMaze row", level.name); return false; }
     std::vector<std::string> notes;
     const int size_x = d2d::drlg::to_int(assets.levels.get(row, "SizeX")), size_y = d2d::drlg::to_int(assets.levels.get(row, "SizeY"));
-    auto made = d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, d2d::drlg::level_seed(game_data.map_seed, level.id), 0, notes);
+    const auto seed = d2d::drlg::level_seed(game_data.map_seed, level.id);
+    auto made = preset_level ? d2d::drlg::generate_preset(assets.data, level.id, size_x, size_y, seed, notes,
+                                                          level.id == 27 ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1)
+                             : d2d::drlg::generate_maze(assets.data, maze, level.id, size_x, size_y, seed, 0, notes);
     int width = 0, height = 0;
     for (const auto& room : made) { width = std::max(width, room.x + room.width); height = std::max(height, room.y + room.height); }
     level.ds1 = d2d::ds1::Map(width, height, 4, 2);
-    level.world_x = d2d::drlg::to_int(assets.levels.get(row, "OffsetX"));
-    level.world_y = d2d::drlg::to_int(assets.levels.get(row, "OffsetY"));
+    std::tie(level.world_x, level.world_y) = d2d::drlg::level_origin(assets.levels, row);
     const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     const auto placed = set_level_tiles(level, assets, dt1s, made, {}, notes);
     level.rooms = std::move(made);

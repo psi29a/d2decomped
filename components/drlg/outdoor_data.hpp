@@ -82,7 +82,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
         if (def < 2 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (not the town, 1)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
-                  std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
+                  to_int(prest.get(row, "LevelId")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
         for (int i = 0; i < 6; ++i) preset.maps[std::size_t(i)] = ds1(prest.get(row, "File" + std::to_string(i + 1)));
         assets.data.presets[def] = preset;
     }
@@ -148,6 +148,18 @@ inline std::optional<std::size_t> level_row(const d2d::txt::Table& levels, int i
     return std::nullopt;
 }
 
+// A level apart from the act layout: its OffsetX / Y, from its Depend
+// level's when it has one (FUN_00642d10).
+inline std::pair<int, int> level_origin(const d2d::txt::Table& levels, std::size_t row) {
+    int x = to_int(levels.get(row, "OffsetX")), y = to_int(levels.get(row, "OffsetY"));
+    if (const auto depend = level_row(levels, to_int(levels.get(row, "Depend"))); depend && to_int(levels.get(row, "Depend")) != 0) {
+        const auto [depend_x, depend_y] = level_origin(levels, *depend);
+        x += depend_x;
+        y += depend_y;
+    }
+    return { x, y };
+}
+
 // Sizes and anchors for the act layout (normal difficulty).
 inline LevelDefs level_defs(const d2d::txt::Table& levels) {
     LevelDefs defs;
@@ -160,11 +172,12 @@ inline LevelDefs level_defs(const d2d::txt::Table& levels) {
 
 // Act 1's layout from the map seed: the act seed is `{map seed, 666}`
 // stepped once (FUN_00642da0).
-inline std::vector<Placed> act1_from_map_seed(const LevelDefs& defs, std::uint32_t map_seed) {
+inline d2d::rules::Rng act_seed(std::uint32_t map_seed) {
     d2d::rules::Rng act{ map_seed };
     act.next();
-    return act1_layout(defs, act);
+    return act;
 }
+inline std::vector<Placed> act1_from_map_seed(const LevelDefs& defs, std::uint32_t map_seed) { return act1_layout(defs, act_seed(map_seed)); }
 
 // A placed outdoor level's generator input. Vis starts as Levels.txt's
 // and each chain link adds the pair both ways in the first free slot

@@ -197,8 +197,8 @@ used and listed in `docs/research/re/unverified.md` until it is.
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
-combat and skills), the Den of Evil and every Act 1 outdoor level.
-Next: the rest of Act 1.
+combat and skills), the Den of Evil, every Act 1 outdoor level and the
+caves (9–16). Next: the rest of Act 1.
 
 ## Open questions
 
@@ -417,8 +417,8 @@ Spawning
 
 Act 1 levels and rendering
 - Built: Rogue Encampment, Blood Moor, Cold Plains, Stony Field, Dark
-  Wood, Black Marsh, Tamoe Highland, Burial Grounds, Moo Moo Farm. Not
-  built: the other caves/crypts, Tristram, Monastery through the
+  Wood, Black Marsh, Tamoe Highland, Burial Grounds, Moo Moo Farm, the
+  caves (9–16). Not built: the crypts, Tristram, Monastery through the
   Catacombs.
 - Built and proven against game.exe (layout and tiles): the Blood Moor
   and the Den of Evil; click the cave mouth to go in, the stairs to come
