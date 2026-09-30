@@ -481,12 +481,14 @@ struct Populator {
         party(row, own, spot_x, spot_y);
         if (pack == 3) {                                                // each champion through FUN_005b2f20: its own party
             tag(first, Boss::champion, { d2d::rules::umod::champion });
+            ++pop.uniques;                                              // FUN_005a48c0 → FUN_005a0320, each champion
             own.next();                                                 // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
             for (int count = own(3) + 1; count > 0; --count)
                 if (int at_x, at_y; put(row, spot_x, spot_y, 4, false, at_x, at_y)) {
                     const auto at = spawns ? spawns->size() : 0;
                     auto next = made(row, at_x, at_y);
                     tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    ++pop.uniques;
                     party(row, next, at_x, at_y);
                 }
         }
@@ -543,6 +545,7 @@ struct Populator {
                     const auto at = spawns->size();
                     auto next = made(row, at_x, at_y);
                     tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    ++pop.uniques;
                     party(row, next, at_x, at_y);
                 }
             return;
@@ -725,12 +728,13 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
         }
     }
-    int themes = 0;
+    int themes = 0, position = 0;
     std::uint32_t slots = 0;                                                                       // 0x10 << slot with a Warp (FUN_0066af30)
     for (std::size_t row = 0; row < builder.levels.size(); ++row)
         if (std::atoi(std::string(builder.levels.get(row, "Id")).c_str()) == level.id) {
             themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
             pop.warp_dist = std::atoi(std::string(builder.levels.get(row, "WarpDist")).c_str());
+            position = std::atoi(std::string(builder.levels.get(row, "Position")).c_str());
             for (int k = 0; k < 8; ++k)
                 if (std::atoi(std::string(builder.levels.get(row, "Warp" + std::to_string(k))).c_str()) != -1) slots |= 0x10u << k;
         }
@@ -758,7 +762,10 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     // FUN_0066b2b0 (type 0xb): with neither a waypoint room nor a warp room,
     // the start spot is the centre of the room holding the level's middle less 2.
     // ponytail: no room there (FUN_0066ae70's pick) adds none.
-    if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
+    // A Levels Position level (Tristram) takes its type 0xb tile instead (FUN_0066ac40).
+    // ponytail: the first; with more game.exe rolls the level seed for one each check.
+    if (position && !level.starts.empty()) pop.ways.push_back({ level.starts.front().first * 5, level.starts.front().second * 5 });
+    else if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
     level.group_rooms.assign(level.rooms.size(), {});
     level.post_object_group_seeds.assign(level.rooms.size(), {});
     level.room_spawns.assign(level.rooms.size(), {});

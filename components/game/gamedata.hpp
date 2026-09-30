@@ -207,6 +207,7 @@ struct Level {
     // The room2 flags FUN_00552560 reads (0x800000, 0x30000; 0x80 a
     // plain room's path), and each unit's room, by `rooms` index.
     std::vector<std::uint32_t> room_flags;
+    std::vector<std::pair<int, int>> starts;           // drlg BuiltRoom::starts, the rooms' in build order
     std::vector<int> unit_rooms;                       // by `units` index
     // What populating each room made before its monsters (place_objects,
     // tools/emu objgroups.py's lines): the room seed going into 552610 and

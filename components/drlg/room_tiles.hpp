@@ -68,6 +68,11 @@ struct BuiltRoom {
     std::uint32_t room1_seed = 0;
     std::vector<Area> areas;                            // FUN_0066d110's, newest first; empty: the whole room (FUN_0066ccb0)
     std::uint32_t vis = 0;                              // FUN_00667970: 0x10 << slot, a preset's slot wall (orientation 10/11, style < 8, sequence 0 / 4 or hidden)
+    // FUN_00667970's tile infos of type 0xb (orientation 10/11, style 30..33 ->
+    // sequence, sequence + 5, 10, 11; level +0x2c): level-relative tiles, the
+    // start spot of a Levels Position level.
+    // ponytail: type 0xb only, not 0x6eed88's kin types (unseen in Act 1).
+    std::vector<std::pair<int, int>> starts;
 };
 
 namespace room_tiles_detail {
@@ -486,6 +491,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     const auto tile_word = words[std::size_t(y * slice_w + x)];
                     const int orient = int(orients[std::size_t(y * slice_w + x)] & 0xff), style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
                     if ((orient == 10 || orient == 11) && style < 8 && (seq == 0 || seq == 4 || (tile_word & 0x80000000u))) room.vis |= 0x10u << style;
+                    const int info = style == 30 ? seq : style == 31 ? seq + 5 : style == 32 ? 10 : style == 33 ? 11 : -1;   // the tile info's type
+                    if ((orient == 10 || orient == 11) && info == 11) room.starts.push_back({ room.x + x, room.y + y });
                 }
         }
         if (!map->shadows().empty()) {
