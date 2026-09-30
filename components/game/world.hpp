@@ -97,7 +97,9 @@ struct View {
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
-    int den_state = 1, den_log = 0, den_left = 0;   // the Den quest's record: state, log state, monsters left (the quest log)
+    std::array<std::uint8_t, 7> quest_log{};     // Act 1's log states as the server sends them, by quest (FUN_00544190)
+    std::array<std::uint16_t, 7> game_quests{};  // the game's quest flags (FUN_00544720): 13 done in this game, 15 closed at the first join
+    int den_left = 0;                            // the Den's monsters left (the quest log)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -178,6 +180,7 @@ struct World {
     d2d::rules::CainQuest cain;            // and The Search for Cain
     int den_left = -1;                     // its monsters alive when last counted
     std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
+    std::array<bool, 7> closed_at_join{};  // Act 1 quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
     // Every item of the character has a unit id (new ones get theirs).
@@ -308,6 +311,8 @@ struct World {
     void blood_raven_died(std::uint32_t now_ms);
     void kashya_merc();
     void countess_died(std::uint32_t now_ms);
+    // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
+    void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus
     // (FUN_00558110 'hdm '); the malus stand operated (OperateFn 21).
     bool holding_malus() const;

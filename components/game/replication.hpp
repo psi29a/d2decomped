@@ -158,7 +158,9 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
         if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); }
-        chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.den_cleared).i32(view.light_bonus).i32(view.den_state).i32(view.den_log).i32(view.den_left);
+        chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.den_cleared).i32(view.light_bonus);
+        for (std::size_t quest = 0; quest < 7; ++quest) chunk.u8(view.quest_log[quest]).u16(view.game_quests[quest]);
+        chunk.i32(view.den_left);
         chunk.u16(int(view.boost.size()));
         for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
         chunk.i32(view.gold_lost);
@@ -334,7 +336,9 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto unit = wire::unit(input);
             if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode };
         }
-        view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32(); view.den_state = i32(); view.den_log = i32(); view.den_left = i32();
+        view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32(); 
+        for (std::size_t quest = 0; quest < 7; ++quest) { view.quest_log[quest] = std::uint8_t(byte()); view.game_quests[quest] = std::uint16_t(u16()); }
+        view.den_left = i32();
         view.boost.clear();
         for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
         view.gold_lost = i32();

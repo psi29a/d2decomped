@@ -451,9 +451,10 @@ bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         const auto [x, y] = kQuestSlot[std::size_t(entry.slot)];
         const bool selected = entry.slot == quest_log.slot;
         if (selected) sel = &entry;
-        int frame = quest_icon_frame(quest_bits, entry.quest, selected);
+        const int shown = quest_text(quest_bits, entry.quest, quest_state).shown;
+        int frame = quest_icon_frame(shown, selected);
         const auto quest_index = std::size_t(entry.quest);
-        if (frame == 24 && quest_index < quest_log.seen.size() && !quest_log.seen[quest_index] && !d2d::rules::qbit(quest_bits, entry.quest, 12)) {   // the done animation
+        if (shown == 0 && quest_index < quest_log.seen.size() && !quest_log.seen[quest_index]) {   // the done animation
             if (!quest_log.frame_ms[quest_index]) quest_log.frame_ms[quest_index] = now_ms;
             if (now_ms - quest_log.frame_ms[quest_index] > 100) {
                 quest_log.frame_ms[quest_index] = now_ms;
