@@ -112,7 +112,9 @@ struct Level {
     // (FUN_0064c790).
     // `cell`: what its word ORs over the whole cell (FUN_0066dde0's tile
     // flags 2 / 0x40 / 0x80 as FUN_0064c790 stamps them: 0x10, 0x01, 0x04).
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; };
+    // `unstamped`: past its room's rect (a maze room's shared edge row) into
+    // a room built before its own, so drawn but not in collision (set_level_tiles).
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; bool unstamped = false; };
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
     // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,

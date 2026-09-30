@@ -685,6 +685,7 @@ void finish_level(Level& level) {
         for (int cell_y = 0; cell_y < map.height(); ++cell_y)
             for (int cell_x = 0; cell_x < map.width(); ++cell_x)
                 for (const auto& pick : level.picks[std::size_t(cell_y) * std::size_t(map.width()) + std::size_t(cell_x)]) {
+                    if (pick.unstamped) continue;
                     if (pick.layer == 1 || (pick.layer == 0 && pick.orient != 13 && pick.orient != 15)) stamp_tile(cell_x, cell_y, *pick.tile);
                     for (int k = 0; k < 25 && pick.cell; ++k) level.walk[std::size_t(cell_y * 5 + k / 5) * std::size_t(walk_width) + std::size_t(cell_x * 5 + k % 5)] |= pick.cell;
                 }
@@ -734,6 +735,19 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     const int width = level.ds1.width(), height = level.ds1.height();
     level.picks.assign(std::size_t(width) * std::size_t(height), {});
     std::size_t placed = 0;
+    // FUN_0064c900: each room's grid takes the tiles of its near rooms built
+    // before it (room1s come up newest first in `made`), clipped to its rect
+    // (FUN_0064c790, FUN_00619df0). So a tile past its owner's rect stamps
+    // only if the room it lands in is newer.
+    // ponytail: build order as population brings the whole level up; a
+    // player walking in builds rooms in the order he nears them.
+    auto unstamped = [&](const auto& room, int x, int y) {
+        auto holds = [&](const auto& r) { return x >= r.x && y >= r.y && x < r.x + r.width && y < r.y + r.height; };
+        if (!room.seed || holds(room)) return false;
+        for (std::size_t i = 0; i < made.size(); ++i)
+            if (holds(made[i])) return made.data() + i > room.seed;
+        return false;
+    };
     for (const auto& room : built)
         for (const auto& tile : room.tiles) {
             if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height || !tile.file || tile.index < 0) continue;
@@ -743,7 +757,8 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)],
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
                   std::uint8_t((tile.word & 0x10000000u || (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11) ? 0x10 : 0) |   // FUN_0066db20: a door or warp wall is flag 2 too
-                                (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)) });
+                                (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)),
+                  unstamped(room, tile.x, tile.y) });
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);
