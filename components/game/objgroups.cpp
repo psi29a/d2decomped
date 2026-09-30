@@ -85,14 +85,15 @@ struct Populator {
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
     // (FUN_006209d0: 0x400; 0x8000, no mask's, for a SubClass 4 non-door;
-    // none without HasCollision in its start mode).
+    // none without HasCollision in its start mode: ON if preoperated, else NU,
+    // whatever the renderer shows; Tristram's bodies block).
     // Returns its shrine id (Npc::shrine).
     int make(int id, int x, int y, bool group) {
         const auto before = level.npcs.size();
         auto gold = rgn;
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
         const bool quiet = !obj(id, "IsDoor") && (obj(id, "SubClass") & 4);
-        const bool on = level.npcs.size() > before && level.npcs.back().mode == "ON";
+        const bool on = level.npcs.size() > before && level.npcs.back().preoperated;
         if (obj(id, on ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), quiet ? 0x8000 : 0x400);
         game.next();                                                   // FUN_00552df0: its seed
         if (obj(id, "InitFn") == 28) piles(gold, x, y);
@@ -571,11 +572,17 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         }
     }
     int themes = 0;
+    std::uint32_t slots = 0;                                                                       // 0x10 << slot with a Warp (FUN_0066af30)
     for (std::size_t row = 0; row < builder.levels.size(); ++row)
         if (std::atoi(std::string(builder.levels.get(row, "Id")).c_str()) == level.id) {
             themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
             pop.warp_dist = std::atoi(std::string(builder.levels.get(row, "WarpDist")).c_str());
+            for (int k = 0; k < 8; ++k)
+                if (std::atoi(std::string(builder.levels.get(row, "Warp" + std::to_string(k))).c_str()) != -1) slots |= 0x10u << k;
         }
+    // FUN_00642480: the centres of rooms with a warp slot's wall (a walk-through exit has no warp).
+    for (std::size_t i = 0; i < level.rooms.size(); ++i)
+        if (level.room_flags[i] & slots) pop.ways.push_back({ (level.rooms[i].x + level.rooms[i].width / 2) * 5, (level.rooms[i].y + level.rooms[i].height / 2) * 5 });
     auto centre = [&](int tile_x, int tile_y) {                                                    // the centre of the room holding a tile
         for (const auto& made : level.rooms)
             if (tile_x >= made.x && tile_y >= made.y && tile_x < made.x + made.width && tile_y < made.y + made.height) {
