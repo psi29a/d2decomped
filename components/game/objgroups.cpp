@@ -240,8 +240,7 @@ struct Populator {
                     ok = fits_near(x, y, sx, sy);
                 }
                 if (!ok) continue;
-                rgn.next();
-                make(id, x, y, true);
+                make(rgn.next() & 3 ? 7 : 11, x, y, true);                                         // 0x551b82: 1 in 4 an exploding barrel
                 ++in_cluster;
                 if (++placed > 7) return;
             }

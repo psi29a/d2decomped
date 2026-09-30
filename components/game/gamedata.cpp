@@ -750,13 +750,13 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
     const auto slots = d2d::drlg::warp_slots(assets, level.id);
     // 0x800000: a preset room its LvlPrest row doesn't populate (FUN_006666ec),
-    // a room with a lit warp tile (FUN_0066e37e).
+    // a room with a warp tile, lit or not (FUN_0066e360).
     level.room_flags.assign(made.size(), 0);
     for (std::size_t i = 0; i < made.size(); ++i)
         if (const auto preset = assets.data.presets.find(made[i].def); made[i].kind == 2 && preset != assets.data.presets.end() && !preset->second.populate)
             level.room_flags[i] |= 0x800000;
     for (const auto& room : built)
-        if (room.seed && std::ranges::any_of(room.warps, [&](const auto& warp) { return warp.slot >= 0 && std::size_t(warp.slot) < slots.size() && slots[std::size_t(warp.slot)].lit; }))
+        if (room.seed && !room.warps.empty())
             level.room_flags[std::size_t(room.seed - made.data())] |= 0x800000;
     // A warp wall alone (the Forgotten Tower's stairs: unflagged words,
     // FUN_0066e260) leaves only its unit (type 5, the LvlWarp id): a warp
