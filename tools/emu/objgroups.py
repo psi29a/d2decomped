@@ -6,9 +6,10 @@ A fresh game at the seed (game seed {seed, 666} stepped for the monster
 regions, FUN_00546c60's object seed), the level's act made, every room of
 the level brought up (FUN_0061b730, level-list order), then one populate
 pass the way FUN_0052d160 walks the act's room1 list (newest first):
-FUN_0054f060's seed step, the presets (FUN_005559a0), the object groups.
-The monsters (FUN_0054ec90) are left out: this is the placement a level
-gets before any of them stand in its rooms.
+FUN_0054f060's seed step, the presets (FUN_005559a0), the object groups,
+then the monsters (FUN_0054ec90) as FUN_0052d0f0 runs them: their
+footprints (0x100) block the next rooms' groups, so the object seed moves
+with them.
 
 One line per room: its cell, the room seed going into 552610 and after,
 the object seed after the room,
@@ -57,6 +58,7 @@ def dump(e, seed, lid):
         e.call(0x552610, ecx=game, edx=room1)
         objs = "".join(f" {i}@{x},{y}" for t, i, x, y in made[n:])
         out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0} seed {pre:08x} post {e.r32(room1 + 0x6c):08x} rgn {e.r32(e.r32(game + 0x10f0)):08x}{objs}")
+        e.call(0x54ec90, ecx=game, edx=room1)               # the room's monsters, after its line
         room1 = e.r32(room1 + 0x7c)
     e.mu.hook_del(hook)
     out.append(f"rgn {e.r32(e.r32(game + 0x10f0)):08x}")
