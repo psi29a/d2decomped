@@ -626,24 +626,38 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
     // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
     const auto slots = d2d::drlg::warp_slots(assets, level.id);
+    // A warp wall alone (the Forgotten Tower's stairs: unflagged words,
+    // FUN_0066e260) leaves only its unit (type 5, the LvlWarp id): a warp
+    // at the unit's cell less the slot's offset.
+    std::vector<d2d::drlg::BuiltRoom::Warp> found;
+    for (const auto& room : built)
+        found.insert(found.end(), room.warps.begin(), room.warps.end());
+    for (const auto& room : built)
+        for (const auto& unit : room.units) {
+            if (unit.type != 5) continue;
+            const auto slot = std::ranges::find(slots, unit.id, &d2d::drlg::WarpSlot::id);
+            if (slot == slots.end()) continue;
+            const int slot_index = int(slot - slots.begin());
+            if (std::ranges::any_of(found, [&](const auto& warp) { return warp.slot == slot_index; })) continue;
+            found.push_back({ room.x + (unit.x - slot->off_x) / 5, room.y + (unit.y - slot->off_y) / 5, slot_index });
+        }
     if (const auto row = d2d::drlg::level_row(assets.levels, level.id))
-        for (const auto& room : built)
-            for (const auto& warp : room.warps) {
-                if (warp.slot < 0 || warp.slot > 7) continue;
-                const int destination = d2d::drlg::to_int(assets.levels.get(*row, "Vis" + std::to_string(warp.slot)));
-                const int wid = d2d::drlg::to_int(assets.levels.get(*row, "Warp" + std::to_string(warp.slot)), -1);
-                if (destination <= 0 || wid < 0) continue;
-                float exit_x = 0, exit_y = 0;
-                for (std::size_t k = 0; k < assets.lvl_warp.size(); ++k)
-                    if (d2d::drlg::to_int(assets.lvl_warp.get(k, "Id"), -1) == wid) {
-                        exit_x = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkX"))) / 5;
-                        exit_y = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkY"))) / 5;
-                        break;
-                    }
-                const auto& slot = slots[std::size_t(warp.slot)];
-                level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y,
-                                        (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5 });
-            }
+        for (const auto& warp : found) {
+            if (warp.slot < 0 || warp.slot > 7) continue;
+            const int destination = d2d::drlg::to_int(assets.levels.get(*row, "Vis" + std::to_string(warp.slot)));
+            const int wid = d2d::drlg::to_int(assets.levels.get(*row, "Warp" + std::to_string(warp.slot)), -1);
+            if (destination <= 0 || wid < 0) continue;
+            float exit_x = 0, exit_y = 0;
+            for (std::size_t k = 0; k < assets.lvl_warp.size(); ++k)
+                if (d2d::drlg::to_int(assets.lvl_warp.get(k, "Id"), -1) == wid) {
+                    exit_x = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkX"))) / 5;
+                    exit_y = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkY"))) / 5;
+                    break;
+                }
+            const auto& slot = slots[std::size_t(warp.slot)];
+            level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y,
+                                    (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5 });
+        }
     finish_level(level);
     return placed;
 }
