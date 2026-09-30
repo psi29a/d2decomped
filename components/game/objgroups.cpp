@@ -45,6 +45,7 @@ struct Populator {
     d2d::rules::Rng seed;                               // the room's (room1 +0x6c)
     d2d::rules::Rng game;                               // the game seed (game +0xd0): a step per unit made
     std::bitset<128> superuniques;                      // made (game +0x1d30)
+    d2d::rules::Region region;                          // the level's monster region: their looks
     Level::GroupRoom* out = nullptr;
 
     int obj(int id, const char* column) const {
@@ -270,9 +271,9 @@ struct Populator {
     // MinGrp..MaxGrp of minion1 (else its own type) at radius 3 (FUN_005a0c00).
     // ponytail: fits is a plus of walls, objects and monsters (0x3c01);
     // game.exe's FUN_0064d9b0 tests the monster's own collision shape.
-    // ponytail: a monster's own seed takes two rolls as it's made (its look,
-    // FUN_00573cb0, and one untraced), as the Fallen do; a look of many
-    // layers takes more. The superunique once-a-game bit is per level here.
+    // A monster's own seed takes its look (FUN_00573cb0, rules::monster_look)
+    // and one stat roll as it's made, then the counts.
+    // ponytail: the superunique once-a-game bit is per level here.
     void monster(int row, int x, int y, int retry, int superunique = -1) {
         using d2d::rules::monster_detail::place;
         const auto& types = game_data.monsters.types;
@@ -285,7 +286,20 @@ struct Populator {
             const int size = type >= 0 && std::size_t(type) < types.size() ? types[std::size_t(type)].size : 2;
             stamp(at_x, at_y, size, size, 0x2000);
             d2d::rules::Rng own{ game.next() };
-            own.next();
+            const std::vector<d2d::rules::Components>* sets = nullptr;
+            for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
+                if (region.types[i].first == type) sets = &region.components[i];
+            // FUN_00547bc0: a type the region lacks joins it (13 at most) with
+            // its sets on this seed (FUN_005bdb20) when it has 3+ layers
+            // (MonStats2 +0xec); else its look rolls every layer.
+            const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
+            if (!sets && !special && region.types.size() < 13 && type >= 0 && std::size_t(type) < types.size()
+                && std::ranges::count_if(types[std::size_t(type)].choices, [](int c) { return c > 0; }) > 2) {
+                region.types.emplace_back(type, 0);
+                region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
+                sets = &region.components.back();
+            }
+            if (type >= 0 && std::size_t(type) < types.size()) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
             own.next();
             return own;
         };
@@ -426,10 +440,11 @@ struct Populator {
 void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level) {
     Populator pop{ game_data, builder, level, object_seed(game_data.map_seed) };
     // ponytail: the game seed as a fresh game has it when the level's the
-    // first made (the regions, the object seed, sunitproxy: three steps);
-    // a real game's has moved on by then.
-    pop.game = d2d::rules::Rng{ game_data.map_seed };
-    for (int step = 0; step < 3; ++step) pop.game.next();
+    // first made (start_spawning); a real game's has moved on by then.
+    // The region (the monsters' looks) is normal's.
+    const auto spawning = start_spawning(game_data, 0);
+    pop.game = spawning.game;
+    if (std::size_t(level.id) < spawning.regions.size()) pop.region = spawning.regions[std::size_t(level.id)];
     pop.width = level.ds1.width() * 5;
     pop.height = level.ds1.height() * 5;
     pop.grid.assign(level.walk.begin(), level.walk.end());

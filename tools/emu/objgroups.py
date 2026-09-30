@@ -30,6 +30,7 @@ def dump(e, seed, lid):
     e.w32(game + 0x7c, seed); e.w32(game + 0x84, 1); e.w32(game + 0x70, 1)
     e.call(0x5479c0, e.alloc(8), state & 0xffffffff, 0, 1, ecx=0, edx=game + 0xf0)   # monster regions (presets count into them)
     e.call(0x546c60, ecx=game)                               # objrgn: the object seed
+    e.call(0x536070, ecx=game)                               # sunitproxy (a game-seed step)
     e.call(0x545d80, ecx=game)                               # the quests (the Cairn Stones' preset asks for its record)
     e.call(0x541470, ecx=game)                               # the event list
     act = e.call(0x6194a0, 0, seed, 0, game, 0, 0, lid, 0, 0)
