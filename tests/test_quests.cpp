@@ -148,5 +148,42 @@ int main() {
     away.enter(away_bits, 6, TowerQuest::kTower);
     assert(away.state == 2 && away.log == 3 && qbit(away_bits, 5, 2));
     assert(!away.killed(away_bits, false) && qbit(away_bits, 5, 14) && !qbit(away_bits, 5, 0) && away.talk(away_bits, 150).empty());
+    // Tools of the Trade: the chain opens it; Charsi gives it; out of
+    // town; the stand refuses below clvl 8, then drops the malus once;
+    // Charsi takes it back; the imbue's used once.
+    QuestBits tools_bits{};
+    ToolsQuest tools;
+    tools.join(tools_bits);
+    assert(tools.state == 0 && tools.talk(tools_bits, ToolsQuest::kCharsi, false, 1).empty() && !tools.alert(tools_bits, ToolsQuest::kCharsi, false, 1));
+    assert(!tools.open() && tools.state == 1 && tools.alert(tools_bits, ToolsQuest::kCharsi, false, 1));
+    assert(tools.talk(tools_bits, ToolsQuest::kCharsi, false, 1)[0].string == 146 && tools.talk(tools_bits, ToolsQuest::kCharsi, false, 1)[0].greet);
+    assert(!tools.said(tools_bits, ToolsQuest::kCharsi, 146, false) && tools.state == 2 && !qbit(tools_bits, 3, 2));
+    tools.talk_closed(tools_bits, ToolsQuest::kCharsi);
+    assert(qbit(tools_bits, 3, 2) && tools.log == 1 && tools.talk(tools_bits, 265, false, 1)[0].string == 147);
+    tools.enter(tools_bits, 2);                                                      // not from town
+    assert(tools.state == 2);
+    tools.enter(tools_bits, 1);
+    assert(tools.state == 3 && qbit(tools_bits, 3, 3) && tools.talk(tools_bits, ToolsQuest::kCharsi, false, 1)[0].string == 157);
+    assert(tools.operate(tools_bits, 7) == ToolsQuest::Stand::refuse && tools.state == 3);
+    assert(tools.operate(tools_bits, 8) == ToolsQuest::Stand::drop && tools.state == 4 && tools.log == 1);
+    assert(tools.operate(tools_bits, 8) == ToolsQuest::Stand::none);
+    assert(tools.talk(tools_bits, ToolsQuest::kCharsi, false, 8).empty());          // state 4: nothing till it's in hand
+    assert(tools.picked_up(tools_bits) && qbit(tools_bits, 3, 6) && tools.log == 2 && !tools.picked_up(tools_bits));
+    assert(tools.log_state(tools_bits, true, 8) == 2);
+    assert(tools.talk(tools_bits, ToolsQuest::kCharsi, true, 7).empty() && !tools.alert(tools_bits, ToolsQuest::kCharsi, true, 7));
+    assert(tools.alert(tools_bits, ToolsQuest::kCharsi, true, 8) && tools.talk(tools_bits, ToolsQuest::kCharsi, true, 8)[0].string == 163);
+    assert(tools.talk(tools_bits, 150, true, 8)[0].string == 162);
+    assert(!tools.said(tools_bits, ToolsQuest::kCharsi, 163, false));                 // not holding it
+    assert(tools.said(tools_bits, ToolsQuest::kCharsi, 163, true) && tools.state == 5 && qbit(tools_bits, 3, 1) && qbit(tools_bits, 3, 13));
+    tools.talk_closed(tools_bits, ToolsQuest::kCharsi);
+    assert(tools.log == 0xd && tools.log_state(tools_bits, false, 8) == 10 && tools.open());   // passes the chain on
+    tools.imbued(tools_bits);
+    assert(qbit(tools_bits, 3, 0) && !qbit(tools_bits, 3, 1) && tools.log_state(tools_bits, false, 8) == 0xd);
+    assert(!tools.alert(tools_bits, ToolsQuest::kCharsi, false, 8) && tools.talk(tools_bits, 150, false, 8).empty());
+    // A later game: off; the stand says no.
+    ToolsQuest later;
+    later.join(tools_bits);
+    assert(!later.active && later.open() && later.state == 0 && later.operate(tools_bits, 30) == ToolsQuest::Stand::refuse);
+    assert(quest_name(163) == 3716);
     std::puts("ok");
 }

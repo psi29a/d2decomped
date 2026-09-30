@@ -701,7 +701,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table->get(row, "stackable") == "1", number("level"),
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
-                                          std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")) };
+                                          std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
+                                          number("bitfield1"), number("quest") > 0 };
                 if (table->get(row, "spawnable") != "1") continue;
                 game_data.rules.item_rarity[code] = number("rarity");
                 if (table != &misc && number("level") > 0) (table == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, number("level"));

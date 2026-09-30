@@ -65,6 +65,8 @@ struct ItemBase {
     int level = 0, durability = 0, gamble_cost = 0, min_stack = 0, max_stack = 0;
     std::string normcode, ubercode, ultracode;         // normal / exceptional / elite versions
     std::string better_gem;                            // misc.txt BetterGem ("" or "non": none)
+    int bitfield1 = 0;                                 // Items +0xdc (bit 0: an imbue can take it, FUN_00629c80)
+    bool quest = false;                                // Items +0x12a: a quest item
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -813,6 +815,31 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
     return item;
+}
+
+// Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
+// bit 0, not gold, not socketed, not a quest item but Wirt's leg,
+// quality low / normal / superior.
+// ponytail: throwables (FUN_0062ba80) and the unit flag 0x1000 aren't
+// checked.
+inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    if (item.code == "gld" || found == tables.item_base.end() || !(found->second.bitfield1 & 1)) return false;
+    if (found->second.quest && item.code != "leg") return false;
+    return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
+}
+// The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
+// anew — rare (+0x30 = 6), item level max(clvl, 1) (+4 past 5,
+// FUN_00558200), a fresh seed; ethereal stays so (flag 4 / 2) and a
+// personalized name is kept.
+inline d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
+    int ilvl = clvl < 2 ? 1 : clvl;
+    if (ilvl > 5) ilvl += 4;
+    auto made = generate_item(tables, item.code, ilvl, 6, rng);
+    made.ethereal = item.ethereal;
+    made.personalized = item.personalized;
+    made.owner = item.owner;
+    return made;
 }
 
 // Exceptional / elite upgrade weights out of 10000 for a gamble at clvl
