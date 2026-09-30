@@ -386,6 +386,7 @@ struct Populator {
         if (place(spawn, x, y, -1, fits, spot_x, spot_y) || (retry > 0 && place(spawn, x, y, retry, fits, spot_x, spot_y))) {
             auto own = made(row, spot_x, spot_y);
             if (pack == 3) {
+                own.next();                                                 // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
                 for (int count = own(3) + 1; count > 0; --count)
                     if (int at_x, at_y; place(spawn, spot_x, spot_y, 4, fits, at_x, at_y)) made(row, at_x, at_y);
             } else if (sup) {
