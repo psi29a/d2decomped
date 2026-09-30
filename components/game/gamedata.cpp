@@ -317,7 +317,6 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // 0xb point (FUN_0066b2b0: the waypoint's tile, FUN_0066ad80).
     const auto rects = room_rects(level);
     std::vector<std::pair<int, int>> ways;
-    std::vector<bool> waypoint_room(level.rooms.size());
     auto centre = [&](int index) {
         if (index >= 0) ways.push_back({ (level.rooms[std::size_t(index)].x + level.rooms[std::size_t(index)].width / 2) * 5,
                                          (level.rooms[std::size_t(index)].y + level.rooms[std::size_t(index)].height / 2) * 5 });
@@ -326,7 +325,6 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     for (const auto& unit : level.units)
         if (unit.type == 2 && unit.id >= 0 && std::size_t(unit.id) < game_data.obj_subclass.size() && (game_data.obj_subclass[std::size_t(unit.id)] & 0x40)) {
             const int index = room_holding(rects, level, float(unit.x) / 5, float(unit.y) / 5);
-            if (index >= 0) waypoint_room[std::size_t(index)] = true;
             centre(index);
             ways.push_back({ unit.x / 5 * 5, unit.y / 5 * 5 });
         }
@@ -468,14 +466,16 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
     }
-    // FUN_00552560: no object groups in a NOPOP, waypoint or road room; the
-    // count includes this room. Their seed steps only: the objects are
-    // build_level's.
-    // ponytail: the Levels +0x210 skip (FUN_00552400) isn't there; nor is the game-seed step each
-    // object they make takes (FUN_00555230 → FUN_00552df0), so the density loop drifts after one.
+    // The object groups (FUN_00552610) build_level placed (place_objects):
+    // the room seed as they left it, and a game-seed step for each object
+    // they made (FUN_00555230 → FUN_00552df0).
+    // ponytail: place_objects ran on a fresh game's seed; a preset party's
+    // count (its own seed, off the game's) can differ here, and so the room seed.
     const bool none = nopop(made_index);
-    if (!none && !waypoint_room[made_index] && !(made_index < level.road_rooms.size() && level.road_rooms[made_index]))
-        d2d::rules::place_object_groups(level.mon, game_data.obj_groups, room.seed, ++state.group_rooms, state.group_total, &game_data.obj_subclass);
+    if (made_index < level.post_object_group_seeds.size()) {
+        room.seed = level.post_object_group_seeds[made_index];
+        for (std::size_t k = 0; k < level.group_rooms[made_index].made.size(); ++k) spawning.game.next();
+    }
     if (none) ++pop.rooms_done;
     else d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
     if (spawns.size() > first)
@@ -595,7 +595,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
         npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, rgn);
     }
-    if (objects.get(row, "InitFn") == "3") {      // a chest: its trap and lock (FUN_0054fcb0)
+    if (objects.get(row, "InitFn") == "3" || objects.get(row, "InitFn") == "57") {      // a chest: its trap and lock (FUN_0054fcb0; 57: FUN_0054fd90)
         const auto& area_levels = game_data.area_level;
         const int mlvl1 = std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1;
         const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", rgn);
@@ -672,8 +672,10 @@ void finish_level(Level& level) {
     if (!level.picks.empty()) {
         for (int cell_y = 0; cell_y < map.height(); ++cell_y)
             for (int cell_x = 0; cell_x < map.width(); ++cell_x)
-                for (const auto& pick : level.picks[std::size_t(cell_y) * std::size_t(map.width()) + std::size_t(cell_x)])
+                for (const auto& pick : level.picks[std::size_t(cell_y) * std::size_t(map.width()) + std::size_t(cell_x)]) {
                     if (pick.layer == 1 || (pick.layer == 0 && pick.orient != 13 && pick.orient != 15)) stamp_tile(cell_x, cell_y, *pick.tile);
+                    for (int k = 0; k < 25 && pick.cell; ++k) level.walk[std::size_t(cell_y * 5 + k / 5) * std::size_t(walk_width) + std::size_t(cell_x * 5 + k % 5)] |= pick.cell;
+                }
         return;
     }
     for (int cell_y = 0; cell_y < map.height(); ++cell_y)
@@ -727,7 +729,9 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             if (found == dt1s.archive.end() || std::size_t(tile.index) >= found->second->size()) continue;
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)],
-                  tile.layer != 2 && (tile.word & 0x80000000u) != 0 });
+                  tile.layer != 2 && (tile.word & 0x80000000u) != 0,
+                  std::uint8_t((tile.word & 0x10000000u || (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11) ? 0x10 : 0) |   // FUN_0066db20: a door or warp wall is flag 2 too
+                                (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)) });
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);
@@ -741,10 +745,21 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             level.nopop_rooms[std::size_t(room.seed - made.data())] = !room.warps.empty() || (preset != assets.data.presets.end() && !preset->second.populate);
         }
     for (const auto& room : built)
-        for (const auto& unit : room.units) level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path });
+        for (const auto& unit : room.units) {
+            level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path });
+            level.unit_rooms.push_back(room.seed ? int(room.seed - made.data()) : -1);
+        }
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
     // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
     const auto slots = d2d::drlg::warp_slots(assets, level.id);
+    // 0x800000: a preset room its LvlPrest row doesn't populate (FUN_006666ec),
+    // a room with a warp tile, lit or not (FUN_0066e360).
+    level.room_flags.assign(made.size(), 0);
+    for (std::size_t i = 0; i < made.size(); ++i)
+        if (const auto preset = assets.data.presets.find(made[i].def); made[i].kind == 2 && preset != assets.data.presets.end() && !preset->second.populate)
+            level.room_flags[i] |= 0x800000;
+    for (const auto& room : built)
+        if (room.seed) level.room_flags[std::size_t(room.seed - made.data())] |= (room.warps.empty() ? 0 : 0x800000) | room.vis;
     // A warp wall alone (the Forgotten Tower's stairs: unflagged words,
     // FUN_0066e260) leaves only its unit (type 5, the LvlWarp id): a warp
     // at the unit's cell less the slot's offset.
@@ -797,6 +812,12 @@ bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::
     level.world_x = outdoor_level.rect.x;
     level.world_y = outdoor_level.rect.y;
     const auto placed = set_level_tiles(level, assets, dt1s, outdoor.rooms, outdoor.plain, notes);
+    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {        // a plain room's cell flags 0x80 (a path, FUN_00552560 skips) and 0x30000 (waypoint)
+        const auto& room = outdoor.rooms[i];
+        const auto cell = std::size_t(room.y / 8) * std::size_t(outdoor.cells_wide) + std::size_t(room.x / 8);
+        if (room.kind == 1 && cell < outdoor.g2c.size()) level.room_flags[i] |= outdoor.g2c[cell] & 0x80;
+        if (room.kind == 1 && cell < outdoor.g18.size()) level.room_flags[i] |= outdoor.g18[cell] & 0x30000;
+    }
     for (const auto& room : outdoor.rooms)
         level.road_rooms.push_back(room.kind == 1 && (outdoor.g2c[std::size_t(room.y / 8 * outdoor.cells_wide + room.x / 8)] & 0x80));
     level.rooms = std::move(outdoor.rooms);
@@ -885,24 +906,9 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     }
     if (std::size_t(id) < game_data.level_mon.size()) level->mon = game_data.level_mon[std::size_t(id)];
     // Its preset units (Level::units): objects, and monsters MonStats marks
-    // as NPCs (Flavie by the Blood Moor's way in). Unit ids are game.exe's:
-    // MonStats rows without its Expansion row.
-    // ponytail: each level starts from the game's object seed as made
-    // (object_seed); game.exe has one for the game, drawn as rooms come up.
-    auto rgn = object_seed(game_data.map_seed);
-    for (const auto& unit : level->units) {
-        // Group object 580 (FUN_0054f490 -> FUN_0054f370) is the Countess's
-        // LargeChestR (371) in cellar 5.
-        // ponytail: its picks elsewhere (and groups 574..582) aren't made.
-        if (unit.type == 2) add_object(game_data, builder.objects, builder.obj_row, *level, unit.id == 580 && id == d2d::rules::TowerQuest::kCellar ? 371 : unit.id, unit.x, unit.y, rgn);
-        if (unit.type != 1 || unit.id < 0 || std::size_t(unit.id) >= game_data.mon_bin.size()) continue;
-        const auto bin_row = game_data.mon_bin[std::size_t(unit.id)];
-        if (!game_data.mon_is_npc[bin_row] || game_data.mon_npc[bin_row].code.empty()) continue;
-        auto npc = game_data.mon_npc[bin_row];
-        npc.x = (float(unit.x) + 0.5f) / 5;
-        npc.y = (float(unit.y) + 0.5f) / 5;
-        level->npcs.push_back(std::move(npc));
-    }
+    // as NPCs (Flavie by the Blood Moor's way in), then each room's random
+    // object groups, as game.exe populates the rooms (objgroups.cpp).
+    place_objects(game_data, builder, *level);
     // Tristram Cain (monster 0x92): the Gibbet's opening makes him at its
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
     // (World::cain_walk).
@@ -914,40 +920,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         npc.quest = d2d::rules::CainQuest::kQuest;   // out of the walk grid
         level->npcs.push_back(std::move(npc));
     }
-    // Random object groups (FUN_00552610): the same picks a room's
-    // populate() rolls, made here at build time so they land in Level::npcs
-    // and render alongside preset objects. Positions come from the object
-    // seed on a naive fits check; game.exe uses the room's outdoor rect
-    // and a subtile pick per PopulateFn.
-    // ponytail: not bit-exact placement — the picks match game.exe's row
-    // choice, but the positions do not.
-    const std::size_t npcs_before_groups = level->npcs.size();
-    level->post_object_group_seeds.assign(level->rooms.size(), 0);
-    for (std::size_t room_index = 0; room_index < level->rooms.size(); ++room_index) {
-        const auto& made = level->rooms[room_index];
-        const std::uint32_t seed = room_index < level->room1_seeds.size() ? level->room1_seeds[room_index] : made.seed;
-        d2d::rules::Rng room_seed{ seed };
-        const auto picks = d2d::rules::place_object_groups(level->mon, game_data.obj_groups, room_seed,
-                                                            int(room_index), int(level->rooms.size()));
-        level->post_object_group_seeds[room_index] = room_seed.low;
-        for (const auto& pick : picks) {
-            for (int retry = 0; retry < 12; ++retry) {
-                const int subtile_x = made.x * 5 + int(rgn(std::max(1, made.width * 5)));
-                const int subtile_y = made.y * 5 + int(rgn(std::max(1, made.height * 5)));
-                const std::size_t before = level->npcs.size();
-                add_object(game_data, builder.objects, builder.obj_row, *level, pick.object_id, subtile_x, subtile_y, rgn);
-                if (level->npcs.size() > before) {
-                    auto& placed = level->npcs.back();
-                    if (level->unit_blocked(placed.x, placed.y)) { level->npcs.pop_back(); continue; }
-                    break;
-                }
-                break;   // add_object refused (unknown id); no retry needed
-            }
-        }
-    }
     stamp_footprints(*level);
-    if (const std::size_t groups_placed = level->npcs.size() - npcs_before_groups; groups_placed > 0)
-        d2d::log::info("  {}: {} random object-group placements", level->name, groups_placed);
     d2d::log::info("  {} built ({} ms)", level->name, d2d::log::ms() - start_ms);
     return level;
 }

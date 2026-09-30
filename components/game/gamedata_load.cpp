@@ -131,6 +131,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     };
     const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup"), objects = txt("objects");
     for (std::size_t row_index = 0; row_index < objects.size(); ++row_index) game_data.obj_subclass.push_back(std::uint8_t(std::atoi(std::string(objects.get(row_index, "SubClass")).c_str())));
+    // FUN_0066a2a0: expfield.d2, a 256 x 256 step-toward-centre direction table past a 10-byte header.
+    if (auto bytes = mpqs.try_read(R"(data\global\expfield.d2)"); bytes && bytes->size() >= 10 + 0x10000) {
+        const auto* field = reinterpret_cast<const std::uint8_t*>(bytes->data()) + 10;
+        game_data.field.assign(field, field + 0x10000);
+    }
     if (monstats.size() == 0 || ms2.size() == 0) return;
     // objgroup.txt by Offset (0..132 in 1.14d): a rare column outside 0..N
     // still gets a slot, so we size by max Offset + 1.
@@ -218,6 +223,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            type_info.pieces = num(ms2.get(monstats2_row, "TotalPieces"));
             for (std::size_t layer = 0; layer < 16; ++layer) {
                 auto variants = split_variants(ms2.get(monstats2_row, kVariant[layer]));
                 type_info.choices[layer] = std::uint8_t(variants.size());
@@ -368,6 +374,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 1; i <= 25; ++i) {
             if (const int monstats_row = row(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
             if (const int monstats_row = row(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
+            if (const int monstats_row = row(text("umon" + std::to_string(i))); monstats_row >= 0) level_mon.umon.push_back(monstats_row);
         }
         for (int i = 0; i < 8; ++i) {
             level_mon.obj_group[std::size_t(i)] = std::uint8_t(num(text("ObjGrp" + std::to_string(i))));

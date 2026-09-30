@@ -67,6 +67,7 @@ struct BuiltRoom {
     // populating the room rolls.
     std::uint32_t room1_seed = 0;
     std::vector<Area> areas;                            // FUN_0066d110's, newest first; empty: the whole room (FUN_0066ccb0)
+    std::uint32_t vis = 0;                              // FUN_00667970: 0x10 << slot, a preset's slot wall (orientation 10/11, style < 8, sequence 0 / 4 or hidden)
 };
 
 namespace room_tiles_detail {
@@ -479,6 +480,13 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (layer_index == 0) edges(words, 0x84);
             else for (auto& tile_word : words) tile_word |= std::uint32_t(layer_index) << 18;   // FUN_0067c590
             walk(words, &orients, false);
+            // ponytail: the room's own cells, not game.exe's 8x8 cells of the whole DS1.
+            for (int y = 0; y < room.height; ++y)
+                for (int x = 0; x < room.width; ++x) {
+                    const auto tile_word = words[std::size_t(y * slice_w + x)];
+                    const int orient = int(orients[std::size_t(y * slice_w + x)] & 0xff), style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
+                    if ((orient == 10 || orient == 11) && style < 8 && (seq == 0 || seq == 4 || (tile_word & 0x80000000u))) room.vis |= 0x10u << style;
+                }
         }
         if (!map->shadows().empty()) {
             auto words = slice(map->shadows()[0], false);
