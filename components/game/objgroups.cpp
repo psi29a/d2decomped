@@ -396,8 +396,14 @@ struct Populator {
         const auto& types = game_data.monsters.types;
         auto own = [&](int base_bin) {
             int row = int(game_data.mon_bin[std::size_t(base_bin)]);
-            for (const int listed : level.mon.mon)
-                if (listed >= 0 && std::size_t(listed) < types.size() && types[std::size_t(listed)].base == types[std::size_t(row)].base) { row = listed; break; }
+            const auto listed = std::ranges::find_if(level.mon.mon, [&](int m) { return m >= 0 && std::size_t(m) < types.size() && types[std::size_t(m)].base == types[std::size_t(row)].base; });
+            if (listed != level.mon.mon.end()) row = *listed;
+            else if (std::ranges::any_of(level.mon.mon, [](int m) { return m >= 0; })) {
+                // FUN_0063ec70: else up its class while the next's Level is at most MonLvl1Ex + 1.
+                // ponytail: NextInClass as the rows of its base in order.
+                const int top = std::size_t(level.id) < game_data.area_level.size() ? game_data.area_level[std::size_t(level.id)][0] + 1 : 0;
+                for (int next = types[std::size_t(row)].base + 1; std::size_t(next) < types.size() && types[std::size_t(next)].base == types[std::size_t(row)].base && types[std::size_t(next)].level[0] <= top; ++next) row = next;
+            }
             const int base = types[std::size_t(row)].base, id = level.id;
             auto bin = [&](int bin_row) { return int(game_data.mon_bin[std::size_t(bin_row)]); };
             if (base == bin(0x13)) return id == 6 ? bin(0x14) : id == 7 || id == 12 || id == 16 ? bin(0x15) : row;
