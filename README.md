@@ -14,16 +14,18 @@ data we own, and lets us adventure together.
 ## What to expect
 
 D2Decomp is an unfinished, single-player project—not the original game or a
-complete replacement. Its current playable slice covers character setup, the
-Rogue Encampment, the Blood Moor, and the Den of Evil.
+complete replacement. All of Act I plays through: character setup, the Rogue
+Encampment, every area from the Blood Moor to Andariel's lair, and all six
+quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
 
 | Area | Progress |
 |---|---:|
 | [Full roadmap](docs/PLAN.md) | Phases, known gaps, and next steps |
-| Current playable slice | ✅ 100% |
 | Launcher and asset formats | ✅ 100% |
-| Act I levels | ~7% (2 of about 30 built) |
-| Act I quests | ~17% (1 of 6 implemented) |
+| Act I levels | ✅ 100% (38 of 38; maps match the original's) |
+| Act I quests | ✅ 100% (6 of 6) |
+| Act I matching the original exactly | Maps and item drops ✅; monster placement in progress |
+| Acts II–V | Not started |
 
 ## Bring your own game
 
@@ -44,10 +46,12 @@ this reimplementation.
 
 **Available now:** Linux support alongside Windows and macOS, plus an optional
 headless mode and local control channel for scripted play and testing.
+Small comforts, each switchable off with `--toggle`: gold is picked up by
+walking over it, and roofs turn see-through around your character.
 
-**Planned:** finish Act I and continue through the rest of the campaign; add
-multiplayer and dedicated-server play; and support controllers, high-DPI
-displays, and remappable controls. These features are not implemented yet.
+**Planned:** continue through the rest of the campaign; add multiplayer and
+dedicated-server play, including joining a game hosted by the original
+game; and support controllers, high-DPI displays, and remappable controls. These features are not implemented yet.
 
 ## Build and run
 
