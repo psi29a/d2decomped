@@ -65,7 +65,7 @@ def dump(e, seed, lid, difficulty=0):
             made.append((mu.reg_read(UC_X86_REG_EDX), e.s32(sp + 4) - x0, e.s32(sp + 8) - y0, e.s32(sp + 0x14), lead[0]))
     def on_group(mu, addr, size, _):
         ret = e.r32(mu.reg_read(UC_X86_REG_ESP))
-        if addr != 0x5a43e0 or 0x54ec90 <= ret < 0x54eee0: lead[0] = len(made)
+        if addr != 0x5a43e0 or 0x54ec90 <= ret < 0x54ef42: lead[0] = len(made)
     hooks = [e.mu.hook_add(UC_HOOK_CODE, on_make, begin=0x555230, end=0x555230)]
     hooks += [e.mu.hook_add(UC_HOOK_CODE, on_group, begin=a, end=a) for a in (0x555910, 0x54df80, 0x5a43e0)]
     rooms = set()

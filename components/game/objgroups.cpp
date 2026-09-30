@@ -451,6 +451,7 @@ struct Populator {
         if (pack == 2) {
             if (spot(row, true, x, y) && put(row, x, y, -1, false, x, y)) {
                 auto own = made(row, x, y);
+                ++pop.uniques;                                          // FUN_005a0320: the count FUN_005be020 reads
                 const auto& type = types[std::size_t(row)];
                 auto boss = d2d::rules::roll_boss(game_data.umods, type, 0, false, own, false);
                 const int minion = type.minion[0] >= 0 ? type.minion[0] : row;
@@ -466,6 +467,7 @@ struct Populator {
         auto own = made(row, spot_x, spot_y);
         if (sup) {
             superuniques.set(std::size_t(superunique));
+            ++pop.uniques;                                              // FUN_005a0320 as a boss
             std::vector<int> mods;
             for (const int id : sup->mods) if (id != 24) mods.push_back(id);
             mods.push_back(22);                                         // questcomplete
