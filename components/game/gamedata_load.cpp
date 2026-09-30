@@ -172,7 +172,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
-        for (std::size_t skill = 0; skill < 3; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode"); }
+        for (std::size_t skill = 0; skill < 3; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
+                                                   type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }
         type_info.trans_lvl = num(text("TransLvl"));
         type_info.spawn = text("spawn"); type_info.spawn_mode = text("spawnmode"); type_info.spawn_x = num(text("spawnx")); type_info.spawn_y = num(text("spawny"));
         type_info.undead = text("hUndead") == "1" || text("lUndead") == "1"; type_info.demon = text("demon") == "1";
@@ -373,7 +374,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) game_data.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
-    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods: thief, poison hit (not in Act 1); Charged Bolt's wander");
+    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 10, 20, 23, 24, 31-35, 40-42 (none in Act 1: no upick, no Act 1 SuperUniques Mod); Charged Bolt's wander");
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {

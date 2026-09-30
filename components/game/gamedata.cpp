@@ -385,10 +385,11 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         // entrance check), its mods and MonUMod 22 (questcomplete), then
         // MinGrp..MaxGrp (each + difficulty when both are set) of minion1
         // (else its own type) at radius 3 (FUN_005a0c00 / FUN_005b23c0).
+        // Its specials (the Countess's stat 0x76, AI 0xd) in make_boss.
         // ponytail: its unique stat bonuses and TC come in the fight / loot;
-        // the per-superunique specials (the Countess' stat 0x76, AI 0xd and
-        // quest 5, the Cow King's quest 4) wait for quest-unit binding
-        // (FUN_005436b0); its mods roll the room seed, not the monster's own.
+        // quest binding (FUN_005436b0: the Countess's 5, the Cow King's 4)
+        // as the kill's superunique row (world.cpp); its mods roll the room
+        // seed, not the monster's own.
         const int superunique_index = unit.id - nmon;
         const auto& sup = game_data.superuniques[std::size_t(superunique_index)];
         if (sup.type < 0 || (!sup.stacks && spawning.superuniques.test(std::size_t(superunique_index)))) continue;
@@ -400,6 +401,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         auto mods = d2d::rules::superunique_mods(game_data.umods, monsters.types[std::size_t(sup.type)], sup.mods, difficulty, room.seed);
         mods.push_back(22);
         spawns.push_back({ sup.type, leader_x, leader_y, -1, superunique_index, d2d::rules::Boss::superunique, std::move(mods), 0, spawning.game.next() });
+        for (const auto& [off_x, off_y] : unit.path) spawns.back().path.emplace_back(unit.x + off_x, unit.y + off_y);   // FUN_00555910: the preset's map AI
         const int minion = monsters.types[std::size_t(sup.type)].minion[0] >= 0 ? monsters.types[std::size_t(sup.type)].minion[0] : sup.type;
         const int low = sup.min_grp + (sup.min_grp && sup.max_grp ? difficulty : 0), high = sup.max_grp + (sup.min_grp && sup.max_grp ? difficulty : 0);
         const int count = room.seed.range(low, std::max(low, high));
@@ -659,7 +661,7 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     for (const auto& room : built)
         if (room.seed) level.room1_seeds[std::size_t(room.seed - made.data())] = room.room1_seed;
     for (const auto& room : built)
-        for (const auto& unit : room.units) level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags });
+        for (const auto& unit : room.units) level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path });
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
     // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
     const auto slots = d2d::drlg::warp_slots(assets, level.id);

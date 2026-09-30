@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <span>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -110,6 +111,7 @@ struct Spawn {
     // Its unit seed (unit +0x20, {seed, 666}): a step of the game seed as
     // the unit is made (FUN_00555230 → FUN_00552df0), what its look rolls.
     std::uint32_t seed = 0;
+    std::vector<std::pair<int, int>> path;                    // its preset's map AI points (FUN_00555910), subtiles
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
@@ -462,10 +464,11 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 //   around n x y FUN_005df680: walk to (x, y) subtiles off the target, four seed steps
 //   home         FUN_005dede0: walk back to its spawn point (Blood Raven's command 10)
 //   skill n x y  as skill, at (x, y) subtiles off the target when set (Blood Raven's raise)
+//   point x y    FUN_005dead0 with no unit: Skill1 in Sk1mode at (x, y) subtiles (the Countess's map AI)
 // A think's rand(100)s are one step each of the monster's seed (+0x20),
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
-enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, untraced };
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, point, untraced };
 struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
 struct ThinkIn {
     std::array<int, 8> aip{};                   // aip1..8 for its difficulty
@@ -487,12 +490,20 @@ struct ThinkIn {
     int* state2 = nullptr;
     bool spot_free = true;
     int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
+    int off_x = 0, off_y = 0;                   // the target, subtiles off it
 };
 
+// A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
+// MonsterSkillBonus (+0x10 via FUN_00573930).
+inline int monster_skill_level(int sk_lvl, int difficulty) {
+    static constexpr std::array<int, 3> kMonsterSkillBonus{ 0, 3, 7 };
+    return sk_lvl + kMonsterSkillBonus[std::size_t(std::clamp(difficulty, 0, 2))];
+}
+
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 17> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 18> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
-                                                               "BloodRaven", "SkeletonMage" };
+                                                               "BloodRaven", "SkeletonMage", "GargoyleTrap" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -746,7 +757,56 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         if (r() >= aip[6]) return { MonAct::idle, aip[7] };
         return think_circle(rng, 4);
     }
+    // GargoyleTrap (FUN_005f9490): after a shot it stands its scratch word
+    // (aip3) frames; else, facing the target square on, within 5 subtiles
+    // of its row or column and nearer than aip1, aip2 % shoots Skill1;
+    // else it stands aip4.
+    if (ai == "GargoyleTrap") {
+        if (*in.state > 0) { const int n = *in.state; *in.state = 0; return { MonAct::idle, n }; }
+        if ((std::abs(in.off_x) <= 5 || std::abs(in.off_y) <= 5) && in.skill[0] && in.dist < aip[0] && r() < aip[1]) {
+            *in.state = aip[2];
+            return { MonAct::skill, 0 };
+        }
+        return { MonAct::idle, aip[3] };
+    }
     return { MonAct::untraced };
+}
+
+// The Countess (special AI 0xd, FUN_005e5c50; FUN_005b15d0 runs it in
+// place of her CorruptRogue think). Home is where she first thought
+// (command 10). Out of home's room she walks back; with the target out of
+// it she walks back, or at home exactly a firewall within 25, else stands
+// 10; over 40 from home she walks back. Else a firewall; else rand(100):
+// in melee under aip3 + 10 A1, out of it under aip1 a run at the target;
+// else stands aip2. A firewall (FUN_005e5b70): at her map AI's next point
+// (state: its index; state2: the frame of the last), until they run out;
+// 700 frames on from the last they start over.
+// ponytail: a walk home always sets off, so FUN_00540e60(2, 0)'s fallback
+// (on down the list) doesn't come up.
+struct CountessIn { bool away = false, target_away = false, at_home = false; };
+inline Think countess_think(const ThinkIn& in, const CountessIn& where, std::span<const std::pair<int, int>> path, Rng& rng) {
+    auto firewall = [&](Think& out) {
+        if (*in.state < int(path.size())) {
+            const auto [x, y] = path[std::size_t(*in.state)];
+            ++*in.state; *in.state2 = in.frame;
+            out = { MonAct::point, 0, x, y };
+            return true;
+        }
+        if (std::abs(in.frame - *in.state2) > 700) *in.state = 0;
+        return false;
+    };
+    Think out;
+    if (where.away) return { MonAct::home };
+    if (where.target_away) {
+        if (!where.at_home) return { MonAct::home };
+        if (in.dist < 25 && firewall(out)) return out;
+        return { MonAct::idle, 10 };
+    }
+    if (in.home_dist > 40) return { MonAct::home };
+    if (firewall(out)) return out;
+    const int roll = rng(100);
+    if (in.in_melee) return roll < in.aip[2] + 10 ? Think{ MonAct::a1 } : Think{ MonAct::idle, in.aip[1] };
+    return roll < in.aip[0] ? Think{ MonAct::run } : Think{ MonAct::idle, in.aip[1] };
 }
 
 }  // namespace d2d::rules
