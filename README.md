@@ -26,6 +26,10 @@ quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
 | Act I quests | ✅ 100% (6 of 6) |
 | Act I matching the original exactly | Maps and item drops ✅; monster placement in progress |
 | Acts II–V | Not started |
+| Single player, softcore and hardcore | ✅ Runs as a one-player client/server, like the original |
+| Multiplayer over TCP/IP (a d2d host) | Not started |
+| Joining a game hosted by the original | Not started |
+| Dedicated server | Not started |
 
 ## Bring your own game
 
