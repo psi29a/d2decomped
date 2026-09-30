@@ -75,12 +75,48 @@ struct Populator {
     // Returns its shrine id (Npc::shrine).
     int make(int id, int x, int y, bool group) {
         const auto before = level.npcs.size();
+        auto gold = rgn;
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
         const bool quiet = !obj(id, "IsDoor") && (obj(id, "SubClass") & 4);
         stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), quiet ? 0x8000 : 0x400);
         game.next();                                                   // FUN_00552df0: its seed
+        if (obj(id, "InitFn") == 28) piles(gold, x, y);
         if (group) out->made.push_back({ id, x, y });
         return level.npcs.size() > before ? level.npcs.back().shrine : 0;
+    }
+
+    // FUN_0054f8c0 (InitFn 28), replaying add_object's rolls: 1..9 piles,
+    // each at rand(4), rand(4) off it, dropped (FUN_00559300) where clear
+    // (0x3f11) and the last spot tried inside its room is too (sic). A pile
+    // is an item: two game-seed steps (FUN_00552df0, FUN_00552e90) and
+    // 0x200 at the free subtile nearest (x + 2, y + 3) (FUN_0064dea0).
+    // ponytail: FUN_0064dea0's path check (FUN_0066a670) isn't taken.
+    void piles(d2d::rules::Rng gold, int x, int y) {
+        auto inside_room = [&](int at_x, int at_y) { return at_x >= room.x && at_y >= room.y && at_x < room.x + room.w && at_y < room.y + room.h; };
+        auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 1, 1, 0x3e01); };
+        int last_x = x, last_y = y;
+        for (int count = gold(9) + 1; count > 0; --count) {
+            const int dx = int(gold.next() & 3), dy = int(gold.next() & 3);
+            if (!inside_room(last_x + dx, last_y + dy)) continue;
+            last_x = x + dx; last_y = y + dy;
+            if (hit(last_x, last_y, 1, 1, 0x3f11)) continue;
+            int at_x = last_x + 2, at_y = last_y + 3;
+            if (at(at_x, at_y) == 0x27) { at_x = last_x; at_y = last_y; }
+            if (!clear(at_x, at_y)) {
+                int best = -1, best_x = at_x, best_y = at_y;
+                for (int r = 1; r < 50 && best < 0; ++r) {
+                    auto test = [&](int tx, int ty) {
+                        const int d = std::abs(tx - at_x) + std::abs(ty - at_y);
+                        if (clear(tx, ty) && (best < 0 || d < best)) { best = d; best_x = tx; best_y = ty; }
+                    };
+                    for (int ty = at_y - r; ty <= at_y + r; ++ty) { test(at_x - r, ty); test(at_x + r, ty); }
+                    for (int tx = at_x - r + 1; tx <= at_x + r - 1; ++tx) { test(tx, at_y - r); test(tx, at_y + r); }
+                }
+                at_x = best_x; at_y = best_y;
+            }
+            stamp(at_x, at_y, 1, 1, 0x200);
+            game.next(); game.next();
+        }
     }
 
     // FUN_00550220: clear of walls, objects and doors round a sx x sy object.
