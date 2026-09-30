@@ -43,7 +43,7 @@ struct OutdoorData {
     UnitIds ids;                                        // how DS1 units' ids map
 };
 // A walkable neighbour: its placed rect and its slot in this level's Vis.
-struct Neighbour { Placed rect; int slot = 0; };
+struct Neighbour { Placed rect; int slot = 0; bool preset = false; };   // preset: DrlgType 2
 struct OutdoorLevel {
     Placed rect;                                        // level, tiles, layout flags
     int sub_type = -1, sub_theme = -1, sub_waypoint = -1, sub_shrine = -1;
@@ -285,7 +285,7 @@ struct Gen {
                 else if (neighbour_rect.y == rect.y + rect.height) side = 3;
             }
             if (side < 0) { note("drlg: neighbour " + std::to_string(neighbour_rect.level) + " doesn't touch"); continue; }
-            const Node node{ neighbour_rect, side, neighbour_rect.level == 1, neighbour.slot };
+            const Node node{ neighbour_rect, side, neighbour.preset, neighbour.slot };
             auto before = [](const Node& first, const Node& second) {        // FUN_0066b6a0
                 if (first.side != second.side) return first.side < second.side;
                 switch (first.side) {
@@ -536,17 +536,74 @@ struct Gen {
         const int row_pick = seed(count);
         for (int i = 0; i < count; ++i) {
             const int y = (i + row_pick) % count + 1;
-            if (!(flags & 4) && !free_cell(x - 1, y)) continue;
-            if (!free_cell(x + 2, y)) continue;
+            if (!free_cell(x - 1, y)) continue;
+            if (!(flags & 4) && !free_cell(x + 2, y)) continue;                  // flags&4 jumps past the x+2 setup
             if ((g2c.get(x, y) & 0xf0000) != 0x30000 || (g2c.get(x + 1, y) & 0xf0000) != 0x30000) continue;
             place(x, y, 28, 1, false);
             place(x + 1, y, 28, 2 + ((flags & 4) ? 1 : 0), false);
             return;
         }
     }
+    // Cliff styles (FUN_00680070): a run of edges going right or up from a
+    // vertex where the outline turns, none on a contact span (flag 1),
+    // up to its last turn, becomes cliffs (style 1).
+    void cliffs() {
+        auto next = [&](int v) { return verts[std::size_t(v)].next; };
+        auto vx = [&](int v) { return verts[std::size_t(v)].x; };
+        auto vy = [&](int v) { return verts[std::size_t(v)].y; };
+        auto contact = [&](int v) { return (verts[std::size_t(v)].flags & 1) != 0; };
+        int prev = head;
+        for (int v = next(head); v != head; v = next(v)) prev = v;
+        int cur = head, start = head;
+        bool wrapped = false;
+        for (;;) {
+            int walk = cur;
+            const int after = next(cur);
+            if (((vx(cur) < vx(after) && vy(cur) < vy(prev)) || (vy(after) < vy(cur) && vx(cur) < vx(prev))) && !contact(cur) && !contact(prev)) {
+                int last = -1, to;
+                do {
+                    if (walk == start) wrapped = true;
+                    to = next(walk);
+                    if (vy(walk) < vy(to) || vx(to) < vx(walk) || contact(walk) || contact(to)) break;
+                    const int beyond = next(to);
+                    if (!contact(to) && ((vx(walk) < vx(to) && vy(to) < vy(beyond)) || (vy(to) < vy(walk) && vx(to) < vx(beyond)))) last = walk;
+                    walk = to;
+                } while (to != cur);
+                if (last != -1) {
+                    for (int v = cur; v != last; v = next(v)) verts[std::size_t(v)].style = 1;
+                    verts[std::size_t(last)].style = 1;
+                    flags |= 0x20;
+                }
+            }
+            cur = next(walk);
+            if (wrapped) return;
+            prev = walk;
+            start = head;
+            if (cur == head) return;
+        }
+    }
+    // A cliff cave (FUN_006801a0) on the first cliff edge cell: rows first
+    // on an even roll, else columns (x bounded by the height, as game.exe).
+    bool cliff_cave(int x, int y) {
+        const auto def = g04.get(x, y);
+        if (def != 16 && def != 17) return false;
+        place(x, y, def == 16 ? 25 : 24, -1, false);
+        flags |= 0x40;
+        return true;
+    }
     void features() {
         if ((flags & 0xc) && river_ok(cells_wide - 2)) river(cells_wide - 2);
-        if ((flags & 0x20) && !(flags & 0x40)) note("drlg: cliff cave entrance (flag 0x20) not implemented");
+        if ((flags & 0x20) && !(flags & 0x40)) {
+            bool found = false;
+            if (!(seed.next() & 1)) {
+                for (int y = 0; y < cells_high && !found; ++y)
+                    for (int x = 0; x < cells_wide && !found; ++x) found = cliff_cave(x, y);
+            } else {
+                for (int x = 0; x < cells_high && !found; ++x)
+                    for (int y = 0; y < cells_wide && !found; ++y) found = cliff_cave(x, y);
+            }
+            if (!found) note("drlg: no cliff for the cliff cave (game.exe stops here)");
+        }
         if ((flags & 0x1c) && !(flags & 0x40)) {
             const int pick = int(seed.next() & 3);
             const int x = (pick & 1) ? 3 : cells_wide - ((flags & 0x10) ? 4 : 5);
@@ -793,9 +850,16 @@ struct Gen {
         if (extra && (seed.next() & 1)) by_road(49, -1);
     }
     void fills() {
+        auto any = [&](int def) { anywhere(def, -1, 0, 0xf); };
         switch (level.rect.level) {
         case 2: by_road(46, -1); cottages(47, false); break;                   // pond
-        case 3: cottages(48, true); anywhere(44, -1, 0, 0xf); break;
+        case 3: cottages(48, true); any(44); break;
+        case 4: by_road(160, -1); by_road(45, -1); any(162); cottages(47, true); cottages(42, false); any(31); return;
+        case 5: any(161); any(41); any(40); cottages(48, true); cottages(43, false); break;
+        case 6: any(163); any(38); any(39); cottages(47, true); cottages(42, false); break;
+        case 7: cottages(48, true); cottages(43, false); any(31); return;
+        case 17: place(1, 1, 108, -1, false); return;                           // the Mausoleum
+        case 39: any(50); any(46); any(31); any(38); any(39); break;
         default: note("drlg: fills for level " + std::to_string(level.rect.level) + " not implemented"); return;
         }
         anywhere(29, -1, 0, 0xf);
@@ -955,21 +1019,27 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
     using namespace outdoor_detail;
     Outdoor out;
     Gen gen(data, level, seed, out.notes);
-    if (level.rect.level < 2 || level.rect.level > 7) gen.note("drlg: outdoor level " + std::to_string(level.rect.level) + " is act 1 only for now");
-    if (level.rect.level != 2 && level.rect.level != 3 && level.rect.level != 17) gen.note("drlg: cliff styles (FUN_00680070) not implemented");
+    const int id = level.rect.level;                    // FUN_006807f0
+    const bool wild = id >= 2 && id <= 7;
+    if (!wild && id != 17 && id != 39) gen.note("drlg: outdoor level " + std::to_string(id) + " is act 1 only for now");
     gen.neighbours();
     gen.outline();
+    if (id != 2 && id != 3 && id != 17) gen.cliffs();
     gen.contacts();
     gen.borders();
-    gen.border_subs(0);
-    gen.features();
-    gen.border_subs(1);
-    gen.border_subs(2);
-    gen.transitions();
-    gen.border_subs(3);
-    out.roads = gen.roads();
-    if (level.rect.level >= 3 && level.rect.level <= 6) gen.waypoint();
-    gen.shrines(5);
+    if (wild) {
+        gen.border_subs(0);
+        gen.features();
+        gen.border_subs(1);
+        gen.border_subs(2);
+        gen.transitions();
+        gen.border_subs(3);
+        out.roads = gen.roads();
+    }
+    if (id == 39)
+        for (int sub = 0; sub < 4; ++sub) gen.border_subs(sub);
+    if (id >= 3 && id <= 6) gen.waypoint();
+    if (wild) gen.shrines(5);
     gen.fills();
 
     // The finish (FUN_006750f0): rooms in cell order, each allocation

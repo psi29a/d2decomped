@@ -173,15 +173,14 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
         }
         if (fits(i)) ++i;
     }
-    if (town_rules)
-        for (int i = 0; i < count; ++i) {
-            const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
-            const int level = placed[std::size_t(i)].level;
-            if (const auto found = defs.find(level); found == defs.end() || !found->second.outdoor) continue;
-            for (const auto& rule : kAct1Flags)
-                if ((rule.level == level || rule.level == 0) && level != rule.not1 && level != rule.not2 && dir == rule.dir && next_dir == rule.next_dir)
-                    placed[std::size_t(i)].flags |= rule.flag;
-        }
+    for (int i = 0; i < count; ++i) {                         // FUN_00677180, both chains
+        const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
+        const int level = placed[std::size_t(i)].level;
+        if (const auto found = defs.find(level); found == defs.end() || !found->second.outdoor) continue;
+        for (const auto& rule : kAct1Flags)
+            if ((rule.level == level || rule.level == 0) && level != rule.not1 && level != rule.not2 && dir == rule.dir && next_dir == rule.next_dir)
+                placed[std::size_t(i)].flags |= rule.flag;
+    }
     return placed;
 }
 

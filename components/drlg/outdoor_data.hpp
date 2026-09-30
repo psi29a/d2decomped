@@ -79,7 +79,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
     const auto prest = table("LvlPrest.txt");
     for (std::size_t row = 0; row < prest.size(); ++row) {
         const int def = to_int(prest.get(row, "Def"));
-        if (def < 2 || def > 102) continue;                     // ponytail: act 1's outdoor and cave presets
+        if (def < 2 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (not the town, 1)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
                   std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
@@ -203,7 +203,10 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         }
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
-            if (const auto* placement = placed(vis[std::size_t(i)])) level.neighbours.push_back({ *placement, i });
+            if (const auto* placement = placed(vis[std::size_t(i)])) {
+                const auto other = level_row(levels, vis[std::size_t(i)]);
+                level.neighbours.push_back({ *placement, i, other && to_int(levels.get(*other, "DrlgType")) == 2 });
+            }
     return level;
 }
 
