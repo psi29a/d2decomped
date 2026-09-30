@@ -356,6 +356,12 @@ struct Populator {
         static constexpr int kMask[4] = { 0x3c01, 0x1c0, 0x3f11, 0 };
         const auto* t = type_at(type);
         const int col = t ? t->spawn_col : 0;
+        // FUN_005fd350: a nest's (by BaseId) laying spot clear for a plus too.
+        // ponytail: vilemother1's (298) check is off for population's calls; left out.
+        const int base = t ? t->base : -1;
+        if (const auto nest = [&](int dx, int dy, int mask) { return hit_shape(x + dx, y + dy, 2, mask); };
+            (base == 206 && nest(0, 3, 0x3c01)) || (base == 228 && nest(0, 2, 0x3c01)) || (base == 334 && nest(-2, -2, 0x1c0)) || (base == 528 && nest(2, 4, 0x3c01)))
+            return false;
         return size_of(type) <= 3 && !hit_shape(x, y, size_of(type), col > 0 && col < 4 ? kMask[col] : 0x3c01);
     }
     [[nodiscard]] d2d::rules::SpawnRoom bounds(bool in_area) const {
