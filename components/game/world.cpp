@@ -144,6 +144,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         using namespace d2d::d2s;
         const auto& object = level->npcs[std::size_t(npc_index)];
         const int diff = character.header.active_difficulty();
+        if (object.operate_fn == d2d::rules::ToolsQuest::kStand) { malus_stand(npc_index, now_ms); return; }
         if (object.operate_fn == 4 && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
             const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == 0 && item.panel == 1 && item.code == "key"; });
             if (key == character.items.end()) { d2d::log::info("I need a key."); return; }
@@ -327,6 +328,14 @@ auto World::new_game() -> void {
         den.join(quests());
         andy = {};
         andy.join(quests());
+        // The chain (+0xf0 from quest 1, FUN_00546270; +0x10: 2 -> 4 -> 3)
+        // reaches Tools past the Den, the Burial Grounds and Cain done or
+        // closed (off for the game).
+        // ponytail: a quest finished in this game (state 5) doesn't pass
+        // it on until the next game.
+        tools = {};
+        tools.join(quests());
+        if (std::ranges::all_of(std::array{ 1, 2, 4 }, [&](int quest) { return d2d::rules::qbit(quests(), quest, 0) || d2d::rules::qbit(quests(), quest, 15); })) tools.open();
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -352,6 +361,7 @@ auto World::spawn_merc() -> void {
 auto World::swap_npcs(const Level* from) -> void {
         arrived_at = now;
         if (from && from != level) andy.enter(quests(), from->id, level->id);
+        if (from && from != level) tools.enter(quests(), from->id);
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -416,7 +426,29 @@ auto World::cross_level() -> void {
 auto World::quest_talk(int hc_idx) -> std::vector<d2d::rules::QuestMsg> {
         auto out = den.talk(quests(), hc_idx);
         std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(tools.talk(quests(), hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel))), std::back_inserter(out));
         return out;
+    }
+
+auto World::holding_malus() const -> bool {
+        return (held && held->code == "hdm") || std::ranges::contains(character.items, std::string("hdm"), &d2d::d2s::Item::code);
+    }
+
+// The malus stand (OperateFn 21, FUN_00591ac0): at clvl 8 the malus drops
+// from it (FUN_00559a30) and it's used (mode 2); too low, "I can't"
+// (FUN_00553380).
+// ponytail: the refusal's a log line, not the class's voice; the stand
+// starts NU where game.exe's InitFn 15 has it ON with the quest off.
+auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
+        const auto& object = level->npcs[std::size_t(npc_index)];
+        const auto stand = tools.operate(quests(), int(character.stats.get(d2d::d2s::kLevel)));
+        if (stand == d2d::rules::ToolsQuest::Stand::refuse) d2d::log::info("I can't use this yet.");
+        if (stand == d2d::rules::ToolsQuest::Stand::drop || !tools.active) operated.try_emplace({ level, npc_index }, now_ms);
+        if (stand != d2d::rules::ToolsQuest::Stand::drop) return;
+        const auto& area_levels = game_data->area_level;
+        const int alvl = std::size_t(level->id) < area_levels.size() ? area_levels[std::size_t(level->id)][std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))] : 1;
+        loot.put({ .code = "hdm" }, object.x, object.y, alvl, now_ms);
+        d2d::log::info("Tools of the Trade: the Horadric Malus");
     }
 
 // Andariel's death hook (FUN_005965a0): the quest's bits; the player's
@@ -667,9 +699,24 @@ auto World::deal(const Command& command) -> bool {
             d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein)");
             return true;
         }
+        // Charsi's imbue (FUN_00579d60, kind 0 at hcIdx 0x9a): while it's
+        // due (quest 3 bit 1), the item in hand made anew, rare; the
+        // reward's used (FUN_00591790).
+        // ponytail: no S->C 0x58 result; the new item stays in hand.
+        if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
+            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::ToolsQuest::kCharsi
+                || !d2d::rules::qbit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !held || !d2d::rules::imbuable(game_data->rules, *held)) return true;
+            auto made = d2d::rules::imbue_item(game_data->rules, *held, int(character.stats.get(d2d::d2s::kLevel)), rng);
+            made.location = held->location; made.panel = held->panel; made.column = held->column; made.row = held->row;
+            held = std::move(made);
+            tools.imbued(quests());
+            d2d::log::info("Tools of the Trade: Charsi imbued the {}", held->code);
+            return true;
+        }
         if (const auto* run = std::get_if<cmd::Run>(&command)) { running = run->running; return true; }
         if (const auto* chat = std::get_if<cmd::Chat>(&command)) {
             if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) andy.talk_closed(level->npcs[std::size_t(talking[0])].hc_idx);
+            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) tools.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
             talking = { chat->npc, -1, -1 };
             return true;
         }
@@ -695,6 +742,11 @@ auto World::deal(const Command& command) -> bool {
             if (!std::ranges::contains(quest_talk(hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
             if (andy.said(quests(), hc_idx, message->string)) {
                 d2d::log::info("Sisters to the Slaughter: done, Warriv's caravan goes east");
+            }
+            if (tools.said(quests(), hc_idx, message->string, holding_malus())) {   // FUN_00544160: the malus goes
+                if (held && held->code == "hdm") held.reset();
+                else if (const auto malus = std::ranges::find(character.items, std::string("hdm"), &d2d::d2s::Item::code); malus != character.items.end()) character.items.erase(malus);
+                d2d::log::info("Tools of the Trade: the malus is back, Charsi's imbue is due");
             }
             if (den.said(quests(), hc_idx, message->string)) {
                 ++character.stats.values[d2d::d2s::kSkillPts];
@@ -809,7 +861,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
             const bool usable = (npc.operate_fn == 2 || npc.operate_fn == 4) && !npc.preoperated && !operated.contains({ level, interact->npc });
-            if (npc.operate_fn == 32 || npc.operate_fn == 23 || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
+            if (npc.operate_fn == 32 || npc.operate_fn == 23 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
         const auto& use_skill = std::get<cmd::UseSkill>(command);
@@ -906,7 +958,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto& state = npc_states[std::size_t(interact_npc)];
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             if (std::hypot(npc_x - player.x, npc_y - player.y) < 2.f) {
-                if (npc.operate_fn == 2 || npc.operate_fn == 4) {
+                if (npc.operate_fn == 2 || npc.operate_fn == 4 || npc.operate_fn == d2d::rules::ToolsQuest::kStand) {
                     operate(interact_npc, now_ms);
                 } else if (npc.operate_fn == 32) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });
@@ -942,7 +994,9 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto ground_index = std::size_t(loot.index_of(pick_item));
             const auto& ground_item = loot.ground[ground_index];
             if (std::hypot(ground_item.x - player.x, ground_item.y - player.y) <= 1.f) {
+                const bool malus = ground_item.item.code == "hdm";
                 loot.take(ground_index);
+                if (malus && holding_malus() && tools.picked_up(quests())) d2d::log::info("Tools of the Trade: the malus picked up (the player's line, FUN_00553380)");
                 pick_item = -1; player.walking = false; player.path.clear();
             } else {
                 target_x = ground_item.x; target_y = ground_item.y; player.walking = true;
@@ -970,7 +1024,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx);
+            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx)
+                               || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)));
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }

@@ -237,6 +237,136 @@ struct AndyQuest {
     static constexpr const char* kStandard[7] = { "gsv", "gsr", "gsb", "gsy", "gsg", "gsw", "sku" };
 };
 
+// Tools of the Trade, one game's (a1q3.cpp, the record at FUN_00591f70).
+// Quest 3; bits: 0 done (imbued), 1 reward due (the imbue), 2 given,
+// 3 out of town / the malus dropped, 6 the malus picked up once, 13
+// returned in this game, 14 returned by someone else, 15 closed. The
+// malus ('hdm ') drops from its stand, object 108 in the Barracks.
+// ponytail: one player — the participant and party lists, the carrier
+// count (+0x9c) and the reset when the last carrier loses it (0x5918d0,
+// events 6 / 9) are left out.
+struct ToolsQuest {
+    static constexpr int kQuest = 3, kCharsi = 154, kClvl = 8, kStand = 21;   // kStand: the stand's OperateFn
+    int state = 0;           // +0xc: 0 closed, 1 open, 2 Charsi gave it, 3 out of town, 4 the malus dropped, 5 returned
+    int log = 0;             // +0xb
+    bool active = true;      // +9: off when the player joins with it done or closed (FUN_00546270)
+    bool dropped = false;    // data+1 / +0x98 == 2: the stand's used
+    bool given = false, returned = false;   // data[2] / data[3]: the log waits for the talk to close
+    bool game_returned = false;             // the game's flag 13 (FUN_00544720(3, 0xd))
+
+    // A player's bits for the state (0x591340).
+    void mark(QuestBits& quest_bits) const {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        if (state == 2) qset(quest_bits, kQuest, 2);
+        if (state == 3 || state == 4) qset(quest_bits, kQuest, 3);
+    }
+    // The player joins (FUN_00591ed0); a first player with it done or
+    // closed turns it off for the game (FUN_00546270, FUN_00544410).
+    void join(const QuestBits& quest_bits) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) { active = false; return; }
+        if (qbit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
+        else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+    }
+    // The chain reached it (+0xf0, FUN_00591e40): open (Charsi's "!").
+    // True: it passes on to the next (+0x10 = 6).
+    bool open() {
+        if (state == 0 && active) { state = 1; return false; }
+        return state == 5 || !active;
+    }
+    // What `npc` says about it (FUN_005916a0): holding the malus at clvl
+    // 8+, block 3 (Charsi's "the malus!"); else the block for the state
+    // (0x737630: -1, 0, 1, 2, 3, 4; state 4 skipped). Blocks at 0x737198.
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool holding, int clvl) const {
+        struct E { int npc, string; bool greet; };
+        static const std::vector<E> kBlocks[5] = {
+            { { kCharsi, 146, true } },
+            { { 148, 148, false }, { 150, 149, false }, { 265, 147, false }, { kCharsi, 150, false }, { 147, 151, false }, { 155, 153, false } },
+            { { 150, 156, false }, { 155, 159, false }, { kCharsi, 157, false }, { 265, 154, false }, { 148, 155, false }, { 147, 158, false } },
+            { { 150, 162, false }, { 155, 165, false }, { kCharsi, 163, true }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+            { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+        };
+        const bool b0 = qbit(quest_bits, kQuest, 0);
+        if (b0 && !qbit(quest_bits, kQuest, 13)) return {};
+        int block = -1;
+        if (holding) { if (clvl >= kClvl && !b0) block = 3; }
+        else if (!b0 && state != 0 && state != 4) block = state - 1;
+        std::vector<QuestMsg> out;
+        if (block >= 0 && block <= 4)
+            for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
+        return out;
+    }
+    // The balloon over `npc` (FUN_00591c30): Charsi, while it's open or
+    // the malus comes back at clvl 8+.
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool holding, int clvl) const {
+        if (npc != kCharsi || qbit(quest_bits, kQuest, 0)) return false;
+        if (state == 1 && !qbit(quest_bits, kQuest, 1)) return true;
+        return clvl >= kClvl && holding;
+    }
+    // The player heard `string` from `npc` (FUN_00591490). True: Charsi
+    // took the malus back (the caller removes it, FUN_00544160) — the
+    // imbue's due (bits 13 and 1) and "quest complete" (0xca7).
+    bool said(QuestBits& quest_bits, int npc, int string, bool holding) {
+        if (npc != kCharsi) return false;
+        if (string == 146) { state = 2; given = true; return false; }
+        if (string != 163 || qbit(quest_bits, kQuest, 0) || !holding) return false;
+        qset(quest_bits, kQuest, 13);
+        qset(quest_bits, kQuest, 1);
+        if (active && state == 4) { state = 5; returned = true; game_returned = true; }
+        return true;
+    }
+    // The talk with `npc` closed (0x5913c0).
+    void talk_closed(QuestBits& quest_bits, int npc) {
+        if (npc != kCharsi) return;
+        if (given) { mark(quest_bits); log = 1; given = false; }
+        else if (returned) { log = 0xd; returned = false; }
+    }
+    // The player left level `from` (LAB_00591810): out of town after
+    // Charsi gave it.
+    void enter(QuestBits& quest_bits, int from) {
+        if (!active || from != 1 || state != 2 || qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        log = 1;
+        state = 3;
+        mark(quest_bits);
+    }
+    // The stand operated (OperateFn 21, FUN_00591ac0). drop: the malus
+    // falls from it (FUN_00559a30) and it's used (mode 2); refuse: "I
+    // can't" (FUN_00553380) — too low a level, or it's off in this game
+    // (the stand goes to mode 2 all the same).
+    enum class Stand { none, refuse, drop };
+    Stand operate(QuestBits& quest_bits, int clvl) {
+        if (!active) return Stand::refuse;
+        if (dropped || qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return Stand::none;
+        if (clvl < kClvl) return Stand::refuse;
+        dropped = true;
+        if (state != 4) { state = 4; mark(quest_bits); }
+        log = 1;
+        return Stand::drop;
+    }
+    // The malus went into the inventory (FUN_00591960). True: the first
+    // time — bit 6, and the player's line (FUN_00553380).
+    bool picked_up(QuestBits& quest_bits) {
+        log = 2;
+        if (qbit(quest_bits, kQuest, 6)) return false;
+        qset(quest_bits, kQuest, 6);
+        return true;
+    }
+    // Charsi imbued an item (FUN_00591790): done, the reward's used.
+    void imbued(QuestBits& quest_bits) {
+        qset(quest_bits, kQuest, 0);
+        qset(quest_bits, kQuest, 1, false);
+    }
+    // The quest log's state (FUN_00591d30).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits, bool holding, int clvl) const {
+        if (qbit(quest_bits, kQuest, 1)) return 10;
+        if (holding) return qbit(quest_bits, kQuest, 0) ? 0 : 2;
+        if (!active) return 0;
+        if (qbit(quest_bits, kQuest, 13)) return 0xd;
+        if (qbit(quest_bits, kQuest, 14)) return 0xc;
+        if (state < 5) return log;
+        return game_returned ? (clvl >= kClvl ? 12 : 4) : 0;
+    }
+};
+
 // The quest a message is about, for the Talk submenu's label: its name's
 // string id (0x722678), 0 none.
 [[nodiscard]] inline int quest_name(int message) {

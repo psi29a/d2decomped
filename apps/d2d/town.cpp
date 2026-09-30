@@ -551,6 +551,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                 net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kGoEast) {
                 net.send(cmd::GoEast{ who });
+            } else if (action == NpcMenuState::kImbue) {
+                // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
+                // the item in hand.
+                net.send(cmd::Imbue{ who });
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), frame_ms);
                 net.send(cmd::QuestMessage{ who, npc_menu_arg });
@@ -797,7 +801,8 @@ auto Town::open_menu(int npc) -> void {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
                 return !d2d::rules::qbit(quest_bits, 41, 0) && (d2d::rules::qbit(quest_bits, 41, 1) || difficulty == 2);
-            }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0));
+            }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
+            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
     }
 
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {

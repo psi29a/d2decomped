@@ -152,7 +152,7 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does. ponytail: trade/hire/gamble/... just close.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk, kGoEast };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk, kGoEast, kImbue };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
     std::vector<Line> lines;
     int x = 0, y = 0, box_width = 0, box_height = 0;
@@ -177,7 +177,8 @@ void layout_npc_menu(const Scene& scene, NpcMenuState& menu, int screen_x, int s
 // trade, "Reset Stat/Skill Points" (0x2ba0, 0x4b6da0), the last shown while
 // `respec` (quest 41: not used, and open — or any time in Hell).
 NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0,
-                           bool respec = false, bool east = false);   // east: Warriv's Go East (quest 6 done, table 0x7253e0)
+                           bool respec = false, bool east = false,   // east: Warriv's Go East (quest 6 done, table 0x7253e0)
+                           bool imbue = false);                      // imbue: Charsi's Imbue (quest 3 bit 1, 0x4b3700)
 
 // The reset's confirmation (0x4b5ad0): its name (gold), "ok" (0xd49),
 // "cancel" (0xd48).
