@@ -71,14 +71,16 @@ struct Populator {
                 if (tx >= 0 && ty >= 0 && tx < width && ty < height) grid[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
-    // (FUN_006209d0: 0x400; 0x8000, no mask's, for a SubClass 4 non-door).
+    // (FUN_006209d0: 0x400; 0x8000, no mask's, for a SubClass 4 non-door;
+    // none without HasCollision in its start mode).
     // Returns its shrine id (Npc::shrine).
     int make(int id, int x, int y, bool group) {
         const auto before = level.npcs.size();
         auto gold = rgn;
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
         const bool quiet = !obj(id, "IsDoor") && (obj(id, "SubClass") & 4);
-        stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), quiet ? 0x8000 : 0x400);
+        const bool on = level.npcs.size() > before && level.npcs.back().mode == "ON";
+        if (obj(id, on ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), quiet ? 0x8000 : 0x400);
         game.next();                                                   // FUN_00552df0: its seed
         if (obj(id, "InitFn") == 28) piles(gold, x, y);
         if (group) out->made.push_back({ id, x, y });
