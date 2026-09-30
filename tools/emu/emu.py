@@ -199,6 +199,10 @@ class Emu:
     def w_InterlockedDecrement(self):
         a = self.arg(0); v = self.r32(a) - 1; self.w32(a, v); return v, 1
     def w_GetTickCount(self): return 0, 0
+    def w_IsBadCodePtr(self): return 0, 1
+    def w_PtInRect(self):
+        r = self.arg(0); x, y = self.arg(1) - (1 << 32) * (self.arg(1) >> 31), self.arg(2) - (1 << 32) * (self.arg(2) >> 31)
+        return int(self.s32(r) <= x < self.s32(r + 8) and self.s32(r + 4) <= y < self.s32(r + 12)), 3
     def w_GetCurrentThreadId(self): return 1, 0
     tls = {}
     def w_TlsAlloc(self): Emu.tls[len(Emu.tls) + 1] = 0; return len(Emu.tls), 0
