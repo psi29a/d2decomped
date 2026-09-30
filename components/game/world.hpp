@@ -143,6 +143,7 @@ struct World {
     int   take_warp = -1;                  // the warp of `level` the player is walking to
     int   interact_npc = -1;               // the object / NPC being walked to
     int   pick_item = -1;                  // the ground item being walked to (its unit id)
+    bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
     struct Door { int mode = 0; std::uint32_t when = 0; };

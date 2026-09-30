@@ -110,6 +110,13 @@ int main() {
     assert(!view.level->unit_blocked(view.player.x, view.player.y));
     std::printf("OK: %s in level %d at (%.1f, %.1f)\n", character.name.c_str(), view.level->id, view.player.x, view.player.y);
 
+    // d2d's autoloot (deviations.md #5): gold under the player goes into the purse.
+    const auto purse = world.character.stats.get(d2d::d2s::kGold);
+    world.loot.put({ .code = "gld", .gold = 7 }, world.player.x, world.player.y, 1, world.fight.spawning.game, 26 * kTickMs);
+    std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
+    world.tick({}, 26 * kTickMs, 25 * kTickMs);
+    assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+
     // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
     // comes out, walks off, opens his portal, walks back in: camp Cain due.
     // (The 1.14d tables: the CD's leave Tristram's presets unplaced.)

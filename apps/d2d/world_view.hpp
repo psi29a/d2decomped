@@ -33,6 +33,7 @@ namespace d2d::client {
 // round the player, so a player under a roof stays in sight. game.exe
 // draws roofs whole (walls.md). Off: --toggle trans_roof=off.
 inline bool g_roof_cutout = true;
+inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
 struct Hole {
     int x = 0, y = 0, radius = 0;                   // screen centre and radius, pixels
     // The alpha a pixel at (px, py) keeps: 0x40 in the inner half, rising to

@@ -1450,6 +1450,12 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 target_x = ground_item.x; target_y = ground_item.y; player.walking = true;
             }
         }
+        if (autoloot_gold && !fight.dead())                  // d2d: walking over gold picks it up (game.exe wants a click)
+            for (std::size_t i = loot.ground.size(); i-- > 0;)
+                if (const auto& ground_item = loot.ground[i]; ground_item.item.code == "gld" && std::hypot(ground_item.x - player.x, ground_item.y - player.y) <= 0.5f) {
+                    if (loot.index_of(pick_item) == int(i)) pick_item = -1;
+                    loot.take(i);
+                }
         if (const auto target = fight.engage(now_ms)) { std::tie(target_x, target_y) = *target; player.walking = true; }
         if (player.walking && fight.pmode < 0) {
             // A route to the target, re-planned when the target
