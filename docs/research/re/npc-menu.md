@@ -36,7 +36,8 @@ Some entries are special-cased while building:
 Runtime changes to the table (FUN_004b66b0, opening an NPC):
 - Kashya (hcIdx 0x96): above character level 7, FUN_004b6410 rewrites
   her record to 3 entries with string[1] = 0xd45 "hire", handler
-  0x4b5c60. Not quest-gated.
+  0x4b5c60. Not quest-gated: FUN_004b66b0 reads only stat 0xc (level);
+  Sisters' Burial Grounds' free merc (FUN_00579180) needs no entry.
 - The act hire NPCs (0xfc, 0xc6, 0x16f, 0x203, and Kashya):
   FUN_004b6440 adds "resurrect" (0x1507? handler FUN_004b1dd0) ahead of
   hire while the merc is dead.

@@ -72,6 +72,44 @@ int main() {
     assert(andy.talk(andy_bits, AndyQuest::kCain)[0].string == 184 && andy.talk(andy_bits, 154)[0].string == 180);
     assert(andy.said(andy_bits, AndyQuest::kWarriv, 183) && qbit(andy_bits, 6, 0) && !qbit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
     assert(!andy.said(andy_bits, AndyQuest::kWarriv, 183) && !andy.alert(andy_bits, AndyQuest::kWarriv));
+
+    // Sisters' Burial Grounds: open once the Den's done; Kashya gives it
+    // (the log waits for the talk to close); the Burial Grounds; Blood
+    // Raven's kill (log 3 at tick 15); Kashya's reward, once.
+    QuestBits burial_bits{};
+    BurialQuest burial;
+    burial.join(burial_bits);
+    assert(burial.state == 0 && burial.talk(burial_bits, BurialQuest::kKashya).empty() && !burial.alert(burial_bits, BurialQuest::kKashya));
+    assert(!burial.chain() && burial.state == 1 && burial.alert(burial_bits, BurialQuest::kKashya));
+    assert(burial.talk(burial_bits, BurialQuest::kKashya)[0].string == 81 && burial.talk(burial_bits, BurialQuest::kKashya)[0].greet);
+    assert(!burial.said(burial_bits, BurialQuest::kKashya, 81) && burial.state == 2 && burial.log == 0 && qbit(burial_bits, 2, 2));
+    burial.talk_closed(burial_bits, BurialQuest::kKashya);
+    assert(burial.log == 1 && burial.talk(burial_bits, 155)[0].string == 86 && !burial.alert(burial_bits, BurialQuest::kKashya));
+    burial.enter(burial_bits, 1, 3);                                                  // out of town: state 3, bit 3 (log 1)
+    assert(burial.state == 3 && qbit(burial_bits, 2, 3) && burial.talk(burial_bits, BurialQuest::kKashya)[0].string == 87);
+    burial.enter(burial_bits, 3, BurialQuest::kBurial);
+    assert(burial.log == 2 && qbit(burial_bits, 2, 4));
+    BurialQuest burial_again;
+    burial_again.join(burial_bits);
+    assert(burial_again.state == 3 && burial_again.log == 2);
+    assert(burial.killed(burial_bits, true) && burial.state == 4 && qbit(burial_bits, 2, 13) && qbit(burial_bits, 2, 1) && !qbit(burial_bits, 2, 14));
+    for (int i = 0; i < 14; ++i) burial.tick();
+    assert(burial.log == 2);
+    burial.tick();
+    assert(burial.log == 3 && burial.alert(burial_bits, BurialQuest::kKashya) && burial.talk(burial_bits, BurialQuest::kKashya)[0].string == 92);
+    assert(burial.talk(burial_bits, BurialQuest::kKashya)[0].greet && burial.talk(burial_bits, 147)[0].string == 95);
+    assert(burial.said(burial_bits, BurialQuest::kKashya, 92) && qbit(burial_bits, 2, 0) && !qbit(burial_bits, 2, 1) && burial.state == 5 && burial.log == 0xd);
+    assert(!burial.said(burial_bits, BurialQuest::kKashya, 92) && !burial.alert(burial_bits, BurialQuest::kKashya) && burial.chain());
+    assert(burial.talk(burial_bits, 155)[0].string == 96 && !burial.talk(burial_bits, BurialQuest::kKashya)[0].greet);   // block 4 while in town
+    burial.enter(burial_bits, 1, 2);
+    assert(burial.talk(burial_bits, 155).empty());
+    BurialQuest burial_done;                                                          // a later game: closed
+    burial_done.join(burial_bits);
+    assert(burial_done.chain() && burial_done.state == 0 && !burial_done.killed(burial_bits, true));
+    // Killed far from the player: someone else's kill, no reward.
+    QuestBits far_bits{};
+    BurialQuest far;
+    assert(!far.killed(far_bits, false) && qbit(far_bits, 2, 14) && !qbit(far_bits, 2, 1) && far.talk(far_bits, BurialQuest::kKashya).empty());
     assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
     std::puts("ok");
 }

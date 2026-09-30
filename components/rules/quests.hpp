@@ -119,6 +119,115 @@ struct DenQuest {
     }
 };
 
+// Sisters' Burial Grounds, one game's (a1q2.cpp, the record at
+// FUN_00591210). Quest 2; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
+// the Burial Grounds, 13 took part in the kill, 14 killed by someone
+// else, 15 closed.
+// ponytail: one player — the rewarded list (rec+0x1c) is a bool, the
+// party share of the kill (LAB_00590e70) is left out.
+struct BurialQuest {
+    static constexpr int kQuest = 2, kKashya = 150, kBurial = 17, kBloodRaven = 267;
+    bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
+    int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
+    int log = 0;        // +0xb
+    int log_in = 0;     // ticks to the kill's "return to Kashya" (timer 0xf, LAB_00590bf0), 0 not running
+    bool pending = false;    // data+3: Kashya gave it, the log waits for the talk to close
+    bool rewarded = false;   // in the +0x1c list: took the reward, still in town
+
+    // A player's bits for the state (LAB_00590890).
+    void mark(QuestBits& quest_bits) const {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 1)) return;
+        if (state == 2) qset(quest_bits, kQuest, 2);
+        if (state == 3) qset(quest_bits, kQuest, log == 1 ? 3 : 4);
+    }
+    // The player joins (LAB_00591180); a done or closed quest is shut for
+    // the game (FUN_00546270 → FUN_00544410).
+    void join(const QuestBits& quest_bits) {
+        if (qbit(quest_bits, kQuest, 0) || qbit(quest_bits, kQuest, 15)) { open = false; return; }
+        if (qbit(quest_bits, kQuest, 4)) { log = 2; state = 3; }
+        else if (qbit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+        else if (qbit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
+    }
+    // The chain reaches it (FUN_005910f0): the Den's done or closed. True:
+    // it passes on to quest 4's (+0x10).
+    bool chain() {
+        if (state == 0 && open) state = 1;
+        return state == 5 || !open;
+    }
+    // A tick (40 ms).
+    void tick() {
+        if (log_in > 0 && --log_in == 0) log = 3;
+    }
+    // What `npc` says about it (FUN_00590b10): blocks at 0x736ce8 by the
+    // state (0x737180: -1, 0, 1, 2, 3, 4).
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+        struct E { int npc, string; bool greet; };
+        static const std::vector<E> kBlocks[5] = {
+            { { kKashya, 81, true } },
+            { { kKashya, 82, false }, { 155, 86, false }, { 154, 83, false }, { 148, 85, false }, { 147, 84, false } },
+            { { kKashya, 87, false }, { 155, 91, false }, { 154, 89, false }, { 148, 88, false }, { 147, 90, false } },
+            { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
+            { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
+        };
+        int block = -1;
+        if (qbit(quest_bits, kQuest, 1)) block = 3;
+        else if (rewarded) block = 4;
+        else if (state >= 1 && state <= 3 && !qbit(quest_bits, kQuest, 0)) block = state - 1;
+        std::vector<QuestMsg> out;
+        if (block >= 0)
+            for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
+        return out;
+    }
+    // The balloon over `npc` (FUN_00591080).
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
+        if (npc != kKashya || qbit(quest_bits, kQuest, 0)) return false;
+        return (state == 1 && !qbit(quest_bits, kQuest, 1)) || qbit(quest_bits, kQuest, 1);
+    }
+    // The player heard `string` from `npc` (FUN_00590980). True: Kashya's
+    // reward — done, and a free hireling (FUN_00579180).
+    bool said(QuestBits& quest_bits, int npc, int string) {
+        if (npc != kKashya) return false;
+        if (string == 81) { pending = true; state = 2; mark(quest_bits); return false; }
+        if (string != 92 || !qbit(quest_bits, kQuest, 1)) return false;
+        if (qbit(quest_bits, kQuest, 13) && state != 5) { log = 0xd; state = 5; }
+        qset(quest_bits, kQuest, 0);
+        qset(quest_bits, kQuest, 1, false);
+        rewarded = true;
+        return true;
+    }
+    // The talk with `npc` closed (LAB_00590920).
+    void talk_closed(QuestBits& quest_bits, int npc) {
+        if (npc != kKashya || !pending) return;
+        log = 1; pending = false;
+        mark(quest_bits);
+    }
+    // The player went from level `from` to `to` (FUN_00590fa0).
+    void enter(QuestBits& quest_bits, int from, int to) {
+        if (to == kBurial && open) {
+            const bool bumped = state < 3;
+            if (bumped) state = 3;
+            if (log <= 1) { log = 2; mark(quest_bits); return; }
+            if (bumped) { mark(quest_bits); return; }
+        }
+        if (from != 1) return;
+        rewarded = false;                         // FUN_00545310
+        if (state == 2 && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
+    }
+    // Blood Raven died (FUN_00590ec0). True: the player's kill for it
+    // (FUN_00590c40, bits 13 and 1) — the class's act1_complete_burial
+    // (event 0x22). `near`: the player's room is the killer's or next to it.
+    bool killed(QuestBits& quest_bits, bool near) {
+        if (!open) return false;
+        state = 4;
+        const bool first = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
+        if (first && near) { qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1); }
+        else if (first) qset(quest_bits, kQuest, 14);             // LAB_00590dd0
+        log_in = 15;
+        pending = false;                          // +0xa8 = 0
+        return first && near;
+    }
+};
+
 // Sisters to the Slaughter, one game's (a1q6.cpp, the record at
 // FUN_00596990). Quest 6; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
 // the Catacombs, 13 took part, 14 cleared by someone else, 15 closed.

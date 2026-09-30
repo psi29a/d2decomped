@@ -104,6 +104,7 @@ The unmarked entries are kind 2.
 Unit event e (`unit+0x6e`, `FUN_00553380`) plays a line from the class's
 speech block. From its callers, 0x21..0x25 are Act 1's `complete_*` lines:
 - 0x21 Andariel
+- 0x22 the Burial Grounds (a1q2, `LAB_00590e30`)
 - 0x23 the Den
 - 0x24 the Tools of the Trade
 - 0x25 the Tower

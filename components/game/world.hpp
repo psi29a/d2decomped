@@ -169,6 +169,7 @@ struct World {
     int next_item_id = 1;                  // the next item's unit id
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
+    d2d::rules::BurialQuest burial;        // and Sisters' Burial Grounds
     int den_left = -1;                     // its monsters alive when last counted
     std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
     // The quest flags of the difficulty played.
@@ -286,6 +287,8 @@ struct World {
     void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
     std::vector<d2d::rules::QuestMsg> quest_talk(int hc_idx);   // every quest's messages from that NPC
     void andariel_died(const Fight::Kill& kill, std::uint32_t now_ms);
+    void blood_raven_died(std::uint32_t now_ms);
+    void kashya_merc();
     void set_waypoint(int index) { if (index >= 0 && index < 40) character.header.waypoints[std::size_t(character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:

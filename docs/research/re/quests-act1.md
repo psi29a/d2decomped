@@ -23,6 +23,14 @@ before it is done. `FUN_005910f0` (a1q2) is typical:
 +0x10: a1q2 → 4 (Cain), a1q4 → 3 (Tools). A quest's completion calls its
 own +0xf0, which passes on down the chain.
 
+The root: a game's first join (`FUN_00546270`) closes every quest the
+player has done (bit 0 or 15: `FUN_00544410` clears +9/+0xa/+0xb, and the
+game's copy gets bit 15), runs the +0xd4 joins, then calls the +0xf0 of
+quests 1, 8, 0x12, 0x16, 0x1f (each act's first). The Den's +0xf0
+(`FUN_00590620`) passes on to a1q2 only when the Den is done (state 5)
+or closed (+9 == 0), and Akara's reward calls it; so Kashya's quest
+opens once the Den is done.
+
 ## Sisters' Burial Grounds (quest 2, a1q2.cpp)
 
 `0x590830..0x5912e0`. Kashya gives it; Blood Raven (MonStats 267/0x10b)
@@ -148,6 +156,9 @@ State 4 (dead, reward not due) gives no messages.
 ### Alert (`FUN_00591080`)
 
 Kashya (0x96) only, !bit0, and (state 1 && !bit1) or bit1.
+
+d2d: `rules::BurialQuest` (test_quests), wired in `World` like the Den;
+`World::kashya_merc` hands out the first offer of her list free.
 
 ## Search for Cain (quest 4, a1q4.cpp)
 

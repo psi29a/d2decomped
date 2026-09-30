@@ -327,6 +327,9 @@ auto World::new_game() -> void {
         den.join(quests());
         andy = {};
         andy.join(quests());
+        burial = {};
+        burial.join(quests());
+        if (d2d::rules::qbit(quests(), 1, 0) || d2d::rules::qbit(quests(), 1, 15)) burial.chain();   // the Den's closed: its +0xf0 passes on (FUN_00590620)
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -352,6 +355,7 @@ auto World::spawn_merc() -> void {
 auto World::swap_npcs(const Level* from) -> void {
         arrived_at = now;
         if (from && from != level) andy.enter(quests(), from->id, level->id);
+        if (from && from != level) burial.enter(quests(), from->id, level->id);
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -416,6 +420,7 @@ auto World::cross_level() -> void {
 auto World::quest_talk(int hc_idx) -> std::vector<d2d::rules::QuestMsg> {
         auto out = den.talk(quests(), hc_idx);
         std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(burial.talk(quests(), hc_idx), std::back_inserter(out));
         return out;
     }
 
@@ -430,6 +435,36 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
             loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, now_ms);
         d2d::log::info("Sisters to the Slaughter: Andariel is dead, return to Warriv");
+    }
+
+// Blood Raven's death hook (FUN_00590ec0).
+// ponytail: "near" is the player in the Burial Grounds, not the killer's
+// room or its neighbours (FUN_00590c40).
+auto World::blood_raven_died(std::uint32_t now_ms) -> void {
+        if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial)) return;
+        static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+        if (character.header.cls < 7) cues.cue(std::format("{}_act1_complete_burial", kClass[character.header.cls]), now_ms, player.x, player.y);
+        d2d::log::info("Sisters' Burial Grounds: Blood Raven is dead, return to Kashya");
+    }
+
+// Kashya's reward (FUN_00579180): the first offer of her hire list as the
+// merc, free — none if there's a merc already (LoD: even a dead one).
+// The offer leaves the list (packet 0x50 subtype 2).
+// ponytail: an unopened list is rolled here (game.exe: the client asks
+// for it as her menu opens); an emptied one isn't regenerated (FUN_00577010).
+auto World::kashya_merc() -> void {
+        const auto& header = character.header;
+        if (header.merc_seed && (character.expansion || !header.merc_dead)) return;
+        if (hire_offers.empty())
+            for (int k = 0; k < 5; ++k)
+                if (auto offer = d2d::rules::merc_offer(game_data->rules, character.expansion, 0, header.active_difficulty(), int(character.stats.get(d2d::d2s::kLevel)), rng)) hire_offers.push_back(*offer);
+        if (hire_offers.empty()) return;
+        auto offer = hire_offers.front();
+        offer.cost = 0;
+        d2d::rules::hire(offer, character.header, character.stats);
+        hire_offers.erase(hire_offers.begin());
+        spawn_merc();
+        d2d::log::info("Sisters' Burial Grounds: Kashya's reward, a mercenary");
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -670,6 +705,7 @@ auto World::deal(const Command& command) -> bool {
         if (const auto* run = std::get_if<cmd::Run>(&command)) { running = run->running; return true; }
         if (const auto* chat = std::get_if<cmd::Chat>(&command)) {
             if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) andy.talk_closed(level->npcs[std::size_t(talking[0])].hc_idx);
+            if (chat->npc < 0 && std::size_t(talking[0]) < level->npcs.size()) burial.talk_closed(quests(), level->npcs[std::size_t(talking[0])].hc_idx);
             talking = { chat->npc, -1, -1 };
             return true;
         }
@@ -699,7 +735,9 @@ auto World::deal(const Command& command) -> bool {
             if (den.said(quests(), hc_idx, message->string)) {
                 ++character.stats.values[d2d::d2s::kSkillPts];
                 d2d::log::info("Den of Evil: Akara's reward, a skill point");
+                if (den.state == 5) burial.chain();       // the Den's +0xf0 (FUN_00590620)
             }
+            if (burial.said(quests(), hc_idx, message->string)) kashya_merc();
             return true;
         }
         return false;
@@ -860,6 +898,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step();
             if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
+            burial.tick();
         }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -970,7 +1009,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx);
+            npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx) || burial.alert(quests(), level->npcs[i].hc_idx);
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
@@ -984,6 +1023,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         use_portal(now_ms);
         }
         for (const auto& kill : fight.kills) if (kill.type == d2d::rules::AndyQuest::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::BurialQuest::kBloodRaven) blood_raven_died(now_ms);
         fight.kills.clear();
         cross_level();
         fight.rooms_up(*level, player.x, player.y, false);
