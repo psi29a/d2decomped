@@ -448,7 +448,7 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 // The per-type MonAI thinks (the MonAI table 0x73ca18 + AI * 16: {target
 // search, init, think, ...}; FUN_005b15d0), each ending in one AI helper:
 //   idle n       FUN_005de080: stand n frames
-//   a1 / a2      FUN_005ddf90(4 / 5): attack the target
+//   a1 / a2 / s2 FUN_005ddf90(4 / 5 / 9): attack the target (the Fallen's S2: a taunt)
 //   skill n      FUN_005dead0: Skill(n+1) in Sk(n+1)mode at the target
 //   walk n       FUN_005dec80 / FUN_005ded40, flags n: walk at the target
 //                (flags 2: can't set off, rand(100) < 70 wander 4, else stand 10)
@@ -461,7 +461,7 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 // A think's rand(100)s are one step each of the monster's seed (+0x20),
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
-enum class MonAct : std::uint8_t { idle, a1, a2, skill, walk, run, approach, keep, circle, wander, none, untraced };
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, untraced };
 struct Think { MonAct act = MonAct::idle; int n = 0, x = 0, y = 0; };
 struct ThinkIn {
     std::array<int, 8> aip{};                   // aip1..8 for its difficulty
@@ -470,11 +470,18 @@ struct ThinkIn {
     int difficulty = 0, level = 0, life_pct = 100;
     std::array<bool, 3> skill{};                // Skill1..3 set
     int* state = nullptr;                       // the AI's scratch word (AI control +0x14)
+    // The Fallen's: it leads its group (FUN_0058f0d0), its command (1:
+    // charge; FUN_0058ee80, 0 none), a unit dying (DT) within 15 subtiles;
+    // a Shaman's corpse to raise; set when it sends its group command 1
+    // (FUN_0058f730).
+    bool leader = false, dying = false, corpse = false;
+    int* command = nullptr;
+    bool* rally = nullptr;
 };
 
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 12> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
-                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow" };
+    static constexpr std::array<std::string_view, 14> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+                                                               "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -621,6 +628,49 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         if (r() < aip[0]) return { MonAct::a1 };
         if (r() < 20) return think_circle(rng, 3);
         return idle2;
+    }
+    // Fallen (6, FUN_005f02c0): with a unit dying near, it backs off 12 from
+    // its target, dropping its command (a seed step: 1 in 20 a scream).
+    // Charging (command 1) it walks in, then aip3 % swings (aip4 % A1),
+    // else stands 5. Otherwise: hit, it walks in; a leader within 15 aip1 %
+    // taunts (S2) and sets its group charging; aip2 or nearer it walks in,
+    // else 30 % wanders 3; in melee aip3 % (or on a scare, state 1) swings,
+    // else 30 % taunts, else stands 10.
+    // ponytail: the stand-10 outside NU is left out (our moves re-think
+    // mid-way, game.exe's at their end); commands other than 1 never come.
+    if (ai == "Fallen") {
+        if (in.dying) {
+            *in.state = 1; *in.command = 0;
+            if (away(12, false)) { (void)rng.next(); return { MonAct::none }; }
+        }
+        if (*in.command == 1) {
+            if (!in.in_melee) return { MonAct::walk, 0 };
+            if (r() >= aip[2]) return { MonAct::idle, 5 };
+            return a1_or_a2(aip[3]);
+        }
+        if (!in.in_melee && in.got_hit) return { MonAct::walk, 0 };
+        if (in.dist < 15 && in.leader && r() < aip[0]) { *in.rally = true; return { MonAct::s2 }; }
+        if (!in.in_melee) {
+            if (in.dist <= aip[1]) return walk;
+            return r() < 30 ? think_wander(rng, 3) : Think{ MonAct::idle, 10 };
+        }
+        if (*in.state != 0 || r() < aip[2]) { *in.state = 0; return a1_or_a2(aip[3]); }
+        return r() < 30 ? Think{ MonAct::s2 } : Think{ MonAct::idle, 10 };
+    }
+    // FallenShaman (13, FUN_005f1440): in melee aip3 % A1; aip1 % sets its
+    // group charging; with a corpse (FUN_005dd0b0) aip1 % raises it
+    // (Skill1); within aip5, aip2 % a fire bolt (Skill2), rolled again for
+    // its second target search (FUN_005ddc30); else aip3 % circles 3, else
+    // stands 10.
+    // ponytail: the second target search taken as its target.
+    if (ai == "FallenShaman") {
+        if (in.in_melee && r() < aip[2]) return { MonAct::a1 };
+        if (r() < aip[0]) *in.rally = true;
+        if (in.corpse && r() < aip[0] && in.skill[0]) return { MonAct::skill, 0 };
+        for (int search = 0; search < 2; ++search)
+            if (in.dist < aip[4] && r() < aip[1]) return { MonAct::skill, 1 };
+        if (r() >= aip[2]) return { MonAct::idle, 10 };
+        return think_circle(rng, 3);
     }
     return { MonAct::untraced };
 }

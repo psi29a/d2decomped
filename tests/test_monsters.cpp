@@ -260,7 +260,41 @@ int main() {
         assert(mon_think("Brute", in, rng, no_away).act == MonAct::idle && steps(6, rng) == 2);
         in.aip[2] = 100; rng = Rng{ 6 };
         assert(mon_think("Brute", in, rng, no_away).act != MonAct::circle && steps(6, rng) == 2);
-        assert(!traced_ai("Fallen") && mon_think("Fallen", in, rng, no_away).act == MonAct::untraced);
+        assert(!traced_ai("Imp") && mon_think("Imp", in, rng, no_away).act == MonAct::untraced);
+        // Fallen: a scare backs off (and a scream roll) or falls through;
+        // charging walks in without a draw; a leader taunts, rallying.
+        int command = 1;
+        bool rally = false;
+        in = { .aip = { 100, 10, 0, 20 }, .dist = 12, .state = &state, .dying = true, .command = &command, .rally = &rally };
+        state = 0; rng = Rng{ 8 };
+        assert(mon_think("Fallen", in, rng, ok_away).act == MonAct::none && state == 1 && command == 0 && steps(8, rng) == 1);
+        command = 1; in.aip[1] = 15; rng = Rng{ 8 };                     // blocked: on as uncommanded, within aip2
+        const auto fell_through = mon_think("Fallen", in, rng, no_away);
+        assert(fell_through.act == MonAct::walk && fell_through.n == 7 && command == 0 && steps(8, rng) == 0);
+        in.dying = false; command = 1; rng = Rng{ 8 };
+        const auto charge = mon_think("Fallen", in, rng, no_away);
+        assert(charge.act == MonAct::walk && charge.n == 0 && steps(8, rng) == 0);
+        in.in_melee = true; rng = Rng{ 8 };
+        assert(mon_think("Fallen", in, rng, no_away).act == MonAct::idle && steps(8, rng) == 1);
+        command = 0; in.leader = true; in.in_melee = false; rng = Rng{ 8 };
+        assert(mon_think("Fallen", in, rng, no_away).act == MonAct::s2 && rally && steps(8, rng) == 1);
+        in.leader = false; in.in_melee = true; state = 1; rng = Rng{ 8 };   // scared: swings without the aip3 roll
+        const auto swing = mon_think("Fallen", in, rng, no_away);
+        assert((swing.act == MonAct::a1 || swing.act == MonAct::a2) && state == 0 && steps(8, rng) == 1);
+        // FallenShaman: the rally roll, then a corpse raised, else two fire
+        // rolls within aip5, then circle or stand.
+        rally = false;
+        in = { .aip = { 100, 0, 0, 24, 15 }, .dist = 5, .skill = { true, true }, .state = &state, .corpse = true, .command = &command, .rally = &rally };
+        rng = Rng{ 2 };
+        const auto raise = mon_think("FallenShaman", in, rng, no_away);
+        assert(raise.act == MonAct::skill && raise.n == 0 && rally && steps(2, rng) == 2);
+        in.corpse = false; rng = Rng{ 2 };
+        assert(mon_think("FallenShaman", in, rng, no_away).act == MonAct::idle && steps(2, rng) == 4);
+        in.dist = 15; in.aip[2] = 100; rng = Rng{ 2 };
+        assert(mon_think("FallenShaman", in, rng, no_away).act == MonAct::circle && steps(2, rng) == 3);
+        in.aip[1] = 100; in.dist = 14; rng = Rng{ 2 };
+        const auto fire = mon_think("FallenShaman", in, rng, no_away);
+        assert(fire.act == MonAct::skill && fire.n == 1 && steps(2, rng) == 2);
     }
     std::puts("ok");
 }
