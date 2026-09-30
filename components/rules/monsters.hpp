@@ -278,8 +278,7 @@ void boss_pack(const Monsters& monsters, int utype, int leader_x, int leader_y, 
 // too close to where players come in.
 // With `pop`, champions and uniques as FUN_005be020 / FUN_005a43e0 roll them.
 // ponytail: the seed at +0x20 the counts use isn't identified — the
-// room's seed stands in; MonStats `spawn` replacements aren't applied (no
-// act 1 wilderness monster has one).
+// room's seed stands in.
 template <class Fits, class Near>
 void populate_room(const Monsters& monsters, const Region& reg, int density, SpawnRoom room, Rng& game,
                    Fits&& fits, Near&& near_entrance, std::vector<Spawn>& out, Population* pop = nullptr) {
@@ -292,7 +291,8 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
     for (room.area = 0; room.area < int(room.areas.size()); ++room.area)   // FUN_0054ec90: per area
     for (int tries = (room.areas[std::size_t(room.area)][3] / 3) * (room.areas[std::size_t(room.area)][2] / 3); tries > 0; --tries) {
         if (int(game.next() % 100000) > density) continue;
-        const int type = pick_type(reg, room.seed);
+        int type = pick_type(reg, room.seed);
+        if (const int spawn = monsters.types[std::size_t(type)].place_spawn; spawn >= 0 && room.seed(100) > 20) type = spawn;   // FUN_005bde80: a crow nest's crows
         const auto& type_info = monsters.types[std::size_t(type)];
         // FUN_005be020 (room seed): a unique while under MonUMin (chance
         // rooms done / rooms in the level) or under MonUMax (6 %); else a

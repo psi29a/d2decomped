@@ -36,6 +36,7 @@ struct MonType {
     int trans_lvl = 0;                          // TransLvl (record byte +0x4b, FUN_006510c0): which of a skill missile's variants (shafire1..5)
     std::string spawn, spawn_mode;              // spawn / spawnmode: what Nest lays (crownest1: foulcrow1, NU)
     int spawn_x = 0, spawn_y = 0;               // spawnx / spawny: where, off the layer (subtiles)
+    int place_spawn = -1;                       // with placespawn, the spawn row a population pick becomes 80 % of the time (FUN_005bde80)
     std::string sound;                          // MonSound: its MonSounds.txt row
     // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
     std::array<std::string, 3> el_mode;

@@ -177,6 +177,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
         type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
+        type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");

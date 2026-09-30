@@ -500,8 +500,8 @@ struct Populator {
     // FUN_0054ec90 (FUN_0054ebc0 counting the room first): per area of the
     // room (id set, not skipped, not empty) (h / 3) * (w / 3) rolls of the
     // game seed against the density; a hit picks a type by rarity
-    // (FUN_005bde80) and rolls unique or group (FUN_005be020), all on the room seed.
-    // ponytail: MonStats `spawn` replacements (FUN_005bde80's 80 %) aren't taken.
+    // (FUN_005bde80: a placespawn type, the crow nests, becomes its spawn when
+    // a roll beats 20) and rolls unique or group (FUN_005be020), all on the room seed.
     void populate(bool none) {
         ++pop.rooms_done;
         const int density = std::min(level.mon.density[0], 10000);
@@ -512,7 +512,8 @@ struct Populator {
             for (int tries = (area.h / 3) * (area.w / 3); tries > 0; --tries) {
                 if (int(game.next() % 100000) > density) continue;
                 if (region.types.empty()) { area = {}; return; }
-                const int type = d2d::rules::pick_type(region, seed);
+                int type = d2d::rules::pick_type(region, seed);
+                if (const auto* t = type_at(type); t && t->place_spawn >= 0 && seed(100) > 20) type = t->place_spawn;
                 bool boss = false;                                      // FUN_005be020: its 1 and 2 both a group
                 if (pop.uniques < pop.umin) boss = seed(100) < pop.rooms_done * 100 / pop.rooms_total;
                 if (!boss && pop.uniques < pop.umax) boss = seed(100) < 6;
