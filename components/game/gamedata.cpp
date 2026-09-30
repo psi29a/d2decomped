@@ -728,7 +728,8 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), &found->second->tiles()[std::size_t(tile.index)],
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
-                  std::uint8_t((tile.word & 0x10000000u ? 0x10 : 0) | (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)) });
+                  std::uint8_t((tile.word & 0x10000000u || (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11) ? 0x10 : 0) |   // FUN_0066db20: a door or warp wall is flag 2 too
+                                (tile.word & 0x20000u ? 0x01 : 0) | (tile.word & 0x10000u ? 0x04 : 0)) });
             ++placed;
         }
     level.room1_seeds.assign(made.size(), 0);
