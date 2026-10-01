@@ -172,7 +172,9 @@ The unit seed: FUN_00555230 → FUN_00552df0, {a game-seed step, 666} when
 the object is made (`objgroups.cpp` make: `Npc::seed`); a chest's InitFn
 (3 / 57) re-seeds it to {object seed % 0xfffe + 1, 666} (`roll_chest`).
 The containers' own draws (how many rounds, the undead, the sparkle) are
-on the object seed (game +0x10f0, `Level::objects`). `open_container`:
+on the object seed (game +0x10f0, `Spawning::objects`, one a game).
+A preset 580 (FUN_0054f370) is a sparkling chest; a gold placeholder
+(InitFn 28) is ON once made, so its OperateFn does nothing. `open_container`:
 
 - Chest (OperateFn 4, FUN_00585f60): a sparkling one (FUN_005540d0, unit
   +0x78) draws rand(100) < 5 ? 6 : 4 as its forced quality (object 397
@@ -195,7 +197,7 @@ on the object seed (game +0x10f0, `Level::objects`). `open_container`:
 
 An armor stand (OperateFn 19, FUN_005594c0) or weapon rack (20,
 FUN_00559630) picks off its room's seed (room1 +0x6c; `Level::room_seeds`,
-as place_objects left them) a spawnable non-quest armor / weapon of qlvl
+as its room's population left them) a spawnable non-quest armor / weapon of qlvl
 <= ilvl (area level - 1, past 1) by Rarity (`stand_item`); the rack tries
 6 times for a base with bitfield1 & 2 (FUN_00629cc0). FUN_00558d90 makes
 it off the same room seed (unit seed, then own). FUN_00556f60 rolls its

@@ -188,9 +188,10 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 
 - Proven: the tables and branches above, read from the decompile. The
   opening (`open_container`) is emulator-checked; the traps aren't.
-- Seeds: the object seed starts as game.exe's, but d2d starts it afresh
-  per level and draws in DS1 order; game.exe draws one rng across the
-  game as rooms come up, so which shrine a spot gets can still differ.
+- Seeds: one object seed a game (game +0x10f0, `Spawning::objects`), drawn
+  as rooms come up and containers open, in that order: `drlg-dump <seed> 0
+  game` against `objgroups.py <seed> game` (levels in turn, rooms in any
+  order, every container opened) matches.
 - Built: every recharge and boost shrine (the skill shrine as
   item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
   first inventory gem with a misc.txt BetterGem goes up one, else a
