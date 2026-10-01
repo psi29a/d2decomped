@@ -31,6 +31,7 @@ import drops as drops_oracle
 import monsters
 
 LEVELS = "2,8,4,9"                                          # game: Blood Moor, Den of Evil, Stony Field, Cave 1 (none touching)
+TOWNS = {1, 40, 75, 103, 109}                               # a camp room's line leaves out its seeds (d2d doesn't keep them)
 CONTAINERS = {1, 3, 4, 5, 14, 26}                           # OperateFn: casket, urn, chest, barrel, corpse / crate, bookshelf
 
 
@@ -130,7 +131,7 @@ def game_dump(e, seed, levels, kind="shuffle"):
     FUN_0052d160 walks the act's room1 list (newest first: FUN_0052d0f0), then every container its rooms made
     opened in the order made (drops.py Objects, on the game's object seed). Per room: its room1 seed before
     FUN_0054f060, the room seed into 552610 and after, the object seed and the game seed's low after, every
-    object made (id@x,y). Per container: what dropped | extras, then the object seed and its unit seed after;
+    object made (id@x,y); a town's rooms without the seeds. Per container: what dropped | extras, then the object seed and its unit seed after;
     each item made (drops and extras) steps the game seed twice (FUN_00555230). The object seed's full state
     (low:high) and the game seed's after each level."""
     o, objects, swap = openers(e)
@@ -172,7 +173,8 @@ def game_dump(e, seed, levels, kind="shuffle"):
                 e.call(0x52d0f0, ecx=g, edx=room1)
                 objs = [m for m in made if m[0] == 2]
                 mine += objs
-                out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0} r1 {r1:08x} seed {pre[0]:08x} post {pre[1]:08x} rgn {e.r32(rgn):08x} game {e.r32(g + 0xd0):08x}"
+                seeds = "" if lid in TOWNS else f" r1 {r1:08x} seed {pre[0]:08x} post {pre[1]:08x}"
+                out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0}{seeds} rgn {e.r32(rgn):08x} game {e.r32(g + 0xd0):08x}"
                            + "".join(f" {i}@{x - x0 * 5},{y - y0 * 5}" for _, i, x, y, _ in objs))
                 room1 = e.r32(room1 + 0x7c)
             swap(True)

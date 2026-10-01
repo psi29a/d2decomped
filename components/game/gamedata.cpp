@@ -193,19 +193,24 @@ namespace {
 struct RoomRect { int x, y, width, height; };           // act tiles
 
 // A level's rooms, act tiles, in the order they were made (Level::rooms).
-// The camp (a preset level, no generated rooms) as 8x8 rooms, row by row.
-// ponytail: the camp's room order isn't traced; it only orders which of
-// the Blood Moor's rooms its edge rooms bring up.
+// The camp (a preset level, no generated rooms) as 8x8 rooms, row by row:
+// its preset split (FUN_00666680), each put at the head of the level's
+// list, as game.exe's (tools/emu drlg.py, level +0x10).
 std::vector<RoomRect> room_rects(const Level& level) {
     std::vector<RoomRect> rects;
     if (!level.rooms.empty()) {
         for (const auto& room : level.rooms) rects.push_back({ level.world_x + room.x, level.world_y + room.y, room.width, room.height });
         return rects;
     }
-    for (int y = 0; y < level.ds1.height(); y += 8)
-        for (int x = 0; x < level.ds1.width(); x += 8)
-            rects.push_back({ level.world_x + x, level.world_y + y, std::min(8, level.ds1.width() - x), std::min(8, level.ds1.height() - y) });
+    const int width = level.ds1.width() - 1, height = level.ds1.height() - 1;   // the DS1's last column and row are its edge
+    for (int y = 0; y < height; y += 8)
+        for (int x = 0; x < width; x += 8)
+            rects.push_back({ level.world_x + x, level.world_y + y, std::min(8, width - x), std::min(8, height - y) });
     return rects;
+}
+
+std::size_t room_count(const Level& level) {
+    return level.rooms.empty() ? std::size_t((level.ds1.width() + 6) / 8) * std::size_t((level.ds1.height() + 6) / 8) : level.rooms.size();
 }
 
 int room_holding(const std::vector<RoomRect>& rects, const Level& level, float x, float y) {
@@ -276,6 +281,21 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
     const int difficulty = spawning.difficulty;
     auto& state = spawning.levels[&level];
+    // A camp room: no object groups and no population (the object seed
+    // stays put); its preset units (FUN_005559a0: the objects, then the
+    // monsters, each the room's preset list, the DS1's order reversed)
+    // each made (FUN_00555230 → FUN_00552df0) on a step of the game seed,
+    // their unit seed. Proven: tools/emu diff_drlg.py game, $LEVELS from 1.
+    // ponytail: the camp's room1 seeds aren't kept; nothing in the camp rolls on them.
+    if (level.rooms.empty()) {
+        if (state.up.empty()) state.up.assign(room_count(level), false);
+        if (made_index >= state.up.size() || state.up[made_index]) return;
+        state.up[made_index] = true;
+        for (const char* root : { "objects", "monsters" })
+            for (auto it = level.npcs.rbegin(); it != level.npcs.rend(); ++it)
+                if (it->room == int(made_index) && !it->quest && it->root == root) it->seed = d2d::rules::Rng{ spawning.game.next() };
+        return;
+    }
     const auto& monsters = game_data.monsters;
     const auto& region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
     // FUN_0054ebc0: none in a room flagged 0x800000 — a warp tile's
@@ -537,10 +557,7 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     std::vector<NearRoom> fresh;
     for (const auto& near_room : near_list(game_data, level, room)) {
         auto& state = spawning.levels[near_room.level];
-        // ponytail: the camp populates (its units step the game seed, never
-        // the object seed); not modelled, so the game seed runs behind after town.
-        if (near_room.level->rooms.empty()) continue;   // the camp: nothing populates
-        if (state.up.size() == near_room.level->rooms.size() && state.up[std::size_t(near_room.room)]) continue;
+        if (state.up.size() == room_count(*near_room.level) && state.up[std::size_t(near_room.room)]) continue;
         if (std::ranges::any_of(fresh, [&](const NearRoom& other) { return other.level == near_room.level && other.room == near_room.room; })) continue;
         fresh.push_back(near_room);
     }
@@ -560,7 +577,7 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
                                                                  const std::function<void(std::size_t)>& done) {
     auto& state = spawning.levels[&level];
     for (const auto room : up) if (!std::ranges::contains(state.order, room)) state.order.push_back(room);
-    for (std::size_t i = level.rooms.size(); i-- > 0;)   // the rest in list order, oldest first
+    for (std::size_t i = room_count(level); i-- > 0;)    // the rest in list order, oldest first
         if (!std::ranges::contains(state.order, i)) state.order.push_back(i);
     relevel(const_cast<Level&>(level), state.order);     // GameData owns its levels mutable
     std::vector<std::pair<std::size_t, std::size_t>> order;
@@ -775,6 +792,11 @@ namespace {
 // stamps only if the room it lies in came up after its owner. A later
 // room re-picking a shared tile patches the grid it lies in, if that's up
 // (FUN_0064c860: old tile's flags off, the new one's on).
+// ponytail: only the level's own rooms are near; game.exe's near list
+// (FUN_0066e580) takes another level's rooms up too, so a Blood Moor room
+// on the camp's edge with the camp up shares its edge tiles and its room1
+// seed differs (tools/emu diff_drlg.py game, $LEVELS from 1; no roll lands
+// on those rooms in seeds 1-20). Upgrade: the camp's BuiltRooms in the near list.
 std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d::drlg::Outdoor::RoomSeed>& made,
                                             const std::vector<std::size_t>& order, std::vector<std::string>& notes) {
     const auto& assets = *level.assets;
