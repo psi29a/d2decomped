@@ -74,7 +74,7 @@ void classic(const fs::path& dir, bool lod, std::array<std::uint16_t, 4> version
 
 }  // namespace
 
-int main() {
+int run() {
     const auto root = fs::temp_directory_path() / "d2d_test_install";
     fs::remove_all(root);
     const auto lod114d = root / "lod114d", lod114b = root / "lod114b", lod113 = root / "lod113", lod109 = root / "lod109";
@@ -108,7 +108,9 @@ int main() {
     const auto prefix = root / "home" / ".wine", ddrive = root / "ddrive";
     fs::create_directories(prefix / "drive_c" / "Program Files (x86)");
     fs::create_directories(prefix / "dosdevices");
-    fs::create_symlink(ddrive, prefix / "dosdevices" / "d:");
+    // Windows needs admin or developer mode for symlinks; Wine never runs there anyway.
+    std::error_code no_link;
+    fs::create_directory_symlink(ddrive, prefix / "dosdevices" / "d:", no_link);
     classic(ddrive / "Games" / "Diablo II", true, { 1, 14, 3, 71 });
     classic(prefix / "drive_c" / "Program Files" / "Diablo II", false, { 1, 14, 3, 71 });   // classic, no LoD
     classic(prefix / "drive_c" / "Games" / "D2 114b", true, { 1, 14, 1, 68 });              // only product.db knows it
@@ -222,7 +224,7 @@ int main() {
     // --- Wine paths -----------------------------------------------------------
     assert(wine_to_host(prefix, R"(C:\Program Files (x86))") == prefix / "drive_c" / "Program Files (x86)");
     const auto via_d = wine_to_host(prefix, R"(D:\GAMES\diablo ii)");
-    assert(via_d && fs::exists(*via_d / "d2data.mpq"));
+    assert(no_link || (via_d && fs::exists(*via_d / "d2data.mpq")));
     assert(!wine_to_host(prefix, R"(E:\Games)"));      // no such drive
     assert(!wine_to_host(prefix, "relative\\path") && !wine_to_host(prefix, ""));
 
@@ -242,11 +244,13 @@ int main() {
     wine_env.wine_prefixes = { prefix };
     const auto wine = detect(wine_env);
     for (const auto& install : wine) std::printf("wine: %-45s %s  [%s]\n", title(install).c_str(), install.dir.string().c_str(), install.source.c_str());
+    if (!no_link) {
     assert(wine.size() == 4);
     assert(wine[0].version == Version::v114d && wine[0].source == "Wine ~/.wine: registry HKLM");
     assert(wine[1].version == Version::v114_other && wine[1].source == "Wine ~/.wine: product.db zz");
     assert(!wine[2].expansion && wine[2].source == "Wine ~/.wine: default folder");
     assert(wine[3].kind == Kind::resurrected && wine[3].source == "Wine ~/.wine: uninstall HKLM");   // product.db's osi deduped
+    }
 
     // --- detect over a Windows-shaped machine ---------------------------------
     Environment win;
@@ -320,4 +324,14 @@ int main() {
                     problem(install).empty() ? "" : "  ", problem(install).c_str());
     std::printf("OK\n");
     return 0;
+}
+
+// An uncaught filesystem_error is a silent abort on Windows; say what it was.
+int main() {
+    try {
+        return run();
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "test_install: %s\n", error.what());
+        return 1;
+    }
 }
