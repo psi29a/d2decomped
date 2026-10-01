@@ -87,9 +87,31 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   globes: fill = cur * 80 / max rows of hlthmana frame 0 (life; 2 when
 //   poisoned) / 1 (mana), bottom at H-13, x 29 / W-111; then the glass
 //   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
+//   life: at least 2 rows while alive; hlthmana frame 2 poisoned (state 2).
+//   exp bar (FUN_00498ea0): (exp - prev) * 119 / (next - prev) px, two
+//   lines at H-38 / H-37 from W/2-144 in palette index 255; none at the
+//   max level.
+//   run button (FUN_00497480): runbutton frame 0 walk / 2 run (+1 held
+//   under the cursor), x W/2-145, bottom H-10.
+//   stamina bar (FUN_004975b0): cur * 102 / max px by 18 at (W/2-127,
+//   H-27), draw mode 2; gold (FUN_004fb180(f4, c0, 4c)), red under 25 px,
+//   blue over max.
+//   hover (FUN_00502280, centred, bottom): "Stamina: %d / %d" at W/2-76,
+//   H-52; "Experience: %u / %u" at W/2-146, H-51; "Run (key)" at W/2-145,
+//   H-23 (FUN_00497300). Globes (FUN_00498120): "Life: %d / %d" /
+//   "Mana: %d / %d" plain, centred on 65 / W-80, bottom H-95.
 // The maxima include what's worn (Fight::item_max).
-// ponytail: no poison tint, stamina bar, skill icons or run/walk yet.
-void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats);
+// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no
+// smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
+// (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
+// DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
+struct Hud { bool poisoned = false, running = false, run_down = false; };
+void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
+              const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
+// The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
+// H-28..H-8. A press plays Sounds.txt 4 (FUN_004b9a00); the release over
+// it toggles run (FUN_004996a0 → FUN_0044be80).
+bool over_run_button(int mouse_x, int mouse_y);
 
 // The red New Stats / New Skills buttons over the HUD while stat 4 / 5
 // are unspent (UI 6 / 7, set each frame by FUN_004a64c0; drawn by

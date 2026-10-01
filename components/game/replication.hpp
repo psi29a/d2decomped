@@ -150,7 +150,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
     {
         wire::Out chunk;
         wire::unit(chunk, view.player);
-        chunk.u8(view.running).u8(view.dead).i32(view.pmode).f32(view.prate).u32(view.seq_frame_ms).u8(view.seq_loop);
+        chunk.u8(view.running).u8(view.dead).u8(view.poisoned).i32(view.pmode).f32(view.prate).u32(view.seq_frame_ms).u8(view.seq_loop);
         chunk.u16(int(view.seq.size()));
         for (const auto& frame : view.seq) chunk.u8(frame.mode).u8(frame.frame).u8(frame.event);
         for (const auto look_byte : view.gfx) chunk.u8(look_byte);
@@ -324,7 +324,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
     };
     body([&] {
         view.player = wire::unit(input);
-        view.running = byte(); view.dead = byte(); view.pmode = i32(); view.prate = f32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
+        view.running = byte(); view.dead = byte(); view.poisoned = byte(); view.pmode = i32(); view.prate = f32(); view.seq_frame_ms = u32(); view.seq_loop = byte();
         view.seq.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {
             const auto mode = std::uint8_t(byte()), frame = std::uint8_t(byte()), event = std::uint8_t(byte());

@@ -222,7 +222,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     }
 }
 
-void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats) {
+void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, const Hud& hud, int mouse_x, int mouse_y) {
+    using namespace d2d::d2s;
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     const int width = int(kScreenWidth), height = int(kScreenHeight);
     auto at_bottom = [&](const d2d::dc6::Sprite& spr, int frame, int x, int bottom) {
@@ -238,7 +239,8 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     auto fill = [&](int frame, int x, std::int64_t cur, std::int64_t max) {
         if (max <= 0 || frame >= int(scene.globes.frames_per_direction())) return;
         const auto& frame_ref = scene.globes.frame(0, std::uint32_t(frame));
-        const int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        if (frame != 1 && rows == 1) rows = 2;               // life: 2 rows at least while alive
         const int top = height - 13 - int(frame_ref.height);
         for (int y = int(frame_ref.height) - rows; y < int(frame_ref.height); ++y)
             for (int left = 0; left < int(frame_ref.width); ++left) {
@@ -250,10 +252,101 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
                 pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
             }
     };
-    fill(0, 29, stats.fixed(d2d::d2s::kLife), stats.fixed(d2d::d2s::kMaxLife));
-    fill(1, width - 0x6f, stats.fixed(d2d::d2s::kMana), stats.fixed(d2d::d2s::kMaxMana));
+    fill(hud.poisoned ? 2 : 0, 29, stats.fixed(kLife), stats.fixed(kMaxLife));
+    fill(1, width - 0x6f, stats.fixed(kMana), stats.fixed(kMaxMana));
     at_bottom(scene.globe_glass, 0, 28, height - 5);
     at_bottom(scene.globe_glass, 1, width - 0x6e, height - 9);
+    auto str = [&](int id) {
+        const auto found = lookup_string(scene, std::uint16_t(id));
+        return found ? u16_to_latin1(*found) : std::string{};
+    };
+    auto put = [&](int x, int y, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
+        pixel[0] = r; pixel[1] = g; pixel[2] = b;
+    };
+    constexpr std::array<std::uint8_t, 3> kWhite{ 255, 255, 255 }, kBlue{ 105, 105, 255 };
+    std::vector<std::pair<std::array<int, 2>, TextLine>> hovers;   // centre x, bottom: drawn over the bars
+    auto over = [&](int left, int top, int right, int bottom) { return mouse_x >= left && mouse_x <= right && mouse_y >= top && mouse_y <= bottom; };
+    // Experience: the level's share of 119 px.
+    const auto lvl = stats.get(kLevel), exp_now = stats.values[kExp];
+    if (lvl >= 1 && std::size_t(lvl) < scene.exp_next.size()) {
+        const auto next = scene.exp_next[std::size_t(lvl)], prev = scene.exp_next[std::size_t(lvl - 1)];
+        if (over(width / 2 - 0x92, height - 0x2b, width / 2 - 0x17, height - 0x22)) {
+            auto format = str(0x1043);
+            for (auto at = format.find("%u"); at != std::string::npos; at = format.find("%u")) format[at + 1] = 'd';
+            hovers.push_back({ { width / 2 - 0x92, height - 0x33 }, { game::d2_format(format, { exp_now, next }), kWhite } });
+        }
+        if (next > prev) {
+            std::int64_t num = exp_now > prev ? exp_now - prev : 0, den = next - prev;
+            if (num > 0x226b901) { num >>= 7; den >>= 7; }
+            int share = den > 0 ? int(num * 0x77 / den) : 0;
+            if (share > 0x77) share = 0;
+            const auto colour = pal[0xff];
+            if (lvl < 99 && share > 0)
+                for (int x = width / 2 - 0x90; x <= width / 2 - 0x90 + share; ++x) {
+                    put(x, height - 0x26, colour.r, colour.g, colour.b);
+                    put(x, height - 0x25, colour.r, colour.g, colour.b);
+                }
+        }
+    }
+    // Run / walk.
+    const bool on_run = over_run_button(mouse_x, mouse_y);
+    at_bottom(scene.run_button, (hud.running ? 2 : 0) + (hud.run_down && on_run ? 1 : 0), width / 2 - 0x91, height - 10);
+    if (on_run) {
+        auto special = str(0x1052);
+        if (const auto at = special.find("%s"); at != std::string::npos) special.replace(at, 2, "R");
+        hovers.push_back({ { width / 2 - 0x91, height - 0x17 }, { str(0x1053) + special, kWhite } });
+    }
+    // Stamina: 102 px when full, in the palette entry nearest its colour
+    // (FUN_004fb180), at three quarters (draw mode 2).
+    auto nearest = [&](int r, int g, int b) {
+        int best = 1 << 30;
+        std::array<std::uint8_t, 3> out{};
+        for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
+            const auto colour = pal[std::uint8_t(i)];
+            const int distance = (colour.r - r) * (colour.r - r) + (colour.g - g) * (colour.g - g) + (colour.b - b) * (colour.b - b);
+            if (distance < best) { best = distance; out = { colour.r, colour.g, colour.b }; }
+        }
+        return out;
+    };
+    std::int64_t stamina = stats.values[kStamina], stamina_max = stats.values[kMaxStamina];
+    auto rgb = nearest(0xf4, 0xc0, 0x4c);
+    if (stamina_max + 5 < stamina) { stamina_max = stamina; rgb = nearest(0, 0, 0xff); }
+    const int bar = stamina_max < 1 ? 0 : int(stamina * 0x66 / stamina_max);
+    if (stamina_max < 1 || bar < 0x19) rgb = nearest(0xff, 0, 0);
+    for (int y = height - 0x1b; y < height - 0x1b + 0x12; ++y)
+        for (int x = width / 2 - 0x7f; x < width / 2 - 0x7f + bar; ++x) {
+            if (x < 0 || y < 0 || x >= width || y >= height) continue;
+            auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
+            for (std::size_t c = 0; c < 3; ++c) pixel[c] = std::uint8_t((rgb[c] * 3 + pixel[c]) / 4);
+        }
+    if (over(width / 2 - 0x7f, height - 0x1b, width / 2 - 0x19, height - 9)) {
+        auto shown = stats.values[kStamina] >> 8;
+        const auto top = stats.values[kMaxStamina] >> 8;
+        const bool more = shown > top;
+        if (more) shown = top;
+        hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more ? kBlue : kWhite } });
+    }
+    for (const auto& [at, line] : hovers) draw_hover_text(framebuffer, scene, { line }, at[0], at[0], at[1], at[1]);
+    // The globes' text (FUN_00498120): plain, centred, in the frame's font.
+    // ponytail: taken as font16, as for the level buttons.
+    auto globe_text = [&](int centre, const std::string& text) {
+        const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
+    };
+    if (over(0x1e, height - 0x4b, 0x6e, height - 0xf)) {
+        auto life = stats.values[kLife] >> 8;
+        if (stats.values[kLife] > 0 && life < 1) life = 1;
+        globe_text(0x41, game::d2_format(str(0x1045), { life, stats.values[kMaxLife] >> 8 }));
+    }
+    if (over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
+        globe_text(width - 0x50, game::d2_format(str(0x1046), { stats.values[kMana] >> 8, stats.values[kMaxMana] >> 8 }));
+}
+
+bool over_run_button(int mouse_x, int mouse_y) {
+    const int width = int(kScreenWidth), height = int(kScreenHeight);
+    return mouse_x >= width / 2 - 0x91 && mouse_x <= width / 2 - 0x80 && mouse_y >= height - 0x1c && mouse_y <= height - 8;
 }
 
 // UI 6 / 7 latch on when points are unspent and their panel is shut, off

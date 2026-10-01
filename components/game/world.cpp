@@ -101,6 +101,7 @@ auto World::view() const -> View {
         view.player = player;
         view.running = running;
         view.dead = fight.dead();
+        view.poisoned = std::ranges::any_of(fight.regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });
         view.pmode = fight.pmode;
         view.prate = fight.prate;
         view.seq.assign(fight.seq.begin(), fight.seq.end()); view.seq_frame_ms = fight.seq_frame_ms; view.seq_loop = fight.seq_loop;
@@ -1402,6 +1403,30 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         }
     }
 
+// A frame's stamina (FUN_00580c20 / FUN_00580810 event 3): a run outside
+// town drains it (FUN_0057f240), at 0 the run is a walk (FUN_0057f090: no
+// run at stamina 0); then it regens by mode (FUN_00580500).
+// ponytail: the run stays a run while stamina lasts and walks at 0 each
+// frame, not at the next move as game.exe; the same since a walk at 0 never
+// regens.
+auto World::stamina_frame() -> void {
+        using namespace d2d::d2s;
+        if (fight.dead()) return;
+        const bool town = level == &game_data->town;
+        auto& stamina = character.stats.values[kStamina];
+        const bool run = player.walking && fight.pmode < 0 && running && stamina > 0;
+        if (run && !town) {
+            int armor_speed = 0;
+            for (const auto& item : character.items)
+                if (item.location == 1 && item.slot == 3)
+                    if (const auto found = game_data->rules.item_base.find(item.code); found != game_data->rules.item_base.end()) armor_speed = found->second.speed;
+            stamina = std::max<std::int64_t>(0, stamina - d2d::rules::stamina_drain(game_data->run_drain[std::size_t(std::max(character.character_class, 0))],
+                                                                                  armor_speed, int(fight.psum[154])));
+        }
+        const int mode = fight.pmode >= 0 ? -1 : player.walking ? (run ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        stamina = d2d::rules::stamina_regen(stamina, character.stats.values[kMaxStamina], mode, int(fight.psum[28]));
+    }
+
 auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
@@ -1424,6 +1449,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             burial.tick();
             tower.tick();
             tower_treasure(day_at);
+            stamina_frame();
         }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
@@ -1533,7 +1559,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             }
             const auto save_class = std::size_t(std::max(character.character_class, 0));
             // Faster run/walk: its effective % (150 x v / (150 + v)) on velocity.
-            const float vel = float(running ? game_data->run_velocity[save_class] : game_data->walk_velocity[save_class])
+            const float vel = float(running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] : game_data->walk_velocity[save_class])
                             * float(100 + d2d::rules::effective_speed(fight.player_combat.frw, 150)) / 100.f;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();

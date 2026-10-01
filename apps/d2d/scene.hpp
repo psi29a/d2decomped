@@ -149,6 +149,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite quest_bg, quest_tabs, quest_sockets;
     std::array<d2d::dc6::Sprite, 27> quest_icons;
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
+    d2d::dc6::Sprite run_button;                        // PANEL\runbutton (DAT_007bef0c)
     int                   bg_tiles_across{4};
 
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).

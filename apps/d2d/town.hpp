@@ -180,6 +180,7 @@ struct Town {
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
     bool  stats_down = false, skills_down = false;   // New Stats / New Skills held (DAT_007c02e4 / DAT_007c02e8)
+    bool  run_down = false;                          // the run button held (DAT_007befd8)
 
     Town(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
         : scene(game_scene), character(player_character), world(game_scene, start_x, start_y) {

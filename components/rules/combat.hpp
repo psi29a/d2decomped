@@ -419,4 +419,29 @@ inline int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<
     return gained;
 }
 
+// Stamina a running frame costs outside town (FUN_0057f240, 8.8 fixed):
+// CharStats RunDrain x 2, x (armor.txt speed / 10 + 1) for the body armor
+// worn, less item_staminadrainpct (stat 154) percent; at least 1.
+inline int stamina_drain(int run_drain, int armor_speed, int slower_pct) {
+    int drain = run_drain * 2 * (armor_speed / 10 + 1);
+    drain -= slower_pct * drain / 100;
+    return std::max(drain, 1);
+}
+
+// A frame's stamina regen (FUN_00580500): max >> 8 standing / town
+// standing (modes 1 / 5), >> 9 walking (2, 6; walking only above 1.0),
+// none running or otherwise unless staminarecoverybonus (stat 28) is 1000+;
+// plus bonus percent.
+inline std::int64_t stamina_regen(std::int64_t cur, std::int64_t max, int mode, int bonus) {
+    int shift = 8;
+    if (mode == 2 || mode == 6) {
+        if (mode == 2 && cur < 256) return cur;
+        shift = 9;
+    } else if (mode != 1 && mode != 5 && bonus < 1000) return cur;
+    if (cur >= max) return cur;
+    std::int64_t add = max >> shift;
+    if (bonus) add += add * bonus / 100;
+    return std::min(max, cur + add);
+}
+
 }  // namespace d2d::rules

@@ -63,6 +63,7 @@ struct View {
     const Level* level = nullptr;
     UnitState player;
     bool running = false, dead = false;
+    bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
@@ -318,6 +319,7 @@ struct World {
     struct Treasure { const Level* level; int npc; int left; };
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
+    void stamina_frame();                  // a 40 ms frame's stamina drain / regen
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus

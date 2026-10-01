@@ -45,8 +45,8 @@ potion and poison add up in the same regen tick.
 - **Players**: FUN_00580810 (event 3 callback, re-armed every frame) calls
   FUN_00580610: `life += hpregen`, capped at max life; then
   **`if (life < 0x100) life = 0x100`**. Negative regen (poison, burning) can
-  never take a player below 1 life. Then mana (FUN_00580500) and stamina
-  (FUN_005806f0).
+  never take a player below 1 life. Then mana (FUN_005806f0) and stamina
+  (FUN_00580500; char-panel.md, the HUD).
 - **Monsters**: FUN_005a6920: `life += hpregen` (less a state's own
   contribution when FUN_0063a750 says so), capped at max, clamped at **0**.
   At 0 the monster dies; the kill goes to the owner of its state 2 (poison)

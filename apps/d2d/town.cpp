@@ -665,12 +665,21 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (skills_down && on_skills) { tree_open = true; inv_open = false; }
             stats_down = skills_down = false;
         }
+        // The run button: the same press and click (FUN_00499500); let go
+        // over it and run toggles, as R does (FUN_004996a0).
+        const bool on_run = over_run_button(mouse.x, mouse.y);
+        const bool run_click = mouse.press_this_frame && on_run;
+        if (run_click) { run_down = true; audio.play_sfx(*scene, 4, 1.f, 0); }
+        if (mouse.release_this_frame) {
+            if (run_down && on_run) net.send(cmd::Run{ !view.running });
+            run_down = false;
+        }
         // Holding an item, a click on the world drops it (C→S 0x17).
         const bool bar_click = skillbar.click(mouse);
-        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click
+        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click && !run_click
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
-        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click;
+        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click || run_click;
         // A press on the UI stays the UI's while the button is held: no walk
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
@@ -849,7 +858,8 @@ auto Town::open_menu(int npc) -> void {
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
-        if (const bool running = unit.walking && view.running; pmode < 0 && (unit.walking != player_walked || running != player_ran)) {
+        const bool run_on = view.running && character.stats.values[d2d::d2s::kStamina] > 0;   // no run at stamina 0 (FUN_0057f090)
+        if (const bool running = unit.walking && run_on; pmode < 0 && (unit.walking != player_walked || running != player_ran)) {
             player_walked = unit.walking; player_ran = running; walk_ms = frame_ms;
         }
         if (pmode < 0) unit.mode_ms = std::max(unit.mode_ms, walk_ms);     // a swing's end restarts it too
@@ -872,7 +882,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = std::max(character.character_class, 0);
         if (pmode == kModeDD) unit.mode_ms = frame_ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);
-        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : unit.walking ? (view.running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : unit.walking ? (run_on ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         std::uint32_t mode_ms = unit.mode_ms;
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
@@ -888,7 +898,8 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0);   // D2's "Show Items" (Alt)
+                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0,   // D2's "Show Items" (Alt)
+                      Hud{ view.poisoned, view.running, run_down });
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open

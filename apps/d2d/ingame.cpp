@@ -80,7 +80,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    std::span<const Unit> extra_units , float player_rate ,
                    const Lighting* light , d2d::rules::Rain* rain , bool player_visible ,
                    const Unit* player_look ,     // its states' colour shift and overlays
-                   bool show_items) {             // Alt held: every ground item's name
+                   bool show_items,               // Alt held: every ground item's name
+                   const Hud& hud) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -223,7 +224,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
-        if (hud_stats) draw_hud(framebuffer, scene, *hud_stats);
+        if (hud_stats) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
         if (belt) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
                             belt_popup);
         // Dev overlay: a red dot on every blocked subtile around the camera.

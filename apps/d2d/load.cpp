@@ -189,7 +189,8 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 *into = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\800ctrlpnl7.dc6)", &scene.ctrl_panel },
                                { R"(data\global\ui\PANEL\hlthmana.dc6)", &scene.globes },
-                               { R"(data\global\ui\PANEL\overlap.dc6)", &scene.globe_glass } })
+                               { R"(data\global\ui\PANEL\overlap.dc6)", &scene.globe_glass },
+                               { R"(data\global\ui\PANEL\runbutton.dc6)", &scene.run_button } })
         if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
     if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
         scene.inv_panel = d2d::dc6::Sprite(*bytes);

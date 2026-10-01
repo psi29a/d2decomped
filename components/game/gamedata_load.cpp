@@ -740,7 +740,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table == &misc ? 0 : number(two ? "2handmindam" : "mindam"),
                                           table == &misc ? 0 : number(two ? "2handmaxdam" : "maxdam"),
                                           table == &misc ? 0 : number("StrBonus"), table == &misc ? 0 : number("DexBonus"),
-                                          table == &weapons ? number("speed") : 0, table == &armor ? number("block") : 0,
+                                          table == &misc ? 0 : number("speed"), table == &armor ? number("block") : 0,
                                           table->get(row, "stackable") == "1", number("level"),
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
@@ -897,6 +897,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t row = 0; row < std::min<std::size_t>(charstats_table.size(), 7); ++row) {
             if (const auto walk = std::atoi(std::string(charstats_table.get(row, "WalkVelocity")).c_str()); walk > 0) game_data.walk_velocity[row] = walk;
             if (const auto run = std::atoi(std::string(charstats_table.get(row, "RunVelocity")).c_str()); run > 0) game_data.run_velocity[row] = run;
+            game_data.run_drain[row] = std::atoi(std::string(charstats_table.get(row, "RunDrain")).c_str());
         }
         for (std::size_t row = 0; row < std::min<std::size_t>(charstats_table.size(), 7); ++row)
             game_data.class_strs[row] = { std::string(charstats_table.get(row, "StrAllSkills")),

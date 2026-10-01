@@ -217,6 +217,17 @@ int main() {
     assert(stats.fixed(d2d::d2s::kMaxLife) == 54 && stats.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
     stats.values[d2d::d2s::kLife] = 1 << 8; stats.values[d2d::d2s::kMana] = 0;
     assert(gain_exp(stats, 3000, next, gains) == 1 && stats.fixed(d2d::d2s::kLife) == 56 && stats.get(d2d::d2s::kMana) == stats.get(d2d::d2s::kMaxMana));   // a level fills them
+    // Stamina: a run frame costs RunDrain x 2, x (armor speed / 10 + 1),
+    // less the slower-drain percent, at least 1 (FUN_0057f240).
+    assert(stamina_drain(20, 0, 0) == 40 && stamina_drain(20, 10, 0) == 80 && stamina_drain(20, 20, 0) == 120);
+    assert(stamina_drain(20, 0, 25) == 30 && stamina_drain(20, 0, 100) == 1 && stamina_drain(20, 0, 150) == 1);
+    // Regen (FUN_00580500): max >> 8 standing, >> 9 walking (none below
+    // 1.0 walking), none running unless the bonus is 1000+; plus bonus %.
+    const std::int64_t stamina_max = 20 << 8;
+    assert(stamina_regen(1000, stamina_max, 1, 0) == 1020 && stamina_regen(1000, stamina_max, 5, 0) == 1020);
+    assert(stamina_regen(1000, stamina_max, 2, 0) == 1010 && stamina_regen(100, stamina_max, 2, 0) == 100 && stamina_regen(100, stamina_max, 6, 0) == 110);
+    assert(stamina_regen(1000, stamina_max, 3, 0) == 1000 && stamina_regen(1000, stamina_max, 3, 1000) == 1220);
+    assert(stamina_regen(1000, stamina_max, 1, 50) == 1030 && stamina_regen(stamina_max - 5, stamina_max, 1, 0) == stamina_max);
     // The merc: level from experience, stats from its band.
     Tables merc_tables;
     merc_tables.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,

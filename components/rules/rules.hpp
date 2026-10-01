@@ -67,7 +67,7 @@ struct QualityRatio { int base = 0, divisor = 1, min = 0; };
 struct ItemBase {
     int minac = 0, maxac = 0, cost = 0;
     int mindam = 0, maxdam = 0, str_bonus = 0, dex_bonus = 0;   // weapons.txt (2handmindam for two-handers)
-    int speed = 0, block = 0;                                   // weapons.txt speed (WSM), armor.txt block
+    int speed = 0, block = 0;                                   // weapons.txt speed (WSM) / armor.txt speed, armor.txt block
     bool stackable = false;
     int level = 0, durability = 0, gamble_cost = 0, min_stack = 0, max_stack = 0;
     std::string normcode, ubercode, ultracode;         // normal / exceptional / elite versions
