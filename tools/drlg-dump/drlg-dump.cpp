@@ -219,6 +219,8 @@ static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, cons
         const bool camp = lid == game.town.id;       // the camp: built with the map seed, its units there already
         auto level = camp ? nullptr : d2d::game::build_level(game, *game.builder, lid);
         if (!level && !camp) continue;
+        if (level && spawning.levels.contains(&game.town))   // next door to the camp made already (install_level's link)
+            level->nearby.push_back({ &game.town, game.town.world_x - level->world_x, game.town.world_y - level->world_y });
         auto& made = camp ? game.town : *level;
         const auto base = camp ? std::size_t(0) : made.npcs.size();
         out << "level " << lid << '\n';

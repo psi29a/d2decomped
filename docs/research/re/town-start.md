@@ -77,9 +77,12 @@ Checked in the emulator: `LEVELS=1,2,8,4,9 uv run python diff_drlg.py
 1-20 0 game`, the game and object seeds through the camp and every level
 after it.
 
-Not matched: with the camp up first, a Blood Moor room on its edge
-shares edge tiles with the camp's rooms (FUN_0066e580's near list takes
-the level next door), so its room1 seed differs from d2d's, which shares
-only within a level. No roll lands on those rooms (FUN_0054ebc0 leaves a
-room by a town unpopulated), so seeds 1-20 come out the same apart from
-those seeds.
+With the camp up first, a Blood Moor room on its edge shares edge tiles
+with the camp's rooms: the near list (FUN_0066c370 → FUN_0066be80) takes
+the close rooms up in the levels next door too, appended and the list
+sorted again, so FUN_0066e940 finds the camp's edge tiles and the room
+rolls fewer picks on its seed (its room1 seed moves). d2d: `camp_rooms`
+(gamedata.cpp) lays the camp's rooms up on its preset (LvlPrest def 1)
+and hands them to `level_room_tiles` as `outside`; no DT1s, so the
+camp's tiles are found, never picked. Checked: the same diff, every
+room1 and room seed of seeds 1-20.
