@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -90,6 +91,9 @@ void merc_follow(const Level& level, UnitState& unit, float player_x, float play
 
 // A monster in the level: its type (MonStats row), composite recipe with
 // the components it rolled, where it is, its stats and what it's doing.
+// Spawn areas' shared "seen" flags by ai.cpp's area key (search_target).
+using AreaSeen = std::unordered_map<int, bool>;
+
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
     int type = -1;
@@ -119,6 +123,11 @@ struct Monster {
     std::uint32_t flee_until = 0;             // ms: running from the player
     bool struck = false;                      // this attack's hit is resolved
     bool aware = false;                       // has noticed the player
+    // AI control flag 8: it has found a target once, and needs no line of
+    // sight from then on; its spawn area's key in AreaSeen (-2: not yet
+    // looked up, -1: none). See ai.cpp search_target.
+    bool sighted = false;
+    int area = -2;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
@@ -349,9 +358,10 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // rules::andariel_think / rules::mon_think. A1 / A2 fire MissA1 / MissA2.
 // `pack`: all the level's monsters, `monster` among them (its group, the
 // dying, corpses to raise); `born`: gets what it lays (a nest's young).
+// `seen`: the spawn areas' shared "seen" flags (monster data +0x50's +0x24).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
-                    std::vector<Monster>* born = nullptr);
+                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

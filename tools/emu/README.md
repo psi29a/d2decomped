@@ -75,6 +75,11 @@ uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
 ./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
 ```
 
+- `sight.py`: a monster's line of sight (FUN_00622920 → FUN_0064e260)
+  on random walls in a fake room, against a line-for-line Python copy of
+  `rules::sight_blocked`. `uv run python sight.py 20000 3` should print
+  `ok`. See `docs/research/re/monster-ai.md`.
+
 ## Adding a new oracle
 
 1. Find the entry point and its calling convention with Ghidra.

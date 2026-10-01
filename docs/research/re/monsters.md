@@ -2,7 +2,8 @@
 
 Our port: `components/rules/monsters.hpp` (`monster_region`, `populate_room`,
 `monster_stats`), loaded by `load_monsters` (apps/d2d/load.hpp), tested by
-`tests/test_monsters.cpp`.
+`tests/test_monsters.cpp`. How they notice the player and when they think:
+monster-ai.md.
 
 ## Tables
 

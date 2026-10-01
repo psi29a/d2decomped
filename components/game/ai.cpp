@@ -241,6 +241,71 @@ const Seq* skill_seq(const GameData& game_data, const d2d::rules::MonType& type_
     return nullptr;
 }
 
+// The level room holding (x, y) cells, -1 none.
+int room_at(const Level& level, float x, float y) {
+    for (std::size_t i = 0; i < level.rooms.size(); ++i) {
+        const auto& r = level.rooms[i];
+        if (x >= float(r.x) && y >= float(r.y) && x < float(r.x + r.width) && y < float(r.y + r.height)) return int(i);
+    }
+    return -1;
+}
+
+// The target search (FUN_005dd7f0): the nearest foe under aidist (blank:
+// 35) and 0x37 by the AI's distance. Line of sight (sight_blocked, mask 4)
+// counts only in a preset room whose LvlPrest isn't Outdoors (FUN_0061aa40
+// -> FUN_0066ba70: plain rooms and 0x80000 ones need none), and only until
+// the monster first finds a target (AI control flag 8, never cleared).
+// Its spawn area (monster data +0x50, FUN_0066ceb0 at placement; gone once
+// it leaves that room, FUN_00554670) shares a flag (+0x24): an unaware
+// monster skips the sight test while it's set; finding a target sets it
+// when the finder was aware or saw for itself, clears it when it got in on
+// the flag. So in caves one that sees you wakes its area; outdoors all see.
+// ponytail: foes alike (game.exe: players, then pets, then list 10), each
+// size 2; a target in a town room isn't refused (no foe stands in one
+// here); the skill-set target (FUN_005dd610) and the one-shot skip (flag
+// 0x40, FUN_005deb60) left out; the area as the first of its room's
+// room_areas holding its spawn tile.
+struct Search { Foe* target = nullptr; int best = 0, nearest = 0x7fffffff; };
+Search search_target(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, std::uint32_t now_ms, AreaSeen* seen) {
+    auto& unit = monster.unit;
+    const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    const int aidist = type_info.diff[std::size_t(monster.difficulty)].aidist;
+    const int room = room_at(level, unit.x, unit.y);
+    if (monster.area == -2) {                                       // FUN_005b2a00 -> FUN_00552d60: where it was placed
+        const int home = room_at(level, monster.home_x, monster.home_y);
+        monster.area = -1;
+        if (home >= 0 && std::size_t(home) < level.room_areas.size())
+            for (std::size_t i = 0; i < level.room_areas[std::size_t(home)].size(); ++i)
+                if (const auto& a = level.room_areas[std::size_t(home)][i]; int(monster.home_x) >= a.left && int(monster.home_y) >= a.top && int(monster.home_x) < a.right && int(monster.home_y) < a.bottom) {
+                    monster.area = level.id << 20 | home << 8 | int(std::min<std::size_t>(i, 255));
+                    break;
+                }
+    }
+    if (monster.area >= 0 && (monster.area >> 8 & 0xfff) != room) monster.area = -1;
+    const auto* in_room = room >= 0 ? &level.rooms[std::size_t(room)] : nullptr;
+    const bool indoor = in_room && in_room->kind == 2
+        && !(std::size_t(in_room->def) < game_data.prest_outdoors.size() && game_data.prest_outdoors[std::size_t(in_room->def)]);
+    const bool shared = indoor && monster.area >= 0 && seen;
+    const bool flag = shared && !monster.sighted && (*seen)[monster.area];
+    const bool need_sight = indoor && !monster.sighted && !flag;
+    const int x = subtile(unit.x), y = subtile(unit.y);
+    Search found{ nullptr, aidist > 0 ? aidist : 35 };
+    for (auto& foe : foes) {
+        if (!foe.alive || (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f)) continue;   // blind: arm's length
+        const int foe_x = subtile(foe.x), foe_y = subtile(foe.y), distance = d2d::rules::ai_distance(foe_x - x, foe_y - y);
+        found.nearest = std::min(found.nearest, distance);
+        if (distance >= 0x37 || distance >= found.best) continue;
+        if (need_sight && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, 2, [&](int at_x, int at_y) {
+                return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); })) continue;
+        found.target = &foe; found.best = distance;
+    }
+    if (found.target) {
+        monster.sighted = true;
+        if (shared) (*seen)[monster.area] = !flag;
+    }
+    return found;
+}
+
 // A traced MonAI's frame outside an attack (the driver FUN_005b1740:
 // target search FUN_005de890 / FUN_005dd7f0, then the AI's think; Andariel
 // MonAI 34 FUN_005f5830 -> rules::andariel_think, the rest
@@ -266,7 +331,7 @@ const Seq* skill_seq(const GameData& game_data, const d2d::rules::MonType& type_
 // subtiles to the side of the target; a back-off sets off when its end
 // and first step are open; no teleporting mod.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
-           float walk, float run, const Crowd& crowd, std::span<Monster> pack) {
+           float walk, float run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
@@ -299,15 +364,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     if (now_ms < monster.next_act) return true;
     const int x = subtile(unit.x), y = subtile(unit.y);
-    const int reach = per_difficulty.aidist > 0 ? per_difficulty.aidist : 35;
-    Foe* target = nullptr;
-    int best = reach, nearest = 0x7fffffff;
-    for (auto& foe : foes) {
-        if (!foe.alive || (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f)) continue;   // blind: arm's length
-        const int distance = d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y);
-        nearest = std::min(nearest, distance);
-        if (distance < 0x37 && distance < best) { target = &foe; best = distance; }
-    }
+    const auto [target, best, nearest] = search_target(game_data, level, monster, foes, now_ms, seen);
     monster.aware = target != nullptr;
     auto walk_to = [&](int off_x, int off_y, bool running) {       // to a spot, subtiles off
         unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
@@ -390,13 +447,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             case AndarielAct::walk: act = { MonAct::walk, 7 }; break;
         }
     } else if (monster.special == 0xd) {                          // the Countess: rooms are the level's (FUN_0061b130)
-        auto room = [&](float at_x, float at_y) {
-            for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-                const auto& r = level.rooms[i];
-                if (at_x >= float(r.x) && at_y >= float(r.y) && at_x < float(r.x + r.width) && at_y < float(r.y + r.height)) return int(i);
-            }
-            return -1;
-        };
+        auto room = [&](float at_x, float at_y) { return room_at(level, at_x, at_y); };
         const int home = room(monster.home_x, monster.home_y);
         const d2d::rules::CountessIn where{ room(unit.x, unit.y) != home, room(target->x, target->y) != home,
                                             x == subtile(monster.home_x) && y == subtile(monster.home_y) };
@@ -501,7 +552,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
 
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack,
-                    std::vector<Monster>* born) {
+                    std::vector<Monster>* born, AreaSeen* seen) {
     auto& unit = monster.unit;
     // After the nearest one alive (the player or the merc).
     Foe* pick = &foes[0];
@@ -642,9 +693,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         return false;
     }
     const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed, 10)) / 100;
-    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack)) return false;
-    // Blind (Dim Vision, Cloak of Shadows): it doesn't see past arm's length.
-    if (foe.alive && (dist < 8 || (monster.aware && dist < 16)) && (now_ms >= monster.blind_until || dist < 1.5f)) {
+    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen)) return false;
+    // An AI not traced finds its foe as the traced ones do (search_target).
+    // ponytail: searched every frame, not at its thinks (game.exe: the
+    // driver's, FUN_005b1740); it chases the nearest foe whichever it found.
+    if (foe.alive && search_target(game_data, level, monster, foes, now_ms, seen).target) {
         monster.aware = true;
         // Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0):
         // at a think, 40 %, then — under 30 % life, or a shooter with the

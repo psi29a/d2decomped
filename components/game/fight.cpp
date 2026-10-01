@@ -53,6 +53,7 @@ auto Fight::new_game(int difficulty) -> void {
         spawning = start_spawning(*game_data, difficulty);
         monsters.clear();
         mon_level = nullptr;
+        area_seen.clear();
         amplified = {};
         kept.clear();
         next_id = 1;
@@ -2377,7 +2378,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen))
                     killed(i, now_ms);                           // on the player's thorns
             }
             for (auto& young : born) add_monster(std::move(young));
