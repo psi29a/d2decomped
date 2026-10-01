@@ -413,6 +413,28 @@ inline int unit_distance(int dx, int dy, int size_a, int size_b) {
     return down < across ? down + across * 2 : across + down * 2;
 }
 
+// Is the line between two units cut (FUN_00622aa0 -> FUN_00622920 ->
+// FUN_0064e260)? Subtiles, sizes clamped to 2 (a player's 2, a monster's
+// MonStats2 SizeX). Units whose deltas sum under their sizes always see
+// each other; else each end steps its size toward the other along the
+// longer axis (both on a diagonal), then every subtile of the line between,
+// ends included, goes to `blocked` (the AI asks collision mask 4).
+// tools/emu/sight.py checks it against game.exe.
+template <class Blocked>
+bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked&& blocked) {
+    size1 = std::min(size1, 2); size2 = std::min(size2, 2);
+    const int across = std::abs(x2 - x1), down = std::abs(y2 - y1);
+    if (across + down < size1 + size2) return false;
+    if (down <= across) { if (x1 < x2) { x1 += size1; x2 -= size2; } else { x1 -= size1; x2 += size2; } }
+    if (across <= down) { if (y1 < y2) { y1 += size1; y2 -= size2; } else { y1 -= size1; y2 += size2; } }
+    const int dx = std::abs(x2 - x1), dy = std::abs(y2 - y1), step_x = x2 >= x1 ? 1 : -1, step_y = y2 >= y1 ? 1 : -1;
+    for (int k = 0; k <= std::max(dx, dy); ++k) {
+        const int off_x = dx >= dy ? k : k * dx / dy, off_y = dx >= dy ? (dx ? k * dy / dx : 0) : k;
+        if (blocked(x1 + step_x * off_x, y1 + step_y * off_y)) return true;
+    }
+    return false;
+}
+
 // A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0
 // -> FUN_0064fc60): the smaller delta over the larger in 128ths picks an
 // eighth of a quadrant (the table at 0x6eb7e0), folded into its octant.

@@ -63,6 +63,11 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
     std::uint32_t mask = 0;
     for (std::size_t row = 0; row < prest.size(); ++row)
         if (prest.get(row, "Def") == "1") mask = std::uint32_t(std::atoll(std::string(prest.get(row, "Dt1Mask")).c_str()));
+    for (std::size_t row = 0; row < prest.size(); ++row)            // the AI's line-of-sight rule (ai.cpp think)
+        if (const int def = std::atoi(std::string(prest.get(row, "Def")).c_str()); def >= 0 && prest.get(row, "Outdoors") == "1") {
+            if (std::size_t(def) >= game_data.prest_outdoors.size()) game_data.prest_outdoors.resize(std::size_t(def) + 1);
+            game_data.prest_outdoors[std::size_t(def)] = true;
+        }
     for (std::size_t row = 0; row < types.size(); ++row)
         if (types.get(row, "Id") == "1")
             for (int i = 0; i < 32; ++i)

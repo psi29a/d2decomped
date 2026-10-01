@@ -357,6 +357,9 @@ struct GameData {
     struct ClassStrs { std::string all_skills, tab[3], only; };
     std::array<ClassStrs, 7> class_strs;
     d2d::rules::Tables rules;                    // item/vendor/price tables (components/rules)
+    // LvlPrest Outdoors by Def: game.exe flags those presets' rooms 0x80000
+    // (FUN_00667ed0), where monsters need no line of sight (FUN_0066ba70).
+    std::vector<bool> prest_outdoors;
     // belts.txt 800x600 rows ("belt2" .. "uber belt", after the Expansion
     // separator) by armor.txt `belt` index: box count and boxes 1..16
     // {left, right, top, bottom}. Index 2 ("default") when no belt is worn.

@@ -195,6 +195,14 @@ int main() {
     {
         assert(ai_distance(3, -4) == 5 && ai_distance(0, 0) == 0);
         assert(unit_distance(0, 0, 3, 2) == 0 && unit_distance(4, 0, 3, 2) == 1 && unit_distance(5, 0, 3, 2) == 3 && unit_distance(0, 9, 3, 2) == 14);
+        // Line of sight (FUN_00622920; tools/emu/sight.py has game.exe's word on these).
+        {
+            const auto wall = [](int wall_x, int wall_y) { return [=](int x, int y) { return x == wall_x && y == wall_y; }; };
+            assert(sight_blocked(0, 0, 2, 10, 0, 2, wall(5, 0)) && sight_blocked(10, 0, 2, 0, 0, 2, wall(8, 0)));
+            assert(!sight_blocked(0, 0, 2, 10, 0, 2, wall(1, 0)) && !sight_blocked(0, 0, 2, 3, 0, 2, wall(1, 0)));   // inside its own size; touching
+            assert(sight_blocked(0, 0, 0, 2, 5, 0, wall(1, 3)) && !sight_blocked(0, 0, 0, 2, 5, 0, wall(1, 2)));
+            assert(sight_blocked(0, 0, 1, 4, 4, 1, wall(2, 2)) && !sight_blocked(0, 0, 1, 4, 4, 1, wall(0, 0)));
+        }
         assert(direction64(0, 0, 5, 0) == 56 && direction64(0, 0, 0, 5) == 7 && direction64(0, 0, 3, 3) == 0 && direction64(9, 9, 6, 6) == 32);
         const std::array<int, 8> aip{ 30, 10, 30, 50 };
         for (const bool in_melee : { true, false })
