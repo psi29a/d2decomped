@@ -435,6 +435,107 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
     return false;
 }
 
+// A move's path toward subtile (to_x, to_y), the toward pather of path
+// types 2 / 5 / 6 / 0xd (FUN_00679c80; a monster's walk and run are 0xd,
+// `steps` path +0x91: 5, FUN_005a63f0). The straight line (FUN_00679720, a
+// Bresenham whose short-axis step is tested only past a remainder) is the
+// whole path when clear; else it stops short at the last free subtile, which
+// is the path when it's within `near` of the end (FUN_00679380: the
+// size-1 unit_distance; 1 at a player or monster, FUN_006498a0, else 0).
+// Else from there up to `steps` 8-way steps toward the end, each the first
+// free of three directions (DAT_006f1518 by FUN_00678c10's 5x5 index,
+// FUN_006793e0; a third of 0xff isn't tried), stopping at the end, a wall or
+// a step back; a point at each turn (the subtile before it, none at the
+// start) and the last one unless that step turned. The points are subtiles;
+// `blocked` asks the unit's collision (FUN_0064d910).
+// tools/emu/moves.py checks it against game.exe.
+template <class Blocked>
+std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, int steps, int near, Blocked&& blocked) {
+    static constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
+    static constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
+        { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
+        { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
+    using P = std::pair<int, int>;
+    auto sign = [](int value) { return value >= 0 ? 1 : -1; };
+    P end{ to_x, to_y };
+    const bool clear = [&] {                                      // FUN_00679720: `end` cut to the last free subtile
+        const int dx = to_x - x, dy = to_y - y, long_x = std::abs(dx) + 1, long_y = std::abs(dy) + 1;
+        int at_x = x, at_y = y;
+        auto cut = [&](P last) { end = last; return false; };
+        if (long_y == long_x) {
+            for (;;) {
+                const P last{ at_x, at_y };
+                if (at_x == to_x) return true;
+                at_y += sign(dy); at_x += sign(dx);
+                if (blocked(at_x, at_y)) return cut(last);
+            }
+        }
+        const bool by_x = long_y < long_x;                        // the long axis
+        int& major = by_x ? at_x : at_y, & minor = by_x ? at_y : at_x;
+        const int major_end = by_x ? to_x : to_y, major_step = sign(by_x ? dx : dy), minor_step = sign(by_x ? dy : dx);
+        const int major_len = by_x ? long_x : long_y, minor_len = by_x ? long_y : long_x;
+        if (major == major_end) return true;
+        for (int err = minor_len;;) {
+            const P last{ at_x, at_y };
+            major += major_step;
+            if (blocked(at_x, at_y)) return cut(last);
+            if ((err += minor_len) >= major_len) {
+                minor += minor_step; err -= major_len;
+                if (err > 0 && blocked(at_x, at_y)) return cut(last);
+            }
+            if (major == major_end) return true;
+        }
+    }();
+    if (clear || unit_distance(end.first - to_x, end.second - to_y, 1, 1) <= near) return { end };
+    std::vector<P> points;
+    P at{ x, y };
+    if (end != at) { points.push_back(end); at = end; }
+    int prev = 0xff, taken = 0;
+    bool turned = false;
+    while (taken < steps && at != P{ to_x, to_y }) {
+        turned = false;
+        const int dx = to_x - at.first, dy = to_y - at.second, adx = std::abs(dx), ady = std::abs(dy);   // FUN_00678c10
+        int ux = dx, uy = dy;
+        if (adx >= ady * 2) uy = dy < 0 ? -1 : dy & 1;
+        else if (adx * 2 <= ady) ux = dx < 0 ? -1 : dx & 1;
+        const auto& tries = kTry[std::size_t(std::clamp(ux, -2, 2) * 5 + 12 + std::clamp(uy, -2, 2))];
+        int dir = -1;
+        for (std::size_t n = 0; n < 3 && dir < 0; ++n)
+            if (tries[n] != 0xff && !blocked(at.first + kDir[std::size_t(tries[n])][0], at.second + kDir[std::size_t(tries[n])][1])) dir = tries[n];
+        if (dir < 0 || ((dir - 4) & 7) == prev) { turned = false; break; }
+        const P from = at;
+        at = { at.first + kDir[std::size_t(dir)][0], at.second + kDir[std::size_t(dir)][1] };
+        if (dir != prev) {
+            if (from != P{ x, y }) points.push_back(from);
+            turned = true;
+        }
+        ++taken;
+        prev = dir;
+    }
+    if (!turned && taken) points.push_back(at);
+    return points;
+}
+
+// A chase's check each frame of its move (FUN_00650840 -> FUN_006503f0, a
+// path of type 2 / 0xd / 0xf): 0 stop when its target is within `stop`
+// (+0x93: FUN_00649070, 0 for a walk or run) by unit_distance; 2 re-path
+// when the target, a player or monster (`mover`), is over 5 subtiles on
+// either axis from where it stood when pathed (`moved`: SP2 +0x14 less its
+// spot now), or when the path has run out (`idx` +0x24 at `count` +0x28)
+// short of its end (SP3 +0x18); else 1. With no target only the last test
+// counts. A monster's re-path (FUN_00650350) is refused (0) when the budget
+// (+0x94, 0x14 at each mode start: FUN_005a7c20 -> FUN_006490e0) is 0; else
+// the points reached come off it (FUN_00649140, floor 0).
+// tools/emu/moves.py checks it against game.exe.
+inline int chase_check(bool target, int distance, int stop, bool mover, int moved_x, int moved_y, int idx, int count, bool at_end, int& budget) {
+    const bool ran_out = idx >= count && !at_end;
+    if (target && distance <= stop) return 0;
+    if (target ? !((mover && (std::abs(moved_x) > 5 || std::abs(moved_y) > 5)) || ran_out) : !ran_out) return 1;
+    if (budget == 0) return 0;
+    budget = std::max(budget - idx, 0);
+    return 2;
+}
+
 // A hostile monster's target search over the player lists (FUN_005dd7f0,
 // game +0x10f8 lists 0..7). Each list is a player (`pet` false) and then
 // its pets (FUN_005b1900 puts them after it: the merc, summons). `away` is

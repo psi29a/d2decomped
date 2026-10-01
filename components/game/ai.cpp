@@ -179,13 +179,77 @@ namespace {
 constexpr int kAndrialSpray = 164, kAndyPoisonBolt = 201;
 int subtile(float cells) { return int(std::floor(cells * 5)); }
 
-// Straight at (dx, dy) cells off, else sidestep round whoever's in the way.
-bool step_toward(const Level& level, Monster& monster, float dx, float dy, float walk, const Crowd& crowd) {
+// A move's path to subtile (to_x, to_y) (FUN_00649970): none at its own
+// subtile or over 100 off; the toward pather (type 0xd, rules::toward_path:
+// 5 steps, near 1 at a foe), else the search pather (type 0xf: FUN_00650350,
+// FUN_005a6290). Points whose centre it stands on are skipped (FUN_0064fe40).
+// ponytail: the search pather (FUN_0067c2d0, 0x28 steps) as
+// rules::find_path's turns over its first 0x28 subtiles; FUN_006483a0 and
+// path flag 0x1000 left out.
+bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
-    for (const float turn : { 0.f, 0.785f, -0.785f, 1.571f, -1.571f }) {
-        const float cosine = std::cos(turn), sine = std::sin(turn);
-        if (monster_step(level, monster, unit.x + dx * cosine - dy * sine, unit.y + dx * sine + dy * cosine, walk, crowd)) return true;
+    const int x = subtile(unit.x), y = subtile(unit.y);
+    auto centre = [](int at) { return (float(at) + 0.5f) / 5; };
+    auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit); };
+    auto& steps = monster.steps;
+    steps.clear();
+    monster.step = 0;
+    monster.end_x = to_x; monster.end_y = to_y;
+    if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return false;
+    for (const bool search : { false, true }) {
+        if (!search) steps = d2d::rules::toward_path(x, y, to_x, to_y, 5, at_foe ? 1 : 0, blocked);
+        else {
+            const auto found = d2d::rules::find_path(x, y, to_x, to_y, blocked, 400);
+            const std::size_t count = std::min<std::size_t>(found.size(), 0x28);
+            std::pair prev{ x, y };
+            for (std::size_t n = 0; n < count; ++n) {
+                if (n + 1 == count || found[n + 1].first - found[n].first != found[n].first - prev.first
+                    || found[n + 1].second - found[n].second != found[n].second - prev.second) steps.push_back(found[n]);
+                prev = found[n];
+            }
+        }
+        while (monster.step < int(steps.size()) && centre(steps[std::size_t(monster.step)].first) == unit.x
+               && centre(steps[std::size_t(monster.step)].second) == unit.y) ++monster.step;
+        if (monster.step < int(steps.size())) return true;
+        steps.clear();
+        monster.step = 0;
     }
+    return false;
+}
+
+// A move's frame (FUN_00650840): a chase checks its foe first
+// (rules::chase_check: stop at it, re-path when it's moved), then the unit
+// steps `step` cells toward its point's centre, taking the next when it
+// gets there (one a frame, FUN_00650090). False when the move ends: at the
+// foe, the budget spent, no re-path, blocked (FUN_00650150 sets idx =
+// count) or past its last point; it stands at its subtile's centre then
+// (FUN_006507b0). `spot`: a move to a spot; a chase whose foe is gone ends.
+// ponytail: floats in cells for 16.16 subtiles, blocked as monster_step
+// has it (not FUN_0064ff90 per subtile crossed); the foe's spot without
+// FUN_00679250's +0x68 offset.
+bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool spot, int size, float step, const Crowd& crowd) {
+    auto& unit = monster.unit;
+    bool going = !monster.steps.empty() && (spot || chased);
+    if (going) {
+        const int x = subtile(unit.x), y = subtile(unit.y), foe_x = chased ? subtile(chased->x) : 0, foe_y = chased ? subtile(chased->y) : 0;
+        const int distance = chased ? d2d::rules::unit_distance(foe_x - x, foe_y - y, size, chased->size) : 0;
+        const int check = d2d::rules::chase_check(chased, distance, 0, true, monster.end_x - foe_x, monster.end_y - foe_y, monster.step,
+                                                  int(monster.steps.size()), x == monster.end_x && y == monster.end_y, monster.budget);
+        going = check == 1 || (check == 2 && path_to(level, monster, chased ? foe_x : monster.end_x, chased ? foe_y : monster.end_y, chased, crowd));
+    }
+    if (going) {
+        const auto [point_x, point_y] = monster.steps[std::size_t(monster.step)];
+        const float to_x = (float(point_x) + 0.5f) / 5, to_y = (float(point_y) + 0.5f) / 5;
+        const bool there = std::hypot(to_x - unit.x, to_y - unit.y) <= step;
+        if (!monster_step(level, monster, to_x, to_y, step, crowd)) going = false;
+        else if (there) { unit.x = to_x; unit.y = to_y; ++monster.step; }
+        going = going && monster.step < int(monster.steps.size());
+    }
+    if (going) return true;
+    const float centre_x = (float(subtile(unit.x)) + 0.5f) / 5, centre_y = (float(subtile(unit.y)) + 0.5f) / 5;
+    if (!level.unit_blocked(centre_x, centre_y)) { unit.x = centre_x; unit.y = centre_y; }
+    monster.steps.clear();
+    monster.step = 0;
     return false;
 }
 
@@ -336,7 +400,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 // first-sight speech (FUN_005b1140), door opening and the no-target
 // wander (FUN_0064d910; the old home wander stands in) left out; in melee
 // skips the path test (FUN_00622aa0, mask 0x804); paths
-// (FUN_005de190) as straight lines, a circle as a walk to the point n
+// (FUN_005de190) as path_to's, a circle as a walk to the point n
 // subtiles to the side of the target; a back-off sets off when its end
 // and first step are open; no teleporting mod.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
@@ -352,36 +416,27 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.next_act = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
     };
     const bool has_run = game_data.npc_timing(monster.npc, "RN").directions > 0;   // RN falls back to WL
-    auto set_off = [&](bool running, bool to_spot) {
+    // A move sets off (FUN_005a7c20) with a re-path budget of 0x14
+    // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal; one
+    // with no path can't start, and a spot move then thinks aidel on
+    // (FUN_005a73e0).
+    auto set_off = [&](bool running, const Foe* at) {
+        monster.budget = 0x14;
+        monster.wandering = !at;
+        if (!path_to(level, monster, at ? subtile(at->x) : subtile(unit.goal_x), at ? subtile(at->y) : subtile(unit.goal_y), at, crowd)) {
+            if (!at) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
+            return false;
+        }
         const std::string_view mode = running && has_run ? "RN" : "WL";
         if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
-        monster.wandering = to_spot;
-        monster.path_left = 4;                                     // FUN_006490e0(path, 0x14): 20 subtiles
         monster.next_act = now_ms;                                 // its end thinks at once (FUN_005a8030)
+        return true;
     };
-    // A move runs to its end, then it thinks: a walk or run's end does so at
-    // once (FUN_005a8030: DAT_0073c6d0 flags WL and RN). A wander ends at its
-    // spot, a chase at its foe (unit_distance 0) or when its re-path budget
-    // runs out (path +0x94, spent by FUN_00650350); either ends when it's
-    // blocked.
-    // ponytail: the budget as 4 cells walked (game.exe spends it per
-    // re-path, by the points walked); the chase steps at the foe's spot
-    // each frame instead of re-pathing at its path's end.
+    // A move runs to its end (move_frame), then it thinks: a walk or run's
+    // end does so at once (FUN_005a8030: DAT_0073c6d0 flags WL and RN).
     if (monster.mode == "WL" || monster.mode == "RN") {
-        const float step = monster.mode == "RN" ? run : walk;
-        bool done;
-        if (monster.wandering) {
-            const bool there = std::hypot(unit.goal_x - unit.x, unit.goal_y - unit.y) <= step;
-            if (there) { unit.x = unit.goal_x; unit.y = unit.goal_y; }
-            done = there || !monster_step(level, monster, unit.goal_x, unit.goal_y, step, crowd);
-        } else {
-            const Foe* chased = monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive ? &foes[std::size_t(monster.chase)] : nullptr;
-            done = !chased || monster.path_left <= 0
-                || d2d::rules::unit_distance(subtile(chased->x) - subtile(unit.x), subtile(chased->y) - subtile(unit.y), type_info.size, chased->size) == 0
-                || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, step, crowd);
-            monster.path_left -= step;
-        }
-        if (!done) return true;
+        const Foe* chased = monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive ? &foes[std::size_t(monster.chase)] : nullptr;
+        if (move_frame(level, monster, monster.wandering ? nullptr : chased, monster.wandering, type_info.size, monster.mode == "RN" ? run : walk, crowd)) return true;
         set_mode(game_data, monster, "NU", now_ms);
         monster.wandering = false;
     }
@@ -391,14 +446,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     monster.aware = target != nullptr;
     auto walk_to = [&](int off_x, int off_y, bool running) {       // to a spot, subtiles off
         unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
-        set_off(running, true);
+        set_off(running, nullptr);
     };
     if (!target) {
         if (andariel || nest || !level.mon.wander || monster.mode != "NU") { idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25); return true; }
         const float angle = float(rng(360)) * 3.14159265f / 180, radius = float(rng(300)) / 100;
         unit.goal_x = monster.home_x + std::cos(angle) * radius;
         unit.goal_y = monster.home_y + std::sin(angle) * radius;
-        set_off(false, true);
+        set_off(false, nullptr);
         monster.next_act = now_ms + 2000 + std::uint32_t(rng(3000));
         return true;
     }
@@ -487,8 +542,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::a2: use("A2", -1); return true;
         case MonAct::s2: use("S2", -1); return true;
         case MonAct::walk: case MonAct::approach: case MonAct::run:  // FUN_005deb60 at the target
-            if (step_toward(level, monster, dx, dy, act.act == MonAct::run && has_run ? run : walk, crowd)) {
-                set_off(act.act == MonAct::run, false);
+            if (set_off(act.act == MonAct::run, target)) {
                 monster.chase = int(target - foes.data());
                 return true;
             }
@@ -516,7 +570,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::circle: {                                     // FUN_005df7d0
             const float side = act.x ? 1.f : -1.f, length = std::max(std::hypot(dx, dy), 0.01f), off = float(act.n) / 5;
             unit.goal_x = target->x - dy / length * off * side; unit.goal_y = target->y + dx / length * off * side;
-            set_off(false, true);
+            set_off(false, nullptr);
             return true;
         }
         case MonAct::skill: {                                      // its Sk mode's sequence (kSeqs) plays out
@@ -724,10 +778,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen)) return false;
     // An AI not traced finds its foe as the traced ones do (search_target),
     // at its thinks: when next_act is due and no chase is under way (a chase
-    // ends as think() has it: at the foe, blocked, or after 4 cells). With
-    // none it thinks again aidel on (FUN_005a73e0).
+    // runs as think()'s does, move_frame). With none it thinks again aidel
+    // on (FUN_005a73e0).
     // ponytail: it chases the nearest foe whichever it found.
-    const bool chasing = monster.mode == "WL" && monster.path_left > 0 && monster.aware;
+    const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
         monster.aware = foe.alive && search_target(game_data, level, monster, foes, now_ms, seen).target;
         if (!monster.aware) monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
@@ -775,11 +829,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 return false;
             }
         }
-        const bool moved = step_toward(level, monster, dx, dy, walk, crowd);
-        if (moved && monster.mode != "WL") monster.path_left = 4;
-        monster.path_left = moved ? monster.path_left - walk : 0;
-        if (!moved && monster.mode == "WL") monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;   // FUN_005a73e0
-        if (moved != (monster.mode == "WL")) set_mode(game_data, monster, moved ? "WL" : "NU", now_ms);
+        if (monster.mode != "WL") {                                // sets off at a think (FUN_005a7c20), else aidel on
+            if (now_ms < monster.next_act) return false;
+            monster.budget = 0x14;
+            if (!path_to(level, monster, subtile(foe.x), subtile(foe.y), true, crowd)) {
+                monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
+                if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+                return false;
+            }
+            set_mode(game_data, monster, "WL", now_ms);
+        }
+        if (!move_frame(level, monster, &foe, false, type_info.size, walk, crowd)) { set_mode(game_data, monster, "NU", now_ms); monster.next_act = now_ms; }
         return false;
     }
     monster.aware = false;
