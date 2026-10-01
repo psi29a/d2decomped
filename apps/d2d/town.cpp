@@ -435,9 +435,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                     cube_open = true; stash_open = char_open = false;
                 }
             }
-        // An open NPC menu takes every click: an entry runs (only
-        // "cancel" so far — every entry closes it), anything else
-        // closes it. ponytail: talk/trade/hire/gamble not built.
+        // An open NPC menu takes every click: an entry runs its action,
+        // anything else closes it.
         bool menu_click = false;
         const auto& unit = view.player;
         automap_reveal(*scene, *level, automap, unit.x, unit.y);

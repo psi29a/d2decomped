@@ -275,7 +275,6 @@ struct World {
 
     // Back in camp after dying: at the town start with full life. Monsters
     // stay as they are.
-    // ponytail: D2 leaves a corpse holding the gear and takes gold; not yet.
     void respawn(std::uint32_t now_ms);
     // The player came to `level` from `from`: `from`'s NPC states are kept,
     // `level`'s taken back (made at their start the first time).
@@ -293,7 +292,7 @@ struct World {
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
     // ponytail: counted when the number drops (game.exe: on each death);
-    // the quest log isn't drawn, so the count goes to the log.
+    // the count goes to the log.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 

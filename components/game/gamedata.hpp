@@ -563,9 +563,6 @@ constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" 
 constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
               kModeA1 = 7, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeDD = 17;
 
-// ponytail: town walk speed picked by eye so the TW cycle doesn't skate
-// (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
-// input; derive from it once movement units are RE'd.
 // Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
 // MonStats Velocity): the path velocity is velocity << 8 (scaled by
 // velocitypercent, FUN_00462a20), and a unit covers path velocity / 4096

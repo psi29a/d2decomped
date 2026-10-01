@@ -33,8 +33,7 @@
 //   +0x279 "WS" + 6 bytes, then per difficulty 24 bytes: 02 01 and a
 //              bitfield of activated waypoints (Levels.txt Waypoint
 //              index, LSB first; 39 used)
-// ponytail: header only. Stats/skills/items are bit-packed sections after
-// 0x2FD; parse them when gameplay needs more than what char-select shows.
+// Stats/skills/items, the bit-packed sections after 0x2FD: d2s_items.hpp.
 #pragma once
 
 #include <algorithm>

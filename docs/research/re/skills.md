@@ -924,13 +924,9 @@ and per-class base frames, not a table. What's stored:
   | Paladin | 16 | 0→16 9→15 18→14 30→13 48→12 75→11 125→10 232→9 |
   | Sorceress | 14 | 0→14 9→13 20→12 37→11 63→10 105→9 200→8 |
 
-- **Port.** Nothing lives as a "breakpoint table". A single helper next to
-  `rules::attack_ticks` — take `base_frames` from an animdata.d2 loader
-  keyed on the player's cof name, plus stat 105 (`kFasterCast`) as input —
-  replaces every `ponytail: FCR as a rate bonus` note in
-  `components/game/fight.hpp` (lines 269, 546, 736). animdata.d2 already
-  needs loading for FHR / FBR too (same file, GH / BL modes) — one
-  reader covers all three speed stats.
+- **Port.** Nothing lives as a "breakpoint table": `rules::speed_frames`
+  (combat.hpp) shortens the animation's base frame count by FCR / FHR /
+  FBR.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's

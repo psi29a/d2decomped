@@ -664,7 +664,7 @@ inline bool learn_skill(const Tables& tables, int cls, int skill_index, std::arr
 // Healers restore life and mana when you talk to them: Akara, Fara,
 // Ormus, Jamella, Malah (MonStats hcIdx).
 // ponytail: the list is D2's known healers, not located in game.exe;
-// poison/curse removal waits for those states to exist. The save's max
+// poison/curse removal isn't done. The save's max
 // life/mana are base values without gear (current can be higher), so
 // healing only raises to them; the true max needs item stat totals.
 inline bool is_healer(int hc_idx) {

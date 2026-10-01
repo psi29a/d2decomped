@@ -51,7 +51,7 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
         d2d::log::warn("world: {} not found — placeholder mode", ds1_path);
         return;
     }
-    game_data.town.id = 1;                                  // ponytail: the only level loaded so far
+    game_data.town.id = 1;
     game_data.town.ds1 = d2d::ds1::Map(*bytes);
     // Its DT1s as game.exe lists a preset room's (FUN_0066f240): LvlTypes 1's
     // files by LvlPrest 1's Dt1Mask, then Blank, InvisWal, Warp — never the

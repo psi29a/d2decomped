@@ -74,8 +74,8 @@ inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK ||
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
 // each Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's).
-// ponytail: Dragon Flight isn't built, so it swings as Attack and
-// releases that way.
+// ponytail: whether Dragon Flight's kick (do 52) releases isn't traced;
+// here it doesn't.
 inline bool finisher(const d2d::rules::Skill* skill) {
     return !skill || skill->id == 0 || skill->srvdofunc == 42 || skill->srvdofunc == 50 || skill->srvdofunc == 46;
 }
