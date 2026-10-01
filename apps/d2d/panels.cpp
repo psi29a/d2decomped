@@ -7,6 +7,7 @@
 #include "ui.hpp"
 
 #include <d2s.hpp>
+#include <d2s_automap.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <quests.hpp>
@@ -17,9 +18,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -281,6 +284,47 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
     return -1;
 }
 
+bool Automap::add(const Cell& cell) {
+    // Interchangeable cels (0x711258, cel then group).
+    static constexpr int kCelGroups[][2] = {
+        {0,0},{1,0},{2,0},{3,0},{6,1},{7,1},{8,1},{11,2},{12,2},{13,3},{14,3},{20,4},{38,4},{21,5},{39,5},{46,6},{47,6},
+        {48,6},{49,6},{51,7},{52,7},{53,7},{54,7},{60,8},{70,8},{61,9},{71,9},{120,10},{169,10},{171,10},{121,11},{170,11},
+        {172,11},{257,12},{258,12},{259,12},{266,13},{267,13},{337,14},{338,14},{472,15},{473,15},{474,15},{475,15},
+        {520,16},{521,16},{522,16},{533,17},{534,17} };
+    int group = -1;
+    for (const auto& pair : kCelGroups)
+        if (pair[0] == cell.cel) group = pair[1];
+    // ponytail: matches against every cell at (x, y); the tree only meets those on its search path.
+    const auto at = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
+    const bool taken = group < 0 ? at != placed.end() && std::get<0>(*at) == cell.list && std::get<1>(*at) == cell.y && std::get<2>(*at) == cell.x
+                                 : placed.count({ cell.list, cell.y, cell.x, group }) != 0;
+    if (taken) return false;
+    placed.insert({ cell.list, cell.y, cell.x, group });
+    cells.push_back(cell);
+    return true;
+}
+
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
+    if (dir.empty() || name.empty()) return;
+    const auto file = d2d::d2s::automap_file(dir, name, map_seed);
+    if (file.empty()) return;
+    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low);
+    for (std::size_t list = 0; list < loaded.lists.size(); ++list)
+        for (const auto& cell : loaded.lists[list]) automap.add({ cell.cel, cell.x, cell.y, int(list), true });
+}
+
+void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
+    if (dir.empty() || name.empty()) return;
+    d2d::d2s::AutomapLayer fresh;
+    fresh.object_seed = game::object_seed(map_seed).low;
+    for (const auto& cell : automap.cells)
+        if (!cell.saved) fresh.lists[std::size_t(cell.list)].push_back({ std::int16_t(cell.cel), std::int16_t(cell.x), std::int16_t(cell.y) });
+    if (std::all_of(fresh.lists.begin(), fresh.lists.end(), [](const auto& list) { return list.empty(); })) return;
+    const auto file = d2d::d2s::automap_file(dir, name, map_seed);
+    if (file.empty() || !d2d::d2s::append_automap(file, layer, fresh)) return;
+    for (auto& cell : automap.cells) cell.saved = true;
+}
+
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y) {
     const auto& map = level.ds1;
     const int width = int(map.width()), height = int(map.height());
@@ -299,13 +343,13 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
             for (const auto& layer : map.floors()) {
                 const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
                 if (tile.hidden || !(tile.prop1 & 2)) continue;
-                if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.cells.push_back({ cel, automap_x, automap_y });
+                if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.add({ cel, automap_x, automap_y, 0 });
             }
             for (const auto& layer : map.walls()) {
                 const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
                 if (tile.hidden || tile.wall_type == 0) continue;
                 if (const int cel = automap_cel(scene, level, tile.wall_type, tile.style, tile.sequence, hash); cel >= 0)
-                    automap.cells.push_back({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0) });
+                    automap.add({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0), 1 });
             }
         }
 }
@@ -316,7 +360,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const int scroll_x = int(std::lround((player_x - player_y) * 80 / 10)) - int(kScreenWidth) / 2 + 40;
     const int scroll_y = int(std::lround((player_x + player_y) * 40 / 10)) - int(kScreenHeight) / 2 + 15;
     for (const auto& cell : automap.cells) {
-        if (cell.cel < 0 || std::uint32_t(cell.cel) >= scene.automap_cels.frames_per_direction()) continue;
+        if (cell.list == 3 || cell.cel < 0 || std::uint32_t(cell.cel) >= scene.automap_cels.frames_per_direction()) continue;   // miniatures: another cel file
         const auto& frame = scene.automap_cels.frame(0, std::uint32_t(cell.cel));
         const int x = cell.x - scroll_x, y = cell.y - scroll_y;
         if (x < -32 || x > int(kScreenWidth) + 32 || y < -64 || y > int(kScreenHeight) + 64) continue;

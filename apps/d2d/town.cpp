@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <tuple>
@@ -283,17 +284,27 @@ auto Town::publish() -> void {
             merc_label = merc_name(*scene, found->second, character.header.merc_name);
     }
 
+// Where the automap's files go: beside the save (none with saving off).
+static std::filesystem::path automap_dir(const World& world) { return world.characters ? world.characters->dir : std::filesystem::path{}; }
+
 auto Town::enter() -> void {
-        automap.cells.clear();                    // a new game: nothing seen yet
+        automap.cells.clear();                    // a new game: what the files beside the save kept
+        automap.placed.clear();
         automap.revealed.clear();
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
         world.enter(character);
         skillbar.new_game();
         publish();
+        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
     }
 
-auto Town::save() -> std::string { return world.save(); }
+// The automap's new cells go out with the save, as on leaving a game
+// (FUN_0045a5c0).
+auto Town::save() -> std::string {
+        if (scene && level) save_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
+        return world.save();
+    }
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
@@ -727,8 +738,13 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
 auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) {
             if (level_changed->from->layer != level->layer) {
+                // A layer change saves the old layer's map and loads the
+                // new one's (FUN_00458d40).
+                save_automap(automap, automap_dir(world), character.name, scene->map_seed, level_changed->from->layer);
+                const bool seen = other_automaps.count(level->layer) != 0;
                 other_automaps[level_changed->from->layer] = std::move(automap);
                 automap = std::move(other_automaps[level->layer]);
+                if (!seen) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
                 if (level_changed->keep_map) automap.open = other_automaps[level_changed->from->layer].open;
             }
             hovered_npc = -1;

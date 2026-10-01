@@ -12,9 +12,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -109,15 +112,23 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // (40, 15), with DC6's bottom-left anchoring.
 // ponytail: reveals tiles within 12 of the player (D2 reveals by room),
 // cel picked by a tile hash rather than the game's RNG, no fade near the
-// centre, no player/NPC marks.
+// centre, no player/NPC marks; no unit icons or town miniatures of its own
+// (a game.exe file's are kept, the miniatures not drawn).
 // One automap per Levels.txt Layer: the town and the act 1 wilderness
 // share layer 0, so the map shows them together; cells sit in act
 // coordinates.
+// A cell goes in its list's tree (FUN_00457b00) unless one sits at its
+// (x, y) already that it matches: same cel group (0x711258 -> 0x7a3150),
+// or it has none.
+// Saved next to the character (d2s_automap.hpp): load_automap reads the
+// layer's cells in, save_automap appends the ones added since.
 struct Automap {
-    struct Cell { int cel, x, y; };
+    struct Cell { int cel, x, y; int list = 0; bool saved = false; };   // list: 0 floors, 1 walls, 2 units, 3 miniatures
     std::vector<Cell> cells;
+    std::set<std::tuple<int, int, int, int>> placed;               // list, y, x, cel group (-1 none)
     std::unordered_map<int, std::vector<std::uint8_t>> revealed;   // per level, per DS1 tile
     bool open = false;
+    bool add(const Cell& cell);
 };
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
@@ -125,6 +136,11 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
+
+// The layer's saved cells into `automap` (FUN_00458750), and its new ones
+// out (FUN_004584c0); `dir` "" saves nothing.
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
+void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
 
 // The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),
 // in the left-panel spot at 800x600 (+80, +60 on game.exe's numbers):
