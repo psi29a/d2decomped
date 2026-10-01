@@ -36,7 +36,7 @@ quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
 You need your own Diablo II + Lord of Destruction game data. D2Decomp does not
 bundle Blizzard's game files or assets; it reads data from your installation or
 media. The project is not affiliated with or endorsed by Blizzard
-Entertainment. [Legal notes](docs/LEGAL.md) explain how EU law allows
+Entertainment. [Legal notes](LEGAL.md) explain how EU law allows
 reverse engineering for interoperability, and how the project stays within it.
 
 ## How it works
@@ -72,4 +72,4 @@ build/apps/d2d/d2d --data /path/to/your/MPQ-folder
 ## License
 
 D2Decomp is licensed under the GNU General Public License, version 3 or later
-(GPL-3.0-or-later); the full text is in [docs/LICENSE.txt](docs/LICENSE.txt).
+(GPL-3.0-or-later); the full text is in [LICENSE](LICENSE).

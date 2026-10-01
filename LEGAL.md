@@ -83,7 +83,7 @@ cannot remove these rights from an EU user.
   weight there.
 - **Blizzard's online services are a separate question.** Their terms forbid
   unauthorized connections to Battle.net. D2Decomp does not connect to
-  Blizzard's servers (see [design/battlenet.md](design/battlenet.md)).
+  Blizzard's servers (see [docs/design/battlenet.md](docs/design/battlenet.md)).
 
 ## Trademarks
 
