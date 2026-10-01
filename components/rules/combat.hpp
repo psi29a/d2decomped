@@ -388,8 +388,8 @@ inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
 
 // Adds experience; every level reached (exp_next[level] = experience for
 // level + 1) gives StatPerLevel stat points, a skill point and the class's
-// life/stamina/mana per level (quarter points, 8.8 fixed stats). Returns the
-// levels gained.
+// life/stamina/mana per level (quarter points, 8.8 fixed stats), and fills
+// all three. Returns the levels gained.
 inline int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains) {
     using namespace d2d::d2s;
     stats.values[kExp] += exp;
@@ -408,6 +408,13 @@ inline int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<
             stats.values[std::size_t(max)] += std::int64_t(per_level) * 64;
             stats.values[std::size_t(cur)] += std::int64_t(per_level) * 64;
         }
+    }
+    // Then full (FUN_00570880: FUN_00625d10 / 25d60 / 25db0): life only if
+    // it's above 0, mana and stamina always.
+    if (gained) {
+        if (stats.values[kLife] > 0) stats.values[kLife] = stats.values[kMaxLife];
+        stats.values[kMana] = stats.values[kMaxMana];
+        stats.values[kStamina] = stats.values[kMaxStamina];
     }
     return gained;
 }

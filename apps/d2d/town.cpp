@@ -639,12 +639,27 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             }
             if (on_cancel && mouse.release_this_frame) waypoint = {};
         }
+        // New Stats / New Skills: a press holds the button with a click
+        // (Sounds.txt 4, FUN_004a66e0 / FUN_004a6790); let go over it and it
+        // opens the character panel / tree (FUN_004a6840 / FUN_004a6920).
+        const auto shown = level_buttons_now();
+        const bool on_stats = over_stats_button(shown.stats_x, mouse.x, mouse.y);
+        const bool on_skills = over_skills_button(shown.skills_x, mouse.x, mouse.y);
+        if (shown.stats_x < 0) stats_down = false;          // hidden lets go (FUN_004a6b30)
+        if (shown.skills_x < 0) skills_down = false;
+        const bool level_click = mouse.press_this_frame && (on_stats || on_skills);
+        if (level_click) { (on_stats ? stats_down : skills_down) = true; audio.play_sfx(*scene, 4, 1.f, 0); }
+        if (mouse.release_this_frame) {
+            if (stats_down && on_stats) { char_open = true; stash_open = cube_open = quest_log.open = false; }
+            if (skills_down && on_skills) { tree_open = true; inv_open = false; }
+            stats_down = skills_down = false;
+        }
         // Holding an item, a click on the world drops it (C→S 0x17).
         const bool bar_click = skillbar.click(mouse);
-        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click
+        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
-        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
+        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click;
         // A press on the UI stays the UI's while the button is held: no walk
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
@@ -652,6 +667,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
         if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         draw(framebuffer, mouse, frame_ms);
+    }
+
+auto Town::level_buttons_now() const -> LevelButtons {
+        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
+        out.stats_down = stats_down;
+        out.skills_down = skills_down;
+        return out;
     }
 
 auto Town::hovered_monster() const -> int {
@@ -861,6 +884,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
+        draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
     }
 
 }  // namespace d2d::client

@@ -215,6 +215,8 @@ int main() {
     assert(gain_exp(stats, 1200, next, gains) == 2);                          // 1600: past 500 and 1500
     assert(stats.get(d2d::d2s::kLevel) == 3 && stats.get(d2d::d2s::kStatPts) == 10 && stats.get(d2d::d2s::kSkillPts) == 2);
     assert(stats.fixed(d2d::d2s::kMaxLife) == 54 && stats.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
+    stats.values[d2d::d2s::kLife] = 1 << 8; stats.values[d2d::d2s::kMana] = 0;
+    assert(gain_exp(stats, 3000, next, gains) == 1 && stats.fixed(d2d::d2s::kLife) == 56 && stats.get(d2d::d2s::kMana) == stats.get(d2d::d2s::kMaxMana));   // a level fills them
     // The merc: level from experience, stats from its band.
     Tables merc_tables;
     merc_tables.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
