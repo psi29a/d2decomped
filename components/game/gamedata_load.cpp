@@ -520,6 +520,8 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const std::string place(preset.get(act1[std::size_t(object.id)], "Place"));
         const auto found = ms_row.find(place);
         if (found == ms_row.end()) continue;            // place_* markers etc.
+        // FUN_0054e490: a critter (MonStats2 flag 0xd: the camp's chickens) is never made.
+        if (const auto ex = ms2_row.find(std::string(monstats.get(found->second, "MonStatsEx"))); ex != ms2_row.end() && ms2.get(ex->second, "critter") == "1") continue;
         auto npc = monster(found->second);
         if (npc.code.empty()) continue;
         npc.x = (float(object.x) + 0.5f) / 5;
@@ -587,6 +589,9 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.builder->sound_env = txt("SoundEnviron");
     }
 
+    // Each unit's camp room (8x8 tiles, row by row, the DS1's edge column
+    // left out), where it's made as the room populates (populate).
+    for (auto& npc : game_data.town.npcs) npc.room = int(npc.y) / 8 * ((game_data.town.ds1.width() + 6) / 8) + int(npc.x) / 8;
     stamp_footprints(game_data.town);
 
     // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify

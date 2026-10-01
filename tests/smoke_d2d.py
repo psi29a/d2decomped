@@ -319,9 +319,15 @@ try:
         if lv[1] == "2":
             break
     assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
+    # Through the protocol alone (`cmd`: what a remote client sends the
+    # World): walk a room east (the rooms by the camp are left empty, and
+    # seed 3's first ones in roll none).
+    x0, y0 = float(lv[2]), float(lv[3])
+    cmd(f"cmd move {x0 + 8:.1f} {y0:.1f}"); frames(90)
+    assert float(cmd("debug level").split()[2]) > x0 + 1, "cmd move didn't walk"
     # The Blood Moor's monsters so far (its rooms populate as they come
     # into play round the player), alive and at full life. A loaded host
-    # may list them a few frames after the crossing.
+    # may list them a few frames after.
     for _ in range(10):
         mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
         if mons:
@@ -329,11 +335,7 @@ try:
         frames(6)
     assert mons and {m[0] for m in mons} <= {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
-    # Through the protocol alone (`cmd`: what a remote client sends the
-    # World): walk a few cells east, then attack a monster until it's hurt.
-    x0, y0 = float(lv[2]), float(lv[3])
-    cmd(f"cmd move {x0 + 3:.1f} {y0:.1f}"); frames(60)
-    assert float(cmd("debug level").split()[2]) > x0 + 1, "cmd move didn't walk"
+    # Attack a monster until it's hurt.
     m = min(mons, key=lambda m: (float(m[1]) - x0) ** 2 + (float(m[2]) - y0) ** 2)
     uid = m[-1].lstrip("#")
     cmd(f"debug warp {float(m[1]) - 1:.2f} {float(m[2]):.2f}"); frames(6)
