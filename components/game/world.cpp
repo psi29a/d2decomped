@@ -164,6 +164,7 @@ auto World::view() const -> View {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
             view.light_bonus = sum.size() > 89 ? int(sum[89]) : 0;
+            view.attack_lines = character.panel.attack;
         }
         view.has_character = true;
         view.header = character.header; view.stats = character.stats; view.items = character.items; view.held = held;

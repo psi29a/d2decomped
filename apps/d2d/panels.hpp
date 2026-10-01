@@ -56,6 +56,13 @@ constexpr PanelText kCharValues[] = {
     { 232, 308, 267,  9 }, { 273, 308, 308,  8 }, { 273, 348, 307, 39 },
     { 273, 372, 307, 43 }, { 273, 396, 307, 41 }, { 273, 420, 307, 45 },
 };
+// The left / right skill's attack blocks (FUN_004ed570): {x0, y, x1} at
+// 0x72d840, 6 per block: name, "Damage", its value, the attack rating
+// label, unused, its value. id is unused.
+constexpr PanelText kAttackBlock[] = {
+    { 162,  93, 258, 0 }, { 162, 101, 258, 0 }, { 263,  98, 307, 0 }, { 162, 160, 270, 0 }, { 162, 163, 270, 0 }, { 270, 160, 310, 0 },
+    { 162, 117, 258, 0 }, { 162, 125, 258, 0 }, { 263, 122, 307, 0 }, { 162, 184, 270, 0 }, { 162, 187, 270, 0 }, { 270, 184, 310, 0 },
+};
 
 // Stat point buttons, from game.exe's table at 0x724a48 (14-byte records
 // {u32 x, u32 y, u32 pressed, u16 stat}): the button's bottom-left in panel

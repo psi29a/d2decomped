@@ -238,6 +238,9 @@ struct Skill {
     int list_pos = 0;                      // SkillDesc ListPool: dup-suppression group within a row
     int icon = 0;                          // SkillDesc IconCel
     std::string str_name;                  // SkillDesc "str name"
+    std::string str_alt;                   // SkillDesc "str alt": the char panel's attack block name
+    int descdam = 0, descatt = 0;          // SkillDesc: the char panel's damage / attack rating kind
+    Calc ddam_calc1, ddam_calc2;           // SkillDesc "ddam calc1" (damage %) / "ddam calc2" (flat)
 };
 
 struct SkillTables {
@@ -356,6 +359,71 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
     if (lvl < 1) return 0;
     if (!skill.tohit_calc.empty()) return eval_calc(skill_tables, skill.tohit_calc, env, skill.id, lvl, depth + 1);
     return skill.tohit + skill.levtohit * (lvl - 1);
+}
+
+// The char panel's attack block for the left / right skill (FUN_004ed570,
+// by SkillDesc descdam / descatt). Colours are the panel's ids: 0 white,
+// 1 red, 2 green, 3 blue, 9 yellow.
+//   damage, descdam 1 / 7 (FUN_004ea010): the weapon's (FUN_004e86f0) with
+//     ddam calc1 joining its % (at least -90) and ddam calc2 flat on both;
+//     its elements (FUN_004e89a0), each colouring it (fire 1, lightning 9,
+//     cold / magic 3, poison 2 last), then min >= 1, max >= min + 1; plus
+//     the skill's own MinDam / EMin (with mastery) >> 8.
+//   damage, descdam 5 (FUN_004ead60): the skill's own, coloured by its
+//     EType, poison x its length; SrcDam / 128 of the weapon's on top.
+//   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
+//     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
+//     adds the weapon mastery (342) to the %. No floor at 1.
+// ponytail: descdam 2..4, 6, 8..24 and descatt 3 / 4 (kicks, throws,
+// dual wield: the second value, FUN_004e93a0) show no line; the states'
+// red / blue (FUN_0063a380..) and stat 325, the usability check
+// (FUN_004d9fc0) and barehanded strength % (FUN_004e86f0) are left out.
+struct AttackLine {
+    int skill = -1;
+    bool damage = false;
+    int min = 0, max = 0, damage_colour = 0;
+    int attack_rating = 0, ar_colour = 0;
+};
+inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
+                              const Fighter& fighter, int mastery_tohit) {
+    AttackLine line;
+    line.skill = skill.id;
+    constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
+    const auto calc_of = [&](const Calc& calc) { return calc.empty() ? 0 : eval_calc(skill_tables, calc, env, skill.id, lvl); };
+    const auto weapon = [&](int pct, int flat) {
+        const int total = std::max(fighter.phys_pct + pct, -90);
+        line.min = int((std::int64_t(fighter.phys_lo) * (100 + total) / 100) >> 8) + flat;
+        line.max = int((std::int64_t(fighter.phys_hi) * (100 + total) / 100) >> 8) + flat;
+        for (std::size_t k : { 0u, 1u, 2u, 4u, 3u }) {
+            const auto& [lo, hi] = fighter.elem[k];
+            line.min += std::min(lo, hi); line.max += hi;
+            if (lo != 0 || hi != 0) line.damage_colour = kElemColour[k];
+        }
+        if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
+    };
+    const int poison_len = skill.etype == 3 ? std::max(elem_length(skill_tables, skill, env, lvl), 1) : 1;
+    if (skill.descdam == 1 || skill.descdam == 7) {
+        line.damage = true;
+        weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+    } else if (skill.descdam == 5) {
+        line.damage = true;
+        if (skill.srcdam_raw != 0) {
+            weapon(0, 0);
+            line.min = line.min * skill.srcdam_raw / 128; line.max = line.max * skill.srcdam_raw / 128;
+        }
+        line.damage_colour = skill.etype >= 0 && skill.etype < 5 ? kElemColour[skill.etype] : 0;
+    }
+    if (line.damage) {
+        line.min += skill_phys(skill_tables, skill, env, lvl, false) >> 8;
+        line.max += skill_phys(skill_tables, skill, env, lvl, true) >> 8;
+        line.min += elem_damage(skill_tables, skill, env, lvl, false, 0, true) * poison_len >> 8;
+        line.max += elem_damage(skill_tables, skill, env, lvl, true, 0, true) * poison_len >> 8;
+    }
+    if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
+        const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);
+        line.attack_rating = int(std::int64_t(fighter.ar_base) * pct / 100 + fighter.ar_base);
+    }
+    return line;
 }
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).

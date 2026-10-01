@@ -292,6 +292,11 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (const auto& passive : passives) if (passive.stat == 67 && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed
         player_combat.defense += int(player_combat.defense * st_sum[171] / 100);
         player_combat.defense = std::max(int(player_combat.defense + player_combat.defense * st_sum[182] / 100), 0);
+        const std::uint32_t chosen[2] = { character.header.left_skill, character.header.right_skill };
+        for (std::size_t k = 0; k < 2; ++k)
+            if (const auto* skill = game_data->skills.get(int(chosen[k])))
+                character.panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
+                                                                    player_combat, int(psum[342]));
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
