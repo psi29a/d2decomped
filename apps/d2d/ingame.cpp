@@ -55,7 +55,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    int class_idx,
                    const Scene::Appearance& gfx,
                    std::string_view name,
-                   bool hardcore,
+                   [[maybe_unused]] bool hardcore,   // game.exe draws no caption in game
                    float cam_x,
                    float cam_y,
                    int player_mode,
@@ -250,41 +250,6 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
         blit_dc6_grid(framebuffer, scene.credits_bg, scene.pal, 0, 0, scene.bg_tiles_across);
     }
-    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
-    if (speech && speech->npc >= 0) return;               // the dev overlay would cover the speech box
-    if (level.id != 1 && !level.dt1s.empty()) return;             // outside camp the top is the monster bar's
-
-    std::string cls = kClassKey[class_idx];
-    if (auto found = lookup_string(scene, kClassKey[class_idx])) cls = u16_to_latin1(*found);
-
-    constexpr const char* welcome = "WELCOME TO SANCTUARY";
-    const int welcome_width = scene.font.measure(welcome);
-    // Dev HUD at the top edge, clear of the player at screen centre.
-    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - welcome_width/2, 8,
-                       welcome, 255, 208, 80);
-
-    // On hardcore, D2 marks the caption with a red " (HC)" suffix — we
-    // fudge that with a red tint on the trailing tag.
-    const std::string line = name.empty() ? cls : std::string(name) + " the " + cls;
-    const int line_width = scene.font.measure(line);
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - line_width/2, 28, line);
-    if (hardcore) {
-        constexpr const char* tag = " (HARDCORE)";
-        const int tag_width = scene.font.measure(tag);
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - line_width/2 + line_width, 28,
-                           tag, 220, 60, 60);
-        (void)tag_width;
-    }
-
-    if (inventory || char_stats || stash || belt_popup) return;   // the hint would run under a panel
-    constexpr const char* hint =
-        "d2d dev build — click to walk around the Rogue camp";
-    const int hint_width = scene.font.measure(hint);
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - hint_width/2, int(kScreenHeight) - 140, hint);   // above the HUD bar
-    constexpr const char* esc = "press Esc to return to title";
-    const int esc_width = scene.font.measure(esc);
-    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - esc_width/2, int(kScreenHeight) - 120,
-                       esc, 200, 200, 200);
 }
 
 }  // namespace d2d::client
