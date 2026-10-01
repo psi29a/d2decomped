@@ -492,6 +492,16 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             skill_row.list_pos = num(skill_desc.get(found->second, "ListPool"));
             skill_row.icon = num(skill_desc.get(found->second, "IconCel"));
             skill_row.str_name = skill_desc.get(found->second, "str name");
+            skill_row.str_alt = skill_desc.get(found->second, "str alt");
+            skill_row.descdam = num(skill_desc.get(found->second, "descdam"));
+            skill_row.descatt = num(skill_desc.get(found->second, "descatt"));
+            for (const auto& [column, into] : { std::pair{ "ddam calc1", &skill_row.ddam_calc1 }, std::pair{ "ddam calc2", &skill_row.ddam_calc2 } })
+                if (const auto expression = skill_desc.get(found->second, column); !expression.empty()) {
+                    std::string err;
+                    *into = d2d::rules::compile_calc(expression, skill_tables.names, &err);
+                    ++calcs;
+                    if (!err.empty()) bad.push_back(std::string(text("skill")) + " " + column + ": " + err);
+                }
         }
     }
     d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", skill_tables.rows.size(), calcs, bad.size());

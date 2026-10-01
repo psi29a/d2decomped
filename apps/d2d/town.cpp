@@ -270,6 +270,7 @@ auto Town::publish() -> void {
         character.header = view.header; character.stats = view.stats; character.items = view.items;
         character.expansion = view.header.expansion();
         character.panel = panel_stats(*scene, character.header, character.items, character.stats);
+        character.panel.attack = view.attack_lines;
         held = view.held;
         if (view.store) {
             const auto keep = store;

@@ -168,5 +168,31 @@ int main() {
         element_tables.rows[2] = fire;
         assert(eval_calc(element_tables, fire.passive_calc[0], env, 2, 1) == elem_damage(element_tables, fire, env, 1, false, 0, true) * 6 / 256);
     }
+    // The char panel's attack block (FUN_004ed570): Bash's descdam 7 /
+    // descatt 1 over a 3-7 weapon at +30 %, fire 2-4, attack rating 100 at
+    // +20 % (5 of it the mastery).
+    {
+        Fighter fighter;
+        fighter.phys_lo = 3 << 8; fighter.phys_hi = 7 << 8; fighter.phys_pct = 30;
+        fighter.ar_base = 100; fighter.ar_pct = 20;
+        fighter.elem[0] = { 2, 4 };
+        Skill weapon_skill = skill_tables.rows[0];
+        weapon_skill.descdam = 7; weapon_skill.descatt = 1; weapon_skill.mindam = weapon_skill.maxdam = 0; weapon_skill.mindam_lev = weapon_skill.maxdam_lev = {};
+        weapon_skill.ddam_calc1 = compile("par1"); weapon_skill.ddam_calc2 = compile("5");
+        weapon_skill.tohit = 20; weapon_skill.levtohit = 5;
+        auto line = attack_line(skill_tables, weapon_skill, env, 5, fighter, 5);
+        // (3 x 256 x 180 % >> 8) + 5 + 2, (7 x 256 x 180 % >> 8) + 5 + 4; 100 x (20 - 5 + 40) %.
+        assert(line.damage && line.min == 5 + 5 + 2 && line.max == 12 + 5 + 4 && line.damage_colour == 1);
+        assert(line.attack_rating == 155);
+        weapon_skill.descatt = 2;                           // the mastery stays in
+        assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).attack_rating == 160);
+        fighter.ar_base += 5;                               // a dexterity point: 5 rating before the %
+        assert(attack_line(skill_tables, weapon_skill, env, 5, fighter, 5).attack_rating == 168);
+        Skill spell = skill_tables.rows[2];                 // Fire Bolt: descdam 5, its own damage, fire's red, no rating
+        spell.descdam = 5; spell.etype = 0;
+        line = attack_line(skill_tables, spell, env, 5, fighter, 5);
+        assert(line.damage && line.min == elem_damage(skill_tables, spell, env, 5, false, 0, true) >> 8 && line.damage_colour == 1);
+        assert(line.attack_rating == 0);
+    }
     std::puts("ok");
 }

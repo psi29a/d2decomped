@@ -161,6 +161,8 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.den_cleared).i32(view.light_bonus);
         for (std::size_t quest = 0; quest < 7; ++quest) chunk.u8(view.quest_log[quest]).u16(view.game_quests[quest]);
         chunk.i32(view.den_left);
+        for (const auto& line : view.attack_lines)
+            chunk.i32(line.skill).u8(line.damage).i32(line.min).i32(line.max).u8(line.damage_colour).i32(line.attack_rating).u8(line.ar_colour);
         chunk.u16(int(view.boost.size()));
         for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
         chunk.i32(view.gold_lost);
@@ -339,6 +341,10 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32(); 
         for (std::size_t quest = 0; quest < 7; ++quest) { view.quest_log[quest] = std::uint8_t(byte()); view.game_quests[quest] = std::uint16_t(u16()); }
         view.den_left = i32();
+        for (auto& line : view.attack_lines) {
+            line.skill = i32(); line.damage = byte() != 0; line.min = i32(); line.max = i32(); line.damage_colour = byte();
+            line.attack_rating = i32(); line.ar_colour = byte();
+        }
         view.boost.clear();
         for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
         view.gold_lost = i32();

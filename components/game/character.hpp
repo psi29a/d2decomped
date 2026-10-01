@@ -55,6 +55,7 @@ struct PanelStats {
     // (strength .. max stamina, whole points): the panel shows the sum,
     // blue when it's more, red when less (FUN_004a7d00).
     std::array<std::int64_t, 12> bonus{};
+    std::array<d2d::rules::AttackLine, 2> attack{};   // the left / right skill's block, as the server sends it
 };
 
 inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header& header,

@@ -97,6 +97,7 @@ struct View {
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
+    std::array<d2d::rules::AttackLine, 2> attack_lines{};   // the char panel's left / right skill blocks (FUN_004eda20)
     std::array<std::uint8_t, 7> quest_log{};     // Act 1's log states as the server sends them, by quest (FUN_00544190)
     std::array<std::uint16_t, 7> game_quests{};  // the game's quest flags (FUN_00544720): 13 done in this game, 15 closed at the first join
     int den_left = 0;                            // the Den's monsters left (the quest log)

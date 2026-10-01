@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -112,7 +113,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         // Glyph cells blit bottom-anchored at y, like any DC6 (font6 cells
         // are 11 tall with the baseline on row 8).
         const int text_y = panel_y + y - int(font.sheet().frame(0, 0).height) + 1;
-        static constexpr std::array<std::array<std::uint8_t, 3>, 5> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 255, 255, 255 }, { 105, 105, 255 }, { 199, 179, 119 } } };
+        static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
+                                                                              { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 100 } } };
         if (colour == 0) font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, text_y, label);
         else font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, text_y, label, kRgb[std::size_t(colour)][0], kRgb[std::size_t(colour)][1], kRgb[std::size_t(colour)][2]);
     };
@@ -150,6 +152,44 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         const auto txt = std::to_string(value);
         const bool small_font = (fixed || value_def.id == 31) && (value > 999 || f16.measure(txt) >= value_def.right - value_def.left);
         text(small_font ? font8 : f16, value_def.left, value_def.right, value_def.y, txt, colour);
+    }
+    // The left and right skill's blocks (FUN_004eda20 -> FUN_004ed570): the
+    // SkillDesc "str alt" name upper-cased (FUN_00452180) in font6; "Damage"
+    // (0xfdd) and its value, font16 unless 11/7 of its font6 width overflows
+    // the box, then font6 a pixel up (FUN_004e96e0); "%s\nAttack Rating"
+    // (0xfdf; 0xfe1 "%s\nRating" for Attack) at y-4 / y+4 and the value in
+    // font16, font8 from 1000 (FUN_004e9940). The numbers come from the
+    // server (rules::attack_line).
+    // ponytail: dual wield's two-value line (FUN_004e9870), the hover
+    // tooltips (FUN_004a7340..), the "K" formats past 9999 and other
+    // languages' y-1 aren't drawn.
+    for (std::size_t block = 0; block < 2; ++block) {
+        const auto& line = panel.attack[block];
+        const auto* skill = scene.skills.get(line.skill);
+        if (!skill) continue;
+        const auto* rec = &kAttackBlock[block * 6];
+        std::string skill_name;
+        if (auto found = lookup_string(scene, skill->str_alt)) skill_name = u16_to_latin1(*found);
+        else if (auto fallback = lookup_string(scene, std::uint16_t(0x1506))) skill_name = u16_to_latin1(*fallback);
+        for (auto& ch : skill_name) ch = char(std::toupper(static_cast<unsigned char>(ch)));
+        text(font6, rec[0].left, rec[0].right, rec[0].y, skill_name);
+        if (line.damage) {
+            if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
+            const int top = std::max(line.max, line.min + 1);
+            const auto range = std::to_string(line.min) + "-" + std::to_string(top);
+            const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
+            text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
+        }
+        if (line.attack_rating != 0) {
+            if (auto found = lookup_string(scene, std::uint16_t(line.skill == 0 ? 0xfe1 : 0xfdf))) {
+                auto label = u16_to_latin1(*found);
+                if (const auto at = label.find("%s"); at != label.npos) label.replace(at, 2, skill_name);
+                const auto newline = label.find('\n');
+                text(font6, rec[3].left, rec[3].right, rec[3].y - 4, label.substr(0, newline));
+                if (newline != label.npos) text(font6, rec[3].left, rec[3].right, rec[3].y + 4, label.substr(newline + 1));
+            }
+            text(line.attack_rating < 1000 ? f16 : font8, rec[5].left, rec[5].right, rec[5].y, std::to_string(line.attack_rating), line.ar_colour);
+        }
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
     if (auto found = lookup_string(scene, cls)) cls = u16_to_latin1(*found);

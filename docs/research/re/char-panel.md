@@ -52,6 +52,77 @@ baseline on row 8; font16 16 px, row 14), so the cell top is
 The save's active difficulty is the `difficulty[3]` byte at d2s 0xA8
 with bit 0x80 set.
 
+## Attack blocks (FUN_004eda20 -> FUN_004ed570, UI\SkillDesc.cpp)
+
+FUN_004a7d00 calls FUN_004eda20(player): the left skill (FUN_00620190 ->
+FUN_00643930, skill list +8) as block 0, the right (FUN_006201d0 ->
+FUN_00643960, +0xc) as block 6. Boxes `{x0, y, x1}` (i32) at 0x72d840,
+six per block, panel coordinates with the same y base as the values:
+
+| rec | left | right | what |
+|---|---|---|---|
+| +0 | 162, 93, 258 | 162, 117, 258 | name |
+| +1 | 162, 101, 258 | 162, 125, 258 | "Damage" (0xfdd) |
+| +2 | 263, 98, 307 | 263, 122, 307 | damage value |
+| +3 | 162, 160, 270 | 162, 184, 270 | attack rating label |
+| +4 | 162, 163, 270 | 162, 187, 270 | unused |
+| +5 | 270, 160, 310 | 270, 184, 310 | attack rating value |
+
+Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
+
+- **Name**: SkillDesc `str alt` (FUN_004e6e30: +0xe; 0x1506 "an evil
+  force" if missing), upper-cased through the table at 0x730578
+  (FUN_00452180), font6, colour 0. Always drawn.
+- **Gate**: damage needs SkillDesc `descdam` (+0x12) with a handler in
+  the table at 0x72d768; the rating needs `descatt` (+0x14) with one in
+  0x72d7f8. Both need FUN_004d9fc0 (usable) in {0, 1, 6, 8}.
+- **Damage**: "Damage" in font6 at +1, then the descdam handler draws the
+  value at +2 through FUN_004e96e0: max raised to min + 1 if not above
+  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999); font16, or
+  font6 one pixel up when 11/7 of its font6 width overflows `x1 - x0`.
+  - 1 (0x4ea170; Attack): two weapons (FUN_006235a0: barbarian /
+    assassin) -> FUN_004e99f0, else FUN_004ea010.
+  - 7 (0x4ea010; Jab, Bash ..): FUN_004e86f0 the weapon (stats 21/22,
+    23/24 two-handed, 1-2 + 1/+2 barehanded; floors 1 / 2) x (100 + 18 /
+    17 + % ) / 100 + 111 + `ddam calc2`, where % = `ddam calc1` + 25 +
+    the weapon mastery (FUN_00645830) + str x StrBonus + dex x DexBonus
+    (all strength barehanded), at least -90; FUN_004e89a0 its elements
+    (table 0x6dbee4: fire 48/49 colour 1, lightning 50/51 colour 9, cold
+    54/55 and magic 52/53 colour 3, each with its mastery, min kept <=
+    max; poison 57/58 x 59 >> 8 colour 2), then min >= 1, max >= min + 1;
+    plus the skill's MinDam (FUN_00647bc0) and EMin with mastery
+    (FUN_00644d50), both >> 8.
+  - 5 (0x4ead60; Fire Bolt, Magic Arrow ..): colour by EType
+    (FUN_004e6fb0: fire 1, lightning 9, cold / magic 3, poison 2), SrcDam
+    / 128 of the weapon's (FUN_004e9660), the skill's MinDam and EMin
+    (x ELen for poison).
+- **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
+  When either is set: `"%s\nAttack Rating"` (0xfdf; 0xfe1 `"%s\nRating"`
+  for skill 0, Attack) with the upper-cased name, font6, halves at y-4 /
+  y+4 of +3. One value (FUN_004e9940): `%d` at +5, font16, font8 from
+  1000. Two (FUN_004e9870, dual wield): font6 at y-6 / y+2 (y-7 for
+  languages 6..9).
+  - 1 / 5 (0x4e9040): FUN_00622560 `(dex - 7) x 5 + 19 + ToHitFactor`,
+    x (1 + (119 + the skill's ToHit, FUN_006449f0) %), + 325 when the
+    skill's flag is set (colour 3).
+  - 2 (0x4e9510; Attack): the same plus the weapon mastery % (FUN_00645830,
+    stat 342) — FUN_004e8ec0; 0 for weapon type 0x26. Two weapons:
+    FUN_004e93a0, both hands.
+  - 3 (0x4e9590, FUN_004e9160) throws, 4 (0x4e95c0) the other hand.
+  - Colour 3 / 1 when the states (FUN_0063a3c0 / FUN_0063a3e0, damage:
+    FUN_0063a380 / FUN_0063a3a0) say so.
+- Hover tooltips (chance to hit / be hit): FUN_004a7340, FUN_004a74a0,
+  FUN_004a7ae0, FUN_004a7180.
+
+d2d: `rules::attack_line` (components/rules/skills.hpp) computes the
+numbers on the server in `Fight::update_fighters` from the Fighter
+(`phys_lo/hi/pct`, `elem`, `ar_base/pct`), `skill_tohit`, `skill_phys`,
+`elem_damage`; they reach the client in the View
+(`View::attack_lines`, section 0) and `draw_char_panel` draws them.
+Not done: descdam 2..4, 6, 8..24, descatt 3 / 4, dual wield, the states'
+colours, stat 325, the usability gate, the K formats, barehanded strength,
+tooltips.
+
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
 Shown while stat 4 (unspent stat points) is non-zero. Table at `0x724a48`,
