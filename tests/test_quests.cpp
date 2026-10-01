@@ -112,8 +112,8 @@ int main() {
     assert(burial_done.chain() && burial_done.state == 0 && !burial_done.killed(burial_bits, true));
     // Killed far from the player: someone else's kill, no reward.
     QuestBits far_bits{};
-    BurialQuest far;
-    assert(!far.killed(far_bits, false) && qbit(far_bits, 2, 14) && !qbit(far_bits, 2, 1) && far.talk(far_bits, BurialQuest::kKashya).empty());
+    BurialQuest reach;
+    assert(!reach.killed(far_bits, false) && qbit(far_bits, 2, 14) && !qbit(far_bits, 2, 1) && reach.talk(far_bits, BurialQuest::kKashya).empty());
     assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
 
     // The Forgotten Tower: the tome read first (log 1); the Tower (log 4),

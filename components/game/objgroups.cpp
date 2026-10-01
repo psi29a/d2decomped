@@ -384,11 +384,11 @@ struct ObjectRooms {
     }
     // FUN_0054dc40: 20 random spots of the area (else the room) where
     // `type` fits, none within WarpDist of an entrance (FUN_0054db50) if `near`.
-    bool spot(int type, bool near, int& out_x, int& out_y) {
+    bool spot(int type, bool nearby, int& out_x, int& out_y) {
         const bool in_area = area.w > 0;
         auto at = bounds(in_area);
         auto by_way = [&](int x, int y) {
-            return near && std::ranges::any_of(ways, [&](const auto& w) { return (x - w.first) * (x - w.first) + (y - w.second) * (y - w.second) < warp_dist; });
+            return nearby && std::ranges::any_of(ways, [&](const auto& w) { return (x - w.first) * (x - w.first) + (y - w.second) * (y - w.second) < warp_dist; });
         };
         const bool ok = d2d::rules::room_spot(at, [&](int tx, int ty) { return (!in_area || area_id(tx, ty) == area.id) && fits(type, tx, ty); }, by_way, out_x, out_y);
         seed = at.seed;
@@ -608,11 +608,11 @@ struct ObjectRooms {
         return id == 580 && level.id == 0x19 ? 0x173 : pick;
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
-    void presets(std::size_t index, bool monsters) {
+    void presets(std::size_t room_at, bool monsters) {
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(index) || unit.type == 1 || (unit.flags & 1)) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type == 1 || (unit.flags & 1)) continue;
             if (unit.type == 2 && unit.id != 0x23d) {
                 const auto before = level.npcs.size();
                 make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
@@ -641,7 +641,7 @@ struct ObjectRooms {
         };
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(index) || unit.type != 1 || (unit.flags & 1) || unit.id < 0) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type != 1 || (unit.flags & 1) || unit.id < 0) continue;
             leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
                 const auto row = game_data.mon_bin[std::size_t(unit.id)];
@@ -667,12 +667,12 @@ struct ObjectRooms {
     }
 
     // FUN_00552560: whether the room gets groups, counting it.
-    bool open(std::size_t index, int themes) {
-        const auto flags = level.room_flags[index];
-        if ((flags & 0x30000) || (flags & 0x800000) || (index < level.road_rooms.size() && level.road_rooms[index])) return false;   // FUN_0066ba90: a plain room on a path
+    bool open(std::size_t room_at, int room_themes) {
+        const auto flags = level.room_flags[room_at];
+        if ((flags & 0x30000) || (flags & 0x800000) || (room_at < level.road_rooms.size() && level.road_rooms[room_at])) return false;   // FUN_0066ba90: a plain room on a path
         if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t f) { return !(f & 0x800000); }));
         ++counter;
-        if (themes) {                                                                              // FUN_00552400
+        if (room_themes) {                                                                              // FUN_00552400
             // ponytail: a theme's own fn (0x731e6c) never runs for act 1's
             // masks (8, 60: the pick's bit number isn't under the count, or its fn is null);
             // only its object-seed rolls are taken.
@@ -680,7 +680,7 @@ struct ObjectRooms {
             const int roll = int(rgn.next() % 100);
             int odds = counter > target / 2 ? 5 : 0;
             if (counter > target - target / 4) odds += 5;
-            if (roll < odds + 12 && std::popcount(unsigned(themes & 0x7f)) > 0) rgn(std::popcount(unsigned(themes & 0x7f)));
+            if (roll < odds + 12 && std::popcount(unsigned(room_themes & 0x7f)) > 0) rgn(std::popcount(unsigned(room_themes & 0x7f)));
         }
         return true;
     }

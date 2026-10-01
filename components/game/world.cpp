@@ -385,14 +385,14 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         // FUN_005dfa00: life / 32 .. life / 8 of what it has (Damage 100 %).
         // ponytail: its hit roll (at least 65 %) is taken as a hit; a
         // monster's life in whole points, not the game's 256ths.
-        auto near = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
+        auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
         auto blast = [&](std::int64_t life) { const auto low = std::max<std::int64_t>(life >> 5, 1); return low + rng(int(std::max(life >> 3, low + 1) - low + 1)); };
         auto& stat_values = character.stats.values;
-        if (near(player.x, player.y, 3) && stat_values[kLife] > 0) stat_values[kLife] -= blast(stat_values[kLife]);
-        if (merc && near(merc->x, merc->y, 3) && fight.merc_life > 0) fight.merc_life -= blast(fight.merc_life);
+        if (nearby(player.x, player.y, 3) && stat_values[kLife] > 0) stat_values[kLife] -= blast(stat_values[kLife]);
+        if (merc && nearby(merc->x, merc->y, 3) && fight.merc_life > 0) fight.merc_life -= int(blast(fight.merc_life));
         if (fight.mon_level == level)
             for (std::size_t k = 0; k < fight.monsters.size(); ++k)
-                if (auto& monster = fight.monsters[k]; monster.alive() && near(monster.unit.x, monster.unit.y, 3) && hurt(*game_data, monster, int(blast(monster.hit_points)), now_ms))
+                if (auto& monster = fight.monsters[k]; monster.alive() && nearby(monster.unit.x, monster.unit.y, 3) && hurt(*game_data, monster, int(blast(monster.hit_points)), now_ms))
                     fight.killed(k, now_ms);
         for (std::size_t k = 0; k < level->npcs.size(); ++k)          // the next barrels along (class 11, still NU)
             if (const auto& other = level->npcs[k]; other.object_id == 11 && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)

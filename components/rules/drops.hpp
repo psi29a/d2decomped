@@ -101,7 +101,7 @@ inline int stand_quality(const Tables& tables, const std::string& code, int ilvl
     const auto& ratio = tables.quality_ratio[std::size_t((cls ? 2 : 0) + (uber ? 1 : 0))];
     const int past = std::max(ilvl - base->second.level, 1);
     static constexpr std::array<std::pair<int, std::size_t>, 6> kOrder{ { { 7, 0 }, { 6, 2 }, { 5, 1 }, { 4, 3 }, { 3, 4 }, { 2, 5 } } };
-    for (const auto [quality, row] : kOrder) {
+    for (const auto& [quality, row] : kOrder) {
         const int odds = ratio[row].base - past / std::max(ratio[row].divisor, 1);
         if (odds < 1 || item_seed(odds) == 0) return made_quality(tables, code, quality);
     }

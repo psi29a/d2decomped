@@ -135,7 +135,7 @@ inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const s
                         const std::vector<std::uint32_t>& orients, const std::vector<std::uint32_t>& floors) {
     static constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
     static constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
-    static constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
+    [[maybe_unused]] static constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
                                          { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
     auto& room = rooms[self];
     const int w = room.width + 1, h = room.height + 1;

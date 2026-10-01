@@ -40,7 +40,7 @@ std::vector<std::pair<float, float>> walk_path(const Level& level, float x, floa
     // samples along it, so wherever follow_path's steps land on it they
     // stand clear (samples let a corner through that stopped the walk).
     auto walls_clear = [&](float from_x, float from_y, float to_x, float to_y) {
-        for (const auto [offset_x, offset_y] : { std::pair{ 0.f, 0.f }, { -0.2f, 0.f }, { 0.2f, 0.f }, { 0.f, -0.2f }, { 0.f, 0.2f } }) {
+        for (const auto& [offset_x, offset_y] : { std::pair{ 0.f, 0.f }, { -0.2f, 0.f }, { 0.2f, 0.f }, { 0.f, -0.2f }, { 0.f, 0.2f } }) {
             const float ax = (from_x + offset_x) * 5, ay = (from_y + offset_y) * 5, bx = (to_x + offset_x) * 5, by = (to_y + offset_y) * 5;
             int cx = int(std::floor(ax)), cy = int(std::floor(ay));
             const int step_x = bx > ax ? 1 : -1, step_y = by > ay ? 1 : -1;
@@ -369,12 +369,12 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const int x = subtile(unit.x), y = subtile(unit.y);
     const int best = aidist > 0 ? aidist : 35;
     const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
-    const auto near = [&](const Foe& foe) { return d2d::rules::near_distance(subtile(foe.x) - x, subtile(foe.y) - y, foe.size); };
+    const auto nearby = [&](const Foe& foe) { return d2d::rules::near_distance(subtile(foe.x) - x, subtile(foe.y) - y, foe.size); };
     const int here = area_at(level, unit.x, unit.y);
     const auto mode5 = [&](int align) {                             // FUN_005dd0b0 mode 5
         std::vector<d2d::rules::NearFoe> nears;
         for (const auto& foe : foes) {
-            auto& n = nears.emplace_back(d2d::rules::NearFoe{ near(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
+            auto& n = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
             n.blocked = need_sight && n.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
             n.waking = foe.of && foe.alive && foe.of->sighted && here >= 0 && area_at(level, foe.x, foe.y) == here;
         }
@@ -383,7 +383,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
         for (auto& foe : foes)
-            if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, near(foe) }; break; }
+            if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, nearby(foe) }; break; }
     } else if (monster.set_kind == 3) {                             // Confuse's: as a random alignment, the primary only
         const auto pick = mode5(d2d::rules::confuse_align(monster.align, monster.seed.next() & 1));
         if (pick.target >= 0) found = { &foes[std::size_t(pick.target)], pick.best };

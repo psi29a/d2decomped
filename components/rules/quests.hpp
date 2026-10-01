@@ -236,15 +236,15 @@ struct BurialQuest {
     // Blood Raven died (FUN_00590ec0). True: the player's kill for it
     // (FUN_00590c40, bits 13 and 1) — the class's act1_complete_burial
     // (event 0x22). `near`: the player's room is the killer's or next to it.
-    bool killed(QuestBits& quest_bits, bool near) {
+    bool killed(QuestBits& quest_bits, bool nearby) {
         if (!open) return false;
         state = 4;
         const bool first = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
-        if (first && near) { qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1); }
+        if (first && nearby) { qset(quest_bits, kQuest, 13); qset(quest_bits, kQuest, 1); }
         else if (first) qset(quest_bits, kQuest, 14);             // LAB_00590dd0
         log_in = 15;
         pending = false;                          // +0xa8 = 0
-        return first && near;
+        return first && nearby;
     }
 };
 

@@ -334,8 +334,8 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         std::array<int, 15> perm{};
         for (int i = 0; i < 15; ++i) perm[std::size_t(i)] = i;
         for (int i = 0; i < 15; ++i) {
-            const auto first = seed.next() % 15, second = seed.next() % 15;
-            std::swap(perm[first], perm[second]);
+            const auto swap_a = seed.next() % 15, swap_b = seed.next() % 15;
+            std::swap(perm[swap_a], perm[swap_b]);
         }
         int left = std::max(2, int(list.size()) / 5 + 1);
         for (int tries = int(list.size()) * 2; left && tries; --tries, at = (at + 1) % 15)

@@ -476,9 +476,9 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         const int count = room.seed.range(low, std::max(low, high));
         int placed = 0;
         for (int k = 0; k < count; ++k) {
-            int spot_x, spot_y;
-            if (place(room, leader_x, leader_y, 3, fits, spot_x, spot_y)) {
-                spawns.push_back({ minion, spot_x, spot_y, lead, -1, d2d::rules::Boss::minion, {}, 0, spawning.game.next() });
+            int minion_x, minion_y;
+            if (place(room, leader_x, leader_y, 3, fits, minion_x, minion_y)) {
+                spawns.push_back({ minion, minion_x, minion_y, lead, -1, d2d::rules::Boss::minion, {}, 0, spawning.game.next() });
                 ++placed;
             }
         }

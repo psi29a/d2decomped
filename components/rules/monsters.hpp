@@ -404,10 +404,10 @@ inline int unit_distance(int dx, int dy, int size_a, int size_b) {
         { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
     dx = std::abs(dx); dy = std::abs(dy);
     if (dx < 8 && dy < 8 && size_a < 4 && size_b < 4) {
-        int near = kNear[std::size_t(dy)][std::size_t(dx)];
-        if (near < 0) return 0;
-        if (size_a == 3 || size_b == 3) near = std::max(near - 1, 0);
-        return size_a < 2 || size_b < 2 ? near + 1 : near;
+        int nearby = kNear[std::size_t(dy)][std::size_t(dx)];
+        if (nearby < 0) return 0;
+        if (size_a == 3 || size_b == 3) nearby = std::max(nearby - 1, 0);
+        return size_a < 2 || size_b < 2 ? nearby + 1 : nearby;
     }
     const int half = size_a / 2 + size_b / 2, across = std::max(dx - half, 0), down = std::max(dy - half, 0);
     return down < across ? down + across * 2 : across + down * 2;
@@ -450,7 +450,7 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
 // `blocked` asks the unit's collision (FUN_0064d910).
 // tools/emu/moves.py checks it against game.exe.
 template <class Blocked>
-std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, int steps, int near, Blocked&& blocked) {
+std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, int steps, int nearby, Blocked&& blocked) {
     static constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
     static constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
         { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
@@ -486,7 +486,7 @@ std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, i
             if (major == major_end) return true;
         }
     }();
-    if (clear || unit_distance(end.first - to_x, end.second - to_y, 1, 1) <= near) return { end };
+    if (clear || unit_distance(end.first - to_x, end.second - to_y, 1, 1) <= nearby) return { end };
     std::vector<P> points;
     P at{ x, y };
     if (end != at) { points.push_back(end); at = end; }
@@ -953,9 +953,9 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         if (in.dist > 20) return around(std::max(in.dist >> 1, 12));
         *in.state += 3;
         if (in.skill[0] && !in.in_melee && *in.state2 < in.difficulty * 2 + 8 && r() < *in.state) {
-            const int far = rng(15) + 5;
-            int x = far, y = far;
-            if (rng.next() & 1) y = rng(far); else x = rng(far);
+            const int reach = rng(15) + 5;
+            int x = reach, y = reach;
+            if (rng.next() & 1) y = rng(reach); else x = rng(reach);
             if (rng.next() & 1) x = -x;
             if (rng.next() & 1) y = -y;
             ++*in.state2; *in.state = 0;

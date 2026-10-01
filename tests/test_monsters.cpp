@@ -232,7 +232,7 @@ int main() {
         // walls (all from the start); then target, distance, stop, mover,
         // moved x / y, idx, count, at its end, budget, result, budget after.
         {
-            struct Path { int to_x, to_y, steps, near; std::vector<std::pair<int, int>> points, walls; };
+            struct Path { int to_x, to_y, steps, nearby; std::vector<std::pair<int, int>> points, walls; };
             const std::vector<Path> paths{
                 { 4, -1, 5, 1, { {1, -1}, {2, -1}, {3, -2} }, { {1, 0}, {3, -1}, {3, 0} } },
                 { 11, -11, 5, 1, { {4, -4}, {4, -4}, {5, -4}, {8, -7} }, { {5, -5}, {9, -8}, {9, -7} } },
@@ -244,7 +244,7 @@ int main() {
                 { 6, 2, 5, 1, { {6, 2} }, {} },
             };
             for (const auto& c : paths)
-                assert(toward_path(0, 0, c.to_x, c.to_y, c.steps, c.near, [&](int x, int y) {
+                assert(toward_path(0, 0, c.to_x, c.to_y, c.steps, c.nearby, [&](int x, int y) {
                     return std::ranges::contains(c.walls, std::pair(x, y)); }) == c.points);
             const std::vector<std::array<int, 12>> chases{ {
                 { 0, 0, 1, 0, 0, 0, 4, 5, 1, 20, 1, 20 }, { 1, 25, 1, 1, -7, 7, 0, 5, 1, 1, 2, 1 }, { 1, 6, 0, 1, 1, 3, 0, 2, 1, 0, 1, 0 },
@@ -282,16 +282,16 @@ int main() {
         const std::array<int, 8> aip{ 30, 10, 30, 50 };
         for (const bool in_melee : { true, false })
             for (std::uint32_t seed = 1; seed < 50; ++seed) {
-                Rng rng{ seed }, mirror{ seed };
-                const auto act = andariel_think(in_melee, aip, rng);
+                Rng roll{ seed }, mirror{ seed };
+                const auto act = andariel_think(in_melee, aip, roll);
                 AndarielAct want = AndarielAct::walk;
                 if (in_melee) want = mirror(100) < 30 ? AndarielAct::spray : AndarielAct::melee;
                 else if (mirror(100) < 10) want = AndarielAct::idle;
                 else if (mirror(100) < 30) want = mirror(100) < 50 ? AndarielAct::spray : AndarielAct::bolt;
-                assert(act == want && rng.low == mirror.low);
+                assert(act == want && roll.low == mirror.low);
             }
-        Rng rng{ 3 };
-        assert(andariel_think(false, { 0, 0, 100, 0 }, rng) == AndarielAct::bolt && andariel_think(true, { 100 }, rng) == AndarielAct::spray);
+        Rng roll{ 3 };
+        assert(andariel_think(false, { 0, 0, 100, 0 }, roll) == AndarielAct::bolt && andariel_think(true, { 100 }, roll) == AndarielAct::spray);
         // Facing +x+y: frame 4 aims 3 across the ring point, 8 at it, 12 3 the other way.
         assert(andariel_spray_aim(0, 4) == std::pair(0, 6) && andariel_spray_aim(0, 8) == std::pair(3, 3) && andariel_spray_aim(0, 12) == std::pair(6, 0));
         assert(andariel_spray_aim(56, 8) == std::pair(3, 0) && andariel_spray_aim(0, 0) == andariel_spray_aim(0, 4));
@@ -306,176 +306,176 @@ int main() {
         for (std::uint32_t seed = 1; seed < 50; ++seed) {           // Skeleton: aip1 % walk, in melee aip3 % (aip4 % A1) else stand aip2
             for (const bool in_melee : { false, true }) {
                 in.in_melee = in_melee;
-                Rng rng{ seed }, mirror{ seed };
-                const auto act = mon_think("Skeleton", in, rng, no_away);
+                Rng roll{ seed }, mirror{ seed };
+                const auto act = mon_think("Skeleton", in, roll, no_away);
                 MonAct want = MonAct::idle;
                 if (!in_melee) { if (mirror(100) < 60) want = MonAct::walk; }
                 else if (mirror(100) < 75) want = mirror(100) < 75 ? MonAct::a1 : MonAct::a2;
-                assert(act.act == want && rng.low == mirror.low && (want != MonAct::idle || act.n == 15));
+                assert(act.act == want && roll.low == mirror.low && (want != MonAct::idle || act.n == 15));
             }
         }
         in = { .aip = { 30, 10, 0, 20 }, .dist = 12, .state = &state };   // Zombie: out of aip2, wanders 3 (4 steps), in the Burial Grounds runs
-        Rng rng{ 5 };
-        const auto wander = mon_think("Zombie", in, rng, no_away);
-        assert(wander.act == MonAct::wander && steps(5, rng) == 4 && std::abs(wander.x) <= 3 && std::abs(wander.y) <= 3 && (std::abs(wander.x) == 3 || std::abs(wander.y) == 3));
-        in.level = 17; rng = Rng{ 5 };
-        assert(mon_think("Zombie", in, rng, no_away).act == MonAct::run && steps(5, rng) == 0);
-        in.level = 2; in.got_hit = true; rng = Rng{ 5 };
-        assert(mon_think("Zombie", in, rng, no_away).act == MonAct::run && steps(5, rng) == 0);
+        Rng roll{ 5 };
+        const auto wander = mon_think("Zombie", in, roll, no_away);
+        assert(wander.act == MonAct::wander && steps(5, roll) == 4 && std::abs(wander.x) <= 3 && std::abs(wander.y) <= 3 && (std::abs(wander.x) == 3 || std::abs(wander.y) == 3));
+        in.level = 17; roll = Rng{ 5 };
+        assert(mon_think("Zombie", in, roll, no_away).act == MonAct::run && steps(5, roll) == 0);
+        in.level = 2; in.got_hit = true; roll = Rng{ 5 };
+        assert(mon_think("Zombie", in, roll, no_away).act == MonAct::run && steps(5, roll) == 0);
         // QuillRat: past aip2's roll it backs off aip4; blocked and close, spikes.
         in = { .aip = { 10, 0, 0, 2 }, .dist = 3, .state = &state };
-        rng = Rng{ 9 };
-        assert(mon_think("QuillRat", in, rng, ok_away).act == MonAct::none && steps(9, rng) == 1);
-        rng = Rng{ 9 };
-        assert(mon_think("QuillRat", in, rng, no_away).act == MonAct::a2 && steps(9, rng) == 1);
-        in.dist = 10; rng = Rng{ 9 };
-        assert(mon_think("QuillRat", in, rng, no_away).act == MonAct::wander && steps(9, rng) == 4);
+        roll = Rng{ 9 };
+        assert(mon_think("QuillRat", in, roll, ok_away).act == MonAct::none && steps(9, roll) == 1);
+        roll = Rng{ 9 };
+        assert(mon_think("QuillRat", in, roll, no_away).act == MonAct::a2 && steps(9, roll) == 1);
+        in.dist = 10; roll = Rng{ 9 };
+        assert(mon_think("QuillRat", in, roll, no_away).act == MonAct::wander && steps(9, roll) == 4);
         // CorruptArcher: close, a blocked run-off falls through to the shot rolls.
         in = { .aip = { 60, 100, 14, 100, 20, 0, 0, 12 }, .dist = 4, .state = &state };
-        rng = Rng{ 3 };
-        assert(mon_think("CorruptArcher", in, rng, no_away).act == MonAct::a1 && steps(3, rng) == 2);
-        in.dist = 15; rng = Rng{ 3 };
-        const auto closer = mon_think("CorruptArcher", in, rng, no_away);
-        assert(closer.act == MonAct::approach && closer.n == 12 && steps(3, rng) == 1);
-        in.dist = 30; in.aip[0] = 0; rng = Rng{ 3 };
-        assert(mon_think("CorruptArcher", in, rng, no_away).act == MonAct::run && steps(3, rng) == 1);
+        roll = Rng{ 3 };
+        assert(mon_think("CorruptArcher", in, roll, no_away).act == MonAct::a1 && steps(3, roll) == 2);
+        in.dist = 15; roll = Rng{ 3 };
+        const auto closer = mon_think("CorruptArcher", in, roll, no_away);
+        assert(closer.act == MonAct::approach && closer.n == 12 && steps(3, roll) == 1);
+        in.dist = 30; in.aip[0] = 0; roll = Rng{ 3 };
+        assert(mon_think("CorruptArcher", in, roll, no_away).act == MonAct::run && steps(3, roll) == 1);
         // CorruptLancer: a run in past aip5 strikes on arrival without the aip2 roll.
         in = { .aip = { 60, 0, 9, 0, 15 }, .dist = 20, .state = &state };
-        rng = Rng{ 4 };
-        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::run && state == 1 && steps(4, rng) == 0);
-        in.dist = 1; in.in_melee = true; rng = Rng{ 4 };
-        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::a1 && state == 0 && steps(4, rng) == 0);
-        rng = Rng{ 4 };
-        assert(mon_think("CorruptLancer", in, rng, no_away).act == MonAct::idle && steps(4, rng) == 1);
+        roll = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, roll, no_away).act == MonAct::run && state == 1 && steps(4, roll) == 0);
+        in.dist = 1; in.in_melee = true; roll = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, roll, no_away).act == MonAct::a1 && state == 0 && steps(4, roll) == 0);
+        roll = Rng{ 4 };
+        assert(mon_think("CorruptLancer", in, roll, no_away).act == MonAct::idle && steps(4, roll) == 1);
         // CorruptRogue runs in past 20 - 3 x difficulty; Brute's circle is a seed step more.
         in = { .aip = { 60, 15, 75, 100, 20 }, .dist = 15, .difficulty = 2, .state = &state };
-        rng = Rng{ 6 };
-        assert(mon_think("CorruptRogue", in, rng, no_away).act == MonAct::run && steps(6, rng) == 0);
+        roll = Rng{ 6 };
+        assert(mon_think("CorruptRogue", in, roll, no_away).act == MonAct::run && steps(6, roll) == 0);
         in = { .aip = { 0, 0, 100, 45 }, .in_melee = true, .state = &state };
-        in.aip[2] = 0; rng = Rng{ 6 };
-        assert(mon_think("Brute", in, rng, no_away).act == MonAct::idle && steps(6, rng) == 2);
-        in.aip[2] = 100; rng = Rng{ 6 };
-        assert(mon_think("Brute", in, rng, no_away).act != MonAct::circle && steps(6, rng) == 2);
-        assert(!traced_ai("Imp") && mon_think("Imp", in, rng, no_away).act == MonAct::untraced);
+        in.aip[2] = 0; roll = Rng{ 6 };
+        assert(mon_think("Brute", in, roll, no_away).act == MonAct::idle && steps(6, roll) == 2);
+        in.aip[2] = 100; roll = Rng{ 6 };
+        assert(mon_think("Brute", in, roll, no_away).act != MonAct::circle && steps(6, roll) == 2);
+        assert(!traced_ai("Imp") && mon_think("Imp", in, roll, no_away).act == MonAct::untraced);
         // Fallen: a scare backs off (and a scream roll) or falls through;
         // charging walks in without a draw; a leader taunts, rallying.
         int command = 1;
         bool rally = false;
         in = { .aip = { 100, 10, 0, 20 }, .dist = 12, .state = &state, .dying = true, .command = &command, .rally = &rally };
-        state = 0; rng = Rng{ 8 };
-        assert(mon_think("Fallen", in, rng, ok_away).act == MonAct::none && state == 1 && command == 0 && steps(8, rng) == 1);
-        command = 1; in.aip[1] = 15; rng = Rng{ 8 };                     // blocked: on as uncommanded, within aip2
-        const auto fell_through = mon_think("Fallen", in, rng, no_away);
-        assert(fell_through.act == MonAct::walk && fell_through.n == 7 && command == 0 && steps(8, rng) == 0);
-        in.dying = false; command = 1; rng = Rng{ 8 };
-        const auto charge = mon_think("Fallen", in, rng, no_away);
-        assert(charge.act == MonAct::walk && charge.n == 0 && steps(8, rng) == 0);
-        in.in_melee = true; rng = Rng{ 8 };
-        assert(mon_think("Fallen", in, rng, no_away).act == MonAct::idle && steps(8, rng) == 1);
-        command = 0; in.leader = true; in.in_melee = false; rng = Rng{ 8 };
-        assert(mon_think("Fallen", in, rng, no_away).act == MonAct::s2 && rally && steps(8, rng) == 1);
-        in.leader = false; in.in_melee = true; state = 1; rng = Rng{ 8 };   // scared: swings without the aip3 roll
-        const auto swing = mon_think("Fallen", in, rng, no_away);
-        assert((swing.act == MonAct::a1 || swing.act == MonAct::a2) && state == 0 && steps(8, rng) == 1);
+        state = 0; roll = Rng{ 8 };
+        assert(mon_think("Fallen", in, roll, ok_away).act == MonAct::none && state == 1 && command == 0 && steps(8, roll) == 1);
+        command = 1; in.aip[1] = 15; roll = Rng{ 8 };                     // blocked: on as uncommanded, within aip2
+        const auto fell_through = mon_think("Fallen", in, roll, no_away);
+        assert(fell_through.act == MonAct::walk && fell_through.n == 7 && command == 0 && steps(8, roll) == 0);
+        in.dying = false; command = 1; roll = Rng{ 8 };
+        const auto charge = mon_think("Fallen", in, roll, no_away);
+        assert(charge.act == MonAct::walk && charge.n == 0 && steps(8, roll) == 0);
+        in.in_melee = true; roll = Rng{ 8 };
+        assert(mon_think("Fallen", in, roll, no_away).act == MonAct::idle && steps(8, roll) == 1);
+        command = 0; in.leader = true; in.in_melee = false; roll = Rng{ 8 };
+        assert(mon_think("Fallen", in, roll, no_away).act == MonAct::s2 && rally && steps(8, roll) == 1);
+        in.leader = false; in.in_melee = true; state = 1; roll = Rng{ 8 };   // scared: swings without the aip3 roll
+        const auto swing = mon_think("Fallen", in, roll, no_away);
+        assert((swing.act == MonAct::a1 || swing.act == MonAct::a2) && state == 0 && steps(8, roll) == 1);
         // FallenShaman: the rally roll, then a corpse raised, else two fire
         // rolls within aip5, then circle or stand.
         rally = false;
         in = { .aip = { 100, 0, 0, 24, 15 }, .dist = 5, .skill = { true, true }, .state = &state, .corpse = true, .command = &command, .rally = &rally };
-        rng = Rng{ 2 };
-        const auto raise = mon_think("FallenShaman", in, rng, no_away);
-        assert(raise.act == MonAct::skill && raise.n == 0 && rally && steps(2, rng) == 2);
-        in.corpse = false; rng = Rng{ 2 };
-        assert(mon_think("FallenShaman", in, rng, no_away).act == MonAct::idle && steps(2, rng) == 4);
-        in.dist = 15; in.aip[2] = 100; rng = Rng{ 2 };
-        assert(mon_think("FallenShaman", in, rng, no_away).act == MonAct::circle && steps(2, rng) == 3);
-        in.aip[1] = 100; in.dist = 14; rng = Rng{ 2 };
-        const auto fire = mon_think("FallenShaman", in, rng, no_away);
-        assert(fire.act == MonAct::skill && fire.n == 1 && steps(2, rng) == 2);
+        roll = Rng{ 2 };
+        const auto raise = mon_think("FallenShaman", in, roll, no_away);
+        assert(raise.act == MonAct::skill && raise.n == 0 && rally && steps(2, roll) == 2);
+        in.corpse = false; roll = Rng{ 2 };
+        assert(mon_think("FallenShaman", in, roll, no_away).act == MonAct::idle && steps(2, roll) == 4);
+        in.dist = 15; in.aip[2] = 100; roll = Rng{ 2 };
+        assert(mon_think("FallenShaman", in, roll, no_away).act == MonAct::circle && steps(2, roll) == 3);
+        in.aip[1] = 100; in.dist = 14; roll = Rng{ 2 };
+        const auto fire = mon_think("FallenShaman", in, roll, no_away);
+        assert(fire.act == MonAct::skill && fire.n == 1 && steps(2, roll) == 2);
         // FoulCrowNest: lays every aip1 frames (no draw), else stands 20..29
         // on a seed step; blocked, the clock restarts all the same; done
         // laying aip3, it collapses.
         int laid = 0;
         state = 0;
         in = { .aip = { 100, 0, 2 }, .dist = 10, .skill = { true }, .state = &state, .frame = 150, .state2 = &laid };
-        rng = Rng{ 4 };
-        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::skill && state == 150 && laid == 1 && steps(4, rng) == 0);
-        in.frame = 200; rng = Rng{ 4 };
+        roll = Rng{ 4 };
+        assert(mon_think("FoulCrowNest", in, roll, no_away).act == MonAct::skill && state == 150 && laid == 1 && steps(4, roll) == 0);
+        in.frame = 200; roll = Rng{ 4 };
         Rng expect{ 4 };
-        const auto wait = mon_think("FoulCrowNest", in, rng, no_away);
-        assert(wait.act == MonAct::idle && wait.n == int(expect.next() % 10) + 20 && steps(4, rng) == 1);
-        in.frame = 250; in.spot_free = false; rng = Rng{ 4 };
-        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::idle && state == 250 && laid == 1);
+        const auto wait = mon_think("FoulCrowNest", in, roll, no_away);
+        assert(wait.act == MonAct::idle && wait.n == int(expect.next() % 10) + 20 && steps(4, roll) == 1);
+        in.frame = 250; in.spot_free = false; roll = Rng{ 4 };
+        assert(mon_think("FoulCrowNest", in, roll, no_away).act == MonAct::idle && state == 250 && laid == 1);
         laid = 2;
-        assert(mon_think("FoulCrowNest", in, rng, no_away).act == MonAct::die);
+        assert(mon_think("FoulCrowNest", in, roll, no_away).act == MonAct::die);
         in.dist = 21;
-        assert(mon_think("FoulCrowNest", in, rng, no_away).n == 25);
+        assert(mon_think("FoulCrowNest", in, roll, no_away).n == 25);
         // BloodRaven: past 45 stands 5; far from home she heads back (the
         // flag holds until within 5); past 20 closes in (4 steps); a raise
         // is rand(100) + rand(15) + three bits (6 steps), 5..19 off.
         int back = 0, raised = 0;
         state = 0;
         in = { .dist = 46, .skill = { true, true }, .state = &state, .command = &back, .state2 = &raised };
-        rng = Rng{ 5 };
-        assert(mon_think("BloodRaven", in, rng, no_away).n == 5 && steps(5, rng) == 0);
+        roll = Rng{ 5 };
+        assert(mon_think("BloodRaven", in, roll, no_away).n == 5 && steps(5, roll) == 0);
         in.dist = 10; in.home_dist = 50;
-        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::home && back == 1);
+        assert(mon_think("BloodRaven", in, roll, no_away).act == MonAct::home && back == 1);
         in.home_dist = 6;
-        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::home && steps(5, rng) == 0);
+        assert(mon_think("BloodRaven", in, roll, no_away).act == MonAct::home && steps(5, roll) == 0);
         in.dist = 30; in.home_dist = 5;
-        const auto br_close = mon_think("BloodRaven", in, rng, no_away);
-        assert(back == 0 && br_close.act == MonAct::around && br_close.n == 15 && steps(5, rng) == 4 && state == 0);
-        in.dist = 10; state = 97; rng = Rng{ 5 };
-        const auto br_raise = mon_think("BloodRaven", in, rng, no_away);
-        const int far = std::max(std::abs(br_raise.x), std::abs(br_raise.y));
-        assert(br_raise.act == MonAct::skill && br_raise.n == 0 && far >= 5 && far < 20 && raised == 1 && state == 0 && steps(5, rng) == 6);
-        in.in_melee = true; in.dist = 3; rng = Rng{ 5 };                  // in melee no raise; 30 % backs off, else A1
-        assert(mon_think("BloodRaven", in, rng, no_away).act == MonAct::a1 && steps(5, rng) == 1 && state == 3);
-        in.in_melee = false; in.got_hit = true; in.dist = 10; raised = 8; rng = Rng{ 5 };   // raised enough; hit: no strike
+        const auto br_close = mon_think("BloodRaven", in, roll, no_away);
+        assert(back == 0 && br_close.act == MonAct::around && br_close.n == 15 && steps(5, roll) == 4 && state == 0);
+        in.dist = 10; state = 97; roll = Rng{ 5 };
+        const auto br_raise = mon_think("BloodRaven", in, roll, no_away);
+        const int reach = std::max(std::abs(br_raise.x), std::abs(br_raise.y));
+        assert(br_raise.act == MonAct::skill && br_raise.n == 0 && reach >= 5 && reach < 20 && raised == 1 && state == 0 && steps(5, roll) == 6);
+        in.in_melee = true; in.dist = 3; roll = Rng{ 5 };                  // in melee no raise; 30 % backs off, else A1
+        assert(mon_think("BloodRaven", in, roll, no_away).act == MonAct::a1 && steps(5, roll) == 1 && state == 3);
+        in.in_melee = false; in.got_hit = true; in.dist = 10; raised = 8; roll = Rng{ 5 };   // raised enough; hit: no strike
         expect = Rng{ 5 };
         const bool about = expect(100) < 5;
-        const auto hit = mon_think("BloodRaven", in, rng, no_away);
-        assert(hit.act == (about ? MonAct::around : MonAct::circle) && steps(5, rng) == (about ? 5 : 2));
+        const auto hit = mon_think("BloodRaven", in, roll, no_away);
+        assert(hit.act == (about ? MonAct::around : MonAct::circle) && steps(5, roll) == (about ? 5 : 2));
         // SkeletonMage (aip 35 9 30 5 0 18 20 5, skmage_*1): within 18 aip1 %
         // shoots (aip5 0: the back-off draws but never goes); else circles 4
         // (one more step) or stands 5; past 9 the close-in is rolled twice.
         in = { .aip = { 100, 9, 30, 5, 0, 18, 20, 5 }, .dist = 4, .state = &state };
-        rng = Rng{ 6 };
-        assert(mon_think("SkeletonMage", in, rng, no_away).act == MonAct::a1 && steps(6, rng) == 2);
-        in.dist = 30; in.aip[2] = 100; rng = Rng{ 6 };
-        const auto mage_in = mon_think("SkeletonMage", in, rng, no_away);
-        assert(mage_in.act == MonAct::approach && mage_in.n == 9 && steps(6, rng) == 1);
-        in.dist = 20; in.aip[2] = 0; in.aip[6] = 100; rng = Rng{ 6 };
-        assert(mon_think("SkeletonMage", in, rng, no_away).act == MonAct::circle && steps(6, rng) == 4);
+        roll = Rng{ 6 };
+        assert(mon_think("SkeletonMage", in, roll, no_away).act == MonAct::a1 && steps(6, roll) == 2);
+        in.dist = 30; in.aip[2] = 100; roll = Rng{ 6 };
+        const auto mage_in = mon_think("SkeletonMage", in, roll, no_away);
+        assert(mage_in.act == MonAct::approach && mage_in.n == 9 && steps(6, roll) == 1);
+        in.dist = 20; in.aip[2] = 0; in.aip[6] = 100; roll = Rng{ 6 };
+        assert(mon_think("SkeletonMage", in, roll, no_away).act == MonAct::circle && steps(6, roll) == 4);
         // GargoyleTrap (aip 24 20 12 15): a shot's aip3 waits first; within
         // 5 of an axis and aip1 it rolls aip2 %; else stands aip4, no draw.
         state = 7;
         in = { .aip = { 24, 100, 12, 15 }, .dist = 10, .skill = { true }, .state = &state, .off_x = 3, .off_y = 9 };
-        rng = Rng{ 7 };
-        const auto trap_wait = mon_think("GargoyleTrap", in, rng, no_away);
-        assert(trap_wait.act == MonAct::idle && trap_wait.n == 7 && state == 0 && steps(7, rng) == 0);
-        assert(mon_think("GargoyleTrap", in, rng, no_away).act == MonAct::skill && state == 12 && steps(7, rng) == 1);
-        state = 0; in.off_x = 6; rng = Rng{ 7 };
-        const auto trap_off = mon_think("GargoyleTrap", in, rng, no_away);
-        assert(trap_off.act == MonAct::idle && trap_off.n == 15 && steps(7, rng) == 0);
+        roll = Rng{ 7 };
+        const auto trap_wait = mon_think("GargoyleTrap", in, roll, no_away);
+        assert(trap_wait.act == MonAct::idle && trap_wait.n == 7 && state == 0 && steps(7, roll) == 0);
+        assert(mon_think("GargoyleTrap", in, roll, no_away).act == MonAct::skill && state == 12 && steps(7, roll) == 1);
+        state = 0; in.off_x = 6; roll = Rng{ 7 };
+        const auto trap_off = mon_think("GargoyleTrap", in, roll, no_away);
+        assert(trap_off.act == MonAct::idle && trap_off.n == 15 && steps(7, roll) == 0);
         // The Countess (FUN_005e5c50): away from home's room she walks back;
         // a target elsewhere gets the firewall from home only; the map AI
         // points in turn, then rand(100); 700 frames on they start over.
         const std::pair<int, int> path[] = { { 1, 2 }, { 3, 4 } };
         int fired = 0, when = 0;
         in = { .aip = { 0, 5, 100 }, .in_melee = true, .dist = 30, .state = &fired, .frame = 10, .state2 = &when };
-        rng = Rng{ 8 };
-        assert(countess_think(in, { .away = true }, path, rng).act == MonAct::home);
-        assert(countess_think(in, { .target_away = true }, path, rng).act == MonAct::home);
-        assert(countess_think(in, { .target_away = true, .at_home = true }, path, rng).n == 10 && steps(8, rng) == 0);
+        roll = Rng{ 8 };
+        assert(countess_think(in, { .away = true }, path, roll).act == MonAct::home);
+        assert(countess_think(in, { .target_away = true }, path, roll).act == MonAct::home);
+        assert(countess_think(in, { .target_away = true, .at_home = true }, path, roll).n == 10 && steps(8, roll) == 0);
         in.dist = 5;
-        const auto first = countess_think(in, {}, path, rng), second = countess_think(in, {}, path, rng);
-        assert(first.act == MonAct::point && first.x == 1 && second.y == 4 && fired == 2 && when == 10 && steps(8, rng) == 0);
-        assert(countess_think(in, {}, path, rng).act == MonAct::a1 && steps(8, rng) == 1);
+        const auto think_a = countess_think(in, {}, path, roll), think_b = countess_think(in, {}, path, roll);
+        assert(think_a.act == MonAct::point && think_a.x == 1 && think_b.y == 4 && fired == 2 && when == 10 && steps(8, roll) == 0);
+        assert(countess_think(in, {}, path, roll).act == MonAct::a1 && steps(8, roll) == 1);
         in.frame = 711;
-        assert(countess_think(in, {}, path, rng).act == MonAct::a1 && fired == 0);
-        assert(countess_think(in, {}, path, rng).act == MonAct::point);
+        assert(countess_think(in, {}, path, roll).act == MonAct::a1 && fired == 0);
+        assert(countess_think(in, {}, path, roll).act == MonAct::point);
         in.home_dist = 41;
-        assert(countess_think(in, {}, path, rng).act == MonAct::home);
+        assert(countess_think(in, {}, path, roll).act == MonAct::home);
         assert(d2d::rules::monster_skill_level(10, 2) == 17);
     }
     std::puts("ok");
