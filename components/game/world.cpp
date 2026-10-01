@@ -1578,13 +1578,15 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
         // A monster that opens doors (MonStats opendoors) whose way is shut by
-        // a door (FUN_005b0f50, each think: its path's next collision has
-        // 0x800) operates it as the player would (FUN_00584540 → OperateFn 8)
-        // and stands 5 frames; before the think it would have had.
+        // a door (FUN_005b0f50, each think: the collision word under it has
+        // 0x800, FUN_00648eb0; the nearest closed IsDoor object under 9
+        // subtiles squared, FUN_005dd0b0 mode 8; its MonsterOK) operates it
+        // as the player would (FUN_00584540 → OperateFn 8) and stands 5
+        // frames; before the think it would have had (monster-ai.md, Doors).
         // ponytail: "in its way" read as standing or walking (NU / WL: a
         // chase pressed on the door walks in place) while aware, within a
-        // cell of a closed door's footprint; game.exe's path collision test
-        // (FUN_00648eb0) and door search (FUN_005dd0b0) aren't ported.
+        // cell of a closed door's footprint, MonsterOK unread; the collision
+        // word and door search aren't ported.
         if (fight.mon_level == level)
             for (auto& monster : fight.monsters) {
                 if (!monster.alive() || !monster.aware || (monster.mode != "NU" && monster.mode != "WL") || now_ms < monster.next_act
