@@ -540,7 +540,7 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         if (!std::ranges::contains(moved, which)) moved.push_back(which);
     };
     auto lay = [&] {
-        for (const Level* which : moved) relevel(const_cast<Level&>(*which), spawning.levels[which].order);   // GameData owns its levels mutable
+        for (const Level* which : moved) relevel(const_cast<Level&>(*which), spawning.levels[which].order, &game_data, &spawning);   // GameData owns its levels mutable
         moved.clear();
     };
     if (arrived) {                                       // FUN_0056cf40: the room the player lands in, at once
@@ -579,7 +579,7 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
     for (const auto room : up) if (!std::ranges::contains(state.order, room)) state.order.push_back(room);
     for (std::size_t i = room_count(level); i-- > 0;)    // the rest in list order, oldest first
         if (!std::ranges::contains(state.order, i)) state.order.push_back(i);
-    relevel(const_cast<Level&>(level), state.order);     // GameData owns its levels mutable
+    relevel(const_cast<Level&>(level), state.order, &game_data, &spawning);     // GameData owns its levels mutable
     std::vector<std::pair<std::size_t, std::size_t>> order;
     for (auto it = state.order.rbegin(); it != state.order.rend(); ++it) order.push_back({ *it, 0 });   // FUN_0052d160: the list, newest first
     for (auto& [room, first] : order) {
@@ -784,6 +784,42 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
 
 namespace {
 
+// The camp's rooms up (Spawning order) as the level next door finds them:
+// game.exe's near list takes the rooms up in the levels next door too
+// (FUN_0066c370 → FUN_0066be80), so a Blood Moor room on the camp's edge
+// shares the camp's edge tiles (FUN_0066e940) and rolls fewer picks on its
+// seed. Laid on the camp's preset (LvlPrest def 1, its file by the Blood
+// Moor's side) in the order they came up, in `level`'s tiles, list order.
+// ponytail: no DT1s or tile seeds, so no picks: which tiles the level
+// finds is all its seeds and picks take; a cell it finds draws a stand-in
+// (lay_tiles). The camp's tiles don't take the level's shares back.
+std::vector<d2d::drlg::BuiltRoom> camp_rooms(const GameData& game_data, const Spawning& spawning, const Level& level) {
+    const auto& town = game_data.town;
+    const auto next_door = std::ranges::find(level.nearby, &town, &Level::Near::level);
+    const auto state = spawning.levels.find(&town);
+    if (!level.assets || next_door == level.nearby.end() || state == spawning.levels.end() || state->second.order.empty()) return {};
+    const auto rects = room_rects(town);
+    std::vector<std::size_t> up;                         // room indices, as they came up
+    for (const auto room : state->second.order) if (room < rects.size() && !std::ranges::contains(up, room)) up.push_back(room);
+    std::vector<d2d::drlg::Outdoor::RoomSeed> made;      // those, in the order made
+    for (std::size_t i = 0; i < rects.size(); ++i) {
+        if (!std::ranges::contains(up, i)) continue;
+        auto& room = made.emplace_back();
+        room.x = rects[i].x - town.world_x, room.y = rects[i].y - town.world_y, room.width = rects[i].width, room.height = rects[i].height;
+        room.kind = 2, room.def = 1, room.file = std::max(0, d2d::drlg::town_file(game_data.act1_layout)), room.rolled = true;
+    }
+    std::vector<std::size_t> order;                      // list indices: the list is newest first
+    for (const auto room : up) order.push_back(made.size() - 1 - std::size_t(std::ranges::count_if(up, [&](std::size_t other) { return other < room; })));
+    std::vector<std::string> notes;
+    auto rooms = d2d::drlg::level_room_tiles(made, {}, level.assets->data, {}, town.id, d2d::drlg::warp_slots(*level.assets, town.id), notes, order);
+    for (auto& room : rooms) {
+        room.x += next_door->dx, room.y += next_door->dy;
+        for (auto& tile : room.tiles) tile.x += next_door->dx, tile.y += next_door->dy;
+        room.seed = nullptr;                             // `made` goes
+    }
+    return rooms;
+}
+
 // The level's rooms brought up in `order` (level_room_tiles' list indices,
 // empty: list order) into its picks and patches.
 // FUN_0064c900: each room's grid takes, as it comes up (BuiltRoom::step),
@@ -792,16 +828,14 @@ namespace {
 // stamps only if the room it lies in came up after its owner. A later
 // room re-picking a shared tile patches the grid it lies in, if that's up
 // (FUN_0064c860: old tile's flags off, the new one's on).
-// ponytail: only the level's own rooms are near; game.exe's near list
-// (FUN_0066e580) takes another level's rooms up too, so a Blood Moor room
-// on the camp's edge with the camp up shares its edge tiles and its room1
-// seed differs (tools/emu diff_drlg.py game, $LEVELS from 1; no roll lands
-// on those rooms in seeds 1-20). Upgrade: the camp's BuiltRooms in the near list.
+// `outside`: the up rooms next door (camp_rooms), after the level's in the result.
 std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d::drlg::Outdoor::RoomSeed>& made,
-                                            const std::vector<std::size_t>& order, std::vector<std::string>& notes) {
+                                            const std::vector<std::size_t>& order, std::vector<std::string>& notes,
+                                            std::vector<d2d::drlg::BuiltRoom> outside = {}) {
     const auto& assets = *level.assets;
     const auto& dt1s = level.tile_dt1s;
-    auto built = d2d::drlg::level_room_tiles(made, level.plain, assets.data, dt1s.heads, level.id, d2d::drlg::warp_slots(assets, level.id), notes, order);
+    const auto own = made.size();
+    auto built = d2d::drlg::level_room_tiles(made, level.plain, assets.data, dt1s.heads, level.id, d2d::drlg::warp_slots(assets, level.id), notes, order, std::move(outside));
     const int width = level.ds1.width(), height = level.ds1.height();
     level.picks.assign(std::size_t(width) * std::size_t(height), {});
     auto up = [&](int room) { return int(built[std::size_t(room)].step); };
@@ -834,7 +868,9 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
         for (std::size_t index = 0; index < built[owner].tiles.size(); ++index) {
             const auto& tile = built[owner].tiles[index];
             if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height) continue;
-            const auto drawn = tile_of(tile.file, tile.index);
+            auto drawn = tile_of(tile.file, tile.index);
+            if (!drawn && owner >= own)                  // the camp's, unpicked (camp_rooms): the level's first of its kind
+                if (const auto found = level.tile_lookup.find(tile_key(int((tile.word >> 20) & 0x3f), int((tile.word >> 8) & 0xff), tile.orient)); found != level.tile_lookup.end()) drawn = found->second;
             if (!drawn) continue;
             // What it was when the room it lies in came up: none if that came up first.
             const int in = holder(owner, tile.x, tile.y);
@@ -865,17 +901,18 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
 // ponytail: the whole level is laid again (~15 ms for the Stony Field)
 // each time rooms come up; bring them up one at a time, as game.exe does,
 // if that hitches.
-void relevel(Level& level, const std::vector<std::size_t>& up) {
+void relevel(Level& level, const std::vector<std::size_t>& up, const GameData* game_data, const Spawning* spawning) {
     if (!level.assets) return;
+    auto outside = game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};
     const std::size_t count = level.rooms.size();
     std::vector<std::size_t> order;                      // list indices: the list is newest first
     std::vector<bool> taken(count);
     for (const auto room : up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
     for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
-    if (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count)) return;
+    if (outside.empty() && (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count))) return;
     const auto start_ms = d2d::log::ms();
     std::vector<std::string> notes;
-    for (const auto& room : lay_tiles(level, level.rooms, order, notes))
+    for (const auto& room : lay_tiles(level, level.rooms, order, notes, std::move(outside)))
         if (room.seed) level.room1_seeds[std::size_t(room.seed - level.rooms.data())] = room.room1_seed;
     finish_level(level);
     level.laid = std::move(order);
