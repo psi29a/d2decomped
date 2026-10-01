@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <future>
 #include <map>
 #include <memory>
@@ -77,7 +78,6 @@ struct Npc {
     // An object's unit seed (+0x20, FUN_00555230; a chest's InitFn re-seeds
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.
-    // ponytail: from place_objects' fresh game seed, not the live game's.
     mutable d2d::rules::Rng seed;
     int room = -1;
     bool preoperated = false;            // a PreOperate object that starts opened (ON)
@@ -220,40 +220,28 @@ struct Level {
     // Plain outdoor rooms on a road cell (g2c 0x80; room data +0x54 & 0x80):
     // FUN_00552560 (FUN_0061abb0) places no object groups there.
     std::vector<bool> road_rooms;
-    // The room seed after FUN_00552610 stepped it (place_objects): what
-    // populate() rolls its monsters on. Empty for the camp (no rooms).
-    std::vector<d2d::rules::Rng> post_object_group_seeds;   // by `rooms` index
-    // Each room's monsters in normal as a fresh game makes them
-    // (place_objects: presets, then FUN_0054ec90); leaders index the room's list.
-    std::vector<std::vector<d2d::rules::Spawn>> room_spawns;   // by `rooms` index
     // The room2 flags FUN_00552560 reads (0x800000, 0x30000; 0x80 a
     // plain room's path), and each unit's room, by `rooms` index.
     std::vector<std::uint32_t> room_flags;
     std::vector<std::pair<int, int>> starts;           // drlg BuiltRoom::starts, the rooms' in build order
     std::vector<int> unit_rooms;                       // by `units` index
-    // What populating each room made before its monsters (place_objects,
+    // What populating a room made before its monsters (room_objects,
     // tools/emu objgroups.py's lines): the room seed going into 552610 and
     // after, the object seed after it, each group object (objects.txt id,
-    // level subtile); the object seed after the last room.
+    // level subtile). Spawning::LevelState::group_rooms.
     struct GroupRoom { std::uint32_t pre = 0, post = 0, rgn = 0; std::vector<std::array<int, 3>> made; };
-    std::vector<GroupRoom> group_rooms;                // by `rooms` index
-    std::uint32_t group_rgn = 0;
     // What brings its rooms up again in another order (relevel): an outdoor
     // level's plain rooms, its DT1s, the assets they're from. Null assets: not generated.
     std::vector<d2d::drlg::PlainRoom> plain;
     LevelDt1s tile_dt1s;
     const d2d::drlg::OutdoorAssets* assets = nullptr;
     std::vector<std::size_t> laid;                     // the order (list indices) relevel last laid its rooms in, empty: list order
-    // The rooms' collision after the last (place_objects: FUN_0064ca50's
-    // words, 0x27 off the rooms), level subtiles row-major: drlg-dump drops.
-    std::vector<std::uint16_t> collision;
-    // The object seed (game +0x10f0, ctx +0xc) after place_objects, and each
-    // room's seed after its monsters (by `rooms` index): what opening a
-    // container / a stand draws on.
-    // ponytail: per level, where game.exe's object seed runs game-wide; the
-    // room seeds as normal's fresh game left them.
-    mutable d2d::rules::Rng objects;
-    mutable std::vector<d2d::rules::Rng> room_seeds;
+    // The walk grid as the tiles alone make it (finish_level, before any
+    // footprint): what room_objects' collision starts from.
+    std::vector<std::uint8_t> tile_walk;
+    // How many of `npcs` the level has before any room populates (off-room
+    // units, Tristram Cain): a new game cuts `npcs` back to these.
+    std::size_t npc_base = 0;
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
@@ -681,16 +669,26 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
 // its near list, across a level's edge and a warp too. Every level's
 // region is made at game start; the game seed then takes three more steps
 // (the object seed, sunitproxy, quests) before the first room rolls on it.
+struct ObjectRooms;                                     // objgroups.cpp
 struct Spawning {
     struct LevelState {
         d2d::rules::Population pop;
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
         std::vector<std::size_t> order;                    // Level::rooms indices as they came up
-        int group_rooms = 0, group_total = 0;              // FUN_00552560's counters (+4, +8)
+        // The level's object placement as it stands (objgroups.cpp): objrgn's
+        // record of it, the units' collision so far; each room's object
+        // groups (by Level::rooms index) and its seed after its monsters,
+        // what a stand draws on.
+        std::shared_ptr<ObjectRooms> objects;
+        std::vector<Level::GroupRoom> group_rooms;
+        std::vector<d2d::rules::Rng> room_seeds;
     };
     int difficulty = 0;
     d2d::rules::Rng game;
+    // The game's object seed (game +0x10f0, FUN_00546c60): every room's
+    // objects, shrines, chests and every container opened step it, game-wide.
+    d2d::rules::Rng objects;
     std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
     std::unordered_map<const Level*, LevelState> levels;
     std::bitset<128> superuniques;                         // spawned this game (game +0x1d30)
@@ -704,11 +702,17 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 // level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
-// Every room of the level populated at once, by (y, x): tools/emu/monsters.py's
-// order, for diffing against game.exe (drlg-dump monsters). Returns each
-// room (Level::rooms index) in that order with its first spawn's index.
-std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level);
+// Every room of the level populated at once, newest first: tools/emu
+// monsters.py's order, for diffing against game.exe (drlg-dump monsters).
+// The rooms come up `up` (Level::rooms indices) first, the rest in list
+// order. Returns each room in the order populated with its first spawn's
+// index; `done` hears of each room as it's populated.
+std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level,
+                                                                 const std::vector<std::size_t>& up = {},
+                                                                 const std::function<void(std::size_t)>& done = {});
 void stamp_footprints(Level& level);
+// One unit's footprint into the walk grid (stamp_footprints).
+void stamp_footprint(Level& level, Npc& npc);
 // An object's footprint into (solid) or out of the walk grid, leaving the
 // subtiles a tile blocks too (FUN_0064de30 / FUN_0064dc00).
 void set_footprint(const Level& level, const Npc& npc, bool solid);
@@ -772,6 +776,17 @@ bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);
 void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level);
+// Room `index` of `level` coming into play (FUN_0052d0f0, objgroups.cpp):
+// its seed step (FUN_0054f060), its preset objects (FUN_005559a0) on the
+// game's object seed, then in normal (`all`) its preset monsters, object
+// groups (FUN_00552610) and population (FUN_0054ec90) into the level's
+// spawns. Returns the room seed as it stands; NM / hell populate() makes
+// the preset monsters, then room_groups.
+d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, bool all);
+void room_groups(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, d2d::rules::Rng& seed);
+// The level's collision as room_objects sees it (FUN_0064ca50's words, 0x27
+// off the rooms up), level subtiles row-major: drlg-dump drops.
+std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level);
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& game_data, const Level& level);

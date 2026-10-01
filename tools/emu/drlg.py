@@ -157,6 +157,17 @@ def walk_order(n, seed, kind):
     return order
 
 
+def bring_up(e, lvl, seed, kind):
+    """The level's rooms brought up (FUN_0061b730) in walk_order; returns the room list (list order)."""
+    rooms = []
+    r = e.r32(lvl + 0x10)
+    while r:
+        rooms.append(r)
+        r = e.r32(r + 0x24)
+    for i in walk_order(len(rooms), seed, kind): e.call(0x61b730, ecx=rooms[i])
+    return rooms
+
+
 def collision_dump(e, seed, lid, kind="shuffle"):
     """Bring the level's rooms up (FUN_0061b730: tiles, then room1 and its grid, FUN_0064c900) in walk_order,
     then each room's collision (room +0x30 -> room1 +0x20: {x, y, w, h, ...} subtiles, u16 cells at +0x24), (y, x) order."""
@@ -164,12 +175,7 @@ def collision_dump(e, seed, lid, kind="shuffle"):
     lvl = find_level(e, act, lid)
     if not lvl: raise SystemExit(f"drlg: level {lid} not built")
     x0, y0 = e.s32(lvl + 0x1c), e.s32(lvl + 0x20)
-    rooms = []
-    r = e.r32(lvl + 0x10)
-    while r:
-        rooms.append(r)
-        r = e.r32(r + 0x24)
-    for i in walk_order(len(rooms), seed, kind): e.call(0x61b730, ecx=rooms[i])
+    rooms = bring_up(e, lvl, seed, kind)
     out = []
     for r in sorted(rooms, key=lambda r: (e.s32(r + 0x38), e.s32(r + 0x34))):
         c = e.r32(e.r32(r + 0x30) + 0x20)

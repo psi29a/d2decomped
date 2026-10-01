@@ -9,6 +9,11 @@
 // drlg-dump <mpq dir> <seed> <level> [<out dir>] collision: each room's grid
 // with the rooms brought up in $ORDER (d2d::game::relevel), as tools/emu
 // drlg.py collision_dump prints game.exe's.
+// drlg-dump <mpq dir> <seed> 0 [<out dir>] game: one game, $LEVELS in turn,
+// each brought up in $ORDER and populated, then every container its rooms
+// made opened, on the game's one object seed: as tools/emu objgroups.py
+// <seed> game prints game.exe's.
+#include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <maze.hpp>
@@ -19,6 +24,7 @@
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
+#include <shrines.hpp>
 #include <tile_pick.hpp>
 #include <txt.hpp>
 
@@ -30,6 +36,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -183,6 +190,81 @@ static std::string dump_monsters(d2d::game::GameData& game_data, std::uint32_t s
     return out.str();
 }
 
+// drlg.py walk_order: a room order (list indices, the list newest first) as Level::rooms indices.
+static std::vector<std::size_t> walk_order(std::size_t count, std::uint32_t seed, const std::string& kind) {
+    std::vector<std::size_t> order(count);
+    for (std::size_t i = 0; i < count; ++i) order[i] = i;
+    if (kind == "reverse") std::ranges::reverse(order);
+    if (kind == "shuffle") {
+        std::uint32_t x = seed;
+        for (std::size_t i = count; i-- > 1;) {
+            x = (x * 1103515245u + 12345u) & 0x7fffffffu;
+            std::swap(order[i], order[x % (i + 1)]);
+        }
+    }
+    for (auto& room : order) room = count - 1 - room;
+    return order;
+}
+
+// One game (tools/emu objgroups.py game_dump): each level of `levels` made,
+// its rooms brought up in `kind` order and populated newest first, then
+// every container they made opened (World::operate's open_container).
+static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, const std::vector<int>& levels, const std::string& kind) {
+    d2d::game::set_map_seed(game, seed);
+    auto spawning = d2d::game::start_spawning(game, 0);
+    std::vector<std::unique_ptr<d2d::game::Level>> built;
+    std::ostringstream out;
+    char line[160];
+    for (const int lid : levels) {
+        auto level = d2d::game::build_level(game, *game.builder, lid);
+        if (!level) continue;
+        const auto& made = *level;
+        const auto base = made.npcs.size();
+        out << "level " << lid << '\n';
+        auto& state = spawning.levels[&made];
+        std::size_t from = base;
+        d2d::game::populate_level(game, spawning, made, walk_order(made.rooms.size(), seed, kind), [&](std::size_t room) {
+            const auto& group = state.group_rooms[room];
+            std::snprintf(line, sizeof line, "room %d,%d r1 %08x seed %08x post %08x rgn %08x game %08x", made.rooms[room].x, made.rooms[room].y,
+                          made.room1_seeds[room], group.pre, group.post, spawning.objects.low, spawning.game.low);
+            out << line;
+            for (; from < made.npcs.size(); ++from)
+                if (made.npcs[from].root == "objects") out << ' ' << made.npcs[from].object_id << '@' << int(made.npcs[from].x * 5) << ',' << int(made.npcs[from].y * 5);
+            out << '\n';
+        });
+        const auto& area = game.area_level;
+        auto alvl = [&](int id) { return area[std::size_t(id)][0]; };
+        const auto [low, high] = d2d::rules::kChestLevels[0];
+        const auto tc = d2d::rules::chest_tc(0, 0, alvl(lid), alvl(low), alvl(high));
+        for (auto i = base; i < made.npcs.size(); ++i) {
+            auto& npc = level->npcs[i];
+            if (npc.root != "objects" || !std::ranges::contains(std::array{ 1, 3, 4, 5, 14, 26 }, npc.operate_fn)) continue;
+            std::vector<d2d::rules::Drop> drops;
+            // ON already (PreOperate, a gold placeholder's InitFn 28): its OperateFn does nothing.
+            const auto row = game.builder->obj_row.find(std::to_string(npc.object_id));
+            const bool on = npc.preoperated || (row != game.builder->obj_row.end() && game.builder->objects.get(row->second, "InitFn") == "28");
+            if (on) {
+                std::snprintf(line, sizeof line, "open %d@%d,%d: |%s -> %08x %08x\n", npc.object_id, int(npc.x * 5), int(npc.y * 5), npc.operate_fn == 1 ? " shut" : "", spawning.objects.low, npc.seed.low);
+                out << line;
+                continue;
+            }
+            const auto opened = d2d::rules::open_container(npc.operate_fn, npc.object_id, npc.locked, npc.sparkle, spawning.objects,
+                                                           [&](int forced) { return d2d::rules::chest_round(game.rules, tc, npc.seed, drops, forced); });
+            for (std::size_t k = 0; k < 2 * (drops.size() + opened.extra.size()); ++k) spawning.game.next();   // FUN_00555230 → FUN_00552df0: two a unit
+            out << "open " << npc.object_id << '@' << int(npc.x * 5) << ',' << int(npc.y * 5) << ':';
+            for (const auto& drop : drops) out << ' ' << drop.code << ':' << drop.quality << (drop.mul ? "*" + std::to_string(drop.mul) : "");
+            out << " |";
+            for (const auto& code : opened.extra) out << ' ' << code;
+            std::snprintf(line, sizeof line, "%s -> %08x %08x\n", opened.opened ? "" : " shut", spawning.objects.low, npc.seed.low);
+            out << line;
+        }
+        std::snprintf(line, sizeof line, "rgn %08x:%08x game %08x:%08x\n", spawning.objects.low, spawning.objects.high, spawning.game.low, spawning.game.high);
+        out << line;
+        built.push_back(std::move(level));
+    }
+    return out.str();
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::fprintf(stderr, "usage: drlg-dump <mpq dir> <map seed> [level]\n"); return 2; }
     const fs::path dir = argv[1];
@@ -201,19 +283,8 @@ int main(int argc, char** argv) {
             d2d::game::set_map_seed(*game, seed);
             std::ostringstream out;
             if (auto level = d2d::game::build_level(*game, *game->builder, id)) {
-                // drlg.py walk_order: list indices (the list is newest first) -> rooms indices
                 const std::size_t count = level->rooms.size();
-                std::vector<std::size_t> order(count);
-                for (std::size_t i = 0; i < count; ++i) order[i] = i;
-                if (order_kind == "reverse") std::ranges::reverse(order);
-                if (order_kind == "shuffle") {
-                    std::uint32_t x = seed;
-                    for (std::size_t i = count; i-- > 1;) {
-                        x = (x * 1103515245u + 12345u) & 0x7fffffffu;
-                        std::swap(order[i], order[x % (i + 1)]);
-                    }
-                }
-                for (auto& room : order) room = count - 1 - room;
+                const auto order = walk_order(count, seed, order_kind);
                 level->npcs.clear();                             // tiles only: no room is populated
                 level->laid = { count };                         // laid again, even in list order
                 d2d::game::relevel(*level, order);
@@ -241,6 +312,26 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
+    if (argc > 4 && std::string(argv[argc - 1]) == "game") {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game = d2d::game::load_game_data(dir, patch ? fs::path(patch) : fs::path{}, 1);
+        if (!game) return 1;
+        const char* kind = std::getenv("ORDER");
+        const char* wanted = std::getenv("LEVELS");
+        std::vector<int> levels;
+        std::istringstream list(wanted ? wanted : "2,8,4,9");
+        for (std::string lid; std::getline(list, lid, ',');) levels.push_back(std::stoi(lid));
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        for (auto seed = first;; ++seed) {
+            const auto text = dump_game(*game, seed, levels, kind ? kind : "shuffle");
+            if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << text;
+            else std::fputs(text.c_str(), stdout);
+            if (seed == last) break;
+        }
+        return 0;
+    }
     const bool drops = argc > 4 && std::string(argv[argc - 1]) == "drops";
     if (argc > 4 && (std::string(argv[argc - 1]) == "objgroups" || drops)) {
         // game.exe's rooms populated up to their monsters (place_objects), as
@@ -255,23 +346,26 @@ int main(int argc, char** argv) {
             d2d::game::set_map_seed(*game, seed);
             std::ostringstream out;
             if (const auto level = d2d::game::build_level(*game, *game->builder, id)) {
+                auto spawning = d2d::game::start_spawning(*game, 0);
+                d2d::game::populate_level(*game, spawning, *level);
+                const auto& group_rooms = spawning.levels[level.get()].group_rooms;
                 char line[80];
                 for (std::size_t i = 0; i < level->rooms.size(); ++i) {
-                    const auto& group = level->group_rooms[i];
+                    const auto& group = group_rooms[i];
                     std::snprintf(line, sizeof line, "room %d,%d seed %08x post %08x rgn %08x", level->rooms[i].x, level->rooms[i].y, group.pre, group.post, group.rgn);
                     out << line;
                     for (const auto& [object, x, y] : group.made) out << ' ' << object << '@' << x << ',' << y;
                     out << '\n';
                 }
-                std::snprintf(line, sizeof line, "rgn %08x\n", level->group_rgn);
+                std::snprintf(line, sizeof line, "rgn %08x\n", spawning.objects.low);
                 out << line;
                 // drops: three items at each group object, each landing an item (0x200) the next sees.
-                auto grid = level->collision;
+                auto grid = d2d::game::object_collision(spawning, *level);
                 const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
                 auto flags = [&](int x, int y) -> int {
                     return x < 0 || y < 0 || x >= width || y >= height ? 0x27 : grid[std::size_t(y) * std::size_t(width) + std::size_t(x)];
                 };
-                for (const auto& group : level->group_rooms)
+                for (const auto& group : group_rooms)
                     for (const auto& [object, x, y] : group.made)
                         for (int k = 0; drops && k < 3; ++k) {
                             const auto [sx, sy] = d2d::game::drop_spot(game->field, x, y, flags);

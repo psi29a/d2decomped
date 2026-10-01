@@ -27,6 +27,11 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP
 
 import drlg
+import drops as drops_oracle
+import monsters
+
+LEVELS = "2,8,4,9"                                          # game: Blood Moor, Den of Evil, Stony Field, Cave 1 (none touching)
+CONTAINERS = {1, 3, 4, 5, 14, 26}                           # OperateFn: casket, urn, chest, barrel, corpse / crate, bookshelf
 
 
 def dump(e, seed, lid, drops=False):
@@ -91,5 +96,120 @@ def dump(e, seed, lid, drops=False):
     return "\n".join(out)
 
 
+def openers(e):
+    """drops.py's Oracle and Objects (their hooks off: `swap(True)` puts them in for an open, `swap(False)` takes them out)."""
+    if getattr(e, "openers", None): return e.openers
+    saved, put = {}, e.hook
+    def keep(addr, fn, n):
+        saved.setdefault(addr, bytes(e.mu.mem_read(addr, 5)))
+        put(addr, fn, n)
+    e.hook = keep
+    try: o = drops_oracle.Oracle(); objects = drops_oracle.Objects(o)
+    finally: del e.hook
+    hooked = {a: bytes(e.mu.mem_read(a, 5)) for a in saved}
+    def swap(on):
+        for a in saved:
+            e.mu.mem_write(a, hooked[a] if on else saved[a])
+            e.mu.ctl_remove_cache(a, a + 5)                 # unicorn keeps the code it translated
+    swap(False)
+    e.openers = (o, objects, swap)
+    return e.openers
+
+
+def step(e, at, n):
+    """n steps of the seed at `at` ({low, high}, the 0x6ac690c5 LCG)."""
+    low, high = e.r32(at), e.r32(at + 4)
+    for _ in range(n):
+        x = low * 0x6ac690c5 + high
+        low, high = x & 0xffffffff, x >> 32
+    e.w32(at, low); e.w32(at + 4, high)
+
+
+def game_dump(e, seed, levels, kind="shuffle"):
+    """One game: each level in turn made, its rooms brought up (FUN_0061b730) in drlg.walk_order, populated as
+    FUN_0052d160 walks the act's room1 list (newest first: FUN_0052d0f0), then every container its rooms made
+    opened in the order made (drops.py Objects, on the game's object seed). Per room: its room1 seed before
+    FUN_0054f060, the room seed into 552610 and after, the object seed and the game seed's low after, every
+    object made (id@x,y). Per container: what dropped | extras, then the object seed and its unit seed after;
+    each item made (drops and extras) steps the game seed twice (FUN_00555230). The object seed's full state
+    (low:high) and the game seed's after each level."""
+    o, objects, swap = openers(e)
+    g = monsters.new_game(e, seed)
+    act = monsters.act_of(e, g, levels[0])
+    dact = e.r32(act + 0x48)
+    rgn = e.r32(g + 0x10f0)
+    made, pre, out = [], [0, 0], []
+    def on_make(mu, addr, size, _):                         # FUN_00555230(ECX type, EDX class; x, y, ...)
+        sp = mu.reg_read(UC_X86_REG_ESP)
+        made.append([mu.reg_read(UC_X86_REG_ECX), mu.reg_read(UC_X86_REG_EDX), e.s32(sp + 4), e.s32(sp + 8), 0])
+    def on_seed(mu, addr, size, _):                         # FUN_00552df0(ECX unit): the unit just made
+        if made and not made[-1][4]: made[-1][4] = mu.reg_read(UC_X86_REG_ECX)
+    def on_groups(mu, addr, size, _):
+        pre[0] = e.r32(mu.reg_read(UC_X86_REG_EDX) + 0x6c)
+    def on_monsters(mu, addr, size, _):
+        pre[1] = e.r32(mu.reg_read(UC_X86_REG_EDX) + 0x6c)
+    hooks = [e.mu.hook_add(UC_HOOK_CODE, fn, begin=a, end=a) for fn, a in ((on_make, 0x555230), (on_seed, 0x552df0), (on_groups, 0x552610), (on_monsters, 0x54ec90))]
+    try:
+        for lid in levels:
+            lvl = drlg.find_level(e, dact, lid) or e.call(0x642ae0, ecx=dact, edx=lid)
+            if not e.r32(lvl + 0x10): e.call(0x6424a0, lvl)
+            x0, y0 = e.s32(lvl + 0x1c), e.s32(lvl + 0x20)
+            rooms = []
+            r = e.r32(lvl + 0x10)
+            while r:
+                rooms.append(r)
+                r = e.r32(r + 0x24)
+            head = e.call(0x61a180, act)
+            for i in drlg.walk_order(len(rooms), seed, kind): e.call(0x61b730, ecx=rooms[i])
+            out.append(f"level {lid}")
+            mine = []
+            room1 = e.call(0x61a180, act)
+            while room1 and room1 != head:
+                r = e.r32(room1 + 0x10)
+                r1 = e.r32(room1 + 0x6c)
+                del made[:]
+                pre[:] = [0, 0]
+                e.call(0x52d0f0, ecx=g, edx=room1)
+                objs = [m for m in made if m[0] == 2]
+                mine += objs
+                out.append(f"room {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0} r1 {r1:08x} seed {pre[0]:08x} post {pre[1]:08x} rgn {e.r32(rgn):08x} game {e.r32(g + 0xd0):08x}"
+                           + "".join(f" {i}@{x - x0 * 5},{y - y0 * 5}" for _, i, x, y, _ in objs))
+                room1 = e.r32(room1 + 0x7c)
+            swap(True)
+            try:
+                for _, cls, x, y, unit in mine:
+                    op = objects_op(e, cls)
+                    if op not in CONTAINERS or not unit: continue
+                    fn = {1: 0x586410, 3: 0x5866c0, 4: 0x585f60, 5: 0x5868a0, 14: 0x5867a0, 26: 0x584060}[op]
+                    e.mu.mem_write(o.game + 0x6d, b"\0")
+                    ctx = e.alloc(0x14)
+                    for k, v in enumerate((o.game, unit, 0, rgn, cls)): e.w32(ctx + 4 * k, v)
+                    objects.lid, objects.extra, o.made, o.players, o.mf = lid, [], [], 1, 0
+                    e.call(fn, ecx=ctx)
+                    step(e, g + 0xd0, 2 * (len(o.made) + len(objects.extra)))
+                    items = "".join(f" {c}:{q}" + (f"*{m}" if m else "") for c, q, m in o.made)
+                    shut = " shut" if op == 1 and not o.made else ""
+                    out.append(f"open {cls}@{x - x0 * 5},{y - y0 * 5}:{items} |" + "".join(f" {t}" for t in objects.extra)
+                               + f"{shut} -> {e.r32(rgn):08x} {e.r32(unit + 0x20):08x}")
+            finally:
+                swap(False)
+            out.append(f"rgn {e.r32(rgn):08x}:{e.r32(rgn + 4):08x} game {e.r32(g + 0xd0):08x}:{e.r32(g + 0xd4):08x}")
+    finally:
+        for h in hooks: e.mu.hook_del(h)
+    return "\n".join(out)
+
+
+_ops = {}
+def objects_op(e, cls):
+    if not _ops:
+        for r in drops_oracle.txt_rows(e, "objects"):
+            if r.get("Id", "").isdigit(): _ops[int(r["Id"])] = int(r.get("OperateFn") or 0)
+    return _ops.get(cls, 0)
+
+
 if __name__ == "__main__":
+    if sys.argv[-1] == "game":
+        import os
+        print(game_dump(drlg.boot(), int(sys.argv[1], 0), [int(v) for v in os.environ.get("LEVELS", LEVELS).split(",")], os.environ.get("ORDER", "shuffle")))
+        raise SystemExit
     print(dump(drlg.boot(), int(sys.argv[1], 0), int(sys.argv[2]) if len(sys.argv) > 2 else 2, sys.argv[-1] == "drops"))

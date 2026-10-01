@@ -492,8 +492,8 @@ palettes; animation timings come from the COF alone (`npc_timing`,
 `composite_timing`); missile sprites live in `Scene::missile_cels`. Debug
 start 3.8 s → 1.6 s. Since: a server's levels hold no tile pixels; the
 monster regions match game.exe (every level's at game start on one seed,
-monsters.md); the object seed is game.exe's (objects.md; d2d restarts it
-per level, game.exe draws it across the game). Left: levels 2 and 8 are
+monsters.md); the object seed is game.exe's, one across the game as rooms
+come up (objects.md). Left: levels 2 and 8 are
 the only ones built (`kBuiltLevels`).
 
 Planned as:
@@ -587,6 +587,19 @@ follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
 Cain's portal at game.exe's spot. Still approximate (ponytail): object
 seed per level, not game-wide; units/objects/room seeds keep list order on
 relevel; search_target treats all foes alike.
+
+**Checkpoint 2026-10-01, one object seed.** The object seed (game +0x10f0)
+is one per game (`Spawning::objects`): every room's presets and groups and
+every container opened step it in the order they happen, and a room's
+objects come with it (`room_objects`, the level's npcs grow, footprints
+stamped as made). relevel takes the room1 seeds from the live order too;
+units and warps come out the same in any order (`diff_drlg.py <level>
+units` brings game.exe's rooms up in $ORDER), the spawn areas too (the game
+seed through the monsters matches). `diff_drlg.py 1-20 0 game` (Blood Moor, Den, Stony Field,
+Cave 1 in one game, rooms shuffled, every container opened): 20/20; reverse
+and list order, and touching levels (3,2,17,18,5,6,7) 20/20. Still
+approximate (ponytail): the camp's population steps on the game seed, the
+wanderer, the units off a level's rooms, relevel laying the whole level.
 
 **Step 3 — networking** (the deferred item 7 above).
 

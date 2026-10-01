@@ -90,6 +90,14 @@ uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at ea
   of list order ($ORDER shuffle, the default, reverse or list), then every
   room's collision grid (room1 +0x20), against `relevel`'s:
   `uv run python diff_drlg.py 1-10 2 collision`, `./sweep.sh 1-10 collision`.
+- `game` (objgroups.py `game_dump`): one game, $LEVELS (default 2,8,4,9)
+  made in turn, each level's rooms brought up in $ORDER and populated newest
+  first, then every container they made opened (drops.py's openers): per
+  room the room1 seed, the room seed, the object and game seeds, the objects
+  made; per container its drops and the seeds after. The check for the one
+  object seed and the room order: `uv run python diff_drlg.py 1-20 0 game`.
+- `units` brings game.exe's rooms up in $ORDER first (drlg.py `bring_up`):
+  the units and warps come out the same in any order.
 
 ## Adding a new oracle
 

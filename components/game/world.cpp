@@ -39,6 +39,13 @@
 namespace d2d::game {
 
 // Levels.txt Waypoint: a level's index in the waypoint bits (FUN_00660e00), -1 none.
+// `level`'s units states, the ones its rooms made since (populate) added as they start.
+static void grow_states(std::vector<UnitState>& states, const Level& level) {
+    if (states.size() >= level.npcs.size()) return;
+    const auto fresh = npc_start(level);
+    states.insert(states.end(), fresh.begin() + std::ptrdiff_t(states.size()), fresh.end());
+}
+
 static int waypoint_index(const GameData& game_data, int level_id) {
     for (const auto& act_levels : game_data.waypoint_levels)
         if (const auto found = std::ranges::find(act_levels, level_id, &GameData::WaypointLevel::level); found != act_levels.end()) return found->waypoint;
@@ -121,10 +128,12 @@ auto World::view() const -> View {
                 view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, k >= 2 ? portal[std::size_t(5 - k)].level ? portal[std::size_t(5 - k)].level->id : d2d::rules::CainQuest::kTristram : portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
         if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, 4 });
         view.npc_states = npc_states;
+        grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
             const auto found = other_npcs.find(neighbour.level);
             auto states = found != other_npcs.end() ? found->second : npc_start(*neighbour.level);
+            grow_states(states, *neighbour.level);
             states.resize(neighbour.level->npcs.size());
             view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
         }
@@ -198,7 +207,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto [low, high] = d2d::rules::kChestLevels[0];
             const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
             std::vector<d2d::rules::Drop> drops;
-            const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, level->objects,
+            const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, fight.spawning.objects,
                                                            [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced); });
             for (const auto& code : opened.extra) drops.push_back({ .code = code });
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
@@ -259,8 +268,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             to_mode(2);
             const int ilvl = here > 1 ? here - 1 : here;
             if (op == 26) open();
-            else if (std::size_t(object.room) < level->room_seeds.size()) {
-                auto& room_seed = level->room_seeds[std::size_t(object.room)];
+            else if (auto& room_seeds = fight.spawning.levels[level].room_seeds; std::size_t(object.room) < room_seeds.size()) {
+                auto& room_seed = room_seeds[std::size_t(object.room)];
                 if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, room_seed); !code.empty())
                     loot.put({ .code = code, .quality = 0 }, object.x, object.y, ilvl, room_seed, now_ms);
             }
@@ -528,9 +537,21 @@ auto World::new_game() -> void {
         den_left = -1;
         den_log_at = 0;
         operated.clear();
-        for (const auto& [id, built] : game_data->levels)       // doors back as the level made them
+        // The levels as built: no room populated (the units come again as
+        // they do), doors back as they were made.
+        for (const auto& [id, built] : game_data->levels) {
+            if (!built) continue;
+            auto& level_rw = const_cast<Level&>(*built);         // GameData owns its levels mutable
+            if (level_rw.npcs.size() > level_rw.npc_base && level_rw.walk.size() == level_rw.tile_walk.size()) {
+                level_rw.npcs.resize(level_rw.npc_base);
+                level_rw.walk = level_rw.tile_walk;
+                stamp_footprints(level_rw);
+            }
             for (const auto& npc : built->npcs)
                 if (is_door(npc.operate_fn)) set_footprint(*built, npc, npc.collision >> mode_index(npc.mode) & 1);
+        }
+        npc_states.resize(std::min(npc_states.size(), level->npcs.size()));
+        other_npcs.clear();
         doors.clear();
         fires.clear();
         treasure.clear();
@@ -568,6 +589,7 @@ auto World::swap_npcs(const Level* from) -> void {
         } else {
             npc_states = npc_start(*level);
         }
+        grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest)
                 npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::CainQuest::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
@@ -947,6 +969,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         }
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
+        std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);   // off what the room just made
         loot.enter(level);
         swap_npcs(from);
         interact_npc = pick_item = take_warp = take_portal = -1;
@@ -1181,11 +1204,17 @@ auto World::deal(const Command& command) -> bool {
                 || travel->level == level->id || !character.header.waypoint(character.header.active_difficulty(), index)) return true;
             const Level* destination = game_data->level(travel->level);
             if (!destination || destination->ds1.width() == 0) { d2d::log::info("not implemented: level {} (a waypoint)", travel->level); return true; }
-            const auto found = std::ranges::find(destination->npcs, 23, &Npc::operate_fn);
-            const float arrive_x = found == destination->npcs.end() ? float(destination->ds1.width()) / 2 : std::floor(found->x) + 0.6f;
-            const float arrive_y = found == destination->npcs.end() ? float(destination->ds1.height()) / 2 : std::floor(found->y) + 0.6f;
-            if (found != destination->npcs.end() && found->mode == "NU") operated.try_emplace({ destination, int(found - destination->npcs.begin()) }, now);
+            // Its preset (objects.txt SubClass 0x40): its room makes it as the player lands.
+            const auto& subclass = game_data->obj_subclass;
+            const auto unit = std::ranges::find_if(destination->units, [&](const auto& preset) {
+                return preset.type == 2 && preset.id >= 0 && std::size_t(preset.id) < subclass.size() && (subclass[std::size_t(preset.id)] & 0x40);
+            });
+            const bool known = unit != destination->units.end();
+            const float arrive_x = known ? std::floor((float(unit->x) + 0.5f) / 5) + 0.6f : float(destination->ds1.width()) / 2;
+            const float arrive_y = known ? std::floor((float(unit->y) + 0.5f) / 5) + 0.6f : float(destination->ds1.height()) / 2;
             arrive(destination, arrive_x, arrive_y, "a waypoint");
+            if (const auto found = std::ranges::find(destination->npcs, 23, &Npc::operate_fn); found != destination->npcs.end() && found->mode == "NU")
+                operated.try_emplace({ destination, int(found - destination->npcs.begin()) }, now);
             return true;
         }
         if (const auto* message = std::get_if<cmd::QuestMessage>(&command)) {   // only what that NPC has to say
@@ -1512,7 +1541,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
-            if (states.size() != neighbour.level->npcs.size()) states = npc_start(*neighbour.level);
+            if (states.size() > neighbour.level->npcs.size()) states = npc_start(*neighbour.level);   // a new game's
+            grow_states(states, *neighbour.level);
             npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
@@ -1561,6 +1591,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         fight.kills.clear();
         cross_level();
         fight.rooms_up(*level, player.x, player.y, false);
+        grow_states(npc_states, *level);
         if (!fight.dead()) fight.apply_regen(now_ms, last_ms);
     }
 

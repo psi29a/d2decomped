@@ -1,9 +1,11 @@
-// A level's rooms populated up to their monsters, as FUN_0052d160 walks
-// the act's room1 list (newest first: Level::rooms order): each room's
-// seed step (FUN_0054f060), its preset units (FUN_005559a0), then the
-// random object groups (FUN_00552610 and the PopulateFns at 0x731d00;
-// docs/research/re/objects.md "Random object groups per room"). Proven
-// against game.exe: tools/emu objgroups.py, drlg-dump <seed> <level> objgroups.
+// A level's rooms populated as they come into play, as FUN_0052d160 walks
+// the act's room1 list (newest first): each room's seed step
+// (FUN_0054f060), its preset units (FUN_005559a0), then the random object
+// groups (FUN_00552610 and the PopulateFns at 0x731d00;
+// docs/research/re/objects.md "Random object groups per room") and its
+// monsters, all on the game's one object seed and game seed. Proven
+// against game.exe: tools/emu objgroups.py, drlg-dump <seed> <level>
+// objgroups; levels in turn in one game: drlg-dump ... game.
 #include "gamedata.hpp"
 #include "log.hpp"
 #include <monsters.hpp>
@@ -31,14 +33,20 @@ constexpr std::array kDx{ -1, 0, 1, -1, 1, -1, 0, 1 }, kDy{ -1, -1, -1, 0, 0, 1,
 struct Rect { int x, y, w, h; };                        // a room, level subtiles (FUN_00619730)
 using Spot = std::optional<std::pair<int, int>>;
 
-struct Populator {
+}  // namespace
+
+// A level's object placement (Spawning::LevelState::objects): the game's
+// seeds copied in for each room (load) and back out (save).
+struct ObjectRooms {
     const GameData& game_data;
-    GameData::LevelBuilder& builder;
-    Level& level;
+    const GameData::LevelBuilder& builder;
+    Level& level;                                       // its npcs, room flags: GameData owns its levels mutable
     d2d::rules::Rng rgn;                                // the game's object seed (FUN_00546fa0)
     int width = 0, height = 0;                          // subtiles
-    std::vector<std::uint16_t> grid;                    // the rooms' collision (room1 +0x20), tiles' flags and units'
-    std::vector<bool> in_room;
+    std::vector<std::uint16_t> stamps;                  // the units' collision (room1 +0x20) over the tiles' (Level::tile_walk)
+    std::vector<bool> in_room;                          // tiles of the rooms up (Spawning::LevelState::order)
+    std::vector<ObjectRooms*> others;                   // the other levels' with rooms up, the act's collision across their edges
+    int themes = 0;
     // objrgn's record of the level (FUN_00546f90): +4 rooms counted, +8
     // the target, +0x10 shrines of id 2, +0x14 / +0x18 shrine and well spots.
     int counter = 0, target = 0x7fffffff, refills = 0;
@@ -53,14 +61,30 @@ struct Populator {
     std::vector<std::pair<int, int>> ways;
     int warp_dist = 2025;
 
+    static bool none(const Level& level, std::size_t i);
+    void load(Spawning& spawning, std::size_t room_index);
+    void rooms_up(const Spawning& spawning);
+    void save(Spawning& spawning) const;
+
     int obj(int id, const char* column) const {
         const auto found = builder.obj_row.find(std::to_string(id));
         return found == builder.obj_row.end() ? 0 : std::atoi(std::string(builder.objects.get(found->second, column)).c_str());
     }
-    // FUN_0064ca50: 0x27 off the level's rooms.
+    // FUN_0064ca50: 0x27 off the act's rooms up (a neighbour level's past the edge).
     [[nodiscard]] std::uint16_t at(int x, int y) const {
-        if (x < 0 || y < 0 || x >= width || y >= height || !in_room[std::size_t(y / 5) * std::size_t(width / 5) + std::size_t(x / 5)]) return 0x27;
-        return grid[std::size_t(y) * std::size_t(width) + std::size_t(x)];
+        if (x < 0 || y < 0 || x >= width || y >= height) {
+            const int act_x = x + level.world_x * 5, act_y = y + level.world_y * 5;
+            for (const auto* other : others)
+                if (const int other_x = act_x - other->level.world_x * 5, other_y = act_y - other->level.world_y * 5;
+                    other_x >= 0 && other_y >= 0 && other_x < other->width && other_y < other->height) return other->own(other_x, other_y);
+            return 0x27;
+        }
+        return own(x, y);
+    }
+    [[nodiscard]] std::uint16_t own(int x, int y) const {
+        if (!in_room[std::size_t(y / 5) * std::size_t(width / 5) + std::size_t(x / 5)]) return 0x27;
+        const auto at = std::size_t(y) * std::size_t(width) + std::size_t(x);
+        return std::uint16_t((at < level.tile_walk.size() ? level.tile_walk[at] : 0) | stamps[at]);
     }
     // FUN_0064d800: a w x h area centred on (x, y) (FUN_0064ceb0 across the rooms).
     [[nodiscard]] bool hit(int x, int y, int w, int h, int mask) const {
@@ -81,7 +105,7 @@ struct Populator {
     void stamp(int x, int y, int w, int h, std::uint16_t bits) {
         for (int ty = y - (h >> 1); ty < y - (h >> 1) + h; ++ty)
             for (int tx = x - (w >> 1); tx < x - (w >> 1) + w; ++tx)
-                if (tx >= 0 && ty >= 0 && tx < width && ty < height) grid[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
+                if (tx >= 0 && ty >= 0 && tx < width && ty < height) stamps[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
     // (FUN_006209d0: 0x400, | 4 if BlockMissile; 0x8000, no mask's, for a
@@ -311,7 +335,7 @@ struct Populator {
 
     // The area FUN_0054ec90 is populating (FUN_0061ad50's, subtiles; w 0:
     // none, the room's rect bounds a placement), the room's index, its
-    // monsters (Level::room_spawns) and where the placement in hand starts
+    // monsters (the level's spawns, Spawning::LevelState) and where the placement in hand starts
     // in them, and the region's counts (+4 rooms done, +0xc total, +0x2c8 uniques).
     struct Box { int x = 0, y = 0, w = 0, h = 0; std::uint32_t id = 0; };
     Box area{};
@@ -373,7 +397,7 @@ struct Populator {
     // FUN_00555230 for a monster, FUN_00552df0: its seed off the game's.
     // Its footprint: 0x100 in its shape, 0x1000 in the one a size down.
     // A monster's own seed takes its look (FUN_00573cb0, rules::monster_look)
-    // and one stat roll as it's made. Recorded in the room's spawns (NPCs aside).
+    // and one stat roll as it's made. Recorded in the level's spawns (NPCs aside).
     d2d::rules::Rng made(int type, int at_x, int at_y) {
         const auto& types = game_data.monsters.types;
         stamp_shape(at_x, at_y, size_of(type), 0x100);
@@ -420,10 +444,9 @@ struct Populator {
     }
 
     // FUN_005b2a00 at a preset monster's spot (FUN_0054e490), then its party.
-    // A superunique (FUN_005a49b0): once a level unless Stacks, at a random
+    // A superunique (FUN_005a49b0): once a game unless Stacks, at a random
     // spot of the room with AutoPos (FUN_0054dc40), else radius 5; then
     // MinGrp..MaxGrp of minion1 (else its own type) at radius 3 (FUN_005a0c00).
-    // ponytail: the superunique once-a-game bit is per level here.
     // `pack` (FUN_0054e600, MonPlace 2 / 3, `row` picked off the region):
     // 2 a unique pack (FUN_005a43e0): made at a random spot of the room
     // (FUN_005a09e0, then FUN_005b2f20 there), a unique (FUN_005a0760, no
@@ -569,8 +592,8 @@ struct Populator {
     }
 
     // A preset past objects.txt (FUN_0054f490's table at 0x731d28): 574-579 a
-    // shrine (136), 580 / 581 a random chest (FUN_0054f370, FUN_0054f180),
-    // 582 a quest's (FUN_0059d830).
+    // shrine (136), 580 / 581 a random chest (FUN_0054f370 a sparkling one,
+    // FUN_0054f180), 582 a quest's (FUN_0059d830).
     // ponytail: 574-579's kind (their range, on the unit's own seed), 580's
     // level-62..64 roll and 582's quest check aren't taken: act 1 has none of them.
     int special(int id) {
@@ -584,15 +607,20 @@ struct Populator {
         else pick = std::array{ 5, 6, 0x8b, 0x8c, 0x8d, 0x90, 0xb0, 0xb1, 0xc6, 0xf0, 0xf1, 0xf2, 0xf3 }[low % 13];
         return id == 580 && level.id == 0x19 ? 0x173 : pick;
     }
-    // FUN_005559a0: the room's preset units, the monsters last.
-    void presets(std::size_t index) {
+    // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
+    void presets(std::size_t index, bool monsters) {
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
             if (level.unit_rooms[i] != int(index) || unit.type == 1 || (unit.flags & 1)) continue;
-            if (unit.type == 2 && unit.id != 0x23d) make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
+            if (unit.type == 2 && unit.id != 0x23d) {
+                const auto before = level.npcs.size();
+                make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
+                if (unit.id == 580 && level.npcs.size() > before) level.npcs.back().sparkle = true;   // FUN_0054f370: FUN_005540a0(unit, 1)
+            }
             else if (unit.type == 5) game.next();                                                          // a warp tile: a unit made
         }
+        if (!monsters) return;
         // FUN_0063ec70 + FUN_0054e2a0: a base monster as the level has it (as populate()'s own()).
         const auto& types = game_data.monsters.types;
         auto own = [&](int base_bin) {
@@ -685,46 +713,27 @@ struct Populator {
     }
 };
 
-}  // namespace
+namespace {
 
-void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level) {
-    Populator pop{ game_data, builder, level, object_seed(game_data.map_seed) };
-    // ponytail: the game seed as a fresh game has it when the level's the
-    // first made (start_spawning); a real game's has moved on by then.
-    // The region (the monsters' looks) is normal's.
-    const auto spawning = start_spawning(game_data, 0);
-    pop.game = spawning.game;
-    if (std::size_t(level.id) < spawning.regions.size()) pop.region = spawning.regions[std::size_t(level.id)];
+// The level's ObjectRooms, made the first time one of its rooms comes up:
+// FUN_00552560's theme odds, where players come in (FUN_0054db50), the
+// region's room counts (FUN_00642be0).
+ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level& level) {
+    auto& state = spawning.levels[&level];
+    if (state.objects) return *state.objects;
+    const auto& builder = *game_data.builder;
+    state.objects = std::make_shared<ObjectRooms>(ObjectRooms{ game_data, builder, const_cast<Level&>(level) });   // GameData owns its levels mutable
+    auto& pop = *state.objects;
     pop.width = level.ds1.width() * 5;
     pop.height = level.ds1.height() * 5;
-    pop.grid.assign(level.walk.begin(), level.walk.end());
-    pop.grid.resize(std::size_t(pop.width) * std::size_t(pop.height));
-    pop.in_room.assign(std::size_t(level.ds1.width()) * std::size_t(level.ds1.height()), level.rooms.empty());
-    for (const auto& made : level.rooms)
-        for (int y = made.y; y < made.y + made.height && y < level.ds1.height(); ++y)
-            for (int x = made.x; x < made.x + made.width && x < level.ds1.width(); ++x) pop.in_room[std::size_t(y) * std::size_t(level.ds1.width()) + std::size_t(x)] = true;
-    level.room_flags.resize(level.rooms.size());
-    level.unit_rooms.resize(level.units.size(), -1);
-    // 0x30000: a room with a waypoint (objects.txt SubClass 0x40, FUN_00667e30);
-    // 0x800000: the Blood Moor's rooms next to the camp (FUN_0066bd92).
-    for (std::size_t i = 0; i < level.units.size(); ++i)
-        if (level.units[i].type == 2 && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & 0x40))
-            level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;
-    if (level.id == 2 && game_data.town.ds1.width() > 0) {
-        const auto& town = game_data.town;
-        const int tx = town.world_x, ty = town.world_y, tw = town.ds1.width(), th = town.ds1.height();
-        for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-            const auto& made = level.rooms[i];
-            const int x = level.world_x + made.x, y = level.world_y + made.y;
-            const int gap_x = x < tx ? tx - made.width - x : x - tw - tx, gap_y = y < ty ? ty - made.height - y : y - th - ty;
-            if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
-        }
-    }
-    int themes = 0, position = 0;
+    pop.stamps.assign(std::size_t(pop.width) * std::size_t(pop.height), 0);
+    state.group_rooms.assign(level.rooms.size(), {});
+    state.room_seeds.assign(level.rooms.size(), {});
+    int position = 0;
     std::uint32_t slots = 0, shared = 0;                                                           // 0x10 << slot with a Warp (FUN_0066af30); its Vis another slot's too
     for (std::size_t row = 0; row < builder.levels.size(); ++row)
         if (std::atoi(std::string(builder.levels.get(row, "Id")).c_str()) == level.id) {
-            themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
+            pop.themes = std::atoi(std::string(builder.levels.get(row, "Themes")).c_str());
             pop.warp_dist = std::atoi(std::string(builder.levels.get(row, "WarpDist")).c_str());
             position = std::atoi(std::string(builder.levels.get(row, "Position")).c_str());
             int vis[8];
@@ -764,45 +773,130 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     // ponytail: the first; with more game.exe rolls the level seed for one each check.
     if (position && !level.starts.empty()) pop.ways.push_back({ level.starts.front().first * 5, level.starts.front().second * 5 });
     else if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
-    level.group_rooms.assign(level.rooms.size(), {});
-    level.post_object_group_seeds.assign(level.rooms.size(), {});
-    level.room_spawns.assign(level.rooms.size(), {});
-    level.room_seeds.assign(level.rooms.size(), {});
-    // FUN_0054ebc0: none in a room flagged 0x800000 or nopop; the level's total (FUN_00642be0) leaves them out.
-    auto none = [&](std::size_t i) { return (i < level.nopop_rooms.size() && level.nopop_rooms[i]) || (level.room_flags[i] & 0x800000); };
     int total = 0;
-    for (std::size_t i = 0; i < level.rooms.size(); ++i) total += !none(i);
+    for (std::size_t i = 0; i < level.rooms.size(); ++i) total += !ObjectRooms::none(level, i);
     pop.pop = { 0, total, 0, level.mon.umin[0], level.mon.umax[0], 0, &game_data.umods };
-    std::size_t placed = 0;
-    for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-        const auto& made = level.rooms[i];
-        pop.room = { made.x * 5, made.y * 5, made.width * 5, made.height * 5 };
-        pop.seed = d2d::rules::Rng{ i < level.room1_seeds.size() ? level.room1_seeds[i] : made.seed };
-        pop.out = &level.group_rooms[i];
-        pop.index = i;
-        pop.spawns = &level.room_spawns[i];
-        // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
-        // rolls a wanderer (FUN_0054eff0: under 3 in 100).
-        // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
-        if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
-        pop.presets(i);
-        pop.out->pre = pop.seed.low;
-        if (pop.open(i, themes)) pop.groups();
-        pop.out->post = pop.seed.low;
-        level.post_object_group_seeds[i] = pop.seed;
-        pop.out->rgn = pop.rgn.low;
-        pop.populate(none(i));
-        level.room_seeds[i] = pop.seed;
-        placed += pop.out->made.size();
+    return pop;
+}
+
+}  // namespace
+
+// FUN_0054ebc0: none in a room flagged 0x800000 or nopop; the level's total (FUN_00642be0) leaves them out.
+bool ObjectRooms::none(const Level& level, std::size_t i) {
+    return (i < level.nopop_rooms.size() && level.nopop_rooms[i]) || (level.room_flags[i] & 0x800000);
+}
+
+// The game's seeds in for room `room_index`, the level's rooms up so far.
+void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
+    rgn = spawning.objects;
+    game = spawning.game;
+    superuniques = spawning.superuniques;
+    region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
+    auto& state = spawning.levels[&level];
+    rooms_up(spawning);
+    others.clear();
+    for (auto& [other, other_state] : spawning.levels)
+        if (other != &level && other_state.objects) {
+            other_state.objects->rooms_up(spawning);
+            others.push_back(other_state.objects.get());
+        }
+    index = room_index;
+    const auto& made = level.rooms[index];
+    room = { made.x * 5, made.y * 5, made.width * 5, made.height * 5 };
+    out = &state.group_rooms[index];
+    spawns = &state.spawns;
+}
+
+// in_room: the level's rooms up so far.
+void ObjectRooms::rooms_up(const Spawning& spawning) {
+    const auto tiles_wide = std::size_t(level.ds1.width());
+    in_room.assign(tiles_wide * std::size_t(level.ds1.height()), false);
+    const auto found = spawning.levels.find(&level);
+    if (found == spawning.levels.end()) return;
+    for (const auto up : found->second.order)
+        if (up < level.rooms.size())
+            for (int y = level.rooms[up].y; y < level.rooms[up].y + level.rooms[up].height && y < level.ds1.height(); ++y)
+                for (int x = level.rooms[up].x; x < level.rooms[up].x + level.rooms[up].width && x < level.ds1.width(); ++x) in_room[std::size_t(y) * tiles_wide + std::size_t(x)] = true;
+}
+
+void ObjectRooms::save(Spawning& spawning) const {
+    spawning.objects = rgn;
+    spawning.game = game;
+    spawning.superuniques = superuniques;
+    if (std::size_t(level.id) < spawning.regions.size()) spawning.regions[std::size_t(level.id)] = region;
+}
+
+// At build time: the room flags FUN_00552560 reads, and the level's units
+// off its rooms (the camp's edge).
+void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level) {
+    ObjectRooms pop{ game_data, builder, level };
+    level.room_flags.resize(level.rooms.size());
+    level.unit_rooms.resize(level.units.size(), -1);
+    // 0x30000: a room with a waypoint (objects.txt SubClass 0x40, FUN_00667e30);
+    // 0x800000: the Blood Moor's rooms next to the camp (FUN_0066bd92).
+    for (std::size_t i = 0; i < level.units.size(); ++i)
+        if (level.units[i].type == 2 && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & 0x40))
+            level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;
+    if (level.id == 2 && game_data.town.ds1.width() > 0) {
+        const auto& town = game_data.town;
+        const int tx = town.world_x, ty = town.world_y, tw = town.ds1.width(), th = town.ds1.height();
+        for (std::size_t i = 0; i < level.rooms.size(); ++i) {
+            const auto& made = level.rooms[i];
+            const int x = level.world_x + made.x, y = level.world_y + made.y;
+            const int gap_x = x < tx ? tx - made.width - x : x - tw - tx, gap_y = y < ty ? ty - made.height - y : y - th - ty;
+            if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
+        }
     }
-    level.group_rgn = pop.rgn.low;
-    level.collision.resize(pop.grid.size());
+    // ponytail: no room brings these up in game.exe; their rolls take a
+    // throwaway copy of the object seed as a game starts.
+    auto rgn = object_seed(game_data.map_seed);
+    for (std::size_t i = 0; i < level.units.size(); ++i)
+        if (level.unit_rooms[i] < 0 && level.units[i].type == 2) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, rgn);
+}
+
+d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, bool all) {
+    if (index >= level.rooms.size() || !game_data.builder) return {};
+    auto& pop = rooms_of(game_data, spawning, level);
+    pop.load(spawning, index);
+    pop.seed = d2d::rules::Rng{ index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed };
+    // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
+    // rolls a wanderer (FUN_0054eff0: under 3 in 100).
+    // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
+    if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
+    pop.presets(index, all);
+    if (all) {
+        pop.out->pre = pop.seed.low;
+        if (pop.open(index, pop.themes)) pop.groups();
+        pop.out->post = pop.seed.low;
+        pop.out->rgn = pop.rgn.low;
+        pop.populate(ObjectRooms::none(level, index));
+        spawning.levels[&level].room_seeds[index] = pop.seed;
+    }
+    pop.save(spawning);
+    return pop.seed;
+}
+
+void room_groups(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, d2d::rules::Rng& seed) {
+    if (index >= level.rooms.size() || !game_data.builder) return;
+    auto& pop = rooms_of(game_data, spawning, level);
+    pop.load(spawning, index);
+    pop.seed = seed;
+    pop.out->pre = pop.seed.low;
+    if (pop.open(index, pop.themes)) pop.groups();
+    pop.out->post = pop.seed.low;
+    pop.out->rgn = pop.rgn.low;
+    seed = pop.seed;
+    pop.save(spawning);
+}
+
+std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level) {
+    const auto found = spawning.levels.find(&level);
+    if (found == spawning.levels.end() || !found->second.objects) return {};
+    const auto& pop = *found->second.objects;
+    std::vector<std::uint16_t> grid(std::size_t(pop.width) * std::size_t(pop.height));
     for (int y = 0; y < pop.height; ++y)
-        for (int x = 0; x < pop.width; ++x) level.collision[std::size_t(y) * std::size_t(pop.width) + std::size_t(x)] = pop.at(x, y);
-    for (std::size_t i = 0; i < level.units.size(); ++i)                                           // units off the rooms: no room brings them up
-        if (level.unit_rooms[i] < 0 && level.units[i].type == 2) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, pop.rgn);
-    level.objects = pop.rgn;
-    if (placed) d2d::log::info("  {}: {} random object-group placements", level.name, placed);
+        for (int x = 0; x < pop.width; ++x) grid[std::size_t(y) * std::size_t(pop.width) + std::size_t(x)] = pop.at(x, y);
+    return grid;
 }
 
 }  // namespace d2d::game
