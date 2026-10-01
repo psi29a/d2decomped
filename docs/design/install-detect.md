@@ -405,9 +405,13 @@ Blizzard code or data. Avoid:
 3. **Patch-layer check:** structural, at load (e.g. one 1.14d table's row
    count). No known-hash list in the repo.
 4. **Classic save dir:** not read. Skip.
-5. **d2d without the launcher:** no `detect()`. d2d checks its own folder
-   first (drop-in replacement: `d2data.mpq` beside the binary or in the
-   working directory), then its config (`data =` in `d2d.cfg`, `--data`,
-   env). Nothing found: fail fast with a clear error. The
-   `~/Workspace/private/diablo2` fallback goes. The copy-install wizard
-   stays as it is.
+5. **d2d without the launcher:** no `detect()`. First hit wins, each a
+   hard stop if it's wrong (fail fast, clear error, no falling through):
+   1. `--data` (or `$D2_MPQ_DIR`, the tests' convention): used as given;
+      no drop-in check at all.
+   2. Drop-in: `d2data.mpq` beside the d2d binary or in the working
+      directory.
+   3. `data =` in `d2d.cfg` (the launcher writes it).
+   4. Nothing: fail fast.
+   The macOS launcher-plist read and the `~/Workspace/private/diablo2`
+   fallback go. The copy-install wizard stays as it is.
