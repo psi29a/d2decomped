@@ -2139,8 +2139,10 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         fighter.thorns_pct = pet.thorns;                             // Iron Golem's thorns
         const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
-        return Foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
-                    pet.monster.unit.walking, fighter };
+        Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
+                 pet.monster.unit.walking, fighter };
+        foe.pet = true; foe.size = type_info.size;
+        return foe;
     }
 
 auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms) -> void {
@@ -2370,6 +2372,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             std::vector<Foe> foes{ Foe{ player.x, player.y, int(character.stats.get(d2d::d2s::kLevel)), true, player.walking, player_combat },
                                    Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
                                         merc && merc->walking, merc_fighter() } };
+            foes[1].pet = true;                                  // the merc: its MonStats class's size
+            if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0) foes[1].size = game_data->monsters.types[std::size_t(row)].size;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
                 if (now_ms < amplified[k]) foes[k].fighter.dr_pct -= 100;
             monster_auras(foes, now_ms);

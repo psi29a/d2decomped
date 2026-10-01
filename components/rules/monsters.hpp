@@ -435,6 +435,37 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
     return false;
 }
 
+// A hostile monster's target search over the player lists (FUN_005dd7f0,
+// game +0x10f8 lists 0..7). Each list is a player (`pet` false) and then
+// its pets (FUN_005b1900 puts them after it: the merc, summons). `away` is
+// a player in another act, in no room, or in a town room (FUN_0061ab00).
+// An away player and its pets are skipped. Otherwise `nearest` takes the
+// player's distance (FUN_005dc530). If that distance is 0x37 or more, the
+// player and its pets are skipped too. A dead player (FUN_005541b0) counts
+// as 0x7fffffff, but its pets are still tried. Each one tried is taken when
+// its distance is under the best so far and, when `need_sight`, it isn't
+// `blocked` (FUN_00622aa0 mask 4). Pets don't count for `nearest`.
+// tools/emu/search.py checks this against game.exe.
+struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = false, blocked = false; };
+struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff; };
+inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight) {
+    SearchPick pick{ -1, best };
+    bool skip = true;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        int distance = foe.distance;
+        if (!foe.pet) {
+            skip = foe.away;
+            if (!skip) pick.nearest = std::min(pick.nearest, distance);
+            skip = skip || distance >= 0x37;
+            if (foe.dead) distance = 0x7fffffff;
+        }
+        if (skip || distance >= pick.best || (need_sight && foe.blocked)) continue;
+        pick.target = int(i); pick.best = distance;
+    }
+    return pick;
+}
+
 // A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0
 // -> FUN_0064fc60): the smaller delta over the larger in 128ths picks an
 // eighth of a quadrant (the table at 0x6eb7e0), folded into its octant.

@@ -126,8 +126,14 @@ struct Monster {
     // AI control flag 8: it has found a target once, and needs no line of
     // sight from then on; its spawn area's key in AreaSeen (-2: not yet
     // looked up, -1: none). See ai.cpp search_target.
-    bool sighted = false;
+    // AI control flag 0x40: a walk with flag 1 couldn't set off
+    // (FUN_005deb60 -> FUN_005dd230), so its next search tests sight
+    // whatever the room. Then a move's re-path budget left in cells (path
+    // +0x94), and the foe a chase follows (an index into the foes).
+    bool sighted = false, force_sight = false;
     int area = -2;
+    float path_left = 0;
+    int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
@@ -179,7 +185,8 @@ struct Monster {
 };
 
 // Whoever the monsters are after (the player, the merc), and what they
-// did to it this frame.
+// did to it this frame. The player comes first and its pets after it, as in
+// game.exe's player list (FUN_005b1900).
 struct Foe {
     float x = 0, y = 0;
     int level = 1;
@@ -192,6 +199,8 @@ struct Foe {
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     int amplify = 0;                          // Amplify Damage cast on it this frame (a Cursed boss): its level
+    bool pet = false;                         // the merc, a summon: in the player's list
+    int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         damage += taken.damage;
