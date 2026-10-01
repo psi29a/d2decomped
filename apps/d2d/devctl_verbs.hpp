@@ -502,6 +502,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " pets=" + [&] { std::string list; for (const auto& pet : town.fight.pets) list += (list.empty() ? "" : ",") + std::to_string(pet.monster.hit_points) + "/" + std::to_string(pet.monster.stats.hit_points) + ":" + std::string(pet.monster.mode); return list.empty() ? std::string("-") : list; }()
              + " lskill=" + std::to_string(town.skillbar.left) + " rskill=" + std::to_string(town.skillbar.right)
              + " picker=" + std::to_string(town.skillbar.picking)
+             + " gamemenu=" + std::to_string(town.game_menu.open ? town.game_menu.menu + 1 : 0) + ":" + std::to_string(town.game_menu.sel)
+             + " mini=" + (town.mini.open ? "1" : "0") + " volume=" + std::to_string(audio.master_volume) + "," + std::to_string(audio.music_volume)
              + " charges=" + [&] {
                    std::string charges;
                    for (const auto& charge : town.fight.charges) charges += std::format("{}{}:{}", charges.empty() ? "" : ",", charge.skill, charge.count);

@@ -2,6 +2,7 @@
 #include "load.hpp"
 
 #include "common.hpp"
+#include "gamemenu.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
@@ -181,6 +182,18 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
             scene.font30 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     for (auto [spr, name] : { std::pair{ &scene.you_died, "youdiedhardcore" }, { &scene.you_died_inst, "youdiedinst" } })
         if (auto bytes = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + name + ".dc6")) *spr = d2d::dc6::Sprite(*bytes);
+    for (const auto name : game_menu_images())
+        if (!scene.menu_text.contains(std::string(name)))
+            if (auto bytes = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + std::string(name) + ".dc6"))
+                scene.menu_text.emplace(std::string(name), d2d::dc6::Sprite(*bytes));
+    for (const auto& [path, into] : { std::pair{ R"(data\global\ui\CURSOR\pentspin.dc6)", &scene.pentspin },
+                               { R"(data\global\ui\Widgets\OptBar.dc6)", &scene.opt_bar },
+                               { R"(data\global\ui\Widgets\OptBarC.dc6)", &scene.opt_bar_c },
+                               { R"(data\global\ui\Widgets\OptSkull.dc6)", &scene.opt_skull },
+                               { R"(data\global\ui\PANEL\menubutton.dc6)", &scene.menu_button },
+                               { R"(data\global\ui\PANEL\minipanel_s.dc6)", &scene.minipanel },
+                               { R"(data\global\ui\PANEL\minipanelbtn.dc6)", &scene.minipanel_btn } })
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
     scene.unique_inv = keys("UniqueItems", "invfile", false);
     scene.set_inv    = keys("SetItems", "invfile", false);
     for (auto [name, into] : { std::pair{ "font8", &scene.font_small }, { "font6", &scene.font_tiny } })

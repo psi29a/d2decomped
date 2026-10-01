@@ -5,6 +5,7 @@
 
 #include "audio.hpp"
 #include "common.hpp"
+#include "gamemenu.hpp"
 #include "panels.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
@@ -18,6 +19,7 @@
 #include <weather.hpp>
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <optional>
 #include <span>
@@ -181,6 +183,9 @@ struct Town {
     bool  char_open = false;  // 'C' — character panel
     bool  stats_down = false, skills_down = false;   // New Stats / New Skills held (DAT_007c02e4 / DAT_007c02e8)
     bool  run_down = false;                          // the run button held (DAT_007befd8)
+    GameMenu game_menu;                    // Esc's menu (UI 9)
+    MiniPanel mini;                        // the mini-panel (UI 0x15) and the HUD's button for it
+    std::filesystem::path cfg_file;        // where the menu's volumes are kept (d2d.cfg; empty: not kept)
 
     Town(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
         : scene(game_scene), character(player_character), world(game_scene, start_x, start_y) {
@@ -209,9 +214,15 @@ struct Town {
     // difficulty, no loot about.
     void new_game();
 
+    // The game menu (FUN_0047e090 / FUN_0047e200): opening closes the
+    // panels, the automap and the mini-panel; closing reopens those two.
+    void open_game_menu();
+    void close_game_menu();
+
     // One InGame frame: keys, panels, clicks, walking, NPCs, then the render.
-    // Esc with nothing open goes back to the roster (screen).
-    void update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const std::vector<SDL_Keycode>& keys_this_frame,
+    // Esc with nothing open opens the game menu; its Exit saves and goes
+    // back to the roster (screen).
+    void update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& keys_this_frame,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms);
 
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.

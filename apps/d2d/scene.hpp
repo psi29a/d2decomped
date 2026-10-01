@@ -159,6 +159,12 @@ struct Scene : GameData {
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     d2d::font::Font  font30;                           // Font30 (font id 2): the death screen's lines
     d2d::dc6::Sprite you_died, you_died_inst;          // UI\ENG\youdiedhardcore, youdiedinst (FUN_00453100)
+    // The game menu and the mini-panel (docs/research/re/menu.md): the menus'
+    // text images by name (UI\ENG\<name>), the slider (Widgets\OptBar,
+    // OptBarC, OptSkull), CURSOR\pentspin, PANEL\menubutton, minipanel_s
+    // and minipanelbtn.
+    std::unordered_map<std::string, d2d::dc6::Sprite> menu_text;
+    d2d::dc6::Sprite pentspin, opt_bar, opt_bar_c, opt_skull, menu_button, minipanel, minipanel_btn;
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
     // game.exe's level-type names (0x6e7d50: "None", "1 Town", ...),
     // TileName through its orientation names (0x6e7f90: fl wl wr wtlr

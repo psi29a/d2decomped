@@ -273,8 +273,26 @@ try:
         cmd("debug skillpts 1"); cmd("key t"); frames()
         assert state()["tree"] != "0"
         cmd("key t"); frames()
-    cmd("key Escape")                 # back to the roster
-    frames()
+    # Esc opens the game menu (FUN_0047e090) on Return to Game; Options ->
+    # Sound Options, its Sound slider down a step and back (vol = val*100/20).
+    cmd("key Escape"); frames()
+    assert state()["gamemenu"] == "1:2", state()
+    def keys(*names):
+        for name in names:
+            cmd("key " + name); frames(2)
+    keys("Up", "Up", "Return")
+    assert state()["gamemenu"] == "2:4", state()
+    keys("Up", "Up", "Up", "Up", "Return")
+    assert state()["gamemenu"] == "3:7", state()
+    keys("Down", "Left")
+    st = state()
+    assert st["gamemenu"] == "3:1" and st["volume"] == "95,50", st
+    keys("Right")
+    assert state()["volume"] == "100,50", state()
+    cmd("key Escape"); frames()                     # closes the menu
+    assert state()["gamemenu"].startswith("0:") and state()["screen"] == "ingame"
+    cmd("key Escape"); frames()
+    keys("Up", "Return")                            # Save and Exit Game: back to the roster
     assert state()["screen"] == "charselect"
     cmd("click 142 120"); frames(2); cmd("click 142 120")   # double-click plays
     frames()
@@ -381,7 +399,10 @@ try:
     for _ in range(6):
         if state()["screen"] == "charselect":
             break
-        cmd("key Escape"); frames(6)
+        if not state()["gamemenu"].startswith("0:"):
+            cmd("key Up"); frames(2); cmd("key Return"); frames(6)   # Save and Exit Game
+        else:
+            cmd("key Escape"); frames(6)
     st = state()
     assert st["screen"] == "charselect" and st["save"] == "0", st
     assert os.path.exists(os.path.join(saves, name + ".d2s.bak")), "no backup of the original save"
