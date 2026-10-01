@@ -154,6 +154,12 @@ struct Monster {
     // (Iron Maiden), and until when it can't see (Dim Vision, Cloak).
     int dmg_pct = 0, speed_pct = 0, reflect_pct = 0;
     std::uint32_t blind_until = 0;
+    // Its alignment (stat 0xac: 0 evil, 1 neutral while Confuse or Attract
+    // is on it) and its skill-set target (monster data +0x38 kind, +0x34
+    // value, FUN_00573090: 2 a monster by id, Attract's; 3 Confuse's
+    // search), cleared when due (event 10 -> FUN_00573120).
+    int align = 0, set_kind = 0, set_id = 0;
+    std::uint32_t set_until = 0;
     bool in_aura = false;                     // within the player's aura (its auratargetstate: Conviction's convicted ...)
     // Andariel's think (MonAI 34): the skill its mode is using (-1 a plain
     // swing), the last SC frame the spray fired, where its target stood
@@ -201,6 +207,8 @@ struct Foe {
     int amplify = 0;                          // Amplify Damage cast on it this frame (a Cursed boss): its level
     bool pet = false;                         // the merc, a summon: in the player's list
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
+    int threat = 14;                          // FUN_005dc920: a player's 14, a monster's MonStats threat
+    const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         damage += taken.damage;

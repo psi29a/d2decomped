@@ -82,10 +82,11 @@ uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at ea
   on random walls in a fake room, against a line-for-line Python copy of
   `rules::sight_blocked`. `uv run python sight.py 20000 3` should print
   `ok`. See `docs/research/re/monster-ai.md`.
-- `search.py`: a hostile monster's target search (FUN_005dd7f0) on random
-  players with pets in the player lists, against `rules::search_pick` and
-  ai.cpp's sight and flag rules. `uv run python search.py 20000 2` should
-  print `ok`.
+- `search.py`: a monster's target search (FUN_005dd7f0) on random players
+  with pets, good and neutral monsters in lists 8 / 9, rooms for the mode 5
+  search, and Attract's / Confuse's skill-set target (FUN_005dd610), against
+  `rules::search_pick` / `search_near` and ai.cpp's flow.
+  `uv run python search.py 20000 2` should print `ok`; `--break` should not.
 - `collision` (drlg.py `collision_dump`): the level's rooms brought up out
   of list order ($ORDER shuffle, the default, reverse or list), then every
   room's collision grid (room1 +0x20), against `relevel`'s:

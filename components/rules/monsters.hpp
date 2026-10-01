@@ -445,15 +445,28 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
 // as 0x7fffffff, but its pets are still tried. Each one tried is taken when
 // its distance is under the best so far and, when `need_sight`, it isn't
 // `blocked` (FUN_00622aa0 mask 4). Pets don't count for `nearest`.
+// Then the monster lists (`list` 8: good monsters, 9: neutral; they come
+// after the players): same act (`away`: another act), sight, no 0x37 or
+// death test. List 8 is tried as a player is. List 9's nearest is taken
+// from its own 0x7fffffff only when nothing else was found (FUN_005dd510:
+// with a best it keeps it unless that's under 6 away with no path to it).
+// ponytail: FUN_005dd510's path test (FUN_00649970) always finds a path.
 // tools/emu/search.py checks this against game.exe.
-struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = false, blocked = false; };
+struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = false, blocked = false; int list = 0; };
 struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff; };
 inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight) {
     SearchPick pick{ -1, best };
     bool skip = true;
+    int nine = -1, nine_best = 0x7fffffff;
     for (std::size_t i = 0; i < foes.size(); ++i) {
         const auto& foe = foes[i];
         int distance = foe.distance;
+        if (foe.list) {
+            if (foe.away || (need_sight && foe.blocked)) continue;
+            if (foe.list == 8 && distance < pick.best) { pick.target = int(i); pick.best = distance; }
+            if (foe.list == 9 && distance < nine_best) { nine = int(i); nine_best = distance; }
+            continue;
+        }
         if (!foe.pet) {
             skip = foe.away;
             if (!skip) pick.nearest = std::min(pick.nearest, distance);
@@ -462,6 +475,50 @@ inline SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool ne
         }
         if (skip || distance >= pick.best || (need_sight && foe.blocked)) continue;
         pick.target = int(i); pick.best = distance;
+    }
+    if (nine >= 0 && pick.target < 0) { pick.target = nine; pick.best = nine_best; }
+    return pick;
+}
+
+// FUN_00650d70: friends by alignment (stat 0xac: 0 evil, 1 neutral, 2 good).
+// Evil befriends evil, good good, neutral nobody. FUN_00554200's enemies
+// are the rest, owners first (a pet is its player's: good).
+inline bool friends(int a, int b) { return a == 0 ? b == 0 : a == 2 && b == 2; }
+
+// FUN_005dc380: ai_distance less the candidate's size on each axis (FUN_00620510).
+inline int near_distance(int dx, int dy, int size) {
+    return ai_distance(std::max(std::abs(dx) - size, 0), std::max(std::abs(dy) - size, 0));
+}
+
+// Confuse's skill-set target (FUN_005dd610 kind 3) searches as a random
+// alignment, one draw of the unit's seed: neutral turns good or evil, evil
+// and good swap on a 1.
+inline int confuse_align(int align, bool draw) { return align == 1 ? (draw ? 2 : 0) : draw ? 2 - align : align; }
+
+// A neutral or good monster's search, and Confuse's: FUN_005dd0b0 mode 5
+// (FUN_005dcf70 over the units of the rooms near it, not town ones;
+// FUN_005dca70 each). `distance` is near_distance, `threat` FUN_005dc920
+// (a player's 14, a monster's MonStats threat). A live enemy within 0x23
+// is a primary when its threat is 2 or more, else a secondary, each the
+// nearest in sight (FUN_00622aa0 from it to the searcher). An evil searcher
+// that meets a monster friend (or itself) not dying, aware (AI flag 8), in
+// its area (FUN_0061b130) needs no sight from then on (`waking`). `skip`:
+// in a room it doesn't search.
+struct NearFoe { int distance = 0, align = 2, threat = 14; bool self = false, monster = false, dead = false, skip = false, blocked = false, waking = false; };
+struct NearPick { int target = -1, best = 0x7fffffff, second = -1, second_best = 0x7fffffff; };
+inline NearPick search_near(std::span<const NearFoe> foes, int align, bool need_sight) {
+    NearPick pick;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        if (foe.skip) continue;
+        if (!foe.self && !foe.dead && !friends(align, foe.align)) {
+            const bool first = foe.threat >= 2;
+            if (foe.distance > 0x23 || foe.distance >= (first ? pick.best : pick.second_best) || (need_sight && foe.blocked)) continue;
+            (first ? pick.target : pick.second) = int(i);
+            (first ? pick.best : pick.second_best) = foe.distance;
+        } else if (foe.monster && align == 0 && need_sight && foe.waking) {
+            need_sight = false;
+        }
     }
     return pick;
 }
