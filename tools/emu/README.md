@@ -86,6 +86,14 @@ uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at ea
   players with pets in the player lists, against `rules::search_pick` and
   ai.cpp's sight and flag rules. `uv run python search.py 20000 2` should
   print `ok`.
+- `moves.py`: a monster's move. The toward pather (FUN_00679c80) runs on
+  random walls, and the chase check (FUN_006503f0 → FUN_00650350: stop,
+  go on, re-path, the budget) runs on random paths and targets. Both are
+  compared against line-for-line copies of `rules::toward_path` /
+  `rules::chase_check`, and the modes that think at once (DAT_0073c6d0)
+  against ai.cpp's. `uv run python moves.py` should print `ok` three times.
+  `--break` breaks the copy and should print mismatches; `--dump` prints the
+  test_monsters.cpp cases.
 - `collision` (drlg.py `collision_dump`): the level's rooms brought up out
   of list order ($ORDER shuffle, the default, reverse or list), then every
   room's collision grid (room1 +0x20), against `relevel`'s:

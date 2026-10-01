@@ -96,7 +96,45 @@ So when an Act 1 Fallen stands still at 7 tiles, it isn't because it can't see y
 - A mode end (FUN_005a8030) thinks at once when DAT_0073c6d0[mode] is set: WL (2) and RN (15). Other modes go to NU through FUN_005a7c20.
 - A mode that can't start, or NU, schedules the think aidel frames on (FUN_005a73e0: MonStats +0x4f + difficulty; 0 → 15; 0x2d in state 0x15). That's skipped if an event is already due later.
 - FUN_005de080(n) (stand n) schedules it n frames on.
-- A move gets a re-path budget of 0x14 (FUN_005a7c20 → FUN_006490e0, path +0x94). FUN_00650350 re-paths a chase whose path ended short of a moved target, spending the points walked; at 0 it can't, and the move ends.
+- A move gets a re-path budget of 0x14 (FUN_005a7c20 → FUN_006490e0, path +0x94). See the next section.
+
+## A move — path, chase, end
+
+The path is D2DynamicPath (unit +0x2c):
+
+| Offset | Holds |
+|---|---|
+| +0 / +4 | 16.16 position |
+| +0x10 | SP1, the dest |
+| +0x14 | SP2, the dest when last pathed |
+| +0x18 | SP3, where the path was computed to |
+| +0x24 / +0x28 | point index / count |
+| +0x3c | type |
+| +0x58 | target unit |
+| +0x91 | steps |
+| +0x93 | stop distance |
+| +0x94 | budget |
+| +0x9c | points (subtiles) |
+
+- **Set off.** The walk FUN_005dec80 is FUN_005deb60(target, mode 2, stop 1), and FUN_00649070 makes +0x93 = 0.
+  - FUN_005a7c20 sets the target, budget 0x14, then FUN_005a63f0: a move mode's ctx byte 0x65 gives type 0xd and steps 5. FUN_005a6290 computes the path (FUN_00649970) and retries type 0xf when that comes out empty.
+  - With no points, the mode start (FUN_005a7520 / FUN_005a7550) fails and FUN_005a73e0 schedules the think aidel on.
+- **Compute (FUN_00649970).** No path when dest = position, or the dest is over 100 subtiles off. SP3 = SP2 = the dest (a target's spot through FUN_006498a0, whose 1 for a player or monster is `near`). The type's pather is taken from 0x6eb6d8. Leading points whose centre the unit stands on are skipped (FUN_0064fe40).
+- **Toward pather (FUN_00679c80; types 2, 5, 6, 0xd).**
+  - A Bresenham line (FUN_00679720) to the dest. Clear: that's the path, whatever its length.
+  - Else it stops at the last free subtile. Within `near` of the dest (FUN_00679380 = unit_distance at size 1), that subtile is the path.
+  - Else from there up to `steps` 8-way steps. Each is the first free of three directions (DAT_006f1518 by FUN_00678c10's 5x5 index), and the walk stops at the dest, a wall, or a step back.
+  - Points go at each turn and at the end, unless the last step turned. The cut-short subtile comes twice when the first step leaves from it.
+  - Type 0xf is FUN_0067c2d0, a search of up to 0x28 steps.
+- **Each frame (FUN_00650840, from FUN_00554ca0 in the WL / RN updates).** FUN_006503f0 runs first:
+  - With a target unit: stop when unit_distance ≤ +0x93. Re-path (FUN_00650350) when the target, a player or monster, stands over 5 subtiles from SP2 on either axis, or when idx ≥ count short of SP3.
+  - With none: re-path only on the last test.
+  - FUN_00650350 is refused when a monster's budget is 0. Otherwise the points reached (+0x24) come off the budget, floor 0.
+  - Then it steps one velocity toward points[idx]. It snaps onto the point when within the step (FUN_00650090), so one point a frame.
+  - A blocked subtile crossed (FUN_00650150) ends the path (idx = count). A path with flag 0x10 re-paths instead. FUN_00649d00 doesn't set the flag.
+  - At idx ≥ count after the step, FUN_006507b0 stops: snap to the subtile centre, clear flag 0x20. So the idx ≥ count re-path in FUN_006503f0 doesn't come up from here, and the budget is spent only by a target that moves.
+- **End.** The update sees the stop and calls FUN_005a8030 the same frame. WL and RN think at once. A chase ends at its target, at its path's end (5 steps on, or the clear line's end), when blocked, or when a re-path is refused.
+- `tools/emu/moves.py` runs FUN_00679c80 on random walls and FUN_006503f0 on random paths: 20 000 cases each, all match `rules::toward_path` / `rules::chase_check`. 10 259 paths end short of the dest, and the chase cases split 7 657 stop / 6 175 go on / 6 168 re-path. `--break` (re-path at 4, no step-back stop) gives 196 and 667 mismatches.
 
 ## Which rooms think
 
@@ -111,11 +149,11 @@ So when an Act 1 Fallen stands still at 7 tiles, it isn't because it can't see y
 
 - Foes are the player, then the merc and pets (`Foe::pet`), each with its size (`Foe::size`: the merc's MonStats class, a pet's type).
 - A walk n with n & 1 that can't set off sets `Monster::force_sight` (flag 0x40).
-- A move thinks at its end (`Monster::path_left`, `Monster::chase`); AIs not traced search at the same points.
+- A move is `ai.cpp path_to` / `move_frame` over `Monster::steps` and `budget`: the toward path, the chase check, one point a frame, the snap at the end. It thinks at its end. AIs not traced set off at their thinks and search at the same points.
 
 Approximated (`ponytail:` in ai.cpp):
 
 - No skill-set target and no lists 8 / 9: monsters don't fight monsters here. Confuse and Attract are `blind_until` on the cursed one.
-- The re-path budget is 4 cells walked, and a chase steps at the foe each frame instead of re-pathing at its path's end.
+- The search pather (type 0xf, FUN_0067c2d0) is `rules::find_path`'s turns over its first 0x28 subtiles. Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
 - A dead pet is skipped (game.exe takes it off the list).
 - An untraced AI chases the nearest foe, whichever it found.

@@ -221,6 +221,36 @@ int main() {
                 assert(pick.target == c.target && (c.target >= 0 ? pick.best : pick.nearest) == c.distance);
             }
         }
+        // A move's path (FUN_00679c80) and its chase check (FUN_006503f0 ->
+        // FUN_00650350; tools/emu/moves.py --dump): to, steps, near, points,
+        // walls (all from the start); then target, distance, stop, mover,
+        // moved x / y, idx, count, at its end, budget, result, budget after.
+        {
+            struct Path { int to_x, to_y, steps, near; std::vector<std::pair<int, int>> points, walls; };
+            const std::vector<Path> paths{
+                { 4, -1, 5, 1, { {1, -1}, {2, -1}, {3, -2} }, { {1, 0}, {3, -1}, {3, 0} } },
+                { 11, -11, 5, 1, { {4, -4}, {4, -4}, {5, -4}, {8, -7} }, { {5, -5}, {9, -8}, {9, -7} } },
+                { -6, 3, 5, 1, { {-3, 2}, {-3, 2}, {-4, 3}, {-6, 3} }, { {-4, 2} } },
+                { -1, -6, 2, 1, { {0, -2}, {0, -2}, {-1, -3} }, { {0, -3} } },
+                { -7, -2, 5, 0, { {-1, 0}, {-1, 0}, {-2, -1}, {-4, -1}, {-5, -2} }, { {-5, -1}, {-2, 0} } },
+                { 14, -12, 14, 0, { {2, -2}, {2, -2}, {2, -4}, {6, -8}, {8, -8}, {9, -9}, {10, -9}, {12, -11}, {12, -12} },
+                  { {3, -4}, {3, -3}, {3, -2}, {8, -9}, {10, -10}, {13, -12}, {13, -11} } },
+                { 6, 2, 5, 1, { {6, 2} }, {} },
+            };
+            for (const auto& c : paths)
+                assert(toward_path(0, 0, c.to_x, c.to_y, c.steps, c.near, [&](int x, int y) {
+                    return std::ranges::contains(c.walls, std::pair(x, y)); }) == c.points);
+            const std::vector<std::array<int, 12>> chases{ {
+                { 0, 0, 1, 0, 0, 0, 4, 5, 1, 20, 1, 20 }, { 1, 25, 1, 1, -7, 7, 0, 5, 1, 1, 2, 1 }, { 1, 6, 0, 1, 1, 3, 0, 2, 1, 0, 1, 0 },
+                { 1, 4, 3, 1, -4, 7, 1, 6, 1, 20, 2, 19 }, { 1, 6, 3, 0, 3, 1, 1, 2, 0, 1, 1, 1 }, { 0, 0, 3, 0, 0, 0, 6, 2, 0, 0, 0, 0 },
+                { 1, 6, 0, 1, -2, 7, 1, 2, 0, 3, 2, 2 }, { 1, 10, 3, 1, 4, -8, 4, 5, 1, 20, 2, 16 }, { 1, 0, 3, 1, 2, -3, 0, 6, 0, 0, 0, 0 },
+                { 1, 0, 3, 1, 1, 2, 2, 4, 1, 1, 0, 1 }, { 1, 3, 0, 1, 8, 3, 0, 2, 1, 20, 2, 20 }, { 1, 0, 3, 1, -1, 0, 1, 1, 0, 1, 0, 1 },
+            } };
+            for (const auto& c : chases) {
+                int budget = c[9];
+                assert(chase_check(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], budget) == c[10] && budget == c[11]);
+            }
+        }
         assert(direction64(0, 0, 5, 0) == 56 && direction64(0, 0, 0, 5) == 7 && direction64(0, 0, 3, 3) == 0 && direction64(9, 9, 6, 6) == 32);
         const std::array<int, 8> aip{ 30, 10, 30, 50 };
         for (const bool in_melee : { true, false })

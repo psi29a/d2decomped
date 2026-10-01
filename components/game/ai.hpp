@@ -128,11 +128,14 @@ struct Monster {
     // looked up, -1: none). See ai.cpp search_target.
     // AI control flag 0x40: a walk with flag 1 couldn't set off
     // (FUN_005deb60 -> FUN_005dd230), so its next search tests sight
-    // whatever the room. Then a move's re-path budget left in cells (path
-    // +0x94), and the foe a chase follows (an index into the foes).
+    // whatever the room. Then a move's path (D2DynamicPath, unit +0x2c): its
+    // points (subtiles, +0x9c), the one it's walking to (+0x24), its re-path
+    // budget (+0x94) and its end when pathed (SP3 +0x18; at a foe, the foe's
+    // spot, SP2 +0x14 too); the foe a chase follows (an index into the foes).
     bool sighted = false, force_sight = false;
     int area = -2;
-    float path_left = 0;
+    std::vector<std::pair<int, int>> steps;
+    int step = 0, budget = 0, end_x = 0, end_y = 0;
     int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Damage over time (life a millisecond, until when) and a chill.
