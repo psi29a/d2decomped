@@ -93,6 +93,8 @@ int main() {
     classic(mac, true, { 0, 0, 0, 0 });
     mpq(mac / "patch_d2.mpq");
     classic(bare, true, { 0, 0, 0, 0 });
+    classic(root / "devbin", true, { 0, 0, 0, 0 });   // the launcher's bin/ import, no patch_d2.mpq
+    pe(root / "devbin" / "bin" / "game.exe", 1, 14, 3, 71);
     write(d2r / "D2R.exe", "MZ");
     write(d2r_casc / ".build.info", "Branch!STRING:0|Product!STRING:0\n");
     fs::create_directories(d2r_casc / "Data" / "data");
@@ -188,6 +190,8 @@ int main() {
     auto native_mac = classify(mac, "t");
     assert(native_mac && native_mac->version == Version::unknown && usable(*native_mac) && problem(*native_mac).empty());
     assert(problem(*classify(bare, "t")).find("LODPatch_114d.exe") != std::string::npos);
+    auto devbin = classify(root / "devbin", "t");
+    assert(devbin->version == Version::v114d && problem(*devbin).find("no patch_d2.mpq") != std::string::npos);
     auto r = classify(d2r, "t");
     assert(r && r->kind == Kind::resurrected && !usable(*r) && problem(*r).find("Resurrected") != std::string::npos);
     assert(classify(d2r_casc, "t")->kind == Kind::resurrected);

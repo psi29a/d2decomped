@@ -464,7 +464,8 @@ std::string problem(const Install& install) {
         return "Diablo II: Resurrected stores its data differently; d2d needs classic Diablo II (2000/2001)";
     if (!install.expansion) return "Lord of Destruction needed (no d2exp.mpq)";
     switch (install.version) {
-    case Version::v114d: return {};
+    case Version::v114d:   // the 1.14d tables live in patch_d2.mpq
+        return install.patch_mpq.empty() ? "1.14d Game.exe but no patch_d2.mpq: add LODPatch_114d.exe" : std::string{};
     case Version::v114_other:
     case Version::legacy: return "version " + install.file_version + ", not 1.14d: add LODPatch_114d.exe";
     case Version::unknown: return install.patch_mpq.empty() ? "version unknown, no patch_d2.mpq: add LODPatch_114d.exe" : std::string{};
