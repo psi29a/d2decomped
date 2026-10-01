@@ -72,6 +72,7 @@ build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
 
 ```
 uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
+./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
 ```
 
 ## Adding a new oracle
