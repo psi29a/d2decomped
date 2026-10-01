@@ -69,6 +69,18 @@ cmake --build build
 build/apps/d2d/d2d --data /path/to/your/MPQ-folder
 ```
 
+d2d looks for the game data in this order, and the first hit wins:
+1. `--data` (or `$D2_MPQ_DIR`).
+2. A `d2data.mpq` beside the binary or in the working directory.
+3. `data =` in `d2d.cfg`.
+
+If the first hit is wrong, d2d stops with an error and doesn't try the
+next one. The launcher finds an installed Diablo II and writes `data =`
+(and `patch =` for a non-1.14d install, pointing at `LODPatch_114d.exe`)
+into `d2d.cfg`. That file lives in `~/Library/Preferences/d2d` on macOS,
+`~/.config/d2d` on Linux, and `Documents\My Games\d2d` on Windows.
+Your install is read in place and never changed.
+
 ## License
 
 D2Decomp is licensed under the GNU General Public License, version 3 or later
