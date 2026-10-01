@@ -180,7 +180,8 @@ Spawning start_spawning(const GameData& game_data, int difficulty) {
     // (FUN_0052c280); the regions are made on theirs, levels 1 up.
     spawning.game = d2d::rules::Rng{ game_data.map_seed };
     d2d::rules::Rng region_seed{ spawning.game.next() };
-    for (int step = 0; step < 3; ++step) spawning.game.next();
+    spawning.objects = d2d::rules::Rng{ spawning.game.next() };   // object_seed()
+    for (int step = 0; step < 2; ++step) spawning.game.next();
     spawning.regions.resize(game_data.level_mon.size());
     for (std::size_t id = 1; id < game_data.level_mon.size(); ++id)
         spawning.regions[id] = d2d::rules::monster_region(game_data.monsters, game_data.level_mon[id], spawning.difficulty, region_seed);
@@ -268,8 +269,9 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
 }
 
 // One room coming into play at the spawning's difficulty (FUN_0052d0f0):
-// its preset units (FUN_005559a0 → FUN_0054e600), then the room populated
-// (FUN_0054ec90), both on the room1 seed.
+// its preset units (FUN_005559a0 → FUN_0054e600), its object groups
+// (FUN_00552610), then the room populated (FUN_0054ec90), all on the room1
+// seed; the objects it made stamped into the walk grid.
 void populate(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t made_index) {
     static constexpr const char* kSfx[3] = { "", "(N)", "(H)" };
     const int difficulty = spawning.difficulty;
@@ -287,7 +289,6 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         state.up.assign(level.rooms.size(), false);
         int total = 0;
         for (std::size_t index = 0; index < level.rooms.size(); ++index) total += !nopop(index);
-        state.group_total = total;
         state.pop = { 0, total, 0, level.mon.umin[std::size_t(difficulty)], level.mon.umax[std::size_t(difficulty)], difficulty, &game_data.umods };
         level.region[std::size_t(difficulty)].clear();
         for (const auto& [row, rarity] : region.types) level.region[std::size_t(difficulty)].push_back(row);
@@ -298,30 +299,28 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     const std::size_t first = spawns.size();
     auto& pop = state.pop;
     const auto& made = level.rooms[made_index];
-    // Normal's monsters as place_objects made them, game.exe's to the subtile.
-    // ponytail: as a fresh game populates the level room by room in list
-    // order; a real game's seed and order have moved on. NM / hell below.
-    if (difficulty == 0 && made_index < level.room_spawns.size()) {
-        for (auto spawn : level.room_spawns[made_index]) {
-            if (spawn.leader >= 0) spawn.leader += int(first);
-            if (spawn.super >= 0) spawning.superuniques.set(std::size_t(spawn.super));
-            spawns.push_back(std::move(spawn));
-        }
+    auto& level_rw = const_cast<Level&>(level);                 // GameData owns its levels mutable
+    const auto npcs_before = level.npcs.size();
+    auto stamp_made = [&] {
+        for (auto i = npcs_before; i < level_rw.npcs.size(); ++i) stamp_footprint(level_rw, level_rw.npcs[i]);
+    };
+    // Normal: objgroups.cpp's port, game.exe's to the subtile.
+    if (difficulty == 0) {
+        room_objects(game_data, spawning, level, made_index, true);
+        stamp_made();
         if (spawns.size() > first)
             d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
         return;
     }
-    // The room1 seed: one step (FUN_0054f060), the preset units, the object
-    // groups (FUN_00552610), then the population (FUN_0052d0f0).
-    // ponytail: FUN_0054f060's rare FUN_0054eff0 branch isn't there.
-    const std::uint32_t seed = made_index < level.room1_seeds.size() ? level.room1_seeds[made_index] : made.seed;
-    d2d::rules::SpawnRoom room{ made.x * 5, made.y * 5, made.width * 5, made.height * 5, d2d::rules::Rng{ seed } };
+    // The room1 seed: one step (FUN_0054f060) and the preset objects
+    // (room_objects), the preset monsters, the object groups (room_groups),
+    // then the population (FUN_0052d0f0).
+    d2d::rules::SpawnRoom room{ made.x * 5, made.y * 5, made.width * 5, made.height * 5, room_objects(game_data, spawning, level, made_index, false) };
     if (made_index < level.room_areas.size())                   // FUN_0054ec90: areas with an id, not skipped, not empty
         for (const auto& area : level.room_areas[made_index])
             if (area.id && !area.skip && (area.left || area.top || area.right || area.bottom))
                 room.areas.push_back({ area.left * 5, area.top * 5, (area.right - area.left) * 5, (area.bottom - area.top) * 5 });
     if (room.areas.empty()) room.areas.push_back({ 0, 0, 0, 0 });   // all skipped: no tries
-    room.seed.next();
     // Not within WarpDist (2025 = 45^2 subtiles) of where players come
     // in: the camp for the Blood Moor, the warps for a level entered by one.
     // FUN_0054db50: within WarpDist (Levels +0xc, 2025 squared subtiles)
@@ -407,13 +406,20 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     };
     for (const auto& unit : level.units) {
         if (unit.x < room.x || unit.y < room.y || unit.x >= room.x + room.width || unit.y >= room.y + room.height) continue;
-        if (unit.type == 2 || unit.type == 5) { spawning.game.next(); continue; }   // an object or a warp tile: a unit made (FUN_00555230)
-        if (unit.type != 1 || unit.id < 0) continue;
+        if (unit.type != 1 || unit.id < 0) continue;            // objects and warp tiles: room_objects
         if (unit.id < nmon) {                                                // a MonStats row (FUN_0054e490)
             const auto monstats_row = game_data.mon_bin[std::size_t(unit.id)];
             const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
             if (!game_data.mon_is_npc[monstats_row]) at_spot(int(monstats_row), unit.x, unit.y, stay ? 0 : 4);
-            else npc_at(unit.x, unit.y, stay ? 0 : 4);                       // an NPC (Flavie)
+            else {                                                           // an NPC (Flavie), standing at its spot
+                npc_at(unit.x, unit.y, stay ? 0 : 4);
+                if (!game_data.mon_npc[monstats_row].code.empty()) {
+                    auto npc = game_data.mon_npc[monstats_row];
+                    npc.x = (float(unit.x) + 0.5f) / 5;
+                    npc.y = (float(unit.y) + 0.5f) / 5;
+                    level_rw.npcs.push_back(std::move(npc));
+                }
+            }
             continue;
         }
         if (unit.id >= nmon + nsu) {                                         // MonPlace
@@ -479,18 +485,11 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         d2d::log::info("  {} ({}) with {} minions at ({:.1f}, {:.1f})", sup.name, monsters.types[std::size_t(sup.type)].id, placed,
                        (float(leader_x) + 0.5f) / 5, (float(leader_y) + 0.5f) / 5);
     }
-    // The object groups (FUN_00552610) build_level placed (place_objects):
-    // the room seed as they left it, and a game-seed step for each object
-    // they made (FUN_00555230 → FUN_00552df0).
-    // ponytail: place_objects ran on a fresh game's seed; a preset party's
-    // count (its own seed, off the game's) can differ here, and so the room seed.
-    const bool none = nopop(made_index);
-    if (made_index < level.post_object_group_seeds.size()) {
-        room.seed = level.post_object_group_seeds[made_index];
-        for (std::size_t k = 0; k < level.group_rooms[made_index].made.size(); ++k) spawning.game.next();
-    }
-    if (none) ++pop.rooms_done;
+    room_groups(game_data, spawning, level, made_index, room.seed);
+    if (nopop(made_index)) ++pop.rooms_done;
     else d2d::rules::populate_room(monsters, region, level.mon.density[std::size_t(difficulty)], room, spawning.game, fits, near_way, spawns, &pop);
+    if (made_index < state.room_seeds.size()) state.room_seeds[made_index] = room.seed;
+    stamp_made();
     if (spawns.size() > first)
         d2d::log::info("  room ({}, {}) of {} {}: {} monsters", made.x, made.y, level.name, kSfx[difficulty], spawns.size() - first);
 }
@@ -538,6 +537,8 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     std::vector<NearRoom> fresh;
     for (const auto& near_room : near_list(game_data, level, room)) {
         auto& state = spawning.levels[near_room.level];
+        // ponytail: the camp populates (its units step the game seed, never
+        // the object seed); not modelled, so the game seed runs behind after town.
         if (near_room.level->rooms.empty()) continue;   // the camp: nothing populates
         if (state.up.size() == near_room.level->rooms.size() && state.up[std::size_t(near_room.room)]) continue;
         if (std::ranges::any_of(fresh, [&](const NearRoom& other) { return other.level == near_room.level && other.room == near_room.room; })) continue;
@@ -554,12 +555,20 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 }
 
 
-std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level) {
+std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level,
+                                                                 const std::vector<std::size_t>& up,
+                                                                 const std::function<void(std::size_t)>& done) {
+    auto& state = spawning.levels[&level];
+    for (const auto room : up) if (!std::ranges::contains(state.order, room)) state.order.push_back(room);
+    for (std::size_t i = level.rooms.size(); i-- > 0;)   // the rest in list order, oldest first
+        if (!std::ranges::contains(state.order, i)) state.order.push_back(i);
+    relevel(const_cast<Level&>(level), state.order);     // GameData owns its levels mutable
     std::vector<std::pair<std::size_t, std::size_t>> order;
-    for (std::size_t i = 0; i < level.rooms.size(); ++i) order.push_back({ i, 0 });   // FUN_0052d160: the list, newest first
+    for (auto it = state.order.rbegin(); it != state.order.rend(); ++it) order.push_back({ *it, 0 });   // FUN_0052d160: the list, newest first
     for (auto& [room, first] : order) {
         first = spawning.levels[&level].spawns.size();
         populate(game_data, spawning, level, room);
+        if (done) done(room);
     }
     return order;
 }
@@ -573,19 +582,21 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
 // ponytail: one walk bit (0x01) for every footprint; game.exe's object
 // flags (FUN_006209d0: 0x400, a door 0x800 | 0x06) aren't split out.
 void stamp_footprints(Level& level) {
+    for (auto& npc : level.npcs) stamp_footprint(level, npc);
+}
+
+void stamp_footprint(Level& level, Npc& npc) {
     const int walk_width = level.ds1.width() * 5, walk_height = level.ds1.height() * 5;
     if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
-    for (auto& npc : level.npcs) {
-        if (!npc.path.empty() || npc.quest) continue;   // walkers don't hold a spot
-        npc.walls = 0;
-        const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
-        int bit = 0;
-        for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
-            for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit)
-                if (x >= 0 && y >= 0 && x < walk_width && y < walk_height && bit < 32
-                    && level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)] & 0x01) npc.walls |= 1u << bit;
-        set_footprint(level, npc, npc.root != "objects" || npc.collision >> mode_index(npc.mode) & 1);
-    }
+    if (!npc.path.empty() || npc.quest) return;         // walkers don't hold a spot
+    npc.walls = 0;
+    const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
+    int bit = 0;
+    for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
+        for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit)
+            if (x >= 0 && y >= 0 && x < walk_width && y < walk_height && bit < 32
+                && level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)] & 0x01) npc.walls |= 1u << bit;
+    set_footprint(level, npc, npc.root != "objects" || npc.collision >> mode_index(npc.mode) & 1);
 }
 
 void set_footprint(const Level& level, const Npc& npc, bool solid) {
@@ -715,6 +726,7 @@ void finish_level(Level& level) {
                 if (patch.old_tile) at &= std::uint8_t(~patch.old_tile->subtile_flags[std::size_t(k)]);
                 if (patch.tile) at |= patch.tile->subtile_flags[std::size_t(k)];
             }
+        level.tile_walk = level.walk;
         return;
     }
     for (int cell_y = 0; cell_y < map.height(); ++cell_y)
@@ -731,6 +743,7 @@ void finish_level(Level& level) {
                 if (cell.wall_type == 3) stamp(cell_x, cell_y, cell.style, cell.sequence, 4);   // a corner's second tile (FUN_0066e9b0)
             }
         }
+    level.tile_walk = level.walk;
 }
 
 LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, int type, d2d::dt1::Pixels pixels) {
@@ -821,12 +834,15 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
 }  // namespace
 
 // Its rooms brought up again, `up` (Level::rooms indices) first in that
-// order, the rest after in list order: picks, patches and the walk grid
-// as game.exe's rooms would have them, footprints stamped again.
-// ponytail: tiles and collision only; its units, warps, areas and object
-// groups stay as the list order made them. And the whole level is laid
-// again (~15 ms for the Stony Field) each time rooms come up; bring them up
-// one at a time, as game.exe does, if that hitches.
+// order, the rest after in list order: picks, patches, the walk grid and
+// the room1 seeds as game.exe's rooms would have them, footprints stamped
+// again. game.exe's units and warps come out the same in any order
+// (tools/emu diff_drlg.py <level> units, rooms in $ORDER), its spawn areas
+// too (diff_drlg.py game: the game seed through the monsters); the object
+// groups follow as the rooms populate (room_objects, on these seeds).
+// ponytail: the whole level is laid again (~15 ms for the Stony Field)
+// each time rooms come up; bring them up one at a time, as game.exe does,
+// if that hitches.
 void relevel(Level& level, const std::vector<std::size_t>& up) {
     if (!level.assets) return;
     const std::size_t count = level.rooms.size();
@@ -837,7 +853,8 @@ void relevel(Level& level, const std::vector<std::size_t>& up) {
     if (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count)) return;
     const auto start_ms = d2d::log::ms();
     std::vector<std::string> notes;
-    lay_tiles(level, level.rooms, order, notes);
+    for (const auto& room : lay_tiles(level, level.rooms, order, notes))
+        if (room.seed) level.room1_seeds[std::size_t(room.seed - level.rooms.data())] = room.room1_seed;
     finish_level(level);
     level.laid = std::move(order);
     stamp_footprints(level);
@@ -1030,21 +1047,22 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
             }
     }
     if (std::size_t(id) < game_data.level_mon.size()) level->mon = game_data.level_mon[std::size_t(id)];
-    // Its preset units (Level::units): objects, and monsters MonStats marks
-    // as NPCs (Flavie by the Blood Moor's way in), then each room's random
-    // object groups, as game.exe populates the rooms (objgroups.cpp).
+    // Its preset units (Level::units) come as their rooms populate
+    // (populate: objects, and monsters MonStats marks as NPCs, Flavie by the
+    // Blood Moor's way in); the rooms' flags, and the units off the rooms, now.
     place_objects(game_data, builder, *level);
     // Tristram Cain (monster 0x92): the Gibbet's opening makes him at its
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
     // (World::cain_walk).
-    if (const auto gibbet = std::ranges::find(level->npcs, 26, &Npc::object_id);
-        id == d2d::rules::CainQuest::kTristram && gibbet != level->npcs.end() && d2d::rules::CainQuest::kCain < int(game_data.mon_bin.size())) {
+    if (const auto gibbet = std::ranges::find_if(level->units, [](const auto& unit) { return unit.type == 2 && unit.id == 26; });
+        id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::CainQuest::kCain < int(game_data.mon_bin.size())) {
         auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::CainQuest::kCain)]];
-        npc.x = gibbet->x + 0.6f;
-        npc.y = gibbet->y + 0.6f;
+        npc.x = (float(gibbet->x) + 0.5f) / 5 + 0.6f;
+        npc.y = (float(gibbet->y) + 0.5f) / 5 + 0.6f;
         npc.quest = d2d::rules::CainQuest::kQuest;   // out of the walk grid
         level->npcs.push_back(std::move(npc));
     }
+    level->npc_base = level->npcs.size();
     stamp_footprints(*level);
     d2d::log::info("  {} built ({} ms)", level->name, d2d::log::ms() - start_ms);
     return level;
