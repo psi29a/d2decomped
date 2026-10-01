@@ -320,8 +320,13 @@ try:
             break
     assert lv[1] == "2" and lv[4:6] == ["96", "56"], f"didn't walk out of camp: {lv}"
     # The Blood Moor's monsters so far (its rooms populate as they come
-    # into play round the player), alive and at full life.
-    mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
+    # into play round the player), alive and at full life. A loaded host
+    # may list them a few frames after the crossing.
+    for _ in range(10):
+        mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
+        if mons:
+            break
+        frames(6)
     assert mons and {m[0] for m in mons} <= {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
     # Through the protocol alone (`cmd`: what a remote client sends the
@@ -345,15 +350,21 @@ try:
     # Waypoint travel (C->S 0x49): Cold Plains' waypoint (index 1) active,
     # the town's sends the player to it once 10 s have passed since the
     # last level change; they arrive beside it.
+    # The synthetic saves have no stats section: life 0/0, so the first
+    # blow lands a (hardcore) death. Standing out the 10 s by the Cold
+    # Plains' waypoint, its monsters may walk up and strike, as game.exe's
+    # would; clear the ones in play on arrival (the player stands still,
+    # so no more rooms populate).
     cmd("debug wp 1")
-    cmd("debug stat 7 256000"); cmd("debug stat 6 256000")   # 1000 life: the Cold Plains' own may kill a level 10 standing by
     wp = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
-    for _ in range(30):
-        cmd(f"cmd waypoint {wp[4]} 3"); frames(30)
+    for _ in range(180):
+        cmd(f"cmd waypoint {wp[4]} 3"); frames(5)
         lv = cmd("debug level").split()
         if lv[1] == "3":
             break
     assert lv[1] == "3", f"waypoint travel didn't reach the Cold Plains: {lv}"
+    cmd("debug kill"); frames(2)
+    assert not [m for m in cmd("monsters").splitlines()[:-1] if m.split("\t")[6] not in ("DT", "DD")], "debug kill left the Cold Plains' monsters"
     there = next(r.split("\t") for r in cmd("npcs").splitlines()[:-1] if r.split("\t")[0] == "Waypoint")
     assert abs(float(there[5]) - float(lv[2])) < 3 and abs(float(there[6]) - float(lv[3])) < 3, (there, lv)
     for _ in range(30):

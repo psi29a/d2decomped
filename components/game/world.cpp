@@ -45,6 +45,30 @@ static int waypoint_index(const GameData& game_data, int level_id) {
     return -1;
 }
 
+// FUN_00463740: whether subtile (x, y) lies in the room holding subtile
+// (from_x, from_y) or in one of that room's near list (FUN_00619790).
+// ponytail: rooms as gamedata.cpp's room_rects has them (a preset level's
+// as 8x8 tiles), the near list as its closeness (FUN_0066bc20: under 6
+// tiles apart on both axes); the level's own rooms only.
+static bool room_near_holds(const Level& level, int from_x, int from_y, int x, int y) {
+    struct Rect { int x, y, width, height; };
+    std::vector<Rect> rects;
+    for (const auto& room : level.rooms) rects.push_back({ room.x, room.y, room.width, room.height });
+    if (rects.empty())
+        for (int top = 0; top < level.ds1.height(); top += 8)
+            for (int left = 0; left < level.ds1.width(); left += 8) rects.push_back({ left, top, std::min(8, level.ds1.width() - left), std::min(8, level.ds1.height() - top) });
+    const auto holds = [](const Rect& rect, int sub_x, int sub_y) {
+        return sub_x >= rect.x * 5 && sub_y >= rect.y * 5 && sub_x < (rect.x + rect.width) * 5 && sub_y < (rect.y + rect.height) * 5;
+    };
+    const auto own = std::ranges::find_if(rects, [&](const Rect& rect) { return holds(rect, from_x, from_y); });
+    if (own == rects.end()) return false;
+    return std::ranges::any_of(rects, [&](const Rect& rect) {
+        const int gap_x = own->x < rect.x ? rect.x - own->width - own->x : own->x - rect.width - rect.x;
+        const int gap_y = own->y < rect.y ? rect.y - own->height - own->y : own->y - rect.height - rect.y;
+        return gap_x < 6 && gap_y < 6 && holds(rect, x, y);
+    });
+}
+
 auto World::quests() -> d2d::rules::QuestBits& { return character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))]; }
 
 auto World::item_ids() -> void {
@@ -95,6 +119,7 @@ auto World::view() const -> View {
         for (int k = 0; k < 4; ++k)
             if (portal[std::size_t(k)].level == level)
                 view.portals.push_back({ portal[std::size_t(k)].x, portal[std::size_t(k)].y, k >= 2 ? portal[std::size_t(5 - k)].level ? portal[std::size_t(5 - k)].level->id : d2d::rules::CainQuest::kTristram : portal[std::size_t(1 - k)].level->id, portal[std::size_t(k)].born, k });
+        if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, 4 });
         view.npc_states = npc_states;
         view.npc_states.resize(level->npcs.size());
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
@@ -511,6 +536,7 @@ auto World::new_game() -> void {
         fires.clear();
         treasure.clear();
         cain_walk = {};
+        cain_portal = {};
         portal = {};
         take_portal = -1;
         take_corpse = -1;
@@ -749,11 +775,15 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // Tristram Cain's AI (FUN_005e7880), a think each time he stops: the
 // first notes where he stands (FUN_005944b0) and heads 3 subtiles on
 // (x + 3, y + 3); up to 6 goes while more than 1 off; then the town
-// portal (object 189) at the noted spot (FUN_005943b0), and back to it
-// for up to 6 more thinks, stepping in (FUN_005944f0: camp Cain due).
-// ponytail: the portal isn't drawn or put in the level, a spot with no
-// room isn't shifted on 3 (FUN_00463740), and the thinks' idles (1, 20
-// frames) stand in for the AI's own tick.
+// portal (FUN_005943b0: object 189, ECX 2 / EDX 0xbd to FUN_00555230)
+// at the noted spot, in the room near his own that holds it
+// (FUN_00463740); none does: the spot moves on 3 subtiles on each axis
+// and no portal opens. Then back to the portal (FUN_00594450: his own
+// spot when there's none) for up to 6 more thinks, stepping in
+// (FUN_005944f0: camp Cain due).
+// ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
+// tick; the portal stays for the game (FUN_005944f0 doesn't remove it;
+// InitFn 61 isn't traced).
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -764,28 +794,36 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
             unit.path.clear();
         }
         if (now_ms < cain_walk.next) return;
-        const auto walk = [&](float x, float y) {
-            unit.path = walk_path(*level, unit.x, unit.y, x, y);
+        const auto cell = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+        const int at_x = int(std::floor(unit.x * 5)), at_y = int(std::floor(unit.y * 5));
+        const auto walk = [&](int x, int y) {
+            unit.path = walk_path(*level, unit.x, unit.y, cell(x), cell(y));
             unit.walking = !unit.path.empty();
         };
-        const auto off = [&](float x, float y) { return d2d::rules::ai_distance(int(x * 5) - int(unit.x * 5), int(y * 5) - int(unit.y * 5)); };
+        const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
             unit.hidden = false;
-            cain_walk.portal_x = unit.x; cain_walk.portal_y = unit.y;
-            cain_walk.x = unit.x + 0.6f; cain_walk.y = unit.y + 0.6f;
+            cain_walk.spot_x = at_x; cain_walk.spot_y = at_y;
+            cain_walk.x = at_x + 3; cain_walk.y = at_y + 3;
             cain_walk.stage = 1;
             cain_walk.next = now_ms + 40;
             return;
         }
         if (cain_walk.stage < 2) {
             if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
-            cues.cue("object_townportal", now_ms, cain_walk.portal_x, cain_walk.portal_y);
-            d2d::log::info("Search for Cain: Cain opens a portal at ({:.1f}, {:.1f})", cain_walk.portal_x, cain_walk.portal_y);
+            if (room_near_holds(*level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
+                cain_portal = { level, cell(cain_walk.spot_x), cell(cain_walk.spot_y), now_ms };
+                cues.cue("object_townportal", now_ms, cain_portal.x, cain_portal.y);
+                d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);
+            } else {
+                cain_walk.spot_x += 3; cain_walk.spot_y += 3;
+            }
             cain_walk.stage = 2;
             cain_walk.next = now_ms + 20 * 40;
             return;
         }
-        if (++cain_walk.stage < 8 && off(cain_walk.portal_x, cain_walk.portal_y) != 0) { walk(cain_walk.portal_x, cain_walk.portal_y); return; }
+        const bool opened = cain_portal.level == level;
+        if (++cain_walk.stage < 8 && opened && off(cain_walk.spot_x, cain_walk.spot_y) != 0) { walk(cain_walk.spot_x, cain_walk.spot_y); return; }
         cain.portal_entered();
         unit.hidden = true;
         cain_walk.npc = -1;
