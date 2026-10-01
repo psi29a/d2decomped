@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -195,6 +196,17 @@ int main() {
     {
         assert(ai_distance(3, -4) == 5 && ai_distance(0, 0) == 0);
         assert(unit_distance(0, 0, 3, 2) == 0 && unit_distance(4, 0, 3, 2) == 1 && unit_distance(5, 0, 3, 2) == 3 && unit_distance(0, 9, 3, 2) == 14);
+        // A monster's door (FUN_005dcd50): the nearest under 9 squared, the
+        // first on a tie; in reach (FUN_00623660): touching, else 2 about
+        // its rect, a small unit's corners 1 in (the object's spot less
+        // half its size, so a 1x1's far corner is in, its near one out).
+        {
+            const std::array<std::pair<int, int>, 4> spots{ { { 2, 2 }, { 1, -1 }, { -1, 1 }, { 3, 0 } } };
+            assert(door_pick(spots) == 1 && door_pick(std::span(spots).subspan(3)) == -1 && door_pick(std::span(spots).first(1)) == 0);
+            assert(object_reach(2, 0, 2, 1, 3) && object_reach(-2, -2, 1, 3, 1) && object_reach(2, 2, 1, 7, 1));
+            assert(object_reach(2, 2, 1, 1, 1) && !object_reach(-2, -2, 1, 1, 1) && object_reach(-2, -2, 3, 1, 1) && !object_reach(-3, 0, 1, 1, 1));
+            assert(object_reach(1, 1, 1, 0, 0) && !object_reach(-1, 2, 1, 0, 0));
+        }
         // Line of sight (FUN_00622920; tools/emu/sight.py has game.exe's word on these).
         {
             const auto wall = [](int wall_x, int wall_y) { return [=](int x, int y) { return x == wall_x && y == wall_y; }; };

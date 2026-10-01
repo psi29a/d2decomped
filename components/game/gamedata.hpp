@@ -64,6 +64,7 @@ struct Npc {
     float velocity = 3;                  // MonStats Velocity
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     int object_id = 0;                   // an object's objects.txt Id
+    bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)
     std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)

@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -93,6 +94,10 @@ void merc_follow(const Level& level, UnitState& unit, float player_x, float play
 // the components it rolled, where it is, its stats and what it's doing.
 // Spawn areas' shared "seen" flags by ai.cpp's area key (search_target).
 using AreaSeen = std::unordered_map<int, bool>;
+// A monster that opens doors at a think (FUN_005b0f50): the world finds,
+// and operates in reach, its door; true when it found one.
+struct Monster;
+using OpenDoor = std::function<bool(const Monster&, std::uint32_t now_ms)>;
 
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
@@ -384,9 +389,10 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `pack`: all the level's monsters, `monster` among them (its group, the
 // dying, corpses to raise); `born`: gets what it lays (a nest's young).
 // `seen`: the spawn areas' shared "seen" flags (monster data +0x50's +0x24).
+// `open_door`: its door at a think (OpenDoor).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
-                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr);
+                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.
