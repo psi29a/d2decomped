@@ -82,6 +82,14 @@ struct Npc {
     std::array<std::uint8_t, 8> lit{};   // an object's light radius in each mode NU OP ON S1..S5 (objects.txt Lit0..7)
 };
 
+// A generated level's DT1s: the headers its rooms' picks read (LvlTypes
+// files of its type by mask bit, then Blank, InvisWal, Warp) and the
+// archives drawn from, loaded into the level.
+struct LevelDt1s {
+    d2d::drlg::RoomDt1s heads;
+    std::unordered_map<const d2d::drlg::Dt1File*, const d2d::dt1::Archive*> archive;
+};
+
 // One level (Levels.txt row): its DS1, the DT1s it references and a
 // (style, seq, type) -> tile lookup for the compositor, the walk grid, the
 // units the DS1 places, where players arrive, and its sound environment.
@@ -222,6 +230,12 @@ struct Level {
     struct GroupRoom { std::uint32_t pre = 0, post = 0, rgn = 0; std::vector<std::array<int, 3>> made; };
     std::vector<GroupRoom> group_rooms;                // by `rooms` index
     std::uint32_t group_rgn = 0;
+    // What brings its rooms up again in another order (relevel): an outdoor
+    // level's plain rooms, its DT1s, the assets they're from. Null assets: not generated.
+    std::vector<d2d::drlg::PlainRoom> plain;
+    LevelDt1s tile_dt1s;
+    const d2d::drlg::OutdoorAssets* assets = nullptr;
+    std::vector<std::size_t> laid;                     // the order (list indices) relevel last laid its rooms in, empty: list order
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
@@ -625,14 +639,6 @@ struct GameData::LevelBuilder {
 // The Blood Moor from the map seed (components/drlg): act 1's layout
 // places it against the town, the generator fills it, its tiles come from
 // the Act 1 wilderness DT1s (LvlTypes).
-// A generated level's DT1s: the headers its rooms' picks read (LvlTypes
-// files of its type by mask bit, then Blank, InvisWal, Warp) and the
-// archives drawn from, loaded into the level.
-struct LevelDt1s {
-    d2d::drlg::RoomDt1s heads;
-    std::unordered_map<const d2d::drlg::Dt1File*, const d2d::dt1::Archive*> archive;
-};
-
 // The levels d2d builds so far (the rest of Act 1 comes with its research).
 constexpr std::array kBuiltLevels{ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39 };
 
@@ -659,6 +665,7 @@ struct Spawning {
         d2d::rules::Population pop;
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
+        std::vector<std::size_t> order;                    // Level::rooms indices as they came up
         int group_rooms = 0, group_total = 0;              // FUN_00552560's counters (+4, +8)
     };
     int difficulty = 0;
@@ -702,6 +709,7 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
+void relevel(Level& level, const std::vector<std::size_t>& up);
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);

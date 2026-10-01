@@ -79,6 +79,7 @@ class Emu:
         return a
 
     def r32(self, a): return struct.unpack("<I", self.mu.mem_read(a, 4))[0]
+    def r16(self, a): return struct.unpack("<H", self.mu.mem_read(a, 2))[0]
     def s32(self, a): return struct.unpack("<i", self.mu.mem_read(a, 4))[0]
     def w32(self, a, v): self.mu.mem_write(a, struct.pack("<I", v & 0xFFFFFFFF))
     def read(self, a, n): return bytes(self.mu.mem_read(a, n))

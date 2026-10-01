@@ -144,6 +144,41 @@ def seeds_dump(e, lvl):
     return "\n".join(f"room1 {x},{y} seed {s:08x}" for y, x, s in sorted(rooms))
 
 
+def walk_order(n, seed, kind):
+    """A room order (list indices) to bring a level up in, as drlg-dump's: list, reverse, or shuffled on the seed."""
+    order = list(range(n))
+    if kind == "reverse": order.reverse()
+    elif kind == "shuffle":
+        x = seed
+        for i in range(n - 1, 0, -1):
+            x = (x * 1103515245 + 12345) & 0x7fffffff
+            j = x % (i + 1)
+            order[i], order[j] = order[j], order[i]
+    return order
+
+
+def collision_dump(e, seed, lid, kind="shuffle"):
+    """Bring the level's rooms up (FUN_0061b730: tiles, then room1 and its grid, FUN_0064c900) in walk_order,
+    then each room's collision (room +0x30 -> room1 +0x20: {x, y, w, h, ...} subtiles, u16 cells at +0x24), (y, x) order."""
+    act = alloc_act(e, 0, seed, lid)
+    lvl = find_level(e, act, lid)
+    if not lvl: raise SystemExit(f"drlg: level {lid} not built")
+    x0, y0 = e.s32(lvl + 0x1c), e.s32(lvl + 0x20)
+    rooms = []
+    r = e.r32(lvl + 0x10)
+    while r:
+        rooms.append(r)
+        r = e.r32(r + 0x24)
+    for i in walk_order(len(rooms), seed, kind): e.call(0x61b730, ecx=rooms[i])
+    out = []
+    for r in sorted(rooms, key=lambda r: (e.s32(r + 0x38), e.s32(r + 0x34))):
+        c = e.r32(e.r32(r + 0x30) + 0x20)
+        w, h = e.s32(c + 8), e.s32(c + 12)
+        out.append(f"col {e.s32(r + 0x34) - x0},{e.s32(r + 0x38) - y0}")
+        out += [" " + "".join(f"{e.r16(c + 0x24 + 2 * (y * w + x)):02x}" for x in range(w)) for y in range(h)]
+    return "\n".join(out)
+
+
 def level_dump(e, seed, lid):
     act = alloc_act(e, 0, seed, lid)
     lvl = find_level(e, act, lid)

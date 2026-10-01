@@ -488,8 +488,9 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   moves it on.
 - So edge tiles, and everything picked after them in the room, depend on
   which rooms are up first. The game brings rooms up as the player gets
-  near; d2d brings them up in the level's room list order (newest first,
-  i.e. the reverse of the cell order they were made in).
+  near; d2d builds in the level's room list order (newest first, i.e. the
+  reverse of the cell order they were made in), then lays the tiles again
+  in the player's order as he brings rooms up (`relevel`).
 - Act1/Outdoors/Trees.ds1 (v12) declares 14 substitution groups and ends
   12 bytes into the 14th; FUN_00665950 reads past its buffer. In the
   emulator that's zeros (a 0×0 group that stamps nothing); on real
@@ -690,9 +691,10 @@ Conditions those results hold under, so they aren't overstated:
   would (LvlMaze.txt in 1.14d has one Rooms column, game.exe's .bin has
   three; d2d uses the one for all) — untested for Nightmare / Hell.
 - **Tiles depend on room bring-up order** (edge sharing, see Room tiles).
-  Proven for game.exe's room-list order with only that level's rooms up.
-  In the game the order follows the player, and the town's or Cold
-  Plains' rooms may be up first; those orders aren't checked.
+  Proven for game.exe's room-list order with only that level's rooms up,
+  and the collision grids for shuffled and reversed orders
+  (`diff_drlg.py ... collision`). The town's or Cold Plains' rooms may be
+  up first in the game; that isn't checked.
 - **Emulator shortcuts.** String-table lookups return "" (names only),
   C++ static constructors (`__cinit`) aren't run, and memory past a file's
   end reads as zero. The last matters once: Act1/Outdoors/Trees.ds1

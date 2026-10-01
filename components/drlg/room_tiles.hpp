@@ -64,6 +64,7 @@ struct BuiltRoom {
     // Units for the server (room +0x5c): room-relative subtiles, newest first.
     std::vector<Unit> units;
     bool upper = false;
+    std::size_t step = 0;                               // its place in the order the rooms came up
     const PlainRoom* plain = nullptr;
     const Outdoor::RoomSeed* seed = nullptr;
     // The seed its room1 gets as it comes into play (FUN_006422a0: the
@@ -212,15 +213,18 @@ inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const s
 
 // Every room of a level with its tiles; `made` in the order game.exe made
 // them (Outdoor::rooms, generate_maze), `plain` an outdoor level's plain rooms.
-// `slots`: the level's warp slots (warp_slots).
+// `slots`: the level's warp slots (warp_slots). `order`: the rooms (list
+// indices) in the order they come up (FUN_0061b190), empty for list order;
+// a room's picks and its share of an edge depend on which are up already.
 inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& made, const std::vector<PlainRoom>& plain,
                                                const OutdoorData& data, const RoomDt1s& dt1s, int level,
-                                               const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes) {
+                                               const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes,
+                                               const std::vector<std::size_t>& order = {}) {
     using namespace room_tiles_detail;
     auto note = [&](std::string message) { if (std::ranges::find(notes, message) == notes.end()) notes.push_back(std::move(message)); };
     std::vector<BuiltRoom> rooms;                       // game.exe's list: newest room first
     for (auto made_room = made.rbegin(); made_room != made.rend(); ++made_room) {
-        BuiltRoom room{ made_room->x, made_room->y, made_room->width, made_room->height, made_room->kind, {}, {}, {}, {}, false, nullptr, &*made_room };
+        BuiltRoom room{ made_room->x, made_room->y, made_room->width, made_room->height, made_room->kind, {}, {}, {}, {}, false, 0, nullptr, &*made_room };
         if (made_room->kind == 1)
             for (const auto& plain_room : plain) if (plain_room.x == made_room->x && plain_room.y == made_room->y) room.plain = &plain_room;
         rooms.push_back(std::move(room));
@@ -229,9 +233,11 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
     std::vector<d2d::rules::Rng> rngs(rooms.size());
     std::vector<decltype(room_dt1_list(0u, dt1s))> lists(rooms.size());
     std::map<std::pair<int, int>, std::vector<Unit>> preset_units;   // by the preset's origin: units no room has taken yet
-    for (std::size_t room_index = 0; room_index < rooms.size(); ++room_index) {
+    for (std::size_t step = 0; step < rooms.size(); ++step) {
+        const std::size_t room_index = order.empty() ? step : order[step];
         auto& room = rooms[room_index];
         room.upper = true;
+        room.step = step;
         const Preset* pre = nullptr;
         const d2d::ds1::Map* map = nullptr;
         if (!room.plain) {

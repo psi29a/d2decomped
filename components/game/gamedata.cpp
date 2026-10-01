@@ -510,7 +510,23 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     spawning.room_level = &level;
     spawning.room = room;
     auto size_of = [&](const Level* which) { return spawning.levels[which].spawns.size(); };
+    // Rooms' tiles and grids come up with their room1 (FUN_0061b190), the
+    // arrived room first, then the near list's: the picks and collision of a
+    // shared edge depend on which rooms are up already (relevel).
+    std::vector<const Level*> moved;
+    auto bring_up = [&](const Level* which, std::size_t index) {
+        auto& order = spawning.levels[which].order;
+        if (std::ranges::contains(order, index)) return;
+        order.push_back(index);
+        if (!std::ranges::contains(moved, which)) moved.push_back(which);
+    };
+    auto lay = [&] {
+        for (const Level* which : moved) relevel(const_cast<Level&>(*which), spawning.levels[which].order);   // GameData owns its levels mutable
+        moved.clear();
+    };
     if (arrived) {                                       // FUN_0056cf40: the room the player lands in, at once
+        bring_up(&level, std::size_t(room));
+        lay();
         const auto from = size_of(&level);
         populate(game_data, spawning, level, std::size_t(room));
         note(&level, from);
@@ -527,6 +543,8 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         if (std::ranges::any_of(fresh, [&](const NearRoom& other) { return other.level == near_room.level && other.room == near_room.room; })) continue;
         fresh.push_back(near_room);
     }
+    for (const auto& near_room : fresh) bring_up(near_room.level, std::size_t(near_room.room));
+    lay();
     for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) {
         const auto from = size_of(it->level);
         populate(game_data, spawning, *it->level, std::size_t(it->room));
@@ -559,6 +577,7 @@ void stamp_footprints(Level& level) {
     if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
     for (auto& npc : level.npcs) {
         if (!npc.path.empty() || npc.quest) continue;   // walkers don't hold a spot
+        npc.walls = 0;
         const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
         int bit = 0;
         for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
@@ -732,23 +751,24 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
     return dt1s;
 }
 
-// Its rooms brought up (drlg level_room_tiles, proven against game.exe):
-// every cell's picked tiles, its warps, then lookup and collision.
-std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
-                            const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
-                            std::vector<std::string>& notes) {
-    const auto built = d2d::drlg::level_room_tiles(made, plain, assets.data, dt1s.heads, level.id, d2d::drlg::warp_slots(assets, level.id), notes);
+namespace {
+
+// The level's rooms brought up in `order` (level_room_tiles' list indices,
+// empty: list order) into its picks and patches.
+// FUN_0064c900: each room's grid takes, as it comes up (BuiltRoom::step),
+// the tiles of the near rooms already up, clipped to its rect (FUN_0064c790,
+// FUN_00619df0): a tile past its owner's rect (a maze room's shared edge)
+// stamps only if the room it lies in came up after its owner. A later
+// room re-picking a shared tile patches the grid it lies in, if that's up
+// (FUN_0064c860: old tile's flags off, the new one's on).
+std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d::drlg::Outdoor::RoomSeed>& made,
+                                            const std::vector<std::size_t>& order, std::vector<std::string>& notes) {
+    const auto& assets = *level.assets;
+    const auto& dt1s = level.tile_dt1s;
+    auto built = d2d::drlg::level_room_tiles(made, level.plain, assets.data, dt1s.heads, level.id, d2d::drlg::warp_slots(assets, level.id), notes, order);
     const int width = level.ds1.width(), height = level.ds1.height();
     level.picks.assign(std::size_t(width) * std::size_t(height), {});
-    std::size_t placed = 0;
-    // FUN_0064c900: each room's grid takes, as it comes up (`built` order),
-    // the tiles of the near rooms already up, clipped to its rect (FUN_0064c790,
-    // FUN_00619df0): a tile past its owner's rect (a maze room's shared edge)
-    // stamps only if the room it lies in came up after its owner. A later
-    // room re-picking a shared tile patches the grid it lies in, if that's up
-    // (FUN_0064c860: old tile's flags off, the new one's on).
-    // ponytail: build order as population brings the whole level up; a
-    // player walking in builds rooms in the order he nears them.
+    auto up = [&](int room) { return int(built[std::size_t(room)].step); };
     auto tile_of = [&](const d2d::drlg::Dt1File* file, int index) -> const d2d::dt1::Tile* {
         const auto found = file ? dt1s.archive.find(file) : dt1s.archive.end();
         return found == dt1s.archive.end() || index < 0 || std::size_t(index) >= found->second->size() ? nullptr : &found->second->tiles()[std::size_t(index)];
@@ -763,14 +783,15 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     // FUN_0066db20's tile flags as FUN_0064c790 stamps them (2 / 0x40 / 0x80: 0x10, 0x01, 0x04).
     auto cell_of = [](std::uint32_t word) { return std::uint8_t((word & 0x10000000u ? 0x10 : 0) | (word & 0x20000u ? 0x01 : 0) | (word & 0x10000u ? 0x04 : 0)); };
     struct Share { int step; const d2d::drlg::BuiltRoom::Share* at; };
-    std::vector<Share> shares;
+    std::vector<Share> shares;                          // as the rooms came up
     for (std::size_t k = 0; k < built.size(); ++k)
-        for (const auto& share : built[k].shares) shares.push_back({ int(k), &share });
+        for (const auto& share : built[k].shares) shares.push_back({ up(int(k)), &share });
+    std::ranges::stable_sort(shares, {}, &Share::step);
     level.patches.clear();
     for (const auto& [step, at] : shares) {
         const auto& tile = built[std::size_t(at->owner)].tiles[std::size_t(at->tile)];
         const int in = holder(std::size_t(at->owner), tile.x, tile.y);
-        if (in >= 0 && in < step && (at->old_file != at->file || at->old_index != at->index))
+        if (in >= 0 && up(in) < step && (at->old_file != at->file || at->old_index != at->index))
             level.patches.push_back({ tile.x, tile.y, tile_of(at->old_file, at->old_index), tile_of(at->file, at->index) });
     }
     for (std::size_t owner = 0; owner < built.size(); ++owner)
@@ -781,19 +802,59 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             if (!drawn) continue;
             // What it was when the room it lies in came up: none if that came up first.
             const int in = holder(owner, tile.x, tile.y);
-            const d2d::dt1::Tile* stamp = in >= 0 && int(owner) > in ? nullptr : drawn;
+            const d2d::dt1::Tile* stamp = in >= 0 && up(int(owner)) > up(in) ? nullptr : drawn;
             std::uint8_t cell = std::uint8_t(cell_of(tile.word) | (tile.layer == 0 && tile.orient >= 8 && tile.orient <= 11 ? 0x10 : 0));   // a door or warp wall is flag 2 too
             for (const auto& [step, at] : shares) {
                 if (std::size_t(at->owner) != owner || std::size_t(at->tile) != index) continue;
-                if (in < 0 || step <= in) cell |= cell_of(at->word);
+                if (in < 0 || step <= up(in)) cell |= cell_of(at->word);
                 else if (stamp && (at->old_file != at->file || at->old_index != at->index)) { stamp = tile_of(at->old_file, at->old_index); break; }
             }
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), drawn,
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
                   cell, stamp });
-            ++placed;
         }
+    return built;
+}
+
+}  // namespace
+
+// Its rooms brought up again, `up` (Level::rooms indices) first in that
+// order, the rest after in list order: picks, patches and the walk grid
+// as game.exe's rooms would have them, footprints stamped again.
+// ponytail: tiles and collision only; its units, warps, areas and object
+// groups stay as the list order made them. And the whole level is laid
+// again (~15 ms for the Stony Field) each time rooms come up; bring them up
+// one at a time, as game.exe does, if that hitches.
+void relevel(Level& level, const std::vector<std::size_t>& up) {
+    if (!level.assets) return;
+    const std::size_t count = level.rooms.size();
+    std::vector<std::size_t> order;                      // list indices: the list is newest first
+    std::vector<bool> taken(count);
+    for (const auto room : up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
+    for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
+    if (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count)) return;
+    const auto start_ms = d2d::log::ms();
+    std::vector<std::string> notes;
+    lay_tiles(level, level.rooms, order, notes);
+    finish_level(level);
+    level.laid = std::move(order);
+    stamp_footprints(level);
+    d2d::log::info("  {}: rooms laid again ({} ms)", level.name, d2d::log::ms() - start_ms);
+}
+
+// Its rooms brought up (drlg level_room_tiles, proven against game.exe):
+// every cell's picked tiles, its warps, then lookup and collision. List
+// order, as population brings the whole level up (a player walking in: relevel).
+std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
+                            const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
+                            std::vector<std::string>& notes) {
+    level.assets = &assets;
+    level.tile_dt1s = dt1s;
+    level.plain = plain;
+    const auto built = lay_tiles(level, made, {}, notes);
+    std::size_t placed = 0;
+    for (const auto& cell : level.picks) placed += cell.size();
     level.room1_seeds.assign(made.size(), 0);
     level.nopop_rooms.assign(made.size(), false);
     level.room_areas.assign(made.size(), {});

@@ -573,8 +573,9 @@ AI and superunique specials.
 placement match game.exe on levels 2–39 (`diff_drlg.py 1-50 <level>
 monsters|objgroups`, 1-50: all pass).
 Collision is built per room as it comes up (FUN_0064c900), with shared-edge
-patches (FUN_0064c860); ponytail: in live play the room order follows the
-player, not the oracle's. Still open: object drops on the shared rng, drop
+patches (FUN_0064c860), in the order the player brings rooms up (relevel;
+`diff_drlg.py 1-10 <level> collision`, shuffled order, levels 2–39 pass);
+ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
 scatter, the Tristram portal position, the HC smoke's
 extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
 

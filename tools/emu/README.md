@@ -75,6 +75,11 @@ uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
 ./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
 ```
 
+- `collision` (drlg.py `collision_dump`): the level's rooms brought up out
+  of list order ($ORDER shuffle, the default, reverse or list), then every
+  room's collision grid (room1 +0x20), against `relevel`'s:
+  `uv run python diff_drlg.py 1-10 2 collision`, `./sweep.sh 1-10 collision`.
+
 ## Adding a new oracle
 
 1. Find the entry point and its calling convention with Ghidra.

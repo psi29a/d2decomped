@@ -6,6 +6,9 @@
 // $DIFFICULTY 0..2).
 // drlg-dump <mpq dir> <seed> <level> [<out dir>] objgroups: each room's random
 // object groups, as tools/emu/objgroups.py prints game.exe's (a range: to <out dir>).
+// drlg-dump <mpq dir> <seed> <level> [<out dir>] collision: each room's grid
+// with the rooms brought up in $ORDER (d2d::game::relevel), as tools/emu
+// drlg.py collision_dump prints game.exe's.
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <maze.hpp>
@@ -185,6 +188,59 @@ int main(int argc, char** argv) {
     const fs::path dir = argv[1];
     const std::string range = argv[2];
     const int id = argc > 3 ? std::atoi(argv[3]) : 2;
+    if (argc > 4 && std::string(argv[argc - 1]) == "collision") {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game = d2d::game::load_game_data(dir, patch ? fs::path(patch) : fs::path{}, 1);
+        if (!game) return 1;
+        const char* kind = std::getenv("ORDER");
+        const std::string order_kind = kind ? kind : "shuffle";
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        for (auto seed = first;; ++seed) {
+            d2d::game::set_map_seed(*game, seed);
+            std::ostringstream out;
+            if (auto level = d2d::game::build_level(*game, *game->builder, id)) {
+                // drlg.py walk_order: list indices (the list is newest first) -> rooms indices
+                const std::size_t count = level->rooms.size();
+                std::vector<std::size_t> order(count);
+                for (std::size_t i = 0; i < count; ++i) order[i] = i;
+                if (order_kind == "reverse") std::ranges::reverse(order);
+                if (order_kind == "shuffle") {
+                    std::uint32_t x = seed;
+                    for (std::size_t i = count; i-- > 1;) {
+                        x = (x * 1103515245u + 12345u) & 0x7fffffffu;
+                        std::swap(order[i], order[x % (i + 1)]);
+                    }
+                }
+                for (auto& room : order) room = count - 1 - room;
+                level->npcs.clear();                             // tiles only: no room is populated
+                level->laid = { count };                         // laid again, even in list order
+                d2d::game::relevel(*level, order);
+                std::vector<std::size_t> sorted(count);
+                for (std::size_t i = 0; i < count; ++i) sorted[i] = i;
+                std::ranges::sort(sorted, {}, [&](std::size_t i) { return std::tuple(level->rooms[i].y, level->rooms[i].x); });
+                const int walk_width = level->ds1.width() * 5;
+                char cell[8];
+                for (const auto i : sorted) {
+                    const auto& room = level->rooms[i];
+                    out << "col " << room.x << ',' << room.y << '\n';
+                    for (int y = room.y * 5; y < (room.y + room.height) * 5; ++y) {
+                        out << ' ';
+                        for (int x = room.x * 5; x < (room.x + room.width) * 5; ++x) {
+                            std::snprintf(cell, sizeof cell, "%02x", level->walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)]);
+                            out << cell;
+                        }
+                        out << '\n';
+                    }
+                }
+            }
+            if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << out.str();
+            else std::fputs(out.str().c_str(), stdout);
+            if (seed == last) break;
+        }
+        return 0;
+    }
     if (argc > 4 && std::string(argv[argc - 1]) == "objgroups") {
         // game.exe's rooms populated up to their monsters (place_objects), as
         // tools/emu objgroups.py prints them; a range writes <out dir>/<seed>.txt each.
