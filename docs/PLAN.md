@@ -579,6 +579,15 @@ ponytail: units, warps and object groups stay as list order made them. Still ope
 scatter, the Tristram portal position, the HC smoke's
 extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
 
+**Checkpoint 2026-10-01.** Full sweep (`sweep.sh 1-20 monsters objgroups
+drops collision tiles`): 190/190, every level 2–39. Object drops roll off
+their own seeds and land as FUN_00555da0 finds room (drops.md); collision
+follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
+(monster-ai.md: outdoor no sight, indoor sight then spawn-area alert);
+Cain's portal at game.exe's spot. Still approximate (ponytail): object
+seed per level, not game-wide; units/objects/room seeds keep list order on
+relevel; search_target treats all foes alike.
+
 **Step 3 — networking** (the deferred item 7 above).
 
 Blood Moor polish (2026-09-27): ambient events and song resume done
