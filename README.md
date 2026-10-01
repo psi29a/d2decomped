@@ -72,4 +72,4 @@ build/apps/d2d/d2d --data /path/to/your/MPQ-folder
 ## License
 
 D2Decomp is licensed under the GNU General Public License, version 3 or later
-(GPL-3.0-or-later).
+(GPL-3.0-or-later); the full text is in [docs/LICENSE.txt](docs/LICENSE.txt).
