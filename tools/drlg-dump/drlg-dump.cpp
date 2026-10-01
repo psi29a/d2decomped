@@ -185,7 +185,8 @@ int main(int argc, char** argv) {
     const fs::path dir = argv[1];
     const std::string range = argv[2];
     const int id = argc > 3 ? std::atoi(argv[3]) : 2;
-    if (argc > 4 && std::string(argv[argc - 1]) == "objgroups") {
+    const bool drops = argc > 4 && std::string(argv[argc - 1]) == "drops";
+    if (argc > 4 && (std::string(argv[argc - 1]) == "objgroups" || drops)) {
         // game.exe's rooms populated up to their monsters (place_objects), as
         // tools/emu objgroups.py prints them; a range writes <out dir>/<seed>.txt each.
         const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -208,6 +209,19 @@ int main(int argc, char** argv) {
                 }
                 std::snprintf(line, sizeof line, "rgn %08x\n", level->group_rgn);
                 out << line;
+                // drops: three items at each group object, each landing an item (0x200) the next sees.
+                auto grid = level->collision;
+                const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
+                auto flags = [&](int x, int y) -> int {
+                    return x < 0 || y < 0 || x >= width || y >= height ? 0x27 : grid[std::size_t(y) * std::size_t(width) + std::size_t(x)];
+                };
+                for (const auto& group : level->group_rooms)
+                    for (const auto& [object, x, y] : group.made)
+                        for (int k = 0; drops && k < 3; ++k) {
+                            const auto [sx, sy] = d2d::game::drop_spot(game->field, x, y, flags);
+                            if (flags(sx, sy) != 0x27) grid[std::size_t(sy) * std::size_t(width) + std::size_t(sx)] |= 0x200;
+                            out << "drop " << sx << ',' << sy << '\n';
+                        }
             }
             if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << out.str();
             else std::fputs(out.str().c_str(), stdout);

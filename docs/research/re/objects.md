@@ -90,7 +90,9 @@ the object's flag byte:
   So an unlocked chest is empty one time in four. With that flag and
   nothing dropped, up to 10 more tries.
 - objects.txt 397 has its own tiered table (gold, potions); not in act 1's
-  levels.
+  levels. The rounds, 397's table, the other containers and the stands:
+  drops.md ("Chests", "Stands"), all emulator-checked (`drops.py objects`,
+  `drops.py stands`).
 - Then the trap fires (`FUN_00582510`, the table at 0x732cec). Trap 8
   first checks its monster (below); a flying scimitar in act 1 means no
   trap at all. Otherwise the chest's trap event (`FUN_005417d0`) and
@@ -184,8 +186,8 @@ act's two marker levels at 0x6e1988: (2, 37), (41, 73), (76, 102),
 
 In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 
-- Proven: the tables and branches above, read from the decompile. Not
-  emulator-checked.
+- Proven: the tables and branches above, read from the decompile. The
+  opening (`open_container`) is emulator-checked; the traps aren't.
 - Seeds: the object seed starts as game.exe's, but d2d starts it afresh
   per level and draws in DS1 order; game.exe draws one rng across the
   game as rooms come up, so which shrine a spot gets can still differ.
@@ -203,7 +205,6 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   the fires last until a new game; trap 8's monsters stand up aware,
   without mode 8, one step apart; the variant comes from the level's
   region rows (Levels' mon list and `FUN_006510c0` not read).
-- Not built: chest 397's table.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.

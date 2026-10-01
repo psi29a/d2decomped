@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <map>
@@ -72,6 +73,13 @@ struct Npc {
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
+    bool sparkle = false;                // a sparkling chest (InitFn 57: unit +0x78 & 1)
+    // An object's unit seed (+0x20, FUN_00555230; a chest's InitFn re-seeds
+    // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
+    // (Level::rooms index, -1 none): a stand rolls on the room's seed.
+    // ponytail: from place_objects' fresh game seed, not the live game's.
+    mutable d2d::rules::Rng seed;
+    int room = -1;
     bool preoperated = false;            // a PreOperate object that starts opened (ON)
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
@@ -222,6 +230,16 @@ struct Level {
     struct GroupRoom { std::uint32_t pre = 0, post = 0, rgn = 0; std::vector<std::array<int, 3>> made; };
     std::vector<GroupRoom> group_rooms;                // by `rooms` index
     std::uint32_t group_rgn = 0;
+    // The rooms' collision after the last (place_objects: FUN_0064ca50's
+    // words, 0x27 off the rooms), level subtiles row-major: drlg-dump drops.
+    std::vector<std::uint16_t> collision;
+    // The object seed (game +0x10f0, ctx +0xc) after place_objects, and each
+    // room's seed after its monsters (by `rooms` index): what opening a
+    // container / a stand draws on.
+    // ponytail: per level, where game.exe's object seed runs game-wide; the
+    // room seeds as normal's fresh game left them.
+    mutable d2d::rules::Rng objects;
+    mutable std::vector<d2d::rules::Rng> room_seeds;
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
@@ -693,6 +711,43 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     d2d::rules::Rng game{ map_seed };
     game.next();
     return d2d::rules::Rng{ game.next() };
+}
+
+// Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
+// if that's in a room, else (x, y), the free subtile nearest it
+// (FUN_0064e810 -> FUN_0064dea0): `flags(x, y)` (FUN_0064ca50: 0x27 off the
+// rooms) has no 0x3e01 there and no 0x801 on expfield.d2's walk back to
+// (x, y) (FUN_0066a670). Rings 1..49 out, each side to side as the game
+// tests them; the first nearest (Manhattan) wins, none: the start.
+template <class Flags>
+std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
+    auto hit = [&](int at_x, int at_y, int mask) { const int f = flags(at_x, at_y); return f == 0x27 || (f & mask); };
+    auto walk = [&](int at_x, int at_y) {
+        static constexpr int kDx[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kDy[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
+        auto dir = [&] { return field[std::size_t((at_y - y + 128) * 256 + at_x - x + 128)]; };
+        if (field.empty()) return true;
+        if (hit(at_x, at_y, 0x801)) return false;
+        for (;;) {
+            const auto step = dir();
+            at_x += kDx[step]; at_y += kDy[step];
+            if (dir() == 8) return true;
+            if (hit(at_x, at_y, 0x801)) return false;
+        }
+    };
+    auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 0x3e01) && walk(at_x, at_y); };
+    int at_x = x + 2, at_y = y + 3;
+    if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
+    if (clear(at_x, at_y)) return { at_x, at_y };
+    int best = -1, best_x = at_x, best_y = at_y;
+    for (int r = 1; r < 50 && best < 0; ++r) {
+        auto test = [&](int tx, int ty) {
+            const int d = std::abs(tx - at_x) + std::abs(ty - at_y);
+            if (clear(tx, ty) && (best < 0 || d < best)) { best = d; best_x = tx; best_y = ty; }
+        };
+        for (int ty = at_y - r; ty <= at_y + r; ++ty) { test(at_x - r, ty); test(at_x + r, ty); }
+        for (int tx = at_x - r + 1; tx <= at_x + r - 1; ++tx) { test(tx, at_y - r); test(tx, at_y + r); }
+    }
+    return { best_x, best_y };
 }
 
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,

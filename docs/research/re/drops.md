@@ -1,7 +1,9 @@
 # Drops — treasure classes and item quality (1.14d game.exe)
 
 Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
-`roll_quality`, `gold_amount`, `add_auto_treasure`), loaded in
+`roll_quality`, `made_quality`, `stand_quality`, `chest_round`,
+`gold_amount`, `add_auto_treasure`), `components/rules/shrines.hpp`
+(`open_container`, `stand_item`), loaded in
 `components/game/gamedata_load.cpp`, used by `components/game/loot.hpp`
 (kills) and `world.cpp` (chests). Checked against game.exe by
 `tools/emu/drops.py` (see the end) and `tests/test_game.cpp`.
@@ -161,7 +163,58 @@ seed (FUN_00650e50 before them only reads it):
 The act's chest class by tier (area level against the act's two marker
 levels: A / B / C = 0 / 1 / 2, `chest_tc`), rolled off the chest's unit
 seed with ilvl = the tier: qualities roll at item level 0..2, while
-FUN_0055a550 makes the items at the area level.
+FUN_0055a550 makes the items at the area level. At most 6 items; a forced
+quality (EDX: a sparkling chest's 4 / 6, chest 397's) stands for every
+pick, gold's too. It returns the first item made; FUN_0062a0f0 asks if
+that is magic or better as FUN_00557450 made it (`made_quality`).
+
+The unit seed: FUN_00555230 → FUN_00552df0, {a game-seed step, 666} when
+the object is made (`objgroups.cpp` make: `Npc::seed`); a chest's InitFn
+(3 / 57) re-seeds it to {object seed % 0xfffe + 1, 666} (`roll_chest`).
+The containers' own draws (how many rounds, the undead, the sparkle) are
+on the object seed (game +0x10f0, `Level::objects`). `open_container`:
+
+- Chest (OperateFn 4, FUN_00585f60): a sparkling one (FUN_005540d0, unit
+  +0x78) draws rand(100) < 5 ? 6 : 4 as its forced quality (object 397
+  draws it too, then drops it); then rand(100) >= 25, or sparkling or
+  locked, opens 1 round (2 locked); a sparkling one with no magic item
+  tries up to 10 more until one is.
+- Chest 397: rand(10000): < 1200 one unique / set / rare round (200 /
+  600 / 1200), a second when the first isn't magic; < 3200 up to 10
+  magic rounds, 3 magic items enough; < 6200 up to 10, 2 magic enough,
+  then 7 - plain gold piles (FUN_00585970); else, or when those find
+  nothing, 10 tries for magic, at least 4 rounds, 5 gold, 2 hp3, 2 mp3.
+- Casket (1, FUN_00586410): a round; nothing, it stays shut; then the
+  undead roll (`(next % 10000) & ~0x1fff`). Urn (3, FUN_005866c0): a round
+  at rand(100) < 21. Barrel (5, FUN_005868a0): the undead roll, then the
+  same. Corpse / crate (14, FUN_005867a0): a round. Bookshelf (26,
+  FUN_00584060): rand(20) < 13 a scroll, else a tome, of town portal or
+  identify (next & 1; FUN_00559a30).
+
+## Stands — FUN_005594c0, FUN_00559630
+
+An armor stand (OperateFn 19, FUN_005594c0) or weapon rack (20,
+FUN_00559630) picks off its room's seed (room1 +0x6c; `Level::room_seeds`,
+as place_objects left them) a spawnable non-quest armor / weapon of qlvl
+<= ilvl (area level - 1, past 1) by Rarity (`stand_item`); the rack tries
+6 times for a base with bitfield1 & 2 (FUN_00629cc0). FUN_00558d90 makes
+it off the same room seed (unit seed, then own). FUN_00556f60 rolls its
+quality, nothing asked for, the first draw on its own seed: unique, rare,
+set, magic, superior, normal (ItemRatio rows 0, 2, 1, 3, 4, 5), each won
+at rand(base - past / divisor) == 0, past = ilvl - qlvl at least 1;
+none: superior (args +0x80 & 0x40); a quest base normal (`stand_quality`,
+`Loot::put` for quality 0).
+
+## Where a drop lands — FUN_00555da0
+
+From (x + 2, y + 3), or (x, y) when that's off the rooms, the free
+subtile nearest (`drop_spot`, FUN_0064e810 → FUN_0064dea0): no 0x3e01 there
+and no 0x801 on expfield.d2's walk back to the dropper (FUN_0066a670);
+rings 1..49, each side to side, the first nearest by Manhattan distance.
+A landed item marks 0x200, so the next lands elsewhere. Object footprints
+(FUN_006209d0): 0x400 (| 4 BlockMissile); 0x8000 for a SubClass 4
+non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
+0x400.
 
 ## Checks
 
@@ -183,10 +236,27 @@ FUN_0055a550 makes the items at the area level.
   40000 match (17339 defence rolls, 1660 stacks, 8094 picks, 9502 failed
   unique picks, the Cow King's set with and without a bovine).
 
+- `uv run python drops.py objects 1-20000`: every container class
+  (OperateFn 1 / 3 / 4 / 5 / 14 / 26) in turn at varied levels,
+  difficulties, locks and sparkle; the real OperateFn on a fake object,
+  diffed against `drop-dump objects`: drops, extras, shut, both seeds
+  after. 20000 / 20000 match.
+- `uv run python drops.py stands 1-20000`: FUN_00559630 / FUN_005594c0 on
+  a room whose seed is the job's, then the item's seeds and FUN_00556f60,
+  against `drop-dump stands`. 20000 / 20000 match.
+- `uv run python diff_drlg.py 1-50 <level> drops`: three items dropped at
+  each group object after place_objects, game.exe's FUN_00555da0 against
+  `drlg-dump ... drops` (`drop_spot`).
+
 ## Not ours yet
 
 - Unique / set item entries (flags 1 / 2; ROP only in 1.14d) and forced
   picks (struct +0x40).
-- Chests and other objects roll off the shared rng, not their unit seed.
+- `Loot::drop_at` reads the live walk grid (& 0x01) and the items lying
+  there, not the rooms' full flags: units (0x1000 / 0x2000) don't block,
+  and its walk stays on one level.
+- An assassin opens a locked chest without a key (player +4 == 6) isn't
+  modeled; the barrel's opening step for a player and the events aren't
+  either.
 - One player, no magic or gold find in `loot.hpp`; the picture
   (VarInvGfx) draw and affixes past the pick aren't game.exe's.

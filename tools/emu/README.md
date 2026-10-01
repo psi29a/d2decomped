@@ -41,7 +41,9 @@ Needs the launcher's `bin/game.exe` (found through the launcher's
     not an unwind.
 - `drops.py`: the drop roller (FUN_0055a6d0) as an oracle. It diffs
   `build/tools/drop-dump` over a seed range (`drops.py 1-100000`), or
-  every treasure class's entries (`drops.py tables`). Item creation is
+  every treasure class's entries (`drops.py tables`), made items
+  (`drops.py items`), containers opened (`drops.py objects`) and armor
+  stands' / weapon racks' items (`drops.py stands`). Item creation is
   hooked, so only the dropper's seed moves. See
   `docs/research/re/drops.md`.
 - `drlg.py`: the level generator as an oracle.
@@ -72,6 +74,7 @@ build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
 
 ```
 uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
+uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at each group object (FUN_00555da0)
 ./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
 ```
 

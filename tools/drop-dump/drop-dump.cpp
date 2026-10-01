@@ -9,12 +9,23 @@
 // "seed code iilvl qquality[ cow]: seeds unit own gold N qty N dur N/N def
 // N pick N -> game seed low after". The one-per-game uniques carry on
 // from line to line.
+// drop-dump <mpq dir> objects — containers opened, "objseed<TAB>unitseed<TAB>
+// op<TAB>class<TAB>level<TAB>difficulty<TAB>locked<TAB>sparkle" a line, off
+// object seed {objseed, 666} and unit seed {unitseed, 666} (World::operate):
+// "objseed class Llevel ddiff [L][S] opop: code:quality[*mul]... | extra...
+// [shut] -> object seed low, unit seed low".
+// drop-dump <mpq dir> stands — "seed<TAB>weapon<TAB>ilvl" a line: the stand's
+// base off room seed {seed, 666}, then its unit and own seeds off that, the
+// quality off its own: "seed w|a iilvl: code:quality -> room seed low after
+// the pick".
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -25,15 +36,48 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    if (argc < 2) { std::fprintf(stderr, "usage: drop-dump <mpq dir> [tables|items] < jobs\n"); return 2; }
+    if (argc < 2) { std::fprintf(stderr, "usage: drop-dump <mpq dir> [tables|items|objects|stands] < jobs\n"); return 2; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     const auto data = d2d::game::load_game_data(argv[1], patch ? d2d::game::fs::path(patch) : d2d::game::fs::path{}, 0x1234);
     if (!data) return 1;
     const auto& rules = data->rules;
     const bool tables = argc > 2 && std::string(argv[2]) == "tables";
     const bool items = argc > 2 && std::string(argv[2]) == "items";
+    const bool objects = argc > 2 && std::string(argv[2]) == "objects";
+    const bool stands = argc > 2 && std::string(argv[2]) == "stands";
     std::vector<bool> found_uniques;
     for (std::string line; std::getline(std::cin, line);) {
+        std::vector<int> job;
+        if (objects || stands) {
+            std::istringstream fields(line);
+            for (std::string field; std::getline(fields, field, '\t');) job.push_back(int(std::stoul(field)));
+        }
+        if (objects) {
+            const auto [seed, unit_low, op, id, lid, diff, locked, sparkle] = std::array<int, 8>{ job[0], job[1], job[2], job[3], job[4], job[5], job[6], job[7] };
+            const auto& area = data->area_level;
+            auto alvl = [&](int level) { return area[std::size_t(level)][std::size_t(diff)]; };
+            const auto [low, high] = d2d::rules::kChestLevels[0];
+            const auto tc = d2d::rules::chest_tc(0, diff, alvl(lid), alvl(low), alvl(high));
+            d2d::rules::Rng object_seed{ std::uint32_t(seed) }, unit{ std::uint32_t(unit_low) };
+            std::vector<d2d::rules::Drop> drops;
+            const auto opened = d2d::rules::open_container(op, id, locked, sparkle, object_seed,
+                                                           [&](int forced) { return d2d::rules::chest_round(rules, tc, unit, drops, forced); });
+            std::printf("%08x %d L%d d%d %s%s op%d:", unsigned(seed), id, lid, diff, locked ? "L" : "", sparkle ? "S" : "", op);
+            for (const auto& drop : drops) std::printf(drop.mul ? " %s:%d*%d" : " %s:%d", drop.code.c_str(), drop.quality, drop.mul);
+            std::printf(" |");
+            for (const auto& code : opened.extra) std::printf(" %s", code.c_str());
+            std::printf("%s -> %08x %08x\n", opened.opened ? "" : " shut", object_seed.low, unit.low);
+            continue;
+        }
+        if (stands) {
+            d2d::rules::Rng room{ std::uint32_t(job[0]) };
+            const auto code = d2d::rules::stand_item(rules, job[1] != 0, job[2], room);
+            const auto after = room.low;
+            d2d::rules::Rng unit{ room.next() }, own{ room.next() };
+            const int quality = code.empty() ? 0 : d2d::rules::stand_quality(rules, code, job[2], own);
+            std::printf("%08x %s i%d: %s:%d -> %08x\n", unsigned(job[0]), job[1] ? "w" : "a", job[2], code.c_str(), quality, after);
+            continue;
+        }
         if (items) {
             std::istringstream fields(line);
             std::string seed, code, ilvl, quality, bovine;

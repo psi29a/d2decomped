@@ -66,7 +66,7 @@ int main() {
         copy.next(); copy.next(); copy.next();                              // unique, set, rare lost: magic
         assert(seed.low == copy.low);
     }
-    // A forced quality (the tower chest's 4, FUN_00585b90) replaces the roll.
+    // A forced quality (a chest round's, FUN_00585b90) replaces the roll.
     {
         std::vector<Drop> out;
         roll_drops(tables, "Two", 1, rng, out, 1, 0, 6, 4);
@@ -118,18 +118,29 @@ int main() {
         const int any = roll_shrine(rows, 0, 2, object_rng);
         assert(any >= 1 && any <= 3);
     }
-    // Chests: traps and locks by the classic area level; a locked chest
-    // drops twice, others are empty a quarter of the time.
+    // Chests: traps and locks by the classic area level, a unit seed of
+    // 1..0xfffe; a locked chest drops twice, others are empty a quarter of
+    // the time; a sparkling one tries up to 11 rounds for a magic item.
     int traps = 0, locks = 0, empty = 0;
     for (int i = 0; i < 4000; ++i) {
         Rng chest_rng{ std::uint32_t(i) };
         const auto chest = roll_chest(1, true, chest_rng);                              // 5 % traps, 8 % locks at MonLvl1 1
-        assert(chest.trap >= 0 && chest.trap <= 8);
+        assert(chest.trap >= 0 && chest.trap <= 8 && chest.seed >= 1 && chest.seed <= 0xfffe);
         traps += chest.trap > 0; locks += chest.locked;
-        assert(chest_rounds(true, chest_rng) == 2);
-        empty += chest_rounds(false, chest_rng) == 0;
+        int rounds = 0;
+        open_container(4, 5, true, false, chest_rng, [&](int) { ++rounds; return 2; });
+        assert(rounds == 2);
+        rounds = 0;
+        open_container(4, 5, false, false, chest_rng, [&](int) { ++rounds; return 2; });
+        empty += rounds == 0;
+        rounds = 0;
+        open_container(4, 455, false, true, chest_rng, [&](int forced) { assert(forced == 4 || forced == 6); ++rounds; return 2; });
+        assert(rounds == 11);
     }
     assert(traps > 120 && traps < 290 && locks > 220 && locks < 430 && empty > 850 && empty < 1150);
+    Rng shelf_rng{ 1 };
+    const auto shelf = open_container(26, 179, false, false, shelf_rng, [](int) { return 0; });
+    assert(shelf.extra.size() == 1 && (shelf.extra[0] == "tsc" || shelf.extra[0] == "isc" || shelf.extra[0] == "tbk" || shelf.extra[0] == "ibk"));
     // Trap 8's undead: zombies (mummies in act 2) or a skeleton family by
     // its first id; else a flying scimitar, nothing in act 1.
     assert(trap_undead({ 19, 7, 2 }, 0) == 5);                           // fallen1, zombie3 first
@@ -152,12 +163,14 @@ int main() {
     assert(well_drink(life, 100, mana, 100, stamina, 40) && life == 60 && mana == 100 && stamina == 20);
     life = 100; stamina = 40;
     assert(!well_drink(life, 100, mana, 100, stamina, 40));
-    // A stand's item: a base from the auto classes up to its level.
+    // A stand's item: a base up to its level; a rack's with bitfield1 & 2
+    // if one of 6 tries finds it.
     tables.item_base["lea"].level = 3; tables.item_base["gth"].level = 60;
-    tables.treasure["armo3"].items = { { "lea", 1 } };
-    tables.treasure["armo60"].items = { { "gth", 1 } };
+    tables.item_base["big"].bitfield1 = 2;
+    tables.stand_bases[0] = { "lea", "gth" };
+    tables.stand_bases[1] = { "hax", "big" };
     Rng stand_rng{ 9 };
-    assert(stand_item(tables, false, 5, stand_rng) == "lea" && stand_item(tables, false, 2, stand_rng).empty() && stand_item(tables, true, 5, stand_rng) == "hax");
+    assert(stand_item(tables, false, 5, stand_rng) == "lea" && stand_item(tables, false, 2, stand_rng).empty() && stand_item(tables, true, 5, stand_rng) == "big");
     int trapped = 0;
     for (int i = 0; i < 1000; ++i) { Rng trap_rng{ std::uint32_t(i) }; trapped += roll_trap(40, trap_rng) > 0; }   // 10 % at MonLvl1 40
     assert(trapped > 60 && trapped < 140);

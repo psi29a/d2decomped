@@ -20,6 +20,10 @@ of the room (`FUN_00619660/6a0/6e0`), `FUN_0064c790`:
 Bits: 0x01 blocks walking, 0x08 blocks the player; walking units test
 mask 0x1c09 (walls 0x09 plus door 0x400, monster 0x800, player 0x1000 —
 units stamp their own footprints). Outside every room reads 0x27.
+An object's footprint bits (`FUN_006209d0`): 0x400, | 0x04 with
+BlockMissile; 0x8000 for a SubClass 4 non-door; a door 0x806 with
+BlocksVis, else 0x808 with BlockMissile, else 0x400. An item 0x200, a
+warp tile 1.
 
 ## Rects and units
 

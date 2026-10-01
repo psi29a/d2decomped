@@ -76,6 +76,7 @@ struct ItemBase {
     bool quest = false;                                // Items +0x12a: a quest item
     bool only_unique = false;                          // Items +0x129 (unique): drops unique
     int spawn_stack = 0;                               // misc.txt spawnstack (Items +0xec)
+    int rarity = 0;                                    // weapons / armor.txt rarity (Items +0xfc): a stand's pick
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -156,6 +157,9 @@ struct Tables {
     // Jamella, 14 Malah, 15 Larzuk, 16 Drehya) the items FUN_00536d50
     // lists: spawnable, <Vendor>Max or <Vendor>MagicMax > 0.
     std::array<std::vector<VendorItem>, 17> vendor_items;
+    // What a stand can hold (FUN_00555e70 / FUN_00555fb0): armor.txt, then
+    // weapons.txt, codes in row order, spawnable and not quest items.
+    std::array<std::vector<std::string>, 2> stand_bases;
     std::array<std::vector<ClassSkill>, 7> class_skills;   // by d2s class, Skills.txt order
     // Item generation.
     std::vector<Affix> prefixes, suffixes;                 // raw rows (row 0 blank), = save IDs
