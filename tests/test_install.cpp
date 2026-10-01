@@ -55,12 +55,14 @@ std::string product(const std::string& code, const std::string& path) {
 
 std::span<const std::byte> span(const std::string& bytes) { return std::as_bytes(std::span(bytes.data(), bytes.size())); }
 
-// Path -> (size, mtime) of everything under root, symlinks not followed.
+// Path -> (size, mtime) of every file under root, symlinks not followed.
+// Directories count by path only, and file stats are fresh: Windows'
+// directory_entry caches them from the parent's lazily updated index.
 std::map<fs::path, std::pair<std::uintmax_t, fs::file_time_type>> snapshot(const fs::path& root) {
     std::map<fs::path, std::pair<std::uintmax_t, fs::file_time_type>> out;
     for (const auto& entry : fs::recursive_directory_iterator(root)) {
-        if (entry.is_symlink()) { out[entry.path()] = {}; continue; }
-        out[entry.path()] = { entry.is_regular_file() ? entry.file_size() : 0, entry.last_write_time() };
+        auto& stats = out[entry.path()];
+        if (!entry.is_symlink() && entry.is_regular_file()) stats = { fs::file_size(entry.path()), fs::last_write_time(entry.path()) };
     }
     return out;
 }
@@ -310,7 +312,12 @@ int run() {
     assert(data.dir.empty() && data.error.find("no Diablo II data") == 0);
 
     // Read only: nothing the probes touched changed or appeared.
-    assert(snapshot(root) == before);
+    const auto after = snapshot(root);
+    for (const auto& [path, stats] : after)
+        if (!before.contains(path) || before.at(path) != stats) std::fprintf(stderr, "changed: %s\n", path.string().c_str());
+    for (const auto& [path, stats] : before)
+        if (!after.contains(path)) std::fprintf(stderr, "gone: %s\n", path.string().c_str());
+    assert(after == before);
     fs::remove_all(root);
 
     if (const char* dir = std::getenv("D2_MPQ_DIR"); dir && *dir) {
