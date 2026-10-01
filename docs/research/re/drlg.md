@@ -473,7 +473,10 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   skipping itself, for a tile at that spot in one of their edge chains
   (FUN_0066e4c0: rooms already up, point inside the room's rect edges
   inclusive, floor chains for orientation 0, not orientation 4, shadow
-  bit only against shadows, same word bits 18..19). None → FUN_0066e620
+  bit only against shadows, and the tile's flags bits 14..16 clear or
+  one more than the word's bits 18..19 — FUN_0066db20 ORs each sharer's
+  layer + 1 in, so a tile two layers share stops matching either; an
+  orientation 3 merge ORs 0xc000). None → FUN_0066e620
   picks it (rolling this room's seed) and chains it. Found →
   FUN_0066e740 keeps the neighbour's tile unless its word had 0x80, or
   the orientations merge (tables 0x6ef620, 0x6ef574) to something else,
@@ -485,8 +488,9 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   moves it on.
 - So edge tiles, and everything picked after them in the room, depend on
   which rooms are up first. The game brings rooms up as the player gets
-  near; d2d brings them up in the level's room list order (newest first,
-  i.e. the reverse of the cell order they were made in).
+  near; d2d builds in the level's room list order (newest first, i.e. the
+  reverse of the cell order they were made in), then lays the tiles again
+  in the player's order as he brings rooms up (`relevel`).
 - Act1/Outdoors/Trees.ds1 (v12) declares 14 substitution groups and ends
   12 bytes into the 14th; FUN_00665950 reads past its buffer. In the
   emulator that's zeros (a 0×0 group that stamps nothing); on real
@@ -581,11 +585,13 @@ it on the act seed from the side the Black Marsh went — above 2 −
 (rand & 1), below ~rand & 1. A level with a Depend sits at its OffsetX /
 Y plus that level's (FUN_00642d10: 27 on 26, 33 on 32).
 
-Tile quirk (FUN_0066e360): a hidden lit warp, after its 2×2 lit floor,
-lists every unlit warp floor in the room (DT1 style = the warp's seq,
-sequence < 4) through tile +0x20 — the same link the edge-sharing chains
-use — so a later room's FUN_0066e4c0 misses tiles past the first such
-floor and adds its own copy.
+Tile quirk (FUN_0066e360, FUN_0066e260): the room keeps a record per
+LvlWarp id (room +0x4c) with a tile list linked through tile +0x20 — the
+same link the edge-sharing chains use. A hidden lit warp, after its 2×2
+lit floor, puts every unlit warp floor in the room (DT1 style = the
+warp's seq, sequence < 4) on it; a visible warp wall (FUN_0066e260) puts
+itself on it. Either cuts the chain it was on, so a later room's
+FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
 
 **Doors** (FUN_0066d9e0): an orientation 8 / 9 wall makes a door unit —
 hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->
@@ -685,9 +691,10 @@ Conditions those results hold under, so they aren't overstated:
   would (LvlMaze.txt in 1.14d has one Rooms column, game.exe's .bin has
   three; d2d uses the one for all) — untested for Nightmare / Hell.
 - **Tiles depend on room bring-up order** (edge sharing, see Room tiles).
-  Proven for game.exe's room-list order with only that level's rooms up.
-  In the game the order follows the player, and the town's or Cold
-  Plains' rooms may be up first; those orders aren't checked.
+  Proven for game.exe's room-list order with only that level's rooms up,
+  and the collision grids for shuffled and reversed orders
+  (`diff_drlg.py ... collision`). The town's or Cold Plains' rooms may be
+  up first in the game; that isn't checked.
 - **Emulator shortcuts.** String-table lookups return "" (names only),
   C++ static constructors (`__cinit`) aren't run, and memory past a file's
   end reads as zero. The last matters once: Act1/Outdoors/Trees.ds1

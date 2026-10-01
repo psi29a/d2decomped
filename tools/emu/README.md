@@ -68,7 +68,7 @@ build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
   (FUN_005559a0, FUN_00552610) as an oracle: the room seed in and out,
   the object seed, and every object made. The regression check for
   `components/game/objgroups.cpp`, which should report every seed matching
-  for every Act 1 level but 23 and 26 (their tiles differ first):
+  for every Act 1 level:
 
 ```
 uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
@@ -79,6 +79,10 @@ uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
   on random walls in a fake room, against a line-for-line Python copy of
   `rules::sight_blocked`. `uv run python sight.py 20000 3` should print
   `ok`. See `docs/research/re/monster-ai.md`.
+- `collision` (drlg.py `collision_dump`): the level's rooms brought up out
+  of list order ($ORDER shuffle, the default, reverse or list), then every
+  room's collision grid (room1 +0x20), against `relevel`'s:
+  `uv run python diff_drlg.py 1-10 2 collision`, `./sweep.sh 1-10 collision`.
 
 ## Adding a new oracle
 

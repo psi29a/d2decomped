@@ -1,11 +1,13 @@
 """Diff our level generator against game.exe's over a range of map seeds.
 
-    uv run python diff_drlg.py 1-3000 [level] [tiles|units|seeds|monsters|objgroups]     # level defaults to 2 (the Blood Moor)
+    uv run python diff_drlg.py 1-3000 [level] [tiles|units|seeds|monsters|objgroups|collision]     # level defaults to 2 (the Blood Moor)
 
 Runs build/tools/drlg-dump for the range, game.exe's generator in the
 emulator for the same seeds, and prints how many match plus the first
 differing lines of the first few mismatches. `objgroups` compares each
-room's random object groups (objgroups.py, drlg-dump ... objgroups).
+room's random object groups (objgroups.py, drlg-dump ... objgroups);
+`collision` each room's grid with the rooms brought up out of list order
+($ORDER: shuffle, the default, reverse or list; drlg.collision_dump).
 """
 import os
 import subprocess
@@ -22,10 +24,11 @@ import objgroups
 def main():
     first, last = (int(v, 0) for v in sys.argv[1].split("-"))
     lid = int(sys.argv[2]) if len(sys.argv) > 2 else 2
-    tiles = sys.argv[-1] in ("tiles", "units", "seeds", "monsters", "objgroups")
+    tiles = sys.argv[-1] in ("tiles", "units", "seeds", "monsters", "objgroups", "collision")
     what = sys.argv[-1]
     env = dict(os.environ)
     env.setdefault("D2_PATCH_INSTALLER", str(Path.home() / "Downloads/Diablo II + LoD/patch/LODPatch_114d.exe"))
+    env.setdefault("ORDER", "shuffle")                  # collision: the rooms' order, both sides
     with tempfile.TemporaryDirectory() as out:
         subprocess.run([str(emu.ROOT / "build/tools/drlg-dump/drlg-dump"), emu.data_path(), f"{first}-{last}", str(lid), out] + ([what] if tiles else []),
                        env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -39,11 +42,13 @@ def main():
                 g, o = ({l.split(":")[0]: l for l in lines} for lines in (game, Path(out, f"{seed}.txt").read_text().splitlines()))
                 rooms[0] += sum(g[k] == o.get(k) for k in g)
                 rooms[1] += len(g.keys() | o.keys())
+            elif what == "collision":
+                game = drlg.collision_dump(e, seed, lid, env["ORDER"]).splitlines()
             elif what == "objgroups":
                 game = objgroups.dump(e, seed, lid).splitlines()
             else:
                 game = drlg.level_dump(e, seed, lid).splitlines()
-            if tiles and what not in ("monsters", "objgroups"):
+            if tiles and what not in ("monsters", "objgroups", "collision"):
                 t = drlg.tiles_dump(e, drlg._last_level)
                 game += (t if what == "tiles" else drlg.units_dump(e, drlg._last_level) if what == "units" else drlg.seeds_dump(e, drlg._last_level)).splitlines()
             ours = Path(out, f"{seed}.txt").read_text().splitlines()
