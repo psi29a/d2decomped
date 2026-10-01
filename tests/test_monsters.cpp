@@ -203,6 +203,24 @@ int main() {
             assert(sight_blocked(0, 0, 0, 2, 5, 0, wall(1, 3)) && !sight_blocked(0, 0, 0, 2, 5, 0, wall(1, 2)));
             assert(sight_blocked(0, 0, 1, 4, 4, 1, wall(2, 2)) && !sight_blocked(0, 0, 1, 4, 4, 1, wall(0, 0)));
         }
+        // The target search's pick (FUN_005dd7f0; tools/emu/search.py --dump):
+        // best, need sight, target, its distance (none: the nearest), foes
+        // {distance, pet, away, dead, blocked}.
+        {
+            struct Case { int best; bool sight; int target, distance; std::vector<SearchFoe> foes; };
+            const std::vector<Case> cases{
+                { 50, 0, 2, 5, { {10, 0, 0, 0, 0}, {7, 1, 0, 0, 0}, {5, 1, 0, 0, 1}, {13, 0, 0, 0, 0}, {7, 1, 0, 0, 0}, {7, 1, 0, 0, 0}, {7, 1, 0, 0, 1} } },
+                { 20, 1, -1, 56, { {72, 0, 0, 1, 0}, {60, 0, 0, 1, 0}, {56, 0, 0, 1, 0}, {91, 1, 0, 0, 1}, {68, 1, 0, 0, 1}, {21, 1, 0, 0, 1} } },
+                { 50, 1, 2, 7, { {14, 0, 0, 0, 0}, {11, 0, 0, 0, 0}, {7, 1, 0, 0, 0} } },
+                { 20, 0, 3, 16, { {33, 0, 1, 0, 0}, {49, 1, 0, 0, 1}, {10, 0, 0, 1, 1}, {16, 1, 0, 0, 1}, {34, 0, 1, 1, 0}, {34, 1, 0, 0, 0} } },
+                { 35, 1, 4, 7, { {10, 0, 0, 0, 0}, {8, 0, 0, 0, 0}, {12, 0, 1, 1, 0}, {10, 0, 0, 0, 0}, {7, 1, 0, 0, 0}, {13, 1, 0, 0, 0}, {7, 0, 0, 0, 0}, {12, 0, 0, 1, 0} } },
+                { 20, 1, -1, 59, { {59, 0, 0, 1, 0}, {69, 1, 0, 0, 1}, {66, 1, 0, 0, 1}, {27, 1, 0, 0, 1}, {103, 0, 0, 0, 1} } },
+            };
+            for (const auto& c : cases) {
+                const auto pick = search_pick(c.foes, c.best, c.sight);
+                assert(pick.target == c.target && (c.target >= 0 ? pick.best : pick.nearest) == c.distance);
+            }
+        }
         assert(direction64(0, 0, 5, 0) == 56 && direction64(0, 0, 0, 5) == 7 && direction64(0, 0, 3, 3) == 0 && direction64(9, 9, 6, 6) == 32);
         const std::array<int, 8> aip{ 30, 10, 30, 50 };
         for (const bool in_melee : { true, false })

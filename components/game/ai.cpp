@@ -250,21 +250,29 @@ int room_at(const Level& level, float x, float y) {
     return -1;
 }
 
-// The target search (FUN_005dd7f0): the nearest foe under aidist (blank:
-// 35) and 0x37 by the AI's distance. Line of sight (sight_blocked, mask 4)
-// counts only in a preset room whose LvlPrest isn't Outdoors (FUN_0061aa40
-// -> FUN_0066ba70: plain rooms and 0x80000 ones need none), and only until
-// the monster first finds a target (AI control flag 8, never cleared).
+// The target search (FUN_005dd7f0): rules::search_pick over the player and
+// its pets, best under aidist (blank: 35) by the AI's distance. Line of
+// sight (sight_blocked, mask 4, each unit's size) counts only in a preset
+// room whose LvlPrest isn't Outdoors (FUN_0061aa40 -> FUN_0066ba70: plain
+// rooms and 0x80000 ones need none), and only until the monster first
+// finds a target (AI control flag 8, never cleared). Flag 0x40
+// (force_sight, cleared here) makes this one search test sight anyway.
 // Its spawn area (monster data +0x50, FUN_0066ceb0 at placement; gone once
 // it leaves that room, FUN_00554670) shares a flag (+0x24): an unaware
 // monster skips the sight test while it's set; finding a target sets it
 // when the finder was aware or saw for itself, clears it when it got in on
 // the flag. So in caves one that sees you wakes its area; outdoors all see.
-// ponytail: foes alike (game.exe: players, then pets, then list 10), each
-// size 2; a target in a town room isn't refused (no foe stands in one
-// here); the skill-set target (FUN_005dd610) and the one-shot skip (flag
-// 0x40, FUN_005deb60) left out; the area as the first of its room's
-// room_areas holding its spawn tile.
+// The area is the room_areas rect holding the spawn tile: FUN_0066ceb0
+// looks it up in the room's 5x5-subtile grid, where FUN_0066ca50 wrote each
+// rect into the cells it covers, and the rects don't overlap, so it's the
+// one holding the tile (a room with flag 1 has one, the whole room).
+// A player in a town level is refused, with its pets (FUN_0061ab00).
+// tools/emu/search.py checks the pick and the flags against game.exe.
+// ponytail: no skill-set target (FUN_005dd610: monster data +0x34/+0x38,
+// set by Attract FUN_005c3b90 and Confuse FUN_005c3de0 to another
+// monster) and no lists 8 / 9 (neutral and allied monsters, FUN_005b1990):
+// monsters don't fight monsters here (Confuse, Attract: blind_until). A
+// dead pet is skipped (game.exe drops it from the list).
 struct Search { Foe* target = nullptr; int best = 0, nearest = 0x7fffffff; };
 Search search_target(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, std::uint32_t now_ms, AreaSeen* seen) {
     auto& unit = monster.unit;
@@ -285,20 +293,24 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const auto* in_room = room >= 0 ? &level.rooms[std::size_t(room)] : nullptr;
     const bool indoor = in_room && in_room->kind == 2
         && !(std::size_t(in_room->def) < game_data.prest_outdoors.size() && game_data.prest_outdoors[std::size_t(in_room->def)]);
-    const bool shared = indoor && monster.area >= 0 && seen;
+    const bool force = std::exchange(monster.force_sight, false);
+    const bool shared = indoor && !force && monster.area >= 0 && seen;
     const bool flag = shared && !monster.sighted && (*seen)[monster.area];
-    const bool need_sight = indoor && !monster.sighted && !flag;
+    const bool need_sight = force || (indoor && !monster.sighted && !flag);
+    const bool town = level.id == 1 || level.id == 40 || level.id == 75 || level.id == 103 || level.id == 109;
     const int x = subtile(unit.x), y = subtile(unit.y);
-    Search found{ nullptr, aidist > 0 ? aidist : 35 };
-    for (auto& foe : foes) {
-        if (!foe.alive || (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f)) continue;   // blind: arm's length
-        const int foe_x = subtile(foe.x), foe_y = subtile(foe.y), distance = d2d::rules::ai_distance(foe_x - x, foe_y - y);
-        found.nearest = std::min(found.nearest, distance);
-        if (distance >= 0x37 || distance >= found.best) continue;
-        if (need_sight && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, 2, [&](int at_x, int at_y) {
-                return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); })) continue;
-        found.target = &foe; found.best = distance;
+    const int best = aidist > 0 ? aidist : 35;
+    std::vector<d2d::rules::SearchFoe> picks;
+    for (const auto& foe : foes) {
+        const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
+        auto& pick = picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet, town, !foe.alive });
+        if (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f) pick.dead = true;   // blind: arm's length
+        if (pick.pet && pick.dead) pick.distance = 0x7fffffff;
+        pick.blocked = need_sight && pick.distance < best && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, [&](int at_x, int at_y) {
+            return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); });
     }
+    const auto pick = d2d::rules::search_pick(picks, best, need_sight);
+    Search found{ pick.target >= 0 ? &foes[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
     if (found.target) {
         monster.sighted = true;
         if (shared) (*seen)[monster.area] = !flag;
@@ -311,9 +323,8 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 // MonAI 34 FUN_005f5830 -> rules::andariel_think, the rest
 // rules::mon_think). A move goes on between thinks — at a foe (a walk or
 // run at it) or to a spot (a wander, back-off, keep-off, circle). At a
-// think it takes the nearest foe within aidist (0: 35) by the AI's
-// distance; with none it stands (10 frames, the nearest - 10 from 25
-// subtiles off, 25 from 35), or wanders near home 2-5 s apart where the
+// think it takes search_target's foe; with none it stands (10 frames,
+// the nearest - 10 from 25 subtiles off, 25 from 35), or wanders near home 2-5 s apart where the
 // level lets its monsters wander. In melee is unit_distance within
 // MeleeRng + 1. A walk with flags 2 that can't set off: 70 % a random
 // walk of 4 subtiles (FUN_005de200), else stand 10. Returns false for an
@@ -324,9 +335,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 // no-target wander on the fight's rng;
 // first-sight speech (FUN_005b1140), door opening and the no-target
 // wander (FUN_0064d910; the old home wander stands in) left out; in melee
-// skips the path test (FUN_00622aa0, mask 0x804); a move re-thinks every
-// aidel frames or at its end (game.exe: at the path's end); a foe is the
-// player, the merc, pets alike (game.exe: players first); paths
+// skips the path test (FUN_00622aa0, mask 0x804); paths
 // (FUN_005de190) as straight lines, a circle as a walk to the point n
 // subtiles to the side of the target; a back-off sets off when its end
 // and first step are open; no teleporting mod.
@@ -347,20 +356,34 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const std::string_view mode = running && has_run ? "RN" : "WL";
         if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
         monster.wandering = to_spot;
-        monster.next_act = now_ms + std::uint32_t(per_difficulty.aidel) * 40;
+        monster.path_left = 4;                                     // FUN_006490e0(path, 0x14): 20 subtiles
+        monster.next_act = now_ms;                                 // its end thinks at once (FUN_005a8030)
     };
+    // A move runs to its end, then it thinks: a walk or run's end does so at
+    // once (FUN_005a8030: DAT_0073c6d0 flags WL and RN). A wander ends at its
+    // spot, a chase at its foe (unit_distance 0) or when its re-path budget
+    // runs out (path +0x94, spent by FUN_00650350); either ends when it's
+    // blocked.
+    // ponytail: the budget as 4 cells walked (game.exe spends it per
+    // re-path, by the points walked); the chase steps at the foe's spot
+    // each frame instead of re-pathing at its path's end.
     if (monster.mode == "WL" || monster.mode == "RN") {
         const float step = monster.mode == "RN" ? run : walk;
+        bool done;
         if (monster.wandering) {
             const bool there = std::hypot(unit.goal_x - unit.x, unit.goal_y - unit.y) <= step;
             if (there) { unit.x = unit.goal_x; unit.y = unit.goal_y; }
-            if (there || !monster_step(level, monster, unit.goal_x, unit.goal_y, step, crowd)) { set_mode(game_data, monster, "NU", now_ms); monster.wandering = false; }
+            done = there || !monster_step(level, monster, unit.goal_x, unit.goal_y, step, crowd);
         } else {
-            const Foe* chased = nullptr;
-            for (const auto& foe : foes)
-                if (foe.alive && (!chased || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(chased->x - unit.x, chased->y - unit.y))) chased = &foe;
-            if (!chased || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, step, crowd)) set_mode(game_data, monster, "NU", now_ms);
+            const Foe* chased = monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive ? &foes[std::size_t(monster.chase)] : nullptr;
+            done = !chased || monster.path_left <= 0
+                || d2d::rules::unit_distance(subtile(chased->x) - subtile(unit.x), subtile(chased->y) - subtile(unit.y), type_info.size, chased->size) == 0
+                || !step_toward(level, monster, chased->x - unit.x, chased->y - unit.y, step, crowd);
+            monster.path_left -= step;
         }
+        if (!done) return true;
+        set_mode(game_data, monster, "NU", now_ms);
+        monster.wandering = false;
     }
     if (now_ms < monster.next_act) return true;
     const int x = subtile(unit.x), y = subtile(unit.y);
@@ -382,7 +405,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const int target_x = subtile(target->x), target_y = subtile(target->y);
     const float dx = target->x - unit.x, dy = target->y - unit.y;
     d2d::rules::ThinkIn in{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
-    in.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, 2) <= type_info.melee_rng + 1;
+    in.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
     in.got_hit = monster.left_mode == "GH";
     in.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
     for (std::size_t skill = 0; skill < 3; ++skill) in.skill[skill] = !type_info.skill[skill].empty();
@@ -464,8 +487,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::a2: use("A2", -1); return true;
         case MonAct::s2: use("S2", -1); return true;
         case MonAct::walk: case MonAct::approach: case MonAct::run:  // FUN_005deb60 at the target
-            if (step_toward(level, monster, dx, dy, act.act == MonAct::run && has_run ? run : walk, crowd)) { set_off(act.act == MonAct::run, false); return true; }
+            if (step_toward(level, monster, dx, dy, act.act == MonAct::run && has_run ? run : walk, crowd)) {
+                set_off(act.act == MonAct::run, false);
+                monster.chase = int(target - foes.data());
+                return true;
+            }
             if (act.act == MonAct::walk && act.n == 0) monster.ai_command = 0;   // the Fallen's charge ends (FUN_0058ed10)
+            if (act.act == MonAct::walk && (act.n & 1)) monster.force_sight = true;   // FUN_005dd230: flag 0x40
             if (act.act != MonAct::walk || !(act.n & 2)) { idle(0); return true; }
             act = d2d::rules::walk_failed(monster.seed);
             break;
@@ -694,11 +722,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed, 10)) / 100;
     if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen)) return false;
-    // An AI not traced finds its foe as the traced ones do (search_target).
-    // ponytail: searched every frame, not at its thinks (game.exe: the
-    // driver's, FUN_005b1740); it chases the nearest foe whichever it found.
-    if (foe.alive && search_target(game_data, level, monster, foes, now_ms, seen).target) {
-        monster.aware = true;
+    // An AI not traced finds its foe as the traced ones do (search_target),
+    // at its thinks: when next_act is due and no chase is under way (a chase
+    // ends as think() has it: at the foe, blocked, or after 4 cells). With
+    // none it thinks again aidel on (FUN_005a73e0).
+    // ponytail: it chases the nearest foe whichever it found.
+    const bool chasing = monster.mode == "WL" && monster.path_left > 0 && monster.aware;
+    if (now_ms >= monster.next_act && !chasing) {
+        monster.aware = foe.alive && search_target(game_data, level, monster, foes, now_ms, seen).target;
+        if (!monster.aware) monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
+    }
+    if (foe.alive && monster.aware) {
         // Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0):
         // at a think, 40 %, then — under 30 % life, or a shooter with the
         // foe within 10 subtiles — 15 %: to a free spot in its room, and
@@ -742,6 +776,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             }
         }
         const bool moved = step_toward(level, monster, dx, dy, walk, crowd);
+        if (moved && monster.mode != "WL") monster.path_left = 4;
+        monster.path_left = moved ? monster.path_left - walk : 0;
+        if (!moved && monster.mode == "WL") monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;   // FUN_005a73e0
         if (moved != (monster.mode == "WL")) set_mode(game_data, monster, moved ? "WL" : "NU", now_ms);
         return false;
     }
