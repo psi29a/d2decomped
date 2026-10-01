@@ -275,8 +275,17 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     town.world.characters = g_no_save ? nullptr : &characters;
     town.world.autoloot_gold = g_autoloot;
     if (screen == Screen::InGame && scene) {
+        // --start-screen ingame: a new character of the class and name given,
+        // made as char-create's OK makes one (unsaved until the game saves).
+        character.character_class = kUiToSaveClass[std::size_t(std::max(character.selected, 0))];
+        auto made = new_character(*scene, character.character_class, character.name.empty() ? std::string("Tester") : character.name,
+                                  character.hardcore, character.expansion, town.rng);
+        character.header = std::move(made.header);
+        character.stats = made.stats;
+        character.items = std::move(made.items);
+        character.panel = panel_stats(*scene, character.header, character.items, character.stats);
         set_map_seed(*scene, game_seed(character.header));
-        town.enter();   // --start-screen ingame: the class and name given
+        town.enter();
     }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
