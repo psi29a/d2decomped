@@ -719,12 +719,35 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // Sight / Slow Missiles (do 6, FUN_005db1c0) round the caster;
             // Attract (59, FUN_005c3b90) and Taunt (71, FUN_005d8570) on the
             // monster.
+            // Confuse (FUN_005c3de0) takes evil monsters only, makes them
+            // neutral (FUN_005543b0, list 9) and, with SwitchAI (FUN_00573090),
+            // sets their target to kind 3 until its end (event 10). Attract
+            // makes its evil monster neutral, and each evil one within
+            // aurarange of it (FUN_0056e780, FUN_0056d2c0: the caster's
+            // target; callback 0x5c3b30) gets that monster as its kind 2
+            // target until the same end.
+            // ponytail: the duration as the other curses' (auralen, not
+            // FUN_005c37a0's divided calc); FUN_0056e2f0's AI test unread.
             case 30: case 61: case 6: case 59: case 71: {
                 const std::uint32_t until = now_ms + std::uint32_t(std::max(calc(skill, skill.auralen, lvl), 25)) * 40;
                 const bool curse = skill.srvdofunc == 30 || skill.srvdofunc == 61 || skill.srvdofunc == 59;
-                auto put = [&](std::size_t monster_index) { (curse ? monsters[monster_index].curse : monsters[monster_index].cry) = { skill.id, lvl, until }; };
+                const auto set = [&](Monster& monster, int kind, int id) {
+                    if (game_data->monsters.types[std::size_t(monster.type)].switch_ai) monster.set_kind = kind, monster.set_id = id, monster.set_until = until;
+                };
+                auto put = [&](std::size_t monster_index) {
+                    auto& monster = monsters[monster_index];
+                    if (skill.srvdofunc == 61 && monster.align) return;
+                    (curse ? monster.curse : monster.cry) = { skill.id, lvl, until };
+                    if (skill.srvdofunc == 61) { monster.align = 1; set(monster, 3, 0); }
+                };
                 if (skill.srvdofunc == 59 || skill.srvdofunc == 71) {
-                    if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) put(std::size_t(attack_mon));
+                    const bool lured = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() && (skill.srvdofunc == 71 || !monsters[std::size_t(attack_mon)].align);
+                    if (lured) put(std::size_t(attack_mon));
+                    if (lured && skill.srvdofunc == 59) {
+                        auto& lure = monsters[std::size_t(attack_mon)];
+                        lure.align = 1;
+                        within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t j) { if (!monsters[j].align) set(monsters[j], 2, lure.id); });
+                    }
                 } else {
                     within(skill.srvdofunc == 6 ? player.x : cast_x, skill.srvdofunc == 6 ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
                 }
@@ -910,6 +933,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
 auto Fight::monster_states(std::uint32_t now_ms) -> void {
         for (auto& monster : monsters) {
             monster.dmg_pct = monster.speed_pct = monster.reflect_pct = 0;
+            monster.align = 0;                                // Confuse's / Attract's end (FUN_005c3db0 / 0x5c3b00), or another curse in its place
             for (auto* effect : { &monster.curse, &monster.cry }) {
                 if (effect->skill < 0) continue;
                 if (now_ms >= effect->until) { *effect = {}; continue; }
@@ -922,8 +946,10 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 const auto& targets = skill->auratarget;
                 if (targets == "ironmaiden") monster.reflect_pct += calc(*skill, skill->calc[0], effect->level);
                 if (targets == "terror") monster.flee_until = std::max(monster.flee_until, effect->until);
-                if (targets == "dimvision" || targets == "cloaked" || targets == "confuse" || targets == "attract" || targets == "conversion") monster.blind_until = effect->until;
+                if (targets == "dimvision" || targets == "cloaked" || targets == "conversion") monster.blind_until = effect->until;
+                if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
+            if (monster.set_kind && now_ms >= monster.set_until) monster.set_kind = 0;   // event 10 (0x5a7f70 -> FUN_00573120)
         }
     }
 
@@ -1130,8 +1156,13 @@ auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_
         d2d::log::info("{} explodes ({} fire, {} physical)", monster.npc.name, pts, pts);
     }
 
-auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms) -> void {
+auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit) -> void {
         auto& monster = monsters[monster_index];
+        if (!credit) {                                      // a monster's kill (FUN_0057e7b0: no player behind it)
+            loot.drop(monster, spawning.game, now_ms);
+            kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
+            return;
+        }
         const auto save_class = std::size_t(std::max(character.character_class, 0));
         auto exp = d2d::rules::kill_exp(monster.stats.exp, int(character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
         exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
@@ -2141,7 +2172,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
-        foe.pet = true; foe.size = type_info.size;
+        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat;
         return foe;
     }
 
@@ -2373,11 +2404,30 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                                    Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
                                         merc && merc->walking, merc_fighter() } };
             foes[1].pet = true;                                  // the merc: its MonStats class's size
-            if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0) foes[1].size = game_data->monsters.types[std::size_t(row)].size;
+            if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
+                foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
                 if (now_ms < amplified[k]) foes[k].fighter.dr_pct -= 100;
             monster_auras(foes, now_ms);
             for (const auto& pet : pets) foes.push_back(pet_foe(pet));
+            // With Confuse or Attract about, every monster is a foe too, after
+            // the player's list (lists 8 / 9, FUN_005dd0b0 mode 5's units),
+            // hit as the player is (combat.md). Its death drops; the player
+            // gets the experience when the killer or the dead one carries
+            // its curse (FUN_0057e7b0: the stat list's owner, flag 0x800).
+            // ponytail: a monster's missiles, poison and Mana Burn reach only
+            // the player's side; monsters block as the player does.
+            const std::size_t sides = foes.size();
+            if (std::ranges::any_of(monsters, [](const Monster& monster) { return monster.align || monster.set_kind; }))
+                for (const auto& monster : monsters) {
+                    const auto target = monster.target(*game_data);
+                    auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
+                    fighter.block = target.block;
+                    for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
+                    const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+                    Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.alive() && monster.mode != "DT", monster.unit.walking, fighter });
+                    foe.size = type_info.size; foe.threat = type_info.threat; foe.of = &monster;
+                }
             std::vector<Monster> born;
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
@@ -2385,6 +2435,11 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen))
                     killed(i, now_ms);                           // on the player's thorns
             }
+            const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
+            for (std::size_t i = sides; i < foes.size(); ++i)
+                if (const auto k = i - sides; hurt(*game_data, monsters[k], foes[i].damage, now_ms))
+                    killed(k, now_ms, cursed(monsters[k]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* by) -> const Monster& { return *by; }));
+            foes.resize(sides);
             for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);

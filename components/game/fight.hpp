@@ -479,7 +479,7 @@ struct Fight {
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.
     // ponytail: the merc's own experience share isn't kept.
-    void killed(std::size_t monster_index, std::uint32_t now_ms);
+    void killed(std::size_t monster_index, std::uint32_t now_ms, bool credit = true);
     struct Kill { int type; float x, y; int level; int super = -1; };   // super: its SuperUniques row
     std::vector<Kill> kills;                       // since the World last looked (its quests' death hooks)
 

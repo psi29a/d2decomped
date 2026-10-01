@@ -35,23 +35,33 @@ fastcall ECX game, EDX monster; stack: AI control, out distance, out in-melee.
 The unit lists at game +0x10f8 are 10 heads of {unit, ?, next +8, prev +0xc} nodes; a unit's +0xd0 holds its list (0xb: none).
 
 - Lists 0..7 are one per player: the player at the head (FUN_005b1880), its pets after it (FUN_005b1900, from the summons FUN_00573270 / FUN_005c4b00 and the merc).
-- List 8 holds neutral monsters (alignment 2): FUN_0054ef50's random spawns, AIs FUN_005edc50 / FUN_005ee3c0, superuniques with flag 0x400 and alignment 2 (FUN_005424f0). FUN_005b1990 adds them.
-- List 9 holds allied monsters (alignment 1): Confuse (FUN_005c3de0), Attract (FUN_005c3b90), FUN_005aeda0, FUN_005c58b0 / FUN_005c5bc0, superuniques with alignment 1.
-- Alignment is stat 0xac (FUN_006259b0): 0 hostile, 1 ally, 2 neutral; units not players or monsters read 2.
+- List 8 holds good monsters (alignment 2): FUN_0054ef50's random spawns, AIs FUN_005edc50 / FUN_005ee3c0, superuniques with flag 0x400 and alignment 2 (FUN_005424f0). FUN_005b1990 adds them, FUN_005b1a90 takes them off.
+- List 9 holds neutral monsters (alignment 1): Confuse (FUN_005c3de0), Attract (FUN_005c3b90), FUN_005aeda0, FUN_005c58b0 / FUN_005c5bc0, superuniques with alignment 1.
+- Alignment is stat 0xac (FUN_006259b0; FUN_005543b0 sets it, ECX unit, DL value, and skips 0 on a unit with +0xc4 & 0x80000000): 0 evil, 1 neutral, 2 good. Players are 2; units not players or monsters read 2.
+- Friends (FUN_00650d70): two evil ones, or two good ones. Enemies (FUN_00554200) first trade a monster for its owner (FUN_0058f0d0: AI control +0x28 set, owner id +0x2c); a unit isn't its own enemy, two players go to the PvP flag, else enemies are those not friends. So a neutral monster is everyone's enemy, the other neutrals' too.
 
 The search, in order:
 
-1. A skill-set target (FUN_005dd610). Monster data +0x38 is a kind and +0x34 a value, written by FUN_00573090 only when the MonStats row's byte +0xe & DAT_006ce268 (FUN_00573040). Its only callers are Attract's callback (005c3b64: kind 1 or 2, the attracting unit's id) and Confuse (005c3ef6: kind 3). Kinds 1, 2, 4 look the unit up by id (FUN_00552f60) and test sight; kind 3 runs a FUN_005dd0b0 mode 5 / 6 search among monsters. A valid live one is returned and the rest skipped; else FUN_00573120 clears it.
-2. A hostile monster (FUN_006259b0 == 0), best from MonStats aidist (+0x52 + difficulty; 0 → 0x23 = 35):
+1. A skill-set target (FUN_005dd610). Monster data +0x38 is a kind and +0x34 a value, written by FUN_00573090 only for kind < 5 when the MonStats row's byte +0xe & DAT_006ce268 (FUN_00573040: the SwitchAI column; 585 rows, not Andariel, Blood Raven or Duriel). Its only callers are Attract's callback (005c3b64: kind 1 for a player, else 2, the attracting unit's id) and Confuse (005c3ef6: kind 3). FUN_00573120 clears both; event 10 (0x5a7f70) runs it at the curse's end.
+   - Kinds 1, 2, 4 look the unit up by id (FUN_00552f60: the type's hash at game + DAT_006e10e0[type] + (id & 0x7f) × 4, chained at +0xe4). From FUN_005dd7f0 there's no sight test. The distance is FUN_005dc380(it, monster): the deltas less its size (FUN_00620510), floored at 0, then (min + 2 max) / 2.
+   - Kind 3 draws `seed() & 1` (FUN_00472210, unit +0x20), sets its own alignment for the search (neutral: 2 on a draw, else 0; else a draw swaps 0 and 2), runs mode 5 (below) with sight as needed and takes the primary only, then puts the alignment back.
+   - A live player or monster (or an object) is returned and the rest skipped; else FUN_00573120 clears it.
+2. An evil monster (FUN_006259b0 == 0), best from MonStats aidist (+0x52 + difficulty; 0 → 0x23 = 35):
    - Lists 0..7. A player counts in the same act (+0x18), in a room (FUN_00620bb0), not in a town room (FUN_0061ab00 → FUN_0066bab0 → FUN_006426a0: levels 1, 0x28, 0x4b, 0x67, 0x6d). Else the player and its pets are skipped.
    - `nearest` takes the player's distance (FUN_005dc530: (min + 2 max) / 2 of the deltas, from FUN_006488c0 / FUN_00648900 on the path).
    - At 0x37 or more the player and its pets are skipped. A dead player (FUN_005541b0: player mode 0 or 0x11, monster mode 0 or 0xc, or +0xc6 bit 1) counts 0x7fffffff.
    - Then the player and each pet after it is taken when its distance is under the best and sight passes or isn't needed. Pets have no act, room, town, 0x37 or death test, and don't count for `nearest`.
    - List 8: same act, under the best, sight. No 0x37 cap.
    - List 9: the nearest one in the same act with sight, from its own 0x7fffffff. FUN_005dd510 decides: with no best it's taken. If it's under 6 away and there's no path to the best (FUN_00648* / FUN_00649970), a FUN_005dd0b0 mode 7 search runs; the list 9 unit is taken when that finds nothing or something over 0x13 away, else the best becomes what it found. Otherwise the best stays.
-3. Allied monsters search through FUN_005dd0b0 mode 5 (callback FUN_005dca70) instead.
+3. Neutral and good monsters search through FUN_005dd0b0 mode 5 instead: the primary, else the secondary (FUN_005dd510).
 
-`tools/emu/search.py` runs FUN_005dd7f0 on random players with pets (acts, rooms, towns, deaths, walls, flags 0x40 and 8, outdoors, the area flag; lists 8 and 9 empty) against `rules::search_pick` and ai.cpp's flags: 20 000 cases, 12 935 with a target, 7 805 of them a pet, all match.
+Mode 5 (FUN_005dcf70, callback FUN_005dca70), block {primary, best 0x7fffffff, need sight, 0x23, area FUN_0061b130(room, x, y), secondary, best 0x7fffffff}:
+
+- The searcher's room's near rooms (FUN_00619790: room +0 the array, +0x24 the count), skipping town rooms and those with +0x78 clear; each room's units from +0x74, next at +0xe8.
+- A player or monster, alive, +0xc4 & 4, an enemy: at most 0x23 away by FUN_005dc380, under its slot's best, and seen if sight is needed. Threat (FUN_005dc920: a player 14, a monster MonStats +0x4e) 2 or more fills the primary, else the secondary.
+- Else, a monster seen by an evil searcher that needs sight: when it isn't in mode 0 / 0xc, has AI flag 8 and stands in the searcher's area, sight isn't needed for the rest of the walk.
+
+`tools/emu/search.py` runs FUN_005dd7f0 on random players with pets, good and neutral monsters in lists 8 / 9 and evil ones besides, in shuffled near, town and unsearched rooms (acts, deaths, sizes, threats, walls, flags 0x40 and 8, outdoors, the area flag), with an evil or neutral searcher carrying no skill-set target, Attract's (a monster by id, maybe gone) or Confuse's. game.exe's FUN_005dd610 and mode 5 run natively. Against `rules::search_pick` / `search_near` and ai.cpp's flow: 20 000 cases, 16 706 with a target, all match. `--break` (list 9 ignores sight, threat 2 counts low) gives 1 259 mismatches.
 
 ### Found one
 
@@ -79,6 +89,17 @@ The search, in order:
 1. Got hit (FUN_005dd2b0: the last mode was 3 or 0x13) and FUN_0046c140: wander 5.
 2. Else, a door near (FUN_0064d910 mask 0x40) and FUN_0046c140: wander 5.
 3. Else stand: 10 frames when `nearest` < 25, `nearest` − 10 under 35, else 25.
+
+## Confuse and Attract
+
+- Confuse (FUN_005c3f20, each unit FUN_005c3de0): a monster that's evil, an enemy of the caster, alive and passes FUN_0056e2f0 gets the curse state, alignment 1, list 9, kind 3 (FUN_00573090) and event 10 at the end. Its remove callback (FUN_005c3db0) puts alignment 0 back (not on +0xc4 & 0x80000000), drops the state and takes it off the list.
+- Attract (FUN_005c3b90): the caster's target, evil, alive, not in town and hostile, gets +0xc4 | 0x40, alignment 1, list 9 and the state. FUN_0056e780 then runs callback 0x5c3b30 over the area round it (FUN_0056d2c0): each hostile unit gets kind 2 (kind 1 if the target's a player) with the target's id, and event 10.
+- So the cursed monster hunts whoever is near (Confuse: anyone in mode 5, evil or good by the draw), and Attract's crowd hunts the lured one until it dies or the curse ends.
+
+### Monsters hitting monsters
+
+- A death drops whoever the killer (FUN_0057ccb0 → FUN_005a4ef0 → FUN_0053f720). The quest record (FUN_0066a220) is a player killer's only.
+- Experience (FUN_0057e7b0) goes to the player only when the killer or the dead one carries the player's stat list (the curse, flag 0x800).
 
 ## Alerting
 
@@ -151,9 +172,14 @@ The path is D2DynamicPath (unit +0x2c):
 - A walk n with n & 1 that can't set off sets `Monster::force_sight` (flag 0x40).
 - A move is `ai.cpp path_to` / `move_frame` over `Monster::steps` and `budget`: the toward path, the chase check, one point a frame, the snap at the end. It thinks at its end. AIs not traced set off at their thinks and search at the same points.
 
-Approximated (`ponytail:` in ai.cpp):
+- `Monster::align` (0 evil, 1 neutral while Confuse or Attract holds it) and `set_kind` / `set_id` / `set_until` (the skill-set target, SwitchAI monsters only; `MonType::switch_ai`, `threat`). With either about, every monster joins the foes after the player's side and is hit as the player is; experience only through the curse (`Fight::killed`'s credit).
 
-- No skill-set target and no lists 8 / 9: monsters don't fight monsters here. Confuse and Attract are `blind_until` on the cursed one.
+Approximated (`ponytail:` in ai.cpp, fight.cpp, monsters.hpp):
+
+- FUN_005dd510's path test always finds a path, so a list 9 monster is taken only when nothing else was.
+- Mode 5's candidates are every foe in foes order, not the near rooms' units room by room; its area is the room_areas rect at the unit. List 8 is empty (no good monsters) and kind 1 (a player by id) and 4 aren't set.
+- A monster's missiles, poison and Mana Burn reach only the player's side; monsters block as the player does.
+- Confuse's and Attract's duration is auralen's, not FUN_005c37a0's; FUN_0056e2f0's test is unread.
 - The search pather (type 0xf, FUN_0067c2d0) is `rules::find_path`'s turns over its first 0x28 subtiles. Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
-- A dead pet is skipped (game.exe takes it off the list).
+- A dead pet is skipped (game.exe takes it off the list), and a dead monster leaves list 9.
 - An untraced AI chases the nearest foe, whichever it found.

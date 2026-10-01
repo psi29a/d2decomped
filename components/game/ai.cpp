@@ -331,28 +331,32 @@ int room_at(const Level& level, float x, float y) {
 // rect into the cells it covers, and the rects don't overlap, so it's the
 // one holding the tile (a room with flag 1 has one, the whole room).
 // A player in a town level is refused, with its pets (FUN_0061ab00).
+// First the skill-set target (FUN_005dd610, no sight): Attract's monster by
+// id while it lives; Confuse's search as confuse_align over FUN_005dd0b0
+// mode 5, its primary only. None: it's cleared. Then an evil monster tries
+// the player lists and list 9 (neutral monsters: Confuse's, Attract's), a
+// neutral one rules::search_near (primary, else secondary). A good one
+// (2) finding a target doesn't set flag 8 or the area's flag.
 // tools/emu/search.py checks the pick and the flags against game.exe.
-// ponytail: no skill-set target (FUN_005dd610: monster data +0x34/+0x38,
-// set by Attract FUN_005c3b90 and Confuse FUN_005c3de0 to another
-// monster) and no lists 8 / 9 (neutral and allied monsters, FUN_005b1990):
-// monsters don't fight monsters here (Confuse, Attract: blind_until). A
-// dead pet is skipped (game.exe drops it from the list).
+// ponytail: a dead pet is skipped (game.exe drops it from the list);
+// mode 5's candidates are every foe in the fight, in foes order (game.exe:
+// the near rooms' units, room by room), and the area FUN_0061b130 reads is
+// the room_areas rect at the unit; a dead monster leaves list 9.
+int area_at(const Level& level, float x, float y) {
+    const int room = room_at(level, x, y);
+    if (room >= 0 && std::size_t(room) < level.room_areas.size())
+        for (std::size_t i = 0; i < level.room_areas[std::size_t(room)].size(); ++i)
+            if (const auto& a = level.room_areas[std::size_t(room)][i]; int(x) >= a.left && int(y) >= a.top && int(x) < a.right && int(y) < a.bottom)
+                return level.id << 20 | room << 8 | int(std::min<std::size_t>(i, 255));
+    return -1;
+}
 struct Search { Foe* target = nullptr; int best = 0, nearest = 0x7fffffff; };
 Search search_target(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, std::uint32_t now_ms, AreaSeen* seen) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const int aidist = type_info.diff[std::size_t(monster.difficulty)].aidist;
     const int room = room_at(level, unit.x, unit.y);
-    if (monster.area == -2) {                                       // FUN_005b2a00 -> FUN_00552d60: where it was placed
-        const int home = room_at(level, monster.home_x, monster.home_y);
-        monster.area = -1;
-        if (home >= 0 && std::size_t(home) < level.room_areas.size())
-            for (std::size_t i = 0; i < level.room_areas[std::size_t(home)].size(); ++i)
-                if (const auto& a = level.room_areas[std::size_t(home)][i]; int(monster.home_x) >= a.left && int(monster.home_y) >= a.top && int(monster.home_x) < a.right && int(monster.home_y) < a.bottom) {
-                    monster.area = level.id << 20 | home << 8 | int(std::min<std::size_t>(i, 255));
-                    break;
-                }
-    }
+    if (monster.area == -2) monster.area = area_at(level, monster.home_x, monster.home_y);   // FUN_005b2a00 -> FUN_00552d60: where it was placed
     if (monster.area >= 0 && (monster.area >> 8 & 0xfff) != room) monster.area = -1;
     const auto* in_room = room >= 0 ? &level.rooms[std::size_t(room)] : nullptr;
     const bool indoor = in_room && in_room->kind == 2
@@ -364,18 +368,46 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const bool town = level.id == 1 || level.id == 40 || level.id == 75 || level.id == 103 || level.id == 109;
     const int x = subtile(unit.x), y = subtile(unit.y);
     const int best = aidist > 0 ? aidist : 35;
-    std::vector<d2d::rules::SearchFoe> picks;
-    for (const auto& foe : foes) {
-        const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
-        auto& pick = picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet, town, !foe.alive });
-        if (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f) pick.dead = true;   // blind: arm's length
-        if (pick.pet && pick.dead) pick.distance = 0x7fffffff;
-        pick.blocked = need_sight && pick.distance < best && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, [&](int at_x, int at_y) {
-            return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); });
+    const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    const auto near = [&](const Foe& foe) { return d2d::rules::near_distance(subtile(foe.x) - x, subtile(foe.y) - y, foe.size); };
+    const int here = area_at(level, unit.x, unit.y);
+    const auto mode5 = [&](int align) {                             // FUN_005dd0b0 mode 5
+        std::vector<d2d::rules::NearFoe> nears;
+        for (const auto& foe : foes) {
+            auto& n = nears.emplace_back(d2d::rules::NearFoe{ near(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
+            n.blocked = need_sight && n.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
+            n.waking = foe.of && foe.alive && foe.of->sighted && here >= 0 && area_at(level, foe.x, foe.y) == here;
+        }
+        return d2d::rules::search_near(nears, align, need_sight);
+    };
+    Search found;
+    if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
+        for (auto& foe : foes)
+            if (foe.of && foe.of->id == monster.set_id) { if (foe.alive) found = { &foe, near(foe) }; break; }
+    } else if (monster.set_kind == 3) {                             // Confuse's: as a random alignment, the primary only
+        const auto pick = mode5(d2d::rules::confuse_align(monster.align, monster.seed.next() & 1));
+        if (pick.target >= 0) found = { &foes[std::size_t(pick.target)], pick.best };
     }
-    const auto pick = d2d::rules::search_pick(picks, best, need_sight);
-    Search found{ pick.target >= 0 ? &foes[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
-    if (found.target) {
+    if (!found.target) monster.set_kind = 0;                        // FUN_00573120
+    if (!found.target && monster.align == 0) {
+        std::vector<d2d::rules::SearchFoe> picks;
+        std::vector<Foe*> at;
+        for (auto& foe : foes) {
+            if (foe.of && !(foe.of->align == 1 && foe.alive)) continue;   // list 9: neutral monsters
+            const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
+            auto& pick = picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet, town && !foe.of, !foe.alive && !foe.of, false, foe.of ? 9 : 0 });
+            if (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f) pick.dead = true;   // blind: arm's length
+            if (pick.pet && pick.dead) pick.distance = 0x7fffffff;
+            pick.blocked = need_sight && (pick.list || pick.distance < best) && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
+            at.push_back(&foe);
+        }
+        const auto pick = d2d::rules::search_pick(picks, best, need_sight);
+        found = { pick.target >= 0 ? at[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
+    } else if (!found.target) {
+        const auto pick = mode5(monster.align);
+        if (const int i = pick.target >= 0 ? pick.target : pick.second; i >= 0) found = { &foes[std::size_t(i)], pick.target >= 0 ? pick.best : pick.second_best };
+    }
+    if (found.target && monster.align != 2) {
         monster.sighted = true;
         if (shared) (*seen)[monster.area] = !flag;
     }
@@ -636,10 +668,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack,
                     std::vector<Monster>* born, AreaSeen* seen) {
     auto& unit = monster.unit;
-    // After the nearest one alive (the player or the merc).
+    // After the nearest one alive (the player or the merc), or the monster
+    // its search took (Confuse, Attract).
     Foe* pick = &foes[0];
     for (auto& foe : foes)
-        if (foe.alive && (!pick->alive || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(pick->x - unit.x, pick->y - unit.y))) pick = &foe;
+        if (!foe.of && foe.alive && (!pick->alive || std::hypot(foe.x - unit.x, foe.y - unit.y) < std::hypot(pick->x - unit.x, pick->y - unit.y))) pick = &foe;
+    if (monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].of && foes[std::size_t(monster.chase)].alive) pick = &foes[std::size_t(monster.chase)];
     Foe& foe = *pick;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     if (!monster.alive()) {
@@ -783,7 +817,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // ponytail: it chases the nearest foe whichever it found.
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
-        monster.aware = foe.alive && search_target(game_data, level, monster, foes, now_ms, seen).target;
+        const Foe* found = search_target(game_data, level, monster, foes, now_ms, seen).target;
+        monster.aware = foe.alive && found;
+        if (found) monster.chase = int(found - foes.data());
         if (!monster.aware) monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
     }
     if (foe.alive && monster.aware) {

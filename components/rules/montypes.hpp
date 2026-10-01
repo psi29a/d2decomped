@@ -42,6 +42,8 @@ struct MonType {
     std::array<std::string, 3> el_mode;
     std::array<int, 3> el_type{ -1, -1, -1 };
     bool can_block = false;                     // MonStats2 mBL
+    int threat = 0;                             // threat (record +0x4e, FUN_005dc920): a mode 5 search's primary at 2 or more
+    bool switch_ai = false;                     // SwitchAI (flags +0xe & 1, FUN_00573040): Confuse / Attract can set its target
     // Percentages of the MonLvl row (1.10+ style), per difficulty.
     struct Diff {
         int min_hp = 0, max_hp = 0, armor_class = 0, exp = 0;
