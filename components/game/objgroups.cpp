@@ -28,7 +28,7 @@
 namespace d2d::game {
 namespace {
 
-constexpr std::array kDx{ -1, 0, 1, -1, 1, -1, 0, 1 }, kDy{ -1, -1, -1, 0, 0, 1, 1, 1 };   // 0x731b7c, 0x731b9c
+constexpr std::array kAroundX{ -1, 0, 1, -1, 1, -1, 0, 1 }, kAroundY{ -1, -1, -1, 0, 0, 1, 1, 1 };   // 0x731b7c, 0x731b9c
 
 struct Rect { int x, y, w, h; };                        // a room, level subtiles (FUN_00619730)
 using Spot = std::optional<std::pair<int, int>>;
@@ -223,8 +223,8 @@ struct ObjectRooms {
                     ok = false;
                     for (int k = 0; k < std::max(left, 4) * 3 && !ok; ++k) {
                         const int d = int(rgn.next() & 7);
-                        x += (rgn(l10) + l8) * kDx[std::size_t(d)] * 2;
-                        y += (rgn(l10) + l8) * kDy[std::size_t(d)] * 2;
+                        x += (rgn(l10) + l8) * kAroundX[std::size_t(d)] * 2;
+                        y += (rgn(l10) + l8) * kAroundY[std::size_t(d)] * 2;
                         ok = close ? fits_near(x, y, sx, sy) : fits_wide(x, y, sx, sy);
                     }
                     if (!ok) continue;
@@ -255,8 +255,8 @@ struct ObjectRooms {
                 ok = false;
                 for (int k = 0; k < 15 && !ok; ++k) {
                     const int d = int(rgn.next() & 7);
-                    x += space_x * kDx[std::size_t(d)];
-                    y += space_y * kDy[std::size_t(d)];
+                    x += space_x * kAroundX[std::size_t(d)];
+                    y += space_y * kAroundY[std::size_t(d)];
                     ok = fits_near(x, y, sx, sy);
                 }
                 if (!ok) continue;

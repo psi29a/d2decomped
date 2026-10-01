@@ -512,7 +512,7 @@ auto wine_prefixes(const fs::path& home, std::string_view wineprefix, bool searc
     return out;
 }
 
-auto system_environment(bool search_more) -> Environment {
+auto system_environment([[maybe_unused]] bool search_more) -> Environment {   // Windows has no containers to search
     Environment env;
     auto var = [](const char* name) -> std::string {
         const char* value = std::getenv(name);

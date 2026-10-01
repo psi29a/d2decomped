@@ -737,13 +737,13 @@ template <class Flags>
 std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
     auto hit = [&](int at_x, int at_y, int mask) { const int f = flags(at_x, at_y); return f == 0x27 || (f & mask); };
     auto walk = [&](int at_x, int at_y) {
-        static constexpr int kDx[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kDy[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
+        static constexpr int kStepX[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kStepY[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
         auto dir = [&] { return field[std::size_t((at_y - y + 128) * 256 + at_x - x + 128)]; };
         if (field.empty()) return true;
         if (hit(at_x, at_y, 0x801)) return false;
         for (;;) {
             const auto step = dir();
-            at_x += kDx[step]; at_y += kDy[step];
+            at_x += kStepX[step]; at_y += kStepY[step];
             if (dir() == 8) return true;
             if (hit(at_x, at_y, 0x801)) return false;
         }
