@@ -179,6 +179,7 @@ struct Town {
     bool  player_ran = false;
     bool  inv_open = false;   // 'I' — inventory panel
     bool  char_open = false;  // 'C' — character panel
+    bool  stats_down = false, skills_down = false;   // New Stats / New Skills held (DAT_007c02e4 / DAT_007c02e8)
 
     Town(const Scene* game_scene, CharCreateUI& player_character, int start_x = -1, int start_y = -1)
         : scene(game_scene), character(player_character), world(game_scene, start_x, start_y) {
@@ -215,6 +216,8 @@ struct Town {
     // The monster / ground item under the cursor (hovered_npc -10 - i / -1000 - i), or -1.
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int hovered_ground() const;
+    // The New Stats / New Skills buttons as the panels stand.
+    [[nodiscard]] LevelButtons level_buttons_now() const;
 
     // The client's side of a click: what it asks the server for
     // (protocol.hpp). A held left button re-aims the walk; a press picks

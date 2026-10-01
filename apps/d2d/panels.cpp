@@ -216,6 +216,55 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     at_bottom(scene.globe_glass, 1, width - 0x6e, height - 9);
 }
 
+// UI 6 / 7 latch on when points are unspent and their panel is shut, off
+// when none are left; drawn only while not hidden (FUN_004a6a00 /
+// FUN_004a6d50), so on screen that's points and panel shut. The panel
+// state (FUN_0045ae90): 1 right open, 2 left, 3 both.
+// ponytail: UI 0x16's cases (with the inventory / tree) aren't kept.
+LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open) {
+    const int width = int(kScreenWidth);
+    LevelButtons out;
+    if ((left_open && right_open) || store_open) return out;
+    if (stats.get(d2d::d2s::kStatPts) != 0 && !char_open) out.stats_x = left_open ? width / 2 + 0x28 : 0x28;
+    if (stats.get(d2d::d2s::kSkillPts) > 0 && !tree_open) out.skills_x = (right_open ? width - width / 2 : width) - 0x49;
+    return out;
+}
+
+bool over_stats_button(int x, int mouse_x, int mouse_y) {
+    const int height = int(kScreenHeight);
+    return x >= 0 && mouse_x > x && mouse_x < x + 0x22 && mouse_y > height - 0x8b && mouse_y < height - 0x66;
+}
+
+bool over_skills_button(int x, int mouse_x, int mouse_y) {
+    const int height = int(kScreenHeight);
+    return x >= 0 && mouse_x > x && mouse_x < x + 0x21 && mouse_y > height - 0x8a && mouse_y < height - 0x66;
+}
+
+void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const LevelButtons& buttons, int mouse_x, int mouse_y) {
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    const int height = int(kScreenHeight);
+    auto at_bottom = [&](const d2d::dc6::Sprite& spr, int frame, int x, int bottom) {
+        if (frame >= int(spr.frames_per_direction())) return;
+        const auto& frame_ref = spr.frame(0, std::uint32_t(frame));
+        blit_sprite(framebuffer, frame_ref, pal, x, bottom - int(frame_ref.height));
+    };
+    // The label in the font the frame left set.
+    // ponytail: taken as font16; FUN_004a6b30 sets none of its own.
+    auto button = [&](int x, int label_id, bool pressed) {
+        if (x < 0 || scene.level_socket.frames_per_direction() == 0) return;
+        if (const auto found = lookup_string(scene, std::uint16_t(label_id))) {
+            const auto label = u16_to_latin1(*found);
+            const int socket_w = int(scene.level_socket.frame(0, 0).width);
+            const int text_y = height - 0x8e - int(scene.font.sheet().frame(0, 0).height) + 1;
+            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x + 1 + socket_w / 2 - scene.font.measure(label) / 2, text_y, label);
+        }
+        at_bottom(scene.level_socket, 0, x, height - 0x69);
+        at_bottom(scene.level_button, pressed ? 1 : 0, x + 3, height - 0x6d);
+    };
+    button(buttons.stats_x, 0xf92, buttons.stats_down && over_stats_button(buttons.stats_x, mouse_x, mouse_y));
+    button(buttons.skills_x, 0xf93, buttons.skills_down && over_skills_button(buttons.skills_x, mouse_x, mouse_y));
+}
+
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item) {
     const auto info = scene.rules.item_info.find(item.code);
     return { layout.grid_x + item.column * layout.box_w, layout.grid_y + item.row * layout.box_h,

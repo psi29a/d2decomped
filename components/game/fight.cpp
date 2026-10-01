@@ -1168,7 +1168,13 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
-        if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
+        if (levels_gained) {
+            character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
+            // The server's unit sound event 2 (FUN_00570880 → FUN_00553380),
+            // sent to the player alone as S→C 0x2C; the client plays
+            // Sounds.txt 7, cursor_level_up, not placed (FUN_004cb9c0).
+            cues.cue(7, now_ms, player.x, player.y);
+        }
         loot.drop(monster, spawning.game, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }

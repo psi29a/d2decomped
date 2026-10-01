@@ -81,3 +81,57 @@ What a point does is the server's: d2d adds CharStats' per-point gains
 (`LifePerVitality`, `StaminaPerVitality`, `ManaPerMagic`, in quarter
 points) to current and max — `components/rules` `spend_stat_points`. The
 0x3a handler itself isn't traced yet.
+
+## Level up: the New Stats / New Skills buttons, the sound
+
+**Server** (`FUN_00570880`, from the experience add `FUN_0057e510` →
+`FUN_0057eb10`): level (stat 12) from experience (`FUN_00611860`),
+stat 0x1e the next threshold; per level gained max life / stamina / mana
++= CharStats bytes +0x43 / +0x44 / +0x45 (×64), stat 4 += StatPerLevel
+(+0x50), stat 5 += 1. Then **life to its max if above 0
+(`FUN_00625d10`), mana and stamina to theirs (`FUN_00625d60` /
+`FUN_00625db0`)**. `FUN_00553380(unit, 2, unit)` queues unit sound
+event 2 (unit +0x6e = 2, +0x70 = the player, flag 0x400 at +0xc4); every
+client gets packet 0x75 with the new level (`FUN_005538d0(…,
+FUN_00570850)` → `FUN_0053da90`); items re-checked (`FUN_0055f500`).
+
+**Sound**: the update pass sees flag 0x400 and `FUN_00571740` sends
+S→C 0x2C (builder `FUN_0053d780`) to the levelling player only. Client:
+`0x45e110` → `FUN_004cbde0`; a player's code outside 10..0x12 /
+0x54..0x5d goes to `FUN_004cb9c0`, whose switch (`0x4cbc55`, table
+`0x4cbd7c`) maps 2 → Sounds.txt 7 `cursor_level_up` (cursor\levelup.wav),
+EDX 0: not placed (1 → 0xeb, 3..6 → 0xa..0xd). The merc's level up is
+code 0x5b → Sounds.txt 8 at the player. Packet 0x5D also plays 7 for
+some quest states (`FUN_004a2cb0`); that's the quests'.
+
+**No overlay**: nothing visual. Overlay.txt, States.txt and Missiles.txt
+have no level-up row, no LvlUp / LevelUp .dcc is in the MPQs, and the
+client's stat 12 handler (`FUN_0045d3b0` → `FUN_004c1bc0` →
+`FUN_004c1350`) only re-checks item requirements.
+
+**Buttons** (UI 6 stats, UI 7 skills; art `Panel\Level` → `0x7c02dc`,
+`Panel\Levelsocket` → `0x7c02e0`, loaded by `FUN_004a6460`).
+`FUN_004a64c0` each frame (not with UI 0xb up): UI 6 off when stat 4 = 0,
+on when ≠ 0 and the character panel (UI 2) is shut; UI 7 off when
+stat 5 ≤ 0, on when > 0 and the tree (UI 4) is shut. The panel state
+`FUN_0045ae90`: 1 right open, 2 left, 3 both.
+
+| | stats `FUN_004a6b30` | skills `FUN_004a6e60` |
+|---|---|---|
+| hidden (held flag cleared) | `FUN_004a6a00`: both sides, UI 2, UI 0xc (store), UI 0x16 with 1 or 4 | `FUN_004a6d50`: both sides, UI 4, UI 0xc, UI 0x16 with 1 |
+| socket x | 40; W/2+40 with a left panel | W−73; W−W/2−73 with a right panel |
+| label | string 3986, bottom H−142 | 3987 |
+| hit box (`FUN_004a6580` / `FUN_004a6630`) | x < mx < x+34, H−139 < my < H−102 | x < mx < x+33, H−138 < my < H−102 |
+| held flag | `0x7c02e4` | `0x7c02e8` |
+
+The label (`FUN_00502320`, colour 0, the frame's current font) is
+centred on the socket: x + 1 + socketW/2 − textW/2; drawn always. Then
+levelsocket frame 0 at (x, bottom H−105), level frame 0, or 1 while held
+and under the cursor, at (x+3, bottom H−109). Press over it
+(`FUN_004a66e0` / `FUN_004a6790`): held, Sounds.txt 4
+cursor_button_click. Release still over it (`FUN_004a6840` /
+`FUN_004a6920`): UI 6 off and UI 2 on (the character panel) / UI 7 off
+and UI 4 on (the tree); any release lets go. With `FUN_004f5160` = 2 the
+buttons sit on the control panel instead (`FUN_004a6a70` /
+`FUN_004a6da0`, hit `FUN_004a65e0` / `FUN_004a6690`: W/2−194 / W/2+163,
+bottom H−8, frame 2, a hover tooltip at H−50); d2d draws the other layout.

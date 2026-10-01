@@ -84,6 +84,26 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // ponytail: no poison tint, stamina bar, skill icons or run/walk yet.
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats);
 
+// The red New Stats / New Skills buttons over the HUD while stat 4 / 5
+// are unspent (UI 6 / 7, set each frame by FUN_004a64c0; drawn by
+// FUN_004a6b30 / FUN_004a6e60). x is the socket's left, -1 hidden:
+// stats at 40 (W/2+40 with a left panel open), skills at W-73 (W/2-73
+// with a right one); both hidden with both sides open or a store, stats
+// with the character panel, skills with the tree. levelsocket frame 0
+// bottom at H-105, level frame 0 (1 held and under the cursor) at x+3,
+// bottom H-109; the label (3986 / 3987) centred on the socket, bottom
+// H-142.
+struct LevelButtons {
+    int stats_x = -1, skills_x = -1;
+    bool stats_down = false, skills_down = false;
+};
+LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open);
+// The hit boxes (FUN_004a6580 / FUN_004a6630), both edges excluded:
+// x+1..x+33 by H-138..H-103 (stats), x+1..x+32 by H-137..H-103 (skills).
+bool over_stats_button(int x, int mouse_x, int mouse_y);
+bool over_skills_button(int x, int mouse_x, int mouse_y);
+void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const LevelButtons& buttons, int mouse_x, int mouse_y);
+
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
 // ponytail: no gold line, no "close" button; classic stash untested.
