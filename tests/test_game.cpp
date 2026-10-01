@@ -140,6 +140,21 @@ int main() {
         if (!cain_state.hidden) cain_moved = std::max(cain_moved, std::hypot(cain_state.x - cain_npc->x, cain_state.y - cain_npc->y));
     }
     assert(world.cain.camp_due && world.cain_walk.npc < 0 && world.npc_states[cain_index].hidden && cain_moved > 0.3f);
-    std::printf("OK: Tristram Cain walked %.2f cells and took his portal\n", cain_moved);
+    // His portal (object 189, FUN_005943b0) at the subtile he first stood
+    // on (FUN_005944b0: the Gibbet's x + 3, y + 3), drawn as a town portal.
+    const int spot_x = int(std::floor(cain_npc->x * 5)), spot_y = int(std::floor(cain_npc->y * 5));
+    assert(spot_x == int(std::floor(gibbet->x * 5)) + 3 && spot_y == int(std::floor(gibbet->y * 5)) + 3);
+    assert(world.cain_portal.level == tristram && world.cain_portal.x == (float(spot_x) + 0.5f) / 5 && world.cain_portal.y == (float(spot_y) + 0.5f) / 5);
+    const auto cain_view = world.view();
+    assert(std::ranges::count_if(cain_view.portals, [&](const auto& shown) { return shown.which == 4 && shown.x == world.cain_portal.x && shown.y == world.cain_portal.y; }) == 1);
+    std::printf("OK: Tristram Cain walked %.2f cells and took his portal at subtile (%d, %d)\n", cain_moved, spot_x, spot_y);
+    // A spot no room near his holds (FUN_00463740 null): it moves on 3 and
+    // no portal opens; he steps in at once, his own spot the target.
+    world.cain_portal = {};
+    world.npc_states[cain_index].hidden = false;
+    world.cain_walk = { .npc = int(cain_index), .stage = 1, .tries = 6, .x = spot_x, .y = spot_y, .spot_x = spot_x + 400, .spot_y = spot_y + 400 };
+    for (std::uint32_t tick = 800; tick < 800 + 60 && world.cain_walk.npc >= 0; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
+    assert(world.cain_walk.npc < 0 && world.cain_walk.stage == 3 && world.cain_walk.spot_x == spot_x + 403 && world.cain_walk.spot_y == spot_y + 403 && !world.cain_portal.level);
+    std::printf("OK: a spot with no room moves on 3 and opens no portal\n");
     return 0;
 }

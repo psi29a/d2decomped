@@ -330,8 +330,10 @@ struct World {
     // +0x67 / +0x9c target, +0x95 portal): `npc` his Level::npcs slot in
     // Tristram (-1: not out), `stage` the AI data's +0x14 (-1: the Gibbet
     // still opening), `tries` +0x18, `next` his next think.
-    struct CainWalk { int npc = -1, stage = -1, tries = 0; float x = 0, y = 0, portal_x = 0, portal_y = 0; std::uint32_t next = 0; };
+    // Subtiles: where he heads (AI +0xc / +0x10) and the noted spot (quest +0x9c / +0xa0).
+    struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; };
     CainWalk cain_walk;
+    Portal cain_portal{};                  // his portal (object 189, at the spot): no twin, not selectable
     void cain_step(std::uint32_t now_ms, float elapsed);
     // Whether the player carries an item of `code`.
     [[nodiscard]] bool carries(std::string_view code) const;

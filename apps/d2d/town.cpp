@@ -97,9 +97,11 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ corpse.x, corpse.y, &anim, corpse.dir, corpse_name, now_ms - (anim.length_ms() - 1), -3000 - corpse.which });
     }
     // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
-    // 768 ms), then ON; named by where they lead (-2000 - which).
+    // 768 ms), then ON; named by where they lead (-2000 - which). Tristram
+    // Cain's (which 4, object 189: its token tP is TP's files, MPQ names
+    // being case-blind) has no name: Selectable0..2 all 0.
     for (const auto& portal : view.portals) {
-        const Level* destination = scene.level(portal.destination);
+        const Level* destination = portal.which < 4 ? scene.level(portal.destination) : nullptr;
         const bool opening = now_ms - portal.born < kPortalOpenMs;
         out.push_back({ portal.x, portal.y, &scene.npc_anim(scene.town_portal, opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
                         opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
