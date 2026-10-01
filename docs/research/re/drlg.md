@@ -473,7 +473,10 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   skipping itself, for a tile at that spot in one of their edge chains
   (FUN_0066e4c0: rooms already up, point inside the room's rect edges
   inclusive, floor chains for orientation 0, not orientation 4, shadow
-  bit only against shadows, same word bits 18..19). None → FUN_0066e620
+  bit only against shadows, and the tile's flags bits 14..16 clear or
+  one more than the word's bits 18..19 — FUN_0066db20 ORs each sharer's
+  layer + 1 in, so a tile two layers share stops matching either; an
+  orientation 3 merge ORs 0xc000). None → FUN_0066e620
   picks it (rolling this room's seed) and chains it. Found →
   FUN_0066e740 keeps the neighbour's tile unless its word had 0x80, or
   the orientations merge (tables 0x6ef620, 0x6ef574) to something else,
@@ -581,11 +584,13 @@ it on the act seed from the side the Black Marsh went — above 2 −
 (rand & 1), below ~rand & 1. A level with a Depend sits at its OffsetX /
 Y plus that level's (FUN_00642d10: 27 on 26, 33 on 32).
 
-Tile quirk (FUN_0066e360): a hidden lit warp, after its 2×2 lit floor,
-lists every unlit warp floor in the room (DT1 style = the warp's seq,
-sequence < 4) through tile +0x20 — the same link the edge-sharing chains
-use — so a later room's FUN_0066e4c0 misses tiles past the first such
-floor and adds its own copy.
+Tile quirk (FUN_0066e360, FUN_0066e260): the room keeps a record per
+LvlWarp id (room +0x4c) with a tile list linked through tile +0x20 — the
+same link the edge-sharing chains use. A hidden lit warp, after its 2×2
+lit floor, puts every unlit warp floor in the room (DT1 style = the
+warp's seq, sequence < 4) on it; a visible warp wall (FUN_0066e260) puts
+itself on it. Either cuts the chain it was on, so a later room's
+FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
 
 **Doors** (FUN_0066d9e0): an orientation 8 / 9 wall makes a door unit —
 hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->

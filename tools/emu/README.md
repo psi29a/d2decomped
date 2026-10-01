@@ -68,7 +68,7 @@ build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
   (FUN_005559a0, FUN_00552610) as an oracle: the room seed in and out,
   the object seed, and every object made. The regression check for
   `components/game/objgroups.cpp`, which should report every seed matching
-  for every Act 1 level but 23 and 26 (their tiles differ first):
+  for every Act 1 level:
 
 ```
 uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39

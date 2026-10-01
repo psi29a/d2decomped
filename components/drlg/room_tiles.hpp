@@ -41,6 +41,10 @@ struct PlacedTile {
     std::uint32_t word;
     int next = -1;                                      // tile +0x20: the next in its chain (room.tiles index)
     bool door = false;                                  // flags & 0x20: its door unit made (FUN_0066d9e0)
+    // FUN_0066db20's flags as rooms share it: +0x14 bits 14..16, each word's
+    // layer + 1 OR'd in (not a shadow's); bit 0, any of the words had 0x80.
+    int layers = 0;
+    bool keep = false;
 };
 // A room's area (FUN_0066ca50's entry): level-relative tiles, right /
 // bottom exclusive; id its flood label, skip (+0x20) where it began on a blank floor.
@@ -288,7 +292,14 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         auto add = [&](int layer, int x, int y, int orient, std::uint32_t word) {
             const auto [tile_file, tile_index] = pick(orient, word);
             room.tiles.push_back({ layer, x, y, orient, tile_file, tile_index, word });
+            room.tiles.back().layers = orient == 13 ? 0 : int((word >> 18) & 3) + 1;   // FUN_0066db20, FUN_0066dde0
+            room.tiles.back().keep = (word & 0x80) != 0;
             return room.tiles.size() - 1;
+        };
+        // FUN_0066db20 on a shared tile: the sharer's word into its flags.
+        auto flag = [](PlacedTile& tile, std::uint32_t word) {
+            if (tile.orient != 13) tile.layers |= int((word >> 18) & 3) + 1;
+            if (word & 0x80) tile.keep = true;
         };
         auto chain = [&](bool floor) -> BuiltRoom::Chain& {                    // FUN_0066e620's node
             for (auto& existing : room.chains) if (existing.floor == floor) return existing;
@@ -303,7 +314,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 for (int tile_index = existing.head; tile_index != -1; tile_index = neighbour.tiles[std::size_t(tile_index)].next) {
                     auto& tile = neighbour.tiles[std::size_t(tile_index)];
                     if (tile.x == x && tile.y == y && tile.orient != 4 && (tile.orient == 13 || !(word & 0x8000000u))
-                        && ((tile.word >> 18) & 3) == ((word >> 18) & 3))
+                        && (tile.layers == 0 || tile.layers - 1 == int((word >> 18) & 3)))
                         return &tile;
                 }
             }
@@ -334,13 +345,21 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
             return true;
         };
-        // FUN_0066e260: a visible warp wall's unit (seq 0 / 4) and, when
-        // its LvlWarp row is lit, its lit twin (seq | Tiles).
-        auto warp_wall = [&](std::uint32_t tile_word, int tile_orient, int x, int y) {
+        // The room's warp records (+0x4c, by LvlWarp id): their +0xc tile
+        // lists run through tile +0x20, the share chains' link, so linking a
+        // chained tile into one cuts or reroutes its chain.
+        std::map<int, int> warp_lists;
+        // FUN_0066e260: a visible warp wall's unit (seq 0 / 4); placed, the
+        // wall joins its warp record's list and, when its LvlWarp row is
+        // lit, gets its lit twin (seq | Tiles).
+        auto warp_wall = [&](std::size_t tile, std::uint32_t tile_word, int tile_orient, int x, int y) {
             const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
             const auto& warp_slot = slots[std::size_t(style)];
-            const bool placed = (seq != 0 && seq != 4) || warp_unit(warp_slot, x, y);
-            if (placed && warp_slot.lit) add(0, x, y, tile_orient, tile_word | std::uint32_t(warp_slot.tiles) << 8);
+            if ((seq == 0 || seq == 4) && !warp_unit(warp_slot, x, y)) return;
+            auto& head = warp_lists.try_emplace(warp_slot.id, -1).first->second;
+            room.tiles[tile].next = head;
+            head = int(tile);
+            if (warp_slot.lit) add(0, x, y, tile_orient, tile_word | std::uint32_t(warp_slot.tiles) << 8);
         };
         auto shared = [&](std::uint32_t word, int tile_orient, int x, int y) {               // FUN_0066e940
             PlacedTile* tile = nullptr;
@@ -358,11 +377,17 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 linked.head = int(added);
                 if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, word);
-                if (tile_orient == 10 || tile_orient == 11) warp_wall(word, tile_orient, x, y);
+                if (tile_orient == 10 || tile_orient == 11) warp_wall(added, word, tile_orient, x, y);
                 return;
             }
             // FUN_0066e740: the neighbour's tile stays unless the orientations merge differently.
-            if (tile->word & 0x80) { if (tile->orient == 8 || tile->orient == 9) door(tile, word, tile->orient, x, y); return; }   // its flags & 1
+            if (tile->keep) {                                                       // its flags & 1
+                if (tile->orient != 8 && tile->orient != 9) return;
+                room.shares.push_back({ int(neighbour - rooms.data()), int(tile - neighbour->tiles.data()), word, tile->file, tile->index, tile->file, tile->index });
+                flag(*tile, word);
+                door(tile, word, tile->orient, x, y);
+                return;
+            }
             int orient = tile_orient;
             if (!(word & 0x80)) {
                 const int cls = tile_orient >= 0 && tile_orient < 20 ? kOrientClass[std::size_t(tile_orient)] : -1;
@@ -375,6 +400,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 }
             }
             if (tile->orient != 3 && orient == 3) {
+                tile->layers |= 3;                                                  // flags | 0xc008
                 chain(false);
                 add(0, x, y, 3, word);
             }
@@ -390,6 +416,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 tile->index = tile_index;
             }
             room.shares.push_back({ int(neighbour - rooms.data()), int(tile - neighbour->tiles.data()), word, old_file, old_index, tile->file, tile->index });   // FUN_0066db20 on its flags
+            flag(*tile, word);
             if (tile->orient == 8 || tile->orient == 9) door(tile, word, tile->orient, x, y);
         };
         auto word = [&](std::uint32_t tile_word, int tile_orient, int x, int y, bool fill) {       // FUN_0066e9b0
@@ -409,10 +436,8 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                         room.tiles.push_back({ 1, x - 1 + (k & 1), y - 1 + (k >> 1), 0, tile_file, tile_index, warp_word });
                     }
                     // FUN_0066e360 then lists the room's unlit warp floors
-                    // (style = seq, sequence < 4) through tile +0x20 — the
-                    // share chains' link, so it cuts / reroutes them.
-                    // ponytail: a fresh list per warp; a warp record reused by a second warp would chain onto the first's.
-                    int warp_list = -1;
+                    // (style = seq, sequence < 4) onto the warp record's list.
+                    auto& warp_list = warp_lists.try_emplace(warp_slot.id, -1).first->second;
                     for (std::size_t i = 0; i < room.tiles.size(); ++i) {
                         auto& tile = room.tiles[i];
                         if (tile.layer != 1 || !tile.file || tile.index < 0) continue;
@@ -439,7 +464,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 const auto added = add(0, x, y, tile_orient, tile_word);
                 if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], tile_word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, tile_word);
-                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) warp_wall(tile_word, tile_orient, x, y);
+                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) warp_wall(added, tile_word, tile_orient, x, y);
             }
             if (tile_word & 0x8000000u) add(2, x, y, 13, tile_word);
         };
