@@ -31,6 +31,7 @@ d2d_add_test(test_protocol game)
 d2d_add_test(test_game game)
 
 d2d_add_test(test_userdir userdir)
+d2d_add_test(test_install install_detect)
 d2d_add_test(test_compcode mpq compcode)
 d2d_add_test(test_rules rules)
 d2d_add_test(test_monsters rules)

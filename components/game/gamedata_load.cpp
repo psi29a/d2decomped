@@ -9,6 +9,7 @@
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <dt1.hpp>
+#include <install.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
 #include <outdoor_data.hpp>
@@ -29,6 +30,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -1186,12 +1188,34 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
 }
 
+// Decision 3 (install-detect.md): a structural look at the patch layer,
+// no hash list. 1.14d's tables have these row counts (txt::Table, the
+// "Expansion" separators dropped); a modded patch_d2.mpq (more uniques,
+// runewords, recipes) or an older one differs. Warns, doesn't refuse.
+void check_patch_layer(const d2d::mpq::Stack& mpqs) {
+    static constexpr std::pair<const char*, std::size_t> kRows[] = {
+        { R"(data\global\excel\ItemStatCost.txt)", 359 },
+        { R"(data\global\excel\UniqueItems.txt)", 401 },
+        { R"(data\global\excel\CubeMain.txt)", 151 },
+    };
+    for (const auto& [path, rows] : kRows) {
+        const auto bytes = mpqs.try_read(path);
+        const std::size_t count = bytes ? d2d::txt::Table(*bytes).size() : 0;
+        if (count != rows)
+            d2d::log::warn("patch layer doesn't look like 1.14d: {} has {} rows, 1.14d's has {} (a mod, or another version)",
+                           path, count, rows);
+    }
+}
+
 }  // namespace
 
 std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
                                        bool tile_pixels) {
-    const auto d2data = data_dir / "d2data.mpq";
-    if (!fs::exists(d2data)) {
+    // MPQ names match case-insensitively (D2DATA.MPQ in Wine prefixes and
+    // Linux copies); the install is read in place, never renamed.
+    auto find = [&](std::string_view name) { return d2d::install::find_file(data_dir, name); };
+    const auto d2data = find("d2data.mpq");
+    if (!d2data) {
         d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
         return std::nullopt;
     }
@@ -1204,40 +1228,48 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
             d2d::log::info("  Loading: {} {} bytes", path.filename().string(), fs::file_size(path));
         };
         // 1.14d's patch layer ranks above everything (game.exe opens
-        // patch_d2.mpq first). A real install has patch_d2.mpq; a CD-copied
-        // data dir can use the LODPatch_114d.exe installer instead (d2d.cfg
-        // `patch = ...`, or dropped next to the MPQs).
+        // patch_d2.mpq first). An explicit patch (d2d.cfg `patch =`, which
+        // the launcher sets for a non-1.14d install) wins over the install's
+        // own patch_d2.mpq, which may be stale (1.13c, 1.14b). Then
+        // patch_d2.mpq, then LODPatch_114d.exe dropped next to the MPQs.
+        // A `.mpq` patch is a plain archive (a VirtualStore patch_d2.mpq),
+        // anything else Blizzard's installer.
         bool patched = false;
-        if (fs::exists(data_dir / "patch_d2.mpq")) {
-            push(data_dir / "patch_d2.mpq");
-            patched = true;
-        } else {
-            for (const auto& path : { patch_installer, data_dir / "LODPatch_114d.exe" }) {
-                if (path.empty() || !fs::exists(path)) continue;
-                try {
+        auto push_patch = [&](const fs::path& path) {
+            try {
+                std::string extension = path.extension().string();
+                for (auto& letter : extension) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+                if (extension == ".mpq") push(path);
+                else {
                     mpqs.push_installer(path);
                     d2d::log::info("  Loading: {} (1.14d patch installer)", path.string());
-                    patched = true;
-                    break;
                 }
-                catch (const std::exception& error) { d2d::log::warn("{}", error.what()); }
+                patched = true;
             }
+            catch (const std::exception& error) { d2d::log::warn("{}", error.what()); }
+        };
+        if (!patch_installer.empty()) {
+            if (fs::exists(patch_installer)) push_patch(patch_installer);
+            else d2d::log::warn("patch {} not found", patch_installer.string());
         }
+        if (!patched)
+            if (const auto patch = find("patch_d2.mpq")) push_patch(*patch);
+        if (!patched)
+            if (const auto installer = find("LODPatch_114d.exe")) push_patch(*installer);
         if (!patched)
             d2d::log::warn("no 1.14d patch data (patch_d2.mpq or LODPatch_114d.exe): "
                            "using CD-era tables and strings");
-        const auto d2exp = data_dir / "d2exp.mpq";
-        if (fs::exists(d2exp)) push(d2exp);
-        push(d2data);
+        if (const auto d2exp = find("d2exp.mpq")) push(*d2exp);
+        push(*d2data);
         // Character animations live in d2char.mpq — Stack lookup is
         // priority-ordered so later pushes rank lower; DCC-not-found is
         // silent in load_scene and per-class loaders skip on miss.
-        const auto d2char = data_dir / "d2char.mpq";
-        if (fs::exists(d2char)) push(d2char);
+        if (const auto d2char = find("d2char.mpq")) push(*d2char);
         // Sounds: expansion speech, speech, effects, music (Sounds.txt paths).
         // (Music is read off the main thread from its own handles: Audio.)
         for (const char* name : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
-            if (fs::exists(data_dir / name)) push(data_dir / name);
+            if (const auto path = find(name)) push(*path);
+        if (patched) check_patch_layer(mpqs);
 
         GameData game_data;
         game_data.tile_pixels = tile_pixels;

@@ -50,4 +50,6 @@ target_link_libraries(d2d-launcher PRIVATE
     Qt6::Network
     iso9660
     mpq
+    install_detect
+    userdir
 )

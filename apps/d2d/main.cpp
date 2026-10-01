@@ -8,7 +8,8 @@
 //
 // CLI:
 //   --devctl <path>   bind AF_UNIX control socket
-//   --data <dir>      MPQ directory (default: ~/Workspace/private/diablo2)
+//   --data <dir>      MPQ directory (else $D2_MPQ_DIR, a d2data.mpq beside
+//                     d2d or in ./, then `data =` in d2d.cfg; else it stops)
 //   --headless        no window (SDL dummy driver); needs --devctl
 //   --scale <n>       window = 800x600 * n, SDL zooms (also `scale` in d2d.cfg)
 //   --seed <n>        map seed: act 1's layout and the Blood Moor
@@ -31,6 +32,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <devctl.hpp>
+#include <install.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
 #include <screenshot.hpp>
@@ -151,7 +153,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     std::vector<std::string> video_queue;
     if (scene) {
         for (const char* name : { "d2xvideo.mpq", "d2video.mpq" })
-            if (fs::exists(scene->data_dir / name)) video_mpqs.push(scene->data_dir / name);
+            if (const auto path = d2d::install::find_file(scene->data_dir, name)) video_mpqs.push(*path);
     }
     if (scene && !video_mpqs.empty() && g_video && (g_start_screen.empty() || g_start_screen == "video")) {
         video_queue = { R"(Data\Local\Video\New_BLIZ640x480.bik)", R"(Data\Local\Video\BlizNorth640x480.bik)" };
@@ -710,7 +712,7 @@ int main(int argc, char** argv) {
         }
 
     std::string devctl_path;
-    fs::path    data_dir = default_data_dir(cfg["data"]);
+    fs::path    data_dir;
     bool        headless = false;
     std::string start_screen;   // "title" | "credits" | "charcreate" | "ingame"
     int         start_class = 0;
@@ -723,12 +725,12 @@ int main(int argc, char** argv) {
     app.add_option("--seed", map_seed, "Map seed (act 1 layout and the Blood Moor)");
     app.add_option("--devctl", devctl_path,
                    "Unix-socket dev-control channel path");
-    std::string data_dir_str = data_dir.string();
+    std::string data_dir_str;
     int scale = cfg.contains("scale") ? std::atoi(cfg["scale"].c_str()) : 1;
     app.add_option("--scale", scale, "Window scale (game renders at 800x600)")
         ->check(CLI::Range(1, 8));
     app.add_option("--data", data_dir_str,
-                   "Path to the D2 MPQ directory");
+                   "D2 MPQ directory (else $D2_MPQ_DIR, d2data.mpq beside d2d or in ./, d2d.cfg data =)");
     app.add_flag  ("--headless", headless,
                    "Run without opening a window");
     app.add_option("--start-screen", start_screen,
@@ -761,12 +763,29 @@ int main(int argc, char** argv) {
     }
     g_seed_fixed = app.count("--seed") > 0;
     g_map_seed = map_seed;
-    data_dir = data_dir_str;
-    d2d::log::info("  Data dir: {}", data_dir.string());
+    // The MPQs: first hit wins, each a hard stop (install-detect.md,
+    // decision 5). No guessing: the launcher writes `data =` into d2d.cfg.
+    {
+        const char* env = std::getenv("D2_MPQ_DIR");
+        const char* base = SDL_GetBasePath();
+        std::error_code cwd_ec;
+        const auto found = d2d::install::resolve_data_dir(data_dir_str, env ? env : "", base ? fs::path(base) : fs::path{},
+                                                          fs::current_path(cwd_ec), cfg["data"]);
+        if (!found.error.empty()) {
+            d2d::log::error("{}", found.error);
+            return 1;
+        }
+        data_dir = found.dir;
+        d2d::log::info("  Data dir: {} ({})", data_dir.string(), found.from);
+    }
+    // An explicit patch layer wins over the install's own patch_d2.mpq:
+    // $D2_PATCH_INSTALLER (the tests' convention), else `patch =`.
+    const char* patch_env = std::getenv("D2_PATCH_INSTALLER");
+    const fs::path patch_layer = patch_env && *patch_env ? fs::path(patch_env) : fs::path(cfg["patch"]);
 
     std::vector<std::uint8_t> framebuffer(std::size_t(kScreenWidth) * kScreenHeight * 4, 0);
     for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
-    auto scene = load_scene(data_dir, cfg["patch"], map_seed);   // nullopt if MPQ dir is missing
+    auto scene = load_scene(data_dir, patch_layer, map_seed);   // nullopt if the MPQs won't load
     if (scene) load_saves(*scene, save_dir);
     if (scene && !scene->saves.empty()) set_map_seed(*scene, game_seed(scene->saves.front()));   // the likely pick's map
     if (scene) want_nearby(*scene, scene->town);        // the Blood Moor builds while the menus run

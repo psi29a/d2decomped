@@ -1,6 +1,6 @@
 # Finding the user's Diablo II — install detection plan
 
-Status: plan, 2026-10-01. Nothing built. Goal: the launcher finds an
+Status: built, 2026-10-01 (see "Done" at the end). Goal: the launcher finds an
 existing, lawfully installed classic Diablo II (1.14d, with or without Lord
 of Destruction) and reads it in place, so the user doesn't have to browse
 for the MPQ folder. Diablo II: Resurrected is recognised and refused, with
@@ -415,3 +415,44 @@ Blizzard code or data. Avoid:
    4. Nothing: fail fast.
    The macOS launcher-plist read and the `~/Workspace/private/diablo2`
    fallback go. The copy-install wizard stays as it is.
+
+## Done (2026-10-01)
+
+Built: `components/install` (CMake target `install_detect`; "install" is
+reserved), the launcher flow, d2d's data-dir order, the loader fixes, and
+`test_install`. Tests: 29/29 pass.
+
+- **Tested on a machine (macOS):**
+  - d2d's order: `--data`, `$D2_MPQ_DIR`, drop-in beside the binary and in
+    the working directory (an upper-case `D2DATA.MPQ` too), `data =`, and
+    none. Each bad step stops with its error and doesn't fall through.
+  - `classify` on a real 1.14d folder (Game.exe VS_FIXEDFILEINFO 1.14.3.71).
+  - The patch-layer row check: quiet with LODPatch_114d.exe, warns with a
+    wrong layer.
+  - The launcher persisting `data =` while keeping a hand-set `patch =`
+    (sandbox HOME, offscreen).
+  - `detect` on the dev Mac finds nothing, which is correct: no
+    /Applications install, no Wine, no CrossOver.
+- **Synthetic fixtures only (unverified on a real machine):**
+  - Wine `.reg` parsing, `drive_c`/`dosdevices` mapping, the Lutris,
+    Bottles, Proton and CrossOver prefixes, and Whisky behind "Search more
+    places".
+  - product.db, VirtualStore, and D2R recognition.
+  - The registry probe order, run through a fake `Environment::registry`.
+- **Code only:** the Windows registry calls (`RegGetValueW` with the
+  WOW64 flags, `RegEnumKeyExW` on Uninstall). Not compiled on Windows yet.
+- **Launcher UI:** built, and the startup persist path was smoke-run. The
+  list, Browse, and fix-button dialogs haven't been clicked through.
+
+Ponytails left (each named in the code):
+- the `bin/Game.exe` dev import counts as a Game.exe;
+- the whole-file VS_FIXEDFILEINFO scan, capped at 64 MB;
+- no CESU-8 surrogates in `.reg` escapes;
+- Steam `libraryfolders.vdf` and Lutris `pga.db` aren't read;
+- ANSI `getenv` on Windows;
+- no 2 s budget on the launcher's background scan;
+- the patch check can't tell 1.10 to 1.13c tables apart, only "not 1.14d";
+- with no patch chosen, the launcher leaves d2d.cfg's `patch` line as it is.
+
+A 1.14d Game.exe without `patch_d2.mpq` (the dev `bin/` import) is flagged
+"add LODPatch_114d.exe", since the 1.14d tables live in that MPQ.

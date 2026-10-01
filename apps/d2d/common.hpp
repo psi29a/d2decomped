@@ -1,4 +1,4 @@
-// Shared includes, screen/iso constants, data-dir lookup, blit helpers.
+// Shared includes, screen/iso constants, blit helpers.
 #pragma once
 
 #include "game_api.hpp"
@@ -27,8 +27,6 @@ constexpr std::uint32_t kScreenHeight = 600;
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;
-
-fs::path default_data_dir(std::string_view cfg_data);
 
 // Palette-lookup blit: index 0 is transparent (skip), all other indices map
 // through the supplied palette to real RGBA. Signed dest so negative offsets
