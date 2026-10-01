@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -65,9 +66,8 @@ struct Loot {
     // A kill's loot (MonStats TreasureClass1 for the difficulty) round
     // where it fell, rolled off the monster's unit seed (+0x20: nothing
     // draws on it between the death and FUN_0055a6d0; Find Item rolls on
-    // from where the kill left it). Magic and better come unidentified.
-    // ponytail: D2 spreads drops by its own pattern (not traced); here each
-    // goes to the nearest free spot within half a cell.
+    // from where the kill left it). Magic and better come unidentified;
+    // each lands where drop_at finds room.
     void drop(Monster& monster, d2d::rules::Rng& game_seed, std::uint32_t now_ms) {
         const int diff = character.header.active_difficulty();
         // Champions drop from TreasureClass2, uniques from 3, superuniques
@@ -95,11 +95,11 @@ struct Loot {
     // One drop round (x, y). A made item (FUN_00555230) takes two steps of
     // the game seed (+0xd0): its unit seed {low, 666} (FUN_00552df0), then
     // its own {low, 666} (FUN_00552e90); gold's coins come off the first.
-    // ponytail: the scatter comes off the shared rng.
+    // It lands where drop_spot finds room from the dropper's subtile.
     void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false) {
         {
             GroundItem ground_item;
-            std::tie(ground_item.x, ground_item.y) = level->nearest_free(x + float(rng(11) - 5) / 10, y + float(rng(11) - 5) / 10);
+            std::tie(ground_item.x, ground_item.y) = drop_at(x, y);
             ground_item.now_ms = now_ms;
             if (dropped.code == "gld") {
                 ground_item.item.code = "gld";
@@ -109,13 +109,30 @@ struct Loot {
                 ground_item.label = std::to_string(ground_item.gold) + " Gold";
             } else {
                 d2d::rules::Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
-                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, dropped.quality, item_seed, &unit_seed, &found_uniques, bovine);
-                ground_item.item.identified = dropped.quality <= 3;
+                const int quality = dropped.quality ? dropped.quality : d2d::rules::stand_quality(game_data->rules, dropped.code, ilvl, item_seed);
+                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, quality, item_seed, &unit_seed, &found_uniques, bovine);
+                ground_item.item.identified = quality <= 3;
                 const auto lines = item_lines(*game_data, ground_item.item, int(character.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
             }
             land(std::move(ground_item), now_ms);
         }
+    }
+    // FUN_00555da0 on the level's walk grid: walls and object footprints
+    // (0x01) block, as do items already lying there (0x200).
+    // ponytail: units (0x1000/0x2000) don't block; one level, no neighbours'.
+    [[nodiscard]] std::pair<float, float> drop_at(float x, float y) const {
+        const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
+        if (level->walk.empty()) return { x, y };
+        const auto [sx, sy] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
+            if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
+            int flags = level->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01;
+            if (ground_level == level)
+                for (const auto& lying : ground)
+                    if (int(std::floor(lying.x * 5)) == at_x && int(std::floor(lying.y * 5)) == at_y) flags |= 0x200;
+            return flags;
+        });
+        return { (float(sx) + 0.5f) / 5, (float(sy) + 0.5f) / 5 };
     }
     // An item the player drops (C→S 0x17, FUN_00563c00): at the nearest
     // free spot to (x, y) (FUN_00555da0), named as its tooltip names it.

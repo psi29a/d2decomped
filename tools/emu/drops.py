@@ -4,6 +4,8 @@
     uv run python drops.py 1-20000 print    # just game.exe's lines
     uv run python drops.py tables           # every class's entries, game.exe vs ours
     uv run python drops.py items 1-20000    # made items (seeds, gold, base rolls, unique / set picks) vs ours
+    uv run python drops.py objects 1-20000  # containers opened (chests, caskets, urns, barrels, corpses, bookshelves) vs ours
+    uv run python drops.py stands 1-20000   # armor stands' / weapon racks' items vs ours
 
 A job is (seed, class, level, ilvl, players, mf): FUN_00654e00 moves the
 class on by level (as FUN_0055afa0 does past normal), then FUN_0055a6d0
@@ -21,6 +23,24 @@ or FUN_005c2940 (set) picks off its own seed on a game whose one-per-game
 list (+0x1b24) carries on from job to job. A failed pick triples (unique)
 or doubles (set) the durability, as FUN_00557450 goes on to.
 
+Objects: a job is (object seed, unit seed, OperateFn, objects.txt id, level,
+difficulty, locked, sparkling). The OperateFn (FUN_00585f60 chest,
+FUN_00586410 casket, FUN_005866c0 urn, FUN_005868a0 barrel, FUN_005867a0
+corpse, FUN_00584060 bookshelf) runs on a fake object (unit +0x20 its seed,
++0x14 data +4 the lock bit 0x80, +0x78 sparkle) with ctx +0xc the object
+seed, no player, the room and level hooked to the job's; its rounds
+(FUN_00585b90) roll for real, FUN_0055a550 recorded as above. The magic
+check (FUN_0062a0f0) answers on the made quality: the asked one through
+FUN_00557450's type / base flags, read up front off game.exe's own
+getters. FUN_00585970 (gold / potions) and FUN_00559a30 (the bookshelf's
+book) are recorded. The line: drops | extras [shut] -> both seeds' low.
+
+Stands: a job is (seed, weapon, ilvl). FUN_00559630 (rack) / FUN_005594c0
+(stand) picks off a room whose seed (+0x6c) is {seed, 666}, on a level of
+area level ilvl + 1 (it takes one off); FUN_00558d90 (make) is hooked to
+read the base; the item then takes its seeds off the room's (FUN_00552df0
+/ FUN_00552e90) and FUN_00556f60 rolls its quality, made as above.
+
 Runtime classes: DAT_0096c5ec, stride 0x2c; 0 empty, 1..160 the auto
 classes (bow weap mele armo abow x 3..96), 161 + TreasureClassEx row after.
 """
@@ -31,7 +51,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_ECX
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX
 
 import drlg
 import emu
@@ -92,7 +112,8 @@ class Oracle:
             self.made.append([self.codes[e.mu.reg_read(UC_X86_REG_ECX) & 0xFFFF], e.arg(1), 0])
             return len(self.made)
         e.hook(0x55a550, make, 4)
-        e.hook(0x629bb0, lambda e: int(self.made[e.arg(0) - 1][0] == "gld"), 2)   # is it gold
+        # is it gold; a real item (a stand's, asked if misc, type 0x34) never is
+        e.hook(0x629bb0, lambda e: int(e.arg(0) <= len(self.made) and self.made[e.arg(0) - 1][0] == "gld"), 2)
         e.hook(0x625480, lambda e: 256, 3)             # its coins (stat 0xe): 256, so the mul shows as is
         e.hook(0x530ea0, lambda e: self.made[-1].__setitem__(2, e.arg(0)), 1)
         e.hook(0x5589a0, lambda e: 0, 0)               # gold find: no killer
@@ -157,6 +178,94 @@ class Oracle:
         return out
 
 
+class Objects:
+    def __init__(self, oracle):
+        self.o = o = oracle
+        e = o.e
+        item = e.alloc(0x100)
+        self.flags = []                                # per item index: always magic, quest, can rare, only unique, always normal
+        for i in range(len(o.codes)):
+            e.w32(item, 4); e.w32(item + 4, i)
+            self.flags.append([e.call(f, item, ecx=item) & 0xFF for f in (0x62e9e0, 0x628cd0, 0x62e990, 0x628c70, 0x62ea30)])
+        self.lid, self.extra = 2, []
+        self.room, self.obj, self.data, self.rgn = e.alloc(0x100), e.alloc(0x200), e.alloc(0x40), e.alloc(8)
+        for addr, n, fn in ((0x620bb0, 1, lambda e: self.room), (0x61a1b0, 1, lambda e: self.lid), (0x621b30, 1, lambda e: 1),
+                            (0x554010, 0, lambda e: o.game), (0x55f140, 0, lambda e: 1), (0x624690, 2, None), (0x5417d0, 4, None),
+                            (0x623830, 1, None), (0x582510, 1, None), (0x5474c0, 0, None), (0x582280, 0, None), (0x620870, 2, None),
+                            (0x553380, 1, None), (0x5531c0, 1, None), (0x571740, 0, None), (0x620c10, 2, None)):
+            e.hook(addr, fn or (lambda e: 0), n)
+        e.hook(0x585970, lambda e: self.extra.append(struct.pack("<I", e.arg(0)).decode("latin-1").strip()) or 0, 2)
+        e.hook(0x559a30, lambda e: self.extra.append(e.read(self.obj + 0xb8, 4).decode("latin-1").strip()) or 0, 5)
+        e.hook(0x62a0f0, lambda e: int(4 <= self.made(*o.made[e.arg(0) - 1][:2]) <= 9), 1)
+        self.base = None
+        e.hook(0x558d90, lambda e: self.__setattr__("base", e.s32(e.mu.reg_read(UC_X86_REG_EDX) + 0x14)) or 0, 1)
+        e.hook(0x555da0, lambda e: 1, 3)
+        e.hook(0x64e810, lambda e: 1, 7)
+        e.hook(0x463740, lambda e: 0, 1)
+        self.stand_levels = {}                         # ilvl: a (difficulty, level) of area level ilvl + 1 (1: 1)
+        for d in range(3):
+            for l in range(1, 137):
+                a = e.call(0x61dca0, l, d, 1)
+                if a: self.stand_levels.setdefault(a - (a > 1), (d, l))
+
+    def made(self, code, quality):
+        """FUN_00557450's flags on an asked quality."""
+        magic, quest, rare, unique, normal = self.flags[self.o.codes.index(code)]
+        if magic: quality = 7 if quest else quality if 4 <= quality <= 9 else 4
+        if not rare and quality == 6: quality = 4
+        if unique: quality = 7
+        return 2 if normal else quality
+
+    def open(self, seed, unit, op, cls, lid, diff, locked, sparkle):
+        o, e = self.o, self.o.e
+        fn = {1: 0x586410, 3: 0x5866c0, 4: 0x585f60, 5: 0x5868a0, 14: 0x5867a0, 26: 0x584060}[op]
+        e.mu.mem_write(self.obj, b"\0" * 0x200)
+        e.w32(self.obj, 2); e.w32(self.obj + 4, cls); e.w32(self.obj + 0x14, self.data)
+        e.w32(self.data, 1); e.w32(self.data + 4, 0x80 if locked else 0)
+        e.w32(self.obj + 0x20, unit); e.w32(self.obj + 0x24, 666); e.w32(self.obj + 0x78, sparkle)
+        e.w32(self.rgn, seed); e.w32(self.rgn + 4, 666)
+        e.mu.mem_write(o.game + 0x6d, bytes([diff]))
+        ctx = e.alloc(0x14)
+        for k, v in enumerate((o.game, self.obj, 0, self.rgn, cls)): e.w32(ctx + 4 * k, v)
+        self.lid, self.extra, o.made, o.players, o.mf = lid, [], [], 1, 0
+        e.call(fn, ecx=ctx)
+        items = "".join(f" {c}:{q}" + (f"*{m}" if m else "") for c, q, m in o.made)
+        shut = " shut" if op == 1 and not o.made else ""
+        return (f"{seed:08x} {cls} L{lid} d{diff} {'L' if locked else ''}{'S' if sparkle else ''} op{op}:{items} |"
+                + "".join(f" {x}" for x in self.extra) + f"{shut} -> {e.r32(self.rgn):08x} {e.r32(self.obj + 0x20):08x}")
+
+    def stand(self, seed, weapon, ilvl):
+        o, e = self.o, self.o.e
+        e.w32(self.room + 0x6c, seed); e.w32(self.room + 0x70, 666)
+        diff, self.lid = self.stand_levels[ilvl]
+        e.mu.mem_write(o.game + 0x6d, bytes([diff]))
+        self.base = None
+        xy = e.alloc(8)
+        e.call(0x559630 if weapon else 0x5594c0, xy, 0xFFFFFFFF, 0, 0, ecx=o.game, edx=self.room)
+        if self.base is None: return f"{seed:08x} {'w' if weapon else 'a'} i{ilvl}: :0 -> {e.r32(self.room + 0x6c):08x}"
+        after = e.r32(self.room + 0x6c)
+        item, data, args = e.alloc(0x100), e.alloc(0x100), e.alloc(0x100)
+        e.w32(item, 4); e.w32(item + 4, self.base); e.w32(item + 0x14, data)
+        e.call(0x552df0, ecx=item, edx=self.room + 0x6c)
+        e.call(0x552e90, ecx=item, edx=self.room + 0x6c)
+        e.call(0x62a6c0, item, 101)
+        e.w32(args + 0xc, ilvl); e.w32(args + 0x80, 0x40)
+        code = o.codes[self.base]
+        quality = self.made(code, e.call(0x556f60, item, args))
+        return f"{seed:08x} {'w' if weapon else 'a'} i{ilvl}: {code}:{quality} -> {after:08x}"
+
+
+def object_jobs(e, first, last):
+    """Every container class in turn, at varied levels, difficulties, locks and sparkle; seeds spread."""
+    rows = [r for r in txt_rows(e, "objects") if r.get("OperateFn") in ("1", "3", "4", "5", "14", "26")]
+    for s in range(first, last + 1):
+        r = rows[s % len(rows)]
+        op, init = int(r["OperateFn"]), r.get("InitFn")
+        locked = int(op == 4 and r.get("Lockable") == "1" and s // len(rows) % 2 == 1)
+        sparkle = int(init == "57" and s // len(rows) % 3 != 0)
+        yield (s * 0x9E3779B1) & 0xFFFFFFFF, (s * 0x85EBCA6B + 7) & 0xFFFFFFFF, op, int(r["Id"]), 2 + s % 38, s // 7 % 3, locked, sparkle
+
+
 def run_ours(args, stdin):
     """drop-dump's answer, a line per input line (the tail: loading logs to stdout first)."""
     env = dict(os.environ)
@@ -177,6 +286,23 @@ def item_jobs(o, first, last):
 
 
 def main():
+    if sys.argv[1] in ("objects", "stands"):
+        o = Oracle()
+        objects = Objects(o)
+        first, last = (int(v, 0) for v in sys.argv[2].split("-"))
+        if sys.argv[1] == "objects": todo = list(object_jobs(o.e, first, last))
+        else:
+            ilvls = sorted(objects.stand_levels)
+            todo = [((s * 0x9E3779B1) & 0xFFFFFFFF, s % 2, ilvls[s // 2 % len(ilvls)]) for s in range(first, last + 1)]
+        game = [(objects.open if sys.argv[1] == "objects" else objects.stand)(*j) for j in todo]
+        if sys.argv[-1] == "print":
+            print("\n".join(game))
+            return
+        ours = run_ours([sys.argv[1]], "".join("\t".join(map(str, j)) + "\n" for j in todo))
+        bad = [(g, u) for g, u in zip(game, ours) if g != u]
+        for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
+        print(f"{len(game) - len(bad)}/{len(game)} {sys.argv[1]} match game.exe")
+        sys.exit(1 if bad or len(game) != len(ours) else 0)
     if sys.argv[1] == "items":
         o = Oracle(items=True)
         first, last = (int(v, 0) for v in sys.argv[2].split("-"))

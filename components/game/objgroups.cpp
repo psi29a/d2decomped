@@ -84,7 +84,9 @@ struct Populator {
                 if (tx >= 0 && ty >= 0 && tx < width && ty < height) grid[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
-    // (FUN_006209d0: 0x400; 0x8000, no mask's, for a SubClass 4 non-door;
+    // (FUN_006209d0: 0x400, | 4 if BlockMissile; 0x8000, no mask's, for a
+    // SubClass 4 non-door; a door 0x806 if BlocksVis, else 0x808 if
+    // BlockMissile, else 0x400;
     // none without HasCollision in its start mode: ON if preoperated, else NU,
     // whatever the renderer shows; Tristram's bodies block).
     // Returns its shrine id (Npc::shrine).
@@ -92,10 +94,16 @@ struct Populator {
         const auto before = level.npcs.size();
         auto gold = rgn;
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
-        const bool quiet = !obj(id, "IsDoor") && (obj(id, "SubClass") & 4);
+        const bool door = obj(id, "IsDoor"), missile = obj(id, "BlockMissile");
+        const std::uint16_t bits = door ? obj(id, "BlocksVis") ? 0x806 : missile ? 0x808 : 0x400 : obj(id, "SubClass") & 4 ? 0x8000 : missile ? 0x404 : 0x400;
         const bool on = level.npcs.size() > before && level.npcs.back().preoperated;
-        if (obj(id, on ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), quiet ? 0x8000 : 0x400);
-        game.next();                                                   // FUN_00552df0: its seed
+        if (obj(id, on ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), bits);
+        const auto unit = game.next();                                 // FUN_00552df0: its seed
+        if (level.npcs.size() > before) {
+            auto& npc = level.npcs.back();
+            if (obj(id, "InitFn") != 3 && obj(id, "InitFn") != 57) npc.seed = d2d::rules::Rng{ unit };
+            npc.room = int(index);
+        }
         if (obj(id, "InitFn") == 28) piles(gold, x, y);
         if (group) out->made.push_back({ id, x, y });
         return level.npcs.size() > before ? level.npcs.back().shrine : 0;
@@ -110,39 +118,13 @@ struct Populator {
     // steps, FUN_0066a5d0).
     void piles(d2d::rules::Rng gold, int x, int y) {
         auto inside_room = [&](int at_x, int at_y) { return at_x >= room.x && at_y >= room.y && at_x < room.x + room.w && at_y < room.y + room.h; };
-        auto walk = [&](int at_x, int at_y, int to_x, int to_y) {
-            static constexpr int kDx[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kDy[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
-            auto dir = [&] { return game_data.field[std::size_t((at_y - to_y + 128) * 256 + at_x - to_x + 128)]; };
-            if (game_data.field.empty()) return true;
-            if (hit(at_x, at_y, 1, 1, 0x801)) return false;
-            for (;;) {
-                const auto step = dir();
-                at_x += kDx[step]; at_y += kDy[step];
-                if (dir() == 8) return true;
-                if (hit(at_x, at_y, 1, 1, 0x801)) return false;
-            }
-        };
         int last_x = x, last_y = y;
-        auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 1, 1, 0x3e01) && walk(at_x, at_y, last_x, last_y); };
         for (int count = gold(9) + 1; count > 0; --count) {
             const int dx = int(gold.next() & 3), dy = int(gold.next() & 3);
             if (!inside_room(last_x + dx, last_y + dy)) continue;
             last_x = x + dx; last_y = y + dy;
             if (hit(last_x, last_y, 1, 1, 0x3f11)) continue;
-            int at_x = last_x + 2, at_y = last_y + 3;
-            if (at(at_x, at_y) == 0x27) { at_x = last_x; at_y = last_y; }
-            if (!clear(at_x, at_y)) {
-                int best = -1, best_x = at_x, best_y = at_y;
-                for (int r = 1; r < 50 && best < 0; ++r) {
-                    auto test = [&](int tx, int ty) {
-                        const int d = std::abs(tx - at_x) + std::abs(ty - at_y);
-                        if (clear(tx, ty) && (best < 0 || d < best)) { best = d; best_x = tx; best_y = ty; }
-                    };
-                    for (int ty = at_y - r; ty <= at_y + r; ++ty) { test(at_x - r, ty); test(at_x + r, ty); }
-                    for (int tx = at_x - r + 1; tx <= at_x + r - 1; ++tx) { test(tx, at_y - r); test(tx, at_y + r); }
-                }
-                at_x = best_x; at_y = best_y;
-            }
+            const auto [at_x, at_y] = drop_spot(game_data.field, last_x, last_y, [&](int fx, int fy) { return at(fx, fy); });
             stamp(at_x, at_y, 1, 1, 0x200);
             game.next(); game.next();
         }
@@ -785,6 +767,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     level.group_rooms.assign(level.rooms.size(), {});
     level.post_object_group_seeds.assign(level.rooms.size(), {});
     level.room_spawns.assign(level.rooms.size(), {});
+    level.room_seeds.assign(level.rooms.size(), {});
     // FUN_0054ebc0: none in a room flagged 0x800000 or nopop; the level's total (FUN_00642be0) leaves them out.
     auto none = [&](std::size_t i) { return (i < level.nopop_rooms.size() && level.nopop_rooms[i]) || (level.room_flags[i] & 0x800000); };
     int total = 0;
@@ -809,11 +792,16 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
         level.post_object_group_seeds[i] = pop.seed;
         pop.out->rgn = pop.rgn.low;
         pop.populate(none(i));
+        level.room_seeds[i] = pop.seed;
         placed += pop.out->made.size();
     }
     level.group_rgn = pop.rgn.low;
+    level.collision.resize(pop.grid.size());
+    for (int y = 0; y < pop.height; ++y)
+        for (int x = 0; x < pop.width; ++x) level.collision[std::size_t(y) * std::size_t(pop.width) + std::size_t(x)] = pop.at(x, y);
     for (std::size_t i = 0; i < level.units.size(); ++i)                                           // units off the rooms: no room brings them up
         if (level.unit_rooms[i] < 0 && level.units[i].type == 2) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, pop.rgn);
+    level.objects = pop.rgn;
     if (placed) d2d::log::info("  {}: {} random object-group placements", level.name, placed);
 }
 

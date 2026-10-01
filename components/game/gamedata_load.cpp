@@ -732,7 +732,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
                                           std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
-                                          number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack") };
+                                          number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack"),
+                                          table == &misc ? 0 : number("rarity") };
+                if (table != &misc && table->get(row, "spawnable") == "1" && number("quest") == 0)
+                    game_data.rules.stand_bases[table == &weapons ? 1 : 0].push_back(code);
                 if (table->get(row, "spawnable") != "1") continue;
                 for (std::size_t vendor = 0; vendor < 17; ++vendor) {
                     const std::string vendor_name = kVendorCol[vendor];

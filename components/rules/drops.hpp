@@ -65,6 +65,49 @@ inline int roll_quality(const Tables& tables, const std::string& code, int ilvl,
     return normal < 1 || rng(normal) < 128 ? 2 : 1;
 }
 
+// The quality an item asked for at `quality` is made at (FUN_00557450):
+// an always-magic type's quest base unique, else magic at least; no rare
+// where the type can't be; an only-unique base unique; an always-normal
+// type (or none) normal.
+// ponytail: a unique / set that finds no row falls back to magic / rare,
+// read as still magic or better.
+inline int made_quality(const Tables& tables, const std::string& code, int quality) {
+    const auto info = tables.item_info.find(code);
+    const auto base = tables.item_base.find(code);
+    if (info == tables.item_info.end() || base == tables.item_base.end()) return quality;
+    const auto type_found = tables.types.find(info->second.type);
+    if (type_found == tables.types.end()) return 2;
+    const auto& type = type_found->second;
+    if (type.always_magic) quality = base->second.quest ? 7 : quality >= 4 && quality <= 9 ? quality : 4;
+    if (!type.can_rare && quality == 6) quality = 4;
+    if (base->second.only_unique) quality = 7;
+    return type.always_normal ? 2 : quality;
+}
+
+// A stand's item's quality (FUN_00556f60, nothing asked for), the first
+// draw on its own seed: unique, rare, set, magic, superior, normal in turn,
+// each won at rand(base - past / divisor) == 0 (odds under 1 win), past
+// being ilvl - qlvl, at least 1. None: superior (args +0x80 & 0x40,
+// set by FUN_005594c0 / FUN_00559630). A quest base is normal. Then made.
+inline int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed) {
+    const auto info = tables.item_info.find(code);
+    const auto base = tables.item_base.find(code);
+    if (info == tables.item_info.end() || base == tables.item_base.end()) return 2;
+    if (base->second.quest) return 2;
+    const auto type_found = tables.types.find(info->second.type);
+    const bool cls = type_found != tables.types.end() && !type_found->second.cls.empty();
+    const bool uber = (type_is(tables, info->second.type, "weap") || type_is(tables, info->second.type, "armo"))
+                      && (base->second.ubercode == code || base->second.ultracode == code) && info->second.type != "tpot";
+    const auto& ratio = tables.quality_ratio[std::size_t((cls ? 2 : 0) + (uber ? 1 : 0))];
+    const int past = std::max(ilvl - base->second.level, 1);
+    static constexpr std::array<std::pair<int, std::size_t>, 6> kOrder{ { { 7, 0 }, { 6, 2 }, { 5, 1 }, { 4, 3 }, { 3, 4 }, { 2, 5 } } };
+    for (const auto [quality, row] : kOrder) {
+        const int odds = ratio[row].base - past / std::max(ratio[row].divisor, 1);
+        if (odds < 1 || item_seed(odds) == 0) return made_quality(tables, code, quality);
+    }
+    return made_quality(tables, code, 3);
+}
+
 // A gold pile's coins (FUN_00557ab0, the first draw on the new item's
 // unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
 // a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
@@ -122,7 +165,7 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
                 if (depth < 64 && !roll_class(tables, sub->second, mod, ilvl, rng, out, count, max, players, magic_find, depth + 1, forced)) return false;
             } else if (name.starts_with("gld")) {
                 const auto multiplier_at = name.find("mul=");
-                out.push_back({ "gld", 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) });
+                out.push_back({ "gld", forced ? forced : 2, 0, multiplier_at == std::string::npos ? 0 : std::atoi(name.c_str() + multiplier_at + 4) });
                 if (++count >= max) return false;
             } else if (tables.item_info.contains(name)) {
                 out.push_back({ name, forced ? forced : roll_quality(tables, name, ilvl, mod, rng, magic_find) });
@@ -142,17 +185,26 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // `ilvl`. Negative picks: no NoDrop roll, the n-th of |picks| is the entry
 // whose running weight passes n (the Countess: her item TC, then her rune
 // TC), stopping at the weights' total. At most `max` items (6) in all.
-// A nonzero `forced` quality (the tower chest's 4) replaces the quality roll.
+// A nonzero `forced` quality (a chest round's) replaces the quality roll, gold's too.
 // ponytail: TreasureClassEx's unique / set item entries (flags 1 / 2: Cow
 // King's classes only) and the m4 / m5 flag draws (bin +0x30 / +0x32,
 // always 0) aren't here; every item counts (game.exe doesn't count one
-// FUN_00555da0 finds no floor for, but Level::nearest_free always finds one).
+// FUN_00555da0 finds no floor for, but Loot::drop_at always places one).
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int ilvl, Rng& rng, std::vector<Drop>& out,
                        int players = 1, int magic_find = 0, int max = 6, int forced = 0) {
     const auto found = tables.treasure.find(treasure_class);
     if (found == tables.treasure.end()) return;
     int count = 0;
     detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, players, magic_find, 0, forced);
+}
+
+// One chest round (FUN_00585b90): its class `tc` (chest_tc) off the
+// object's unit seed, qualities at its tier (A..C = 0..2), onto `out`.
+// Returns the first item's quality as made (made_quality), 0 for none.
+inline int chest_round(const Tables& tables, const std::string& tc, Rng& unit_seed, std::vector<Drop>& out, int forced) {
+    const auto first = out.size();
+    roll_drops(tables, tc, tc.back() - 'A', unit_seed, out, 1, 0, 6, forced);
+    return out.size() > first ? made_quality(tables, out[first].code, out[first].quality) : 0;
 }
 
 // The auto classes (FUN_006541c0): for each ItemTypes row with

@@ -191,16 +191,18 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         const auto& area_levels = game_data->area_level;
         auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(std::clamp(diff, 0, 2))] : 1; };
         const int here = alvl(level->id);
-        auto drop_chest = [&](int rounds) {          // the act's chest class (FUN_00585b90), `rounds` times
+        // Open a container (open_container) on the level's object seed, its
+        // rounds the act's chest class (chest_round) off its own unit seed;
+        // the items are made at the area level (FUN_0055a550), the extras too.
+        auto open = [&] {
             const auto [low, high] = d2d::rules::kChestLevels[0];
             const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
             std::vector<d2d::rules::Drop> drops;
-            // Qualities roll at item level A..C = 0..2 (FUN_00585b90 passes
-            // its tier); the items are made at the area level (FUN_0055a550).
-            // ponytail: the shared rng stands in for the chest's unit seed.
-            for (int round = 0; round < rounds; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, treasure_class.back() - 'A', rng, drops);
+            const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, level->objects,
+                                                           [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced); });
+            for (const auto& code : opened.extra) drops.push_back({ .code = code });
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
-            return drops.size();
+            return std::pair{ opened, drops.size() };
         };
         auto to_mode = [&](int mode) {               // FUN_00624690, its sound (0x7295f8) and footprint (FUN_00623830)
             set_footprint(*level, object, object.collision >> mode & 1);
@@ -232,37 +234,35 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             d2d::log::info("well {}: mode {}", npc_index, kObjectModes[std::size_t(well.mode)]);
             return;
         }
-        // Containers: a casket (1, FUN_00586410) opens only when its round
-        // drops; an urn (3, FUN_005866c0) and a barrel (5, FUN_005868a0)
-        // drop at rand(100) < 21, a corpse or crate (14, FUN_005867a0)
-        // always. Caskets and barrels raise one of the level's undead at
-        // (seed % 10000) & ~0x1fff (FUN_005474c0 / FUN_00582280); all but the
-        // barrel spring their trap (InitFn 2's; FUN_00582510).
+        // Containers (open_container): a casket (1) opens only when its round
+        // drops. Caskets and barrels raise one of the level's undead
+        // (FUN_005474c0 / FUN_00582280); all but the barrel spring their trap
+        // (InitFn 2's; FUN_00582510).
         // ponytail: the barrel's opening step for a player (FUN_006439b0 /
         // FUN_00580a70) and the events (FUN_005417d0) aren't here.
         if (const int op = object.operate_fn; op == 1 || op == 3 || op == 5 || op == 14) {
-            if (op == 1 && drop_chest(1) == 0) return;
+            const auto [opened, drops] = open();
+            if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
-            if ((op == 1 || op == 5) && (rng.next() % 10000 & 0xffffe000u)) spring_trap(8, object.x, object.y, here, now_ms, 1);
-            if (op == 14) drop_chest(1);
-            if ((op == 3 || op == 5) && rng(100) < 21) drop_chest(1);
+            if (opened.undead) spring_trap(8, object.x, object.y, here, now_ms, 1);
             if (const int trap = force >= 0 ? force : object.trap; trap && op != 5) spring_trap(trap, object.x, object.y, here, now_ms);
             d2d::log::info("opened object {} (op {})", npc_index, op);
             return;
         }
-        // An armor stand's armor (19) or a weapon rack's weapon (20) at the
-        // area level less one; a bookshelf (26, FUN_00584060): 13 in 20 a
-        // scroll, else a tome, of town portal or identify (seed & 1).
+        // An armor stand's armor (19) or a weapon rack's weapon (20)
+        // (stand_item) off its room's seed at the area level less one, made
+        // off that seed too (FUN_00558d90), its quality rolled (Drop quality
+        // 0: stand_quality); a bookshelf (26) its book (open_container).
         if (const int op = object.operate_fn; op == 19 || op == 20 || op == 26) {
             operated[{ level, npc_index }] = now_ms;
             to_mode(2);
             const int ilvl = here > 1 ? here - 1 : here;
-            if (op == 26) {
-                const bool scroll = rng(20) < 13;
-                loot.put({ .code = std::string(rng.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk") }, object.x, object.y, here, fight.spawning.game, now_ms);
-            } else if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, rng); !code.empty()) {
-                loot.put({ .code = code, .quality = d2d::rules::roll_quality(game_data->rules, code, ilvl, {}, rng) }, object.x, object.y, ilvl, fight.spawning.game, now_ms);
+            if (op == 26) open();
+            else if (std::size_t(object.room) < level->room_seeds.size()) {
+                auto& room_seed = level->room_seeds[std::size_t(object.room)];
+                if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, room_seed); !code.empty())
+                    loot.put({ .code = code, .quality = 0 }, object.x, object.y, ilvl, room_seed, now_ms);
             }
             d2d::log::info("opened object {} (op {})", npc_index, op);
             return;
@@ -286,9 +286,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (object.operate_fn == 9 || object.operate_fn == 10 || object.operate_fn == 12) { cain_operate(npc_index, now_ms); return; }
         operated[{ level, npc_index }] = now_ms;
         if (object.operate_fn == 4) {
-            const int rounds = d2d::rules::chest_rounds(object.locked, rng);
-            const auto drops = drop_chest(rounds);
-            d2d::log::info("opened a chest: x{} ({} drops){}", rounds, drops, object.trap ? std::format(", trap {}", object.trap) : "");
+            const auto drops = open().second;
+            d2d::log::info("opened a chest: {} drops{}", drops, object.trap ? std::format(", trap {}", object.trap) : "");
             if (const int trap = force >= 0 ? force : object.trap) spring_trap(trap, object.x, object.y, here, now_ms);
             return;
         }
@@ -739,8 +738,8 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
 // hp / mp by act (+2 past normal: 0x731f4c / 0x731f60, FUN_00558450 /
 // FUN_005584c0), then mode 2. From then on every Param2 * 4 frames a gold
 // pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
-// ponytail: the world's rng stands in for the missile's and the chest's
-// seeds; it runs only while the player's on its level (game.exe: while
+// The rounds roll off the chest's unit seed (chest_round).
+// ponytail: the world's rng stands in for the missile's seed; it runs only while the player's on its level (game.exe: while
 // its room's up); the end event (unit event 0x5c at 1 left) isn't sent;
 // the missile's lifetime taken as Range (LevRange 1 at level 0).
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
@@ -756,7 +755,7 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
                 const auto [low, high] = d2d::rules::kChestLevels[0];
                 const auto treasure_class = d2d::rules::chest_tc(0, diff, here, alvl(low), alvl(high));
                 std::vector<d2d::rules::Drop> drops;
-                for (int round = 0; round < 3; ++round) d2d::rules::roll_drops(game_data->rules, treasure_class, treasure_class.back() - 'A', rng, drops, 1, 0, 6, 4);
+                for (int round = 0; round < 3; ++round) d2d::rules::chest_round(game_data->rules, treasure_class, chest.seed, drops, 4);
                 for (const auto* code : { "hp", "hp", "mp", "mp" }) drops.push_back({ std::string(code) + (diff ? "3" : "1") });
                 for (const auto& dropped : drops) loot.put(dropped, chest.x, chest.y, here, fight.spawning.game, now_ms);
                 operated[{ level, spawner.npc }] = now_ms;

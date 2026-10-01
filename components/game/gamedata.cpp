@@ -630,7 +630,8 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         const auto& area_levels = game_data.area_level;
         const int mlvl1 = std::size_t(into.id) < area_levels.size() ? area_levels[std::size_t(into.id)][3] : 1;
         const auto chest = d2d::rules::roll_chest(mlvl1, objects.get(row, "Lockable") == "1", rgn);
-        npc.trap = chest.trap; npc.locked = chest.locked;
+        npc.trap = chest.trap; npc.locked = chest.locked; npc.seed = d2d::rules::Rng{ chest.seed };
+        npc.sparkle = objects.get(row, "InitFn") == "57";
         if (npc.locked) if (auto locked_name = lookup_string(game_data, "lockedchest")) npc.name = u16_to_latin1(*locked_name);
     }
     if (objects.get(row, "InitFn") == "2") {      // a trap alone (FUN_0054fbb0)
