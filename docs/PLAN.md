@@ -571,11 +571,11 @@ AI and superunique specials.
 
 **Checkpoint 2026-09-30, placement.** Random object groups and monster
 placement match game.exe on levels 2–39 (`diff_drlg.py 1-50 <level>
-monsters|objgroups`; objgroups: L23 seed 18 and L26 differ from our drlg).
+monsters|objgroups`, 1-50: all pass but objgroups L23 seed 18, our drlg tiles).
 Collision is built per room as it comes up (FUN_0064c900), with shared-edge
 patches (FUN_0064c860); ponytail: in live play the room order follows the
 player, not the oracle's. Still open: object drops on the shared rng, drop
-scatter, the Tristram portal position, L26's room layout, the HC smoke's
+scatter, the Tristram portal position, the HC smoke's
 extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
 
 **Step 3 — networking** (the deferred item 7 above).
