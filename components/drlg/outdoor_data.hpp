@@ -79,11 +79,13 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
     const auto prest = table("LvlPrest.txt");
     for (std::size_t row = 0; row < prest.size(); ++row) {
         const int def = to_int(prest.get(row, "Def"));
-        if (def < 2 || def > 102) continue;                     // ponytail: act 1's outdoor and cave presets
+        if (def < 2 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (not the town, 1)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
-                  std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
+                  to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
         for (int i = 0; i < 6; ++i) preset.maps[std::size_t(i)] = ds1(prest.get(row, "File" + std::to_string(i + 1)));
+        preset.populate = to_int(prest.get(row, "Populate"));
+        preset.logicals = to_int(prest.get(row, "Logicals"));
         assets.data.presets[def] = preset;
     }
     const auto sub = table("LvlSub.txt");
@@ -136,7 +138,7 @@ inline std::array<WarpSlot, 8> warp_slots(const OutdoorAssets& assets, int id) {
         for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row)
             if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) == warp)
                 slots[std::size_t(i)] = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, to_int(assets.lvl_warp.get(warp_row, "OffsetX")),
-                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")) };
+                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")), to_int(assets.lvl_warp.get(warp_row, "Tiles")) };
     }
     return slots;
 }
@@ -146,6 +148,18 @@ inline std::optional<std::size_t> level_row(const d2d::txt::Table& levels, int i
     for (std::size_t row = 0; row < levels.size(); ++row)
         if (to_int(levels.get(row, "Id"), -1) == id) return row;
     return std::nullopt;
+}
+
+// A level apart from the act layout: its OffsetX / Y, from its Depend
+// level's when it has one (FUN_00642d10).
+inline std::pair<int, int> level_origin(const d2d::txt::Table& levels, std::size_t row) {
+    int x = to_int(levels.get(row, "OffsetX")), y = to_int(levels.get(row, "OffsetY"));
+    if (const auto depend = level_row(levels, to_int(levels.get(row, "Depend"))); depend && to_int(levels.get(row, "Depend")) != 0) {
+        const auto [depend_x, depend_y] = level_origin(levels, *depend);
+        x += depend_x;
+        y += depend_y;
+    }
+    return { x, y };
 }
 
 // Sizes and anchors for the act layout (normal difficulty).
@@ -160,11 +174,12 @@ inline LevelDefs level_defs(const d2d::txt::Table& levels) {
 
 // Act 1's layout from the map seed: the act seed is `{map seed, 666}`
 // stepped once (FUN_00642da0).
-inline std::vector<Placed> act1_from_map_seed(const LevelDefs& defs, std::uint32_t map_seed) {
+inline d2d::rules::Rng act_seed(std::uint32_t map_seed) {
     d2d::rules::Rng act{ map_seed };
     act.next();
-    return act1_layout(defs, act);
+    return act;
 }
+inline std::vector<Placed> act1_from_map_seed(const LevelDefs& defs, std::uint32_t map_seed) { return act1_layout(defs, act_seed(map_seed)); }
 
 // A placed outdoor level's generator input. Vis starts as Levels.txt's
 // and each chain link adds the pair both ways in the first free slot
@@ -203,7 +218,10 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         }
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
-            if (const auto* placement = placed(vis[std::size_t(i)])) level.neighbours.push_back({ *placement, i });
+            if (const auto* placement = placed(vis[std::size_t(i)])) {
+                const auto other = level_row(levels, vis[std::size_t(i)]);
+                level.neighbours.push_back({ *placement, i, other && to_int(levels.get(*other, "DrlgType")) == 2 });
+            }
     return level;
 }
 

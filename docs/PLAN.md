@@ -197,8 +197,8 @@ used and listed in `docs/research/re/unverified.md` until it is.
 Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
-combat and skills) and the Den of Evil. Next: Cold Plains and the rest
-of Act 1.
+combat and skills), the Den of Evil, every Act 1 outdoor level and the
+caves (9–16). Next: the rest of Act 1.
 
 ## Open questions
 
@@ -272,7 +272,7 @@ D. **Leaving camp** — done: levels know their neighbours (`Level::near`),
    so collision, pathing and drawing carry on across the edge; walk over
    the town's bridge and `Town::cross_level` hands the player (path,
    merc, automap, music) to the Blood Moor. Walking toward a level that
-   isn't built (Cold Plains) logs "not implemented". ponytail: the
+   isn't built (Stony Field) logs "not implemented". ponytail: the
    neighbour's NPCs aren't drawn across the edge.
 E. **Monsters** — spawning done: game.exe's monster region and room
    population (docs/research/re/monsters.md, `components/rules/monsters.hpp`,
@@ -413,12 +413,13 @@ Spawning
   2026-09-28, monsters.md "When a room populates"); left: tiles still
   come up at load, the camp's room order; the +0x20 seed for group counts.
   A monster's look is game.exe's pick from its unit seed (done 2026-09-28).
-  Random object groups (Levels ObjGrp, FUN_00552610) aren't built. (The game seed, regions and object seed match game.exe.)
+  Random object groups (FUN_00552610) are built and match game.exe (2026-09-30).
 
 Act 1 levels and rendering
-- Built: Rogue Encampment, Blood Moor. Not built: Cold Plains, Stony Field,
-  Dark Wood, Black Marsh, Tamoe Highland, the other caves/crypts,
-  Tristram, Monastery through the Catacombs.
+- Built: Rogue Encampment, Blood Moor, Cold Plains, Stony Field, Dark
+  Wood, Black Marsh, Tamoe Highland, Burial Grounds, Moo Moo Farm, the
+  caves (9–16). Not built: the crypts, Tristram, Monastery through the
+  Catacombs.
 - Built and proven against game.exe (layout and tiles): the Blood Moor
   and the Den of Evil; click the cave mouth to go in, the stairs to come
   back. Preset units (proven too) put in the shrines, torches, chests,
@@ -491,8 +492,8 @@ palettes; animation timings come from the COF alone (`npc_timing`,
 `composite_timing`); missile sprites live in `Scene::missile_cels`. Debug
 start 3.8 s → 1.6 s. Since: a server's levels hold no tile pixels; the
 monster regions match game.exe (every level's at game start on one seed,
-monsters.md); the object seed is game.exe's (objects.md; d2d restarts it
-per level, game.exe draws it across the game). Left: levels 2 and 8 are
+monsters.md); the object seed is game.exe's, one across the game as rooms
+come up (objects.md). Left: levels 2 and 8 are
 the only ones built (`kBuiltLevels`).
 
 Planned as:
@@ -517,7 +518,7 @@ standalone server later.
    Raven); superunique minions MinGrp..MaxGrp (+ difficulty) at radius 3.
    Left: a maze's roll, the superunique specials (Countess, Smith, ...),
    quest objects' behaviour.
-2. Outdoor levels: Cold Plains, Stony Field, Dark Wood, Black Marsh,
+2. Outdoor levels: Stony Field, Dark Wood, Black Marsh,
    Tamoe Highland, the Burial Grounds, Tristram; each checked against
    game.exe like the Blood Moor.
 3. Dungeons: the caves and holes (Cave, Underground Passage, Hole, Pit),
@@ -540,22 +541,65 @@ library (`d2d::game`) builds and plays without the client; descriptive
 names and per-file includes, checked in CI; the monster regions, game
 seed and object seed traced and matching game.exe (monsters.md,
 objects.md); MonStats' duplicate Id quirk matched (bugs.md #13).
-`diff_drlg.py 1-10 <level>` over Act 1: the Blood Moor and the Den match
-game.exe on every seed, the 36 other levels on none yet (our generator
-covers only the paths those two take). Next, in order:
-1. Cold Plains (level 3), then the other outdoor levels that share its
-   generator (Stony Field, Dark Wood, Black Marsh, Tamoe Highland); each
-   joins `kBuiltLevels` once `diff_drlg` matches.
-2. The caves and crypts on the Den's maze generator, with the cave theme
-   rooms (FUN_006735f0).
-3. The presets: Tristram, the Monastery, the Catacombs.
-Still open in the Blood Moor: random object groups (FUN_00552610). Traced
-(objects.md "Random object groups per room"): the algorithm, the guard
-subsystem (objrgn.cpp), the PopulateFn table at 0x731d00 and objgroup.txt's
-row layout are down. Not built yet — its per-slot room-seed step happens
-before monster population, so an emu-side oracle that also runs 552610 has
-to land alongside the C++ port to keep the Blood Moor's monster count
-matching.
+`diff_drlg.py 1-10 <level>` over Act 1: the Den and every outdoor level
+(2–7, 17, 39), the caves (9–16) and the preset levels (20, 25–27,
+32, 33, 37, 38) match game.exe on every seed, grids through tiles and
+units. Next: the other maze level types on the Den's generator, each
+joining `kBuiltLevels` once `diff_drlg` matches — crypts (LevelType 4:
+18, 19, 21–24), Barracks (28), Jail (29–31), Catacombs (34–36).
+**Checkpoint 2026-09-30.** Every Act 1 level now builds and matches
+game.exe on `diff_drlg.py` (grids, tiles, units): crypts (18, 19, 21–24),
+Jail (29–31), Catacombs (34–36) and the Barracks (28, placed beside the
+courtyard). `kBuiltLevels` holds 2–39. Next: the rest of Act 1's play —
+quests 2–6, Andariel, preset specials (superunique
+rules, quest objects), random object groups; research in
+docs/research/re/quests-act1.md, act1-end.md, preset-specials.md.
+Waypoint travel within Act 1 is in (C→S 0x49, dark wilderness waypoints).
+Sisters to the Slaughter (quest 6) is in: talk, alerts, Andariel's death
+hook (gems, progression, the lair portal), Warriv's Go East (Act 2 itself
+not yet).
+**Checkpoint 2026-09-30, later.** All six Act 1 quests are in (Den, Burial
+Grounds + Kashya's merc, Tools of the Trade + Charsi's imbue, Search for
+Cain + Tristram, Forgotten Tower, Sisters to the Slaughter); doors and the
+dungeon objects (containers, stands, wells, bookshelves, exploding
+barrels); 17 Act 1 MonAI thinks including Blood Raven; walk-through level
+links (Levels.txt Vis with Warp -1: Outer Cloister ↔ Barracks, Inner
+Cloister ↔ Cathedral); lone warp units (the Forgotten Tower's stairs).
+Open: the quest log text past the Den and the in-game quest chain,
+bit-exact object groups, dungeon monster population, drops, the Countess's
+AI and superunique specials.
+
+**Checkpoint 2026-09-30, placement.** Random object groups and monster
+placement match game.exe on levels 2–39 (`diff_drlg.py 1-50 <level>
+monsters|objgroups`, 1-50: all pass).
+Collision is built per room as it comes up (FUN_0064c900), with shared-edge
+patches (FUN_0064c860), in the order the player brings rooms up (relevel;
+`diff_drlg.py 1-10 <level> collision`, shuffled order, levels 2–39 pass);
+ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
+scatter, the Tristram portal position, the HC smoke's
+extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
+
+**Checkpoint 2026-10-01.** Full sweep (`sweep.sh 1-20 monsters objgroups
+drops collision tiles`): 190/190, every level 2–39. Object drops roll off
+their own seeds and land as FUN_00555da0 finds room (drops.md); collision
+follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
+(monster-ai.md: outdoor no sight, indoor sight then spawn-area alert);
+Cain's portal at game.exe's spot. Still approximate (ponytail): object
+seed per level, not game-wide; units/objects/room seeds keep list order on
+relevel; search_target treats all foes alike.
+
+**Checkpoint 2026-10-01, one object seed.** The object seed (game +0x10f0)
+is one per game (`Spawning::objects`): every room's presets and groups and
+every container opened step it in the order they happen, and a room's
+objects come with it (`room_objects`, the level's npcs grow, footprints
+stamped as made). relevel takes the room1 seeds from the live order too;
+units and warps come out the same in any order (`diff_drlg.py <level>
+units` brings game.exe's rooms up in $ORDER), the spawn areas too (the game
+seed through the monsters matches). `diff_drlg.py 1-20 0 game` (Blood Moor, Den, Stony Field,
+Cave 1 in one game, rooms shuffled, every container opened): 20/20; reverse
+and list order, and touching levels (3,2,17,18,5,6,7) 20/20. Still
+approximate (ponytail): the camp's population steps on the game seed, the
+wanderer, the units off a level's rooms, relevel laying the whole level.
 
 **Step 3 — networking** (the deferred item 7 above).
 
@@ -609,7 +653,7 @@ Left for those, ranked:
 Then:
 
 6. Saving .d2s.
-7. Cold Plains and the rest of Act 1's outdoor levels.
+7. The rest of Act 1's caves, crypts and presets.
 8. Skill fidelity: pet AI, the shapeshifted look, the approximations
    listed in skills.md.
 

@@ -1,7 +1,10 @@
 // D2Decomp launcher — see docs/PLAN.md.
 
 #include "config.hpp"
+#include <install.hpp>
 #include <iso9660.hpp>
+#include <mpq.hpp>
+#include <userdir.hpp>
 #include <StormLib.h>
 
 #include <QAbstractButton>
@@ -26,6 +29,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSettings>
+#include <QStyle>
 #include <QStandardPaths>
 #include <QThreadPool>
 #include <QUrl>
@@ -106,41 +110,36 @@ static QString default_dest() {
     return base + "/game";
 }
 
-// Scan a PE for its VS_VERSION_INFO "FileVersion" string. UTF-16LE search
-// avoids a full PE resource walk. Empty return = not found / not a PE.
+// A PE's VS_FIXEDFILEINFO file version ("1.14.3.71"); empty if not a PE.
 static QString pe_file_version(const std::filesystem::path& file) {
-    QFile version_file(QString::fromStdString(file.string()));
-    if (!version_file.open(QIODevice::ReadOnly)) return {};
-    const auto data = version_file.readAll();
-    static constexpr char16_t needle[] = u"FileVersion";
-    constexpr int needle_bytes = sizeof(needle) - sizeof(char16_t);
-    for (int i = 0; i + needle_bytes < data.size(); i += 2) {
-        if (std::memcmp(data.constData() + i, needle, needle_bytes) != 0)
-            continue;
-        int offset = i + needle_bytes + 2;         // skip "FileVersion\0"
-        while (offset < data.size() && (offset % 4) != 0) ++offset;
-        QString version;
-        while (offset + 1 < data.size() && version.size() < 64) {
-            const auto code_unit = static_cast<char16_t>(
-                quint8(data[offset]) | (quint8(data[offset + 1]) << 8));
-            if (code_unit == 0) break;
-            version.append(QChar(code_unit));
-            offset += 2;
-        }
-        if (!version.isEmpty()) {
-            return version.trimmed().replace(", ", ".").replace(",", ".");
-        }
-    }
-    return {};
+    const auto version = d2d::install::file_version(file);
+    if (!version) return {};
+    return QString("%1.%2.%3.%4").arg((*version)[0]).arg((*version)[1]).arg((*version)[2]).arg((*version)[3]);
 }
 
-static bool game_dir_valid(const QString& dir) {
-    if (dir.isEmpty()) return false;
-    QDir directory(dir);
-    if (!directory.exists()) return false;
-    const auto hits = directory.entryList({"d2data.mpq", "D2DATA.MPQ"},
-                                   QDir::Files | QDir::CaseSensitive);
-    return !hits.isEmpty();
+static std::filesystem::path to_path(const QString& text) {
+    return std::filesystem::path(text.toStdU16String());
+}
+
+static QString from_path(const std::filesystem::path& path) {
+    return QString::fromStdU16String(path.u16string());
+}
+
+// The install at `dir`, if it holds classic D2 or D2R (install::classify).
+static std::optional<d2d::install::Install> classify_dir(const QString& dir, const std::string& source = "manual") {
+    if (dir.isEmpty()) return std::nullopt;
+    return d2d::install::classify(to_path(dir), source);
+}
+
+// What Browse was pointed at, as the folder to classify: a folder,
+// Game.exe, or "Diablo II.app" (MPQs inside the bundle or beside it).
+static QString normalize_pick(const QString& picked) {
+    const QFileInfo info(picked);
+    if (info.suffix().compare("app", Qt::CaseInsensitive) == 0) {
+        const QString resources = info.absoluteFilePath() + "/Contents/Resources";
+        return classify_dir(resources) ? resources : info.absolutePath();
+    }
+    return info.isFile() ? info.absolutePath() : info.absoluteFilePath();
 }
 
 static QFileDialog::Options macos_dlg_opts() {
@@ -480,12 +479,42 @@ public:
             dlg.setOptions(macos_dlg_opts() | dlg.options());
             if (dlg.exec() != QDialog::Accepted) return;
             const auto sel = dlg.selectedFiles();
-            if (!sel.isEmpty()) path_->setText(sel.first());
+            if (!sel.isEmpty()) browsed(sel.first());
         });
         connect(path_, &QLineEdit::textChanged, this, &MainWindow::refresh);
+        connect(path_, &QLineEdit::textEdited, this, [this] { source_ = "manual"; patch_path_.clear(); });
 
         status_ = new QLabel(this);
         status_->setWordWrap(true);
+        fix_ = new QPushButton(tr("Fix: use LODPatch_114d.exe..."), this);
+        fix_->setToolTip(tr("d2d reads the 1.14d tables from the patch installer; your install stays as it is."));
+        connect(fix_, &QPushButton::clicked, this, &MainWindow::pickPatch);
+
+        // --- installs found on this machine --------------------------------
+        found_ = new QListWidget(this);
+        auto* use = new QPushButton(tr("Use selected"), this);
+        connect(use, &QPushButton::clicked, this, [this] {
+            const int row = found_->currentRow();
+            if (row >= 0 && row < int(installs_.size()) && d2d::install::usable(installs_[std::size_t(row)]))
+                choose(installs_[std::size_t(row)], QString::fromStdString("detected:" + installs_[std::size_t(row)].source));
+        });
+        connect(found_, &QListWidget::itemDoubleClicked, use, &QPushButton::click);
+        auto* more = new QPushButton(tr("Search more places"), this);
+        connect(more, &QPushButton::clicked, this, [this] { scan(true); });
+        auto* rescan = new QPushButton(tr("Rescan"), this);
+        connect(rescan, &QPushButton::clicked, this, [this] { scan(false); });
+        foundBox_ = new QWidget(this);
+        auto* foundLayout = new QVBoxLayout(foundBox_);
+        foundLayout->setContentsMargins(0, 0, 0, 0);
+        foundLayout->addWidget(new QLabel(tr("Diablo II installs found:"), foundBox_));
+        foundLayout->addWidget(found_);
+        auto* foundRow = new QHBoxLayout;
+        foundRow->addWidget(use);
+        foundRow->addStretch();
+        foundRow->addWidget(more);
+        foundRow->addWidget(rescan);
+        foundLayout->addLayout(foundRow);
+        foundBox_->setHidden(true);
 
         // --- action buttons ------------------------------------------------
         install_ = new QPushButton(tr("Install / Reinstall..."), this);
@@ -526,7 +555,11 @@ public:
         pathRow->addWidget(path_, 1);
         pathRow->addWidget(browse);
         layout->addLayout(pathRow);
-        layout->addWidget(status_);
+        auto* statusRow = new QHBoxLayout;
+        statusRow->addWidget(status_, 1);
+        statusRow->addWidget(fix_);
+        layout->addLayout(statusRow);
+        layout->addWidget(foundBox_);
 
         auto* line = new QFrame(this);
         line->setFrameShape(QFrame::HLine);
@@ -551,40 +584,166 @@ public:
 
         loadSettings();
         refresh();
+        // A saved install that still classifies as usable is kept; else look.
+        const auto saved = classify_dir(path_->text());
+        if (saved && d2d::install::usable(*saved)) persist();   // d2d.cfg follows the launcher
+        else scan(false);
         startUpdateCheck();
     }
 
-    ~MainWindow() override { saveSettings(); }
+    // A scan still running posts to us: wait so it never outlives `this`
+    // (Qt drops the queued call once we're gone).
+    ~MainWindow() override { QThreadPool::globalInstance()->waitForDone(); saveSettings(); }
 
 private:
     void loadSettings() {
         QSettings settings;
-        path_->setText(settings.value("game/dataPath", default_dest()).toString());
+        path_->setText(settings.value("game/dataPath").toString());
+        patch_path_ = settings.value("game/patchPath").toString();
+        if (patch_path_.isEmpty()) {   // a hand-set `patch =` in d2d.cfg counts
+            d2d::userdir::Config cfg;
+            d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
+            patch_path_ = QString::fromStdString(cfg["patch"]);
+        }
+        source_ = settings.value("game/source", "manual").toString();
     }
     void saveSettings() const {
         QSettings settings;
         settings.setValue("game/dataPath", path_->text());
+        settings.setValue("game/patchPath", patch_path_);
+        settings.setValue("game/source", source_);
+    }
+    // QSettings always; d2d.cfg's `data` / `patch` only for an install d2d
+    // can use (d2d stops on a bad `data =`).
+    // ponytail: no patch chosen leaves d2d.cfg's `patch` as it is (a
+    // hand-set LODPatch_114d.exe survives); a stale one is the user's to clear.
+    void persist() {
+        saveSettings();
+        const auto install = classify_dir(path_->text());
+        if (!install || !d2d::install::usable(*install)) return;
+        const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
+        std::vector<std::pair<std::string, std::string>> values{ { "data", install->dir.string() } };
+        if (!patch_path_.isEmpty()) values.emplace_back("patch", to_path(patch_path_).string());
+        if (!d2d::userdir::save_cfg(cfg, values))
+            QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+    }
+
+    // Look for installs off the UI thread; results land in onDetected.
+    // ponytail: no time budget, a slow network drive in a probed folder
+    // stalls the list (not the window); add a 2 s cutoff if that bites.
+    void scan(bool search_more) {
+        status_->setText(tr("Looking for Diablo II..."));
+        status_->setStyleSheet("color: gray;");
+        QThreadPool::globalInstance()->start([this, search_more] {
+            auto found = d2d::install::detect(d2d::install::system_environment(search_more));
+            QMetaObject::invokeMethod(this, [this, found = std::move(found)]() mutable { onDetected(std::move(found)); },
+                                      Qt::QueuedConnection);
+        });
+    }
+
+    // Exactly one 1.14d install: take it silently. Otherwise list them all,
+    // the unusable ones greyed out with why.
+    void onDetected(std::vector<d2d::install::Install> found) {
+        installs_ = std::move(found);
+        const auto is_114d = [](const auto& install) {
+            return d2d::install::usable(install) && install.version == d2d::install::Version::v114d;
+        };
+        if (std::count_if(installs_.begin(), installs_.end(), is_114d) == 1) {
+            const auto& install = *std::find_if(installs_.begin(), installs_.end(), is_114d);
+            choose(install, QString::fromStdString("detected:" + install.source));
+            foundBox_->setHidden(true);
+            return;
+        }
+        found_->clear();
+        for (const auto& install : installs_) {
+            auto* item = new QListWidgetItem(QString::fromStdString(d2d::install::title(install)) + "  —  "
+                                             + from_path(install.dir), found_);
+            const auto problem = QString::fromStdString(d2d::install::problem(install));
+            const auto source = QString::fromStdString(install.source);
+            item->setToolTip(problem.isEmpty() ? source : problem + "\n" + source);
+            if (!d2d::install::usable(install)) item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
+            else if (!problem.isEmpty()) item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
+        }
+        const auto first_usable = std::find_if(installs_.begin(), installs_.end(),
+                                               [](const auto& install) { return d2d::install::usable(install); });
+        if (first_usable != installs_.end()) found_->setCurrentRow(int(first_usable - installs_.begin()));
+        if (installs_.empty()) {
+            auto* item = new QListWidgetItem(tr("No Diablo II install found. Browse to yours, or install from the discs."), found_);
+            item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
+        }
+        foundBox_->setHidden(false);
+        refresh();
+    }
+
+    void choose(const d2d::install::Install& install, const QString& source) {
+        source_ = source;
+        // The UAC VirtualStore copy of patch_d2.mpq lives outside the dir:
+        // d2d only finds it as an explicit patch layer.
+        const bool outside = !install.patch_mpq.empty() && install.patch_mpq.parent_path() != install.dir;
+        patch_path_ = outside ? from_path(install.patch_mpq) : QString{};
+        path_->setText(from_path(install.dir));
+        persist();
+        refresh();
+    }
+
+    // Browse: a folder, Game.exe or Diablo II.app, classified like a find.
+    void browsed(const QString& picked) {
+        const QString dir = normalize_pick(picked);
+        const auto install = classify_dir(dir);
+        if (install && !d2d::install::usable(*install)) {
+            QMessageBox::warning(this, tr("Can't use this install"),
+                QString::fromStdString(d2d::install::title(*install) + ": " + d2d::install::problem(*install)));
+            return;
+        }
+        if (install) { choose(*install, "manual"); return; }
+        source_ = "manual";
+        patch_path_.clear();
+        path_->setText(dir);           // not an install (yet): Install can fill it
+        saveSettings();
+    }
+
+    // Not 1.14d: point the patch layer at a 1.14d patch installer. The
+    // install is never touched; d2d reads the patched tables from the .exe.
+    void pickPatch() {
+        QFileDialog dlg(this, tr("LODPatch_114d.exe"), QDir::homePath(), tr("Patch installer (*.exe *.mpq)"));
+        dlg.setFileMode(QFileDialog::ExistingFile);
+        dlg.setOptions(macos_dlg_opts() | dlg.options());
+        if (dlg.exec() != QDialog::Accepted || dlg.selectedFiles().isEmpty()) return;
+        const QString picked = dlg.selectedFiles().first();
+        if (!picked.endsWith(".mpq", Qt::CaseInsensitive)) {
+            try {
+                (void)d2d::mpq::Archive::installer(to_path(picked));
+            } catch (const std::exception&) {
+                QMessageBox::warning(this, tr("Cannot open"),
+                    tr("Not a Blizzard MPQ-appended installer (or corrupt): %1").arg(picked));
+                return;
+            }
+        }
+        patch_path_ = picked;
+        persist();
+        refresh();
     }
 
     void refresh() {
-        const bool ok = game_dir_valid(path_->text());
-        QString msg = ok
-            ? tr("✓ Game data found — d2data.mpq detected.")
-            : tr("⚠ No game data at this path. Click Install to set it up.");
-        if (ok) {
-            namespace fs = std::filesystem;
-            const auto bin = fs::path(path_->text().toStdString()) / "bin";
-            QString ver;
-            for (const auto& probe : {"game.exe", "d2client.dll", "d2common.dll"}) {
-                ver = pe_file_version(bin / probe);
-                if (!ver.isEmpty()) break;
-            }
-            msg += ver.isEmpty()
-                ? tr("  (no patch binaries yet)")
-                : tr("  Diablo II v%1").arg(ver);
+        const auto install = classify_dir(path_->text());
+        const bool ok = install && d2d::install::usable(*install);
+        QString msg;
+        if (!install) {
+            msg = path_->text().isEmpty() ? tr("⚠ No game data chosen. Pick an install, Browse, or click Install.")
+                                          : tr("⚠ No game data at this path. Click Install to set it up.");
+        } else {
+            msg = (ok ? tr("✓ ") : tr("⚠ ")) + QString::fromStdString(d2d::install::title(*install));
+            if (source_.startsWith("detected:")) msg += tr("  (found: %1)").arg(source_.mid(9));
+            const auto problem = QString::fromStdString(d2d::install::problem(*install));
+            if (!problem.isEmpty()) msg += "\n" + problem;
         }
+        const bool patched = !patch_path_.isEmpty() && QFileInfo::exists(patch_path_);
+        if (ok && !patch_path_.isEmpty())
+            msg += "\n" + (patched ? tr("Patch layer: %1").arg(patch_path_) : tr("⚠ Patch layer missing: %1").arg(patch_path_));
+        const bool needs_patch = ok && !d2d::install::problem(*install).empty();   // not 1.14d, or no patch_d2.mpq
         status_->setText(msg);
-        status_->setStyleSheet(ok ? "color: green;" : "color: orange;");
+        status_->setStyleSheet(ok && (!needs_patch || patched) ? "color: green;" : "color: orange;");
+        fix_->setVisible(needs_patch && !patched);
         // Launch is grayed until the engine binary exists AND game data is
         // present. Engine binary lives beside the launcher; there is none
         // yet, so Launch stays disabled and says why.
@@ -601,8 +760,10 @@ private:
     void openInstaller() {
         InstallerWizard wiz(path_->text(), this);
         if (wiz.exec() == QDialog::Accepted) {
+            source_ = "installed";
+            patch_path_.clear();
             path_->setText(wiz.field("dest").toString());
-            saveSettings();
+            persist();
             refresh();
         }
     }
@@ -817,6 +978,11 @@ private:
 
     QLineEdit* path_{};
     QLabel* status_{};
+    QPushButton* fix_{};
+    QListWidget* found_{};
+    QWidget* foundBox_{};
+    std::vector<d2d::install::Install> installs_;
+    QString patch_path_, source_ = "manual";
     QLabel* version_{};
     QPushButton* install_{};
     QPushButton* addBins_{};

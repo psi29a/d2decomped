@@ -173,7 +173,7 @@ int main() {
                     if (item.quality == 6 || item.quality == 8) assert(item.rare1 && item.rare2);
                     if (item.quality == 5) assert(item.set_id >= 0);
                 }
-                assert(items.size() > 0 && equipped > 0);
+                assert(items.size() > 0 && (equipped > 0 || d2d::d2s::parse_corpse(bytes, item_tables).has));   // a death leaves the worn on the corpse
                 // Written back (d2s_write.hpp), the same bytes.
                 const auto again = d2d::d2s::write_save(bytes, hdr, stats, items, item_tables);
                 if (again.size() != bytes.size() || !std::equal(again.begin(), again.end(), bytes.begin())) {

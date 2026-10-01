@@ -85,7 +85,7 @@ inline int pick(const UMods& umods, const MonType& type, Rng& seed, Weight&& wei
 // rand(100) < the champion chance makes it a champion with one champion
 // mod (cpick); else a unique with 1 + difficulty unique mods (upick, no
 // repeats, 8 at most). Rolls the monster's own seed.
-inline BossInfo roll_boss(const UMods& umods, const MonType& type, int difficulty, bool champions, Rng& seed) {
+inline BossInfo roll_boss(const UMods& umods, const MonType& type, int difficulty, bool champions, Rng& seed, bool name = true) {
     using namespace unique_detail;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
     BossInfo boss;
@@ -104,7 +104,7 @@ inline BossInfo roll_boss(const UMods& umods, const MonType& type, int difficult
         if (!id) break;
         boss.mods.push_back(id);
     }
-    boss.name_seed = int(seed.next() & 0xffff);    // FUN_005a2120's fixed mods: 1 rndname first
+    if (name) boss.name_seed = int(seed.next() & 0xffff);    // FUN_005a2120's fixed mods: 1 rndname first (after its minions)
     return boss;
 }
 

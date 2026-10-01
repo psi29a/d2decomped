@@ -4,6 +4,7 @@
 #include "common.hpp"
 #include "platform.hpp"
 
+#include <install.hpp>
 #include <log.hpp>
 #include <rules.hpp>
 
@@ -186,7 +187,7 @@ struct Audio {
         music_job = std::async(std::launch::async, [dir = game_data.data_dir, path = std::move(path)]() -> std::optional<Decoded> {
             d2d::mpq::Stack music_mpqs;
             for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
-                if (fs::exists(dir / name)) music_mpqs.push(dir / name);
+                if (const auto mpq = d2d::install::find_file(dir, name)) music_mpqs.push(*mpq);
             const auto wav = music_mpqs.try_read(path);
             return wav ? decode(*wav) : std::nullopt;
         });

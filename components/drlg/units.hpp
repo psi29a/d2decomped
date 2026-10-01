@@ -21,8 +21,9 @@ namespace d2d::drlg {
 // A unit as a room lists it (FUN_0066bf30): type 1 monster (MonStats row;
 // row count + i superunique i; + superunique count + i MonPlace i), 2
 // object (objects.txt row), 5 warp (LvlWarp Id); mode (monsters 1);
-// subtiles; DS1 flags.
-struct Unit { int type = 0, id = 0, mode = 0, x = 0, y = 0; std::uint32_t flags = 0; };
+// subtiles; DS1 flags; its DS1 path (v14+) as the unit's map AI
+// (FUN_00665950 +0x10, moved with it by FUN_00667510), subtiles off it.
+struct Unit { int type = 0, id = 0, mode = 0, x = 0, y = 0; std::uint32_t flags = 0; std::vector<std::pair<int, int>> path = {}; };
 
 // What a DS1's ids map through: MonPreset by act ({kind, id}: 0 MonPlace,
 // 1 MonStats, 2 SuperUniques) and the table sizes the ids offset by.
@@ -42,6 +43,7 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
     const int version = map.version(), act = std::clamp(int(map.act()) - 1, 0, 4);
     for (const auto& object : map.objects()) {
         Unit unit{ object.type, object.id, 0, object.x, object.y, version > 5 ? std::uint32_t(object.flags) : 0u };
+        for (const auto& point : object.path) unit.path.emplace_back(point.x - object.x, point.y - object.y);
         if (unit.type == 1) {
             if (version < 5) continue;
             unit.mode = 1;
@@ -60,8 +62,8 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
     return list;
 }
 
-// FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); none of
-// act 1's outdoor or cave presets carry them.
+// FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); act 1's
+// Cottages 2 (Cott4A.ds1) carries one.
 inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
     if (unit.type == 1) {
         if (unit.id < ids.monstats) return unit.id == 0xcc || unit.id == 0xcd || unit.id == 0x173 || unit.id == 0x174;
@@ -71,10 +73,11 @@ inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
     return unit.type == 2 && (unit.id == 0xc4 || unit.id == 0x105 || unit.id == 0x245);
 }
 
-// FUN_00667620's roll for one of those: a step of `seed` (the room's
-// outdoors), kept on its low word — monsters 1 in 3, MonPlace group25 3 in
-// 4, group50 1 in 2, group75 1 in 4 (group100 never rolls), objects 0xc4 /
-// 0x105 1 in 2, 0x245 3 in 4. `Seed` is d2d::rules::Rng.
+// FUN_00667620's roll for one of those: a step of `seed` (outdoors the
+// level's for a preset with Scan or Pops, else the room's), kept on its low
+// word — monsters 1 in 3, MonPlace group25 3 in 4, group50 1 in 2, group75 1
+// in 4 (group100 never rolls), objects 0xc4 / 0x105 1 in 2, 0x245 3 in 4.
+// `Seed` is d2d::rules::Rng.
 template <class Seed>
 bool stays(const Unit& unit, const UnitIds& ids, Seed& seed) {
     if (!rolled_unit(unit, ids)) return true;

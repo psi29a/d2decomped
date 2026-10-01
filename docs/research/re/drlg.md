@@ -132,7 +132,8 @@ up, right, down, left. FUN_0067ce20 splices each neighbour into the
 edge of its side (0: v0→v1, 1: v1→v2, 2: v2→v3, 3: v3→v0), working in
 c-space (c = −1 on the up and left edges, else 1) with the edge from s
 to e and the neighbour's span [A, B] on that axis (A its near end): A
-≤ s ≤ B → the corner vertex gets flag 1 (| 2 for the town) and, if B <
+≤ s ≤ B → the corner vertex gets flag 1 (| 2 when the neighbour is a
+preset level, DrlgType 2: the town, the Monastery Gate — FUN_00677680) and, if B <
 e, a vertex at B is inserted after it; s < A ≤ e → a vertex at A is
 inserted after the corner, flagged the same, then one at B if B < e.
 Inserts always go right after the corner, which is why the list is
@@ -240,8 +241,9 @@ outside of a non-rectangular outline; a no-op on rectangles.
      lower} (defs 4..15: {2,2} {0,3} {1,1} {3,0} {0,2} {0,1} {1,0}
      {2,0} {2,3} {1,3} {3,1} {3,2}); flags & 0x14 also gets a bridge
      (FUN_0067fd20): r = rand(h−2), rows (i + r) % (h−2) + 1 in turn,
-     the first where (x+2, y) is free of 0x1b81 — and (x−1, y) too
-     unless flags & 4 — and both river cells hold file 3 gets def 28
+     the first where (x−1, y) is free of 0x1b81 — and (x+2, y) too
+     unless flags & 4 (that branch jumps past the x+2 setup) — and
+     both river cells hold file 3 gets def 28
      file 1 at x, file 2 + (flags & 4 ≠ 0) at x+1;
    - flags & 0x20 (no entrance yet): a cliff cave (def 25 on a def-16
      cell, 24 on 17), scanning rows or columns first on `rand & 1`;
@@ -268,12 +270,24 @@ outside of a non-rectangular outline; a no-op on rectangles.
    ((w−2)·(h−2), n swaps of two rolls), then the first 5 free of 0x1b81
    get +0x18 |= 0x1000 << k (table 0x6f061c), +0x2c |= 0x1000, k = k+1
    & 3 — the plain room there stamps that SubShrine row;
-6. FUN_00680580, the Blood Moor: Pond (46) by a road (FUN_00674920(46,
-   −1)); FUN_006804e0(0, 47): `rand & 3 == 0` → two Cottage 1 (47), else
-   one (with a nonzero argument, a second roll `& 1` adds def 49); Stone
-   Fill 1 and 2 (29, 30) anywhere (FUN_00674730(def, −1, 0, 0xf)).
+6. FUN_00680580, per level. FUN_006804e0(extra, def): `rand & 3 == 0`
+   → two of def by a road, else one (when extra, a second roll `& 1` adds
+   def 49 by a road). The Blood Moor: Pond (46) by a road
+   (FUN_00674920(46, −1)), FUN_006804e0(0, 47), Stone Fill 1 and 2 (29,
+   30) anywhere (FUN_00674730(def, −1, 0, 0xf)). Cold Plains:
+   FUN_006804e0(1, 48), Fallen Camp Bishibosh (44), 29, 30 anywhere.
+   With `a(d)` anywhere, `r(d)` by a road, `c(e, d)` FUN_006804e0 —
+   Stony Field (4): r(160 Cairn Stones), r(45), a(162), c(1, 47),
+   c(0, 42), a(31), no 29 / 30; Dark Wood (5): a(161 Inifuss), a(41),
+   a(40), c(1, 48), c(0, 43), 29, 30; Black Marsh (6): a(163 Tower),
+   a(38), a(39), c(1, 47), c(0, 42), 29, 30; Tamoe Highland (7):
+   c(1, 48), c(0, 43), a(31), no 29 / 30; Burial Grounds (17): def 108
+   at (1, 1) only; Moo Moo Farm (39): a(50), a(46), a(31), a(38),
+   a(39), 29, 30.
 
-Level 39 (Moo Moo Farm) runs border types 0..3 only.
+Steps 2–4 and the shrines are levels 2..7 only; Burial Grounds (17) gets
+the outline, borders and fills, Moo Moo Farm (39) those plus border
+types 0..3 in a row.
 
 **Border LvlSub** (FUN_006752a0(type) → FUN_00670750): the LvlSub
 engine on the cell grid. For each LvlSub row of the type (Border*.ds1,
@@ -294,7 +308,9 @@ nothing = don't care. On a match, variant k = `rand(variants)` at x +
 
 The finish (FUN_006750f0) turns cells into rooms: a preset anchor
 (+0x2c 0x200 and +0x04 set) becomes a preset room (FUN_00666ed0 on the
-level seed, FUN_00667ed0), other preset cells nothing, 0x100 cells
+level seed, FUN_00667ed0: when the LvlPrest row has Scan or Pops,
+FUN_00667970 first rolls its DS1's units to stay (FUN_00667620) on the
+level seed, then the rooms are allocated), other preset cells nothing, 0x100 cells
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
@@ -457,34 +473,47 @@ at all → orientation 10, style 0, sequence 0; still none → fatal.
   skipping itself, for a tile at that spot in one of their edge chains
   (FUN_0066e4c0: rooms already up, point inside the room's rect edges
   inclusive, floor chains for orientation 0, not orientation 4, shadow
-  bit only against shadows, same word bits 18..19). None → FUN_0066e620
+  bit only against shadows, and the tile's flags bits 14..16 clear or
+  one more than the word's bits 18..19 — FUN_0066db20 ORs each sharer's
+  layer + 1 in, so a tile two layers share stops matching either; an
+  orientation 3 merge ORs 0xc000). None → FUN_0066e620
   picks it (rolling this room's seed) and chains it. Found →
   FUN_0066e740 keeps the neighbour's tile unless its word had 0x80, or
   the orientations merge (tables 0x6ef620, 0x6ef574) to something else,
-  or it's a style-30 / sequence-0 floor, when it re-picks on this room's
-  seed and overwrites the neighbour's tile.
+  or it's a style-30 / sequence-0 floor, when it re-picks and overwrites
+  the neighbour's tile — on the neighbour's seed and DT1s (FUN_0066d820
+  with ECX = the tile's room, 0x66e8f2; an added orientation 3 wall's
+  pick at 0x66e87c is this room's). The neighbour's seed has already
+  stepped once for its room1 (the walk's end), and every such re-pick
+  moves it on.
 - So edge tiles, and everything picked after them in the room, depend on
   which rooms are up first. The game brings rooms up as the player gets
-  near; d2d brings them up in the level's room list order (newest first,
-  i.e. the reverse of the cell order they were made in).
+  near; d2d builds in the level's room list order (newest first, i.e. the
+  reverse of the cell order they were made in), then lays the tiles again
+  in the player's order as he brings rooms up (`relevel`).
 - Act1/Outdoors/Trees.ds1 (v12) declares 14 substitution groups and ends
   12 bytes into the 14th; FUN_00665950 reads past its buffer. In the
   emulator that's zeros (a 0×0 group that stamps nothing); on real
   hardware it's whatever follows the allocation.
 
-**Preset-room details:** the room keeps a 9×9 slice of every DS1 layer
-(presets' DS1s include the shared edge row and column), FUN_006667d0
-ORs 0x84 into every edge cell (walls layer 0, floors, shadow; floors are
-| 0x80 throughout), and the walk (FUN_00666ac0: floor layers, the first
-with FillBlanks, then wall layers, then the shadow) is 8 wide / high
+**Preset-room details:** the room keeps a (w+1)×(h+1) slice of every DS1
+layer (presets' DS1s include the shared edge row and column), FUN_006667d0
+ORs 0x84 into every edge cell (walls layer 0, floors, shadow) and the
+layer's index << 18 into wall layers past the first and every floor layer
+(FUN_0067c590 with op 0, OR), and the walk (FUN_00666ac0: floor layers, the first
+with FillBlanks, then wall layers, then the shadow) is one short
 where KillEdge is set and the room sits on the preset's right / bottom
-edge, else 9. FillBlanks: an empty floor cell inside the room picks style
+edge. FillBlanks: an empty floor cell inside the room picks style
 30 sequence 0 (0x1e00100 on level 74). The room seed is fresh
 (`{room +4, 666}`): nothing between reset and walk rolls it. A hidden
 warp tile (orientation 10/11, style = warp slot ≤ 7) makes the warp unit
 (FUN_0066e1c0) and, when the slot's LvlWarp row has LitVersion, a 2×2
 lit floor up-left of it (FUN_0066e360: style = the tile's sequence,
-sequences 4..7, offsets 0x6ef554).
+sequences 4..7, offsets 0x6ef554). A visible one (FUN_0066e260, not
+on level 133) keeps its wall; at sequence 0 or 4 it places the warp unit
+and stops there if that fails; then a LitVersion slot adds a twin wall
+at the same spot, sequence | LvlWarp Tiles << 8 (the cliff cave's
+lit mouth).
 
 Room tiles as game.exe keeps them (room +0x54): walls +0x08 count /
 +0x14 array, floors +0x0c / +0x1c, shadows +0x10 / +0x24; 0x30-byte
@@ -533,8 +562,12 @@ the level seed, as outdoors).
    and freeing on a miss, per try), links it, redoes the anchor's preset,
    and makes the new room the special.
 5. FUN_00642590 moves every room so the rooms' top-left is the level's.
-6. FUN_006735f0 (not level 8): a few rooms become theme variants
-   (def + 15) — not ported yet.
+6. **Theme rooms** (FUN_006735f0, not level 8): base by LevelType (3 →
+   0x34, 4 → 0x6c, 7 → 0xa7, 8 → 0xcd, 10 → 0x101, …); at = rand % 15; a
+   0..14 permutation gets 15 swaps (two rolls % 15 each). Up to
+   max(2, rooms / 5 + 1) rooms over rooms × 2 tries: each try takes the
+   first unmarked listed room with def == base + perm[at] (def += 15,
+   file −1, marked), then at = (at + 1) % 15.
 7. **Presets** (FUN_00673a60, list order): FUN_00666ed0 rolls
    rand(Files) for the file; a room with a fixed file keeps its own, a
    plain cave (0x34 < def < 0x44) takes the level's rotation for that def
@@ -543,7 +576,37 @@ the level seed, as outdoors).
    one when the preset is under 13×13, else one per 8×8 block (rows, then
    columns), each allocated in turn.
 
-d2d: `components/drlg/maze.hpp` (`generate_maze`). The Den of Evil
+A **preset level** (DrlgType 2, FUN_00668100) is one preset: the first
+LvlPrest row with that LevelId (FUN_0061f0e0), its file rolled on the
+level seed (FUN_00666ed0) unless the level's record (+0x14 [1]) already
+holds one, then FUN_00667ed0 (a sizeless preset takes the level's size).
+Only Courtyard 1 (27) is set ahead: the act layout (FUN_00677180) rolls
+it on the act seed from the side the Black Marsh went — above 2 −
+(rand & 1), below ~rand & 1. A level with a Depend sits at its OffsetX /
+Y plus that level's (FUN_00642d10: 27 on 26, 33 on 32).
+
+Tile quirk (FUN_0066e360, FUN_0066e260): the room keeps a record per
+LvlWarp id (room +0x4c) with a tile list linked through tile +0x20 — the
+same link the edge-sharing chains use. A hidden lit warp, after its 2×2
+lit floor, puts every unlit warp floor in the room (DT1 style = the
+warp's seq, sequence < 4) on it; a visible warp wall (FUN_0066e260) puts
+itself on it. Either cuts the chain it was on, so a later room's
+FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
+
+**Doors** (FUN_0066d9e0): an orientation 8 / 9 wall makes a door unit —
+hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->
+FUN_0066db20), or shared with a neighbour after the merge (FUN_0066e740,
+also when the neighbour's tile has flags & 1). FUN_0066d960 finds the
+row: 0x6eefc8 `{level, first, last}` (inclusive), then 0x6ef188 28-byte
+rows `{style, seq, orientation 9, id, type, dx, dy}` matching the word's
+style / seq. The unit sits at (x − room x)×5 + dx, (y − room y)×5 + dy,
+dropped when outside the current room; type 1 is a monster (mode 1),
+objects 0x5b / 0x5c roll 1 in 3 on the room seed (FUN_0045c390). A made
+door sets the tile's flags |= 0x20 so the room sharing it doesn't repeat
+it. Act 1: Barracks / Jail rows 0–3, Tristram 4–6, Monastery / Outer
+Cloister 5–9, Catacombs 10–11 (+12 on 37), all objects.
+
+d2d: `components/drlg/maze.hpp` (`generate_maze`, `generate_preset`). The Den of Evil
 (LvlMaze Rooms 1) is the first room, the entrance and the Den's own room:
 three 24×24 caves, 27 rooms. 1.14d's LvlMaze.txt has one Rooms column
 (the game reads the .bin); d2d uses it for every difficulty.
@@ -611,6 +674,15 @@ values (seed 3) so a regression shows without the emulator.
 | Every room's units (room +0x5c, list order): preset monsters, superuniques (Corpsefire), objects (shrines, torches, chests), LvlSub stamp objects, Flavie at the border opening, warp units | Blood Moor | 1–1500, 0xfffffe00–0xffffffff |
 | Every room's units | Den of Evil | 1–1500 |
 | Every room's room1 seed (room1 +0x6c: the tiles' seed stepped once, what population rolls) | Blood Moor, Den of Evil | 1–300 |
+| Grids, rooms, flags (cliffs, cliff caves, bridges, waypoints, fills) | Cold Plains (3), Stony Field (4), Dark Wood (5), Black Marsh (6), Tamoe Highland (7) | 1–100 |
+| Grids, rooms | Burial Grounds (17), Moo Moo Farm (39) | 1–10 |
+| Every room's tiles and units (lit warp walls, Scan / Pops presets) | levels 2–7, 17, 39 | 1–20 |
+| Grids, rooms (theme rooms, specials of 9 / 10, preset levels) | caves 9–16 | 1–50 |
+| Every room's tiles and units (sizeless presets' KillEdge, the warp-list quirk) | caves 9–16 | 1–20 |
+| Grids, rooms (Depend positions, Courtyard 1's file) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–10 (27: 1–30) |
+| Every room's tiles and units (KillEdge column, shared warp walls, doors) | 20, 25, 26, 27, 32, 33, 37, 38 | 1–20 |
+| Grids, rooms, tiles, units (the ring / star makers, their specials, 12×12 rooms, re-picks on the owner's seed, the bring-up roll) | crypts 18, 19, 21–24; Jail 29–31; Catacombs 34–36 | 1–10 |
+| The Barracks' placement by level 27 (FUN_00673120, docs/research/re/drlg-barracks.md): the anchor probes, Court Connect, Next / Forge in rolled order, the rect from the rooms' box; level 27's file from the layout, else its own roll on its level seed (the layout's value 0 leaves it) | Barracks 28 | 1–20 |
 
 Conditions those results hold under, so they aren't overstated:
 
@@ -619,9 +691,10 @@ Conditions those results hold under, so they aren't overstated:
   would (LvlMaze.txt in 1.14d has one Rooms column, game.exe's .bin has
   three; d2d uses the one for all) — untested for Nightmare / Hell.
 - **Tiles depend on room bring-up order** (edge sharing, see Room tiles).
-  Proven for game.exe's room-list order with only that level's rooms up.
-  In the game the order follows the player, and the town's or Cold
-  Plains' rooms may be up first; those orders aren't checked.
+  Proven for game.exe's room-list order with only that level's rooms up,
+  and the collision grids for shuffled and reversed orders
+  (`diff_drlg.py ... collision`). The town's or Cold Plains' rooms may be
+  up first in the game; that isn't checked.
 - **Emulator shortcuts.** String-table lookups return "" (names only),
   C++ static constructors (`__cinit`) aren't run, and memory past a file's
   end reads as zero. The last matters once: Act1/Outdoors/Trees.ds1
@@ -637,14 +710,13 @@ Conditions those results hold under, so they aren't overstated:
 |---|---|
 | The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
-| Other outdoor levels (Cold Plains, Stony Field, Dark Wood, Black Marsh, Tamoe Highland, Burial Grounds): cliff styles (FUN_00680070), cliff caves, waypoints (FUN_00674b70), per-level fills | not ported |
-| Other caves (levels 9+): theme rooms (FUN_006735f0), levels 9 / 10's extra specials | theme rooms not ported; specials ported, not diffed |
-| Other maze level types (crypts, act 2+) | not ported |
-| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp), not diffed; a maze's (FUN_00667970) not ported: in the preset record's order, one step each of the seed of the room that copies them (room +0x14; a maze: the level's, +0x1c4) — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
+| Act 2+ maze types; the Barracks' cross-level link to 27 (FUN_0066b790) | not ported |
+| Preset units that roll to stay (FUN_00667620) | ported outdoors (`stays`, units.hpp); diffed on Cold Plains' Cottages 2, whose row has Pops: presets with Scan or Pops roll at generation on the level seed (FUN_00667970), the rest on the seed of the room that copies them (room +0x14, the whole {low, high} — a maze room's was stepped once, so its high word isn't 666; diffed on the Jail and Catacombs). In the preset record's order, one step each — monsters 0xcc, 0xcd, 0x173, 0x174 kept when `low % 3 == 0`; MonPlace 0x21 when `low & 3`, 0x22 when odd, 0x23 when `!(low & 3)`, 0x24 always; objects 0xc4 / 0x105 when even, 0x245 when `low & 3`. It runs after the room's DT1 list and before its tiles (FUN_0061b730), whose seed FUN_0066ee40 resets, so tiles don't shift. Act 1: the Crypt, Jail, Catacombs, Fence Fill 1, Cottages 2 |
 | Units in other acts: the act 2 / act 4 MonPreset remaps, type-4 units (NPCs by name) | not ported |
 | LvlSub CheckAll stamps | not ported (no act 1 wilderness row uses them) |
-| Warp wall tiles (FUN_0066e260, lit warp walls), hidden orientation 8/9 tiles (FUN_0066d9e0), tile word bit 4 on non-plain paths beyond what these levels hit | not ported (the Blood Moor and the Den don't reach them) |
-| Room collision / logical areas (FUN_0066ccb0 / FUN_0066d110), automap | not diffed |
+| Doors outside act 1 (FUN_0066d9e0's type 1 and objects 0x5b / 0x5c), tile word bit 4 on non-plain paths beyond what these levels hit | not ported |
+| Logical areas (FUN_0066ccb0 / FUN_0066d110; room_tiles.hpp `logic_areas`) | diffed bit-exact on every Logicals room of act 1, seeds 1-3 (ids are ours, only id != 0 is used) |
+| Room collision, automap | not diffed |
 | Monster population on these rooms (components/rules/monsters.hpp) | uses the proven room seeds; its own rolls not diffed |
 | The app's use of it: d2d draws and walks the proven picks in the Blood Moor and the Den of Evil (`Level::picks`), and its warps take the player between them; where a warp puts the player is traced (below, "Taking a warp"); what counts as clicking one (2 cells, not LvlWarp's Select box) is a guess | wired up; warp arrival traced, not diffed |
 | What the server does with units: superunique mods and stat bonuses, minion placement, MonPlace units; objects' behaviour (shrines, chests); monster populating in general (d2d populates every room at load, in cell order, one game seed across both levels) | partly built, not diffed |

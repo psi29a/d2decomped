@@ -173,15 +173,14 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
         }
         if (fits(i)) ++i;
     }
-    if (town_rules)
-        for (int i = 0; i < count; ++i) {
-            const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
-            const int level = placed[std::size_t(i)].level;
-            if (const auto found = defs.find(level); found == defs.end() || !found->second.outdoor) continue;
-            for (const auto& rule : kAct1Flags)
-                if ((rule.level == level || rule.level == 0) && level != rule.not1 && level != rule.not2 && dir == rule.dir && next_dir == rule.next_dir)
-                    placed[std::size_t(i)].flags |= rule.flag;
-        }
+    for (int i = 0; i < count; ++i) {                         // FUN_00677180, both chains
+        const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
+        const int level = placed[std::size_t(i)].level;
+        if (const auto found = defs.find(level); found == defs.end() || !found->second.outdoor) continue;
+        for (const auto& rule : kAct1Flags)
+            if ((rule.level == level || rule.level == 0) && level != rule.not1 && level != rule.not2 && dir == rule.dir && next_dir == rule.next_dir)
+                placed[std::size_t(i)].flags |= rule.flag;
+    }
     return placed;
 }
 
@@ -198,6 +197,18 @@ inline std::vector<Placed> act1_layout(const LevelDefs& defs, const d2d::rules::
 // 3 townW1 — named for the side the Blood Moor is on.
 inline int town_file(const std::vector<Placed>& layout) {
     for (const auto& placement : layout) if (placement.level == 1) return placement.dir;
+    return -1;
+}
+
+// Courtyard 1's preset file (LvlPrest File1..3), from the side the Black
+// Marsh went (FUN_00677180): above rolls File2 / File3, below File1 /
+// File2 on the act seed; else -1, its own roll.
+inline int courtyard_file(const std::vector<Placed>& layout, d2d::rules::Rng act_seed) {
+    for (const auto& placement : layout) {
+        if (placement.level != 6) continue;
+        if (placement.dir == 1) return 2 - int(act_seed.next() & 1);
+        if (placement.dir == 3) return 1 - int(act_seed.next() & 1);
+    }
     return -1;
 }
 

@@ -25,9 +25,11 @@ namespace d2d::drlg {
 // LvlPrest.txt, what the generator needs: size in tiles, file count, the
 // loaded File1..6 (null when absent), and the columns that roll units.
 struct Preset {
-    int width = 0, height = 0, files = 0, scan = 0, pops = 0;
+    int width = 0, height = 0, files = 0, scan = 0, pops = 0, level_id = 0, kill_edge = 1;   // level_id: LvlPrest LevelId
     std::uint32_t dt1_mask = 0;                         // which LvlTypes files its rooms load
     std::array<const d2d::ds1::Map*, 6> maps{};
+    int populate = 1;                                   // LvlPrest Populate (0: its rooms flagged 0x800000, FUN_00666680)
+    int logicals = 0;                                   // LvlPrest Logicals (1: areas by walls, FUN_0066d110)
 };
 // LvlSub.txt, one row: the stamp sheet and its odds per theme.
 struct Sub {
@@ -43,7 +45,7 @@ struct OutdoorData {
     UnitIds ids;                                        // how DS1 units' ids map
 };
 // A walkable neighbour: its placed rect and its slot in this level's Vis.
-struct Neighbour { Placed rect; int slot = 0; };
+struct Neighbour { Placed rect; int slot = 0; bool preset = false; };   // preset: DrlgType 2
 struct OutdoorLevel {
     Placed rect;                                        // level, tiles, layout flags
     int sub_type = -1, sub_theme = -1, sub_waypoint = -1, sub_shrine = -1;
@@ -77,6 +79,9 @@ struct Outdoor {
         std::uint32_t seed = 0;
         int width = 8, height = 8, kind = 1;                     // kind 1 plain, 2 preset
         int def = 0, file = 0, preset_x = 0, preset_y = 0;          // a preset room's LvlPrest def, file and the preset's origin
+        bool rolled = false;                                        // Scan or Pops: its units rolled at generation, these stayed
+        std::vector<Unit> units;
+        std::uint32_t seed_high = 666;                              // a maze / preset level room's seed was stepped: its high word (the bring-up roll)
     };
     std::vector<RoomSeed> rooms;
     std::vector<PlainRoom> plain;                       // plain rooms' words, cell order
@@ -283,7 +288,7 @@ struct Gen {
                 else if (neighbour_rect.y == rect.y + rect.height) side = 3;
             }
             if (side < 0) { note("drlg: neighbour " + std::to_string(neighbour_rect.level) + " doesn't touch"); continue; }
-            const Node node{ neighbour_rect, side, neighbour_rect.level == 1, neighbour.slot };
+            const Node node{ neighbour_rect, side, neighbour.preset, neighbour.slot };
             auto before = [](const Node& first, const Node& second) {        // FUN_0066b6a0
                 if (first.side != second.side) return first.side < second.side;
                 switch (first.side) {
@@ -534,17 +539,74 @@ struct Gen {
         const int row_pick = seed(count);
         for (int i = 0; i < count; ++i) {
             const int y = (i + row_pick) % count + 1;
-            if (!(flags & 4) && !free_cell(x - 1, y)) continue;
-            if (!free_cell(x + 2, y)) continue;
+            if (!free_cell(x - 1, y)) continue;
+            if (!(flags & 4) && !free_cell(x + 2, y)) continue;                  // flags&4 jumps past the x+2 setup
             if ((g2c.get(x, y) & 0xf0000) != 0x30000 || (g2c.get(x + 1, y) & 0xf0000) != 0x30000) continue;
             place(x, y, 28, 1, false);
             place(x + 1, y, 28, 2 + ((flags & 4) ? 1 : 0), false);
             return;
         }
     }
+    // Cliff styles (FUN_00680070): a run of edges going right or up from a
+    // vertex where the outline turns, none on a contact span (flag 1),
+    // up to its last turn, becomes cliffs (style 1).
+    void cliffs() {
+        auto next = [&](int v) { return verts[std::size_t(v)].next; };
+        auto vx = [&](int v) { return verts[std::size_t(v)].x; };
+        auto vy = [&](int v) { return verts[std::size_t(v)].y; };
+        auto contact = [&](int v) { return (verts[std::size_t(v)].flags & 1) != 0; };
+        int prev = head;
+        for (int v = next(head); v != head; v = next(v)) prev = v;
+        int cur = head, start = head;
+        bool wrapped = false;
+        for (;;) {
+            int walk = cur;
+            const int after = next(cur);
+            if (((vx(cur) < vx(after) && vy(cur) < vy(prev)) || (vy(after) < vy(cur) && vx(cur) < vx(prev))) && !contact(cur) && !contact(prev)) {
+                int last = -1, to;
+                do {
+                    if (walk == start) wrapped = true;
+                    to = next(walk);
+                    if (vy(walk) < vy(to) || vx(to) < vx(walk) || contact(walk) || contact(to)) break;
+                    const int beyond = next(to);
+                    if (!contact(to) && ((vx(walk) < vx(to) && vy(to) < vy(beyond)) || (vy(to) < vy(walk) && vx(to) < vx(beyond)))) last = walk;
+                    walk = to;
+                } while (to != cur);
+                if (last != -1) {
+                    for (int v = cur; v != last; v = next(v)) verts[std::size_t(v)].style = 1;
+                    verts[std::size_t(last)].style = 1;
+                    flags |= 0x20;
+                }
+            }
+            cur = next(walk);
+            if (wrapped) return;
+            prev = walk;
+            start = head;
+            if (cur == head) return;
+        }
+    }
+    // A cliff cave (FUN_006801a0) on the first cliff edge cell: rows first
+    // on an even roll, else columns (x bounded by the height, as game.exe).
+    bool cliff_cave(int x, int y) {
+        const auto def = g04.get(x, y);
+        if (def != 16 && def != 17) return false;
+        place(x, y, def == 16 ? 25 : 24, -1, false);
+        flags |= 0x40;
+        return true;
+    }
     void features() {
         if ((flags & 0xc) && river_ok(cells_wide - 2)) river(cells_wide - 2);
-        if ((flags & 0x20) && !(flags & 0x40)) note("drlg: cliff cave entrance (flag 0x20) not implemented");
+        if ((flags & 0x20) && !(flags & 0x40)) {
+            bool found = false;
+            if (!(seed.next() & 1)) {
+                for (int y = 0; y < cells_high && !found; ++y)
+                    for (int x = 0; x < cells_wide && !found; ++x) found = cliff_cave(x, y);
+            } else {
+                for (int x = 0; x < cells_high && !found; ++x)
+                    for (int y = 0; y < cells_wide && !found; ++y) found = cliff_cave(x, y);
+            }
+            if (!found) note("drlg: no cliff for the cliff cave (game.exe stops here)");
+        }
         if ((flags & 0x1c) && !(flags & 0x40)) {
             const int pick = int(seed.next() & 3);
             const int x = (pick & 1) ? 3 : cells_wide - ((flags & 0x10) ? 4 : 5);
@@ -764,12 +826,45 @@ struct Gen {
             --count;
         }
     }
+    void waypoint() {
+        if (level.rect.level == 3) {                                            // by the Blood Moor's exit
+            int slot = 8;
+            for (const auto& n : level.neighbours) if (n.rect.level == 2) slot = n.slot;
+            const std::uint32_t bit = slot < 8 ? 1u << (slot + 4) : 0;
+            for (int y = 0; y < cells_high; ++y)
+                for (int x = 0; x < cells_wide; ++x) {
+                    if (!(g18.get(x, y) & bit) || !(g2c.get(x, y) & 0x400)) continue;
+                    const int wx = std::clamp(x, 1, cells_wide - 2), wy = std::clamp(y, 1, cells_high - 2);
+                    g18.op(wx, wy, 0x20000, 0);
+                    g2c.op(wx, wy, 0x800, 0);
+                    return;
+                }
+        }
+        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2)) {
+            if (!free_cell(x + 1, y + 1)) continue;
+            g18.op(x + 1, y + 1, 0x10000, 0);
+            g2c.op(x + 1, y + 1, 0x800, 0);
+            return;
+        }
+    }
+    void cottages(int def, bool extra) {                                        // FUN_006804e0
+        if ((seed.next() & 3) == 0) { by_road(def, -1); by_road(def, -1); return; }
+        by_road(def, -1);
+        if (extra && (seed.next() & 1)) by_road(49, -1);
+    }
     void fills() {
-        if (level.rect.level != 2) { note("drlg: fills for level " + std::to_string(level.rect.level) + " not implemented"); return; }
-        by_road(46, -1);                                                        // pond
-        const auto roll = seed.next();                                             // FUN_006804e0(0, 47)
-        by_road(47, -1);
-        if ((roll & 3) == 0) by_road(47, -1);
+        auto any = [&](int def) { anywhere(def, -1, 0, 0xf); };
+        switch (level.rect.level) {
+        case 2: by_road(46, -1); cottages(47, false); break;                   // pond
+        case 3: cottages(48, true); any(44); break;
+        case 4: by_road(160, -1); by_road(45, -1); any(162); cottages(47, true); cottages(42, false); any(31); return;
+        case 5: any(161); any(41); any(40); cottages(48, true); cottages(43, false); break;
+        case 6: any(163); any(38); any(39); cottages(47, true); cottages(42, false); break;
+        case 7: cottages(48, true); cottages(43, false); any(31); return;
+        case 17: place(1, 1, 108, -1, false); return;                           // the Mausoleum
+        case 39: any(50); any(46); any(31); any(38); any(39); break;
+        default: note("drlg: fills for level " + std::to_string(level.rect.level) + " not implemented"); return;
+        }
         anywhere(29, -1, 0, 0xf);
         anywhere(30, -1, 0, 0xf);
     }
@@ -927,21 +1022,27 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
     using namespace outdoor_detail;
     Outdoor out;
     Gen gen(data, level, seed, out.notes);
-    if (level.rect.level < 2 || level.rect.level > 7) gen.note("drlg: outdoor level " + std::to_string(level.rect.level) + " is act 1 only for now");
-    if (level.rect.level != 2 && level.rect.level != 3 && level.rect.level != 17) gen.note("drlg: cliff styles (FUN_00680070) not implemented");
+    const int id = level.rect.level;                    // FUN_006807f0
+    const bool wild = id >= 2 && id <= 7;
+    if (!wild && id != 17 && id != 39) gen.note("drlg: outdoor level " + std::to_string(id) + " is act 1 only for now");
     gen.neighbours();
     gen.outline();
+    if (id != 2 && id != 3 && id != 17) gen.cliffs();
     gen.contacts();
     gen.borders();
-    gen.border_subs(0);
-    gen.features();
-    gen.border_subs(1);
-    gen.border_subs(2);
-    gen.transitions();
-    gen.border_subs(3);
-    out.roads = gen.roads();
-    if (level.rect.level >= 3 && level.rect.level <= 6) gen.note("drlg: waypoint placement (FUN_00674b70) not implemented");
-    gen.shrines(5);
+    if (wild) {
+        gen.border_subs(0);
+        gen.features();
+        gen.border_subs(1);
+        gen.border_subs(2);
+        gen.transitions();
+        gen.border_subs(3);
+        out.roads = gen.roads();
+    }
+    if (id == 39)
+        for (int sub = 0; sub < 4; ++sub) gen.border_subs(sub);
+    if (id >= 3 && id <= 6) gen.waypoint();
+    if (wild) gen.shrines(5);
     gen.fills();
 
     // The finish (FUN_006750f0): rooms in cell order, each allocation
@@ -974,10 +1075,17 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
                 if (!preset) { gen.note("drlg: LvlPrest def " + std::to_string(def) + " missing"); continue; }
                 (void)gen.seed(preset->files);                   // FUN_00666ed0: rolled, then replaced
                 const int file = int((flags >> 16) & 0xf);
+                const auto* map = file < 6 ? preset->maps[std::size_t(file)] : nullptr;
+                // FUN_00667970: with Scan or Pops the units roll to stay now, on the level seed.
+                const bool rolled = map && (preset->scan || preset->pops);
+                std::vector<Unit> units;
+                if (rolled) {
+                    units = ds1_units(*map, data.ids);
+                    std::erase_if(units, [&](const Unit& unit) { return !stays(unit, data.ids, gen.seed); });
+                }
                 for (int tile_y = 0; tile_y < preset->height; tile_y += 8)
                     for (int tile_x = 0; tile_x < preset->width; tile_x += 8)
-                        out.rooms.push_back({ cell_x * 8 + tile_x, cell_y * 8 + tile_y, alloc().low, 8, 8, 2, def, int((flags >> 16) & 0xf), cell_x * 8, cell_y * 8 });
-                const auto* map = file < 6 ? preset->maps[std::size_t(file)] : nullptr;
+                        out.rooms.push_back({ cell_x * 8 + tile_x, cell_y * 8 + tile_y, alloc().low, 8, 8, 2, def, file, cell_x * 8, cell_y * 8, rolled, units });
                 if (!map) { gen.note("drlg: preset " + std::to_string(def) + " file " + std::to_string(file) + " not loaded"); continue; }
                 const int origin_x = cell_x * 8, origin_y = cell_y * 8;
                 for (int y = 0; y < preset->height && y < map->height() && origin_y + y < height; ++y)

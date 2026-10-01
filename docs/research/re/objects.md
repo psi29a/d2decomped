@@ -90,7 +90,9 @@ the object's flag byte:
   So an unlocked chest is empty one time in four. With that flag and
   nothing dropped, up to 10 more tries.
 - objects.txt 397 has its own tiered table (gold, potions); not in act 1's
-  levels.
+  levels. The rounds, 397's table, the other containers and the stands:
+  drops.md ("Chests", "Stands"), all emulator-checked (`drops.py objects`,
+  `drops.py stands`).
 - Then the trap fires (`FUN_00582510`, the table at 0x732cec). Trap 8
   first checks its monster (below); a flying scimitar in act 1 means no
   trap at all. Otherwise the chest's trap event (`FUN_005417d0`) and
@@ -184,11 +186,12 @@ act's two marker levels at 0x6e1988: (2, 37), (41, 73), (76, 102),
 
 In d2d: `components/rules/shrines.hpp`, `Town::operate`.
 
-- Proven: the tables and branches above, read from the decompile. Not
-  emulator-checked.
-- Seeds: the object seed starts as game.exe's, but d2d starts it afresh
-  per level and draws in DS1 order; game.exe draws one rng across the
-  game as rooms come up, so which shrine a spot gets can still differ.
+- Proven: the tables and branches above, read from the decompile. The
+  opening (`open_container`) is emulator-checked; the traps aren't.
+- Seeds: one object seed a game (game +0x10f0, `Spawning::objects`), drawn
+  as rooms come up and containers open, in that order: `drlg-dump <seed> 0
+  game` against `objgroups.py <seed> game` (levels in turn, rooms in any
+  order, every container opened) matches.
 - Built: every recharge and boost shrine (the skill shrine as
   item_allskills 127 on the skill levels), gem (18: `FUN_00582c40`, the
   first inventory gem with a misc.txt BetterGem goes up one, else a
@@ -203,7 +206,6 @@ In d2d: `components/rules/shrines.hpp`, `Town::operate`.
   the fires last until a new game; trap 8's monsters stand up aware,
   without mode 8, one step apart; the variant comes from the level's
   region rows (Levels' mon list and `FUN_006510c0` not read).
-- Not built: chest 397's table.
 - Traced but not emulator-checked: everything under "Trap monsters" and
   "Trap 8". Open: unit flag 0x200's source, `FUN_006510c0`'s variant step,
   the AI's target pick.
@@ -335,31 +337,52 @@ byte, `+8` = 0x7fffffff sentinel, `+0x1c` = -1. Also 8 "buckets" at
 `objrgn+0x28..+0x44` count objects.txt rows by their byte at `+0xb2`, with
 per-bucket arrays at `objrgn+0x8..+0x24`.
 
-**Ripple on d2d today.** Currently d2d's Blood Moor matches game.exe (155
-monsters at seed 3, 107 fallen1 / 24 quillrat1 / 24 zombie1) because the
-emu oracle also skips 552610 (it only calls FUN_006194a0 for level alloc,
-not FUN_0052d160). Adding 552610 to d2d without adding it to the oracle
-will change every subsequent room-seed roll and break the count. The port
-therefore needs its oracle side (emu drives per-room populate) landed
-alongside the C++ implementation.
+**d2d today (2026-09-30).** `components/game/objgroups.cpp` replays
+every room as game.exe brings it up: FUN_0054f060's seed step, the presets
+(FUN_005559a0: objects, warps, preset monsters with their parties,
+superuniques, MonPlace unique packs and champions), then 552610's picks
+through each PopulateFn on the object seed, with the room's collision
+grid stamped as game.exe does. It is bit-exact against `emu/objgroups.py`
+for map seeds 1-50 on every Act 1 level with ObjGrp entries, except
+where our tiles differ first. Those are level 26's room layout and level
+23 seed 18. Level 36 seed 40 is the other case: the hidden 0/0 floor at
+cell 72,36 blocks (0x01) in game.exe's grid but not in ours, so a
+pack's spot fits for us.
+Check: `cd tools/emu && uv run python diff_drlg.py 1-20 <level> objgroups`.
 
-**d2d today.** `d2d::rules::place_object_groups` (monsters.hpp) runs the
-seed steps of the algorithm — 8 unconditional room-seed steps plus one
-extra per fired slot, and returns which objgroup entry was picked. Called
-per room at `build_level` time (gamedata.cpp) with the room's index and
-the level's room count so the throttle can fire past 75 % population, the
-picks land in `Level::npcs` alongside preset objects (positions are a
-naive object-seed pick, not the PopulateFn's own), and the post-552610
-seed is cached on `Level::post_object_group_seeds`. `populate()` then
-feeds that cached seed to `SpawnRoom` so monster rolls line up with
-game.exe's without recomputing 552610 per tick. Levels.txt ObjGrp0..7 /
-ObjPrb0..7 land on `LevelMon`; objgroup.txt on `GameData::obj_groups`;
-objects.txt PopulateFn byte isn't parsed (the pick uses `add_object` to
-compute mode / trap / shrine like a preset object). On the Blood Moor's
-default map seed: 34 random object-group placements land in the level.
+Findings along the way:
 
-Not built: bit-exact PopulateFn positions (`FUN_00731d00`'s 9 handlers
-each have their own subtile-pick algorithm on the object seed), and the
-objgroup +0x167 gate that game.exe reads with an objgroup id as if it
-were an objects.txt row (a likely bug we skip).
+- A warp tile (orient 10/11, style <= 7) flags its room 0x800000
+  (FUN_0066e360) lit or not, so it gets no groups.
+- A door or warp wall tile (orient 8..11) is tile flag 2 (FUN_0066db20):
+  collision 0x10 like a word with 0x10000000.
+- Barrels (FUN_00551850): the first is exploding 1 in 3
+  (`rgn % 3 == 0`, 0x551933), each one after it 1 in 4 (`rgn & 3`,
+  0x551b82).
+- A monster type joins the object region (FUN_00547bc0) when MonStats2
+  TotalPieces (+0xec) > 2 and the region has 13 types or fewer, rolling
+  its component sets on the unit seed (FUN_005bdb20). TotalPieces is its
+  own column, not a count of the layers present.
+- Blood Raven's oninit MonEquip bow (FUN_005d6b60): one own-seed roll,
+  then two game-seed steps for the item.
+- A MonPlace champion (FUN_0054e1e0): the leader and its MonStats party
+  (FUN_005b2830), one unused own roll (FUN_005a48c0 -> FUN_005a0c00),
+  then own(3) + 1 more champions at radius 4, each with its own party.
+- Gold piles (InitFn 28, FUN_0054f8c0 -> FUN_00559300): the spot nearest
+  (x + 2, y + 3) clear of 0x3e01 whose walk back to the pile's try is
+  clear of 0x801 (FUN_0064dea0 -> FUN_0066a670). The walk steps by
+  `data\global\expfield.d2` (FUN_0066a2a0 loads it: a 10-byte header,
+  then 256 x 256 directions 0..7 toward the centre, 8 at it; dx/dy tables
+  at 0x749780 / 0x7497a4).
+- An object's footprint takes its start mode's HasCollision, and that
+  mode is ON only when preoperated. A lit Mode2 doesn't count: Tristram's
+  bodies (239) start NU and block.
+- A unique pack's random spot (FUN_0054dc40, near flag set) skips a try
+  within WarpDist of an entrance (FUN_0054db50). An entrance is a
+  level+0x1e0 point, the centre of a room2 flagged 0x30000 (a waypoint)
+  or 0x10 << slot for a slot with a Warp (FUN_00642480). Beyond those, it
+  also skips the FUN_00619e50(…, 0xb) point. The slot bits come from the
+  preset's DS1 (FUN_00667970): a wall of orientation 10/11, style < 8,
+  sequence 0 or 4 or hidden. A walk-through exit (Jail 3 to the Inner
+  Cloister) has no warp tile but still counts.
 

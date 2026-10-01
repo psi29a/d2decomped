@@ -175,3 +175,7 @@ third; the table beyond 0xae holds other data.
 
 d2d's `cmd::UseItem` is 0x20 (use an inventory item); right-clicking a
 belt potion sends it too, where game.exe sends 0x26 with the item's id.
+
+The field layouts of the gameplay packets (both directions), what the
+client works out for itself, and how they map onto d2d's View:
+net-packets.md.

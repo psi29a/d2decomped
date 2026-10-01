@@ -18,7 +18,7 @@ d2d copies.
 
 **Toggles:** an improvement that changes what a player sees can be turned
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
-`trans_roof` (improvement 4).
+`trans_roof` (improvement 4), `autoloot` (improvement 5).
 
 ## Improvements
 
@@ -28,6 +28,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 2 | A save's map id of 0 | Reused as the seed (a map from seed 0) | Treated as "none": the run's random seed | d2d's early saves wrote 0 | only for those saves | main.cpp `game_seed`, drlg.md |
 | 3 | A wrapped tint byte (Transform 8) | Read back as Transform 8 (`FUN_005038d0`) | The same | — | no | matched since ab51cf0: not a deviation after all (bugs.md #12) |
 | 4 | Roofs over the player | Drawn whole: a player under a roof or behind a tent top is hidden (walls in front fade to half, roofs never do; walls.md) | A soft circle round the player's body (radius 70 px) shows through roofs: a quarter of the roof in the inner half, back to solid at the rim. `--toggle trans_roof=off` turns it off | Keep the player, and loot on a hut's floor, in sight | yes | world.hpp `Hole`, `g_roof_cutout` |
+| 5 | Gold on the ground | Picked up only by clicking it | Walking within half a cell of gold puts it in the purse (on by default). `--toggle autoloot=off` turns it off | Less clicking for coins | yes | world.cpp `autoloot_gold`, main.cpp `g_autoloot` |
 
 ## Approximations
 

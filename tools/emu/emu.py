@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pefile
+import unicorn.x86_const
 from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_INVALID, UC_PROT_ALL
 from unicorn.x86_const import *
 
@@ -78,6 +79,7 @@ class Emu:
         return a
 
     def r32(self, a): return struct.unpack("<I", self.mu.mem_read(a, 4))[0]
+    def r16(self, a): return struct.unpack("<H", self.mu.mem_read(a, 2))[0]
     def s32(self, a): return struct.unpack("<i", self.mu.mem_read(a, 4))[0]
     def w32(self, a, v): self.mu.mem_write(a, struct.pack("<I", v & 0xFFFFFFFF))
     def read(self, a, n): return bytes(self.mu.mem_read(a, n))
@@ -100,7 +102,7 @@ class Emu:
         self.slots[a] = (f"hook_{addr:x}", lambda e: (fn(e), nstack))
         self.mu.mem_write(addr, b"\xe9" + struct.pack("<i", a - (addr + 5)))
 
-    def call(self, addr, *args, ecx=0, edx=0, cdecl=False, limit=0):
+    def call(self, addr, *args, ecx=0, edx=0, cdecl=False, limit=0, regs=None):
         mu = self.mu
         sp = STACK + STACK_SIZE - 0x1000
         for v in reversed((RET_MAGIC,) + tuple(args)):
@@ -110,6 +112,7 @@ class Emu:
         mu.reg_write(UC_X86_REG_EBP, 0)
         mu.reg_write(UC_X86_REG_ECX, ecx)
         mu.reg_write(UC_X86_REG_EDX, edx)
+        for name, v in (regs or {}).items(): mu.reg_write(getattr(unicorn.x86_const, "UC_X86_REG_" + name.upper()), v)   # custom-convention args (EBX, ESI, EDI, EAX)
         try:
             mu.emu_start(addr, RET_MAGIC, count=limit)
         except UcError as err:
@@ -199,6 +202,10 @@ class Emu:
     def w_InterlockedDecrement(self):
         a = self.arg(0); v = self.r32(a) - 1; self.w32(a, v); return v, 1
     def w_GetTickCount(self): return 0, 0
+    def w_IsBadCodePtr(self): return 0, 1
+    def w_PtInRect(self):
+        r = self.arg(0); x, y = self.arg(1) - (1 << 32) * (self.arg(1) >> 31), self.arg(2) - (1 << 32) * (self.arg(2) >> 31)
+        return int(self.s32(r) <= x < self.s32(r + 8) and self.s32(r + 4) <= y < self.s32(r + 12)), 3
     def w_GetCurrentThreadId(self): return 1, 0
     tls = {}
     def w_TlsAlloc(self): Emu.tls[len(Emu.tls) + 1] = 0; return len(Emu.tls), 0
@@ -231,6 +238,11 @@ class Emu:
     def w_RegSetValueExA(self): return 5, 6
     def w_GetFileAttributesA(self): return 0xFFFFFFFF, 1  # no loose files on disk
     def w_CreateFileA(self): return 0xFFFFFFFF, 7
+    def w_CopyRect(self): self.mu.mem_write(self.arg(0), self.read(self.arg(1), 16)); return 1, 2
+    def w_PtInRect(self):
+        l, t, r, b = struct.unpack("<4i", self.read(self.arg(0), 16))
+        x, y = struct.unpack("<2i", struct.pack("<2I", self.arg(1), self.arg(2)))
+        return int(l <= x < r and t <= y < b), 3
     def w_wsprintfA(self):              # cdecl: caller pops
         out, fmt = self.arg(0), self.cstr(self.arg(1))
         args, i, s = [], 2, ""

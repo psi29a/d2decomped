@@ -14,12 +14,25 @@ of the room (`FUN_00619660/6a0/6e0`), `FUN_0064c790`:
   stores subtile rows bottom-up;
 - adds bits from the tile entry's own flags (+0x14 of a 0x30 record):
   0x02 → 0x10, 0x40 → 0x01, 0x80 → 0x04, over the whole tile
-  (`FUN_0064c700`). Not in d2d yet — the DS1 bits behind them aren't
-  mapped.
+  (`FUN_0064c700`): FUN_0066db20's tile flags, each word sharing the
+  tile ORs its own in.
+
+The grid lives at room1 +0x20 (`{x, y, w, h}` in subtiles, then the room's
+tile rect; u16 cells from +0x24, row-major). It's made with the room1
+(`FUN_00619890`), right after the room's tiles (`FUN_0061b190`): the tiles
+of the near rooms already up count, each clipped to this room's rect
+(`FUN_00619df0`). A room coming up later that re-picks a shared tile
+(`FUN_0066e740`) patches the grid of the room it lies in, if that's up
+(`FUN_0064c860`: the old tile's flags off, the new one's on). So a grid
+depends on the order the rooms came up in, as the tiles do.
 
 Bits: 0x01 blocks walking, 0x08 blocks the player; walking units test
 mask 0x1c09 (walls 0x09 plus door 0x400, monster 0x800, player 0x1000 —
 units stamp their own footprints). Outside every room reads 0x27.
+An object's footprint bits (`FUN_006209d0`): 0x400, | 0x04 with
+BlockMissile; 0x8000 for a SubClass 4 non-door; a door 0x806 with
+BlocksVis, else 0x808 with BlockMissile, else 0x400. An item 0x200, a
+warp tile 1.
 
 ## Rects and units
 
@@ -36,9 +49,15 @@ units stamp their own footprints). Outside every room reads 0x27.
 
 ## d2d
 
-- `Scene::world_walk` is built like the room grid (flipped rows), one grid
-  for the whole DS1; objects and standing NPCs stamp 0x01 over their
-  size rect.
+- `Level::walk` is built like the room grids (flipped rows), one grid
+  for the whole DS1, from the picks as each cell's room had them when it
+  came up (`Level::Pick::stamp`, `Level::patches`); objects and standing
+  NPCs stamp 0x01 over their size rect.
+- Order: a level is built in list order; as the player brings rooms up
+  (`player_moved`, the arrived room then the near list's), `relevel` lays
+  the whole level again in that order (the rest after, list order). The
+  oracle: `diff_drlg.py 1-10 <level> collision` brings game.exe's rooms up
+  shuffled ($ORDER) and compares every room's grid (levels 2–39, 10/10).
 - `Scene::unit_blocked` is the plus test with mask 0x09.
 - Pathing: `rules::find_path` (8-way A* over subtiles) + string-pulling
   (`walk_path`) for the player, NPC approaches and the merc. D2's own

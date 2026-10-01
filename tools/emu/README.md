@@ -39,6 +39,13 @@ Needs the launcher's `bin/game.exe` (found through the launcher's
     name and a stack of return addresses, so you add them as you go.
   - `backtrace()` scans the stack for code addresses. It's a heuristic,
     not an unwind.
+- `drops.py`: the drop roller (FUN_0055a6d0) as an oracle. It diffs
+  `build/tools/drop-dump` over a seed range (`drops.py 1-100000`), or
+  every treasure class's entries (`drops.py tables`), made items
+  (`drops.py items`), containers opened (`drops.py objects`) and armor
+  stands' / weapon racks' items (`drops.py stands`). Item creation is
+  hooked, so only the dropper's seed moves. See
+  `docs/research/re/drops.md`.
 - `drlg.py`: the level generator as an oracle.
   - `boot()` loads every data table (FUN_00619300(0, 1, 1), about 1.4 s
     warm), including the LvlPrest and LvlSub DS1s.
@@ -58,6 +65,48 @@ Diff it against the port:
 build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
 (cd tools/emu && uv run python drlg.py 3) > game.txt && diff game.txt ours.txt
 ```
+
+- `objgroups.py`: each room's preset units and random object groups
+  (FUN_005559a0, FUN_00552610) as an oracle: the room seed in and out,
+  the object seed, and every object made. The regression check for
+  `components/game/objgroups.cpp`, which should report every seed matching
+  for every Act 1 level:
+
+```
+uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
+uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at each group object (FUN_00555da0)
+./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
+```
+
+- `sight.py`: a monster's line of sight (FUN_00622920 → FUN_0064e260)
+  on random walls in a fake room, against a line-for-line Python copy of
+  `rules::sight_blocked`. `uv run python sight.py 20000 3` should print
+  `ok`. See `docs/research/re/monster-ai.md`.
+- `search.py`: a monster's target search (FUN_005dd7f0) on random players
+  with pets, good and neutral monsters in lists 8 / 9, rooms for the mode 5
+  search, and Attract's / Confuse's skill-set target (FUN_005dd610), against
+  `rules::search_pick` / `search_near` and ai.cpp's flow.
+  `uv run python search.py 20000 2` should print `ok`; `--break` should not.
+- `moves.py`: a monster's move. The toward pather (FUN_00679c80) runs on
+  random walls, and the chase check (FUN_006503f0 → FUN_00650350: stop,
+  go on, re-path, the budget) runs on random paths and targets. Both are
+  compared against line-for-line copies of `rules::toward_path` /
+  `rules::chase_check`, and the modes that think at once (DAT_0073c6d0)
+  against ai.cpp's. `uv run python moves.py` should print `ok` three times.
+  `--break` breaks the copy and should print mismatches; `--dump` prints the
+  test_monsters.cpp cases.
+- `collision` (drlg.py `collision_dump`): the level's rooms brought up out
+  of list order ($ORDER shuffle, the default, reverse or list), then every
+  room's collision grid (room1 +0x20), against `relevel`'s:
+  `uv run python diff_drlg.py 1-10 2 collision`, `./sweep.sh 1-10 collision`.
+- `game` (objgroups.py `game_dump`): one game, $LEVELS (default 2,8,4,9)
+  made in turn, each level's rooms brought up in $ORDER and populated newest
+  first, then every container they made opened (drops.py's openers): per
+  room the room1 seed, the room seed, the object and game seeds, the objects
+  made; per container its drops and the seeds after. The check for the one
+  object seed and the room order: `uv run python diff_drlg.py 1-20 0 game`.
+- `units` brings game.exe's rooms up in $ORDER first (drlg.py `bring_up`):
+  the units and warps come out the same in any order.
 
 ## Adding a new oracle
 

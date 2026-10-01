@@ -97,7 +97,9 @@ struct View {
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
-    int den_state = 1, den_log = 0, den_left = 0;   // the Den quest's record: state, log state, monsters left (the quest log)
+    std::array<std::uint8_t, 7> quest_log{};     // Act 1's log states as the server sends them, by quest (FUN_00544190)
+    std::array<std::uint16_t, 7> game_quests{};  // the game's quest flags (FUN_00544720): 13 done in this game, 15 closed at the first join
+    int den_left = 0;                            // the Den's monsters left (the quest log)
     // The player's own character (what only its owner is told): header,
     // stats, items with their unit ids, the item in hand; the open store's
     // stock and the hire list.
@@ -141,15 +143,20 @@ struct World {
     int   take_warp = -1;                  // the warp of `level` the player is walking to
     int   interact_npc = -1;               // the object / NPC being walked to
     int   pick_item = -1;                  // the ground item being walked to (its unit id)
+    bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
+    struct Door { int mode = 0; std::uint32_t when = 0; };
+    std::map<std::pair<const Level*, int>, Door> doors;   // doors used: their mode (0..7), when it changed
     struct Fire { const Level* level; const Npc* npc; float x, y; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning
     // The player's town portal: [0] where it was cast, [1] its twin in town
-    // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair.
+    // (FUN_0056d130 / FUN_0056cf40); a new one closes the old pair. [2]:
+    // the Cairn Stones' portal to Tristram (object 60, FUN_005a9930), [3]
+    // its twin in Tristram back to them.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    std::array<Portal, 2> portal{};
-    int take_portal = -1;                  // the portal (0 / 1) the player is walking to
+    std::array<Portal, 4> portal{};
+    int take_portal = -1;                  // the portal (0..3) the player is walking to
     // The player's corpses (FUN_0057f700): where they fell, what they wore
     // and had in hand, 75% of the experience the death took; at most 16.
     struct Corpse { const Level* level = nullptr; float x = 0, y = 0; int dir = 0; std::vector<d2d::d2s::Item> items;
@@ -159,6 +166,7 @@ struct World {
     int last_pmode = -1;                   // the player's mode at the last tick (death's stages)
     std::int64_t exp_lost = 0;             // what the last death took
     std::uint32_t now = 0;                 // the tick's time
+    std::uint32_t arrived_at = 0;          // when the player last changed level (pcdata+0x160)
     std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
     std::vector<Event> events;             // for the client, since it last looked
     const CharacterStore* characters = nullptr;   // where the character is saved
@@ -167,8 +175,14 @@ struct World {
     std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
     int next_item_id = 1;                  // the next item's unit id
     d2d::rules::DenQuest den;              // this game's Den of Evil
+    d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter
+    d2d::rules::BurialQuest burial;        // and Sisters' Burial Grounds
+    d2d::rules::TowerQuest tower;          // and the Forgotten Tower
+    d2d::rules::ToolsQuest tools;          // and Tools of the Trade
+    d2d::rules::CainQuest cain;            // and The Search for Cain
     int den_left = -1;                     // its monsters alive when last counted
     std::uint32_t den_log_at = 0;          // when the log moves to "Return to Akara", 0 none
+    std::array<bool, 7> closed_at_join{};  // Act 1 quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
     // Every item of the character has a unit id (new ones get theirs).
@@ -223,6 +237,17 @@ struct World {
     // ponytail: magic shrines (16..22) other than gem and warping only
     // log; D2's operate range is 2 cells here.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    // The OperateFns `operate` handles; one-shot ones stay used (operated).
+    // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
+    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26, 30 }, operate_fn) || is_door(operate_fn); }
+    static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
+    // A door, trap door or secret door (rules::door_mode): its new mode,
+    // footprint and sound.
+    void operate_door(int npc_index, std::uint32_t now_ms);
+    // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
+    // whoever's within 3 subtiles and sets off the unopened ones nearer
+    // than 3.
+    void explode(int npc_index, std::uint32_t now_ms);
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
@@ -233,7 +258,8 @@ struct World {
     // ponytail: the AI's range check (aip1) is skipped — the player opening
     // the chest is always close; chainlightning doesn't hop; trapfirebolt's
     // fireexplode isn't spawned.
-    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
+    // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
+    void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
@@ -282,6 +308,36 @@ struct World {
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
     // comes along; the automap and monsters are the new level's.
     void arrive(const Level* destination, float arrive_x, float arrive_y, const char* how);
+    std::vector<d2d::rules::QuestMsg> quest_talk(int hc_idx);   // every quest's messages from that NPC
+    void andariel_died(const Fight::Kill& kill, std::uint32_t now_ms);
+    void blood_raven_died(std::uint32_t now_ms);
+    void kashya_merc();
+    void countess_died(std::uint32_t now_ms);
+    // The Countess's treasure (missile 332, towerchestspawner, one a chest
+    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300).
+    struct Treasure { const Level* level; int npc; int left; };
+    std::vector<Treasure> treasure;
+    void tower_treasure(std::uint32_t now_ms);
+    // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
+    void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
+    // Tools of the Trade: whether the player has the Horadric Malus
+    // (FUN_00558110 'hdm '); the malus stand operated (OperateFn 21).
+    bool holding_malus() const;
+    void malus_stand(int npc_index, std::uint32_t now_ms);
+    // The Search for Cain's objects (the tree, the stones, the Gibbet).
+    void cain_operate(int npc_index, std::uint32_t now_ms);
+    // Tristram Cain (FUN_005e7880, AI NpcOutOfTown, with the a1q4 record's
+    // +0x67 / +0x9c target, +0x95 portal): `npc` his Level::npcs slot in
+    // Tristram (-1: not out), `stage` the AI data's +0x14 (-1: the Gibbet
+    // still opening), `tries` +0x18, `next` his next think.
+    // Subtiles: where he heads (AI +0xc / +0x10) and the noted spot (quest +0x9c / +0xa0).
+    struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; };
+    CainWalk cain_walk;
+    Portal cain_portal{};                  // his portal (object 189, at the spot): no twin, not selectable
+    void cain_step(std::uint32_t now_ms, float elapsed);
+    // Whether the player carries an item of `code`.
+    [[nodiscard]] bool carries(std::string_view code) const;
+    void set_waypoint(int index) { if (index >= 0 && index < 40) character.header.waypoints[std::size_t(character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 
     // Dying (FUN_00580ec0 → FUN_00535ab0), killed by a monster:
     // - experience (FUN_005359f0): DifficultyLevels DeathExpPenalty % of the

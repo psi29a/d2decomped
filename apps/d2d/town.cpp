@@ -97,9 +97,11 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ corpse.x, corpse.y, &anim, corpse.dir, corpse_name, now_ms - (anim.length_ms() - 1), -3000 - corpse.which });
     }
     // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
-    // 768 ms), then ON; named by where they lead (-2000 - which).
+    // 768 ms), then ON; named by where they lead (-2000 - which). Tristram
+    // Cain's (which 4, object 189: its token tP is TP's files, MPQ names
+    // being case-blind) has no name: Selectable0..2 all 0.
     for (const auto& portal : view.portals) {
-        const Level* destination = scene.level(portal.destination);
+        const Level* destination = portal.which < 4 ? scene.level(portal.destination) : nullptr;
         const bool opening = now_ms - portal.born < kPortalOpenMs;
         out.push_back({ portal.x, portal.y, &scene.npc_anim(scene.town_portal, opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
                         opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
@@ -382,7 +384,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                     for (const auto& entry : kQuestLog)
                         if (entry.act == quest_log.act && entry.slot == quest_log.slot)
                             if (const auto text = quest_text(character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))], entry.quest,
-                                                          { view.den_state, view.den_log, view.den_left }); text.speech)
+                                                          { view.quest_log, view.game_quests, view.den_left }); text.speech)
                                 replay_speech = text.speech;
                 quest_log.close_down = quest_log.last_down = false;
             }
@@ -549,6 +551,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                 npc_menu = open_respec_menu(*scene, who, screen_x, screen_y);
             } else if (action == NpcMenuState::kRespecOk) {
                 net.send(cmd::Respec{ who });
+            } else if (action == NpcMenuState::kGoEast) {
+                net.send(cmd::GoEast{ who });
+            } else if (action == NpcMenuState::kImbue) {
+                // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
+                // the item in hand.
+                net.send(cmd::Imbue{ who });
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), frame_ms);
                 net.send(cmd::QuestMessage{ who, npc_menu_arg });
@@ -618,7 +626,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
         }
         // Waypoint panel: tabs switch acts, cancel (or the row of the
         // level you're in) closes it.
-        // ponytail: no travel yet — another row closes the panel too.
         if (waypoint.open) {
             const bool on_cancel = mouse.x >= kCharPanelX + 0x111 && mouse.x < kCharPanelX + 0x111 + 0x24
                                 && mouse.y >= 60 + 0x183 && mouse.y < 60 + 0x183 + 0x22;
@@ -626,8 +633,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (mouse.press_this_frame) {
                 if (const int tab = waypoint_tab_at(character.header, character.expansion, mouse.x, mouse.y); tab >= 0) waypoint.tab = tab;
                 else if (const int row = waypoint_row_at(*scene, waypoint, character.header, mouse.x, mouse.y); row >= 0) {
-                    d2d::log::info("not implemented: waypoint travel to {}",
-                                   scene->waypoint_levels[std::size_t(waypoint.tab)][std::size_t(row)].name);
+                    net.send(cmd::Waypoint{ waypoint.npc, scene->waypoint_levels[std::size_t(waypoint.tab)][std::size_t(row)].level });
                     waypoint = {};
                 }
             }
@@ -673,7 +679,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2002) || (hovered_npc <= -3000 && hovered_npc > -3016))
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2004) || (hovered_npc <= -3000 && hovered_npc > -3016))
                 out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ world_x, world_y, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
@@ -743,7 +749,7 @@ auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
             return;
         }
         if (open_ui.kind == ev::OpenUI::waypoint) {
-            waypoint = { .open = true };
+            waypoint = { .open = true, .npc = open_ui.npc };
             inv_open = char_open = stash_open = cube_open = quest_log.open = false;
             return;
         }
@@ -797,7 +803,8 @@ auto Town::open_menu(int npc) -> void {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
                 return !d2d::rules::qbit(quest_bits, 41, 0) && (d2d::rules::qbit(quest_bits, 41, 1) || difficulty == 2);
-            }());
+            }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
+            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
     }
 
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
@@ -847,13 +854,13 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open
             && draw_quest_log(framebuffer, *scene, quest_log, character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))],
-                              { view.den_state, view.den_log, view.den_left }, frame_ms))
+                              { view.quest_log, view.game_quests, view.den_left }, frame_ms))
             questdone_sound = true;                    // cursor_questdone
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats,
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (waypoint.open)
-            draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, 1, mouse.x, mouse.y);
+            draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
     }
 
 }  // namespace d2d::client

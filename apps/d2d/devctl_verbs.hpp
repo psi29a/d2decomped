@@ -101,8 +101,17 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "skillpt" && verb_args.size() >= 3) town.net.send(cmd::SkillPoint{ int_arg(2, 0) });
         else if (verb == "select" && verb_args.size() >= 4) town.net.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
         else if (verb == "belt" && verb_args.size() >= 3) town.net.send(cmd::UseBelt{ int_arg(2, 0) });
+        else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
+        else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
+        else if (verb == "hand" && verb_args.size() >= 3) town.net.send(cmd::ToCursor{ int_arg(2) });
+        else if (verb == "use" && verb_args.size() >= 3) town.net.send(cmd::UseItem{ int_arg(2) });
+        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ 1, int_arg(2), int_arg(3) });
+        else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
-                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot>\n");
+                                " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
+                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {
@@ -151,6 +160,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::format("ok {}\n", int(town.level->unit_blocked(std::strtof(args[2].c_str(), nullptr),
                                                                    std::strtof(args[3].c_str(), nullptr))));
         }
+        if (args.size() >= 3 && args[1] == "wp") {         // activate waypoint index n
+            town.world.set_waypoint(std::atoi(args[2].c_str()));
+            return std::string("ok\n");
+        }
         if (args.size() >= 4 && args[1] == "warp") {       // put the player at cell (x, y)
             town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
             town.player.y = town.target_y = std::strtof(args[3].c_str(), nullptr);
@@ -172,12 +185,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
         }
-        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // shrines / chests: index, cell, kind, shrine row, mode
+        if (args.size() >= 2 && args[1] == "objects" && town.level) {   // operable objects: index, cell, kind (shrine, chest, opN), shrine row / trap, mode
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
-                if (const auto& npc = town.level->npcs[i]; npc.operate_fn == 2 || npc.operate_fn == 4)
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : "chest",
-                                       npc.operate_fn == 2 ? npc.shrine : npc.trap, npc.locked ? "locked" : "-",
+                if (const auto& npc = town.level->npcs[i]; npc.operate_fn > 0 && npc.root == "objects")
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : std::format("op{}", npc.operate_fn),
+                                       npc.operate_fn == 2 ? npc.shrine : npc.operate_fn == 4 ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";
         }
@@ -317,8 +330,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         }
         if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n> (quests)
             int keep = args.size() >= 3 ? std::atoi(args[2].c_str()) : 0;
-            for (auto& monster : town.world.fight.monsters)
-                if (monster.alive() && keep-- <= 0) hurt(*scene, monster, monster.hit_points, town.world.now);
+            auto& monsters = town.world.fight.monsters;
+            for (std::size_t i = 0; i < monsters.size(); ++i)
+                if (monsters[i].alive() && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
@@ -396,7 +410,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         std::string out;
         for (const auto& item : character.items) {
             out += "[" + item.code + " loc=" + std::to_string(item.location) + " slot=" + std::to_string(item.slot)
-                 + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel)
+                 + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel) + " id=" + std::to_string(item.id)
                  + std::format(" size={}x{}", d2d::rules::item_size(scene->rules, item.code).first, d2d::rules::item_size(scene->rules, item.code).second)
                  + " at=" + std::to_string(item.column) + "," + std::to_string(item.row) + "]\n";
             for (const auto& line : item_lines(*scene, item, int(character.stats.get(d2d::d2s::kLevel))))

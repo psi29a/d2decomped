@@ -1,4 +1,4 @@
-// Definitions for common.hpp: the data dir, sprite blits, the test pattern.
+// Definitions for common.hpp: sprite blits, the test pattern.
 #include "common.hpp"
 
 #include <dc6.hpp>
@@ -7,46 +7,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <filesystem>
-#include <string_view>
 #include <vector>
 
 namespace d2d::client {
-
-fs::path default_data_dir(std::string_view cfg_data) {
-    // Resolution order (first hit wins):
-    //   1. --data CLI arg (handled in main; not here)
-    //   2. $D2_MPQ_DIR env var — portable, matches the test-suite convention
-    //   3. `data = …` in d2d.cfg (user / ./ / global dir, see main)
-    //   4. macOS: the launcher's QSettings-persisted path
-    //      (~/Library/Preferences/com.d2decomp.D2 Launcher.plist, key
-    //      game.dataPath) — same lookup tools/ghidra/import.sh uses
-    //   5. Eyeballed default: ~/Workspace/private/diablo2
-    if (const char* env = std::getenv("D2_MPQ_DIR"); env && *env)
-        return fs::path(env);
-    if (!cfg_data.empty()) return fs::path(cfg_data);
-
-#if defined(__APPLE__)
-    if (FILE* pipe = ::popen(
-            "defaults read 'com.d2decomp.D2 Launcher' game.dataPath 2>/dev/null",
-            "r"); pipe) {
-        char buf[1024];
-        std::size_t count = std::fread(buf, 1, sizeof(buf) - 1, pipe);
-        ::pclose(pipe);
-        while (count > 0 && (buf[count - 1] == '\n' || buf[count - 1] == '\r')) --count;
-        if (count > 0) {
-            buf[count] = '\0';
-            return fs::path(buf);
-        }
-    }
-#endif
-
-    const char* home = std::getenv("HOME");
-    if (!home) return {};
-    return fs::path(home) / "Workspace" / "private" / "diablo2";
-}
 
 void blit_sprite(std::vector<std::uint8_t>& framebuffer,
                  const d2d::dc6::Frame& frame,

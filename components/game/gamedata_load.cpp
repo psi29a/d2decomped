@@ -9,6 +9,7 @@
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <dt1.hpp>
+#include <install.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
 #include <outdoor_data.hpp>
@@ -29,6 +30,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -63,6 +65,11 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
     std::uint32_t mask = 0;
     for (std::size_t row = 0; row < prest.size(); ++row)
         if (prest.get(row, "Def") == "1") mask = std::uint32_t(std::atoll(std::string(prest.get(row, "Dt1Mask")).c_str()));
+    for (std::size_t row = 0; row < prest.size(); ++row)            // the AI's line-of-sight rule (ai.cpp think)
+        if (const int def = std::atoi(std::string(prest.get(row, "Def")).c_str()); def >= 0 && prest.get(row, "Outdoors") == "1") {
+            if (std::size_t(def) >= game_data.prest_outdoors.size()) game_data.prest_outdoors.resize(std::size_t(def) + 1);
+            game_data.prest_outdoors[std::size_t(def)] = true;
+        }
     for (std::size_t row = 0; row < types.size(); ++row)
         if (types.get(row, "Id") == "1")
             for (int i = 0; i < 32; ++i)
@@ -129,7 +136,13 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
         return bytes ? d2d::txt::Table(*bytes) : d2d::txt::Table{};
     };
-    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup");
+    const auto monstats = txt("MonStats"), ms2 = txt("MonStats2"), monlvl = txt("MonLvl"), levels_table = txt("Levels"), objgroup = txt("objgroup"), objects = txt("objects");
+    for (std::size_t row_index = 0; row_index < objects.size(); ++row_index) game_data.obj_subclass.push_back(std::uint8_t(std::atoi(std::string(objects.get(row_index, "SubClass")).c_str())));
+    // FUN_0066a2a0: expfield.d2, a 256 x 256 step-toward-centre direction table past a 10-byte header.
+    if (auto bytes = mpqs.try_read(R"(data\global\expfield.d2)"); bytes && bytes->size() >= 10 + 0x10000) {
+        const auto* field = reinterpret_cast<const std::uint8_t*>(bytes->data()) + 10;
+        game_data.field.assign(field, field + 0x10000);
+    }
     if (monstats.size() == 0 || ms2.size() == 0) return;
     // objgroup.txt by Offset (0..132 in 1.14d): a rare column outside 0..N
     // still gets a slot, so we size by max Offset + 1.
@@ -168,10 +181,17 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.min_grp = num(text("MinGrp")); type_info.max_grp = num(text("MaxGrp"));
         type_info.party_min = num(text("PartyMin")); type_info.party_max = num(text("PartyMax"));
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
+        type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
+        type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
+        type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
-        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1";
-        type_info.miss_a2 = text("MissA2");
+        type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
+        type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
+        for (std::size_t skill = 0; skill < 3; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
+                                                   type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }
+        type_info.trans_lvl = num(text("TransLvl"));
+        type_info.spawn = text("spawn"); type_info.spawn_mode = text("spawnmode"); type_info.spawn_x = num(text("spawnx")); type_info.spawn_y = num(text("spawny"));
         type_info.undead = text("hUndead") == "1" || text("lUndead") == "1"; type_info.demon = text("demon") == "1";
         for (int element = 0; element < 3; ++element) {
             static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
@@ -182,6 +202,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.el_type[std::size_t(element)] = element_type == kEl.end() ? -1 : int(element_type - kEl.begin());
         }
         type_info.sound = text("MonSound");
+        type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1";
         type_info.montype = text("MonType");
         for (int difficulty = 0; difficulty < 3; ++difficulty) {
             const std::string x = kSfx[difficulty];
@@ -197,6 +218,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             per_difficulty.to_block = num(text("ToBlock" + x));
             type_info.tc_champion[std::size_t(difficulty)] = text("TreasureClass2" + x);
             type_info.tc_unique[std::size_t(difficulty)] = text("TreasureClass3" + x);
+            type_info.tc_quest[std::size_t(difficulty)] = text("TreasureClass4" + x);
             per_difficulty.drain = text("Drain" + x).empty() ? 100 : num(text("Drain" + x));
             per_difficulty.cold_effect = num(text("coldeffect" + x));
             for (int element = 0; element < 3; ++element) {
@@ -207,9 +229,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto found = ms2_rows.find(std::string(text("MonStatsEx")));
         if (found != ms2_rows.end()) {
             const auto monstats2_row = found->second;
-            type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1);
+            type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            type_info.pieces = num(ms2.get(monstats2_row, "TotalPieces"));
+            type_info.spawn_col = num(ms2.get(monstats2_row, "spawnCol"));
             for (std::size_t layer = 0; layer < 16; ++layer) {
                 auto variants = split_variants(ms2.get(monstats2_row, kVariant[layer]));
                 type_info.choices[layer] = std::uint8_t(variants.size());
@@ -278,7 +302,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
-        for (const auto& type_info : monsters.types) used = used || type_info.miss_a2 == name;
+        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
         if (!used) continue;
         GameData::MissileInfo missile_info;
         missile_info.name = name;
@@ -313,7 +337,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.superuniques.push_back({ found ? u16_to_latin1(*found) : key, row(superuniques_table.get(row_index, "Class")), num(superuniques_table.get(row_index, "MinGrp")),
                                            num(superuniques_table.get(row_index, "MaxGrp")), mods,
                                            { std::string(superuniques_table.get(row_index, "TC")), std::string(superuniques_table.get(row_index, "TC(N)")), std::string(superuniques_table.get(row_index, "TC(H)")) },
-                                           { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) } });
+                                           { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) },
+                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0 });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
@@ -359,6 +384,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 1; i <= 25; ++i) {
             if (const int monstats_row = row(text("mon" + std::to_string(i))); monstats_row >= 0) level_mon.mon.push_back(monstats_row);
             if (const int monstats_row = row(text("nmon" + std::to_string(i))); monstats_row >= 0) level_mon.nmon.push_back(monstats_row);
+            if (const int monstats_row = row(text("umon" + std::to_string(i))); monstats_row >= 0) level_mon.umon.push_back(monstats_row);
         }
         for (int i = 0; i < 8; ++i) {
             level_mon.obj_group[std::size_t(i)] = std::uint8_t(num(text("ObjGrp" + std::to_string(i))));
@@ -369,7 +395,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) game_data.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
-    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods: thief, poison hit (not in Act 1); Charged Bolt's wander");
+    if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 10, 20, 23, 24, 31-35, 40-42 (none in Act 1: no upick, no Act 1 SuperUniques Mod); Charged Bolt's wander");
 }
 
 void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
@@ -674,18 +700,26 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 std::atoi(std::string(table->get(row, "reqstr")).c_str()), std::atoi(std::string(table->get(row, "reqdex")).c_str()),
                 std::atoi(std::string(table->get(row, "levelreq")).c_str()), std::string(table->get(row, "flippyfile")),
                 std::string(table->get(row, "dropsound")), std::atoi(std::string(table->get(row, "dropsfxframe")).c_str()) };
+    std::vector<std::string> type_order;
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
+        type_order.push_back(code);
         game_data.rules.types[code] = {
             { std::string(types.get(row, "Equiv1")), std::string(types.get(row, "Equiv2")) },
             { d2d::rules::body_slot(types.get(row, "BodyLoc1")), d2d::rules::body_slot(types.get(row, "BodyLoc2")) },
             std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
-            types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1" };
+            types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1",
+            types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
     }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
             "Hralti", "Alkor", "Ormus", "Elzix", "Asheara", "Cain", "Halbu", "Jamella", "Malah", "Larzuk", "Drehya" };
-        std::vector<std::pair<std::string, int>> weapons_by_level, armor_by_level;
+        std::vector<d2d::rules::AutoBase> auto_bases;   // the auto classes' candidates, items-table order
+        for (const auto* table : { &weapons, &armor, &misc })
+            for (std::size_t row = 0; row < table->size(); ++row)
+                if (table->get(row, "spawnable") == "1" && std::atoi(std::string(table->get(row, "quest")).c_str()) == 0)
+                    auto_bases.push_back({ std::string(table->get(row, "code")), std::string(table->get(row, "type")), std::string(table->get(row, "type2")),
+                                           std::atoi(std::string(table->get(row, "level")).c_str()) });
         for (const auto* table : { &armor, &weapons, &misc })
             for (std::size_t row = 0; row < table->size(); ++row) {
                 const std::string code(table->get(row, "code"));
@@ -700,10 +734,12 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table->get(row, "stackable") == "1", number("level"),
                                           table == &misc ? 0 : number("durability"), number("gamble cost"), number("minstack"), number("maxstack"),
                                           std::string(table->get(row, "normcode")), std::string(table->get(row, "ubercode")),
-                                          std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")) };
+                                          std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
+                                          number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack"),
+                                          table == &misc ? 0 : number("rarity") };
+                if (table != &misc && table->get(row, "spawnable") == "1" && number("quest") == 0)
+                    game_data.rules.stand_bases[table == &weapons ? 1 : 0].push_back(code);
                 if (table->get(row, "spawnable") != "1") continue;
-                game_data.rules.item_rarity[code] = number("rarity");
-                if (table != &misc && number("level") > 0) (table == &weapons ? weapons_by_level : armor_by_level).emplace_back(code, number("level"));
                 for (std::size_t vendor = 0; vendor < 17; ++vendor) {
                     const std::string vendor_name = kVendorCol[vendor];
                     d2d::rules::VendorItem vendor_item{ code, number(vendor_name + "Min"), number(vendor_name + "Max"), number(vendor_name + "MagicMin"), number(vendor_name + "MagicMax"),
@@ -722,23 +758,34 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             else continue;
             game_data.rules.potions.emplace(std::string(misc.get(row, "code")), potion);
         }
-        // Drops: TreasureClassEx, ItemRatio (the LoD, non-class rows), auto classes.
+        // Drops: TreasureClassEx (FUN_006547d0; entries under Prob 1 dropped),
+        // ItemRatio (FUN_00637910: the highest Version per class / uber), auto classes.
         const auto tcx = txt("TreasureClassEx");
+        std::string last_name;
+        int last_group = 0;
         for (std::size_t row = 0; row < tcx.size(); ++row) {
             auto number = [&](std::string column) { return std::atoi(std::string(tcx.get(row, column)).c_str()); };
-            d2d::rules::TreasureClass treasure_class{ std::max(number("Picks"), 1), number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {} };
+            d2d::rules::TreasureClass treasure_class{ number("Picks") ? number("Picks") : 1, number("NoDrop"), { number("Unique"), number("Set"), number("Rare"), number("Magic") }, {},
+                                                      number("group"), number("level"), {} };
             for (int i = 1; i <= 10; ++i) {
                 auto item = std::string(tcx.get(row, "Item" + std::to_string(i)));
                 std::erase(item, '"');
-                if (!item.empty()) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
+                if (!item.empty() && number("Prob" + std::to_string(i)) >= 1) treasure_class.items.emplace_back(std::move(item), number("Prob" + std::to_string(i)));
             }
-            game_data.rules.treasure.emplace(std::string(tcx.get(row, "Treasure Class")), std::move(treasure_class));
+            std::string name(tcx.get(row, "Treasure Class"));
+            if (last_group != 0 && treasure_class.group == last_group) game_data.rules.treasure[last_name].next = name;
+            last_name = name;
+            last_group = treasure_class.group;
+            game_data.rules.treasure.emplace(std::move(name), std::move(treasure_class));
         }
         const auto ratio = txt("ItemRatio");
+        std::array<int, 4> ratio_version{ -1, -1, -1, -1 };
         for (std::size_t row = 0; row < ratio.size(); ++row) {
-            if (ratio.get(row, "Version") != "1" || ratio.get(row, "Class Specific") != "0") continue;
             auto number = [&](std::string column) { return std::atoi(std::string(ratio.get(row, column)).c_str()); };
-            auto& ratios = game_data.rules.quality_ratio[ratio.get(row, "Uber") == "1" ? 1 : 0];
+            const auto which = std::size_t((number("Class Specific") ? 2 : 0) + (number("Uber") ? 1 : 0));
+            if (number("Version") > 100 || number("Version") < ratio_version[which]) continue;
+            ratio_version[which] = number("Version");
+            auto& ratios = game_data.rules.quality_ratio[which];
             ratios[0] = { number("Unique"), number("UniqueDivisor"), number("UniqueMin") };
             ratios[1] = { number("Set"), number("SetDivisor"), number("SetMin") };
             ratios[2] = { number("Rare"), number("RareDivisor"), number("RareMin") };
@@ -746,7 +793,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             ratios[4] = { number("HiQuality"), number("HiQualityDivisor"), 0 };
             ratios[5] = { number("Normal"), number("NormalDivisor"), 0 };
         }
-        d2d::rules::add_auto_treasure(game_data.rules, weapons_by_level, armor_by_level);
+        d2d::rules::add_auto_treasure(game_data.rules, type_order, auto_bases);
     }
     auto keys = [&](const char* file_name, const char* column, bool all) {
         std::vector<std::string> values;
@@ -973,6 +1020,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.prefixes = affixes("MagicPrefix");
         game_data.rules.suffixes = affixes("MagicSuffix");
+        const auto set_names = keys("Sets", "index", false);
         auto specials = [&](const char* file_name, const char* code_col, int props) {
             std::vector<d2d::rules::Special> values;
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
@@ -986,6 +1034,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                             special.mods.push_back({ std::string(prop_code), std::string(table.get(row, "par" + suffix)),
                                                 num(table.get(row, "min" + suffix)), num(table.get(row, "max" + suffix)) });
                     }
+                    special.ladder = table.get(row, "ladder") == "1";
+                    special.nolimit = table.get(row, "nolimit") == "1";
+                    if (const auto set_row = std::ranges::find(set_names, table.get(row, "set")); set_row != set_names.end() && code_col[0] == 'i')
+                        special.set = int(set_row - set_names.begin());
                     values.push_back(std::move(special));
                 }
             }
@@ -1136,12 +1188,34 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
 }
 
+// Decision 3 (install-detect.md): a structural look at the patch layer,
+// no hash list. 1.14d's tables have these row counts (txt::Table, the
+// "Expansion" separators dropped); a modded patch_d2.mpq (more uniques,
+// runewords, recipes) or an older one differs. Warns, doesn't refuse.
+void check_patch_layer(const d2d::mpq::Stack& mpqs) {
+    static constexpr std::pair<const char*, std::size_t> kRows[] = {
+        { R"(data\global\excel\ItemStatCost.txt)", 359 },
+        { R"(data\global\excel\UniqueItems.txt)", 401 },
+        { R"(data\global\excel\CubeMain.txt)", 151 },
+    };
+    for (const auto& [path, rows] : kRows) {
+        const auto bytes = mpqs.try_read(path);
+        const std::size_t count = bytes ? d2d::txt::Table(*bytes).size() : 0;
+        if (count != rows)
+            d2d::log::warn("patch layer doesn't look like 1.14d: {} has {} rows, 1.14d's has {} (a mod, or another version)",
+                           path, count, rows);
+    }
+}
+
 }  // namespace
 
 std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
                                        bool tile_pixels) {
-    const auto d2data = data_dir / "d2data.mpq";
-    if (!fs::exists(d2data)) {
+    // MPQ names match case-insensitively (D2DATA.MPQ in Wine prefixes and
+    // Linux copies); the install is read in place, never renamed.
+    auto find = [&](std::string_view name) { return d2d::install::find_file(data_dir, name); };
+    const auto d2data = find("d2data.mpq");
+    if (!d2data) {
         d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
         return std::nullopt;
     }
@@ -1154,40 +1228,48 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
             d2d::log::info("  Loading: {} {} bytes", path.filename().string(), fs::file_size(path));
         };
         // 1.14d's patch layer ranks above everything (game.exe opens
-        // patch_d2.mpq first). A real install has patch_d2.mpq; a CD-copied
-        // data dir can use the LODPatch_114d.exe installer instead (d2d.cfg
-        // `patch = ...`, or dropped next to the MPQs).
+        // patch_d2.mpq first). An explicit patch (d2d.cfg `patch =`, which
+        // the launcher sets for a non-1.14d install) wins over the install's
+        // own patch_d2.mpq, which may be stale (1.13c, 1.14b). Then
+        // patch_d2.mpq, then LODPatch_114d.exe dropped next to the MPQs.
+        // A `.mpq` patch is a plain archive (a VirtualStore patch_d2.mpq),
+        // anything else Blizzard's installer.
         bool patched = false;
-        if (fs::exists(data_dir / "patch_d2.mpq")) {
-            push(data_dir / "patch_d2.mpq");
-            patched = true;
-        } else {
-            for (const auto& path : { patch_installer, data_dir / "LODPatch_114d.exe" }) {
-                if (path.empty() || !fs::exists(path)) continue;
-                try {
+        auto push_patch = [&](const fs::path& path) {
+            try {
+                std::string extension = path.extension().string();
+                for (auto& letter : extension) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+                if (extension == ".mpq") push(path);
+                else {
                     mpqs.push_installer(path);
                     d2d::log::info("  Loading: {} (1.14d patch installer)", path.string());
-                    patched = true;
-                    break;
                 }
-                catch (const std::exception& error) { d2d::log::warn("{}", error.what()); }
+                patched = true;
             }
+            catch (const std::exception& error) { d2d::log::warn("{}", error.what()); }
+        };
+        if (!patch_installer.empty()) {
+            if (fs::exists(patch_installer)) push_patch(patch_installer);
+            else d2d::log::warn("patch {} not found", patch_installer.string());
         }
+        if (!patched)
+            if (const auto patch = find("patch_d2.mpq")) push_patch(*patch);
+        if (!patched)
+            if (const auto installer = find("LODPatch_114d.exe")) push_patch(*installer);
         if (!patched)
             d2d::log::warn("no 1.14d patch data (patch_d2.mpq or LODPatch_114d.exe): "
                            "using CD-era tables and strings");
-        const auto d2exp = data_dir / "d2exp.mpq";
-        if (fs::exists(d2exp)) push(d2exp);
-        push(d2data);
+        if (const auto d2exp = find("d2exp.mpq")) push(*d2exp);
+        push(*d2data);
         // Character animations live in d2char.mpq — Stack lookup is
         // priority-ordered so later pushes rank lower; DCC-not-found is
         // silent in load_scene and per-class loaders skip on miss.
-        const auto d2char = data_dir / "d2char.mpq";
-        if (fs::exists(d2char)) push(d2char);
+        if (const auto d2char = find("d2char.mpq")) push(*d2char);
         // Sounds: expansion speech, speech, effects, music (Sounds.txt paths).
         // (Music is read off the main thread from its own handles: Audio.)
         for (const char* name : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
-            if (fs::exists(data_dir / name)) push(data_dir / name);
+            if (const auto path = find(name)) push(*path);
+        if (patched) check_patch_layer(mpqs);
 
         GameData game_data;
         game_data.tile_pixels = tile_pixels;
