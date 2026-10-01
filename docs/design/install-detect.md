@@ -396,24 +396,18 @@ Blizzard code or data. Avoid:
 - **Several installs** (classic + D2R + an old CD copy). Sorting and a list
   instead of guessing.
 
-## Open questions
+## Decisions (Bret, 2026-10-01)
 
-1. **Classic without LoD:** supported? d2d is built against LoD data, and
-   the classic-only 1.14d patch (`D2Patch_114d.exe`) is a different file
-   from `LODPatch_114d.exe`. Proposal: list classic-only installs, marked
-   "Lord of Destruction needed" until d2d supports it.
-2. **Old installs (≤1.14c):** offer them with "add LODPatch_114d.exe", or
-   refuse them? Proposal: offer, since the base MPQs are fine.
-3. **Patch-layer check:** to spot a modded `patch_d2.mpq` we'd compare its size
-   or SHA-256 with 1.14d's. A hash is not Blizzard's expression, but LEGAL.md
-   says "no dumps of bytes", so is a known-hash list OK? Alternative: a
-   cheap structural check, e.g. the row count of one 1.14d table at load.
-4. **Classic save dir:** the registry `Save Path` points at the user's
-   original characters. Should the launcher offer to *read* them in place
-   (d2d keeps writing only to its own save dir)?
-5. **d2d without the launcher:** should `default_data_dir` call `detect()`
-   before its `~/Workspace/private/diablo2` fallback, or stay explicit
-   (cfg / `--data` / env only)?
-6. **Retire the copy-install for found installs?** With in-place reading,
-   the wizard is only needed for discs/ISOs. Keep it as is, or hide it
-   behind "Install from discs…"?
+1. **Classic without LoD:** listed, marked "Lord of Destruction needed",
+   for now. Classic-only support may come later.
+2. **Not 1.14d** (older 1.14, 1.13 and before): the launcher warns and
+   offers a button that fixes it (points the install at `LODPatch_114d.exe`).
+3. **Patch-layer check:** structural, at load (e.g. one 1.14d table's row
+   count). No known-hash list in the repo.
+4. **Classic save dir:** not read. Skip.
+5. **d2d without the launcher:** no `detect()`. d2d checks its own folder
+   first (drop-in replacement: `d2data.mpq` beside the binary or in the
+   working directory), then its config (`data =` in `d2d.cfg`, `--data`,
+   env). Nothing found: fail fast with a clear error. The
+   `~/Workspace/private/diablo2` fallback goes. The copy-install wizard
+   stays as it is.
