@@ -172,9 +172,13 @@ struct Monster {
     bool wandering = false;
     // The MonAI thinks: the last mode it left other than NU (monster data
     // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch words (+0x14,
-    // +0x18), its command (the Fallen's 1: charge), the corpse a skill raises.
+    // +0x18, +0x1c), its command (the Fallen's 1: charge), the corpse a
+    // skill raises; the velocity % of the move its last think started
+    // (rules::ThinkIn::pace), until when it's in Spider Lay's state (0x16).
     std::string_view left_mode = "NU";
-    int ai_state = 0, ai_state2 = 0, ai_command = 0, skill_unit = -1;
+    int ai_state = 0, ai_state2 = 0, ai_state3 = 0, ai_command = 0, skill_unit = -1;
+    int move_pct = 0;
+    std::uint32_t laid_until = 0;
     // Its unit seed (+0x20) as its look left it: what its thinks draw. A
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd), its
     // map AI's points (subtiles), half freeze durations (stat 0x76).
@@ -211,6 +215,7 @@ struct Foe {
     bool pet = false;                         // the merc, a summon: in the player's list
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
     int threat = 14;                          // FUN_005dc920: a player's 14, a monster's MonStats threat
+    int life_pct = 100;                       // FUN_00621f20 (a Fetish's think); ponytail: the player's only, the rest full
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
