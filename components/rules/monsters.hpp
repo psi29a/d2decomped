@@ -413,6 +413,31 @@ inline int unit_distance(int dx, int dy, int size_a, int size_b) {
     return down < across ? down + across * 2 : across + down * 2;
 }
 
+// A monster's door (FUN_005b0f50 → FUN_005dd0b0 mode 8, FUN_005dcd50):
+// of the closed IsDoor objects about, `spots` their offsets from it in
+// subtiles, the nearest by squared distance (FUN_005b0bd0) under 9, the
+// first on a tie. Its index, or -1.
+inline int door_pick(std::span<const std::pair<int, int>> spots) {
+    int pick = -1, best = 9;
+    for (std::size_t i = 0; i < spots.size(); ++i)
+        if (const int squared = spots[i].first * spots[i].first + spots[i].second * spots[i].second; squared < best) { pick = int(i); best = squared; }
+    return pick;
+}
+
+// Can a unit of `size` (MonStats2 SizeX) operate an object of SizeX /
+// SizeY `size_x` / `size_y`, `dx`, `dy` subtiles from it (FUN_00623660)?
+// Touching (unit_distance 0 with the object's SizeX), else within 2 of the
+// object's rect (its spot less half its size), the corners 1 in for a unit
+// under size 3; a sizeless object within 1 of its spot.
+inline bool object_reach(int dx, int dy, int size, int size_x, int size_y) {
+    if (unit_distance(dx, dy, size, size_x) == 0) return true;
+    const int left = -(size_x / 2), top = -(size_y / 2);
+    if (size_x < 1 || size_y < 1) return std::abs(dx - left) <= 1 && std::abs(dy - top) <= 1;
+    if (dx < left - 2 || dx > left + size_x + 2 || dy < top - 2 || dy > top + size_y + 2) return false;
+    if (size > 2 || (dy >= top - 1 && dy <= top + size_y + 1)) return true;
+    return dx >= left - 1 && dx <= left + size_x + 1;
+}
+
 // Is the line between two units cut (FUN_00622aa0 -> FUN_00622920 ->
 // FUN_0064e260)? Subtiles, sizes clamped to 2 (a player's 2, a monster's
 // MonStats2 SizeX). Units whose deltas sum under their sizes always see

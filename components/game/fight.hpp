@@ -132,6 +132,7 @@ struct Fight {
 
     const Level* mon_level = nullptr;                // whose monsters `monsters` are
     AreaSeen area_seen;                              // their spawn areas' "seen" flags (ai.cpp search_target)
+    OpenDoor open_door;                              // a monster's door at a think (the world's doors)
     std::array<std::uint32_t, 2> amplified{};        // the player's / merc's Amplify Damage (a Cursed boss) runs out
     int game_difficulty = 0;                         // new_game's
 

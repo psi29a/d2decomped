@@ -186,9 +186,12 @@ Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):
 
 1. FUN_00648eb0(path): the collision word under it (FUN_0064d9b0, mask 0x7fff), cached at path +0x54. Bit 0x800 must be set.
 2. FUN_005dd0b0 mode 8 (FUN_005dce60 over the near rooms, callback FUN_005dcd50): an object (type 2) with Objects.txt +0x13a (IsDoor) set, in mode 0 (closed), the nearest by squared subtile distance (FUN_005b0bd0) under 9.
-3. Its Objects.txt row (FUN_00640e90, 0x1c0 bytes each) +0x16d (MonsterOK) set: FUN_00584540(2, id) operates it (FUN_00623660, then FUN_00584420), stand 5, and the driver stops.
+3. Its Objects.txt row (FUN_00640e90, 0x1c0 bytes each) +0x16d (MonsterOK) set: FUN_00584540(2, id) operates it, stand 5 (FUN_005de080), and the driver stops. The stand comes whether or not it was operated.
+4. FUN_00584540 operates only in reach (FUN_00623660): FUN_00641530 (`unit_distance`, the object's SizeX) 0, else the monster within 2 of the object's rect (its spot less half SizeX / SizeY), the corners (both axes 2 out) not for a monster under size 3; an object without a size, within 1 of its spot. Then FUN_00584420 runs its OperateFn (FUN_00581d40 for a door: 500 ms since it last changed).
 
-Griswold and the Smith have opendoors; `world.cpp` opens doors for monsters by an approximation of this.
+In Act 1 the IsDoor objects are OperateFn 8 (MonsterOK on all but 47 and 75) and 229 / 230 (OperateFn 29, not MonsterOK). Most of Act 1's walkers have opendoors: the Fallen, Shamans, skeletons, Corrupt Rogues, Griswold, the Smith, Andariel.
+
+Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its search), through `Fight::open_door` → `World::monster_door` (`rules::door_pick`, `rules::object_reach`, `operate_door`). The 0x800 test is taken as true: the monster's own footprint stamps it (collision.md); what a moving path caches at +0x54 isn't traced. Ties go by the level's object order, not the near rooms' unit lists.
 
 ## In d2d
 

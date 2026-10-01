@@ -204,6 +204,8 @@ struct World {
         if (game_data) fight.new_game(0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
+        // Its monsters open its doors (monster_door).
+        fight.open_door = [this](const Monster& monster, std::uint32_t now_ms) { return monster_door(monster, now_ms); };
         // The character's skill levels for the fight, the skill shrine's
         // +all skills (item_allskills) while its boost lasts.
         fight.skill_base = [this](int id) { return skill_base_level(*game_data, character, id); };
@@ -246,6 +248,8 @@ struct World {
     // A door, trap door or secret door (rules::door_mode): its new mode,
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
+    // A monster's door at its think (Fight::open_door): found, operated in reach.
+    bool monster_door(const Monster& monster, std::uint32_t now_ms);
     // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
     // whoever's within 3 subtiles and sets off the unopened ones nearer
     // than 3.

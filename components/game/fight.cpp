@@ -2444,7 +2444,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door))
                     killed(i, now_ms);                           // on the player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };

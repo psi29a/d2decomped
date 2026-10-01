@@ -688,6 +688,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     }
     // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
     npc.object_id = oid;
+    npc.door = objects.get(row, "IsDoor") == "1"; npc.monster_ok = objects.get(row, "MonsterOK") == "1";
     for (std::size_t mode = 0; mode < 8; ++mode) {
         if (objects.get(row, "HasCollision" + std::to_string(mode)) == "1") npc.collision |= std::uint8_t(1u << mode);
         if (objects.get(row, "Selectable" + std::to_string(mode)) == "1") npc.selectable |= std::uint8_t(1u << mode);

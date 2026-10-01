@@ -379,6 +379,34 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
+// A monster's door at a think (FUN_005b0f50): of the level's closed (mode
+// 0) IsDoor objects, the nearest under 9 subtiles squared (FUN_005dd0b0
+// mode 8, rules::door_pick); with MonsterOK, FUN_00584540 operates it
+// (OperateFn 8) when in reach (FUN_00623660, rules::object_reach). Found,
+// the monster stands 5 either way.
+// ponytail: the level's objects in list order, not the near rooms' unit
+// lists (a tie between two doors may go the other way).
+auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
+        if (fight.mon_level != level) return false;
+        const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
+        std::vector<std::pair<int, int>> spots;
+        std::vector<int> at;
+        for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+            const auto& door = level->npcs[i];
+            const auto state = doors.find({ level, int(i) });
+            if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
+            spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
+            at.push_back(int(i));
+        }
+        const int pick = d2d::rules::door_pick(spots);
+        if (pick < 0 || !level->npcs[std::size_t(at[std::size_t(pick)])].monster_ok) return false;
+        const auto& door = level->npcs[std::size_t(at[std::size_t(pick)])];
+        const auto [dx, dy] = spots[std::size_t(pick)];
+        if (d2d::rules::object_reach(-dx, -dy, game_data->monsters.types[std::size_t(monster.type)].size, door.size_x, door.size_y))
+            operate_door(at[std::size_t(pick)], now_ms);
+        return true;
+    }
+
 auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         const auto& barrel = level->npcs[std::size_t(npc_index)];
@@ -1577,31 +1605,6 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
-        // A monster that opens doors (MonStats opendoors) whose way is shut by
-        // a door (FUN_005b0f50, each think: the collision word under it has
-        // 0x800, FUN_00648eb0; the nearest closed IsDoor object under 9
-        // subtiles squared, FUN_005dd0b0 mode 8; its MonsterOK) operates it
-        // as the player would (FUN_00584540 → OperateFn 8) and stands 5
-        // frames; before the think it would have had (monster-ai.md, Doors).
-        // ponytail: "in its way" read as standing or walking (NU / WL: a
-        // chase pressed on the door walks in place) while aware, within a
-        // cell of a closed door's footprint, MonsterOK unread; the collision
-        // word and door search aren't ported.
-        if (fight.mon_level == level)
-            for (auto& monster : fight.monsters) {
-                if (!monster.alive() || !monster.aware || (monster.mode != "NU" && monster.mode != "WL") || now_ms < monster.next_act
-                    || !game_data->monsters.types[std::size_t(monster.type)].open_doors) continue;
-                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
-                    const auto& door = level->npcs[i];
-                    if (door.operate_fn != 8) continue;
-                    const auto state = doors.find({ level, int(i) });
-                    if ((state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
-                    if (std::abs(monster.unit.x - door.x) > float(door.size_x) / 10 + 1 || std::abs(monster.unit.y - door.y) > float(door.size_y) / 10 + 1) continue;
-                    operate_door(int(i), now_ms);
-                    monster.next_act = now_ms + 5 * 40;
-                    break;
-                }
-            }
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
