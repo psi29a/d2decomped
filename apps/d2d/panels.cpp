@@ -53,12 +53,12 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
         std::array<int, 4> rect{};
-        if (item.location == 0 && item.panel == 1) {
+        if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) {
             const auto info = scene.rules.item_info.find(item.code);
             const int item_width = info != scene.rules.item_info.end() ? info->second.width : 1;
             const int item_height = info != scene.rules.item_info.end() ? info->second.height : 1;
             rect = { layout.grid_x + item.column * layout.box_w, layout.grid_y + item.row * layout.box_h, item_width * layout.box_w, item_height * layout.box_h };
-        } else if (item.location == 1 && item.slot >= 1 && item.slot <= 10) {
+        } else if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast) {
             rect = layout.slots[std::size_t(item.slot)];
         }
         if (rect[2] <= 0) continue;
@@ -420,7 +420,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
-        if (item.location != 0 || item.panel != panel) continue;
+        if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
         const auto [x, y, width, height] = grid_rect(scene, layout, item);
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
@@ -444,7 +444,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
-        if (item.location != 2 || item.column < 0 || item.column >= belt.boxes || (!popup && item.column > 3)) continue;
+        if (item.location != d2d::d2s::item_location::kBelt || item.column < 0 || item.column >= belt.boxes || (!popup && item.column > 3)) continue;
         const auto& box = belt.box[std::size_t(item.column)];
         if (box[1] <= box[0]) continue;
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {

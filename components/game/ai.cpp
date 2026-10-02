@@ -366,7 +366,8 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const bool shared = indoor && !force && monster.area >= 0 && seen;
     const bool flag = shared && !monster.sighted && (*seen)[monster.area];
     const bool need_sight = force || (indoor && !monster.sighted && !flag);
-    const bool town = level.id == 1 || level.id == 40 || level.id == 75 || level.id == 103 || level.id == 109;
+    const bool town = level.id == d2d::rules::level_ids::kRogueEncampment || level.id == d2d::rules::level_ids::kLutGholein || level.id == d2d::rules::level_ids::kKurastDocks
+                    || level.id == d2d::rules::level_ids::kPandemoniumFortress || level.id == d2d::rules::level_ids::kHarrogath;
     const int x = subtile(unit.x), y = subtile(unit.y);
     const int best = aidist > 0 ? aidist : 35;
     const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };

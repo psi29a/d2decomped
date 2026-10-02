@@ -37,9 +37,46 @@ namespace d2d::d2s {
 
 struct ItemProp { int stat = 0, param = 0, value = 0; };
 
+// Item::location, the save's 3 bits: where the item is.
+namespace item_location {
+inline constexpr int kStored = 0;      // in a grid: Item::panel says which
+inline constexpr int kEquipped = 1;    // worn: Item::slot says where
+inline constexpr int kBelt = 2;        // Item::column is the belt box
+inline constexpr int kGround = 3;
+inline constexpr int kCursor = 4;
+inline constexpr int kSocketed = 6;
+}  // namespace item_location
+
+// Item::panel, the save's 3 bits: the grid a stored item is in.
+namespace item_panel {
+inline constexpr int kInventory = 1;
+inline constexpr int kCube = 4;
+inline constexpr int kStash = 5;
+}  // namespace item_panel
+
+// Item::slot, the save's 4 bits: where an equipped item is worn
+// (BodyLocs.txt's rows: head, neck, tors, rarm, larm, rrin, lrin, belt,
+// feet, glov), then the weapon switch's two hands.
+namespace body_location {
+inline constexpr int kHead = 1;
+inline constexpr int kNeck = 2;
+inline constexpr int kTorso = 3;
+inline constexpr int kRightArm = 4;
+inline constexpr int kLeftArm = 5;
+inline constexpr int kRightRing = 6;
+inline constexpr int kLeftRing = 7;
+inline constexpr int kBelt = 8;
+inline constexpr int kFeet = 9;
+inline constexpr int kGloves = 10;
+inline constexpr int kRightArmSwitch = 11;
+inline constexpr int kLeftArmSwitch = 12;
+inline constexpr int kFirst = kHead;      // the body's slots, kFirst..kLast
+inline constexpr int kLast = kGloves;
+}  // namespace body_location
+
 struct Item {
     std::string code;                  // "hax", "ear" for ears
-    int  location = 0, slot = 0, column = 0, row = 0, panel = 0;
+    int  location = 0, slot = 0, column = 0, row = 0, panel = 0;   // item_location, body_location, grid cell, item_panel
     bool identified = false, socketed = false, ethereal = false,
          personalized = false, runeword = false, simple = false;
     int  quality = 2;                  // 1 low .. 8 crafted; 2 = normal

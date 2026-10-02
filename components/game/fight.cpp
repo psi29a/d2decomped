@@ -206,18 +206,18 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
         };
         for (const auto& item : character.items) {
-            const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-            const bool charm = item.location == 0 && item.panel == 1 && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
+            const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+            const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
             if (!worn && !charm) continue;
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
             add(sum, set_bonus_props(*game_data, character.items, item));
-            if (worn && item.slot == 9) boots = &item;
-            if (!worn || (item.slot != 4 && item.slot != 5)) continue;
+            if (worn && item.slot == d2d::d2s::body_location::kFeet) boots = &item;
+            if (!worn || (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm)) continue;
             const auto found = game_data->rules.item_base.find(item.code);
             const auto info = game_data->rules.item_info.find(item.code);
             if (found == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()) continue;
-            if (info->second.kind == 2 && (!weapon || item.slot == 4)) weapon = &item;
+            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm)) weapon = &item;
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
         if (passives) {
@@ -227,7 +227,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             };
             std::vector<std::string> hands;                  // the types in slots 4 / 5
             for (const auto& item : character.items)
-                if (item.location == 1 && (item.slot == 4 || item.slot == 5)) hands.push_back(type_of(item));
+                if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)) hands.push_back(type_of(item));
             const auto is_type = [&](const std::string& type, const std::string& want) { return d2d::rules::type_is(game_data->rules, type, want); };
             const bool claws2 = hands.size() == 2 && is_type(hands[0], "h2h") && is_type(hands[1], "h2h");
             std::array<std::int64_t, 4> best{};              // 342, 343, 344, 348
@@ -813,7 +813,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // ponytail: toht (stat 19) isn't added; no ammo is spent.
             case ServerDoFunction::kDoubleThrow:
                 for (const auto& item : character.items)
-                    if (item.location == 1 && (item.slot == 4 || item.slot == 5))
+                    if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
                         if (const auto found_thrown = game_data->thrown.find(item.code); found_thrown != game_data->thrown.end())
                             if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end())
                                 launch(found->second, skill, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y,
@@ -1369,7 +1369,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
             whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
             const int hands = int(std::ranges::count_if(character.items, [&](const d2d::d2s::Item& item) {
-                return item.location == 1 && (item.slot == 4 || item.slot == 5) && game_data->rules.item_info.contains(item.code)
+                return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
                     && game_data->rules.item_info.at(item.code).kind == 2; }));
             for (int hand = 0; hand < (hands >= 2 ? 2 : 1); ++hand) {
                 std::vector<int> nearby;
@@ -1429,7 +1429,7 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
         const auto env = calc_env();
         if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
         for (auto& item : character.items)
-            if (item.location == 1 && (item.slot == 4 || item.slot == 5) && game_data->rules.item_info.contains(item.code)
+            if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
                 && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
                 if (found != game_data->rules.item_base.end() && found->second.stackable) item.quantity = std::max(int(item.quantity) - 1, 0);

@@ -176,7 +176,7 @@ int main() {
     const auto* tristram = data->level(d2d::rules::CainQuest::kTristram);
     d2d::game::populate_level(*data, world.fight.spawning, *tristram);   // its rooms up: the Gibbet made
     const auto gibbet = std::ranges::find(tristram->npcs, 10, &Npc::operate_fn);
-    const auto cain_npc = std::ranges::find(tristram->npcs, d2d::rules::CainQuest::kCain, &Npc::hc_idx);
+    const auto cain_npc = std::ranges::find(tristram->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
     assert(gibbet != tristram->npcs.end() && cain_npc != tristram->npcs.end());
     const auto cain_index = std::size_t(cain_npc - tristram->npcs.begin());
     const auto* camp = world.level;

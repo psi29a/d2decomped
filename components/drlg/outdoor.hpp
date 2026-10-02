@@ -429,7 +429,7 @@ struct Gen {
                 const int edge_x = std::min(first.x, second.x) + len * std::abs(dx1) / 2;
                 const int edge_y = std::min(first.y, second.y) + len * std::abs(dy1) / 2;
                 g2c.op(edge_x, edge_y, 0xf0000, 5);
-                g2c.op(edge_x, edge_y, level.rect.level == 17 ? 0x40400 : 0x30400, 0);
+                g2c.op(edge_x, edge_y, level.rect.level == level_ids::kBurialGrounds ? 0x40400 : 0x30400, 0);
             }
             const int style = first.style ? first.style : second.style;
             if (style) bits |= 2;
@@ -491,7 +491,7 @@ struct Gen {
             }
     }
     bool sub_group(const Sub& sub, const d2d::ds1::Group& group, int type) {       // FUN_0066f690
-        const bool act1 = level.rect.level >= 2 && level.rect.level <= 7;
+        const bool act1 = level.rect.level >= level_ids::kBloodMoor && level.rect.level <= level_ids::kTamoeHighland;
         const int margin = type == 1 && (flags & 0xc) ? -1 : 1;
         const int spots_x = cells_wide - group.width + margin, spots_y = cells_high - group.height + 1;
         const int spots = spots_x * spots_y;
@@ -612,7 +612,7 @@ struct Gen {
             const int pick = int(seed.next() & 3);
             const int x = (pick & 1) ? 3 : cells_wide - ((flags & 0x10) ? 4 : 5);
             const int y = (pick >> 1) ? 3 : cells_high - 4;
-            place(x, y, 51 + (level.rect.level == 2), -1, false);
+            place(x, y, 51 + (level.rect.level == level_ids::kBloodMoor), -1, false);
             flags |= 0x40;
         }
     }
@@ -623,7 +623,7 @@ struct Gen {
         if (flags & 0x200) place(0, 1, 2, 1, false);
         if (flags & 0x400) place(0, cells_high - 6, 2, 1, false);
         if (!(flags & 0x40)) {
-            const bool ok = level.rect.level == 2 ? farthest(level.town, 52, -1, 1, 0xf) : anywhere(51, -1, 1, 0xf);
+            const bool ok = level.rect.level == level_ids::kBloodMoor ? farthest(level.town, 52, -1, 1, 0xf) : anywhere(51, -1, 1, 0xf);
             if (!ok) note("drlg: no room for the level's cave entrance");
             flags |= 0x40;
         }
@@ -648,10 +648,10 @@ struct Gen {
         auto add = [&](End end) { if (ends < 6) end_points[std::size_t(ends)] = end; ++ends; };
         for (const auto& node : nodes) {
             const auto& rect = node.rect;
-            if (rect.level == 1) {
+            if (rect.level == level_ids::kRogueEncampment) {
                 static constexpr std::array<std::pair<int, int>, 4> town_exit = { { { 59, 19 }, { 29, 35 }, { 4, 22 }, { 29, 3 } } };
                 add({ rect.x + town_exit[std::size_t(node.side)].first, rect.y + town_exit[std::size_t(node.side)].second, node.side });
-            } else if (rect.level == 26) add({ rect.x + 27, rect.y + 13, 1 });
+            } else if (rect.level == level_ids::kMonasteryGate) add({ rect.x + 27, rect.y + 13, 1 });
         }
         for (int x = 0; x < cells_wide; ++x)
             for (int y = 0; y < cells_high; ++y) {
@@ -828,9 +828,9 @@ struct Gen {
         }
     }
     void waypoint() {
-        if (level.rect.level == 3) {                                            // by the Blood Moor's exit
+        if (level.rect.level == level_ids::kColdPlains) {                                            // by the Blood Moor's exit
             int slot = 8;
-            for (const auto& n : level.neighbours) if (n.rect.level == 2) slot = n.slot;
+            for (const auto& n : level.neighbours) if (n.rect.level == level_ids::kBloodMoor) slot = n.slot;
             const std::uint32_t bit = slot < 8 ? 1u << (slot + 4) : 0;
             for (int y = 0; y < cells_high; ++y)
                 for (int x = 0; x < cells_wide; ++x) {
@@ -1024,11 +1024,11 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
     Outdoor out;
     Gen gen(data, level, seed, out.notes);
     const int id = level.rect.level;                    // FUN_006807f0
-    const bool wild = id >= 2 && id <= 7;
-    if (!wild && id != 17 && id != 39) gen.note("drlg: outdoor level " + std::to_string(id) + " is act 1 only for now");
+    const bool wild = id >= level_ids::kBloodMoor && id <= level_ids::kTamoeHighland;
+    if (!wild && id != level_ids::kBurialGrounds && id != level_ids::kMooMooFarm) gen.note("drlg: outdoor level " + std::to_string(id) + " is act 1 only for now");
     gen.neighbours();
     gen.outline();
-    if (id != 2 && id != 3 && id != 17) gen.cliffs();
+    if (id != level_ids::kBloodMoor && id != level_ids::kColdPlains && id != level_ids::kBurialGrounds) gen.cliffs();
     gen.contacts();
     gen.borders();
     if (wild) {
@@ -1040,9 +1040,9 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
         gen.border_subs(3);
         out.roads = gen.roads();
     }
-    if (id == 39)
+    if (id == level_ids::kMooMooFarm)
         for (int sub = 0; sub < 4; ++sub) gen.border_subs(sub);
-    if (id >= 3 && id <= 6) gen.waypoint();
+    if (id >= level_ids::kColdPlains && id <= level_ids::kBlackMarsh) gen.waypoint();
     if (wild) gen.shrines(5);
     gen.fills();
 

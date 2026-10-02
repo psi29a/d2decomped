@@ -25,9 +25,9 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
     struct Grid { const Scene::InvLayout* layout; int panel; };
     std::vector<Grid> grids;
     const auto& inv = scene.inv_layout[std::size_t(save_cls)];
-    if (open.inv) grids.push_back({ &inv, 1 });
-    if (open.cube) grids.push_back({ &scene.cube_layout, 4 });
-    else if (open.stash) grids.push_back({ &scene.stash_layout[open.expansion ? 1 : 0], 5 });
+    if (open.inv) grids.push_back({ &inv, d2d::d2s::item_panel::kInventory });
+    if (open.cube) grids.push_back({ &scene.cube_layout, d2d::d2s::item_panel::kCube });
+    else if (open.stash) grids.push_back({ &scene.stash_layout[open.expansion ? 1 : 0], d2d::d2s::item_panel::kStash });
     for (const auto& [layout, panel] : grids) {
         if (!inside(layout->grid_x, layout->grid_y, layout->cols * layout->box_w, layout->rows * layout->box_h)) continue;
         if (held) {
@@ -39,19 +39,19 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
             return { true, cmd::ToGrid{ panel, col, row } };
         }
         for (const auto& item : items) {
-            if (item.location != 0 || item.panel != panel) continue;
+            if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
             const auto rect = grid_rect(scene, *layout, item);
             if (inside(rect[0], rect[1], rect[2], rect[3])) return { true, cmd::ToCursor{ item.id } };
         }
         return { true, {} };
     }
     if (open.inv)
-        for (int slot = 1; slot <= 10; ++slot) {
+        for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot) {
             const auto& rect = inv.slots[std::size_t(slot)];
             if (rect[2] <= 0 || !inside(rect[0], rect[1], rect[2], rect[3])) continue;
             if (held) return { true, cmd::ToBody{ slot } };
             for (const auto& item : items)
-                if (item.location == 1 && item.slot == slot) return { true, cmd::ToCursor{ item.id } };
+                if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot) return { true, cmd::ToCursor{ item.id } };
             return { true, {} };
         }
     // Belt boxes: row 1 on the HUD strip, the rest with the popup open.
@@ -62,7 +62,7 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
         if (rect[1] <= rect[0] || mouse_x < rect[0] || mouse_x > rect[1] || mouse_y < rect[2] || mouse_y > rect[3]) continue;
         if (held) return { true, cmd::ToBelt{ box } };
         for (const auto& item : items)
-            if (item.location == 2 && item.column == box) return { true, cmd::ToCursor{ item.id } };
+            if (item.location == d2d::d2s::item_location::kBelt && item.column == box) return { true, cmd::ToCursor{ item.id } };
         return {};                                         // empty box: the strip toggles the popup
     }
     return {};

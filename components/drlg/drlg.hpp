@@ -4,6 +4,7 @@
 // docs/research/re/drlg.md.
 #pragma once
 
+#include <level_ids.hpp>
 #include <rules.hpp>
 
 #include <array>
@@ -14,6 +15,9 @@
 #include <vector>
 
 namespace d2d::drlg {
+
+// Levels.txt ids: d2d::rules::level_ids (the quests use them too).
+namespace level_ids = d2d::rules::level_ids;
 
 // What the layout needs from Levels.txt: size for the difficulty and the
 // fixed offset of a level that anchors a chain.
@@ -154,12 +158,12 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
         for (int j = 0; j < index; ++j)
             if (j != record.link && !apart(placed[std::size_t(index)], placed[std::size_t(j)])) return false;
         if (!town_rules) return true;
-        if (record.level == 1) {
+        if (record.level == level_ids::kRogueEncampment) {
             const auto& linked = placed[std::size_t(record.link)];
             const auto& placement = placed[std::size_t(index)];
             return kTownAllowed[std::size_t(placement.dir + 4 * placement.flip + 8 * linked.dir + 32 * linked.flip)] != 0;
         }
-        if (record.level == 17)
+        if (record.level == level_ids::kBurialGrounds)
             for (int k = 0; k < count; ++k)
                 if (k != index && recs[std::size_t(k)].link == record.link && placed[std::size_t(k)].dir == placed[std::size_t(index)].dir) return false;
         return true;
@@ -197,7 +201,7 @@ inline std::vector<Placed> act1_layout(const LevelDefs& defs, const d2d::rules::
 // (LvlPrest "Act 1 - Town 1" File1..4): 0 townN1, 1 townE1, 2 townS1,
 // 3 townW1 — named for the side the Blood Moor is on.
 inline int town_file(const std::vector<Placed>& layout) {
-    for (const auto& placement : layout) if (placement.level == 1) return placement.dir;
+    for (const auto& placement : layout) if (placement.level == level_ids::kRogueEncampment) return placement.dir;
     return -1;
 }
 
@@ -206,7 +210,7 @@ inline int town_file(const std::vector<Placed>& layout) {
 // File2 on the act seed; else -1, its own roll.
 inline int courtyard_file(const std::vector<Placed>& layout, d2d::rules::Rng act_seed) {
     for (const auto& placement : layout) {
-        if (placement.level != 6) continue;
+        if (placement.level != level_ids::kBlackMarsh) continue;
         if (placement.dir == 1) return 2 - int(act_seed.next() & 1);
         if (placement.dir == 3) return 1 - int(act_seed.next() & 1);
     }

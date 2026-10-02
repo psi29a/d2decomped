@@ -114,7 +114,7 @@ inline int skill_base_level(const GameData& game_data, const Character& characte
     const auto* skill = game_data.skills.get(id);
     if (!skill) return 0;
     const char* tome = skill->name == "Book of Townportal" ? "tbk" : skill->name == "Book of Identify" ? "ibk" : nullptr;
-    return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == 0; }) ? 1 : 0;
+    return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; }) ? 1 : 0;
 }
 inline int skill_level(const GameData& game_data, const Character& character, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
     const auto* skill = game_data.skills.get(id);

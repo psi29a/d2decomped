@@ -494,8 +494,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // or the stash opens it in the left panel, as D2 does.
         if (mouse.rpress_this_frame)
             for (const auto& item : character.items) {
-                if (item.code != "box" || item.location != 0) continue;
-                const bool in_inv = inv_open && item.panel == 1, in_stash = stash_open && item.panel == 5;
+                if (item.code != "box" || item.location != d2d::d2s::item_location::kStored) continue;
+                const bool in_inv = inv_open && item.panel == d2d::d2s::item_panel::kInventory, in_stash = stash_open && item.panel == d2d::d2s::item_panel::kStash;
                 if (!in_inv && !in_stash) continue;
                 const auto rect = grid_rect(*scene, in_inv ? lay : scene->stash_layout[character.expansion ? 1 : 0], item);
                 if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
@@ -680,8 +680,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
                 for (std::size_t i = 0; i < character.items.size(); ++i) {
                     const auto& item = character.items[i];
-                    const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-                    if (!(item.location == 0 && item.panel == 1) && !(worn && store.mode == 3)) continue;
+                    const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+                    if (!(item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) && !(worn && store.mode == 3)) continue;
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                         if (store.mode == 2) net.send(cmd::Sell{ item.id });
@@ -907,7 +907,7 @@ auto Town::open_menu(int npc) -> void {
             int(character.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(character.items), [&] {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
-                return !d2d::rules::qbit(quest_bits, 41, 0) && (d2d::rules::qbit(quest_bits, 41, 1) || difficulty == 2);
+                return !d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
             character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
     }
@@ -935,7 +935,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         std::erase_if(state_clock.seen, [&](const auto& entry) { return frame_ms - entry.second.last > 5000; });
         Unit player_look{};
         dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
-        const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
+        const bool town = level->id == d2d::rules::level_ids::kRogueEncampment;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = std::max(character.character_class, 0);
         if (pmode == kModeDD) unit.mode_ms = frame_ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);

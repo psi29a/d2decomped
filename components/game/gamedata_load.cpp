@@ -613,7 +613,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     // located; he stands 3 subtiles off the town start, like the
     // Tristram spawn's offset (FUN_00593290).
     for (std::size_t row_index = 0; row_index < monstats.size() && game_data.town.start.first >= 0; ++row_index) {
-        if (monstats.get(row_index, "hcIdx") != "265") continue;
+        if (monstats.get(row_index, "hcIdx") != std::to_string(d2d::rules::monster_ids::kCampCain)) continue;
         auto npc = monster(row_index);
         if (npc.code.empty()) break;
         npc.quest = 4;
@@ -1208,7 +1208,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
             layout.cols = num("gridX"); layout.rows = num("gridY");
             layout.box_w = num("gridBoxWidth"); layout.box_h = num("gridBoxHeight");
-            for (std::size_t slot = 1; slot < 11; ++slot) {
+            for (auto slot = std::size_t(d2d::d2s::body_location::kFirst); slot <= std::size_t(d2d::d2s::body_location::kLast); ++slot) {
                 const std::string column = kSlotCol[slot];
                 layout.slots[slot] = { num(column + "Left"), num(column + "Top"), num(column + "Width"), num(column + "Height") };
             }

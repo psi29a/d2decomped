@@ -35,13 +35,13 @@ inline d2d::rules::Wearer wearer(const GameData& game_data, int save_cls, const 
 inline void stow_held(const GameData& game_data, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held) {
     if (!held) return;
     std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& item : items) if (item.location == 0 && item.panel == 1) inv.push_back(&item);
+    for (const auto& item : items) if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&item);
     const auto [width, height] = d2d::rules::item_size(game_data.rules, held->code);
     if (const auto [x, y] = d2d::rules::free_spot(game_data.rules, inv, 10, 4, width, height); x >= 0) {
-        d2d::rules::put_in_grid(game_data.rules, items, held, 1, 10, 4, x, y);
+        d2d::rules::put_in_grid(game_data.rules, items, held, d2d::d2s::item_panel::kInventory, 10, 4, x, y);
         return;
     }
-    held->location = 4;
+    held->location = d2d::d2s::item_location::kCursor;
     items.push_back(std::move(*held));
     held.reset();
 }
@@ -50,7 +50,7 @@ inline void stow_held(const GameData& game_data, std::vector<d2d::d2s::Item>& it
 // one row) without one — as the popup code picks it (0x49906b).
 inline int belt_index(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
     for (const auto& item : items)
-        if (item.location == 1 && item.slot == 8)
+        if (item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kBelt)
             if (const auto found = game_data.rules.item_info.find(item.code); found != game_data.rules.item_info.end() && found->second.belt >= 0
                 && found->second.belt < 7)
                 return found->second.belt;

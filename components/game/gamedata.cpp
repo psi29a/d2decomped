@@ -452,7 +452,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
             else if (code >= 0x1d && code <= 0x20) {                         // deadminion / deadimp / deadbarb / reanimateddead: mode 12, unit +0xc4 |= 0x2000000
                 // ponytail: reanimateddead's (0x1b6) rand(50) on its own seed and its FUN_005417d0 event aren't there.
                 static constexpr int kDeadBase[4] = { 0x1c5, 0x1ec, 0x20a, 0x1b6 };   // 0x54e9a0..0x54e9c2
-                at_spot(own(code == 0x1e && level.id == 0x6e ? 0x211 : kDeadBase[code - 0x1d]), unit.x, unit.y, 4, true);
+                at_spot(own(code == 0x1e && level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : kDeadBase[code - 0x1d]), unit.x, unit.y, 4, true);
             }
             else if ((code == 0x02 || code == 0x03) && !region.types.empty()) {
                 const int type = d2d::rules::pick_type(region, room.seed);   // FUN_005bde80, the unique pick
@@ -678,7 +678,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
                  && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4   // shrines / chests: NU until used
                  && npc.operate_fn != 9 && npc.operate_fn != 10   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
-                 && (npc.operate_fn != 23 || std::ranges::contains(std::array{ 1, 40, 75, 103, 109 }, into.id)));   // waypoints: on in towns (InitFn 17)
+                 && (npc.operate_fn != 23 || std::ranges::contains(std::array{ d2d::rules::level_ids::kRogueEncampment, d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kKurastDocks, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }, into.id)));   // waypoints: on in towns (InitFn 17)
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.
@@ -1047,10 +1047,10 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
     std::vector<std::string> notes;
     const int size_x = d2d::drlg::to_int(assets.levels.get(row, "SizeX")), size_y = d2d::drlg::to_int(assets.levels.get(row, "SizeY"));
     const auto seed = d2d::drlg::level_seed(game_data.map_seed, level.id);
-    int court_file = level.id == 27 || level.id == 28 ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1;
+    int court_file = level.id == d2d::rules::level_ids::kOuterCloister || level.id == d2d::rules::level_ids::kBarracks ? d2d::drlg::courtyard_file(game_data.act1_layout, d2d::drlg::act_seed(game_data.map_seed)) : -1;
     const auto [origin_x, origin_y] = d2d::drlg::level_origin(assets.levels, row);
     std::array<int, 4> rect{ origin_x, origin_y, size_x, size_y };
-    if (const auto court = d2d::drlg::level_row(assets.levels, 27); level.id == 28 && court) {   // the Barracks sits beside level 27
+    if (const auto court = d2d::drlg::level_row(assets.levels, d2d::rules::level_ids::kOuterCloister); level.id == d2d::rules::level_ids::kBarracks && court) {   // the Barracks sits beside the Outer Cloister
         auto court_seed = d2d::drlg::level_seed(game_data.map_seed, 27);
         court_file = d2d::drlg::preset_file(assets.data, 27, court_seed, court_file);
         const auto [court_x, court_y] = d2d::drlg::level_origin(assets.levels, *court);
@@ -1116,8 +1116,8 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
     // (World::cain_walk).
     if (const auto gibbet = std::ranges::find_if(level->units, [](const auto& unit) { return unit.type == 2 && unit.id == 26; });
-        id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::CainQuest::kCain < int(game_data.mon_bin.size())) {
-        auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::CainQuest::kCain)]];
+        id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::monster_ids::kCain < int(game_data.mon_bin.size())) {
+        auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kCain)]];
         npc.x = (float(gibbet->x) + 0.5f) / 5 + 0.6f;
         npc.y = (float(gibbet->y) + 0.5f) / 5 + 0.6f;
         npc.quest = d2d::rules::CainQuest::kQuest;   // out of the walk grid

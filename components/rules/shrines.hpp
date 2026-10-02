@@ -111,7 +111,7 @@ inline std::uint32_t shrine_reset_frames(int reset) { return reset > 0 ? std::ui
 // "" when `upgrade` took one.
 inline std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed) {
     for (auto& item : items) {
-        if (item.location != 0 || item.panel != 1) continue;
+        if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
         const auto found = tables.item_base.find(item.code);
         if (found == tables.item_base.end() || found->second.better_gem.empty() || found->second.better_gem == "non") continue;
         item.code = found->second.better_gem;
