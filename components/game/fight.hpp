@@ -245,9 +245,12 @@ struct Fight {
     void revive(std::uint32_t now_ms);
 
     // Keys 1-4 drink the belt's bottom-row potion in that column: healing
-    // and mana potions restore their amount over their length, a
-    // rejuvenation its percentages at once.
-    // ponytail: no class potion bonus (CharStats HealthPotionPercent).
+    // and mana potions restore their amount (the class's bonus, a chance
+    // of double: rules::potion_amount) over their length, joined with
+    // what's left of the last one; a rejuvenation its percentages at once
+    // (FUN_005beac0, no bonus).
+    // ponytail: the doubling rolls d2d's rng, not the player's own seed;
+    // no shift-click to feed the merc (FUN_00562390: hpot, apot, wpot).
     void drink(int col, std::uint32_t now_ms);
     void drink_item(int id, std::uint32_t now_ms);
     void potion(const std::string& code, std::uint32_t now_ms);

@@ -40,6 +40,64 @@ replaces it (value and length) only if it is at least as strong
 Healing potions are also `hpregen` (misc.txt stat1), in their own state, so
 potion and poison add up in the same regen tick.
 
+## Drinking a potion
+
+C→S 0x20 (inventory, FUN_0055e170) and 0x26 (belt, FUN_00562390) both go
+through FUN_005bf240, which runs the item's pSpell (Items +0x94) from the
+table at 0x741790 (8 bytes an entry, the second the server's): pSpell 3,
+FUN_005be3f0, healing / mana; pSpell 5, FUN_005beac0, rejuvenation.
+FUN_00562390's shift flag gives a belt potion to the hireling
+(FUN_00574ec0(7, 0)), types hpot 0x4c, apot 0x50, wpot 0x51 only.
+
+FUN_005be3f0, for each of the item's stats (Items +0x9e, calc +0xa4):
+- `amount = calc`; `hpregen` (0x4a) `<< 8` through FUN_0062a5d0, the
+  class's life bonus (amazon, paladin, assassin ×1.5 as `v + (v >> 1)`;
+  barbarian ×2; others ×1; a non-player ×2); `manarecovery` (0x1a)
+  `<< 8` through FUN_0062a620 (amazon, paladin, assassin ×1.5; sorceress,
+  necromancer, druid ×2; others ×1). No HealthPotionPercent in 1.14d.
+- if vitality (life) / energy (mana) > 0: `r = rand(stat) >> 1`, and
+  `rand(100) < r` doubles it (the unit seed, +0x20).
+- `<< ISC ValShift` (0 for both); classic only: FUN_005c6870.
+- into the state (Items +0x98) for `len` (calc +0xb0) frames, joining
+  what's left of it: `left = end − now`, per frame
+  `(old × left + amount) / (left + len)`, lasting `left + len`; it ends
+  through FUN_0056e900.
+
+FUN_005beac0: each stat a percent of the max (ISC +0x32's stat) by MulDiv
+(FUN_00483360), 100 the max itself, capped; no class bonus, no roll.
+d2d: rules::potion_amount / potion_rate, Fight::potion.
+
+## Picking up
+
+C→S 0x16 → FUN_00548b00 (an item: within 5, a clear path); action 0 is
+FUN_00563560's auto-place, else to the cursor (FUN_0055cf50).
+FUN_00563560:
+1. FUN_0055cc90 may it be taken; not: message 0x13 (impossible).
+2. gold: FUN_0055c850.
+3. stacking, FUN_00560020: a scroll (0x16) into an inventory tome of its
+   Books kind with room (FUN_0063c3b0, FUN_0055ffa0 / FUN_0055ef20); a tome
+   (0x12) into one (FUN_0055d370): past its maxstack the picked one keeps
+   the rest on the ground; a stackable AutoStack type into the inventory's
+   matching stacks (FUN_0055d0d0, FUN_0063c200, the match FUN_0062c850:
+   class, quality, flags, stats 0x15–0x18, 0x9f, 0xa0; max FUN_006295b0:
+   maxstack + stat 254, ≤ 511), the rest placed on.
+4. FUN_0055d710: into a free body location it fits.
+5. the belt: FUN_0062bad0 (own type Beltable), FUN_00628ba0 (autobelt, or
+   a bottom match not isc / tsc: FUN_0063c560), FUN_0063c790 →
+   FUN_0063c600: 1×1; columns 0–3 whose bottom item matches (FUN_00628a40:
+   the same code, or both in hp1–5 / mp1–5 / rvs, rvl, 0x744660–0x744698)
+   take their lowest free box below the belt's boxes; else, autobelt, the
+   first free bottom box; FUN_0063afd0 places it.
+6. the inventory: FUN_005600a0 → FUN_0063b950; no room: message 0x17.
+
+Messages voice on the client (FUN_004cb9c0): the class's table off
+0x72a008 (amazon 0x727eac), 0x13 → +8, 0x14 → +0x18, 0x15 → +0xc,
+0x16 → +0x10, 0x17 → +0x14 (cantcarry, amazon sound 0xb76), 0x18 → +0x1c;
+the same sound within 0x4b of FUN_0044db00's clock is skipped.
+d2d: rules::pick_up, Loot::take. ponytail: no step 4; stacks match by
+code; the voice's repeat guard; the doubling rolls d2d's rng; no
+shift-click to the hireling.
+
 ## Regeneration — who can die to poison
 
 - **Players**: FUN_00580810 (event 3 callback, re-armed every frame) calls

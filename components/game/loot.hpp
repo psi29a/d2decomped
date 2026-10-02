@@ -7,6 +7,7 @@
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
+#include "inventory.hpp"
 #include "item_text.hpp"
 #include "log.hpp"
 
@@ -158,8 +159,11 @@ struct Loot {
     }
 
     // Picking up: gold into the purse (up to 10000 per character level),
-    // an item into the first inventory spot it fits.
-    // ponytail: potions don't go to the belt first; no "no room" sound.
+    // an item stacked, into the belt or the inventory (rules::pick_up); no
+    // room plays the class's "can't carry" (message 0x17: FUN_004cb9c0,
+    // the class's sound table at 0x72a008, +0x14).
+    // ponytail: the client's repeat guard on that voice (the same sound
+    // again within 75 of FUN_0044db00's clock) isn't kept.
     void take(std::size_t index) {
         using namespace d2d::d2s;
         auto& ground_item = ground[index];
@@ -172,13 +176,15 @@ struct Loot {
             if ((ground_item.gold -= int(taken)) > 0) { ground_item.label = std::to_string(ground_item.gold) + " Gold"; return; }
         } else {
             const auto& lay = game_data->inv_layout[std::size_t(std::max(character.character_class, 0))];
-            std::vector<const Item*> inv;
-            for (const auto& x : character.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
-            const auto [width, height] = d2d::rules::item_size(game_data->rules, ground_item.item.code);
-            const auto [x, y] = d2d::rules::free_spot(game_data->rules, inv, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, width, height);
-            if (x < 0) { d2d::log::info("no room for {}", ground_item.label); return; }
-            ground_item.item.location = 0; ground_item.item.panel = 1; ground_item.item.column = x; ground_item.item.row = y;
-            character.items.push_back(std::move(ground_item.item));
+            const int boxes = game_data->belts[std::size_t(belt_index(*game_data, character.items))].boxes;
+            const auto taken = d2d::rules::pick_up(game_data->rules, character.items, ground_item.item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes);
+            if (taken == d2d::rules::Pickup::kNoRoom) {
+                static constexpr std::array<const char*, 7> kCantCarry{ "amazon_cantcarry_1", "sorceress_cantcarry_1", "necromancer_cantcarry_1",
+                    "paladin_cantcarry_1", "barbarian_cantcarry_1", "druid_cantcarry_1", "assassin_cant_carry" };
+                d2d::log::info("no room for {}", ground_item.label);
+                cues.cue(kCantCarry[std::size_t(std::clamp(character.character_class, 0, 6))], 0, player.x, player.y);
+            }
+            if (taken != d2d::rules::Pickup::kGone) return;
             cues.cue("item_pickup", 0, player.x, player.y);
         }
         ground.erase(ground.begin() + std::ptrdiff_t(index));

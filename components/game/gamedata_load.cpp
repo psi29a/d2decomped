@@ -725,6 +725,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
             types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1",
             types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
+        game_data.rules.types[code].autostack = types.get(row, "AutoStack") == "1";
     }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
@@ -762,9 +763,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                     if (vendor_item.max > 0 || vendor_item.magic_max > 0) game_data.rules.vendor_items[vendor].push_back(std::move(vendor_item));
                 }
             }
-        // Potions (misc.txt stat1/calc1, stat2/calc2, len).
+        // Potions (misc.txt stat1/calc1, stat2/calc2, len), autobelt.
         for (std::size_t row = 0; row < misc.size(); ++row) {
             auto number = [&](std::string column) { return std::atoi(std::string(misc.get(row, column)).c_str()); };
+            if (number("autobelt")) if (const auto base = game_data.rules.item_base.find(std::string(misc.get(row, "code"))); base != game_data.rules.item_base.end()) base->second.autobelt = true;
             const auto stat1 = misc.get(row, "stat1"), stat2 = misc.get(row, "stat2");
             d2d::rules::Tables::Potion potion{ 0, 0, number("len") };
             if (stat1 == "hpregen") potion.life = number("calc1");
