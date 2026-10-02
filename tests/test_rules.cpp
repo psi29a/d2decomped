@@ -136,8 +136,8 @@ int main() {
     cursor_tables.item_info["cap"] = { .width = 2, .height = 2, .type = "helm", .kind = 1, .req_lvl = 5 };
     cursor_tables.item_info["hp1"] = { .type = "hpot" };
     cursor_tables.item_info["box"] = { .width = 2, .height = 2 };
-    const Wearer sorc{ .cls = 1, .str = 30, .dex = 30, .lvl = 10 };
-    const Wearer barb{ .cls = 4, .str = 30, .dex = 30, .lvl = 10 };
+    const Wearer sorc{ .cls = d2d::d2s::kSorceress, .str = 30, .dex = 30, .lvl = 10 };
+    const Wearer barb{ .cls = d2d::d2s::kBarbarian, .str = 30, .dex = 30, .lvl = 10 };
     auto item_at = [](const std::vector<Item>& items, int loc, int slot) -> const Item* {
         for (const auto& x : items) if (x.location == loc && x.slot == slot) return &x;
         return nullptr;
@@ -163,10 +163,10 @@ int main() {
     std::vector<Item> empty;
     held = item("cap");
     assert(!equip(cursor_tables, empty, held, 3, sorc));                                     // not a torso item
-    assert(!equip(cursor_tables, empty, held, 1, Wearer{ .cls = 1, .lvl = 4 }));             // level 5 needed
+    assert(!equip(cursor_tables, empty, held, 1, Wearer{ .cls = d2d::d2s::kSorceress, .lvl = 4 }));             // level 5 needed
     assert(equip(cursor_tables, empty, held, 1, sorc) && !held && item_at(empty, 1, 1));
     held = item("ssd");
-    assert(!equip(cursor_tables, empty, held, 4, Wearer{ .cls = 1, .str = 10 }));            // 25 strength needed
+    assert(!equip(cursor_tables, empty, held, 4, Wearer{ .cls = d2d::d2s::kSorceress, .str = 10 }));            // 25 strength needed
     assert(equip(cursor_tables, empty, held, 4, sorc));
     held = item("buc");
     assert(equip(cursor_tables, empty, held, 5, sorc) && !held);                             // sword + shield

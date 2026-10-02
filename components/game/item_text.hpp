@@ -384,7 +384,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     }
     // Smite (a Paladin's shield) / kick damage (an Assassin's boots): the armor.txt mindam / maxdam.
     const std::string class_code = d2d::rules::type_class(game_data.rules, type);
-    if ((is("shld") && cls == 3 && (class_code.empty() || class_code == "pal")) || (is("boot") && cls == 6))
+    if ((is("shld") && cls == d2d::d2s::kPaladin && (class_code.empty() || class_code == "pal")) || (is("boot") && cls == d2d::d2s::kAssassin))
         out.push_back({ string_id(game_data, is("shld") ? 3468 : 21782) + space + std::to_string(item_base.mindam) + to + std::to_string(item_base.maxdam), kTxtWhite });
     // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
     // the record (FUN_0062d300 sets them: low quality 3/4, ethereal 3/2),
@@ -406,7 +406,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
             return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to + std::to_string(high), blue);
         };
         if (throwable && desc.dam[5]) out.push_back(damage(2, false, 3467, has(17) || has(18) || has(159) || has(160)));
-        if (cls == 4 && info->second.one_or_two) {
+        if (cls == d2d::d2s::kBarbarian && info->second.one_or_two) {
             out.push_back(damage(0, false, 3465, false));
             out.push_back(damage(1, false, 3466, false));
         } else {

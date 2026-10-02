@@ -511,7 +511,7 @@ inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot,
 // ones in one); only a quiver can join it.
 inline bool blocks_other_hand(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer) {
     const auto* info = info_of(tables, item);
-    return info && info->two_handed && !(wearer.cls == 4 && info->one_or_two);
+    return info && info->two_handed && !(wearer.cls == d2d::d2s::kBarbarian && info->one_or_two);
 }
 
 // Can a and b be held in the two hands together? Weapon + shield or
@@ -525,7 +525,7 @@ inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2
     if (blocks_other_hand(tables, first, wearer)) return second_quiver;
     if (blocks_other_hand(tables, second, wearer)) return first_quiver;
     const bool first_weapon = type_is(tables, first_info->type, "weap"), second_weapon = type_is(tables, second_info->type, "weap");
-    if (first_weapon && second_weapon) return wearer.cls == 4 || (wearer.cls == 6 && type_is(tables, first_info->type, "h2h") && type_is(tables, second_info->type, "h2h"));
+    if (first_weapon && second_weapon) return wearer.cls == d2d::d2s::kBarbarian || (wearer.cls == d2d::d2s::kAssassin && type_is(tables, first_info->type, "h2h") && type_is(tables, second_info->type, "h2h"));
     return first_weapon != second_weapon;
 }
 
@@ -1375,8 +1375,8 @@ inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>&
 // Sorceress, Necromancer, Druid x2), then doubled when rand(vitality /
 // energy) / 2 beats rand(100), the drinker's seed (unit +0x20).
 template <class T> T potion_bonus(T amount, int cls, bool life) {
-    if (cls == 0 || cls == 3 || cls == 6) return amount + (amount >> 1);
-    return (life ? cls == 4 : cls == 1 || cls == 2 || cls == 5) ? amount * 2 : amount;
+    if (cls == d2d::d2s::kAmazon || cls == d2d::d2s::kPaladin || cls == d2d::d2s::kAssassin) return amount + (amount >> 1);
+    return (life ? cls == d2d::d2s::kBarbarian : cls == d2d::d2s::kSorceress || cls == d2d::d2s::kNecromancer || cls == d2d::d2s::kDruid) ? amount * 2 : amount;
 }
 inline int potion_amount(int calc, int cls, bool life, int stat, Rng& rng) {
     int amount = potion_bonus(calc << 8, cls, life);

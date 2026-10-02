@@ -67,7 +67,8 @@ constexpr const char* kClassKey[7] = {
 // The screen's class order (kClassKey) <-> the .d2s class id (AM SO NE
 // PA BA DZ AS: Character::character_class).
 constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
-constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
+constexpr int kUiToSaveClass[7] = { d2d::d2s::kBarbarian, d2d::d2s::kNecromancer, d2d::d2s::kPaladin, d2d::d2s::kAmazon,
+                                    d2d::d2s::kSorceress, d2d::d2s::kDruid, d2d::d2s::kAssassin };
 
 // D2's frontend records store (x, y, w, h) with y = the BOTTOM row
 // (bottom-left anchor, like its DC6 blits): the full-screen BG record is

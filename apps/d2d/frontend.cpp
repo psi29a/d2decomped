@@ -91,7 +91,7 @@ std::string char_title(const d2d::d2s::Header& header) {
                    : (progression < 4 ? 0 : progression < 8 ? 1 : progression < 12 ? 2 : 3);
     if (tier == 0) return {};
     if (header.hardcore()) tier += 3;
-    const bool female = header.cls == 0 || header.cls == 1 || header.cls == 6;
+    const bool female = header.cls == d2d::d2s::kAmazon || header.cls == d2d::d2s::kSorceress || header.cls == d2d::d2s::kAssassin;
     static constexpr const char* kClassic[2][7] = {
         { "", "Sir ",  "Lord ", "Baron ",    "Count ",    "Duke ",    "King "  },
         { "", "Dame ", "Lady ", "Baroness ", "Countess ", "Duchess ", "Queen " },

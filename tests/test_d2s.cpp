@@ -217,7 +217,7 @@ int main() {
             }
             // A character made in d2d (no file yet): a fresh header.
             {
-                d2d::d2s::Header fresh_header; fresh_header.name = "Fresh"; fresh_header.cls = 4; fresh_header.level = 1; fresh_header.status = 0x20;
+                d2d::d2s::Header fresh_header; fresh_header.name = "Fresh"; fresh_header.cls = std::uint8_t(d2d::d2s::kBarbarian); fresh_header.level = 1; fresh_header.status = 0x20;
                 fresh_header.appearance.fill(0xff); fresh_header.tints.fill(0xff); fresh_header.difficulty = { 0x80, 0, 0 };
                 d2d::d2s::Stats fresh_stats; fresh_stats.values[d2d::d2s::kStr] = 30; fresh_stats.values[d2d::d2s::kLevel] = 1; fresh_stats.values[d2d::d2s::kLife] = 55 << 8;
                 d2d::d2s::Item axe; axe.code = "hax"; axe.location = 1; axe.slot = 4; axe.quality = 2; axe.ilvl = 1;
