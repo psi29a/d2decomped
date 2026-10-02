@@ -1227,7 +1227,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
             // The server's unit sound event 2 (FUN_00570880 → FUN_00553380),
             // sent to the player alone as S→C 0x2C; the client plays
             // Sounds.txt 7, cursor_level_up, not placed (FUN_004cb9c0).
-            cues.cue(7, now_ms, player.x, player.y);
+            cues.cue(d2d::rules::sound_ids::kCursorLevelUp, now_ms, player.x, player.y);
         }
         loot.drop(monster, spawning.game, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });

@@ -4,6 +4,8 @@
 
 #include "common.hpp"
 
+#include <sound_ids.hpp>
+
 #include <algorithm>
 #include <span>
 #include <string>
@@ -201,7 +203,7 @@ GameMenu::Action GameMenu::activate(const Scene& scene, Audio& audio) {
         auto& val = value[std::size_t(menu)][std::size_t(row_index)];
         if (++val > row.count - 1) val = 0;
         changed(audio, row_index);
-        audio.play_sfx(scene, 1, 1.f, 0);
+        audio.play_sfx(scene, d2d::rules::sound_ids::kCursorPass, 1.f, 0);
         return kNone;
     }
     if (row.type != 0) return kNone;
@@ -219,7 +221,7 @@ GameMenu::Action GameMenu::activate(const Scene& scene, Audio& audio) {
     else if (row.name == "CfgOptions") action = kControls;    // 0x47f400: UI 0xb
     else if (row.name == "Previous") show(0);                 // 0x47f430
     else if (row.name == "SPrevious") show(1);                // 0x47f460
-    audio.play_sfx(scene, 2, 1.f, 0);
+    audio.play_sfx(scene, d2d::rules::sound_ids::kCursorSelect, 1.f, 0);
     return action;
 }
 
@@ -239,7 +241,7 @@ void GameMenu::slide(const Scene& scene, Audio& audio, int mouse_x, int mouse_y)
             drag = true;
         }
     }
-    if (val != old) { changed(audio, row_index); audio.play_sfx(scene, 1, 1.f, 0); }
+    if (val != old) { changed(audio, row_index); audio.play_sfx(scene, d2d::rules::sound_ids::kCursorPass, 1.f, 0); }
 }
 
 GameMenu::Action GameMenu::input(const Scene& scene, Audio& audio, const Mouse& mouse, const std::vector<SDL_Keycode>& keys, std::uint32_t now_ms) {
@@ -253,7 +255,7 @@ GameMenu::Action GameMenu::input(const Scene& scene, Audio& audio, const Mouse& 
             do next = (next + dir) % count;
             while (next != sel && (kMenus[menu].rows[std::size_t(shown[std::size_t(next)])].type == -1 || !enabled(shown[std::size_t(next)])));
             sel = next;
-            audio.play_sfx(scene, 1, 1.f, 0);
+            audio.play_sfx(scene, d2d::rules::sound_ids::kCursorPass, 1.f, 0);
         } else if (key == SDLK_LEFT || key == SDLK_RIGHT) {   // 47d9a0 / 47da90
             const int row_index = shown[std::size_t(sel)];
             const auto& row = kMenus[menu].rows[std::size_t(row_index)];
@@ -262,7 +264,7 @@ GameMenu::Action GameMenu::input(const Scene& scene, Audio& audio, const Mouse& 
             if (!enabled(row_index)) continue;
             if (row.type == 1) val = key == SDLK_LEFT ? (val == 0 ? row.count - 1 : val - 1) : (val + 1 > row.count - 1 ? 0 : val + 1);
             else if (row.type == 2) val = std::clamp(val + (key == SDLK_LEFT ? -1 : 1), 0, row.count - 1);
-            if (val != old) { changed(audio, row_index); audio.play_sfx(scene, 1, 1.f, 0); }
+            if (val != old) { changed(audio, row_index); audio.play_sfx(scene, d2d::rules::sound_ids::kCursorPass, 1.f, 0); }
         } else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {   // 47db80
             if (const auto done = activate(scene, audio); done != kNone) return done;
         }
@@ -345,7 +347,7 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
     // it and the mini-panel opens or closes (0x499a82).
     if (mouse.press_this_frame && on_menu_button(mouse.x, mouse.y)) {
         button_down = true;
-        audio.play_sfx(scene, 4, 1.f, 0);
+        audio.play_sfx(scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
         took = true;
     }
     if (mouse.release_this_frame && button_down) {
@@ -360,7 +362,7 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
     if (mouse.press_this_frame && in_box) {                // FUN_0047ef30
         for (std::size_t i = 0; i < down.size(); ++i) {
             const int button_x = x0 + 0x15 * int(i);
-            if (mouse.x > button_x && mouse.x < button_x + 0x14) { down[i] = true; audio.play_sfx(scene, 4, 1.f, 0); }
+            if (mouse.x > button_x && mouse.x < button_x + 0x14) { down[i] = true; audio.play_sfx(scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         }
         took = true;
     }

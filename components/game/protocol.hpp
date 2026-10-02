@@ -140,40 +140,79 @@ struct In {
 };
 }  // namespace wire
 
+// The commands' first byte: game.exe's client -> server packet ids
+// (docs/research/re/network.md).
+namespace opcode {
+inline constexpr std::uint8_t kMove = 0x01;
+inline constexpr std::uint8_t kLeftSkill = 0x05;
+inline constexpr std::uint8_t kRightSkill = 0x0c;
+inline constexpr std::uint8_t kInteract = 0x13;
+inline constexpr std::uint8_t kPickup = 0x16;
+inline constexpr std::uint8_t kDrop = 0x17;
+inline constexpr std::uint8_t kToGrid = 0x18;
+inline constexpr std::uint8_t kToCursor = 0x19;
+inline constexpr std::uint8_t kToBody = 0x1a;
+inline constexpr std::uint8_t kUseItem = 0x20;
+inline constexpr std::uint8_t kToBelt = 0x23;
+inline constexpr std::uint8_t kUseBelt = 0x26;
+inline constexpr std::uint8_t kChat = 0x2f;
+inline constexpr std::uint8_t kCloseTrade = 0x30;
+inline constexpr std::uint8_t kQuestMessage = 0x31;
+inline constexpr std::uint8_t kBuy = 0x32;
+inline constexpr std::uint8_t kSell = 0x33;
+inline constexpr std::uint8_t kIdentify = 0x34;
+inline constexpr std::uint8_t kRepair = 0x35;
+inline constexpr std::uint8_t kHire = 0x36;
+inline constexpr std::uint8_t kNpcDeal = 0x38;
+inline constexpr std::uint8_t kStatPoint = 0x3a;
+inline constexpr std::uint8_t kSkillPoint = 0x3b;
+inline constexpr std::uint8_t kSelectSkill = 0x3c;
+inline constexpr std::uint8_t kResurrect = 0x41;
+inline constexpr std::uint8_t kWaypoint = 0x49;
+inline constexpr std::uint8_t kRunOn = 0x53;
+inline constexpr std::uint8_t kRunOff = 0x54;
+}  // namespace opcode
+
+// 0x38's first byte: which deal (d2d's numbering; game.exe tells Respec,
+// GoEast and Imbue apart by the NPC and an argument, see the cmd structs).
+namespace npc_deal {
+inline constexpr int kTrade = 0, kGamble = 1, kHire = 2, kRespec = 3, kGoEast = 4, kImbue = 5;
+}  // namespace npc_deal
+
 inline std::vector<std::uint8_t> encode(const Command& command) {
     wire::Out out;
     std::visit([&](const auto& message) {
         using T = std::decay_t<decltype(message)>;
-        if constexpr (std::is_same_v<T, cmd::Move>) out.u8(0x01).f32(message.x).f32(message.y).u8(message.fresh);
-        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? 0x05 : 0x0c).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit);
-        else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(0x13).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(0x16).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(0x41);
-        else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(0x3a).i32(message.stat).i32(message.count);
-        else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(0x3b).i32(message.skill);
-        else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(0x3c).i32(message.skill).u8(message.left);
-        else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(0x26).i32(message.slot);
-        else if constexpr (std::is_same_v<T, cmd::UseItem>) out.u8(0x20).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::ToCursor>) out.u8(0x19).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::Drop>) out.u8(0x17).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(0x18).i32(message.panel).i32(message.col).i32(message.row);
-        else if constexpr (std::is_same_v<T, cmd::ToBody>) out.u8(0x1a).i32(message.slot);
-        else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(0x23).i32(message.box);
-        else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(0x38).u8(message.gamble ? 1 : 0).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(0x38).u8(2).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(0x38).u8(3).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(0x32).i32(message.stock);
-        else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(0x33).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(0x35).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(0x34);
-        else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(0x36).i32(message.offer);
-        else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(0x30);
-        else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? 0x53 : 0x54);
-        else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(0x2f).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(0x31).i32(message.npc).i32(message.string);
-        else if constexpr (std::is_same_v<T, cmd::GoEast>) out.u8(0x38).u8(4).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(0x38).u8(5).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Waypoint>) out.u8(0x49).i32(message.npc).i32(message.level);
+        if constexpr (std::is_same_v<T, cmd::Move>) out.u8(opcode::kMove).f32(message.x).f32(message.y).u8(message.fresh);
+        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit);
+        else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(opcode::kInteract).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
+        else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(opcode::kStatPoint).i32(message.stat).i32(message.count);
+        else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(opcode::kSkillPoint).i32(message.skill);
+        else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(opcode::kSelectSkill).i32(message.skill).u8(message.left);
+        else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(opcode::kUseBelt).i32(message.slot);
+        else if constexpr (std::is_same_v<T, cmd::UseItem>) out.u8(opcode::kUseItem).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ToCursor>) out.u8(opcode::kToCursor).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Drop>) out.u8(opcode::kDrop).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(opcode::kToGrid).i32(message.panel).i32(message.col).i32(message.row);
+        else if constexpr (std::is_same_v<T, cmd::ToBody>) out.u8(opcode::kToBody).i32(message.slot);
+        else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(opcode::kToBelt).i32(message.box);
+        else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(opcode::kNpcDeal).u8(message.gamble ? npc_deal::kGamble : npc_deal::kTrade).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(opcode::kNpcDeal).u8(npc_deal::kHire).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(opcode::kNpcDeal).u8(npc_deal::kRespec).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.stock);
+        else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(opcode::kSell).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(opcode::kRepair).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(opcode::kIdentify);
+        else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(opcode::kHire).i32(message.offer);
+        else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(opcode::kCloseTrade);
+        else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? opcode::kRunOn : opcode::kRunOff);
+        else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(opcode::kChat).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(opcode::kQuestMessage).i32(message.npc).i32(message.string);
+        else if constexpr (std::is_same_v<T, cmd::GoEast>) out.u8(opcode::kNpcDeal).u8(npc_deal::kGoEast).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(opcode::kNpcDeal).u8(npc_deal::kImbue).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::Waypoint>) out.u8(opcode::kWaypoint).i32(message.npc).i32(message.level);
         else static_assert(!sizeof(T), "a command without a wire form");
     }, command);
     return out.bytes;
@@ -189,36 +228,37 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
     auto byte = [&] { return int(input.get<std::uint8_t>()); };
     std::optional<Command> command;
     switch (bytes[0]) {
-        case 0x01: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
-        case 0x05: case 0x0c: { const int skill = i32(); const float x = f32(), y = f32(); command = cmd::UseSkill{ skill, x, y, i32(), bytes[0] == 0x05 }; break; }
-        case 0x13: command = cmd::Interact{ i32() }; break;
-        case 0x16: command = cmd::Pickup{ i32() }; break;
-        case 0x41: command = cmd::Resurrect{}; break;
-        case 0x3a: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
-        case 0x3b: command = cmd::SkillPoint{ i32() }; break;
-        case 0x3c: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
-        case 0x26: command = cmd::UseBelt{ i32() }; break;
-        case 0x20: command = cmd::UseItem{ i32() }; break;
-        case 0x19: command = cmd::ToCursor{ i32() }; break;
-        case 0x17: command = cmd::Drop{ i32() }; break;
-        case 0x18: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
-        case 0x1a: command = cmd::ToBody{ i32() }; break;
-        case 0x23: command = cmd::ToBelt{ i32() }; break;
-        case 0x38: {
+        case opcode::kMove: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
+        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); command = cmd::UseSkill{ skill, x, y, i32(), bytes[0] == opcode::kLeftSkill }; break; }
+        case opcode::kInteract: command = cmd::Interact{ i32() }; break;
+        case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
+        case opcode::kResurrect: command = cmd::Resurrect{}; break;
+        case opcode::kStatPoint: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
+        case opcode::kSkillPoint: command = cmd::SkillPoint{ i32() }; break;
+        case opcode::kSelectSkill: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
+        case opcode::kUseBelt: command = cmd::UseBelt{ i32() }; break;
+        case opcode::kUseItem: command = cmd::UseItem{ i32() }; break;
+        case opcode::kToCursor: command = cmd::ToCursor{ i32() }; break;
+        case opcode::kDrop: command = cmd::Drop{ i32() }; break;
+        case opcode::kToGrid: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
+        case opcode::kToBody: command = cmd::ToBody{ i32() }; break;
+        case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
+        case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
-            command = kind == 5 ? Command{ cmd::Imbue{ npc } } : kind == 4 ? Command{ cmd::GoEast{ npc } } : kind == 3 ? Command{ cmd::Respec{ npc } } : kind == 2 ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == 1 } };
+            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc } } : kind == npc_deal::kGoEast ? Command{ cmd::GoEast{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } }
+                    : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
             break;
         }
-        case 0x32: command = cmd::Buy{ i32() }; break;
-        case 0x33: command = cmd::Sell{ i32() }; break;
-        case 0x35: command = cmd::Repair{ i32() }; break;
-        case 0x34: command = cmd::Identify{}; break;
-        case 0x36: command = cmd::Hire{ i32() }; break;
-        case 0x30: command = cmd::CloseTrade{}; break;
-        case 0x53: case 0x54: command = cmd::Run{ bytes[0] == 0x53 }; break;
-        case 0x2f: command = cmd::Chat{ i32() }; break;
-        case 0x31: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
-        case 0x49: { const int npc = i32(); command = cmd::Waypoint{ npc, i32() }; break; }
+        case opcode::kBuy: command = cmd::Buy{ i32() }; break;
+        case opcode::kSell: command = cmd::Sell{ i32() }; break;
+        case opcode::kRepair: command = cmd::Repair{ i32() }; break;
+        case opcode::kIdentify: command = cmd::Identify{}; break;
+        case opcode::kHire: command = cmd::Hire{ i32() }; break;
+        case opcode::kCloseTrade: command = cmd::CloseTrade{}; break;
+        case opcode::kRunOn: case opcode::kRunOff: command = cmd::Run{ bytes[0] == 0x53 }; break;
+        case opcode::kChat: command = cmd::Chat{ i32() }; break;
+        case opcode::kQuestMessage: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
+        case opcode::kWaypoint: { const int npc = i32(); command = cmd::Waypoint{ npc, i32() }; break; }
         default: return std::nullopt;
     }
     if (!input.ok || input.offset != bytes.size()) return std::nullopt;

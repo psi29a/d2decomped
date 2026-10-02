@@ -21,9 +21,9 @@
 #include <log.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
-#include <uniques.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -551,10 +551,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const int want = level->rain ? int(rain.volume() * 255.f) : 0;
             rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
         }
-        if (rain_vol > 0 && audio.rain.sound != 64) audio.play(audio.rain, *scene, 64);
+        if (rain_vol > 0 && audio.rain.sound != d2d::rules::sound_ids::kSceneRain) audio.play(audio.rain, *scene, d2d::rules::sound_ids::kSceneRain);
         if (rain_vol == 0 && audio.rain.sound) audio.stop(audio.rain);
-        if (audio.rain.src && scene->sounds.size() > 64)
-            audio.set_gain(audio.rain, float(scene->sounds[64].volume) / 255.f * float(rain_vol) / 255.f);
+        if (audio.rain.src && scene->sounds.size() > d2d::rules::sound_ids::kSceneRain)
+            audio.set_gain(audio.rain, float(scene->sounds[d2d::rules::sound_ids::kSceneRain].volume) / 255.f * float(rain_vol) / 255.f);
         // Every Event Delay ticks, give or take a third, one of the event
         // sounds from the left or right (x +-450..750, y +-100 in game.exe's
         // units; the first within one gap of arriving).
@@ -575,7 +575,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
             }
         }
-        if (questdone_sound) { questdone_sound = false; audio.play_sfx(*scene, 14, 1.f, 0); }
+        if (questdone_sound) { questdone_sound = false; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorQuestDone, 1.f, 0); }
         if (replay_speech) {
             const auto found = std::ranges::find_if(kSpeechSound, [&](const auto& entry) { return entry.first == replay_speech; });
             if (found != kSpeechSound.end()) audio.play_voice(*scene, found->second);
@@ -714,7 +714,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (shown.stats_x < 0) stats_down = false;          // hidden lets go (FUN_004a6b30)
         if (shown.skills_x < 0) skills_down = false;
         const bool level_click = mouse.press_this_frame && (on_stats || on_skills);
-        if (level_click) { (on_stats ? stats_down : skills_down) = true; audio.play_sfx(*scene, 4, 1.f, 0); }
+        if (level_click) { (on_stats ? stats_down : skills_down) = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         if (mouse.release_this_frame) {
             if (stats_down && on_stats) { char_open = true; stash_open = cube_open = quest_log.open = false; }
             if (skills_down && on_skills) { tree_open = true; inv_open = false; }
@@ -724,7 +724,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // over it and run toggles, as R does (FUN_004996a0).
         const bool on_run = over_run_button(mouse.x, mouse.y);
         const bool run_click = mouse.press_this_frame && on_run;
-        if (run_click) { run_down = true; audio.play_sfx(*scene, 4, 1.f, 0); }
+        if (run_click) { run_down = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         if (mouse.release_this_frame) {
             if (run_down && on_run) net.send(cmd::Run{ !view.running });
             run_down = false;

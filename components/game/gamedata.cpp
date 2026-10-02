@@ -678,7 +678,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
                  && objects.get(row, "Lit2") != "0" && npc.operate_fn != d2d::rules::operate_fn::kShrine && npc.operate_fn != d2d::rules::operate_fn::kChest   // shrines / chests: NU until used
                  && npc.operate_fn != d2d::rules::operate_fn::kCairnStone && npc.operate_fn != d2d::rules::operate_fn::kGibbet   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
-                 && (npc.operate_fn != d2d::rules::operate_fn::kWaypoint || std::ranges::contains(std::array{ d2d::rules::level_ids::kRogueEncampment, d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kKurastDocks, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }, into.id)));   // waypoints: on in towns (InitFn 17)
+                 && (npc.operate_fn != d2d::rules::operate_fn::kWaypoint || d2d::rules::level_ids::is_town(into.id)));   // waypoints: on in towns (InitFn 17)
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.

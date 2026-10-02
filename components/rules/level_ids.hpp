@@ -13,6 +13,10 @@ inline constexpr int kKurastDocks = 75;
 inline constexpr int kPandemoniumFortress = 103;
 inline constexpr int kHarrogath = 109;
 
+constexpr bool is_town(int level_id) {
+    return level_id == kRogueEncampment || level_id == kLutGholein || level_id == kKurastDocks || level_id == kPandemoniumFortress || level_id == kHarrogath;
+}
+
 // Act 1.
 inline constexpr int kBloodMoor = 2;
 inline constexpr int kColdPlains = 3;
