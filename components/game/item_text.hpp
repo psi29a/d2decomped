@@ -363,7 +363,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     const auto desc_row = game_data.item_desc.find(item.code);
     const GameData::ItemDesc no_desc{};
     const auto& desc = desc_row != game_data.item_desc.end() ? desc_row->second : no_desc;
-    const bool weapon = is("weap"), armor = is("armo"), throwable = game_data.throwable.contains(type);
+    const bool weapon = is("weap"), armor = is("armo"), throwable = game_data.rules.types.contains(type) && game_data.rules.types.at(type).throwable;
     const int cls = wearer && wearer->cls >= 0 && wearer->cls < 7 ? wearer->cls : -1;
     if (wearer) clvl = wearer->lvl;
     const std::string space = " ", to = space + string_id(game_data, 3464) + space;            // "to"

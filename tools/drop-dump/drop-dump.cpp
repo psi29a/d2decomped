@@ -8,7 +8,11 @@
 // quality<TAB>bovine" a line, off a game seed {seed, 666} (Loot::put):
 // "seed code iilvl qquality[ cow]: seeds unit own gold N qty N dur N/N def
 // N pick N -> game seed low after". The one-per-game uniques carry on
-// from line to line.
+// from line to line. Low / normal / superior take a 6th field, the
+// difficulty, and print "seed code iilvl qquality ddiff: seeds unit own qty
+// N dur N/N def N | qquality sub N flags (0x800 socketed, 0x400000
+// ethereal) sock N pic N auto N [stat:param=value,...] -> game, unit, own
+// seed lows after".
 // drop-dump <mpq dir> objects — containers opened, "objseed<TAB>unitseed<TAB>
 // op<TAB>class<TAB>level<TAB>difficulty<TAB>locked<TAB>sparkle" a line, off
 // object seed {objseed, 666} and unit seed {unitseed, 666} (World::operate):
@@ -31,6 +35,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -80,8 +85,8 @@ int main(int argc, char** argv) {
         }
         if (items) {
             std::istringstream fields(line);
-            std::string seed, code, ilvl, quality, bovine;
-            for (auto* field : { &seed, &code, &ilvl, &quality, &bovine }) std::getline(fields, *field, '\t');
+            std::string seed, code, ilvl, quality, bovine, diff;
+            for (auto* field : { &seed, &code, &ilvl, &quality, &bovine, &diff }) std::getline(fields, *field, '\t');
             const int level = std::stoi(ilvl), wanted = std::stoi(quality);
             d2d::rules::Rng game{ std::uint32_t(std::stoul(seed)) };
             d2d::rules::Rng unit{ game.next() }, own{ game.next() };
@@ -89,10 +94,46 @@ int main(int argc, char** argv) {
             d2d::d2s::Item item;
             int gold = 0;
             if (code == "gld") gold = d2d::rules::gold_amount(level, 0, unit);
-            else item = d2d::rules::generate_item(rules, code, level, wanted, own, &unit, &found_uniques, bovine == "1");
+            else item = d2d::rules::generate_item(rules, code, level, wanted, own, &unit, &found_uniques, bovine == "1", diff.empty() ? 0 : std::stoi(diff));
+            if (wanted <= 3) {
+                std::map<std::pair<int, int>, int> props;      // the item's one modifier list, (stat, param) summed
+                for (const auto& prop : item.props) props[{ prop.stat, prop.param }] += prop.value;
+                std::string list;
+                for (const auto& [key, value] : props)
+                    if (value) list += (list.empty() ? "" : ",") + std::to_string(key.first) + ":" + std::to_string(key.second) + "=" + std::to_string(value);
+                const int flags = (item.socketed ? 0x800 : 0) | (item.ethereal ? 0x400000 : 0);
+                std::printf("%08x %s i%d q%d d%s: seeds %08x %08x qty %d dur %d/%d def %d | q%d sub %d flags %x sock %d pic %d auto %d [%s] -> %08x %08x %08x\n",
+                            unsigned(std::stoul(seed)), code.c_str(), level, wanted, diff.c_str(), unit_low, own_low, std::max(item.quantity, 0), item.durability,
+                            item.max_durability, std::max(item.defense, 0), item.quality, item.qsub, flags, item.sockets, std::max(item.picture, 0),
+                            item.class_affix < 0 ? 0 : item.class_affix, list.c_str(), game.low, unit.low, own.low);
+                continue;
+            }
             const int pick = wanted == 7 && item.quality == 7 ? item.unique_id : wanted == 5 && item.quality == 5 ? item.set_id : -1;
-            std::printf("%08x %s i%d q%d%s: seeds %08x %08x gold %d qty %d dur %d/%d def %d pick %d -> %08x\n", unsigned(std::stoul(seed)), code.c_str(), level, wanted,
-                        bovine == "1" ? " cow" : "", unit_low, own_low, gold, std::max(item.quantity, 0), item.durability, item.max_durability, std::max(item.defense, 0), pick, game.low);
+            std::string made;                                  // a unique / set that took: its flags, mods and own seed after
+            if ((wanted == 5 || wanted == 7) && item.quality == wanted) {
+                std::map<std::pair<int, int>, int> props;
+                for (const auto& prop : item.props) props[{ prop.stat, prop.param }] += prop.value;
+                for (const auto& [key, value] : props)
+                    if (value) made += (made.empty() ? "" : ",") + std::to_string(key.first) + ":" + std::to_string(key.second) + "=" + std::to_string(value);
+                std::string sets;                              // a set's bonus lists, " i[...]" each
+                std::size_t at = 0, list = 0;
+                for (int bit = 0; bit < 5; ++bit) {
+                    if (!(item.set_lists >> bit & 1) || list >= item.set_list_sizes.size()) continue;
+                    std::map<std::pair<int, int>, int> bonus;
+                    for (std::size_t i = 0; i < item.set_list_sizes[list]; ++i) bonus[{ item.set_props[at + i].stat, item.set_props[at + i].param }] += item.set_props[at + i].value;
+                    at += item.set_list_sizes[list++];
+                    std::string one;
+                    for (const auto& [key, value] : bonus)
+                        if (value) one += (one.empty() ? "" : ",") + std::to_string(key.first) + ":" + std::to_string(key.second) + "=" + std::to_string(value);
+                    sets += " " + std::to_string(bit) + "[" + one + "]";
+                }
+                char tail[64];
+                std::snprintf(tail, sizeof tail, " %08x", own.low);
+                made = std::string(" flags ") + (item.ethereal ? "400000" : "0") + " [" + made + "]" + sets + tail;
+            }
+            std::printf("%08x %s i%d q%d%s: seeds %08x %08x gold %d qty %d dur %d/%d def %d pick %d%s -> %08x\n", unsigned(std::stoul(seed)), code.c_str(), level, wanted,
+                        bovine == "1" ? " cow" : "", unit_low, own_low, gold, std::max(item.quantity, 0), item.durability, item.max_durability, std::max(item.defense, 0), pick,
+                        made.c_str(), game.low);
             continue;
         }
         if (tables) {

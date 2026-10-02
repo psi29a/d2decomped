@@ -209,6 +209,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             if (!worn && !charm) continue;
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
+            add(sum, set_bonus_props(*game_data, character.items, item));
             if (worn && item.slot == 9) boots = &item;
             if (!worn || (item.slot != 4 && item.slot != 5)) continue;
             const auto found = game_data->rules.item_base.find(item.code);

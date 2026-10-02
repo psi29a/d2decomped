@@ -2,6 +2,7 @@
 // sees, the belt in use, a held item put away, a vendor's store.
 #pragma once
 
+#include "character.hpp"
 #include "gamedata.hpp"
 
 #include <d2s_items.hpp>
@@ -17,17 +18,14 @@ namespace d2d::game {
 using d2d::rules::Store;
 
 // The strength, dexterity and level an equip check sees: base stats plus
-// what the worn gear adds (stats 0 strength, 2 dexterity).
-// ponytail: worn items' own props only (no sockets, sets, charms).
-inline d2d::rules::Wearer wearer(int save_cls, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& stats) {
+// what the gear adds (gear_props; stats 0 strength, 2 dexterity).
+inline d2d::rules::Wearer wearer(const GameData& game_data, int save_cls, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Stats& stats) {
     d2d::rules::Wearer wearer{ save_cls, int(stats.get(d2d::d2s::kStr)), int(stats.get(d2d::d2s::kDex)),
                           int(stats.get(d2d::d2s::kLevel)) };
-    for (const auto& item : items)
-        if (item.location == 1)
-            for (const auto& prop : item.props) {
-                if (prop.stat == 0) wearer.str += prop.value;
-                if (prop.stat == 2) wearer.dex += prop.value;
-            }
+    for (const auto& prop : gear_props(game_data, items)) {
+        if (prop.stat == 0) wearer.str += prop.value;
+        if (prop.stat == 2) wearer.dex += prop.value;
+    }
     return wearer;
 }
 

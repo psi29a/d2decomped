@@ -727,8 +727,14 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
             types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1",
             types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
-        game_data.rules.types[code].autostack = types.get(row, "AutoStack") == "1";
-        if (types.get(row, "Throwable") == "1") game_data.throwable.insert(code);
+        auto& item_type = game_data.rules.types[code];
+        item_type.throwable = types.get(row, "Throwable") == "1";
+        item_type.autostack = types.get(row, "AutoStack") == "1";
+        item_type.max_sock = { std::atoi(std::string(types.get(row, "MaxSock1")).c_str()), std::atoi(std::string(types.get(row, "MaxSock25")).c_str()),
+                               std::atoi(std::string(types.get(row, "MaxSock40")).c_str()) };
+        static constexpr std::string_view kStaffCls[] = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+        item_type.staff_mods = int(std::ranges::find(kStaffCls, types.get(row, "StaffMods")) - std::begin(kStaffCls));
+        item_type.var_inv_gfx = std::atoi(std::string(types.get(row, "VarInvGfx")).c_str());
     }
     // The hover text's columns (GameData::ItemDesc).
     for (const auto* table : { &weapons, &armor, &misc })
@@ -771,6 +777,15 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           std::string(table->get(row, "ultracode")), std::string(table->get(row, "BetterGem")),
                                           number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack"),
                                           table == &misc ? 0 : number("rarity") };
+                auto& base = game_data.rules.item_base[code];
+                base.gem_sockets = number("gemsockets");
+                base.auto_prefix = table == &misc ? 0 : number("auto prefix");
+                base.magic_lvl = table == &misc ? 0 : number("magic lvl");
+                base.has_inv = table->get(row, "hasinv") == "1";
+                base.no_durability = table->get(row, "nodurability") == "1";
+                base.quest_diff = table->get(row, "questdiffcheck") == "1";
+                base.max_1h = table == &weapons ? number("maxdam") : 0;
+                base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
                 if (table != &misc && table->get(row, "spawnable") == "1" && number("quest") == 0)
                     game_data.rules.stand_bases[table == &weapons ? 1 : 0].push_back(code);
                 if (table->get(row, "spawnable") != "1") continue;
@@ -874,7 +889,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 if (!func) continue;
                 const auto found = stat_id.find(std::string(properties_table.get(row, "stat" + std::to_string(i))));
                 prop[std::string(properties_table.get(row, "code"))].emplace_back(func, found == stat_id.end() ? -1 : found->second);
-                game_data.rules.properties[std::string(properties_table.get(row, "code"))].push_back(
+                game_data.rules.properties[d2d::rules::lower_case(properties_table.get(row, "code"))].push_back(
                     { func, found == stat_id.end() ? -1 : found->second,
                       std::atoi(std::string(properties_table.get(row, "val" + std::to_string(i))).c_str()) });
             }
@@ -919,7 +934,14 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 game_data.skill_name[id] = desc_name[std::string(table.get(row, "skilldesc"))];
                 game_data.rules.skill_id[std::string(table.get(row, "skill"))] = int(id);
                 const auto class_code = table.get(row, "charclass");
-                for (int class_index = 0; class_index < 7; ++class_index) if (class_code == kCls[class_index]) game_data.skill_class[id] = class_index;
+                for (int class_index = 0; class_index < 7; ++class_index) if (class_code == kCls[class_index]) {
+                    game_data.skill_class[id] = class_index;
+                    if (game_data.rules.class_first_skill[std::size_t(class_index)] == 0) game_data.rules.class_first_skill[std::size_t(class_index)] = int(id);
+                }
+                if (id >= game_data.rules.skill_itype.size()) game_data.rules.skill_itype.resize(id + 1);
+                game_data.rules.skill_itype[id] = std::string(table.get(row, "itypea1"));
+                if (id >= game_data.rules.skill_levels.size()) game_data.rules.skill_levels.resize(id + 1);
+                game_data.rules.skill_levels[id] = { std::atoi(std::string(table.get(row, "reqlevel")).c_str()), std::atoi(std::string(table.get(row, "maxlvl")).c_str()) };
             }
         }
         const auto charstats_table = txt("CharStats");
@@ -1065,6 +1087,22 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.prefixes = affixes("MagicPrefix");
         game_data.rules.suffixes = affixes("MagicSuffix");
+        game_data.rules.automagic = affixes("AutoMagic");
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\QualityItems.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            static constexpr const char* kFits[10] = { "armor", "weapon", "shield", "scepter", "wand", "staff", "bow", "boots", "gloves", "belt" };
+            for (std::size_t row = 0; row < table.size(); ++row) {
+                d2d::rules::Tables::Superior superior;
+                for (std::size_t k = 0; k < 10; ++k) superior.fits[k] = table.get(row, kFits[k]) == "1";
+                for (int i = 1; i <= 2; ++i) {
+                    const auto mod_prefix = "mod" + std::to_string(i);
+                    if (const auto mod_code = table.get(row, mod_prefix + "code"); !mod_code.empty())
+                        superior.mods.push_back({ std::string(mod_code), std::string(table.get(row, mod_prefix + "param")),
+                                                  num(table.get(row, mod_prefix + "min")), num(table.get(row, mod_prefix + "max")) });
+                }
+                game_data.rules.superior.push_back(std::move(superior));
+            }
+        }
         const auto set_names = keys("Sets", "index", false);
         auto specials = [&](const char* file_name, const char* code_col, int props) {
             std::vector<d2d::rules::Special> values;
@@ -1078,6 +1116,15 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                         if (const auto prop_code = table.get(row, "prop" + suffix); !prop_code.empty())
                             special.mods.push_back({ std::string(prop_code), std::string(table.get(row, "par" + suffix)),
                                                 num(table.get(row, "min" + suffix)), num(table.get(row, "max" + suffix)) });
+                    }
+                    if (code_col[0] == 'i') {                  // a set's bonuses, aprop1a..aprop5b (FUN_0065fec0 kind 4)
+                        for (int i = 1; i <= 5; ++i)
+                            for (const char* side : { "a", "b" }) {
+                                const auto suffix = std::to_string(i) + side;
+                                special.bonus.push_back({ std::string(table.get(row, "aprop" + suffix)), std::string(table.get(row, "apar" + suffix)),
+                                                     num(table.get(row, "amin" + suffix)), num(table.get(row, "amax" + suffix)) });
+                            }
+                        special.bonus_apart = num(table.get(row, "add func")) != 0;
                     }
                     special.ladder = table.get(row, "ladder") == "1";
                     special.nolimit = table.get(row, "nolimit") == "1";

@@ -209,7 +209,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         }
         // Who reads the hover text: red requirements, class lines, attack speed.
         std::optional<d2d::rules::Wearer> wearer_value;
-        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(kUiToSaveClass[class_idx], *inventory, *hud_stats);
+        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
         const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
         if (inventory && class_idx >= 0 && class_idx < 7)
         {

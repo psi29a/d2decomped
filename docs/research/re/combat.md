@@ -181,9 +181,16 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   percentages, like the physical damage.
 - Mana regeneration: all of max mana in 120 s, times (100 + bonus) %.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
+- Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's
+  socketed in them (gems.txt by weapon / shield / other), inventory charms,
+  and a set piece's bonus lists that are on (list i with i + 2 pieces of
+  its set worn). The Fighter, the char panel, +skills (`skill_level`), the
+  equip check (`wearer`) and magic / gold find (stat 0x50 FUN_005585d0 /
+  0x4f FUN_005589a0, drops.md) all read them. Sets.txt's partial / full
+  bonuses aren't added. An add func 1 list (keyed to another piece)
+  counts pieces.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
-  DamageRegen), set bonuses in the stat sums, the weapon swap,
-  champions/uniques.
+  DamageRegen), the weapon swap, champions/uniques.
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 
