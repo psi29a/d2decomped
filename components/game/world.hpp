@@ -234,6 +234,9 @@ struct World {
     // game changed (level, when last played, the gear's look), its stats and
     // items. "" when it's written, else why not.
     std::string save();
+    // Warriv took the player east this tick: the town saves and leaves.
+    // ponytail: no Act 2; the game ends at the caravan.
+    bool went_east = false;
 
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class

@@ -1197,7 +1197,10 @@ auto World::deal(const Command& command) -> bool {
             andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
             cain.enter(quests(), level->id, d2d::rules::CainQuest::kLut);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
             set_waypoint(waypoint_index(*game_data, d2d::rules::AndyQuest::kLut));
-            d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein)");
+            auto& difficulty = character.header.difficulty[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
+            difficulty = std::uint8_t((difficulty & ~7) | 0x80 | 1);   // the save's act: game.exe starts it in Lut Gholein
+            went_east = true;
+            d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein); the game ends here");
             return true;
         }
         // Charsi's imbue (FUN_00579d60, kind 0 at hcIdx 0x9a): while it's

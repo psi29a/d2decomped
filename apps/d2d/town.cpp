@@ -740,6 +740,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
         if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
+        if (world.went_east) { world.went_east = false; save(); screen = Screen::CharSelect; return; }
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         draw(framebuffer, mouse, frame_ms);
     }
