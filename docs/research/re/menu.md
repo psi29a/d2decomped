@@ -105,6 +105,11 @@ them times master/100.
   - a right panel open: W/2-0xcd;
   - a left panel open: W/2+0x38-2;
   - both open: hidden.
+  - "left" is FUN_0047ea60: UI 2 character, 0xf quests, 0x14 waypoint,
+    0x24 hire, 0xc store, 0x19 stash, 0x1a cube, 0x17 trade, ...;
+    "right" is FUN_0047eb50: UI 1 inventory, 4 skill tree, and the
+    store / stash / cube / trade (they open the inventory too).
+    The bar moves to stay centred over the HUD strip the panels leave.
 - Buttons (`PANEL\minipanelbtn`):
   - x0 = W/2-0x4a (R: W/2-0xca, L: W/2+0x39), step 0x15, bottom H-0x32;
   - frame 2*id (+1 held), ids 0, 1, 2, 4, 5, 6, 7.

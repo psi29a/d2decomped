@@ -6,6 +6,7 @@
 
 #include "level_ids.hpp"
 #include "monster_ids.hpp"
+#include "object_ids.hpp"
 
 #include <d2s.hpp>
 #include <d2s_items.hpp>

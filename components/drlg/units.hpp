@@ -9,6 +9,7 @@
 #include "obj_preset.hpp"
 
 #include <ds1.hpp>
+#include <object_ids.hpp>
 
 #include <algorithm>
 #include <array>
@@ -18,6 +19,8 @@
 #include <vector>
 
 namespace d2d::drlg {
+
+namespace unit_type = d2d::rules::unit_type;
 
 // A unit as a room lists it (FUN_0066bf30): type 1 monster (MonStats row;
 // row count + i superunique i; + superunique count + i MonPlace i), 2
@@ -45,7 +48,7 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
     for (const auto& object : map.objects()) {
         Unit unit{ object.type, object.id, 0, object.x, object.y, version > 5 ? std::uint32_t(object.flags) : 0u };
         for (const auto& point : object.path) unit.path.emplace_back(point.x - object.x, point.y - object.y);
-        if (unit.type == 1) {
+        if (unit.type == unit_type::kMonster) {
             if (version < 5) continue;
             unit.mode = 1;
             const auto& table = ids.monpreset[std::size_t(act)];
@@ -53,7 +56,7 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
                 const auto [kind, id] = table[std::size_t(unit.id)];
                 unit.id = kind == 0 ? id + ids.monstats + ids.superuniques : kind == 1 ? id : kind == 2 ? id + ids.monstats : -1;
             }
-        } else if (unit.type == 2) {
+        } else if (unit.type == unit_type::kObject) {
             if (version < 6) { if (unit.id == 0x23d) unit.id = -1; }
             else unit.id = unit.id < 150 ? int(kObjPreset[std::size_t(act)][std::size_t(unit.id)]) : unit.id - 150;
         }
@@ -66,12 +69,12 @@ inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids)
 // FUN_00667620's drops: these ids survive a roll (1 in 3 / 4 / 2); act 1's
 // Cottages 2 (Cott4A.ds1) carries one.
 inline bool rolled_unit(const Unit& unit, const UnitIds& ids) {
-    if (unit.type == 1) {
+    if (unit.type == unit_type::kMonster) {
         if (unit.id < ids.monstats) return unit.id == 0xcc || unit.id == 0xcd || unit.id == 0x173 || unit.id == 0x174;
         const int place = unit.id - ids.monstats - ids.superuniques;
         return place == 0x21 || place == 0x22 || place == 0x23;
     }
-    return unit.type == 2 && (unit.id == 0xc4 || unit.id == 0x105 || unit.id == 0x245);
+    return unit.type == unit_type::kObject && (unit.id == 0xc4 || unit.id == 0x105 || unit.id == 0x245);
 }
 
 // FUN_00667620's roll for one of those: a step of `seed` (outdoors the
@@ -83,8 +86,8 @@ template <class Seed>
 bool stays(const Unit& unit, const UnitIds& ids, Seed& seed) {
     if (!rolled_unit(unit, ids)) return true;
     const std::uint32_t low = seed.next();
-    if (unit.type == 1 && unit.id < ids.monstats) return low % 3 == 0;
-    if (unit.type == 1) {
+    if (unit.type == unit_type::kMonster && unit.id < ids.monstats) return low % 3 == 0;
+    if (unit.type == unit_type::kMonster) {
         const int place = unit.id - ids.monstats - ids.superuniques;
         return place == 0x21 ? (low & 3) != 0 : place == 0x22 ? (low & 1) != 0 : (low & 3) == 0;
     }

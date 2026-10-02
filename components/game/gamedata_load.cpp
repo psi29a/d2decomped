@@ -527,7 +527,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     const auto ms2_row = id_rows(ms2), ms_row = id_rows(monstats);
     auto monster = [&](std::size_t row) { return monster_npc(game_data, monstats, ms2, ms2_row, row); };
     for (const auto& object : game_data.town.ds1.objects()) {
-        if (object.type != 1 || object.id < 0 || std::size_t(object.id) >= act1.size()) continue;
+        if (object.type != d2d::rules::unit_type::kMonster || object.id < 0 || std::size_t(object.id) >= act1.size()) continue;
         const std::string place(preset.get(act1[std::size_t(object.id)], "Place"));
         const auto found = ms_row.find(place);
         if (found == ms_row.end()) continue;            // place_* markers etc.
@@ -590,7 +590,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (!portal_level.npcs.empty()) game_data.town_portal = std::move(portal_level.npcs[0]);
     }
     for (const auto& object : game_data.town.ds1.objects())
-        if (object.type == 2 && object.id >= 0 && object.id < 150) add(game_data.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1
+        if (object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150) add(game_data.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1
 
     // What a level build reads later (build_level).
     if (game_data.builder) {

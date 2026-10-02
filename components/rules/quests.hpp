@@ -5,6 +5,7 @@
 
 #include "level_ids.hpp"
 #include "monster_ids.hpp"
+#include "object_ids.hpp"
 
 #include <array>
 #include <cstddef>
@@ -747,7 +748,7 @@ struct TowerQuest {
 // count (+0x9c) and the reset when the last carrier loses it (0x5918d0,
 // events 6 / 9) are left out.
 struct ToolsQuest {
-    static constexpr int kQuest = 3, kCharsi = monster_ids::kCharsi, kClvl = 8, kStand = 21;   // kStand: the stand's OperateFn
+    static constexpr int kQuest = 3, kCharsi = monster_ids::kCharsi, kClvl = 8, kStand = operate_fn::kMalusStand;
     int state = 0;           // +0xc: 0 closed, 1 open, 2 Charsi gave it, 3 out of town, 4 the malus dropped, 5 returned
     int log = 0;             // +0xb
     bool active = true;      // +9: off when the player joins with it done or closed (FUN_00546270)

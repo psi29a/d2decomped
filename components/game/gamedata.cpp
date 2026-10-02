@@ -356,7 +356,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     };
     for (const auto& warp : level.warps) centre(room_holding(rects, level, warp.x, warp.y));
     for (const auto& unit : level.units)
-        if (unit.type == 2 && unit.id >= 0 && std::size_t(unit.id) < game_data.obj_subclass.size() && (game_data.obj_subclass[std::size_t(unit.id)] & 0x40)) {
+        if (unit.type == d2d::rules::unit_type::kObject && unit.id >= 0 && std::size_t(unit.id) < game_data.obj_subclass.size() && (game_data.obj_subclass[std::size_t(unit.id)] & d2d::rules::object_ids::kSubclassWaypoint)) {
             const int index = room_holding(rects, level, float(unit.x) / 5, float(unit.y) / 5);
             centre(index);
             ways.push_back({ unit.x / 5 * 5, unit.y / 5 * 5 });
@@ -427,7 +427,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     };
     for (const auto& unit : level.units) {
         if (unit.x < room.x || unit.y < room.y || unit.x >= room.x + room.width || unit.y >= room.y + room.height) continue;
-        if (unit.type != 1 || unit.id < 0) continue;            // objects and warp tiles: room_objects
+        if (unit.type != d2d::rules::unit_type::kMonster || unit.id < 0) continue;            // objects and warp tiles: room_objects
         if (unit.id < nmon) {                                                // a MonStats row (FUN_0054e490)
             const auto monstats_row = game_data.mon_bin[std::size_t(unit.id)];
             const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
@@ -676,9 +676,9 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()
-                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != 2 && npc.operate_fn != 4   // shrines / chests: NU until used
-                 && npc.operate_fn != 9 && npc.operate_fn != 10   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
-                 && (npc.operate_fn != 23 || std::ranges::contains(std::array{ d2d::rules::level_ids::kRogueEncampment, d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kKurastDocks, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }, into.id)));   // waypoints: on in towns (InitFn 17)
+                 && objects.get(row, "Lit2") != "0" && npc.operate_fn != d2d::rules::operate_fn::kShrine && npc.operate_fn != d2d::rules::operate_fn::kChest   // shrines / chests: NU until used
+                 && npc.operate_fn != d2d::rules::operate_fn::kCairnStone && npc.operate_fn != d2d::rules::operate_fn::kGibbet   // Cairn stones / the Gibbet: mode 0 until touched (InitFn 6 / 7)
+                 && (npc.operate_fn != d2d::rules::operate_fn::kWaypoint || std::ranges::contains(std::array{ d2d::rules::level_ids::kRogueEncampment, d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kKurastDocks, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }, into.id)));   // waypoints: on in towns (InitFn 17)
     npc.mode   = lit_mode ? "ON" : "NU";
     // Hover name when selectable in its start mode (Selectable0 = NU,
     // 2 = ON): objects.txt Name through the string tables.
@@ -970,7 +970,7 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
         found.insert(found.end(), room.warps.begin(), room.warps.end());
     for (const auto& room : built)
         for (const auto& unit : room.units) {
-            if (unit.type != 5) continue;
+            if (unit.type != d2d::rules::unit_type::kWarp) continue;
             const auto slot = std::ranges::find(slots, unit.id, &d2d::drlg::WarpSlot::id);
             if (slot == slots.end()) continue;
             const int slot_index = int(slot - slots.begin());
@@ -1115,7 +1115,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // Tristram Cain (monster 0x92): the Gibbet's opening makes him at its
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
     // (World::cain_walk).
-    if (const auto gibbet = std::ranges::find_if(level->units, [](const auto& unit) { return unit.type == 2 && unit.id == 26; });
+    if (const auto gibbet = std::ranges::find_if(level->units, [](const auto& unit) { return unit.type == d2d::rules::unit_type::kObject && unit.id == d2d::rules::object_ids::kGibbet; });
         id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::monster_ids::kCain < int(game_data.mon_bin.size())) {
         auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kCain)]];
         npc.x = (float(gibbet->x) + 0.5f) / 5 + 0.6f;

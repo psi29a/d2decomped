@@ -248,10 +248,17 @@ struct World {
     // cells.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
-    // The OperateFns `operate` handles; one-shot ones stay used (operated).
-    // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
-    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26, 30 }, operate_fn) || is_door(operate_fn); }
-    static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
+    // The OperateFns `operate` handles; one-shot ones stay used (operated):
+    // containers, stands, wells, bookshelves, shrines, traps and doors.
+    static bool operable(int operate_fn) {
+        using namespace d2d::rules::operate_fn;
+        return std::ranges::contains(std::array{ kCasket, kShrine, kUrn, kChest, kBarrel, kExplodingBarrel, kCorpse, kArmorStand, kWeaponRack, kWell, kBookshelf, kTrapObject }, operate_fn)
+            || is_door(operate_fn);
+    }
+    static bool is_door(int operate_fn) {
+        using namespace d2d::rules::operate_fn;
+        return operate_fn == kDoor || operate_fn == kTrapDoor || operate_fn == kSecretDoor;
+    }
     // A door, trap door or secret door (rules::door_mode): its new mode,
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);

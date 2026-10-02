@@ -170,27 +170,27 @@ Opened open_container(int op, int object_id, bool locked, bool sparkle, Rng& obj
     Opened out;
     auto undead = [&] { out.undead = (objects.next() % 10000 & 0xffffe000u) != 0; };
     auto magic = [](int quality) { return quality >= 4; };
-    if (op == 1) {
+    if (op == operate_fn::kCasket) {
         if (!round(0)) out.opened = false;
         else undead();
-    } else if (op == 3) {
+    } else if (op == operate_fn::kUrn) {
         if (objects(100) < 21) round(0);
-    } else if (op == 5) {
+    } else if (op == operate_fn::kBarrel) {
         undead();
         if (objects(100) < 21) round(0);
-    } else if (op == 14) {
+    } else if (op == operate_fn::kCorpse) {
         round(0);
-    } else if (op == 26) {
+    } else if (op == operate_fn::kBookshelf) {
         const bool scroll = objects(20) < 13;
         out.extra.push_back(std::string(objects.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk"));
-    } else if (op == 4 && object_id != 397) {
+    } else if (op == operate_fn::kChest && object_id != object_ids::kSparklyChest) {
         const int forced = sparkle ? objects(100) < 5 ? 6 : 4 : 0;   // drawn for 397 too, unused
         if (objects(100) >= 25 || sparkle || locked) {
             int magics = 0;
             for (int i = locked ? 2 : 1; i > 0; --i) magics += magic(round(forced));
             for (int i = 0; sparkle && magics == 0 && i < 10; ++i) if (magic(round(forced))) break;
         }
-    } else if (op == 4) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
+    } else if (op == operate_fn::kChest) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
         auto extra = [&](const char* code, int count) { for (; count > 0; --count) out.extra.emplace_back(code); };
         auto fallback = [&] {                          // 10 tries for a magic item, at least 4 rounds, gold and potions
             int plain = 0;

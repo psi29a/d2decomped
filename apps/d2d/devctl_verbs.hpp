@@ -190,8 +190,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
                 if (const auto& npc = town.level->npcs[i]; npc.operate_fn > 0 && npc.root == "objects")
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : std::format("op{}", npc.operate_fn),
-                                       npc.operate_fn == 2 ? npc.shrine : npc.operate_fn == 4 ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == d2d::rules::operate_fn::kShrine ? "shrine" : npc.operate_fn == d2d::rules::operate_fn::kChest ? "chest" : std::format("op{}", npc.operate_fn),
+                                       npc.operate_fn == d2d::rules::operate_fn::kShrine ? npc.shrine : npc.operate_fn == d2d::rules::operate_fn::kChest ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";
         }
