@@ -16,6 +16,7 @@
 #include <d2s_items.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 #include <weather.hpp>
 
 #include <cstdint>
@@ -95,6 +96,7 @@ inline std::vector<std::string_view> player_states(const Scene& scene, const Vie
     std::vector<std::string_view> out;
     for (const int buff : view.buffs) if (const auto* skill = scene.skills.get(buff)) out.push_back(skill->aurastate);
     if (view.aura > 0) if (const auto* skill = scene.skills.get(view.aura)) out.push_back(skill->aurastate);
+    if (const auto state = d2d::rules::shrine_state(view.boost_code); !state.empty()) out.push_back(state);   // its overlays
     return out;
 }
 constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;

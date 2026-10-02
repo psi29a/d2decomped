@@ -293,8 +293,10 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         }
         player_combat = player_fighter(&pf_kick, &st_sum, &passives, &psum);
         constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison
-        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's on top of the panel's (Salvation, Resist Fire, ...)
-            if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0) player_combat.res[k] = int(std::min<std::int64_t>(player_combat.res[k] + value, 95));
+        constexpr std::size_t kPanelRes[4] = { 0, 2, 1, 3 };  // PanelStats::res_cap order: fire, cold, lightning, poison
+        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's or shrine's on top of the panel's (Salvation, Resist Fire, ...), to its cap
+            if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0)
+                player_combat.res[k] = int(std::min<std::int64_t>(player_combat.res[k] + value, character.panel.res_cap[kPanelRes[k]]));
         player_combat.ias += int(st_sum[68]);
         player_combat.frw += int(st_sum[67]);
         for (const auto& passive : passives) if (passive.stat == 67 && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed

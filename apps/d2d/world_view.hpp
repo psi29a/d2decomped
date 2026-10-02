@@ -132,6 +132,7 @@ struct Unit {
     bool highlight = false;              // under the cursor: drawn at twice its light (FUN_00471ec0)
     bool ghostly = false;                // umod::ghostly: same bright-alpha as `highlight` (unit_draw.c:193)
     int overlay_class = 0;               // Overlay.txt's Height: FUN_006223a0 (players 1, monsters OverlayHeight - 1)
+    std::uint16_t says = 0;              // string id over its head (UnitState::says)
     bool shadow = true;                  // a composite casts one (players, monsters; MonStats2 Shadow), objects don't
 };
 

@@ -57,20 +57,50 @@ A class picks `rand(n)` of its rows in row order (`FUN_0054f770`, lists from
 the row's LevelMin. Then 5 → 3, 4 → 2 (the exchanges are never placed) and
 16 → 18 (Enirhs becomes a gem shrine).
 
-**Operating a shrine** (OperateFn 2, `FUN_00583c70`): the effect table at
-0x6e1850 by Code, 12 bytes a row (function, stat, state).
+**Operating a shrine** (OperateFn 2, `FUN_00583c70`), only with
+objdata +0xc 0 and mode 0: mode 1 (`FUN_00624690`); its message overhead
+(`wsprintf("%d", 0xe63 + row)` to `FUN_00661110`, kept at object +0xa4:
+string 3683 + row, ShrMsgN, for 4 x 8 + 125 = 157 frames; timer 6 at +300);
+then the effect table at 0x6e1850 by Code, 12 bytes a row {function, stat,
+state}; then, with a Reset (row +0x10), timer 5 at frame + Reset x 1200 + 1
+(48 s units, not minutes); timer 1 the OP animation (FrameCnt1 >> 8 + 1).
 
-| Code | Function | Does |
-|---|---|---|
-| 1..3 | 0x5828e0 / 0x582860 / 0x5828a0 | life and / or mana to max |
-| 4, 5 | 0x582940 / 0x5829a0 | Arg0 % of one to Arg1 % on the other |
-| 6, 8..11, 13, 15 | 0x583b30 | Arg0 on its stat for Duration frames: 171 armor %, 39/43/41/45 resists, 27 mana regen %, 85 exp % |
-| 7 | 0x5839b0 | Arg0 % of the attack rating as tohit (19), Arg1 damagepercent (25) |
-| 12 | 0x583bf0 | +Arg0 all skills |
-| 14 | 0x583a70 | stamina filled, staminarecoverybonus (28) 1000 |
-| 16..22 | 0x582a00 .. 0x583410 | magic shrines |
+| Code | Function | stat, state | Does |
+|---|---|---|---|
+| 1..3 | 0x5828e0 / 0x582860 / 0x5828a0 | | life and / or mana set to max (an over-max life comes down) |
+| 4, 5 | 0x582940 / 0x5829a0 | | Arg0 % of one to Arg1 % on the other |
+| 6, 8..11, 13, 15 | 0x583b30 | 0xab/0x80, 0x27/0x83, 0x2b/0x84, 0x29/0x82, 0x2d/0x85, 0x1b/0x87, 0x55/0x89 | Arg0 on its stat (`FUN_00583840`) for Duration frames: 171 armor %, 39/43/41/45 resists, 27 mana regen %, 85 exp % |
+| 7 | 0x5839b0 | -1/0x81 | Arg1 damagepercent (25), Arg0 % of the attack rating (`FUN_00583740`) as tohit (19) |
+| 12 | 0x583bf0 | 0xb/0x86 | the state alone: `FUN_00644150` gives 2 with state 0x86, added to every skill with item_allskills (`FUN_00644180`); Arg0 unused |
+| 14 | 0x583a70 | 0xa2/0x88 | stamina to max, then 10 = 2 x value, 28 = 1000; its end (`FUN_00583a40`) stamina to max again |
+| 16..22 | 0x582a00 .. 0x583410 | | magic shrines |
 
-Shrines reset after Shrines.txt "reset time in minutes" (0: never).
+A booster's state goes on through `FUN_00582800` -> `FUN_0056e970`: the
+shrine states 128..137 are States.txt curse = 1, which first removes any
+state list flagged 0x20, so one shrine state at a time; the same state again
+only moves its expiry (and `FUN_006270b0` sets, not adds, its stats).
+Curse resistance (stat 109) and state 57 would shorten / block it (not on
+players in Act 1).
+
+The client (table 0x6da8c0, 20-byte rows {fnA, fnB, overlay, overlay,
+sound}, by Code): object event 0x15 (`FUN_004bd6d0` from `FUN_00480c10`)
+plays the row's Sounds.txt sound (`FUN_004bd550` / `FUN_004bd5c0`, which
+also runs fnB): refill 1, 2; recharge 3, 13, 14; exchange 4, 5; armorboost,
+combatboost, resistfire, resistcold, resistlightning, resistpoison, skill,
+experience 6..12, 15; ofenirhs 16; portal 17 and 20; gemupgrade 18; storm
+19; exploding 21; poison 22. fnA `FUN_004bd4a0` (codes 6..15) puts the
+shrine object's own icon overlays (Overlay.txt 0x3b..0x44 and a shimmer,
+0x39 / 0x3a) on it at init (`FUN_004bd6b0`) and event 3. The player's look
+is the state's (overlay1 shrine_*, overlay2 shrine_shimmer00 / 01).
+
+d2d: `rules::shrine_boost` / `shrine_recharge` / `shrine_sound` /
+`shrine_state` / `shrine_reset_frames` (shrines.hpp), `World::operate` and
+its frame (the state's end, the reset, `UnitState::says`), the state's
+overlays through `player_states`, the message drawn in ingame.cpp.
+ponytail: the timer 5 / 6 handlers aren't traced (5 taken as the reset);
+stat 162 (skill_staminapercent, 0 without the skill) left out; the shrine
+object's icon overlays (fnA) not drawn; the overhead chat's font, colour
+and height guessed.
 
 **Chest init** (InitFn 3, `FUN_0054fcb0`), stored in
 the object's flag byte:

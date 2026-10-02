@@ -42,6 +42,7 @@ struct UnitState {
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
     bool alert = false;               // has something new to say on a quest: the balloon over its head
     std::string_view mode;            // an object's mode now, "" = its start mode (Npc::mode)
+    std::uint16_t says = 0;           // string id over its head (a shrine's message), 0 none
     std::vector<std::pair<float, float>> path;   // a walk_path route being followed
 };
 

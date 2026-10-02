@@ -138,7 +138,7 @@ auto World::view() const -> View {
             states.resize(neighbour.level->npcs.size());
             view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
         }
-        if (now < fight.boost.until) view.boost = fight.boost.stats;
+        if (now < fight.boost.until) { view.boost = fight.boost.stats; view.boost_code = shrine_code(fight.boost.shrine); }
         view.aura = fight.aura;
         view.gold_lost = int(gold_lost);
         for (const auto& state : fight.self_states) view.buffs.push_back(state.skill);
@@ -307,8 +307,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         const auto& shrine = game_data->shrines[std::size_t(row)];
         auto& stat_values = character.stats.values;
         d2d::rules::shrine_recharge(shrine, stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana]);
-        if (auto boost = d2d::rules::shrine_boost(shrine, fight.player_combat.attack_rating); !boost.empty())
+        // A booster's state ends the one before (curse = 1, FUN_0056e970);
+        // the stamina state's end (FUN_00583a40) and its start fill stamina.
+        if (auto boost = d2d::rules::shrine_boost(shrine, fight.player_combat.attack_rating); !boost.empty()) {
+            if (shrine.code == 14 || shrine_code(fight.boost.shrine) == 14) stat_values[kStamina] = stat_values[kMaxStamina];
             fight.boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u };
+        }
+        if (const auto sound = d2d::rules::shrine_sound(shrine.code); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         if (shrine.code == 17) open_portal_at(player.x + 1, player.y + 1, now_ms);   // portal (FUN_00582a30): 5 subtiles on each axis
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, character.items, rng); !code.empty())
@@ -1482,17 +1487,26 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             tower_treasure(day_at);
             stamina_frame();
         }
+        if (fight.boost.until && now_ms >= fight.boost.until) {     // the state runs out
+            if (shrine_code(fight.boost.shrine) == 14) character.stats.values[d2d::d2s::kStamina] = character.stats.values[d2d::d2s::kMaxStamina];
+            fight.boost = {};
+        }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
-        // to NU after its reset time (Shrines.txt, minutes; 0 never).
+        // to NU after its reset time (Shrines.txt Reset x 1200 + 1 frames;
+        // 0 never).
         for (auto entry = operated.begin(); entry != operated.end();) {
             const auto& [key, when_ms] = *entry;
             const auto npc_index = std::size_t(key.second);
             const auto& npc = key.first->npcs[npc_index];
             const int reset = npc.operate_fn == 2 && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
-            const bool back = reset > 0 && now_ms - when_ms >= std::uint32_t(reset) * 60000u;
-            if (key.first == level && npc_index < npc_states.size())
+            const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
+            if (key.first == level && npc_index < npc_states.size()) {
                 npc_states[npc_index].mode = back ? std::string_view{} : now_ms - when_ms < std::uint32_t(npc.op_frames) * 40u ? "OP" : "ON";
+                // Its message overhead (ShrMsgN, 3683 + row: FUN_00661110 on
+                // "%d", 4 chars x 8 + 125 frames).
+                npc_states[npc_index].says = std::uint16_t(npc.operate_fn == 2 && !back && now_ms - when_ms < 157u * kTickMs ? 3683 + npc.shrine : 0);
+            }
             entry = back ? operated.erase(entry) : std::next(entry);
         }
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in

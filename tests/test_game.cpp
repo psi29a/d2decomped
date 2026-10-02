@@ -181,5 +181,33 @@ int main() {
         assert(cap_lines[1].text == "Defense: 4" && cap_lines[1].split == 9 && cap_lines[1].tail == kTxtBlue);
         std::printf("OK: hover text of a short sword and a cap\n");
     }
+
+    // A Blood Moor shrine (FUN_00583c70): stamina (row 14) fills stamina,
+    // its message overhead, its sound; a resist (row 8) ends it (one
+    // shrine state: stamina filled again, FUN_00583a40) for 3600 frames.
+    const auto* moor = data->level(2);
+    d2d::game::populate_level(*data, world.fight.spawning, *moor);
+    const auto shrine = std::ranges::find(moor->npcs, 2, &Npc::operate_fn);
+    assert(shrine != moor->npcs.end());
+    const auto shrine_index = int(shrine - moor->npcs.begin());
+    world.level = moor;
+    world.swap_npcs(tristram);
+    auto& stats = world.character.stats.values;
+    stats[d2d::d2s::kStamina] = 0;
+    world.cues.due.clear();
+    world.operate(shrine_index, 900 * kTickMs, 14);
+    assert(stats[d2d::d2s::kStamina] == stats[d2d::d2s::kMaxStamina] && world.shrine_code(world.fight.boost.shrine) == 14);
+    assert(std::ranges::count(world.cues.due, data->sound_index.at("shrine_recharge"), &Cues::Cue::sound) == 1);
+    world.tick({}, 901 * kTickMs, 900 * kTickMs);
+    assert(world.npc_states[std::size_t(shrine_index)].says == 3683 + shrine->shrine && world.view().boost_code == 14);
+    const int fire = world.fight.player_combat.res[0];
+    stats[d2d::d2s::kStamina] = 0;
+    world.operate(shrine_index, 902 * kTickMs, 8);
+    world.tick({}, 903 * kTickMs, 902 * kTickMs);
+    assert(stats[d2d::d2s::kStamina] == stats[d2d::d2s::kMaxStamina] && world.view().boost_code == 8);
+    assert(world.fight.player_combat.res[0] == std::min(fire + 75, int(world.character.panel.res_cap[0])) && world.fight.boost.until == (902 + 3600) * kTickMs);
+    world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
+    assert(world.fight.boost.shrine == 0 && world.fight.player_combat.res[0] == fire);
+    std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
     return 0;
 }

@@ -92,6 +92,7 @@ struct View {
     // that order (its npcs.size() each, its own cells).
     std::vector<UnitState> npc_states;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
+    int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
@@ -241,9 +242,10 @@ struct World {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: magic shrines (16..22) other than gem and warping only
-    // log; D2's operate range is 2 cells here.
+    // ponytail: D2's operate range is 2 cells here; storm's reach is 30
+    // cells.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
+    int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated).
     // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
     static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26, 30 }, operate_fn) || is_door(operate_fn); }
