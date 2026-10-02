@@ -47,6 +47,7 @@ struct ItemType {
     bool always_magic = false, can_rare = true, always_normal = false;   // Magic / Rare / Normal columns
     bool treasure_class = false;       // TreasureClass: game.exe makes <code>3 .. <code>96 classes of it
     int rarity = 1;                    // Rarity: its bases' weight in those classes
+    bool autostack = false;            // AutoStack: a pickup joins the inventory's stacks of it (keys)
 };
 // TreasureClassEx.txt row: picks, the NoDrop weight, quality modifiers
 // (Unique, Set, Rare, Magic, in 1024ths off the odds) and the weighted
@@ -77,6 +78,7 @@ struct ItemBase {
     bool only_unique = false;                          // Items +0x129 (unique): drops unique
     int spawn_stack = 0;                               // misc.txt spawnstack (Items +0xec)
     int rarity = 0;                                    // weapons / armor.txt rarity (Items +0xfc): a stand's pick
+    bool autobelt = false;                             // misc.txt autobelt (Items +0x131): a pickup takes a free belt column
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -1087,6 +1089,105 @@ inline std::string drink_item(const Tables& tables, std::vector<d2d::d2s::Item>&
 }
 inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int col) {
     return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == 2 && item.column == col; }));
+}
+
+// A healing / mana potion's amount in 256ths (FUN_005be3f0): calc1 << 8,
+// the class's bonus (life FUN_0062a5d0: Amazon, Paladin, Assassin x1.5,
+// Barbarian x2; mana FUN_0062a620: Amazon, Paladin, Assassin x1.5,
+// Sorceress, Necromancer, Druid x2), then doubled when rand(vitality /
+// energy) / 2 beats rand(100), the drinker's seed (unit +0x20).
+inline int potion_amount(int calc, int cls, bool life, int stat, Rng& rng) {
+    int amount = calc << 8;
+    if (cls == 0 || cls == 3 || cls == 6) amount += amount >> 1;
+    else if (life ? cls == 4 : cls == 1 || cls == 2 || cls == 5) amount *= 2;
+    if (stat > 0) {
+        const int half = rng(stat) >> 1;
+        if (rng(100) < half) amount *= 2;
+    }
+    return amount;
+}
+// The potion's state (healthpot / manapot) gives it over `len` frames on
+// top of what's left of the last one: per frame (old x left + amount) /
+// (left + len), for left + len frames (FUN_005be3f0).
+inline int potion_rate(int old_rate, int left, int amount, int len) {
+    return left + len > 0 ? (old_rate * left + amount) / (left + len) : 0;
+}
+
+// Picking an item up (FUN_00563560, the server's auto-place; gold apart):
+// - stacking first (FUN_00560020): a scroll into an inventory tome of its
+//   kind with room, one scroll (FUN_0055ffa0 / FUN_0055ef20); a tome's
+//   scrolls into such a tome, past its maxstack the rest staying on the
+//   ground in the picked one (FUN_0055d370); an AutoStack type (keys) into
+//   the inventory's stacks of it with room, the rest placed on (FUN_0055d0d0);
+// - the belt (FUN_0063c790): a 1x1 item of a Beltable type (its own row,
+//   FUN_0062bad0) to the first column whose bottom item matches (the same
+//   code, or both of hp1-5 / mp1-5 / rvs, rvl: FUN_00628a40), its lowest
+//   free box below `boxes`; else, autobelt, the first free bottom box
+//   (FUN_0063c600). Without autobelt isc / tsc never go (FUN_0063c560);
+// - else the inventory's first free spot (FUN_005600a0); no room leaves it
+//   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
+// ponytail: the auto-equip step before the belt (FUN_0055d710) isn't done;
+// stacks match by code (FUN_0062c850 also compares quality and flags);
+// tomes by the Books.txt pairs tsc / tbk, isc / ibk.
+enum class Pickup { kGone, kStays, kNoRoom };
+inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
+    using d2d::d2s::Item;
+    const auto in_inventory = [](const Item& carried) { return carried.location == 0 && carried.panel == 1; };
+    const auto max_stack = [&](const std::string& code) { const auto found = tables.item_base.find(code); return found != tables.item_base.end() ? found->second.max_stack : 0; };
+    const auto* info = info_of(tables, item);
+    const std::string type = info ? info->type : std::string{};
+    const auto type_row = tables.types.find(type);
+    const auto base = tables.item_base.find(item.code);
+    const bool scroll = type_is(tables, type, "scro");
+    if (scroll || type_is(tables, type, "book")) {
+        const std::string tome = !scroll ? item.code : item.code == "tsc" ? "tbk" : item.code == "isc" ? "ibk" : "";
+        const auto book = std::ranges::find_if(items, [&](const Item& carried) { return in_inventory(carried) && carried.code == tome && carried.quantity < max_stack(tome); });
+        if (book != items.end()) {
+            if (scroll) { ++book->quantity; return Pickup::kGone; }
+            const int total = book->quantity + item.quantity, cap = max_stack(tome);
+            if (total <= cap) { book->quantity = total; return Pickup::kGone; }
+            book->quantity = cap; item.quantity = total - cap;
+            return Pickup::kStays;
+        }
+    } else if (base != tables.item_base.end() && base->second.stackable && type_row != tables.types.end() && type_row->second.autostack) {
+        for (auto& stack : items) {
+            if (!in_inventory(stack) || stack.code != item.code || stack.quantity >= max_stack(stack.code)) continue;
+            const int moved = std::min(max_stack(stack.code) - stack.quantity, item.quantity);
+            stack.quantity += moved; item.quantity -= moved;
+            if (item.quantity <= 0) return Pickup::kGone;
+        }
+    }
+    const auto [width, height] = item_size(tables, item.code);
+    const bool autobelt = base != tables.item_base.end() && base->second.autobelt;
+    if (type_row != tables.types.end() && type_row->second.beltable && width == 1 && height == 1 && (autobelt || (item.code != "isc" && item.code != "tsc"))) {
+        std::array<const Item*, 16> box{};
+        for (const auto& carried : items) if (carried.location == 2 && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
+        const auto group = [](const std::string& code) {
+            static constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvsrvl" };
+            for (std::size_t i = 0; i < kGroups.size(); ++i)
+                for (std::size_t at = 0; code.size() == 3 && at < kGroups[i].size(); at += 3) if (kGroups[i].substr(at, 3) == code) return int(i);
+            return -1;
+        };
+        int slot = -1;
+        for (int col = 0; col < 4 && slot < 0; ++col) {
+            const auto* bottom = box[std::size_t(col)];
+            if (!bottom || col >= boxes || (bottom->code != item.code && (group(item.code) < 0 || group(item.code) != group(bottom->code)))) continue;
+            for (int up = col; up < boxes && up < 16 && slot < 0; up += 4) if (!box[std::size_t(up)]) slot = up;
+        }
+        for (int col = 0; col < 4 && slot < 0 && autobelt; ++col) if (!box[std::size_t(col)]) slot = col;
+        if (slot >= 0) {
+            item.location = 2; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
+            items.push_back(std::move(item));
+            return Pickup::kGone;
+        }
+    }
+    std::vector<const Item*> inventory;
+    for (const auto& carried : items) if (in_inventory(carried)) inventory.push_back(&carried);
+    const auto [x, y] = free_spot(tables, inventory, cols, rows, width, height);
+    if (x < 0) return Pickup::kNoRoom;
+    item.location = 0; item.panel = 1; item.column = x; item.row = y;
+    items.push_back(std::move(item));
+    return Pickup::kGone;
 }
 
 // Cain's "Identify Items": the carried and worn ones. Returns how many.

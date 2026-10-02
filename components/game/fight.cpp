@@ -99,9 +99,17 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         if (potion.percent) {
             character.stats.values[kLife] = std::min(character.stats.values[kMaxLife], character.stats.values[kLife] + character.stats.values[kMaxLife] * potion.life / 100);
             character.stats.values[kMana] = std::min(character.stats.values[kMaxMana], character.stats.values[kMana] + character.stats.values[kMaxMana] * potion.mana / 100);
-        } else {
-            const double len = std::max(potion.ticks, 1) * 40.0;
-            regen.push_back({ potion.life * 256.0 / len, potion.mana * 256.0 / len, now_ms + std::uint32_t(len) });
+        } else {                                       // FUN_005be3f0: into the healthpot / manapot state, with what's left of it
+            const bool life = potion.life > 0;
+            const int stat = int(character.stats.get(life ? kVit : kEne) + character.panel.bonus[life ? kVit : kEne]);
+            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, character.character_class, life, stat, rng);
+            auto state = std::ranges::find_if(regen, [&](const Regen& regen_entry) { return !regen_entry.poison && (life ? regen_entry.life > 0 : regen_entry.mana > 0); });
+            if (state == regen.end()) state = regen.insert(regen.end(), Regen{});
+            const int left = state->until > now_ms ? int((state->until - now_ms) / 40) : 0;
+            const int len = std::max(potion.ticks, 1);
+            const int rate = d2d::rules::potion_rate(int(std::lround((life ? state->life : state->mana) * 40.0)), left, amount, len);
+            (life ? state->life : state->mana) = rate / 40.0;
+            state->until = now_ms + std::uint32_t(left + len) * 40;
         }
         cues.cue("item_potion_drink", now_ms, player.x, player.y);
     }

@@ -391,5 +391,45 @@ int main() {
     assert(drink_belt(potion_tables, belt_items, 1) == "hp1" && belt_items.size() == 2 && belt_items[0].column == 1);
     assert(drink_belt(potion_tables, belt_items, 2).empty() && drink_belt(potion_tables, belt_items, 0).empty() && belt_items.size() == 2);   // a scroll, nothing
 
+    // A potion's amount: calc << 8, the class's bonus, no roll at 0 vitality.
+    Rng potion_rng{ 9 };
+    assert(potion_amount(30, 0, true, 0, potion_rng) == 11520 && potion_amount(30, 4, true, 0, potion_rng) == 15360);   // Amazon x1.5, Barbarian x2
+    assert(potion_amount(30, 1, true, 0, potion_rng) == 7680 && potion_amount(20, 1, false, 0, potion_rng) == 10240);   // Sorceress: life x1, mana x2
+    assert(potion_amount(20, 4, false, 0, potion_rng) == 5120 && potion_amount(20, 6, false, 0, potion_rng) == 7680);
+    Rng roll_a{ 9 }, roll_b{ 9 };
+    const int half = roll_b(50) >> 1;
+    assert(potion_amount(30, 1, true, 50, roll_a) == (roll_b(100) < half ? 15360 : 7680));                        // rand(vit) / 2 > rand(100): doubled
+    // The state over what's left: hp1 alone 7680 / 192 a frame; another
+    // with 96 frames left: (40 x 96 + 7680) / (96 + 192).
+    assert(potion_rate(0, 0, 7680, 192) == 40 && potion_rate(40, 96, 7680, 192) == 40 && potion_rate(40, 96, 15360, 160) == 75);
+
+    // Picking up: hp potions to their column, then a free one (autobelt);
+    // scrolls to their tome, else the inventory; keys onto their stack.
+    Tables pick_tables;
+    pick_tables.types["hpot"].beltable = pick_tables.types["mpot"].beltable = pick_tables.types["scro"].beltable = true;
+    pick_tables.types["key"].autostack = true;
+    for (const char* code : { "hp1", "hp2", "mp1" }) { pick_tables.item_base[code].autobelt = true; pick_tables.item_info[code].type = code[0] == 'h' ? "hpot" : "mpot"; }
+    pick_tables.item_info["isc"].type = "scro"; pick_tables.item_info["ibk"].type = "book"; pick_tables.item_base["ibk"].max_stack = 20;
+    pick_tables.item_info["key"].type = "key"; pick_tables.item_base["key"].stackable = true; pick_tables.item_base["key"].max_stack = 12;
+    auto ground_item = [](const char* code, int quantity) { d2d::d2s::Item picked; picked.code = code; picked.quantity = quantity; picked.location = 3; return picked; };
+    std::vector<d2d::d2s::Item> carried{ in_belt("hp1", 2), in_belt("mp1", 0) };
+    auto picked = ground_item("hp2", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 8) == Pickup::kGone && carried.back().location == 2 && carried.back().column == 6);   // hp1's column, a row up
+    picked = ground_item("hp2", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().column == 1);   // one row: hp's full, the first free column
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1);   // no tome: not the belt
+    carried.push_back(stored("ibk", 1, 2, 0)); carried.back().quantity = 19;
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().quantity == 20);
+    carried.back().quantity = 15;
+    picked = ground_item("ibk", 9);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kStays && carried.back().quantity == 20 && picked.quantity == 4);   // the rest stays on the ground
+    carried.push_back(stored("key", 1, 4, 0)); carried.back().quantity = 10;
+    picked = ground_item("key", 5);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried[carried.size() - 2].quantity == 12 && carried.back().quantity == 3);
+    picked = ground_item("key", 10);
+    assert(pick_up(pick_tables, carried, picked, 1, 1, 4) == Pickup::kNoRoom && carried.back().quantity == 12 && picked.quantity == 1);   // the stack fills, the rest has no room
+
     std::puts("test_rules: ok");
 }
