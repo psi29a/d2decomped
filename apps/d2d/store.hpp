@@ -39,7 +39,7 @@ std::array<int, 4> store_button_frames(const Store& store);
 // repair (6) and repair all (18) at repair vendors, else an empty slot
 // (0) and close (10) (FUN_00487ed0). Stock grid: inventory.txt "Monster2"
 // (10x10 at 96,123).
-void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, int clvl);
+void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
 
 // Gold readouts (FUN_00488100, docs/research/re/store.md), font16 white,
 // baselines at 800x600: the inventory's carried gold (stat 14) at x 508,

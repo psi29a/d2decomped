@@ -30,7 +30,7 @@
 namespace d2d::client {
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
-                    const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , int clvl ,
+                    const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
                     const std::function<std::string(const d2d::d2s::Item&)>* price) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
@@ -65,7 +65,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }
     if (hover) {
-        auto lines = item_lines(scene, *hover, clvl);
+        auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
         if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });
         draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
@@ -407,7 +407,7 @@ std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout,
 
 void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
-                  int mouse_x, int mouse_y, int clvl) {
+                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     if (art.frames_per_direction() >= 4) {
         const auto& frame = art.frame(0, 0);
@@ -427,11 +427,11 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         }
         if (mouse_x >= x && mouse_x < x + width && mouse_y >= y && mouse_y < y + height) { hover = &item; hover_box = { x, y, width, height }; }
     }
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, clvl), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
+    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, int clvl, bool popup) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
@@ -453,7 +453,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
         }
         if (mouse_x >= box[0] && mouse_x <= box[1] && mouse_y >= box[2] && mouse_y <= box[3]) { hover = &item; hover_box = box; }
     }
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, clvl), hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
+    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
 }
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash) {

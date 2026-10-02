@@ -725,7 +725,23 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             std::string(types.get(row, "Class")), types.get(row, "Beltable") == "1",
             types.get(row, "Magic") == "1", types.get(row, "Rare") == "1", types.get(row, "Normal") == "1",
             types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
+        if (types.get(row, "Throwable") == "1") game_data.throwable.insert(code);
     }
+    // The hover text's columns (GameData::ItemDesc).
+    for (const auto* table : { &weapons, &armor, &misc })
+        for (std::size_t row = 0; row < table->size(); ++row) {
+            auto number = [&](const char* column) { return std::atoi(std::string(table->get(row, column)).c_str()); };
+            static constexpr std::pair<std::string_view, int> kSpellStat[] = { { "hitpoints", 6 }, { "mana", 8 }, { "manarecovery", 26 }, { "hpregen", 74 } };
+            auto& desc = game_data.item_desc[std::string(table->get(row, "code"))];
+            desc.wclass = std::string(table->get(row, "wclass"));
+            if (table == &weapons) desc.dam = { number("mindam"), number("maxdam"), number("2handmindam"), number("2handmaxdam"), number("minmisdam"), number("maxmisdam") };
+            desc.nodurability = number("nodurability") != 0;
+            if (table != &misc) continue;
+            desc.spell_desc = number("spelldesc");
+            desc.spell_str = std::string(table->get(row, "spelldescstr"));
+            desc.spell_calc = number("spelldesccalc");          // ponytail: every 1.14d calc is a plain number
+            for (const auto& [name, id] : kSpellStat) if (table->get(row, "stat1") == name) desc.spell_stat = id;
+        }
     {
         static constexpr const char* kVendorCol[17] = { "Akara", "Gheed", "Charsi", "Fara", "Lysander", "Drognan",
             "Hralti", "Alkor", "Ormus", "Elzix", "Asheara", "Cain", "Halbu", "Jamella", "Malah", "Larzuk", "Drehya" };
@@ -1009,6 +1025,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
         game_data.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         game_data.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
+        for (const auto& [to, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
+                                                          { &game_data.suffix_req, "MagicSuffix", "levelreq", true },
+                                                          { &game_data.unique_req, "UniqueItems", "lvl req", false },
+                                                          { &game_data.set_req, "SetItems", "lvl req", false } })
+            for (const auto& level : pairs(file_name, column, column, all)) to->push_back(level.first);
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
         auto affixes = [&](const char* file_name) {

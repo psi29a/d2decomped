@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace d2d::client {
@@ -30,7 +31,12 @@ void draw_hover_text(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     int y = box_y + 2;
     for (const auto& line : lines) {
         const int line_width = scene.font.measure(line.text);
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box_x + 2 + (width - line_width) / 2, y, line.text, line.rgb[0], line.rgb[1], line.rgb[2]);
+        const int x = box_x + 2 + (width - line_width) / 2;
+        const std::string head = line.text.substr(0, line.split);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, y, head, line.rgb[0], line.rgb[1], line.rgb[2]);
+        if (line.split < line.text.size())
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + scene.font.measure(head), y, line.text.substr(line.split),
+                                   line.tail[0], line.tail[1], line.tail[2]);
         y += line_height;
     }
 }

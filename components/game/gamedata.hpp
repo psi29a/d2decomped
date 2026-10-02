@@ -43,6 +43,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -366,6 +367,22 @@ struct GameData {
     struct ItemNames {
         std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
     } item_names;
+    // What the hover text (item_lines, FUN_0048dd90) reads off the items
+    // record by code: wclass (+0xc0), mindam/maxdam (+0xfe/+0xff),
+    // 2handmindam/2handmaxdam (+0x102/+0x103), minmisdam/maxmisdam
+    // (+0x100/+0x101), nodurability (+0x113), misc.txt spelldesc (+0xb4),
+    // spelldescstr (+0xb6), spelldesccalc (+0xa4) and stat1's ID (+0x9e).
+    // ItemTypes Throwable (record +0x10, not inherited) by type code. The
+    // level requirements by save ID, indexed like item_names.
+    struct ItemDesc {
+        std::string wclass, spell_str;
+        std::array<int, 6> dam{};                // one-hand, two-hand, throw: min, max
+        bool nodurability = false;
+        int spell_desc = 0, spell_calc = 0, spell_stat = -1;
+    };
+    std::unordered_map<std::string, ItemDesc> item_desc;
+    std::unordered_set<std::string> throwable;
+    std::vector<int> prefix_req, suffix_req, unique_req, set_req;
     // ItemStatCost.txt description columns, by stat ID, and what the skill
     // descfuncs need: skill name keys by skill ID, CharStats strings by class.
     struct StatDesc {

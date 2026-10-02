@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -194,6 +195,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
                                box[1] - scene.font.line_height() - 2, hovered_name, colour[0], colour[1], colour[2]);
         }
+        // Who reads the hover text: red requirements, class lines, attack speed.
+        std::optional<d2d::rules::Wearer> wearer_value;
+        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(kUiToSaveClass[class_idx], *inventory, *hud_stats);
+        const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
         if (inventory && class_idx >= 0 && class_idx < 7)
         {
             // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
@@ -203,29 +208,29 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                     return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
                 };
             draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                           mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);
+                           mouse_x, mouse_y, hover_wearer, &sell_price);
             if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
         }
         if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         if (store && store->npc >= 0)
         {
-            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer);
             if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
         }
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)
                 draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, 4, mouse_x, mouse_y,
-                             hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+                             hover_wearer);
             else
                 draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], 5,
-                             mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+                             mouse_x, mouse_y, hover_wearer);
         }
         if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
         if (hud_stats) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
-        if (belt) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
+        if (belt) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
                             belt_popup);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
