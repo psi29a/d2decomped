@@ -134,27 +134,27 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         }
     }
     for (const auto& value_def : kCharValues) {
-        const bool fixed = value_def.id >= 6 && value_def.id <= 11;       // life/mana/stamina, 8.8
+        const bool fixed = value_def.id >= d2d::d2s::kLife && value_def.id <= d2d::d2s::kMaxStamina;       // life/mana/stamina, 8.8
         std::int64_t value = fixed ? stats.fixed(value_def.id) : stats.get(value_def.id);
         int colour = 0;                                   // 1 red, 3 blue, 4 gold
-        if (value_def.id < 12 && value_def.id != 6 && value_def.id != 8 && value_def.id != 10) {   // the maxima already hold theirs (Fight::item_max)
+        if (value_def.id < d2d::d2s::kLevel && value_def.id != d2d::d2s::kLife && value_def.id != d2d::d2s::kMana && value_def.id != d2d::d2s::kStamina) {   // the maxima already hold theirs (Fight::item_max)
             const auto bonus = panel.bonus[std::size_t(value_def.id)];
-            if (value_def.id < 4) value += bonus;
+            if (value_def.id <= d2d::d2s::kVit) value += bonus;
             colour = bonus > 0 ? 3 : bonus < 0 ? 1 : 0;
         }
         auto res = [&](int resist_index) { value = panel.res[std::size_t(resist_index)]; colour = value >= panel.res_cap[std::size_t(resist_index)] ? 4 : value < 0 ? 1 : 0; };
         switch (value_def.id) {
-            case 30: value = panel.next; break;
-            case 31: value = panel.defense; break;
-            case 39: res(0); break;
-            case 43: res(1); break;
-            case 41: res(2); break;
-            case 45: res(3); break;
+            case d2d::d2s::kNextExperience: value = panel.next; break;
+            case d2d::d2s::kArmorClass: value = panel.defense; break;
+            case d2d::d2s::kFireResist: res(0); break;
+            case d2d::d2s::kColdResist: res(1); break;
+            case d2d::d2s::kLightningResist: res(2); break;
+            case d2d::d2s::kPoisonResist: res(3); break;
             default: break;
         }
-        if (value_def.id == 30 && value < 0) continue;                // max level: blank
+        if (value_def.id == d2d::d2s::kNextExperience && value < 0) continue;                // max level: blank
         const auto txt = std::to_string(value);
-        const bool small_font = (fixed || value_def.id == 31) && (value > 999 || f16.measure(txt) >= value_def.right - value_def.left);
+        const bool small_font = (fixed || value_def.id == d2d::d2s::kArmorClass) && (value > 999 || f16.measure(txt) >= value_def.right - value_def.left);
         text(small_font ? font8 : f16, value_def.left, value_def.right, value_def.y, txt, colour);
     }
     // The left and right skill's blocks (FUN_004eda20 -> FUN_004ed570): the

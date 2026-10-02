@@ -166,7 +166,7 @@ auto World::view() const -> View {
         {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
-            view.light_bonus = sum.size() > 89 ? int(sum[89]) : 0;
+            view.light_bonus = sum.size() > d2d::d2s::kLightRadius ? int(sum[d2d::d2s::kLightRadius]) : 0;
             view.attack_lines = character.panel.attack;
         }
         view.has_character = true;
@@ -1461,10 +1461,10 @@ auto World::stamina_frame() -> void {
                 if (item.location == 1 && item.slot == 3)
                     if (const auto found = game_data->rules.item_base.find(item.code); found != game_data->rules.item_base.end()) armor_speed = found->second.speed;
             stamina = std::max<std::int64_t>(0, stamina - d2d::rules::stamina_drain(game_data->run_drain[std::size_t(std::max(character.character_class, 0))],
-                                                                                  armor_speed, int(fight.psum[154])));
+                                                                                  armor_speed, int(fight.psum[kStaminaDrainPercent])));
         }
         const int mode = fight.pmode >= 0 ? -1 : player.walking ? (run ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
-        stamina = d2d::rules::stamina_regen(stamina, character.stats.values[kMaxStamina], mode, int(fight.psum[28]));
+        stamina = d2d::rules::stamina_regen(stamina, character.stats.values[kMaxStamina], mode, int(fight.psum[kStaminaRecoveryBonus]));
     }
 
 auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::uint32_t last_ms) -> void {

@@ -233,7 +233,6 @@ struct Fight {
     // calc2 ticks (FUN_005d97f0, 10 when that's 0).
     struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     std::vector<SelfState> self_states;
-    static constexpr int kBoneArmor = 132;         // ItemStatCost bonearmor
     int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
     std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
     std::uint32_t storm_frame = 0;                 // the last frame buff_tick ran its paced strikes

@@ -911,9 +911,9 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                             case 15: if (stat >= 0) out.push_back({ stat, 0, minimum }); break;
                             case 16: if (stat >= 0) out.push_back({ stat, 0, maximum }); break;
                             case 17: if (stat >= 0) out.push_back({ stat, 0, par }); break;
-                            case 5: out.push_back({ 21, 0, minimum }); break;
-                            case 6: out.push_back({ 22, 0, maximum }); break;
-                            case 7: out.push_back({ 17, 0, minimum }); out.push_back({ 18, 0, minimum }); break;
+                            case 5: out.push_back({ d2d::d2s::kMinDamage, 0, minimum }); break;
+                            case 6: out.push_back({ d2d::d2s::kMaxDamage, 0, maximum }); break;
+                            case 7: out.push_back({ d2d::d2s::kMaxDamagePercent, 0, minimum }); out.push_back({ d2d::d2s::kMinDamagePercent, 0, minimum }); break;
                             default: break;
                         }
                     }

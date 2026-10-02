@@ -199,6 +199,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
                                                      d2d::rules::StatSum* sum_out ) const -> d2d::rules::Fighter {
+        using namespace d2d::d2s;
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
@@ -233,14 +234,16 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (const auto& passive : *passives) {
                 if (passive.stat < 0 || std::size_t(passive.stat) >= sum.size()) continue;
                 if (passive.itype.empty()) { sum[std::size_t(passive.stat)] += passive.value; continue; }
-                const std::size_t mastery = passive.stat >= 342 && passive.stat <= 344 ? std::size_t(passive.stat - 342) : passive.stat == 348 ? 3 : 4;
+                const std::size_t mastery = passive.stat >= kPassiveMasteryMeleeToHit && passive.stat <= kPassiveMasteryMeleeCritical
+                                            ? std::size_t(passive.stat - kPassiveMasteryMeleeToHit)
+                                            : passive.stat == kPassiveWeaponBlock ? 3 : 4;
                 if (mastery == 4) continue;
                 const bool fits = mastery < 3 ? weapon && is_type(type_of(*weapon), passive.itype)
                                         : claws2 && std::ranges::any_of(hands, [&](const auto& hand_type) { return is_type(hand_type, passive.itype); });
                 if (fits) best[mastery] = std::max<std::int64_t>(best[mastery], passive.value);
             }
-            for (std::size_t k = 0; k < 3; ++k) sum[342 + k] += best[k];
-            sum[348] += best[3];
+            for (std::size_t k = 0; k < 3; ++k) sum[kPassiveMasteryMeleeToHit + k] += best[k];
+            sum[kPassiveWeaponBlock] += best[3];
         }
         if (weapon) {                                        // its own enhanced damage (op 13), sockets included
             add(weapon_sum, weapon->props);
@@ -255,9 +258,9 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
             const int diff = character.header.active_difficulty();
             const std::int64_t penalty = character.header.expansion() ? game_data->resist_penalty[std::size_t(diff)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
-            fighter.plr = int(std::clamp<std::int64_t>(sum[110] + penalty, -100, 75));
+            fighter.plr = int(std::clamp<std::int64_t>(sum[kPoisonLengthReduction] + penalty, -100, 75));
         }
-        fighter.half_freeze = sum[118] > 0; fighter.cannot_freeze = sum[153] > 0;
+        fighter.half_freeze = sum[kHalfFreezeDuration] > 0; fighter.cannot_freeze = sum[kCannotBeFrozen] > 0;
         if (kick) {                                          // the weapon's stats off, its attack rating kept
             auto bare = sum;
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
@@ -270,6 +273,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
     }
 
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
+        using namespace d2d::d2s;
         std::erase_if(self_states, [&](const SelfState& state) { return now_ms >= state.until; });
         d2d::rules::StatSum st_sum{};
         const auto env = calc_env();
@@ -286,7 +290,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
             for (std::size_t i = 0; skill && i < skill->aurastat.size(); ++i)
-                if (const int id = skill->aurastat[i]; id >= 0 && id != 6 && std::size_t(id) < st_sum.size())
+                if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
         if (now_ms < boost.until)
@@ -294,9 +298,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         // Battle Orders (item_maxhp_percent 76, item_maxmana_percent 77): the
         // maxima up while it lasts, life and mana with them.
         {
-            using namespace d2d::d2s;
             const std::int64_t base_life = character.stats.values[kMaxLife] - bo_life, base_mana = character.stats.values[kMaxMana] - bo_mana;
-            const std::int64_t want_life = base_life * st_sum[76] / 100, want_mana = base_mana * st_sum[77] / 100;
+            const std::int64_t want_life = base_life * st_sum[kMaxLifePercent] / 100, want_mana = base_mana * st_sum[kMaxManaPercent] / 100;
             character.stats.values[kMaxLife] += want_life - bo_life; character.stats.values[kLife] = std::min(character.stats.values[kLife] + std::max<std::int64_t>(want_life - bo_life, 0), character.stats.values[kMaxLife]);
             character.stats.values[kMaxMana] += want_mana - bo_mana; character.stats.values[kMana] = std::min(character.stats.values[kMana] + std::max<std::int64_t>(want_mana - bo_mana, 0), character.stats.values[kMaxMana]);
             bo_life = want_life; bo_mana = want_mana;
@@ -304,7 +307,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             // the maxima follow what's worn; life and mana don't rise with
             // them, only stay under them.
             constexpr std::array<std::pair<int, int>, 3> kMax{ { { kMaxLife, kLife }, { kMaxMana, kMana }, { kMaxStamina, kStamina } } };
-            constexpr std::array<std::size_t, 3> kBonus{ 7, 9, 11 };
+            constexpr std::array<std::size_t, 3> kBonus{ kMaxLife, kMaxMana, kMaxStamina };
             for (std::size_t k = 0; k < 3; ++k) {
                 const std::int64_t want = character.panel.bonus[kBonus[k]] * 256;
                 auto& maximum = character.stats.values[std::size_t(kMax[k].first)];
@@ -314,21 +317,21 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             }
         }
         player_combat = player_fighter(&pf_kick, &st_sum, &passives, &psum);
-        constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison
+        constexpr int kRes[4] = { kFireResist, kLightningResist, kColdResist, kPoisonResist };          // Fighter::res order: fire, lightning, cold, poison
         constexpr std::size_t kPanelRes[4] = { 0, 2, 1, 3 };  // PanelStats::res_cap order: fire, cold, lightning, poison
         for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's or shrine's on top of the panel's (Salvation, Resist Fire, ...), to its cap
             if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0)
                 player_combat.res[k] = int(std::min<std::int64_t>(player_combat.res[k] + value, character.panel.res_cap[kPanelRes[k]]));
-        player_combat.ias += int(st_sum[68]);
-        player_combat.frw += int(st_sum[67]);
-        for (const auto& passive : passives) if (passive.stat == 67 && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed
-        player_combat.defense += int(player_combat.defense * st_sum[171] / 100);
-        player_combat.defense = std::max(int(player_combat.defense + player_combat.defense * st_sum[182] / 100), 0);
+        player_combat.ias += int(st_sum[kAttackRate]);
+        player_combat.frw += int(st_sum[kVelocityPercent]);
+        for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed
+        player_combat.defense += int(player_combat.defense * st_sum[kSkillArmorPercent] / 100);
+        player_combat.defense = std::max(int(player_combat.defense + player_combat.defense * st_sum[kArmorOverridePercent] / 100), 0);
         const std::uint32_t chosen[2] = { character.header.left_skill, character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(int(chosen[k])))
                 character.panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
-                                                                    player_combat, int(psum[342]));
+                                                                    player_combat, int(psum[kPassiveMasteryMeleeToHit]));
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
@@ -873,7 +876,7 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
         std::erase_if(self_states, [&](const SelfState& state) { return state.skill == skill.id; });
         self_states.push_back({ skill.id, lvl, until });
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
-            if (skill.aurastat[k] == kBoneArmor) absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, absorb_skill = skill.id;
+            if (skill.aurastat[k] == d2d::d2s::kBoneArmor) absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, absorb_skill = skill.id;
         if (skill.srvdofunc == ServerDoFunction::kCloakOfShadows)
             for (auto& monster : monsters)
                 if (monster.alive() && std::hypot(monster.unit.x - player.x, monster.unit.y - player.y) * 5 <= float(calc(skill, skill.aurarange, lvl)))
@@ -1062,7 +1065,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         if (func == ServerDoFunction::kReleaseAreaHit) {
             d2d::rules::MissileDamage damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
             damage.srcdam = 0;
-            const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+            const std::array<int, 4> pierce{ int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) };
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (monsters[i].alive() && std::hypot(monsters[i].unit.x - target_x, monsters[i].unit.y - target_y) * 5 <= float(std::max(radius, 1)))
                     land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms);
@@ -1216,7 +1219,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         }
         const auto save_class = std::size_t(std::max(character.character_class, 0));
         auto exp = d2d::rules::kill_exp(monster.stats.exp, int(character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
-        exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
+        exp += exp * int(psum[d2d::d2s::kAddExperience]) / 100;                   // item_addexperience (the experience shrine)
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) {
@@ -1733,7 +1736,7 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
         if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(monster_index, now_ms); }
     }
 
-auto Fight::pierce() const -> std::array<int, 4> { return { int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) }; }
+auto Fight::pierce() const -> std::array<int, 4> { return { int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) }; }
 
 auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
         const auto* skill = game_data->skills.get(missile.skill);
@@ -1804,7 +1807,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             if (missile_info.hit_func == 47) return false;             // the boulder rolls on (FUN_005ac550 returns 1)
             return true;
         }
-        return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(psum[328]));
+        return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(psum[d2d::d2s::kPierceIndex]));
     }
 
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze ) -> void {
@@ -1945,7 +1948,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                                                    .elo = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, false, 0, true),
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, *skill, env, lvl) };
-        const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+        const std::array<int, 4> pierce{ int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) };
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].alive() && in_aura(monsters[i]))
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms);
@@ -2136,15 +2139,16 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         for (std::size_t k = 0; k < 6; ++k)
             if (skill.aurastat[k] >= 0) pet_stats[skill.aurastat[k]] += calc(skill, skill.aura_calc[k], lvl);
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
-        monster.stats.hit_points += stat(7) >> 8;                                               // maxhp, 256ths
+        using namespace d2d::d2s;
+        monster.stats.hit_points += stat(kMaxLife) >> 8;                                               // maxhp, 256ths
         monster.stats.hit_points += int(std::int64_t(monster.stats.hit_points) * calc(skill, skill.calc[0], lvl) / 100);
         monster.hit_points = monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
-        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) { *damage += stat(111); *damage += *damage * stat(25) / 100; }   // item_normaldamage, damagepercent
-        monster.stats.to_hit += stat(19); monster.stats.to_hit += monster.stats.to_hit * stat(119) / 100;              // tohit, item_tohit_percent
-        monster.stats.armor_class += stat(31); monster.stats.armor_class += monster.stats.armor_class * (stat(16) + stat(171)) / 100;   // armorclass, item / skill_armor_percent
+        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) { *damage += stat(kNormalDamage); *damage += *damage * stat(kDamagePercent) / 100; }   // item_normaldamage, damagepercent
+        monster.stats.to_hit += stat(kToHit); monster.stats.to_hit += monster.stats.to_hit * stat(kToHitPercent) / 100;              // tohit, item_tohit_percent
+        monster.stats.armor_class += stat(kArmorClass); monster.stats.armor_class += monster.stats.armor_class * (stat(kArmorPercent) + stat(kSkillArmorPercent)) / 100;   // armorclass, item / skill_armor_percent
         const auto& base_res = type_info.diff[std::size_t(monster.difficulty)].res;
-        pet.res = { base_res[2] + stat(39), base_res[3] + stat(41), base_res[4] + stat(43), base_res[5] + stat(45) };
-        pet.thorns = stat(131); pet.fire_lo = stat(48); pet.fire_hi = std::max(stat(49), pet.fire_lo); pet.speed_pct = stat(67);
+        pet.res = { base_res[2] + stat(kFireResist), base_res[3] + stat(kLightningResist), base_res[4] + stat(kColdResist), base_res[5] + stat(kPoisonResist) };
+        pet.thorns = stat(kThornsPercent); pet.fire_lo = stat(kFireMinDamage); pet.fire_hi = std::max(stat(kFireMaxDamage), pet.fire_lo); pet.speed_pct = stat(kVelocityPercent);
         for (std::size_t k = 0; k < 5; ++k) {
             const auto* k_s = skill_named(skill.sumskill[k]);
             const int skill_level_value = k_s ? calc(skill, skill.sumsk_calc[k], lvl) : 0;

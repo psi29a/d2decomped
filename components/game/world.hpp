@@ -215,7 +215,7 @@ struct World {
         fight.skill_level = [this](int id) {
             std::vector<d2d::d2s::ItemProp> extra;
             if (now < fight.boost.until)
-                for (const auto& [stat, value] : fight.boost.stats) if (stat == 127) extra.push_back({ .stat = 127, .value = value });
+                for (const auto& [stat, value] : fight.boost.stats) if (stat == d2d::d2s::kAllSkills) extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
             return skill_level(*game_data, character, id, extra);
         };
     }

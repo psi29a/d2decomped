@@ -105,51 +105,51 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     const ItemBase* weapon_base = nullptr;
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;
     // In 256ths, as game.exe keeps them.
-    std::int64_t low = (weapon_base ? weapon_base->mindam * (100 + weapon_stat(18)) / 100 : 1) + stat(21) + stat(111),
-                 high = (weapon_base ? weapon_base->maxdam * (100 + weapon_stat(17) + weapon_stat(219) * clvl / 8) / 100 : 2) + stat(22) + stat(218) * clvl / 8 + stat(111);
+    std::int64_t low = (weapon_base ? weapon_base->mindam * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
+                 high = (weapon_base ? weapon_base->maxdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
     low = std::max<std::int64_t>(low, 1) << 8;
     high = std::max<std::int64_t>(high << 8, low + 256);
-    const std::int64_t pct = std::max<std::int64_t>(stat(25) + stat(343) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
+    const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
     fighter.phys_lo = int(low); fighter.phys_hi = int(high); fighter.phys_pct = int(pct);
     fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
     fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
-    fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(19) + stat(224) * clvl / 8);
-    fighter.ar_pct = int(stat(119) + stat(342));
+    fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
+    fighter.ar_pct = int(stat(kToHitPercent) + stat(kPassiveMasteryMeleeToHit));
     fighter.attack_rating = int(std::max<std::int64_t>(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct) / 100, 1));
-    fighter.kick_lo = fighter.kick_hi = int(stat(137));
+    fighter.kick_lo = fighter.kick_hi = int(stat(kKickDamage));
     if (boots) if (const auto found = tables.item_base.find(boots->code); found != tables.item_base.end()) {
         fighter.kick_lo += found->second.mindam;
         fighter.kick_hi = std::max(fighter.kick_hi + found->second.maxdam, fighter.kick_lo);
-        fighter.kick_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(25), -90)
-                         + stat(17) - weapon_stat(17));
+        fighter.kick_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(kDamagePercent), -90)
+                         + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
     }
     if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end()) {
         fighter.smite_lo = found->second.mindam;
         fighter.smite_hi = std::max(found->second.maxdam, fighter.smite_lo);
-        fighter.smite_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(25), -90)
-                          + stat(17) - weapon_stat(17));
+        fighter.smite_pct = int(std::max<std::int64_t>(str * found->second.str_bonus / 100 + dex * found->second.dex_bonus / 100 + stat(kDamagePercent), -90)
+                          + stat(kMaxDamagePercent) - weapon_stat(kMaxDamagePercent));
     }
     if (shield) if (const auto found = tables.item_base.find(shield->code); found != tables.item_base.end() && found->second.block > 0)
-        fighter.block = int(std::clamp<std::int64_t>((found->second.block + gains.block + stat(20)) * (dex - 15) / (clvl * 2), 0, 75));
+        fighter.block = int(std::clamp<std::int64_t>((found->second.block + gains.block + stat(kToBlock)) * (dex - 15) / (clvl * 2), 0, 75));
     // Each element's mastery % (FUN_0057b7d0 -> FUN_0057a8e0): fire 329,
     // lightning 330, cold 331, poison 332, magic 357.
     const auto scaled = [&](std::int64_t value, int stat_id) { return int(value * (100 + stat(stat_id)) / 100); };
-    fighter.elem = { { { scaled(stat(48), 329), scaled(stat(49), 329) }, { scaled(stat(50), 330), scaled(stat(51), 330) }, { scaled(stat(54), 331), scaled(stat(55), 331) },
-                 { scaled(stat(57) * stat(59) / 256, 332), scaled(stat(58) * stat(59) / 256, 332) }, { scaled(stat(52), 357), scaled(stat(53), 357) } } };
-    fighter.cold_len = int(stat(56)); fighter.poison_len = int(stat(59));
-    fighter.crushing = int(stat(136)); fighter.deadly = int(stat(141) + stat(250) * clvl / 8); fighter.critical = int(stat(337));
-    fighter.mastery_crit = int(stat(344)); fighter.weapon_block = int(stat(348));
-    fighter.open_wounds = int(stat(135));
-    fighter.knockback = stat(81) > 0;
-    fighter.life_steal = int(stat(60)); fighter.mana_steal = int(stat(62));
-    fighter.ias = int(stat(93)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(96)); fighter.fhr = int(stat(99)); fighter.fbr = int(stat(102)); fighter.fcr = int(stat(105));
+    fighter.elem = { { { scaled(stat(kFireMinDamage), kPassiveFireMastery), scaled(stat(kFireMaxDamage), kPassiveFireMastery) }, { scaled(stat(kLightningMinDamage), kPassiveLightningMastery), scaled(stat(kLightningMaxDamage), kPassiveLightningMastery) }, { scaled(stat(kColdMinDamage), kPassiveColdMastery), scaled(stat(kColdMaxDamage), kPassiveColdMastery) },
+                 { scaled(stat(kPoisonMinDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery), scaled(stat(kPoisonMaxDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery) }, { scaled(stat(kMagicMinDamage), kPassiveMagicMastery), scaled(stat(kMagicMaxDamage), kPassiveMagicMastery) } } };
+    fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
+    fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
+    fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
+    fighter.open_wounds = int(stat(kOpenWounds));
+    fighter.knockback = stat(kKnockback) > 0;
+    fighter.life_steal = int(stat(kLifeDrainMinDamage)); fighter.mana_steal = int(stat(kManaDrainMinDamage));
+    fighter.ias = int(stat(kFasterAttackRate)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(kFasterMoveVelocity)); fighter.fhr = int(stat(kFasterGetHitRate)); fighter.fbr = int(stat(kFasterBlockRate)); fighter.fcr = int(stat(kFasterCastRate));
     fighter.defense = defense;
-    fighter.def_melee = int(stat(33)); fighter.def_missile = int(stat(32));
-    fighter.dodge = int(stat(338)); fighter.avoid = int(stat(339)); fighter.evade = int(stat(340));
-    fighter.dr_pct = int(std::min<std::int64_t>(stat(36), 50)); fighter.dr_flat = int(stat(34)); fighter.mdr = int(stat(35));
+    fighter.def_melee = int(stat(kArmorClassVsHandToHand)); fighter.def_missile = int(stat(kArmorClassVsMissile));
+    fighter.dodge = int(stat(kPassiveDodge)); fighter.avoid = int(stat(kPassiveAvoid)); fighter.evade = int(stat(kPassiveEvade));
+    fighter.dr_pct = int(std::min<std::int64_t>(stat(kDamageResist), 50)); fighter.dr_flat = int(stat(kNormalDamageReduction)); fighter.mdr = int(stat(kMagicDamageReduction));
     fighter.res = res;
-    fighter.thorns = int(stat(78)); fighter.thorns_light = int(stat(128)); fighter.thorns_pct = int(stat(131));
-    fighter.life_regen = int(stat(74)); fighter.mana_regen = int(stat(27));
+    fighter.thorns = int(stat(kAttackerTakesDamage)); fighter.thorns_light = int(stat(kAttackerTakesLightningDamage)); fighter.thorns_pct = int(stat(kThornsPercent));
+    fighter.life_regen = int(stat(kHitPointRegeneration)); fighter.mana_regen = int(stat(kManaRecoveryBonus));
     return fighter;
 }
 

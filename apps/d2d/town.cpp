@@ -800,7 +800,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             net.send(cmd::SelectSkill{ skillbar.right, false });
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
-        for (const auto& [id, value] : view.boost) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = value });
+        for (const auto& [id, value] : view.boost) if (id == d2d::d2s::kAllSkills) skillbar.extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
         // The NPC the client's talking with (it stands meanwhile), when that changes.
         if (const int talk = npc_menu.npc >= 0 ? npc_menu.npc : speech.npc >= 0 ? speech.npc : store.npc; talk != talking_sent) {
             net.send(cmd::Chat{ talk });

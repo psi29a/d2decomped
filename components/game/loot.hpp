@@ -93,8 +93,8 @@ struct Loot {
         // FUN_0058f0d0), gear only (no skill / state find).
         int magic_find = 0, gold_find = 0;
         for (const auto& prop : gear_props(*game_data, character.items)) {
-            if (prop.stat == 80) magic_find += prop.value;
-            if (prop.stat == 79) gold_find += prop.value;
+            if (prop.stat == d2d::d2s::kMagicFind) magic_find += prop.value;
+            if (prop.stat == d2d::d2s::kGoldFind) gold_find += prop.value;
         }
         constexpr int kMost = 6;
         std::vector<d2d::rules::Drop> drops;

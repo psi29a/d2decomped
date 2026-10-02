@@ -349,14 +349,14 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
 inline int max_durability(const d2d::d2s::Item& item) {
     int flat = 0, pct = 0;
     for (const auto& prop : item.props) {
-        if (prop.stat == 73) flat += int(prop.value);
-        if (prop.stat == 75) pct += int(prop.value);
+        if (prop.stat == d2d::d2s::kMaxDurability) flat += int(prop.value);
+        if (prop.stat == d2d::d2s::kMaxDurabilityPercent) pct += int(prop.value);
     }
     return (item.max_durability + flat) * (100 + pct) / 100;
 }
 // item_indesctructible (stat 152): never wears, never needs repair.
 inline bool indestructible(const d2d::d2s::Item& item) {
-    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == 152 && prop.value; });
+    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; });
 }
 
 // Repair cost at the NPC (FUN_0062efb0 mode 3): the buy base with its
@@ -744,6 +744,7 @@ inline std::string lower_case(std::string_view text) {
     return out;
 }
 inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng, const ModItem* on = nullptr) {
+    using namespace d2d::d2s;
     const auto found = tables.properties.find(lower_case(mod.code));
     if (found == tables.properties.end()) return;
     auto skill = [&](const std::string& name) {
@@ -757,7 +758,7 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
     auto put = [&](int stat, int param, int amount) {     // FUN_0065ea50
         if (stat < 0 || amount == 0) return 0;
         out.push_back({ stat, param, amount });
-        if (stat == 58) out.push_back({ 326, 0, 1 });      // poison max damage counts a poison (poison_count)
+        if (stat == kPoisonMaxDamage) out.push_back({ kPoisonCount, 0, 1 });      // poison max damage counts a poison (poison_count)
         return amount;
     };
     auto damage = [&](int one_hand, int two_hand, int thrown, int amount) {
@@ -781,19 +782,19 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
         const auto& property_func = found->second[k];
         const int stat = property_func.stat, func = property_func.func;
         auto value = [&] { return first != 0 ? first : draw(); };
-        if (on && on->kind == 1 && on->base->maxac != 0 && (stat == 16 || stat == 31)
+        if (on && on->kind == 1 && on->base->maxac != 0 && (stat == kArmorPercent || stat == kArmorClass)
             && (func == 2 || func == 4 || (on->raise && (func == 1 || func == 3 || func == 13))))
             on->item->defense = std::max(on->item->defense + 1, on->base->maxac + 1);
         int result = 0;
         switch (func) {
             case 1: case 2: result = put(stat, 0, draw()); break;
             case 3: case 4: case 8: result = put(stat, 0, value()); break;
-            case 5: result = damage(21, 23, 159, value()); break;
-            case 6: result = damage(22, 24, 160, value()); break;
+            case 5: result = damage(kMinDamage, kSecondaryMinDamage, kThrowMinDamage, value()); break;
+            case 6: result = damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, value()); break;
             case 7:
                 result = value();
-                if (on && on->kind == 2 && std::max(on->base->max_1h, on->base->max_2h) * result / 100 == 0) damage(22, 24, 160, 1);
-                else { put(18, 0, result); put(17, 0, result); }
+                if (on && on->kind == 2 && std::max(on->base->max_1h, on->base->max_2h) * result / 100 == 0) damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, 1);
+                else { put(kMinDamagePercent, 0, result); put(kMaxDamagePercent, 0, result); }
                 break;
             case 9: if (const int amount = value(); amount != 0) result = put(stat, par, amount); break;
             case 10: if (const int amount = value(); amount != 0) result = put(stat, par % 3 + par / 3 * 8, amount); break;
@@ -804,18 +805,18 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
                 if (on && result != 0) {
                     int percent = 0, more = on->item->max_durability;
                     for (const auto& prop : out) {
-                        if (prop.stat == 75) percent += prop.value;
-                        if (prop.stat == 73) more += prop.value;
+                        if (prop.stat == kMaxDurabilityPercent) percent += prop.value;
+                        if (prop.stat == kMaxDurability) more += prop.value;
                     }
                     if (const int most = more + more * percent / 100; most > 0) on->item->durability = most;
                 }
                 break;
             case 14: if (on && first < 1) draw(); break;
-            case 15: result = mod.min; if (stat == 21) damage(21, 23, 159, result); else put(stat, 0, result); break;
-            case 16: result = mod.max; if (stat == 22) damage(22, 24, 160, result); else put(stat, 0, result); break;
+            case 15: result = mod.min; if (stat == kMinDamage) damage(kMinDamage, kSecondaryMinDamage, kThrowMinDamage, result); else put(stat, 0, result); break;
+            case 16: result = mod.max; if (stat == kMaxDamage) damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, result); else put(stat, 0, result); break;
             case 17:
                 result = par != 0 ? par : draw();
-                if (result != 0 && stat == 22) damage(22, 24, 160, result);
+                if (result != 0 && stat == kMaxDamage) damage(kMaxDamage, kSecondaryMaxDamage, kThrowMaxDamage, result);
                 else put(stat, 0, result);
                 break;
             case 19: {
@@ -827,7 +828,7 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
                 result = charges;
                 break;
             }
-            case 20: if (on) result = put(152, 0, 1); break;
+            case 20: if (on) result = put(kIndestructible, 0, 1); break;
             case 21: result = put(stat, property_func.val, draw()); break;
             case 22: result = put(stat, par, draw()); break;
             case 23:
@@ -944,8 +945,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         for (const auto& prop : item.props) if (prop.stat == stat) total += prop.value;
         return total;
     };
-    auto max_durability = [&] { const int most = item.max_durability + stat_total(73); return most + most * stat_total(75) / 100; };   // FUN_00625e00
-    auto has_durability = [&] { return base && !base->no_durability && base->durability > 0 && item.max_durability > 0 && stat_total(152) < 1; };
+    auto max_durability = [&] { const int most = item.max_durability + stat_total(d2d::d2s::kMaxDurability); return most + most * stat_total(d2d::d2s::kMaxDurabilityPercent) / 100; };   // FUN_00625e00
+    auto has_durability = [&] { return base && !base->no_durability && base->durability > 0 && item.max_durability > 0 && stat_total(d2d::d2s::kIndestructible) < 1; };
     // Staffmods (FUN_005c0f90): 0-3 class skills of the type's class off
     // tiers by ilvl, at level 1-3 (low: 1). A drop's percent add is 0.
     auto staff_mods = [&] {
@@ -968,9 +969,9 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
             }
             int level = 1;
             if (item.quality != 1) { const int level_roll = percent(); level = level_roll < 60 ? 1 : level_roll < 90 ? 2 : 3; }
-            const auto old = std::ranges::find_if(item.props, [&](const auto& prop) { return prop.stat == 107 && prop.param == skill; });
+            const auto old = std::ranges::find_if(item.props, [&](const auto& prop) { return prop.stat == d2d::d2s::kSingleSkill && prop.param == skill; });
             if (old != item.props.end()) old->value = level;
-            else item.props.push_back({ 107, skill, level });
+            else item.props.push_back({ d2d::d2s::kSingleSkill, skill, level });
         }
     };
     // FUN_00557450's tail on every quality: ethereal, sockets, the class affix.
@@ -1015,7 +1016,7 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
                 for (const auto& mod : tables.automagic[std::size_t(chosen)].mods) apply_mod(tables, mod, item.props, rng, &on);
             }
         }
-        if (base->quest && base->quest_diff) item.props.push_back({ 356, 0, difficulty });   // FUN_00557ab0 after FUN_00557450
+        if (base->quest && base->quest_diff) item.props.push_back({ d2d::d2s::kQuestItemDifficulty, 0, difficulty });   // FUN_00557ab0 after FUN_00557450
         return item;
     };
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll

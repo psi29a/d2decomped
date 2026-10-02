@@ -446,7 +446,7 @@ inline int elem_damage(const SkillTables& skill_tables, const Skill& skill, cons
     if (lvl < 1) return 0;
     int damage = ((max ? skill.emax : skill.emin) + level_bonus(max ? skill.emax_lev : skill.emin_lev, lvl)) << (skill.hitshift & 31);
     if (!skill.edmg_sym.empty()) damage += damage * eval_calc(skill_tables, skill.edmg_sym, env, skill.id, lvl, depth + 1) / 100;
-    if (mastery && env.stat && skill.etype >= 0 && skill.etype <= 3) damage += int(std::int64_t(damage) * env.stat(329 + skill.etype) / 100);
+    if (mastery && env.stat && skill.etype >= 0 && skill.etype <= 3) damage += int(std::int64_t(damage) * env.stat(d2d::d2s::kPassiveFireMastery + skill.etype) / 100);
     return damage;
 }
 // Elemental length in ticks (FUN_00644f20): ELen + ELevLen1..3 over levels

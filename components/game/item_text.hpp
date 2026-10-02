@@ -89,7 +89,7 @@ inline std::vector<std::string> prop_lines(const GameData& game_data, std::vecto
         std::vector<d2d::d2s::ItemProp> merged;
         for (const auto& prop : props) {
             auto merged_prop = std::ranges::find_if(merged, [&](const auto& other) { return other.stat == prop.stat && other.param == prop.param; });
-            if (merged_prop != merged.end() && prop.stat != 204) merged_prop->value += prop.value;      // 204: charges don't add
+            if (merged_prop != merged.end() && prop.stat != d2d::d2s::kChargedSkill) merged_prop->value += prop.value;      // 204: charges don't add
             else merged.push_back(prop);
         }
         props = std::move(merged);
@@ -267,7 +267,7 @@ inline int required_level(const GameData& game_data, const d2d::d2s::Item& item)
     }
     if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) level = std::max(level, info->second.req_lvl);
     for (const auto& socketed : item.socketed_items) level = std::max(level, required_level(game_data, socketed));
-    for (const auto& prop : item.props) if (prop.stat == 92) level += int(prop.value);
+    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kLevelRequirement) level += int(prop.value);
     return std::max(level, 0);
 }
 
@@ -371,13 +371,13 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
 
     // Defense: armorclass with its +% (16, on the base) and flat adds.
     if (armor && item.defense >= 0) {
-        const auto def = std::int64_t(item.defense) * (100 + stat(16)) / 100 + stat(31) + stat(214) * clvl / 8;
+        const auto def = std::int64_t(item.defense) * (100 + stat(d2d::d2s::kArmorPercent)) / 100 + stat(d2d::d2s::kArmorClass) + stat(d2d::d2s::kArmorPerLevel) * clvl / 8;
         if (def > 0) out.push_back(line(string_id(game_data, 3461) + space, std::to_string(def), def != item.defense));
     }
     // Chance to block (shields): the item's toblock (the block column +
     // 20s) plus the class's BlockFactor, at most 75; blue over the column.
     if (is("shld")) {
-        std::int64_t block = item_base.block + stat(20);
+        std::int64_t block = item_base.block + stat(d2d::d2s::kToBlock);
         if (cls >= 0) block += game_data.class_gains[std::size_t(cls)].block;
         block = std::min<std::int64_t>(block, 75);
         if (block) out.push_back(line(string_id(game_data, 11018), std::to_string(block) + "%", block > item_base.block));
@@ -397,10 +397,12 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
             return value;
         };
         auto damage = [&](int kind, bool max_over_min, int label, bool blue_mods) {
-            static constexpr int kStat[3][2] = { { 21, 22 }, { 23, 24 }, { 159, 160 } };
+            static constexpr int kStat[3][2] = { { d2d::d2s::kMinDamage, d2d::d2s::kMaxDamage },
+                                                 { d2d::d2s::kSecondaryMinDamage, d2d::d2s::kSecondaryMaxDamage },
+                                                 { d2d::d2s::kThrowMinDamage, d2d::d2s::kThrowMaxDamage } };
             const std::int64_t low_base = base_damage(std::size_t(kind) * 2), high_base = base_damage(std::size_t(kind) * 2 + 1);
-            const std::int64_t low = low_base * (100 + stat(18)) / 100 + stat(kStat[kind][0]);
-            std::int64_t high = high_base * (100 + stat(17) + stat(219) * clvl / 8) / 100 + stat(kStat[kind][1]) + stat(218) * clvl / 8;
+            const std::int64_t low = low_base * (100 + stat(d2d::d2s::kMinDamagePercent)) / 100 + stat(kStat[kind][0]);
+            std::int64_t high = high_base * (100 + stat(d2d::d2s::kMaxDamagePercent) + stat(d2d::d2s::kMaxDamagePercentPerLevel) * clvl / 8) / 100 + stat(kStat[kind][1]) + stat(d2d::d2s::kMaxDamagePerLevel) * clvl / 8;
             high = std::max(high, max_over_min ? low + 1 : low);
             const bool blue = low_base < low || high_base < high || blue_mods;
             return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to + std::to_string(high), blue);
@@ -423,8 +425,8 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
             std::int64_t value = desc.spell_calc;
             if (desc.spell_desc == 2 && cls >= 0) {
                 // Potions by class (FUN_0062a5d0 life, FUN_0062a620 mana): x1.5 or x2.
-                if (desc.spell_stat == 6 || desc.spell_stat == 74) value = d2d::rules::potion_bonus(value, cls, true);
-                if (desc.spell_stat == 8 || desc.spell_stat == 26) value = d2d::rules::potion_bonus(value, cls, false);
+                if (desc.spell_stat == d2d::d2s::kLife || desc.spell_stat == d2d::d2s::kHitPointRegeneration) value = d2d::rules::potion_bonus(value, cls, true);
+                if (desc.spell_stat == d2d::d2s::kMana || desc.spell_stat == d2d::d2s::kManaRecovery) value = d2d::rules::potion_bonus(value, cls, false);
             }
             const std::string spell = str(desc.spell_str);
             text = desc.spell_desc == 1 ? spell : desc.spell_desc == 4 ? d2_format(spell, { value }) : spell + space + std::to_string(value);
@@ -458,7 +460,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // Strength / dexterity (weapons and armor): the column, item_req_percent
     // (91) on it, 10 less when ethereal.
     if (weapon || armor) {
-        auto required = [&](int column) { return column + (stat(91) ? column * stat(91) / 100 : 0) - (item.ethereal ? 10 : 0); };
+        auto required = [&](int column) { return column + (stat(d2d::d2s::kRequirementPercent) ? column * stat(d2d::d2s::kRequirementPercent) / 100 : 0) - (item.ethereal ? 10 : 0); };
         const auto dex = required(info->second.req_dex), strength = required(info->second.req_str);
         if (info->second.req_dex && dex > 0) requirement(string_id(game_data, 3459) + space + std::to_string(dex), !wearer || (wearer->dex > 0 && wearer->dex >= dex));
         if (info->second.req_str && strength > 0) requirement(string_id(game_data, 3458) + space + std::to_string(strength), !wearer || (wearer->str > 0 && wearer->str >= strength));
@@ -471,7 +473,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
         std::string upper = desc.wclass;
         for (auto& c : upper) c = char(std::toupper(static_cast<unsigned char>(c)));
         const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
-        const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + stat(93) - item_base.speed) * std::int64_t(anim->second.speed) / 100 : 0;
+        const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + stat(d2d::d2s::kFasterAttackRate) - item_base.speed) * std::int64_t(anim->second.speed) / 100 : 0;
         const std::int64_t frames = rate > 0 ? (std::int64_t(anim->second.frames) << 8) / rate : 45;
         const int band = frames >= 28 ? 5 : frames < 10 ? 1
                        : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is("bow") || is("xbow") ? 1 : 0])];

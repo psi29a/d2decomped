@@ -24,8 +24,8 @@ inline d2d::rules::Wearer wearer(const GameData& game_data, int save_cls, const 
     d2d::rules::Wearer wearer{ save_cls, int(stats.get(d2d::d2s::kStr)), int(stats.get(d2d::d2s::kDex)),
                           int(stats.get(d2d::d2s::kLevel)) };
     for (const auto& prop : gear_props(game_data, items)) {
-        if (prop.stat == 0) wearer.str += prop.value;
-        if (prop.stat == 2) wearer.dex += prop.value;
+        if (prop.stat == d2d::d2s::kStr) wearer.str += prop.value;
+        if (prop.stat == d2d::d2s::kDex) wearer.dex += prop.value;
     }
     return wearer;
 }

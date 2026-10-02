@@ -125,11 +125,11 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
         const auto bonus = set_bonus_props(game_data, items, item);
         add(bonus);
-        for (const auto& prop : bonus) if (prop.stat == 214) per_level += prop.value;
+        for (const auto& prop : bonus) if (prop.stat == d2d::d2s::kArmorPerLevel) per_level += prop.value;
         std::int64_t enhanced_defense = 0;
         for (const auto& prop : item.props) {
-            if (prop.stat == 16) enhanced_defense += prop.value;            // item_armor_percent: this item's base
-            if (prop.stat == 214) per_level += prop.value;    // item_armor_perlevel, 1/8 per level
+            if (prop.stat == d2d::d2s::kArmorPercent) enhanced_defense += prop.value;            // item_armor_percent: this item's base
+            if (prop.stat == d2d::d2s::kArmorPerLevel) per_level += prop.value;    // item_armor_perlevel, 1/8 per level
         }
         if (item.defense > 0) item_def += item.defense * (100 + enhanced_defense) / 100;
     }
@@ -137,16 +137,16 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
     if (passives) for (const auto& passive : *passives) {
         if (!passive.itype.empty()) continue;
         if (passive.stat >= 0 && passive.stat < 64) sum[std::size_t(passive.stat)] += passive.value;
-        if (passive.stat == 171) skill_def += passive.value;
+        if (passive.stat == d2d::d2s::kSkillArmorPercent) skill_def += passive.value;
     }
     for (std::size_t i = 0; i < 12; ++i) panel.bonus[i] = sum[i];
     {                                                     // the attributes' share of life, stamina, mana (quarter points)
         const auto& gains = game_data.class_gains[std::size_t(header.cls % 7)];
-        panel.bonus[7] += sum[3] * gains.life_per_vit / 4;
-        panel.bonus[11] += sum[3] * gains.stamina_per_vit / 4;
-        panel.bonus[9] += sum[1] * gains.mana_per_energy / 4;
+        panel.bonus[d2d::d2s::kMaxLife] += sum[d2d::d2s::kVit] * gains.life_per_vit / 4;
+        panel.bonus[d2d::d2s::kMaxStamina] += sum[d2d::d2s::kVit] * gains.stamina_per_vit / 4;
+        panel.bonus[d2d::d2s::kMaxMana] += sum[d2d::d2s::kEne] * gains.mana_per_energy / 4;
     }
-    panel.defense = item_def + sum[31] + per_level * lvl / 8 + (stats.get(d2d::d2s::kDex) + sum[2]) / 4;
+    panel.defense = item_def + sum[d2d::d2s::kArmorClass] + per_level * lvl / 8 + (stats.get(d2d::d2s::kDex) + sum[d2d::d2s::kDex]) / 4;
     panel.defense += panel.defense * skill_def / 100;
     const int diff = header.active_difficulty();
     const std::int64_t penalty = header.expansion() ? game_data.resist_penalty[std::size_t(diff)]
