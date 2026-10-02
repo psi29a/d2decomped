@@ -55,6 +55,7 @@ auto Fight::new_game(int difficulty) -> void {
         mon_level = nullptr;
         area_seen.clear();
         amplified = {};
+        chilled = 0;
         kept.clear();
         next_id = 1;
         missiles.clear();
@@ -96,6 +97,11 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         if (code.empty()) return;
         const auto& potion = game_data->rules.potions.at(code);
+        // Antidote / thawing (pSpell 6): poison / chill gone.
+        // ponytail: their states' +50 resist, +10 max for len (750) aren't kept.
+        if (potion.antidote) std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; });
+        if (potion.thawing) chilled = 0;
+        if (potion.antidote || potion.thawing) { cues.cue("item_potion_drink", now_ms, player.x, player.y); return; }
         if (potion.percent) {
             character.stats.values[kLife] = std::min(character.stats.values[kMaxLife], character.stats.values[kLife] + character.stats.values[kMaxLife] * potion.life / 100);
             character.stats.values[kMana] = std::min(character.stats.values[kMaxMana], character.stats.values[kMana] + character.stats.values[kMaxMana] * potion.mana / 100);
@@ -112,6 +118,14 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
             state->until = now_ms + std::uint32_t(left + len) * 40;
         }
         cues.cue("item_potion_drink", now_ms, player.x, player.y);
+    }
+
+auto Fight::cure(std::uint32_t now_ms) -> bool {
+        const bool cursed = now_ms < amplified[0];
+        const bool poisoned = std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
+        amplified = {};
+        if (merc && merc_life > 0) merc_life = merc_st.life;
+        return cursed || poisoned;
     }
 
 auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
@@ -167,7 +181,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         const auto& anim = player_anim(mode);
         std::uint32_t len = anim.length_ms();
         if (attack_mode(mode) && anim.frames) {
-            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), player_combat.ias, player_combat.wsm);
+            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
             len = std::uint32_t(ticks) * 40;
         } else if ((mode == kModeGH || mode == kModeBL || mode == kModeSC) && anim.frames) {
             const int stat = mode == kModeGH ? player_combat.fhr : mode == kModeBL ? player_combat.fbr : player_combat.fcr;
@@ -236,6 +250,12 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, character.stats, gains,
                                           int(character.panel.defense), res, boots);
+        {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
+            const int diff = character.header.active_difficulty();
+            const std::int64_t penalty = character.header.expansion() ? game_data->resist_penalty[std::size_t(diff)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
+            fighter.plr = int(std::clamp<std::int64_t>(sum[110] + penalty, -100, 75));
+        }
+        fighter.half_freeze = sum[118] > 0; fighter.cannot_freeze = sum[153] > 0;
         if (kick) {                                          // the weapon's stats off, its attack rating kept
             auto bare = sum;
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
@@ -363,7 +383,7 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         seq = d2d::rules::sequence(skill->seqnum, weapon_class);
         if (seq.empty()) return;
         start_move(*skill, now_ms);
-        const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm);
+        const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
         pmode_until = now_ms + std::uint32_t(ticks) * 40;
         seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(seq.size()), 1);
         prate = 1.f;
@@ -495,7 +515,15 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             target.poison_rate = rate;
             target.poison_until = now_ms + std::uint32_t(blow.poison_ticks) * 40;
         }
-        if (blow.chill_ticks > 0) target.chill_until = now_ms + std::uint32_t(blow.chill_ticks) * 40;
+        // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
+        // over MonsterColdDivisor when it's negative, at least a tick, only
+        // ever lengthened.
+        // ponytail: the 20 % roll for state 107 isn't kept.
+        if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
+            const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
+            const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);
+            target.chill_until = std::max(target.chill_until, now_ms + std::uint32_t(ticks) * 40);
+        }
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length.
         // ponytail: its guards aren't applied: special monsters' 90 % to
@@ -1327,7 +1355,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         if (skill.srvdofunc == 76) {
             if (now_ms < whirl_next) return;
             const auto& attack_anim = player_anim(kModeA1);
-            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm);
+            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
             whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
             const int hands = int(std::ranges::count_if(character.items, [&](const d2d::d2s::Item& item) {
                 return item.location == 1 && (item.slot == 4 || item.slot == 5) && game_data->rules.item_info.contains(item.code)
@@ -2512,12 +2540,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // Poison works on the player over its ticks (a negative potion).
             // One poison at a time: a new one at least as strong replaces it
             // (and its length), a weaker one is ignored (FUN_0057ac50).
-            if (foe.poison > 0) {
-                const Regen poison{ -foe.poison * 256.0 / (foe.poison_ticks * 40.0), 0, now_ms + std::uint32_t(foe.poison_ticks) * 40, true };
+            if (foe.poison > 0 && foe.poison_ticks > 0) {
+                const Regen poison{ -foe.poison / 40.0, 0, now_ms + std::uint32_t(foe.poison_ticks) * 40, true };
                 const auto old = std::ranges::find_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; });
                 if (old == regen.end()) regen.push_back(poison);
                 else if (poison.life <= old->life) *old = poison;
             }
+            if (foe.chill_ticks > 0) chilled = std::max(chilled, now_ms + std::uint32_t(foe.chill_ticks) * 40);   // only ever lengthened (FUN_0057af80)
             for (std::size_t k = 0; k < 2; ++k)                  // a Cursed boss's Amplify Damage: its auralen
                 if (const auto* skill = game_data->skills.get(66); skill && foes[k].amplify > 0) {
                     amplified[k] = now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, foes[k].amplify), 25)) * 40;

@@ -293,7 +293,7 @@ inline std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& 
 // A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
 // Parm1 / 256 of their maxima, stamina always; false when none was short
 // (the well keeps its charge). Every well's Parm1 128, Parm3 3.
-// ponytail: the poison / freeze cures and the merc's drink aren't here.
+// The poison / freeze / curse cures and the merc's drink are Fight::cure.
 inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana, std::int64_t& stamina, std::int64_t max_stamina) {
     bool drank = false;
     for (auto [value, max] : { std::pair{ &life, max_life }, { &mana, max_mana }, { &stamina, max_stamina } })

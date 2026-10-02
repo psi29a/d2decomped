@@ -118,6 +118,19 @@ int main() {
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
 
+    // A healer's / well's cure (FUN_00578d30 / FUN_00585720): poison and the
+    // curses go, chill stays; a thawing potion's takes the chill.
+    auto& fight = world.fight;
+    const auto poisoned = [&] { return std::ranges::any_of(fight.regen, &Fight::Regen::poison); };
+    fight.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
+    fight.amplified[0] = fight.chilled = 1000 * kTickMs;
+    assert(fight.cure(26 * kTickMs) && !poisoned() && fight.amplified[0] == 0 && fight.chill_rate(26 * kTickMs) == -50);
+    assert(!fight.cure(26 * kTickMs));
+    fight.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
+    fight.potion("yps", 26 * kTickMs);
+    fight.potion("wms", 26 * kTickMs);
+    assert(!poisoned() && fight.chill_rate(26 * kTickMs) == 0);
+
     // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
     // comes out, walks off, opens his portal, walks back in: camp Cain due.
     // (The 1.14d tables: the CD's leave Tristram's presets unplaced.)

@@ -64,6 +64,7 @@ struct View {
     UnitState player;
     bool running = false, dead = false;
     bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
+    bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays

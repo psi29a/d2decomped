@@ -696,8 +696,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 game_data.exp_next[level] = std::stoll(std::string(experience_table.get(row, "Amazon")));
             }
     if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
-        for (std::size_t row = 0; row < 3; ++row)
+        for (std::size_t row = 0; row < 3; ++row) {
             game_data.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));
+            game_data.cold_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterColdDivisor")).c_str());
+        }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
     if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
@@ -788,6 +790,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (stat1 == "hpregen") potion.life = number("calc1");
             else if (stat1 == "manarecovery") potion.mana = number("calc1");
             else if (stat1 == "hitpoints" && stat2 == "mana") { potion.life = number("calc1"); potion.mana = number("calc2"); potion.percent = true; }
+            else if (misc.get(row, "pSpell") == "6") {             // antidote / thawing: the states they clear (cstate1/2)
+                potion.antidote = misc.get(row, "cstate1") == "poison";
+                potion.thawing = misc.get(row, "cstate2") == "cold";
+            }
             else continue;
             game_data.rules.potions.emplace(std::string(misc.get(row, "code")), potion);
         }

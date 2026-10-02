@@ -102,6 +102,7 @@ auto World::view() const -> View {
         view.running = running;
         view.dead = fight.dead();
         view.poisoned = std::ranges::any_of(fight.regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });
+        view.chilled = fight.chill_rate(now) != 0;
         view.pmode = fight.pmode;
         view.prate = fight.prate;
         view.seq.assign(fight.seq.begin(), fight.seq.end()); view.seq_frame_ms = fight.seq_frame_ms; view.seq_loop = fight.seq_loop;
@@ -238,8 +239,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (object.operate_fn == 22) {               // a well (FUN_005858a0): 2 x Parm2 drinks (InitFn 16), NU -> OP -> ON
             auto& well = doors.try_emplace({ level, npc_index }, Door{ 0, 0 }).first->second;
             auto& stat_values = character.stats.values;
-            if (well.mode >= 2 || !d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
-                                                           stat_values[kStamina], stat_values[kMaxStamina])) return;
+            if (well.mode >= 2) return;
+            const bool drank = d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
+                                                      stat_values[kStamina], stat_values[kMaxStamina]);
+            if (!fight.cure(now_ms) && !drank) return;   // a cure counts as a drink too
             well = { well.mode + 1, now_ms };
             to_mode(well.mode);
             d2d::log::info("well {}: mode {}", npc_index, kObjectModes[std::size_t(well.mode)]);
@@ -1557,7 +1560,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     if (npc.mode == "NU" && !operated.contains({ level, interact_npc })) operated[{ level, interact_npc }] = now_ms;
                     else events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
                 } else {
-                    if (d2d::rules::is_healer(npc.hc_idx)) d2d::rules::heal(character.stats);
+                    if (d2d::rules::is_healer(npc.hc_idx)) { d2d::rules::heal(character.stats); fight.cure(now_ms); }
                     // In Hell, a Den of Evil done before the reset existed
                     // opens it on meeting Akara (FUN_0058fd20: quest 41 bits
                     // 13 and 1).
@@ -1603,9 +1606,11 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 player.goal_x = target_x; player.goal_y = target_y;
             }
             const auto save_class = std::size_t(std::max(character.character_class, 0));
-            // Faster run/walk: its effective % (150 x v / (150 + v)) on velocity.
-            const float vel = float(running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] : game_data->walk_velocity[save_class])
-                            * float(100 + d2d::rules::effective_speed(fight.player_combat.frw, 150)) / 100.f;
+            // FUN_00623f50: the walk velocity x a % (at least 25) of 100 (run: run x 100 / walk),
+            // faster run/walk's effective % (150 x v / (150 + v)) and chill's -50.
+            const int walk = std::max(game_data->walk_velocity[save_class], 1);
+            const int base = running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] * 100 / walk : 100;
+            const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();
         }

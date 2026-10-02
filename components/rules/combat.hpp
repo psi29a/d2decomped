@@ -61,6 +61,8 @@ struct Fighter {
     int dodge = 0, avoid = 0, evade = 0;            // stats 338 / 339 / 340, %
     int dr_pct = 0, dr_flat = 0, mdr = 0;
     std::array<int, 4> res{};                       // fire, lightning, cold, poison, %
+    int plr = 0;                                    // poison length reduced, % (stat 110 + the difficulty's penalty, at most 75)
+    bool half_freeze = false, cannot_freeze = false; // stats 118 / 153
     int thorns = 0, thorns_light = 0;               // attackers take (melee)
     int thorns_pct = 0;                             // stat 131: % of a melee hit's damage back (Thorns)
     int life_regen = 0, mana_regen = 0;             // hpregen; manarecoverybonus %
@@ -166,8 +168,8 @@ inline int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * 
 // Ticks an attack animation of `frames` frames at AnimData `rate` takes with
 // `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
 // to -85..75; ticks = ceil(256 x frames / (rate x (100 + EIAS) / 100)).
-inline int attack_ticks(int frames, int rate, int ias, int wsm) {
-    const int eias = std::clamp(effective_speed(ias) - wsm, -85, 75);
+inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0) {
+    const int eias = std::clamp(effective_speed(ias) - wsm + sias, -85, 75);
     const int speed = std::max(rate * (100 + eias) / 100, 1);
     return (256 * frames + speed - 1) / speed;
 }
@@ -222,7 +224,7 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // less the attacker's pierce (333 fire, 334 lightning, 335 cold, 336
 // poison) unless the monster is immune (100 or more), to -100 at the
 // least. Cold chills for the
-// length, poison runs its per-tick damage over it, stun stands it.
+// length less the same resist, poison runs its per-tick damage over it, stun stands it.
 // ponytail: pierce against immunity is the published rule; its code in
 // game.exe isn't traced.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
@@ -245,7 +247,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     }
     const int resisted_damage = resisted(roll >> 8, res);
     blow.damage += resisted_damage;
-    if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, damage.elen);
+    if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
     return blow;
 }
 
@@ -321,13 +323,13 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(conv >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
     elem += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
-    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; blow.chill_ticks = std::max(swing.cold_len, 1); }
+    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
     for (int element = 0; element < 5; ++element) {
         const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
         const int element_damage = resisted(rng.range(elo, ehi), target.res[std::size_t(kRes[element])]);
         if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
-        if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, fighter.cold_len);
+        if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
         elem += element_damage;
     }
     int crushing_blow = 0;
@@ -347,9 +349,21 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
 // while moving, else dodge a swing / avoid a missile; then physical damage
 // less damage-reduced % then flat (it can reach 0), and each elemental
 // attack (at its chance) less resistance, fire / lightning / cold less
-// magic damage reduction; poison lands as a total over its ticks.
-// ponytail: poison isn't cut by resistance length; cold doesn't slow the player.
-struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0; };
+// magic damage reduction. Cold chills for El Dur ticks (stat 56, added in
+// FUN_0057b7d0), see chill_length. Poison (stats 57/58 = El min/max x 10,
+// 59 = Dur x 2, FUN_005a502b) is life per tick in 256ths less poison
+// resist, for its ticks less poison length reduction (the resist table at
+// 0x732980 via FUN_0057bf80: value x (100 - res) / 100).
+// Chill on the player: FUN_0057c140 zeroes cold and freeze length for
+// cannot be frozen (stat 153), else halves them for half freeze duration
+// (118); the cold resist cuts them (FUN_0057c1e0). A player's freeze is
+// chill (FUN_0057b230 -> FUN_0057af80: state 11, -50 velocitypercent,
+// attackrate and other_animrate, at least 1 tick, only ever lengthened).
+inline int chill_length(const Fighter& defender, int len) {
+    if (defender.cannot_freeze) return 0;
+    return resisted(defender.half_freeze ? len / 2 : len, defender.res[2]);
+}
+struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0; };
 inline Taken monster_blow(const Fighter& defender, int dlvl, bool moving, const MonStats& attacker, bool second_attack, Rng& rng,
                           bool missile = false) {
     Taken taken;
@@ -366,7 +380,8 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, bool moving, const 
         if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || rng(100) >= element.pct) continue;
         const int roll = rng.range(element.min, element.max);
         switch (element.type) {
-            case 3: taken.poison += resisted(roll, defender.res[3]); taken.poison_ticks = std::max(element.dur, 25); break;
+            case 2: taken.damage += std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); break;
+            case 3: if (const int per = resisted(roll * 10, defender.res[3]); per >= taken.poison) { taken.poison = per; taken.poison_ticks = resisted(element.dur * 2, defender.plr); } break;
             case 4: taken.damage += std::max(roll - defender.mdr, 0); break;
             default: taken.damage += std::max(resisted(roll, defender.res[std::size_t(element.type)]) - defender.mdr, 0); break;
         }

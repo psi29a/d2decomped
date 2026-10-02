@@ -212,7 +212,8 @@ struct Foe {
     bool alive = true, moving = false;        // moving: block falls to a third
     d2d::rules::Fighter fighter;                    // defense, block, reductions, resistances, thorns
     int damage = 0;                           // life lost this frame, whole points
-    int poison = 0, poison_ticks = 0;         // poison taken this frame: total, over ticks
+    int poison = 0, poison_ticks = 0;         // poison taken this frame: life per tick (256ths), for ticks
+    int chill_ticks = 0;                      // chilled this frame, ticks
     bool blocked = false;                     // blocked a hit this frame
     std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
@@ -226,7 +227,8 @@ struct Foe {
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         damage += taken.damage;
-        if (taken.poison > 0) { poison += taken.poison; poison_ticks = std::max(poison_ticks, taken.poison_ticks); }
+        if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
+        chill_ticks = std::max(chill_ticks, taken.chill_ticks);
     }
 };
 

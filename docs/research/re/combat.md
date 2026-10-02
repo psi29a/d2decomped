@@ -182,8 +182,64 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 - Mana regeneration: all of max mana in 120 s, times (100 + bonus) %.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
-  DamageRegen), set bonuses in the stat sums, the weapon swap, cold slowing
-  the player, poison length reduction, champions/uniques.
+  DamageRegen), set bonuses in the stat sums, the weapon swap,
+  champions/uniques.
+
+## Cold, freeze and poison lengths (SUnitDmg.cpp)
+
+The damage record (ints): [9] cold, [10] / [0xb] poison per tick (256ths
+of life) / length, [0xc] cold length, [0xd] freeze length.
+
+- **Building it** (`FUN_0057b7d0`): [0xc] += stat 56 coldlength when cold
+  damage > 0; [10] = roll(stat 57, 58), [0xb] += stat 59 (over stat 326 when
+  above 1, or stat 101 instead). A monster's El per mode
+  (`FUN_005a502b` / `FUN_005a5245`): cold 54 / 55 = min / max, 56 = Dur;
+  poison 57 / 58 = min × 10 / max × 10, 59 = Dur × 2; frze (12) has no
+  case.
+- **Before resists** (`FUN_0057c140`): cold or freeze length: stat 153
+  (cannot be frozen) zeroes both, else 118 (half freeze duration) halves
+  them. State 0x85 zeroes the poison length, 0x83 the burn's.
+- **Resists** (`FUN_0057c1e0`, the table at 0x732980: 12 × 44 bytes {record
+  offset, resist, max, attacker pierce, absorb %, absorb flat, ...}, read
+  by `FUN_0057bf80` → `FUN_0057be00`): value × (100 − res) / 100, res at
+  most 100. Cold and freeze length use cold resist (43 / 44 / pierce 335);
+  the poison length uses stat 110 poison length reduction (pierce 336),
+  poison resist only the per-tick damage. `FUN_0057be00`: stat − pierce;
+  a player adds the difficulty penalty to all but physical / magic, caps
+  at 75 + the max stat (≤ 95; 75 with none, so PLR's 75), −100 the least;
+  monsters uncapped.
+- **Applied** (`FUN_0057c6c0`): chill `FUN_0057af80` ([0xc]), freeze
+  `FUN_0057b230` ([0xd]), poison `FUN_0057ac50` ([10], [0xb]).
+  - Chill: state 11, −50 on stats 67 velocitypercent, 68 attackrate, 69
+    other_animrate for a player; a monster's MonStats coldeffect
+    (+0x168 + difficulty), none at 0, the length over DifficultyLevels
+    MonsterColdDivisor (+0x18) when negative, 20 % for state 0x6b. At least
+    1 tick, only ever lengthened; then `FUN_00623f50` re-rates.
+  - Freeze: a player's is chill. A monster's is state 1, the length over
+    MonsterFreezeDivisor (+0x14).
+  - Poison: state 2, hpregen −per tick; a new one at least as strong
+    replaces the old.
+- **Rates** (`FUN_00623f50`): walk % = effective FRW (table 0x6e8e24) +
+  stat 67 (100; running run × 100 / walk), at least 25, on the walk
+  velocity; attack % = effective IAS + stat 68, 15..175 (attack_ticks'
+  eias, chill as −50 SIAS).
+- Ported: `chill_length` / `monster_blow` (combat.hpp), `Fight::land`
+  (monsters), `Fight::chill_rate`; the merc and the chill's 0x6b roll aren't.
+
+## Cures
+
+- **NPC heal** (`FUN_00578d30`, from `FUN_00578e70` / `FUN_00578ed0`):
+  life, mana, stamina to max; states 2 (poison) and 1 (freeze) off, and
+  every state flagged at DataTables+0xfc (`FUN_00578c20` →
+  `FUN_0063a460`: the curses). Pets: `FUN_00578ca0` (life, curses,
+  poison, freeze). Chill stays.
+- **Well** (`FUN_00585720`, in OperateFn 22 `FUN_005858a0`): life / mana
+  Parm1 / 256, stamina; the same states off, each one counting as a
+  drink. Pets: `FUN_005856a0`.
+- **Antidote / thawing** (misc.txt pSpell 6): states antidote / thawing
+  for len 750 (+50 poison / cold resist, +10 max), clearing cstate1 / 2
+  (poison; freeze, cold). Akara stocks both. The timed resist isn't
+  ported.
 
 ## Death
 
