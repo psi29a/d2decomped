@@ -131,6 +131,10 @@ inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, 
     return close_rooms;
 }
 
+inline constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
+inline constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
+inline constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
+                                     { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
 // FUN_0066d110 (a LvlPrest Logicals preset): the room cut into areas by
 // its walls. blocks: FUN_0066c870's wall cells (own layer-0 walls, near
 // rooms' non-floor chain tiles inside it); FUN_0066c580 labels them by
@@ -139,10 +143,6 @@ inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, 
 // orientation and floor layer 0 word slices.
 inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const std::vector<std::size_t>& nearby,
                         const std::vector<std::uint32_t>& orients, const std::vector<std::uint32_t>& floors) {
-    static constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
-    static constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
-    [[maybe_unused]] static constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
-                                         { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
     auto& room = rooms[self];
     const int w = room.width + 1, h = room.height + 1;
     std::vector<std::uint32_t> labels(std::size_t(w * h));
