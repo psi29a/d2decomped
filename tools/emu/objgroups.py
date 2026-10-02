@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's random object groups (FUN_00552610) placed for a map seed and level.
 
     uv run python objgroups.py <map seed> [level]

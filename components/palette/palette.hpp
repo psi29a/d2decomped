@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp palette (.dat / .pl2) reader.
 //
 // D2 stores palettes in two forms:

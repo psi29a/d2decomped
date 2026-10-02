@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Scene: GameData (gamedata.hpp) plus what the client draws and plays.
 #pragma once
 

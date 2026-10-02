@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // drop-dump <mpq dir> — our drop rolls in the text form tools/emu/drops.py
 // prints game.exe's. Reads jobs from stdin, "seed<TAB>class<TAB>level<TAB>
 // ilvl<TAB>players<TAB>mf" a line; prints "seed class@level>moved iilvl

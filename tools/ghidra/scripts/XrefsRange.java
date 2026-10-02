@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Every address in [start, end) (step bytes apart) that something refers
 // to, with the referrers — finds where code indexes a table. Args:
 //   <start-hex> <end-hex> <step> <output.txt>

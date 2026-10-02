@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp DT1 (Diablo Tile) parser.
 //
 // DT1 = an atlas of tiles that compose a Diablo II level. Each tile is a

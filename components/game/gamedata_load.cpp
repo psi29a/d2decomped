@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for gamedata_load.hpp: GameData from the MPQs.
 #include "gamedata_load.hpp"
 

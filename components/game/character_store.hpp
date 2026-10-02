@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The CharacterStore (docs/design/multiplayer.md, rule 7): where the game
 // server loads characters from and writes them to, kept apart from the live
 // game. Locally, the .d2s files in the save directory (d2s_write.hpp).

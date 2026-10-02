@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ui.hpp: buttons, NPC menus and speech.
 #include "ui.hpp"
 

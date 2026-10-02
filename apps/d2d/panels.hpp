@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // In-game panels: inventory, character, HUD, stash/cube, belt, automap, waypoints.
 #pragma once
 

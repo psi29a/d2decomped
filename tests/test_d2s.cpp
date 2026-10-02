@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
 #include <compcode.hpp>
 #include <d2s.hpp>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp install detection: find the user's classic Diablo II (1.14d,
 // with Lord of Destruction) where it is installed and read it in place.
 // Diablo II: Resurrected is recognised and refused. docs/design/install-detect.md.

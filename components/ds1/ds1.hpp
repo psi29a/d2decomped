@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp DS1 (Diablo Stamp 1) level parser.
 //
 // DS1 = a grid of tile references + object placements that make up one map

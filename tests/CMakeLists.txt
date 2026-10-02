@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # All tests. Each `test_*.cpp` becomes its own executable + ctest entry.
 # ponytail: no framework, no fixtures. asserts + int main.
 

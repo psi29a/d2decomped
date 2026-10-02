@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The automap's files beside a save (UI\automap.cpp; docs/research/re/
 // automap.md "Saved maps"): Name.map lists the last 4 map seeds, Name.ma0..3
 // hold each one's cells, per Levels.txt Layer.

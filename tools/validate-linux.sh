@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Run the CI Linux build (configure, build, clang-tidy, ctest) in a docker
 # image with the deps baked in, against the current tree. So a push doesn't
 # fail a check the local mac clang doesn't cover (identifier-length,

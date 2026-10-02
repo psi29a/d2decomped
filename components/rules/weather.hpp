@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Rain — game.exe 1.14d, the client's weather (0x472320..0x473fc3).
 // docs/research/re/weather.md. Screen-space: drops fall across the view
 // and the world scrolls under them.

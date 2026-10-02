@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s writer: the parser (d2s.hpp, d2s_items.hpp) run backwards.
 //
 // A save is written over its original file (the template): the header's

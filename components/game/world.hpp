@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game server's side (docs/design/multiplayer.md): the world a game
 // runs — levels, the player's unit, the merc, NPCs, monsters, missiles,
 // ground items, objects, the rolls — stepped by commands from the client

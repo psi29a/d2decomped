@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp bitmap-font parser + text blitter helpers.
 //
 // D2 stores fonts as a pair:

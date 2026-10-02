@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Game rules that don't need assets or a screen: item sizes and grid
 // placement, vendor stock, prices, buying and selling. Everything reads
 // the excel-derived Tables (filled by d2d's loader, or by hand in tests).

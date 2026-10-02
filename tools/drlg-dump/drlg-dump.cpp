@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // drlg-dump <mpq dir> <map seed> [level] — our generator's level in the
 // same text form as tools/emu/drlg.py prints game.exe's, for diffing.
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.

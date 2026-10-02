@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Loading GameData from the MPQs: the strings, the tables the rules read,
 // Act 1 laid out from the map seed, the camp and its units. Nothing here
 // draws: the client adds its sprites on top (apps/d2d load.hpp).

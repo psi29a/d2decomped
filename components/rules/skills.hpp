@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Skills: Skills.txt rows, the calc language they're written in (compiled
 // here to a small stack program, run like game.exe's FUN_006c0bc0), the
 // per-level values game.exe derives from a row (level brackets, elemental

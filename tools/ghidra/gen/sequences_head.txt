@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Player skill sequences (Skills.txt anim SQ, seqnum 1..23): game.exe's
 // table at 0x7483b8 (FUN_00663310), a 12-byte entry {frames, count,
 // count} per weapon class in the table's order (FUN_006632c0 maps

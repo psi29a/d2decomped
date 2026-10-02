@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Quests: the save's quest flags and the Den of Evil (game.exe 1.14d
 // D2Game/Quests/a1q1.cpp, docs/research/re/quests.md).
 #pragma once

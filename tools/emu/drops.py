@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's drop roller as the oracle (docs/research/re/drops.md).
 
     uv run python drops.py 1-20000          # diff tools/drop-dump against game.exe, one job per seed

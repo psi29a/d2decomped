@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # StormLib: the system's when there is one (Debian / Ubuntu libstorm-dev,
 # Homebrew stormlib, vcpkg stormlib), else built from source. Every call
 # d2d makes (SFileOpenArchive, SFileOpenFileEx, SFileReadFile, ...) is in

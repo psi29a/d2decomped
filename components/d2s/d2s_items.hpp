@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s item-list parser (1.10+ saves, versions 92..96).
 //
 // The player's items follow the header/quest/waypoint/stat/skill sections

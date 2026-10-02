@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // World rendering: DT1 tiles, depth-sorted units, DCC composites.
 #pragma once
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ai.hpp: monsters, NPCs and the merc: spawning, paths, the AI step.
 #include "ai.hpp"
 

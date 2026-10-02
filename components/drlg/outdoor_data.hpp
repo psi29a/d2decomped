@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Loading what the outdoor generator needs from the game's tables and
 // DS1s, through a `read(path) -> optional<vector<byte>>` callable (the app
 // and the tests hand it their MPQ stack).

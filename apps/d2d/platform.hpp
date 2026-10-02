@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // SDL and OpenAL, for the headers that use them.
 #pragma once
 

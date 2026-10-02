@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Regenerate components/rules/sequences.hpp from game.exe's player sequence
 table. Dump the bytes first (0x745000..0x748418, the frames and the table):
   analyzeHeadless tools/ghidra/project D2Decomp -process game.exe -noanalysis -readOnly \

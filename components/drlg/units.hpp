@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Preset units (.\DRLG\Preset.cpp): the monsters, objects and warps a
 // level's rooms hold for the server to spawn — from the preset DS1s
 // (FUN_00665950, FUN_00667620), LvlSub stamps (FUN_0066fa10), a few

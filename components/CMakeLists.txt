@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 add_subdirectory(iso9660)
 add_subdirectory(mpq)
 add_subdirectory(tbl)

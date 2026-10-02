@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // NPC behaviour: town NPCs patrolling their DS1 paths.
 #pragma once
 

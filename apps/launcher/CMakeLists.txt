@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Qt6 launcher app. Handles installation (from ISOs and/or an existing D2
 # folder) today; will handle profile selection + game launch once the engine
 # can run. find_package picks up Homebrew qt6, Ubuntu qt6-base-dev, and the

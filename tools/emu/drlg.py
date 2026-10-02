@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's DRLG as the oracle: generate an act for a map seed, dump a level.
 
     uv run python drlg.py <map seed> [level]     # prints the same dump as tools/drlg-dump

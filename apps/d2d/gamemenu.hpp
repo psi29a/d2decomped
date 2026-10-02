@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game menu Esc opens (UI 9) and the HUD's mini-panel (UI 0x15) with
 // its button (docs/research/re/menu.md).
 #pragma once

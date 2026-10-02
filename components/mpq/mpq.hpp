@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp MPQ reader — thin RAII wrapper over StormLib.
 //
 // Two types: Archive (one .mpq) and Stack (search across many in push order,

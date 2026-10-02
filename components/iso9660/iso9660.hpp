@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // iso9660.hpp — minimal ISO 9660 + Joliet reader, header-only.
 //
 // ponytail: scope is "read the 4 D2 ISOs". No Rock Ridge, no UDF, no raw

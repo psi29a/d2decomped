@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for world.hpp: the World, the game server and its 25 Hz tick.
 #include "world.hpp"
 

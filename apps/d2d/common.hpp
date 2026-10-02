@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Shared includes, screen/iso constants, blit helpers.
 #pragma once
 

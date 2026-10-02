@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The in-game client (town.hpp): Town, the view to units, the frame's
 // light, the HUD overlays.
 #include "town.hpp"

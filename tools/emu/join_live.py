@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Live join test against a real 1.14d TCP/IP host: join, stay 15 s, leave, save-back.
 # python3 join_live.py <save.d2s> [host]  (reads the Huffman and size tables from your own game.exe)
 import socket, struct, sys, time, collections, select

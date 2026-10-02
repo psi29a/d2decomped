@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Rebuild D2's composite component table from the real 1.14d excel data
 // and check it against appearance bytes of real saves, paired with the
 // items those characters had equipped (see docs/research/re/compcode.md).

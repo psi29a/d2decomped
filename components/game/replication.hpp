@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The View on the wire (the S -> C side, docs/design/multiplayer.md): what
 // a client draws, as bytes. Everything that points into GameData goes as
 // its key there (the level's id, a missile's name, the merc's hireling

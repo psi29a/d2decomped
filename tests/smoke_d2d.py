@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """End-to-end smoke test: drive a headless d2d over devctl.
 
 Usage: smoke_d2d.py <path-to-d2d>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for store.hpp: the store panel.
 #include "store.hpp"
 

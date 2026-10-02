@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for panels.hpp: inventory, character, HUD, automap, waypoint panels.
 #include "panels.hpp"
 

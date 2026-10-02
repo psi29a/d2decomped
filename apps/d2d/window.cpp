@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for window.hpp: SDL events.
 #include "window.hpp"
 

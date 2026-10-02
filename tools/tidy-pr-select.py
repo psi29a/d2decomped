@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Pick the TUs a PR needs clang-tidy to re-run on.
 
 Reads:

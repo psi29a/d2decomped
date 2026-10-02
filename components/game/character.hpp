@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The character the World plays: what a save holds (header, stats,
 // items, corpse), its look, and what the char panel computes from them.
 // The client's CharCreateUI (ui.hpp) adds the create screen's controls.

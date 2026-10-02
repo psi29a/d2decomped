@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Every constant table copied from game.exe 1.14d, checked element-wise
 // against the real game.exe (1.14.3.71). The tables stay in the code; this
 // only reads the exe at test time. game.exe: $D2_GAME_EXE, else

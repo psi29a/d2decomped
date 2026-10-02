@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Header-only per-user config/save dirs + key=value .cfg reader, matching
 # thirdeye's components/files layout.
 add_library(userdir INTERFACE)

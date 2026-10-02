@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Drops: treasure classes (TreasureClassEx and the auto weapN / armoN
 // classes) and item quality rolls (ItemRatio), as game.exe rolls them
 // (docs/research/re/drops.md).

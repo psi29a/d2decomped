@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Load font16 (metrics + glyph sheet) and verify glyph lookup + measure.
 #include <dc6.hpp>
 #include <font.hpp>

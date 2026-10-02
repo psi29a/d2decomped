@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // GameData's runtime side: levels built on demand (the level builder),
 // their populations, the COF timings the World reads. A translation unit
 // of its own; load.hpp fills GameData at start.

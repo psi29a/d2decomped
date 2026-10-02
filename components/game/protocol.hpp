@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // What a client asks the game server for: its intents, the shapes of
 // game.exe's client -> server packets (docs/research/re/network.md). The
 // server validates and applies them in its tick; nothing else from the

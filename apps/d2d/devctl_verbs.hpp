@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The devctl verbs that drive and read the game for scripted tests
 // (docs/control_channel.md): input (click, key, move, wheel), debug
 // set-ups, and reads of the game's state (state, items, npcs, monsters,

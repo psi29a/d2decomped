@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Header-only game rules (store, prices, grid placement) over excel tables.
 add_library(rules INTERFACE)
 target_include_directories(rules INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for load.hpp: the Scene: GameData (gamedata_load.hpp) plus sprites, fonts, palettes, saves.
 #include "load.hpp"
 

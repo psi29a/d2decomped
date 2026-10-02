@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s character-save header parser.
 //
 // Reads only the fixed header the char-select screen needs: name, class,

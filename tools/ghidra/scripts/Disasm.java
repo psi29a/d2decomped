@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Print raw disassembly for an address range — one instruction per line
 // with mnemonic + operands. Handy when the decompiler hides register-level
 // info like fastcall ECX arguments. Args:

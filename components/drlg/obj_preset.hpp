@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // DS1 object presets: (act, type-2 object id) -> objects.txt Id.
 // u32 table[5][150] at 0x748ad8 in game.exe 1.14d, read by
 // FUN_006658e0(act, id); an act's list ends at its first 0

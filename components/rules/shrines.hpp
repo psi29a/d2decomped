@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Shrines and chests (objects.txt InitFn 1 / OperateFn 2 and OperateFn 4),
 // from game.exe 1.14d. docs/research/re/objects.md.
 #pragma once

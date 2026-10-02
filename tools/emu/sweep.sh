@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Every Act 1 level against game.exe, 8 at a time: sweep.sh [seeds] [kind...]
 # e.g. sweep.sh 1-50 monsters objgroups   (kinds: monsters, units, tiles, seeds, objgroups, drops, collision)
 cd "$(dirname "$0")"

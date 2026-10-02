@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // For every CALL to one of the given targets inside [start, end), print the
 // call site with the last few register loads before it (ECX/EDX setup that
 // the decompiler drops for fastcall helpers). Args:

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The item cursor: a left click on an open panel's grid, a body slot or a
 // belt box picks up the item there, or puts the held one down.
 #pragma once

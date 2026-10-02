@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The town: the in-game character's world state (position, walking,
 // panels, NPC menus, store, merc, ...) and one frame of play — input,
 // movement, NPCs, then the render.

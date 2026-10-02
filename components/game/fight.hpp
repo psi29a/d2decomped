@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Fighting: the Blood Moor's monsters and missiles, the player's combat
 // modes (swing, flinch, block, death) and Fighter (components/rules/
 // combat.hpp), hits and kills, damage over time, the merc in a fight,

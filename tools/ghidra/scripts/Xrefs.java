@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Print every function that references a given address (data or code).
 // Usage: Xrefs <addr-hex> [addr-hex ...]
 //@category Analysis

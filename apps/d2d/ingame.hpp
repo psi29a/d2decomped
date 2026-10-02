@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // render_ingame: world + every in-game panel composed per frame.
 #pragma once
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Outdoor levels (DrlgType 3): act 1's wilderness generator — the cell
 // grid of presets, borders, roads and fills (FUN_00675360 -> FUN_006807f0
 // -> FUN_006750f0) — and the tiles of its rooms (OutRoom.cpp,

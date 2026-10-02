@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for cursor.hpp: the item in hand and panel clicks.
 #include "cursor.hpp"
 

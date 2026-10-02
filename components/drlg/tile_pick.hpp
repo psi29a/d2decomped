@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Picking a room's DT1 tile (RoomTile.cpp, FUN_0066d820): the DT1s a
 // room lists and the rarity pick on the room seed. docs/research/re/drlg.md
 // "Room tiles".

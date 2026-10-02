@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Main-loop phase tracking for the hang watchdog.
 #pragma once
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The automap's files beside a save (d2s_automap.hpp): Name.map's seed
 // slots, Name.maN's records written and read back, in a temp dir.
 #include <d2s_automap.hpp>

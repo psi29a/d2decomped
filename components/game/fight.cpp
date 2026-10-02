@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for fight.hpp: Fight, the combat subsystem the World owns.
 #include "fight.hpp"
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Item text: an item's hover lines in D2's quality colours, its property
 // lines, D2's string formatting. The World names ground items with them;
 // the client draws them (items.hpp).

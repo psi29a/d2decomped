@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Sound output (OpenAL): voice, music, ambience and UI channels.
 #pragma once
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp COF (Component Object File) parser.
 //
 // COF describes how animated body parts (head, torso, weapons, ...) compose

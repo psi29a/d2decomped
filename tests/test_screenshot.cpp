@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Round-trip test: build a small procedural RGBA image, save as PNG, then
 // re-open via `file(1)`-style header sniff and re-decode via libpng — no,
 // simpler: just verify the PNG signature + IHDR-declared dimensions, and

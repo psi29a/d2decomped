@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Room tiles (RoomTile.cpp): which DT1 tile each cell of a room gets when
 // game.exe brings the room up (FUN_0061b730) — the walk over its DS1 words
 // (plain rooms FUN_0067d710), the per-word rules (FUN_0066e9b0), the rarity

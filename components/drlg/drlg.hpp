@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Dungeon/level generation (game.exe's .\DRLG\*.cpp): where an act's
 // levels sit, and (later) what's inside the outdoor ones.
 // docs/research/re/drlg.md.

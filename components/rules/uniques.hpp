@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Champions and uniques: MonUMod.txt, the mods a champion or unique rolls
 // (FUN_005a0760 -> FUN_005a0500 / FUN_005a0600) and what they do to it
 // (FUN_005a2120 -> the mod functions at 0x73c008), from game.exe 1.14d.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Monster spawning and stats over hand-made tables: the region takes
 // every listed type once, rooms fill by density, Fallen come as a leader
 // with a party, nothing lands on a blocked subtile or by the entrance.

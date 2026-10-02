@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp per-user directories and .cfg reader/writer.
 //
 // Same layout as thirdeye's components/files (OpenMW lineage), so both

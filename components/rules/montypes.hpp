@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // MonStats / MonStats2 / MonLvl / Levels.txt monster rows as the rules
 // read them (split from monsters.hpp so uniques.hpp can use them too).
 #pragma once

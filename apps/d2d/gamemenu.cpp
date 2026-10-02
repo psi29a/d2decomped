@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game menu and the mini-panel (docs/research/re/menu.md).
 #include "gamemenu.hpp"
 

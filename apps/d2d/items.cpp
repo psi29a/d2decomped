@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for items.hpp: the hover text of items.
 #include "items.hpp"
 

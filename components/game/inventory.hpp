@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The character's items as the rules move them: what an equip check
 // sees, the belt in use, a held item put away, a vendor's store.
 #pragma once

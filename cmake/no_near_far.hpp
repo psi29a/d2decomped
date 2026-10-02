@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Force-included off Windows (CMakeLists.txt). windows.h's minwindef.h
 // #defines near and far to nothing, so `int near = 0;` builds on macOS and
 // Linux and breaks only on Windows. Here either name is a compile error on

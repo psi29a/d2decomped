@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Monsters: MonStats / MonStats2 / MonLvl rows, which monsters a level
 // spawns and where (game.exe's monster region and room population), and a
 // spawned monster's stats. docs/research/re/monsters.md. Fighting is in

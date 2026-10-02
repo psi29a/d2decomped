@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // A level's rooms populated as they come into play, as FUN_0052d160 walks
 // the act's room1 list (newest first): each room's seed step
 // (FUN_0054f060), its preset units (FUN_005559a0), then the random object

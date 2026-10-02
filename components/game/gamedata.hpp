@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // GameData: what the rules read (tables, levels, timings, strings) and
 // the World's view of them. No pixels, fonts or sound here: Scene
 // (scene.hpp) adds those for the client.

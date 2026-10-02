@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // d2d — the game binary. Phase-5 in progress.
 //
 // Now opens an SDL3 window and presents an in-memory framebuffer as a

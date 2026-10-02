@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Combat: the player (or merc) as a Fighter built from gear and stats, one
 // blow each way (hit chance, block and the defender's rolls, damage,
 // resistances, crushing / deadly / critical strike, leech, poison, chill),

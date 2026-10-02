@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # d2d — the game binary. SDL3 windowing + streaming framebuffer texture;
 # devctl + screenshot still wired to the same in-memory buffer.
 find_package(SDL3 CONFIG REQUIRED)

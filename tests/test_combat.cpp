@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Combat rules over hand-made tables: hit chance, the fighter built from
 // gear, speed breakpoints, both blows (block, dodge, reductions,
 // resistances, crits, crushing blow, leech), experience and levels, the

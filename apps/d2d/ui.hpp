@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Frontend widgets: screen enum, buttons, mouse, NPC menus + speech, char-create state.
 #pragma once
 

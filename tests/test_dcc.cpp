@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Parse real DCC sprites and verify structure + decoded pixels.
 #include <dcc.hpp>
 #include <mpq.hpp>

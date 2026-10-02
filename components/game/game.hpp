@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game's base: the `fs` alias and the iso geometry. Every file
 // includes what else it uses itself.
 #pragma once

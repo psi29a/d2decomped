@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's room population as the oracle: which monsters each room of a level spawns.
 
     uv run python monsters.py <map seed> [level] [difficulty]

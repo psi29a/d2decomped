@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for scene.hpp: the Scene's sprites loaded on first use.
 #include "scene.hpp"
 

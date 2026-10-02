@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for frontend.hpp: title, character select, cinematics screens.
 #include "frontend.hpp"
 

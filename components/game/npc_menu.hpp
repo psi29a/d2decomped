@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // NPC interaction menus: MonStats hcIdx -> menu entry string IDs (Cancel,
 // string 0xeb5, is appended). game.exe 1.14d table at 0x726c48, 48 records
 // of 39 bytes {u32 hcIdx, u32 entries incl. Cancel, u16 string[5],

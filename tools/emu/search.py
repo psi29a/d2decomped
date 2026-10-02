@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A monster's target search (FUN_005dd7f0) against ai.cpp's search_target
 / rules::search_pick / rules::search_near. Each case has random players with
 pets (the merc, summons) in the player lists at game +0x10f8, monsters in

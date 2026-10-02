@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Speech string -> Sounds.txt index: game.exe 1.14d table at 0x72b0e0,
 // {u32 sound, u32 string id} pairs up to a zero sound, searched by
 // FUN_004e0650 (string id compared as a short) when a speech starts

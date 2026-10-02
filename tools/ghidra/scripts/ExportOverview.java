@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Dump a first-pass overview of the current program to markdown.
 // Args: [outDir]  (default: current working dir)
 // Output: <outDir>/<program-name>-overview.md

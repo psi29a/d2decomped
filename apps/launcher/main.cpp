@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp launcher — see docs/PLAN.md.
 
 #include "config.hpp"

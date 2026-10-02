@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Maze levels (DrlgType 1, .\DRLG\Maze.cpp): act 1's caves, the Den of
 // Evil first — rooms grown beside random rooms (FUN_00671210), special
 // rooms placed from tables (FUN_00672550), each room a cave preset picked
