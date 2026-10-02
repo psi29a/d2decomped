@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Decompile every function in the loaded program into one .c file.
 // Public domain (CC0).
 //@category Decompiler

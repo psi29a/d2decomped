@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // iso-dump — list or extract an ISO 9660 image using components/iso9660.
 //
 // usage:

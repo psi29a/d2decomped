@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Monsters: MonStats / MonStats2 / MonLvl rows, which monsters a level
 // spawns and where (game.exe's monster region and room population), and a
 // spawned monster's stats. docs/research/re/monsters.md. Fighting is in
@@ -394,14 +395,14 @@ inline int ai_distance(int dx, int dy) {
     return dy < dx ? (dy + dx * 2) / 2 : (dx + dy * 2) / 2;
 }
 
+inline constexpr std::array<std::array<int, 8>, 8> kNear{ {
+    { -1, -1, -1, 0, 2, 4, 6, 8 }, { -1, -1, 0, 1, 2, 4, 6, 8 }, { -1, 0, 0, 2, 3, 5, 7, 8 }, { 0, 1, 2, 2, 4, 5, 7, 8 },
+    { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
 // Distance between two units of sizes `size_a` / `size_b` (MonStats2
 // SizeX; a player's 2), subtiles apart (FUN_00641530): close up, the
 // 8x8 table at 0x6eb180 (one less when either is size 3), else the deltas
 // less their half sizes, the smaller plus twice the larger.
 inline int unit_distance(int dx, int dy, int size_a, int size_b) {
-    static constexpr std::array<std::array<int, 8>, 8> kNear{ {
-        { -1, -1, -1, 0, 2, 4, 6, 8 }, { -1, -1, 0, 1, 2, 4, 6, 8 }, { -1, 0, 0, 2, 3, 5, 7, 8 }, { 0, 1, 2, 2, 4, 5, 7, 8 },
-        { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
     dx = std::abs(dx); dy = std::abs(dy);
     if (dx < 8 && dy < 8 && size_a < 4 && size_b < 4) {
         int nearby = kNear[std::size_t(dy)][std::size_t(dx)];
@@ -411,6 +412,31 @@ inline int unit_distance(int dx, int dy, int size_a, int size_b) {
     }
     const int half = size_a / 2 + size_b / 2, across = std::max(dx - half, 0), down = std::max(dy - half, 0);
     return down < across ? down + across * 2 : across + down * 2;
+}
+
+// A monster's door (FUN_005b0f50 → FUN_005dd0b0 mode 8, FUN_005dcd50):
+// of the closed IsDoor objects about, `spots` their offsets from it in
+// subtiles, the nearest by squared distance (FUN_005b0bd0) under 9, the
+// first on a tie. Its index, or -1.
+inline int door_pick(std::span<const std::pair<int, int>> spots) {
+    int pick = -1, best = 9;
+    for (std::size_t i = 0; i < spots.size(); ++i)
+        if (const int squared = spots[i].first * spots[i].first + spots[i].second * spots[i].second; squared < best) { pick = int(i); best = squared; }
+    return pick;
+}
+
+// Can a unit of `size` (MonStats2 SizeX) operate an object of SizeX /
+// SizeY `size_x` / `size_y`, `dx`, `dy` subtiles from it (FUN_00623660)?
+// Touching (unit_distance 0 with the object's SizeX), else within 2 of the
+// object's rect (its spot less half its size), the corners 1 in for a unit
+// under size 3; a sizeless object within 1 of its spot.
+inline bool object_reach(int dx, int dy, int size, int size_x, int size_y) {
+    if (unit_distance(dx, dy, size, size_x) == 0) return true;
+    const int left = -(size_x / 2), top = -(size_y / 2);
+    if (size_x < 1 || size_y < 1) return std::abs(dx - left) <= 1 && std::abs(dy - top) <= 1;
+    if (dx < left - 2 || dx > left + size_x + 2 || dy < top - 2 || dy > top + size_y + 2) return false;
+    if (size > 2 || (dy >= top - 1 && dy <= top + size_y + 1)) return true;
+    return dx >= left - 1 && dx <= left + size_x + 1;
 }
 
 // Is the line between two units cut (FUN_00622aa0 -> FUN_00622920 ->
@@ -435,6 +461,10 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
     return false;
 }
 
+inline constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
+inline constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
+    { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
+    { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
 // A move's path toward subtile (to_x, to_y), the toward pather of path
 // types 2 / 5 / 6 / 0xd (FUN_00679c80; a monster's walk and run are 0xd,
 // `steps` path +0x91: 5, FUN_005a63f0). The straight line (FUN_00679720, a
@@ -451,10 +481,6 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
 // tools/emu/moves.py checks it against game.exe.
 template <class Blocked>
 std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, int steps, int nearby, Blocked&& blocked) {
-    static constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
-    static constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
-        { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
-        { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
     using P = std::pair<int, int>;
     auto sign = [](int value) { return value >= 0 ? 1 : -1; };
     P end{ to_x, to_y };
@@ -656,6 +682,10 @@ inline AndarielAct andariel_think(bool in_melee, const std::array<int, 8>& aip, 
     return AndarielAct::walk;
 }
 
+inline constexpr std::array<int, 8> kRing{ 29, 28, 27, 26, 25, 24, 31, 30 };
+inline constexpr std::array<std::array<int, 9>, 8> kSweep{ {
+    { 27, 14, 15, 3, 99, 7, 21, 22, 31 }, { 26, 12, 13, 2, 99, 6, 19, 20, 30 }, { 25, 10, 11, 1, 99, 5, 17, 18, 29 }, { 24, 8, 9, 0, 99, 4, 15, 16, 28 },
+    { 31, 22, 23, 7, 99, 3, 13, 14, 27 }, { 30, 20, 7, 6, 99, 2, 1, 12, 26 }, { 29, 18, 19, 5, 99, 1, 9, 10, 25 }, { 28, 16, 17, 4, 99, 0, 23, 8, 24 } } };
 // Where Andariel's spray missile on SC frame `frame` is aimed, subtiles
 // from her, facing `dir64` (FUN_005cb580): the radius-3 ring point that
 // way (0x6e3188 into the DIR32 ring table FUN_0063e7e0), then frames 4..12
@@ -663,10 +693,6 @@ inline AndarielAct andariel_think(bool in_melee, const std::array<int, 8>& aip, 
 inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
     static constexpr std::array<int, 32> kDx{ 0, -1, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -3, -3, -3, 0, 3, 3, 3 };
     static constexpr std::array<int, 32> kDy{ -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2, -3, -3, 0, 3, 3, 3, 0, -3 };
-    static constexpr std::array<int, 8> kRing{ 29, 28, 27, 26, 25, 24, 31, 30 };
-    static constexpr std::array<std::array<int, 9>, 8> kSweep{ {
-        { 27, 14, 15, 3, 99, 7, 21, 22, 31 }, { 26, 12, 13, 2, 99, 6, 19, 20, 30 }, { 25, 10, 11, 1, 99, 5, 17, 18, 29 }, { 24, 8, 9, 0, 99, 4, 15, 16, 28 },
-        { 31, 22, 23, 7, 99, 3, 13, 14, 27 }, { 30, 20, 7, 6, 99, 2, 1, 12, 26 }, { 29, 18, 19, 5, 99, 1, 9, 10, 25 }, { 28, 16, 17, 4, 99, 0, 23, 8, 24 } } };
     const auto octant = std::size_t(((dir64 + 4) >> 3) & 7);
     int x = kDx[std::size_t(kRing[octant])], y = kDy[std::size_t(kRing[octant])];
     if (const int sweep = kSweep[octant][std::size_t(std::clamp(frame - 4, 0, 8))]; sweep != 99) { x += kDx[std::size_t(sweep)]; y += kDy[std::size_t(sweep)]; }
@@ -717,6 +743,18 @@ struct ThinkIn {
     bool spot_free = true;
     int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
     int off_x = 0, off_y = 0;                   // the target, subtiles off it
+    // The velocity % its next mode gets (FUN_005de190 -> FUN_005a6260, set
+    // when not 0: monster data +0x2c ctx +0x1c; FUN_005a63f0 takes and
+    // clears it as that mode starts, stat 0x43 velocitypercent through
+    // FUN_005a6380); the AI's third scratch word (+0x1c); its target's life
+    // % (FUN_00621f20); in Spider Lay's state (0x16, FUN_00639df0);
+    // MonStats Velocity / Run; aidel (a spot move that can't set off
+    // thinks then, FUN_005a73e0).
+    int* pace = nullptr;
+    int* state3 = nullptr;
+    int target_life_pct = 100;
+    bool laying = false;
+    int velocity = 0, run = 0, aidel = 15;
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -727,9 +765,9 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai) {
-    static constexpr std::array<std::string_view, 18> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 23> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
-                                                               "BloodRaven", "SkeletonMage", "GargoyleTrap" };
+                                                               "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith" };
     return std::ranges::contains(kTraced, ai);
 }
 
@@ -761,10 +799,10 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         return idle2;
     }
     // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
-    // within aip2; else wanders 3, bar in the Burial Grounds (level 17).
+    // within aip2; else wanders 3, bar in the Burial Grounds.
     if (ai == "Zombie") {
         if (in.in_melee) return a1_or_a2(aip[3]);
-        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != 17) return think_wander(rng, 3);
+        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != level_ids::kBurialGrounds) return think_wander(rng, 3);
         return { MonAct::run };
     }
     // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
@@ -994,6 +1032,156 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
             return { MonAct::skill, 0 };
         }
         return { MonAct::idle, aip[3] };
+    }
+    // Arach (26, FUN_005f4510): hurt (state 1), over 75 % life it's done:
+    // aip3 % charges (state 2, walk 0), else circles 6; else in melee aip1
+    // - 25 % A1; aip4 or more off, not hit, circles 12; else backs off 4.
+    // Out of melee: hit or charging (state2) it charges; every 21st think
+    // (state3) aip3 % a charge; else 20 % wanders 6, else stands 15. In
+    // melee aip1 % A1; at aip5 % life or more aip2 % circles 4, else
+    // stands 15; under, hurt: it lays (Skill1, Sk1mode, at no unit) out of
+    // Spider Lay's state, else backs off 8. A back-off (FUN_005defe0 flags
+    // 0) that can't set off thinks aidel on.
+    if (ai == "Arach") {
+        const Think charge{ MonAct::walk, 0 }, stand{ MonAct::idle, 15 }, stuck{ MonAct::idle, in.aidel };
+        if (*in.state == 1) {
+            *in.state2 = 0;
+            if (in.life_pct > 75) {
+                *in.state = 0;
+                if (r() < aip[2]) { *in.state = 2; return charge; }
+                return think_circle(rng, 6);
+            }
+            if (in.in_melee && aip[0] > 25 && r() < aip[0] - 25) return { MonAct::a1 };
+            if (aip[3] <= in.dist && !in.got_hit) { *in.state = 0; return think_circle(rng, 12); }
+            return away(4, false) ? Think{ MonAct::none } : stuck;
+        }
+        if (!in.in_melee) {
+            if (in.got_hit || *in.state2 == 1) { *in.state2 = 1; return charge; }
+            if (++*in.state3 > 20) *in.state3 = 0;
+            *in.state2 = 0;
+            if (*in.state3 == 1 && r() < aip[2]) { *in.state2 = 1; return charge; }
+            return r() < 20 ? think_wander(rng, 6) : stand;
+        }
+        *in.state = 2;
+        if (r() < aip[0]) return { MonAct::a1 };
+        if (aip[4] <= in.life_pct) return r() < aip[1] ? think_circle(rng, 4) : stand;
+        *in.state = 1;
+        if (in.skill[0] && !in.laying) return { MonAct::skill, 0 };
+        return away(8, false) ? Think{ MonAct::none } : stuck;
+    }
+    // Vampire (28, FUN_005f4a70): aip5 bit 0 lets it shoot (Skill1 or
+    // Skill4, even odds, at its second target within 20), bit 1 cast a
+    // firewall (Skill2), bit 2 a meteor (Skill3), aip4 % each, 11 thinks
+    // apart (state3). Hit, it's on (state 1), keeping the hitter's distance
+    // under 30 (state2); in melee 30 % with bit 0 a shot, else A1. Fleeing
+    // (state 2): over 74 % life it walks in; under 14 or within state2 it
+    // backs off 8, the pace Run / Velocity (0..120 % on); past aip3, or
+    // past aip2 %, it stands 15; else a cast, a shot, or circles 4. Else
+    // under 33 % life it flees, backing off 8; in melee aip1 % A1 (bit 0:
+    // 70 %, else a shot), else 33 % circles 4, else stands 10; aip3 or more
+    // off it walks in on, else stands 15; then aip2 % a cast or a shot (25
+    // % circles 4 first) or walks in; else past 20 walks in, under 9 50 %
+    // backs off 8, else 50 % circles 4, else stands 10.
+    // ponytail: the second target search (FUN_005ddc30) taken as its target.
+    if (ai == "Vampire") {
+        const bool shoots = aip[4] & 1;
+        auto shot = [&] { return Think{ MonAct::skill, r() < 50 ? 0 : 3 }; };
+        auto cast = [&] {                                   // FUN_005dead0(Sk2mode / Sk3mode, at the target)
+            for (const int skill : { 1, 2 })
+                if ((aip[4] & (skill << 1)) && *in.state3 < 1 && r() < aip[3]) { *in.state3 = 11; return skill; }
+            return 0;
+        };
+        if (*in.state3 > 0) --*in.state3;
+        if (in.got_hit) {
+            if (*in.state == 0) *in.state = 1;
+            if (in.dist < 30 && *in.state2 < in.dist) *in.state2 = in.dist;
+            if (in.in_melee) return r() > 30 || !shoots ? Think{ MonAct::a1 } : shot();
+        }
+        if (*in.state == 2) {
+            if (in.life_pct > 74) { *in.state = 1; return walk; }
+            if (in.dist < 14 || in.dist <= *in.state2) {
+                *in.pace = in.velocity > 0 ? std::clamp(in.run * 100 / in.velocity - 100, 0, 120) : 0;
+                if (away(8, false)) return { MonAct::none };       // flags 4: no aidel think when it can't
+                *in.pace = 0;
+            }
+            if (aip[2] <= in.dist || r() >= aip[1]) return { MonAct::idle, 15 };
+            if (const int skill = cast()) return { MonAct::skill, skill };
+            return !shoots || in.dist > 20 ? think_circle(rng, 4) : shot();
+        }
+        if (in.life_pct < 33) {
+            *in.state = 2;
+            if (away(8, false)) return { MonAct::none };
+        }
+        if (in.in_melee) {
+            *in.state = 1;
+            if (r() < aip[0]) {
+                if (!shoots || r() > 30) return { MonAct::a1 };
+                if (in.dist < 21) return shot();
+            }
+            return r() < 33 ? think_circle(rng, 4) : Think{ MonAct::idle, 10 };
+        }
+        if (aip[2] <= in.dist) return *in.state != 1 ? Think{ MonAct::idle, 15 } : walk;
+        *in.state = 1;
+        if (r() >= aip[1]) {
+            if (in.dist > 20) return walk;
+            if (in.dist < 9 && r() < 50) return away(8, false) ? Think{ MonAct::none } : Think{ MonAct::idle, in.aidel };
+            return r() < 50 ? think_circle(rng, 4) : Think{ MonAct::idle, 10 };
+        }
+        if (const int skill = cast()) return { MonAct::skill, skill };
+        if (!shoots || in.dist > 20) return walk;
+        return r() > 74 ? think_circle(rng, 4) : shot();
+    }
+    // Fetish (30, FUN_005f53e0): at rest (state 0) in melee it squares up
+    // (state 1); squared up, after aip3 thinks (state2) with its target
+    // over aip4 % life it backs off 14 (state 2); in melee aip1 % A1, else
+    // stands aip2. Backing off: past 12, after two thinks it rests, 20 %
+    // circling 4, else standing 10; within, it backs off again, or rests
+    // and stands 10. Else it walks in. Its walks and back-offs go at pace
+    // 50; a back-off (flags 4) that can't set off thinks again at once.
+    // ponytail: its leader's commands (FUN_0058ee80: 1 and 0xe walk it at
+    // a unit) never come, none of Act 1's thinks sending them; the pathers
+    // (2, 0xd) as path_to's.
+    if (ai == "Fetish") {
+        auto swing = [&] { return r() >= aip[0] ? Think{ MonAct::idle, aip[1] } : Think{ MonAct::a1 }; };
+        if (*in.state == 0) {
+            if (in.in_melee) { *in.state2 = 0; *in.state = 1; return swing(); }
+        } else if (*in.state == 1) {
+            if (aip[2] < ++*in.state2 && aip[3] < in.target_life_pct) {
+                *in.state = 2; *in.state2 = 0;
+                *in.pace = 50;
+                if (!away(14, false)) *in.pace = 0;
+                return { MonAct::none };
+            }
+            if (in.in_melee) return swing();
+        } else {
+            if (*in.state == 2) {
+                if (in.dist > 12) {
+                    if (++*in.state2 > 1) *in.state = *in.state2 = 0;
+                    return r() < 20 ? think_circle(rng, 4) : Think{ MonAct::idle, 10 };
+                }
+                *in.pace = 50;
+                if (away(14, false)) return { MonAct::none };
+                *in.pace = 0;
+                *in.state = *in.state2 = 0;
+            }
+            return { MonAct::idle, 10 };
+        }
+        *in.pace = 50;
+        return walk;
+    }
+    // Griswold (90, FUN_005e5ac0): in melee 80 % A1, else 50 % walks in;
+    // else stands 10.
+    if (ai == "Griswold") {
+        if (in.in_melee) { if (r() < 80) return { MonAct::a1 }; }
+        else if (r() < 50) return walk;
+        return { MonAct::idle, 10 };
+    }
+    // Smith (98, FUN_005e3890): A1 in melee, else walks in, the faster the
+    // more he's hurt (pace: half the life % he's lost).
+    if (ai == "Smith") {
+        if (in.in_melee) return { MonAct::a1 };
+        *in.pace = (100 - std::clamp(in.life_pct, 0, 100)) >> 1;
+        return walk;
     }
     return { MonAct::untraced };
 }

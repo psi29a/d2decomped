@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for install.hpp: the probes, classification, VS_FIXEDFILEINFO,
 // Wine .reg text, Wine path mapping and the product.db reader.
 #include "install.hpp"

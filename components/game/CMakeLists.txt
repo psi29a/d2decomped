@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # The game: d2d's server side (levels, units, the fight, the 25 Hz
 # tick, the protocol). No SDL, sound, pixels or fonts: the client
 # (apps/d2d) draws what it replicates. docs/PLAN.md "Where code goes".

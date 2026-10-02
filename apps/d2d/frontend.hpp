@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Menu screens: title, credits, char-select, char-create, cinematics.
 #pragma once
 

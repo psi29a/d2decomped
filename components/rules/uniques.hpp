@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Champions and uniques: MonUMod.txt, the mods a champion or unique rolls
 // (FUN_005a0760 -> FUN_005a0500 / FUN_005a0600) and what they do to it
 // (FUN_005a2120 -> the mod functions at 0x73c008), from game.exe 1.14d.
@@ -143,9 +144,9 @@ inline constexpr std::uint16_t kMinionLabel = 0xc95, kMinionSpace = 0xf9b, kDemo
 // (16 "Champion" 0xc94, 36 Ghostly .. 39 Berserker 0x2b4c..0x2b4f) and its
 // name. The search checks the first four keys; no match gives the fifth.
 inline constexpr std::uint16_t kChampionFormat = 0x2b40;
+inline constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, std::uint16_t(0xc94) }, { 36, std::uint16_t(0x2b4c) }, { 37, std::uint16_t(0x2b4d) },
+                                                                          { 38, std::uint16_t(0x2b4e) }, { 39, std::uint16_t(0x2b4f) } } };
 inline std::uint16_t champion_word(const std::vector<int>& mods) {
-    static constexpr std::array<std::pair<int, std::uint16_t>, 5> kWord{ { { 16, std::uint16_t(0xc94) }, { 36, std::uint16_t(0x2b4c) }, { 37, std::uint16_t(0x2b4d) },
-                                                                                  { 38, std::uint16_t(0x2b4e) }, { 39, std::uint16_t(0x2b4f) } } };
     std::uint16_t word = kWord[4].second;                          // fixed mod 1 (rndname) runs it first: no key matches
     for (const int id : mods) {
         if (id != 1 && id != 12 && id != 16 && (id < 36 || id > 39)) continue;
@@ -299,10 +300,10 @@ inline constexpr std::array<int, 5> kSpectralElement{ 0, 1, 4, 2, 3 };
 // (FUN_00650e30 / FUN_0045c390); superunique 37 always takes Fanaticism.
 // Level = (add + mlvl) x mul / div, 1..99.
 struct BossAura { int skill = 0, level = 0; };
+struct BossAuraRow { int min_lvl, add, mul, div, skill; };
+inline constexpr BossAuraRow kRows[7] = { { 0, 0, 1, 6, 98 }, { 0, 0, 1, 6, 102 }, { 0, 0, 1, 5, 108 }, { 0, 0, 1, 7, 114 },
+                                          { 0, 0, 1, 8, 123 }, { 0, 0, 1, 8, 122 }, { 20, 0, 1, 8, 118 } };
 inline BossAura boss_aura(int mlvl, int name_seed, int super) {
-    struct Row { int min_lvl, add, mul, div, skill; };
-    static constexpr Row kRows[7] = { { 0, 0, 1, 6, 98 }, { 0, 0, 1, 6, 102 }, { 0, 0, 1, 5, 108 }, { 0, 0, 1, 7, 114 },
-                                      { 0, 0, 1, 8, 123 }, { 0, 0, 1, 8, 122 }, { 20, 0, 1, 8, 118 } };
     mlvl = std::max(mlvl, 1);
     int count = 0;
     for (const auto& row : kRows) count += row.min_lvl <= mlvl;

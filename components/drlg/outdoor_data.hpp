@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Loading what the outdoor generator needs from the game's tables and
 // DS1s, through a `read(path) -> optional<vector<byte>>` callable (the app
 // and the tests hand it their MPQ stack).
@@ -79,7 +80,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
     const auto prest = table("LvlPrest.txt");
     for (std::size_t row = 0; row < prest.size(); ++row) {
         const int def = to_int(prest.get(row, "Def"));
-        if (def < 2 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (not the town, 1)
+        if (def < 1 || !prest.get(row, std::optional<std::size_t>{ 0 }).starts_with("Act 1 - ")) continue;   // act 1's presets (the town, 1, for its rooms next door)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
                   to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };

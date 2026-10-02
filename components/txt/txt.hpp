@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp reader for D2's excel .txt tables.
 //
 // Tab-separated, first row = column names, CRLF line ends, Latin-1. 1.14d

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game server's side (docs/design/multiplayer.md): the world a game
 // runs — levels, the player's unit, the merc, NPCs, monsters, missiles,
 // ground items, objects, the rolls — stepped by commands from the client
@@ -63,6 +64,8 @@ struct View {
     const Level* level = nullptr;
     UnitState player;
     bool running = false, dead = false;
+    bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
+    bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
@@ -91,12 +94,14 @@ struct View {
     // that order (its npcs.size() each, its own cells).
     std::vector<UnitState> npc_states;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
+    int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
+    std::array<d2d::rules::AttackLine, 2> attack_lines{};   // the char panel's left / right skill blocks (FUN_004eda20)
     std::array<std::uint8_t, 7> quest_log{};     // Act 1's log states as the server sends them, by quest (FUN_00544190)
     std::array<std::uint16_t, 7> game_quests{};  // the game's quest flags (FUN_00544720): 13 done in this game, 15 closed at the first join
     int den_left = 0;                            // the Den's monsters left (the quest log)
@@ -202,13 +207,15 @@ struct World {
         if (game_data) fight.new_game(0);
         target_x = player.x; target_y = player.y;
         player.dir = 4;                    // south, facing the viewer
+        // Its monsters open its doors (monster_door).
+        fight.open_door = [this](const Monster& monster, std::uint32_t now_ms) { return monster_door(monster, now_ms); };
         // The character's skill levels for the fight, the skill shrine's
         // +all skills (item_allskills) while its boost lasts.
         fight.skill_base = [this](int id) { return skill_base_level(*game_data, character, id); };
         fight.skill_level = [this](int id) {
             std::vector<d2d::d2s::ItemProp> extra;
             if (now < fight.boost.until)
-                for (const auto& [stat, value] : fight.boost.stats) if (stat == 127) extra.push_back({ .stat = 127, .value = value });
+                for (const auto& [stat, value] : fight.boost.stats) if (stat == d2d::d2s::kAllSkills) extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
             return skill_level(*game_data, character, id, extra);
         };
     }
@@ -230,20 +237,33 @@ struct World {
     // game changed (level, when last played, the gear's look), its stats and
     // items. "" when it's written, else why not.
     std::string save();
+    // Warriv took the player east this tick: the town saves and leaves.
+    // ponytail: no Act 2; the game ends at the caravan.
+    bool went_east = false;
 
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: magic shrines (16..22) other than gem and warping only
-    // log; D2's operate range is 2 cells here.
+    // ponytail: D2's operate range is 2 cells here; storm's reach is 30
+    // cells.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
-    // The OperateFns `operate` handles; one-shot ones stay used (operated).
-    // Containers 1 / 3 / 5 / 7 / 14, stands 19 / 20, wells 22, bookshelves 26.
-    static bool operable(int operate_fn) { return std::ranges::contains(std::array{ 1, 2, 3, 4, 5, 7, 14, 19, 20, 22, 26, 30 }, operate_fn) || is_door(operate_fn); }
-    static bool is_door(int operate_fn) { return operate_fn == 8 || operate_fn == 16 || operate_fn == 18; }
+    int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
+    // The OperateFns `operate` handles; one-shot ones stay used (operated):
+    // containers, stands, wells, bookshelves, shrines, traps and doors.
+    static bool operable(int operate_fn) {
+        using namespace d2d::rules::operate_fn;
+        return std::ranges::contains(std::array{ kCasket, kShrine, kUrn, kChest, kBarrel, kExplodingBarrel, kCorpse, kArmorStand, kWeaponRack, kWell, kBookshelf, kTrapObject }, operate_fn)
+            || is_door(operate_fn);
+    }
+    static bool is_door(int operate_fn) {
+        using namespace d2d::rules::operate_fn;
+        return operate_fn == kDoor || operate_fn == kTrapDoor || operate_fn == kSecretDoor;
+    }
     // A door, trap door or secret door (rules::door_mode): its new mode,
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
+    // A monster's door at its think (Fight::open_door): found, operated in reach.
+    bool monster_door(const Monster& monster, std::uint32_t now_ms);
     // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
     // whoever's within 3 subtiles and sets off the unopened ones nearer
     // than 3.
@@ -275,7 +295,6 @@ struct World {
 
     // Back in camp after dying: at the town start with full life. Monsters
     // stay as they are.
-    // ponytail: D2 leaves a corpse holding the gear and takes gold; not yet.
     void respawn(std::uint32_t now_ms);
     // The player came to `level` from `from`: `from`'s NPC states are kept,
     // `level`'s taken back (made at their start the first time).
@@ -293,7 +312,7 @@ struct World {
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
     // ponytail: counted when the number drops (game.exe: on each death);
-    // the quest log isn't drawn, so the count goes to the log.
+    // the count goes to the log.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 
@@ -318,6 +337,7 @@ struct World {
     struct Treasure { const Level* level; int npc; int left; };
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
+    void stamina_frame();                  // a 40 ms frame's stamina drain / regen
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus

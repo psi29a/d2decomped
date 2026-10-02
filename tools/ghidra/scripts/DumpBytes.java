@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Dump raw bytes at a virtual-address range to a hex-per-line text file.
 // One record per line (with the given record size) so tables of fixed-size
 // structs are easy to slice. Args: <start-hex> <end-hex> <rec-size-hex> <output.txt>

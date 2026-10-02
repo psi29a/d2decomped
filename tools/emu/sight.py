@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A monster's line of sight (FUN_00622920 -> FUN_0064e260) against
 rules::sight_blocked: random walls in one fake room, random unit pairs.
 

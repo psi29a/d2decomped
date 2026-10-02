@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Decompile the functions at the given entry points, creating them first
 // when auto-analysis never did (code reached only through data tables:
 // callbacks, menu handlers). Works on a -readOnly project: nothing is

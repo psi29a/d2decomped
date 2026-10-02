@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The in-game client (town.hpp): Town, the view to units, the frame's
 // light, the HUD overlays.
 #include "town.hpp"
@@ -20,8 +21,9 @@
 #include <log.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
-#include <uniques.hpp>
+#include <userdir.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -30,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <tuple>
@@ -270,6 +273,7 @@ auto Town::publish() -> void {
         character.header = view.header; character.stats = view.stats; character.items = view.items;
         character.expansion = view.header.expansion();
         character.panel = panel_stats(*scene, character.header, character.items, character.stats);
+        character.panel.attack = view.attack_lines;
         held = view.held;
         if (view.store) {
             const auto keep = store;
@@ -283,17 +287,29 @@ auto Town::publish() -> void {
             merc_label = merc_name(*scene, found->second, character.header.merc_name);
     }
 
+// Where the automap's files go: beside the save (none with saving off).
+static std::filesystem::path automap_dir(const World& world) { return world.characters ? world.characters->dir : std::filesystem::path{}; }
+
 auto Town::enter() -> void {
-        automap.cells.clear();                    // a new game: nothing seen yet
+        automap.cells.clear();                    // a new game: what the files beside the save kept
+        automap.placed.clear();
         automap.revealed.clear();
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
+        mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
+        game_menu.open = false;
         world.enter(character);
         skillbar.new_game();
         publish();
+        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
     }
 
-auto Town::save() -> std::string { return world.save(); }
+// The automap's new cells go out with the save, as on leaving a game
+// (FUN_0045a5c0).
+auto Town::save() -> std::string {
+        if (scene && level) save_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
+        return world.save();
+    }
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
@@ -302,14 +318,32 @@ auto Town::new_game() -> void {
         skillbar.new_game();
     }
 
-auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const std::vector<SDL_Keycode>& keys_this_frame,
+auto Town::open_game_menu() -> void {
+        game_menu.restore_automap = automap.open;
+        game_menu.restore_mini = mini.open;
+        automap.open = mini.open = belt_open = false;
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
+        game_menu.expansion = character.expansion;
+        game_menu.open = true;
+        game_menu.show(0);
+    }
+
+auto Town::close_game_menu() -> void {
+        game_menu.open = false;
+        automap.open = game_menu.restore_automap;
+        mini.open = game_menu.restore_mini;
+    }
+
+auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& keys_this_frame,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
+        Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
         // ESC handled globally in handle_sdl_events (returns to Title).
         // D2 movement: press or hold the left button on the ground
         // and the character walks toward that point (the target
         // tracks the cursor while held); the camera follows.
         for (const auto key : keys_this_frame) {
+            if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
             if (key == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (key == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
             if (key == SDLK_R) net.send(cmd::Run{ !view.running });   // D2's run/walk toggle
@@ -321,15 +355,48 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (key == SDLK_ESCAPE && view.dead) { net.send(cmd::Resurrect{}); continue; }
             if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1) });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
+            // Esc (0x4690b0): the NPC's windows first, then the game menu
+            // closes, else every Esc-closable panel at once (FUN_00456300;
+            // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
                 if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
+                else if (game_menu.open) close_game_menu();
                 else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open)   // then panels
                     inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
-                else { save(); screen = Screen::CharSelect; }
+                else open_game_menu();
             }
+        }
+        // The game menu takes every click while it's up; Exit saves and goes
+        // to the roster. Its volumes go to d2d.cfg.
+        // ponytail: Configure Controls (UI 0xb) isn't drawn; it closes the menu.
+        bool hud_click = false;
+        if (game_menu.open) {
+            const auto action = game_menu.input(*scene, audio, mouse, keys_this_frame, frame_ms);
+            if (game_menu.volume_changed && !cfg_file.empty())
+                d2d::userdir::save_cfg(cfg_file, { { "master_volume", std::to_string(audio.master_volume) },
+                                                   { "music_volume", std::to_string(audio.music_volume) } });
+            game_menu.volume_changed = false;
+            if (action != GameMenu::kNone) close_game_menu();
+            if (action == GameMenu::kExit) { save(); screen = Screen::CharSelect; }
+            hud_click = true;
+        } else {
+            // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
+            const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+            int action = -1;
+            hud_click = mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
+            if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
+            if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
+            if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
+            if (action == MiniPanel::kAutomap) automap.open = !automap.open;
+            if (action == MiniPanel::kQuests) { quest_log.open = !quest_log.open; if (quest_log.open) char_open = stash_open = cube_open = false; }
+            if (action == MiniPanel::kMenu) open_game_menu();
+        }
+        if (hud_click) {
+            if (mouse.press_this_frame) press_on_ui = true;
+            mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
         const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
@@ -427,17 +494,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
         // or the stash opens it in the left panel, as D2 does.
         if (mouse.rpress_this_frame)
             for (const auto& item : character.items) {
-                if (item.code != "box" || item.location != 0) continue;
-                const bool in_inv = inv_open && item.panel == 1, in_stash = stash_open && item.panel == 5;
+                if (item.code != "box" || item.location != d2d::d2s::item_location::kStored) continue;
+                const bool in_inv = inv_open && item.panel == d2d::d2s::item_panel::kInventory, in_stash = stash_open && item.panel == d2d::d2s::item_panel::kStash;
                 if (!in_inv && !in_stash) continue;
                 const auto rect = grid_rect(*scene, in_inv ? lay : scene->stash_layout[character.expansion ? 1 : 0], item);
                 if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                     cube_open = true; stash_open = char_open = false;
                 }
             }
-        // An open NPC menu takes every click: an entry runs (only
-        // "cancel" so far — every entry closes it), anything else
-        // closes it. ponytail: talk/trade/hire/gamble not built.
+        // An open NPC menu takes every click: an entry runs its action,
+        // anything else closes it.
         bool menu_click = false;
         const auto& unit = view.player;
         automap_reveal(*scene, *level, automap, unit.x, unit.y);
@@ -485,10 +551,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             const int want = level->rain ? int(rain.volume() * 255.f) : 0;
             rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
         }
-        if (rain_vol > 0 && audio.rain.sound != 64) audio.play(audio.rain, *scene, 64);
+        if (rain_vol > 0 && audio.rain.sound != d2d::rules::sound_ids::kSceneRain) audio.play(audio.rain, *scene, d2d::rules::sound_ids::kSceneRain);
         if (rain_vol == 0 && audio.rain.sound) audio.stop(audio.rain);
-        if (audio.rain.src && scene->sounds.size() > 64)
-            audio.set_gain(audio.rain, float(scene->sounds[64].volume) / 255.f * float(rain_vol) / 255.f);
+        if (audio.rain.src && scene->sounds.size() > d2d::rules::sound_ids::kSceneRain)
+            audio.set_gain(audio.rain, float(scene->sounds[d2d::rules::sound_ids::kSceneRain].volume) / 255.f * float(rain_vol) / 255.f);
         // Every Event Delay ticks, give or take a third, one of the event
         // sounds from the left or right (x +-450..750, y +-100 in game.exe's
         // units; the first within one gap of arriving).
@@ -509,7 +575,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
                 amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
             }
         }
-        if (questdone_sound) { questdone_sound = false; audio.play_sfx(*scene, 14, 1.f, 0); }
+        if (questdone_sound) { questdone_sound = false; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorQuestDone, 1.f, 0); }
         if (replay_speech) {
             const auto found = std::ranges::find_if(kSpeechSound, [&](const auto& entry) { return entry.first == replay_speech; });
             if (found != kSpeechSound.end()) audio.play_voice(*scene, found->second);
@@ -614,8 +680,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
                 for (std::size_t i = 0; i < character.items.size(); ++i) {
                     const auto& item = character.items[i];
-                    const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-                    if (!(item.location == 0 && item.panel == 1) && !(worn && store.mode == 3)) continue;
+                    const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+                    if (!(item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) && !(worn && store.mode == 3)) continue;
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                         if (store.mode == 2) net.send(cmd::Sell{ item.id });
@@ -639,19 +705,53 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, Mouse& mouse, const st
             }
             if (on_cancel && mouse.release_this_frame) waypoint = {};
         }
+        // New Stats / New Skills: a press holds the button with a click
+        // (Sounds.txt 4, FUN_004a66e0 / FUN_004a6790); let go over it and it
+        // opens the character panel / tree (FUN_004a6840 / FUN_004a6920).
+        const auto shown = level_buttons_now();
+        const bool on_stats = over_stats_button(shown.stats_x, mouse.x, mouse.y);
+        const bool on_skills = over_skills_button(shown.skills_x, mouse.x, mouse.y);
+        if (shown.stats_x < 0) stats_down = false;          // hidden lets go (FUN_004a6b30)
+        if (shown.skills_x < 0) skills_down = false;
+        const bool level_click = mouse.press_this_frame && (on_stats || on_skills);
+        if (level_click) { (on_stats ? stats_down : skills_down) = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
+        if (mouse.release_this_frame) {
+            if (stats_down && on_stats) { char_open = true; stash_open = cube_open = quest_log.open = false; }
+            if (skills_down && on_skills) { tree_open = true; inv_open = false; }
+            stats_down = skills_down = false;
+        }
+        // The run button: the same press and click (FUN_00499500); let go
+        // over it and run toggles, as R does (FUN_004996a0).
+        const bool on_run = over_run_button(mouse.x, mouse.y);
+        const bool run_click = mouse.press_this_frame && on_run;
+        if (run_click) { run_down = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
+        if (mouse.release_this_frame) {
+            if (run_down && on_run) net.send(cmd::Run{ !view.running });
+            run_down = false;
+        }
         // Holding an item, a click on the world drops it (C→S 0x17).
         const bool bar_click = skillbar.click(mouse);
-        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click
+        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click && !run_click
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
-        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click;
+        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click || run_click
+                          || hud_click || game_menu.open;
         // A press on the UI stays the UI's while the button is held: no walk
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
         if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
+        if (world.went_east) { world.went_east = false; save(); screen = Screen::CharSelect; return; }
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         draw(framebuffer, mouse, frame_ms);
+    }
+
+auto Town::level_buttons_now() const -> LevelButtons {
+        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
+        out.stats_down = stats_down;
+        out.skills_down = skills_down;
+        return out;
     }
 
 auto Town::hovered_monster() const -> int {
@@ -700,7 +800,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             net.send(cmd::SelectSkill{ skillbar.right, false });
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
-        for (const auto& [id, value] : view.boost) if (id == 127) skillbar.extra.push_back({ .stat = 127, .value = value });
+        for (const auto& [id, value] : view.boost) if (id == d2d::d2s::kAllSkills) skillbar.extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
         // The NPC the client's talking with (it stands meanwhile), when that changes.
         if (const int talk = npc_menu.npc >= 0 ? npc_menu.npc : speech.npc >= 0 ? speech.npc : store.npc; talk != talking_sent) {
             net.send(cmd::Chat{ talk });
@@ -728,8 +828,13 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
 auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) {
             if (level_changed->from->layer != level->layer) {
+                // A layer change saves the old layer's map and loads the
+                // new one's (FUN_00458d40).
+                save_automap(automap, automap_dir(world), character.name, scene->map_seed, level_changed->from->layer);
+                const bool seen = other_automaps.count(level->layer) != 0;
                 other_automaps[level_changed->from->layer] = std::move(automap);
                 automap = std::move(other_automaps[level->layer]);
+                if (!seen) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
                 if (level_changed->keep_map) automap.open = other_automaps[level_changed->from->layer].open;
             }
             hovered_npc = -1;
@@ -802,7 +907,7 @@ auto Town::open_menu(int npc) -> void {
             int(character.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(character.items), [&] {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
-                return !d2d::rules::qbit(quest_bits, 41, 0) && (d2d::rules::qbit(quest_bits, 41, 1) || difficulty == 2);
+                return !d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
             character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
     }
@@ -810,7 +915,8 @@ auto Town::open_menu(int npc) -> void {
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
-        if (const bool running = unit.walking && view.running; pmode < 0 && (unit.walking != player_walked || running != player_ran)) {
+        const bool run_on = view.running && character.stats.values[d2d::d2s::kStamina] > 0;   // no run at stamina 0 (FUN_0057f090)
+        if (const bool running = unit.walking && run_on; pmode < 0 && (unit.walking != player_walked || running != player_ran)) {
             player_walked = unit.walking; player_ran = running; walk_ms = frame_ms;
         }
         if (pmode < 0) unit.mode_ms = std::max(unit.mode_ms, walk_ms);     // a swing's end restarts it too
@@ -829,11 +935,11 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         std::erase_if(state_clock.seen, [&](const auto& entry) { return frame_ms - entry.second.last > 5000; });
         Unit player_look{};
         dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
-        const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
+        const bool town = level->id == d2d::rules::level_ids::kRogueEncampment;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = std::max(character.character_class, 0);
         if (pmode == kModeDD) unit.mode_ms = frame_ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);
-        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : unit.walking ? (view.running ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        int mode = pmode == kModeDD ? kModeDT : pmode >= 0 ? pmode : unit.walking ? (run_on ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         std::uint32_t mode_ms = unit.mode_ms;
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
@@ -849,7 +955,8 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       cube_open, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0);   // D2's "Show Items" (Alt)
+                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0,   // D2's "Show Items" (Alt)
+                      Hud{ view.poisoned, view.running, run_down });
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (quest_log.open
@@ -861,6 +968,10 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
+        draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
+        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
+        if (game_menu.open) game_menu.draw(framebuffer, *scene);
     }
 
 }  // namespace d2d::client

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // d2d — the game binary. Phase-5 in progress.
 //
 // Now opens an SDL3 window and presents an in-memory framebuffer as a
@@ -72,6 +73,7 @@ namespace {
 static std::string g_start_screen;
 static bool        g_video = true;          // startup cinematics (--no-video / cfg video = 0)
 static fs::path    g_user_dir;
+static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = 0;
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
@@ -137,6 +139,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                    SDL_GetRendererName(win.renderer));
     Audio audio;
     audio.init();
+    audio.master_volume = g_master_volume;
+    audio.music_volume = g_music_volume;
+    audio.apply_volume();
     if (scene)
         g_on_button_press = [&] { audio.play_file(audio.ui_sounds, *scene, R"(data\global\sfx\cursor\button.wav)"); };
     struct ClearHook { ~ClearHook() { g_on_button_press = nullptr; } } clear_hook;   // audio dies with this scope
@@ -274,9 +279,19 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     town.world.characters = g_no_save ? nullptr : &characters;
     town.world.autoloot_gold = g_autoloot;
+    if (!g_no_save) town.cfg_file = g_user_dir / "d2d.cfg";
     if (screen == Screen::InGame && scene) {
+        // --start-screen ingame: a new character of the class and name given,
+        // made as char-create's OK makes one (unsaved until the game saves).
+        character.character_class = kUiToSaveClass[std::size_t(std::max(character.selected, 0))];
+        auto made = new_character(*scene, character.character_class, character.name.empty() ? std::string("Tester") : character.name,
+                                  character.hardcore, character.expansion, town.rng);
+        character.header = std::move(made.header);
+        character.stats = made.stats;
+        character.items = std::move(made.items);
+        character.panel = panel_stats(*scene, character.header, character.items, character.stats);
         set_map_seed(*scene, game_seed(character.header));
-        town.enter();   // --start-screen ingame: the class and name given
+        town.enter();
     }
     std::array<bool, 8> frontend_played{};   // title-screen ambience picks
     std::uint32_t last_ms = 0;
@@ -842,6 +857,8 @@ int main(int argc, char** argv) {
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
+    if (cfg.contains("master_volume")) g_master_volume = std::clamp(std::atoi(cfg["master_volume"].c_str()), 0, 100);
+    if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
 
     if (headless) {
         if (!channel.active()) {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // GameData: what the rules read (tables, levels, timings, strings) and
 // the World's view of them. No pixels, fonts or sound here: Scene
 // (scene.hpp) adds those for the client.
@@ -43,6 +44,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -64,6 +66,7 @@ struct Npc {
     float velocity = 3;                  // MonStats Velocity
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     int object_id = 0;                   // an object's objects.txt Id
+    bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)
     std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
@@ -321,7 +324,7 @@ struct GameData {
     [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {}) const {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& item : items)
-            if (item.location == 1) {
+            if (item.location == d2d::d2s::item_location::kEquipped) {
                 int colour = item_colours.of(item.quality, item.unique_id, item.set_id, item.prefix, item.suffix, item.affixes, item.class_affix,
                                         item.socketed && !item.socketed_items.empty() ? item.socketed_items[0].code : std::string{});
                 if (const auto piece = item_pieces.find(item.code); piece != item_pieces.end() && item_types)
@@ -353,6 +356,7 @@ struct GameData {
     bool tile_pixels = false;
     std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
     std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
+    std::array<int, 3> cold_divisor{};           // DifficultyLevels MonsterColdDivisor (+0x18): a monster's chill length / it
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
@@ -365,6 +369,20 @@ struct GameData {
     struct ItemNames {
         std::vector<std::string> unique, set, prefix, suffix, rare_pre, rare_suf, runeword;
     } item_names;
+    // What the hover text (item_lines, FUN_0048dd90) reads off the items
+    // record by code: wclass (+0xc0), mindam/maxdam (+0xfe/+0xff),
+    // 2handmindam/2handmaxdam (+0x102/+0x103), minmisdam/maxmisdam
+    // (+0x100/+0x101), nodurability (+0x113), misc.txt spelldesc (+0xb4),
+    // spelldescstr (+0xb6), spelldesccalc (+0xa4) and stat1's ID (+0x9e).
+    // The level requirements by save ID, indexed like item_names.
+    struct ItemDesc {
+        std::string wclass, spell_str;
+        std::array<int, 6> dam{};                // one-hand, two-hand, throw: min, max
+        bool nodurability = false;
+        int spell_desc = 0, spell_calc = 0, spell_stat = -1;
+    };
+    std::unordered_map<std::string, ItemDesc> item_desc;
+    std::vector<int> prefix_req, suffix_req, unique_req, set_req;
     // ItemStatCost.txt description columns, by stat ID, and what the skill
     // descfuncs need: skill name keys by skill ID, CharStats strings by class.
     struct StatDesc {
@@ -477,6 +495,7 @@ struct GameData {
     // CharStats WalkVelocity / RunVelocity by d2s class. Running adds
     // run*100/walk - 100 to velocitypercent (FUN_00620e80): +50%.
     std::array<int, 7> walk_velocity{ 6, 6, 6, 6, 6, 6, 6 }, run_velocity{ 9, 9, 9, 9, 9, 9, 9 };
+    std::array<int, 7> run_drain{ 20, 20, 20, 20, 20, 20, 20 };   // CharStats RunDrain (CharStats +0x42)
     d2d::rules::Monsters monsters;                      // MonStats / MonStats2 / MonLvl
     d2d::rules::SkillTables skills;                     // Skills.txt, compiled calcs (skills.hpp)
     std::vector<Npc> mon_npc;                           // by MonStats row: its composite recipe
@@ -563,9 +582,6 @@ constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" 
 constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
               kModeA1 = 7, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeDD = 17;
 
-// ponytail: town walk speed picked by eye so the TW cycle doesn't skate
-// (~2 cells = 10 subtiles/s). CharStats.txt WalkVelocity (6) is the real
-// input; derive from it once movement units are RE'd.
 // Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
 // MonStats Velocity): the path velocity is velocity << 8 (scaled by
 // velocitypercent, FUN_00462a20), and a unit covers path velocity / 4096
@@ -771,7 +787,7 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
-void relevel(Level& level, const std::vector<std::size_t>& up);
+void relevel(Level& level, const std::vector<std::size_t>& up, const GameData* game_data = nullptr, const Spawning* spawning = nullptr);
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);

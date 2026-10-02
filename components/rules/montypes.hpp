@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // MonStats / MonStats2 / MonLvl / Levels.txt monster rows as the rules
 // read them (split from monsters.hpp so uniques.hpp can use them too).
 #pragma once
@@ -30,9 +31,9 @@ struct MonType {
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     std::string miss_a1, miss_a2;               // MissA1 / MissA2: what an A1 / A2 attack fires (sk_archer1: skbowarrow1, quillrat1: spike1)
-    std::array<std::string, 3> skill;           // Skill1..3 (Skills.txt names; "" none): the MonAI thinks' skills
-    std::array<std::string, 3> sk_mode;         // Sk1mode..3: a mode token, or a MonSeq sequence (seq_nestlay)
-    std::array<int, 3> sk_lvl{};                // Sk1lvl..3 (record +0x198)
+    std::array<std::string, 4> skill;           // Skill1..4 (Skills.txt names; "" none): the MonAI thinks' skills
+    std::array<std::string, 4> sk_mode;         // Sk1mode..4: a mode token, or a MonSeq sequence (seq_nestlay)
+    std::array<int, 4> sk_lvl{};                // Sk1lvl..4 (record +0x198)
     int trans_lvl = 0;                          // TransLvl (record byte +0x4b, FUN_006510c0): which of a skill missile's variants (shafire1..5)
     std::string spawn, spawn_mode;              // spawn / spawnmode: what Nest lays (crownest1: foulcrow1, NU)
     int spawn_x = 0, spawn_y = 0;               // spawnx / spawny: where, off the layer (subtiles)

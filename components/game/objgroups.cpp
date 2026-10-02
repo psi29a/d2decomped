@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // A level's rooms populated as they come into play, as FUN_0052d160 walks
 // the act's room1 list (newest first): each room's seed step
 // (FUN_0054f060), its preset units (FUN_005559a0), then the random object
@@ -599,26 +600,26 @@ struct ObjectRooms {
     int special(int id) {
         if (id < 580) return 136;
         if (id == 582) return 0x133;
-        const int act = level.id < 40 ? 0 : level.id < 75 ? 1 : level.id < 103 ? 2 : 3;   // FUN_006427f0
+        const int act = level.id < d2d::rules::level_ids::kLutGholein ? 0 : level.id < d2d::rules::level_ids::kKurastDocks ? 1 : level.id < d2d::rules::level_ids::kPandemoniumFortress ? 2 : 3;   // FUN_006427f0
         const auto low = rgn.next();
         int pick;
-        if (act == 1) pick = level.id == 0x4a ? std::array{ 0x183, 0x185, 0x186, 0x187 }[low & 3] : std::array{ 0x57, 0x58 }[low & 1];
-        else if (act == 2) pick = level.id == 0x53 ? std::array{ 0x149, 0x14a, 0x14b, 0x14c }[low & 3] : std::array{ 0xb5, 0xb7 }[low & 1];
+        if (act == 1) pick = level.id == d2d::rules::level_ids::kArcaneSanctuary ? std::array{ 0x183, 0x185, 0x186, 0x187 }[low & 3] : std::array{ 0x57, 0x58 }[low & 1];
+        else if (act == 2) pick = level.id == d2d::rules::level_ids::kTravincal ? std::array{ 0x149, 0x14a, 0x14b, 0x14c }[low & 3] : std::array{ 0xb5, 0xb7 }[low & 1];
         else pick = std::array{ 5, 6, 0x8b, 0x8c, 0x8d, 0x90, 0xb0, 0xb1, 0xc6, 0xf0, 0xf1, 0xf2, 0xf3 }[low % 13];
-        return id == 580 && level.id == 0x19 ? 0x173 : pick;
+        return id == 580 && level.id == d2d::rules::level_ids::kTowerCellarLevel5 ? 0x173 : pick;
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
     void presets(std::size_t room_at, bool monsters) {
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type == 1 || (unit.flags & 1)) continue;
-            if (unit.type == 2 && unit.id != 0x23d) {
+            if (level.unit_rooms[i] != int(room_at) || unit.type == d2d::rules::unit_type::kMonster || (unit.flags & 1)) continue;
+            if (unit.type == d2d::rules::unit_type::kObject && unit.id != 0x23d) {
                 const auto before = level.npcs.size();
                 make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
                 if (unit.id == 580 && level.npcs.size() > before) level.npcs.back().sparkle = true;   // FUN_0054f370: FUN_005540a0(unit, 1)
             }
-            else if (unit.type == 5) game.next();                                                          // a warp tile: a unit made
+            else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
         }
         if (!monsters) return;
         // FUN_0063ec70 + FUN_0054e2a0: a base monster as the level has it (as populate()'s own()).
@@ -641,7 +642,7 @@ struct ObjectRooms {
         };
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type != 1 || (unit.flags & 1) || unit.id < 0) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0) continue;
             leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
                 const auto row = game_data.mon_bin[std::size_t(unit.id)];
@@ -762,7 +763,7 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
             }
     };
     for (const auto& unit : level.units)
-        if (unit.type == 2 && (pop.obj(unit.id, "SubClass") & 0x40)) {                            // a waypoint: its room and its tile
+        if (unit.type == d2d::rules::unit_type::kObject && (pop.obj(unit.id, "SubClass") & d2d::rules::object_ids::kSubclassWaypoint)) {                            // a waypoint: its room and its tile
             centre(unit.x / 5, unit.y / 5);
             pop.ways.push_back({ unit.x / 5 * 5, unit.y / 5 * 5 });
         }
@@ -835,9 +836,9 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     // 0x30000: a room with a waypoint (objects.txt SubClass 0x40, FUN_00667e30);
     // 0x800000: the Blood Moor's rooms next to the camp (FUN_0066bd92).
     for (std::size_t i = 0; i < level.units.size(); ++i)
-        if (level.units[i].type == 2 && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & 0x40))
+        if (level.units[i].type == d2d::rules::unit_type::kObject && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & d2d::rules::object_ids::kSubclassWaypoint))
             level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;
-    if (level.id == 2 && game_data.town.ds1.width() > 0) {
+    if (level.id == d2d::rules::level_ids::kBloodMoor && game_data.town.ds1.width() > 0) {
         const auto& town = game_data.town;
         const int tx = town.world_x, ty = town.world_y, tw = town.ds1.width(), th = town.ds1.height();
         for (std::size_t i = 0; i < level.rooms.size(); ++i) {
@@ -851,7 +852,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     // throwaway copy of the object seed as a game starts.
     auto rgn = object_seed(game_data.map_seed);
     for (std::size_t i = 0; i < level.units.size(); ++i)
-        if (level.unit_rooms[i] < 0 && level.units[i].type == 2) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, rgn);
+        if (level.unit_rooms[i] < 0 && level.units[i].type == d2d::rules::unit_type::kObject) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, rgn);
 }
 
 d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, bool all) {

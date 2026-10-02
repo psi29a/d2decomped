@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp DCC (Diablo Cel Compressed) sprite parser.
 //
 // DCC is the animated-sprite format used for characters, monsters, missiles,

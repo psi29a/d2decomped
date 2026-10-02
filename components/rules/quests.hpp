@@ -1,6 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Quests: the save's quest flags and the Den of Evil (game.exe 1.14d
 // D2Game/Quests/a1q1.cpp, docs/research/re/quests.md).
 #pragma once
+
+#include "level_ids.hpp"
+#include "monster_ids.hpp"
+#include "object_ids.hpp"
 
 #include <array>
 #include <cstddef>
@@ -22,6 +27,9 @@ inline void qset(QuestBits& quest_bits, int quest, int bit, bool set = true) {
     auto& byte = quest_bits[std::size_t(bit_index >> 3)];
     byte = std::uint8_t(set ? byte | mask : byte & ~mask);
 }
+// Akara's reset of the stat and skill points (the Den of Evil's reward):
+// its flags are quest 41's (0 used, 1 open, 13 opened late).
+inline constexpr int kRespecQuest = 41;
 
 // A quest message an NPC has for the player (FUN_00543790): its string.tbl
 // id; `greet` plays as the NPC is clicked (kind 0), else it's a talk topic
@@ -44,7 +52,7 @@ struct QuestMsg { int string = 0; bool greet = false; };
 // 13 cleared in this game, 14 cleared by someone else, 15 closed.
 // ponytail: one player — the party and late-joiner lists are left out.
 struct DenQuest {
-    static constexpr int kQuest = 1, kAkara = 148, kDen = 8;
+    static constexpr int kQuest = 1, kAkara = monster_ids::kAkara, kDen = level_ids::kDenOfEvil;
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
@@ -78,15 +86,15 @@ struct DenQuest {
     // What `npc` (MonStats hcIdx) says about it (FUN_0058ff90): the block
     // for the state (0x736cd0), or "successful" while the reward is due;
     // the blocks at 0x7366b0.
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { 148, 64, true } },
+        { { 148, 65, false }, { 155, 70, false }, { 147, 69, false }, { 150, 66, false }, { 154, 67, false } },
+        { { 150, 72, false }, { 155, 75, false }, { 154, 73, false }, { 148, 71, false }, { 147, 74, false } },
+        { { 150, 77, false }, { 155, 80, false }, { 154, 78, false }, { 148, 76, true }, { 147, 79, false } },
+        { { 155, 80, false }, { 154, 78, false }, { 147, 79, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { 148, 64, true } },
-            { { 148, 65, false }, { 155, 70, false }, { 147, 69, false }, { 150, 66, false }, { 154, 67, false } },
-            { { 150, 72, false }, { 155, 75, false }, { 154, 73, false }, { 148, 71, false }, { 147, 74, false } },
-            { { 150, 77, false }, { 155, 80, false }, { 154, 78, false }, { 148, 76, true }, { 147, 79, false } },
-            { { 155, 80, false }, { 154, 78, false }, { 147, 79, false } },
-        };
         int block = 3;
         if (!qbit(quest_bits, kQuest, 1)) {
             if (qbit(quest_bits, kQuest, 0) || (state > 3 && !qbit(quest_bits, kQuest, 13))) return {};
@@ -129,8 +137,8 @@ struct DenQuest {
         if (qbit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 0xd; }
         qset(quest_bits, kQuest, 0);
         qset(quest_bits, kQuest, 1, false);
-        qset(quest_bits, 41, 13);
-        qset(quest_bits, 41, 1);
+        qset(quest_bits, kRespecQuest, 13);
+        qset(quest_bits, kRespecQuest, 1);
         for (int bit = 2; bit < 12; ++bit) qset(quest_bits, kQuest, bit, false);
         return true;
     }
@@ -143,7 +151,7 @@ struct DenQuest {
 // ponytail: one player — the rewarded list (rec+0x1c) is a bool, the
 // party share of the kill (LAB_00590e70) is left out.
 struct BurialQuest {
-    static constexpr int kQuest = 2, kKashya = 150, kBurial = 17, kBloodRaven = 267;
+    static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = level_ids::kBurialGrounds, kBloodRaven = monster_ids::kBloodRaven;
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
     int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
     int log = 0;        // +0xb
@@ -179,15 +187,15 @@ struct BurialQuest {
     }
     // What `npc` says about it (FUN_00590b10): blocks at 0x736ce8 by the
     // state (0x737180: -1, 0, 1, 2, 3, 4).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kKashya, 81, true } },
+        { { kKashya, 82, false }, { 155, 86, false }, { 154, 83, false }, { 148, 85, false }, { 147, 84, false } },
+        { { kKashya, 87, false }, { 155, 91, false }, { 154, 89, false }, { 148, 88, false }, { 147, 90, false } },
+        { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
+        { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kKashya, 81, true } },
-            { { kKashya, 82, false }, { 155, 86, false }, { 154, 83, false }, { 148, 85, false }, { 147, 84, false } },
-            { { kKashya, 87, false }, { 155, 91, false }, { 154, 89, false }, { 148, 88, false }, { 147, 90, false } },
-            { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
-            { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
-        };
         int block = -1;
         if (qbit(quest_bits, kQuest, 1)) block = 3;
         else if (rewarded) block = 4;
@@ -254,7 +262,8 @@ struct BurialQuest {
 // ponytail: one player — the Cain / Akara / Kashya lists (+0x000 / +0x084
 // / +0x108) and the rewarded list (rec+0x1c) are a bool each for them.
 struct AndyQuest {
-    static constexpr int kQuest = 6, kCain = 265, kAkara = 148, kKashya = 150, kWarriv = 155, kAndariel = 156, kLair = 37, kLut = 40;
+    static constexpr int kQuest = 6, kCain = monster_ids::kCampCain, kAkara = monster_ids::kAkara, kKashya = monster_ids::kKashya,
+                         kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel;
     int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
     int log = 0;        // +0xb
     int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
@@ -295,15 +304,15 @@ struct AndyQuest {
     }
     // What `npc` says about it (FUN_00595e20): blocks at 0x7382e0 by the
     // state (0x7382c4: -1, 0, 1, 2, 3, 4).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kCain, 166, true } },
+        { { kAkara, 168, false }, { kKashya, 172, false }, { 154, 169, false }, { kCain, 167, false }, { 147, 170, false }, { kWarriv, 171, false } },
+        { { kKashya, 178, false }, { kWarriv, 177, false }, { 147, 175, false }, { kCain, 173, false }, { 154, 176, false }, { kAkara, 174, false } },
+        { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
+        { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kCain, 166, true } },
-            { { kAkara, 168, false }, { kKashya, 172, false }, { 154, 169, false }, { kCain, 167, false }, { 147, 170, false }, { kWarriv, 171, false } },
-            { { kKashya, 178, false }, { kWarriv, 177, false }, { 147, 175, false }, { kCain, 173, false }, { 154, 176, false }, { kAkara, 174, false } },
-            { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
-            { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
         const bool listed = (npc == kCain && cain) || (npc == kAkara && akara) || (npc == kKashya && kashya);
         const bool cak = npc == kCain || npc == kAkara || npc == kKashya;
@@ -346,12 +355,12 @@ struct AndyQuest {
     // The player went from level `from` to `to` (FUN_00596010).
     void enter(QuestBits& quest_bits, int from, int to) {
         if (to < 34 || to > 37) {
-            if (state == 4 && to == kLut) state = 5;
+            if (state == 4 && to == level_ids::kLutGholein) state = 5;
             else if (from == 1 && state == 2 && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
             return;
         }
         if (state <= 2) state = 3;
-        if (to == kLair && log < 2) log = 1;
+        if (to == level_ids::kCatacombsLevel4 && log < 2) log = 1;
         mark(quest_bits);
     }
     // Andariel died (FUN_005965a0). True: the player's kill for the quest
@@ -381,7 +390,7 @@ struct AndyQuest {
 // the party's bits, the voices and the quest-item-gone rewind (+0xc4,
 // FUN_00592c80: d2d's scrolls only go by the quest) are left out.
 struct CainQuest {
-    static constexpr int kQuest = 4, kAkara = 148, kCain = 146, kCampCain = 265, kTown = 1, kStony = 4, kTristram = 38, kLut = 40;
+    static constexpr int kQuest = 4, kAkara = monster_ids::kAkara, kCain = monster_ids::kCain, kCampCain = monster_ids::kCampCain, kStony = level_ids::kStonyField, kTristram = level_ids::kTristram;
     int state = 0;      // +0xc: 0 init, 1 open, 2 Akara told, 3 out of town, 4 scroll, 5 deciphered / stones, 6 done, 7 the Rogues got him
     int log = 0;        // +0xb
     bool active = true; // rec+9: closed at join by bit 0 or 15 (FUN_00544410)
@@ -428,20 +437,20 @@ struct CainQuest {
     // state (0x737648: -1, 0, 1, 2, 3, 4).
     // ponytail: the bkd a player still carries once the stones are done
     // isn't taken here (the fifth stone took the only one).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[10] = {
+        { { kAkara, 97, true } },
+        { { kAkara, 99, false }, { 150, 98, false }, { 154, 100, false }, { 147, 102, false }, { 155, 101, false } },
+        { { 150, 105, false }, { 155, 107, false }, { 154, 103, false }, { kAkara, 104, false }, { 147, 106, false } },
+        { { 150, 108, false }, { 155, 111, false }, { 154, 109, false }, { kAkara, 112, true }, { 147, 110, false } },
+        { { 150, 113, false }, { 155, 116, false }, { 154, 114, false }, { kAkara, 117, false }, { 147, 115, false } },
+        { { 150, 119, false }, { 155, 122, false }, { 154, 121, false }, { kCampCain, 123, true }, { kAkara, 118, true }, { 147, 120, false } },
+        { { kCampCain, 125, true } },
+        { { kCampCain, 123, false }, { kAkara, 118, false }, { 147, 120, false } },
+        { { kCampCain, 125, false } },
+        { { kCain, 124, true } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[10] = {
-            { { kAkara, 97, true } },
-            { { kAkara, 99, false }, { 150, 98, false }, { 154, 100, false }, { 147, 102, false }, { 155, 101, false } },
-            { { 150, 105, false }, { 155, 107, false }, { 154, 103, false }, { kAkara, 104, false }, { 147, 106, false } },
-            { { 150, 108, false }, { 155, 111, false }, { 154, 109, false }, { kAkara, 112, true }, { 147, 110, false } },
-            { { 150, 113, false }, { 155, 116, false }, { 154, 114, false }, { kAkara, 117, false }, { 147, 115, false } },
-            { { 150, 119, false }, { 155, 122, false }, { 154, 121, false }, { kCampCain, 123, true }, { kAkara, 118, true }, { 147, 120, false } },
-            { { kCampCain, 125, true } },
-            { { kCampCain, 123, false }, { kAkara, 118, false }, { 147, 120, false } },
-            { { kCampCain, 125, false } },
-            { { kCain, 124, true } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13), b14 = qbit(quest_bits, kQuest, 14);
         int block = -1;
         if (npc == kCampCain && !thanked && b13) block = 5;
@@ -502,13 +511,13 @@ struct CainQuest {
     bool enter(QuestBits& quest_bits, int from, int to) {
         if (to == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
         const bool fresh = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
-        if (from == kTown) {
+        if (from == level_ids::kRogueEncampment) {
             rewarded = missed = false;
             // ponytail: marked now, not at the next event 4 (FUN_00592e20)
             if (fresh && state == 2) { state = 3; mark(quest_bits); }
         }
-        if (to == kTown) return camp_spawn();
-        if (to == kLut && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
+        if (to == level_ids::kRogueEncampment) return camp_spawn();
+        if (to == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
         return false;
     }
     // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
@@ -602,7 +611,7 @@ struct CainQuest {
 // cellar-5 list and party passes are left out; rec+9 (active) is taken as
 // always set, so the tome never starts read (InitFn 4, FUN_00595a00).
 struct TowerQuest {
-    static constexpr int kQuest = 5, kTower = 20, kCellar = 25, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
+    static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
     // Param1, Param2, Param3).
     static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5;
@@ -648,14 +657,14 @@ struct TowerQuest {
     }
     // What `npc` says about it (FUN_00594c50): blocks at 0x737ed8 by the
     // state (0x7382ac: -1, -1, 0, 1, 2, 3, -1).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[4] = {
+        { { 265, 131, false }, { 154, 129, false }, { 148, 130, false }, { 155, 132, false }, { 150, 133, false }, { 147, 128, false } },
+        { { 150, 134, false }, { 155, 136, false }, { 154, 137, false }, { 148, 138, false }, { 265, 135, false }, { 147, 139, false } },
+        { { 150, 140, true }, { 155, 141, true }, { 265, 145, true }, { 154, 144, true }, { 148, 143, true }, { 147, 142, true } },
+        { { 150, 140, false }, { 155, 141, false }, { 265, 145, false }, { 154, 144, false }, { 148, 143, false }, { 147, 142, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[4] = {
-            { { 150, 133, false }, { 155, 132, false }, { 154, 129, false }, { 148, 130, false }, { 265, 131, false }, { 147, 128, false } },
-            { { 150, 134, false }, { 155, 136, false }, { 154, 137, false }, { 148, 138, false }, { 265, 135, false }, { 147, 139, false } },
-            { { 150, 140, true }, { 155, 141, true }, { 154, 144, true }, { 148, 143, true }, { 265, 145, true }, { 147, 142, true } },
-            { { 150, 140, false }, { 155, 141, false }, { 154, 144, false }, { 148, 143, false }, { 265, 145, false }, { 147, 142, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
         if (b0 && !b13) return {};
         if (state > 3 && !due && !told) return {};
@@ -671,7 +680,7 @@ struct TowerQuest {
     // The balloon over `npc` (FUN_005952c0): the success talk's due, not
     // with Warriv or Gheed.
     [[nodiscard]] bool alert(const QuestBits&, int npc) const {
-        return due && (npc == 150 || npc == 154 || npc == 148 || npc == 265);
+        return due && (npc == monster_ids::kKashya || npc == monster_ids::kCharsi || npc == monster_ids::kAkara || npc == monster_ids::kCampCain);
     }
     // The player heard `string` from `npc` (FUN_00594960). True: the first
     // success talk after the kill — the chain opens (rec+0xf0, FUN_00595240
@@ -687,7 +696,8 @@ struct TowerQuest {
             else if (changed) mark(quest_bits);
             return false;
         }
-        const bool town = npc == 154 || npc == 150 || npc == 265 || npc == 155 || npc == 148 || npc == 147;
+        const bool town = npc == monster_ids::kCharsi || npc == monster_ids::kKashya || npc == monster_ids::kCampCain || npc == monster_ids::kWarriv
+                       || npc == monster_ids::kAkara || npc == monster_ids::kGheed;
         if (!town || string < 140 || string > 145) return false;
         bool chain = false;
         if (qbit(quest_bits, kQuest, 13) && first_talk) { first_talk = false; state = 5; chain = true; }
@@ -738,7 +748,7 @@ struct TowerQuest {
 // count (+0x9c) and the reset when the last carrier loses it (0x5918d0,
 // events 6 / 9) are left out.
 struct ToolsQuest {
-    static constexpr int kQuest = 3, kCharsi = 154, kClvl = 8, kStand = 21;   // kStand: the stand's OperateFn
+    static constexpr int kQuest = 3, kCharsi = monster_ids::kCharsi, kClvl = 8, kStand = operate_fn::kMalusStand;
     int state = 0;           // +0xc: 0 closed, 1 open, 2 Charsi gave it, 3 out of town, 4 the malus dropped, 5 returned
     int log = 0;             // +0xb
     bool active = true;      // +9: off when the player joins with it done or closed (FUN_00546270)
@@ -770,15 +780,15 @@ struct ToolsQuest {
     // What `npc` says about it (FUN_005916a0): holding the malus at clvl
     // 8+, block 3 (Charsi's "the malus!"); else the block for the state
     // (0x737630: -1, 0, 1, 2, 3, 4; state 4 skipped). Blocks at 0x737198.
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kCharsi, 146, true } },
+        { { 148, 148, false }, { 150, 149, false }, { 265, 147, false }, { kCharsi, 150, false }, { 147, 151, false }, { 155, 153, false } },
+        { { 150, 156, false }, { 155, 159, false }, { kCharsi, 157, false }, { 265, 154, false }, { 148, 155, false }, { 147, 158, false } },
+        { { 150, 162, false }, { 155, 165, false }, { kCharsi, 163, true }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+        { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool holding, int clvl) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kCharsi, 146, true } },
-            { { 148, 148, false }, { 150, 149, false }, { 265, 147, false }, { kCharsi, 150, false }, { 147, 151, false }, { 155, 153, false } },
-            { { 150, 156, false }, { 155, 159, false }, { kCharsi, 157, false }, { 265, 154, false }, { 148, 155, false }, { 147, 158, false } },
-            { { 150, 162, false }, { 155, 165, false }, { kCharsi, 163, true }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
-            { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0);
         if (b0 && !qbit(quest_bits, kQuest, 13)) return {};
         int block = -1;

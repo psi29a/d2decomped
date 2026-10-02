@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp — Blizzard BNUpdate delta patches (the compressed entries of
 // LODPatch_114d.exe and friends).
 //

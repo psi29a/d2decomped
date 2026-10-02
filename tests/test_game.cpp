@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The game runs on its own: components/game needs nothing from the client
 // (apps/d2d: SDL, sound, sprites, fonts), so a standalone server links
 // just this library. With the game's MPQs (D2_MPQ_DIR, as test_outdoor)
@@ -6,6 +7,7 @@
 #include <character_store.hpp>
 #include <drops.hpp>
 #include <gamedata_load.hpp>
+#include <item_text.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -116,6 +118,56 @@ int main() {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+    {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
+        auto seed = world.fight.spawning.game;
+        d2d::rules::Rng unit{ seed.next() };
+        const int coins = d2d::rules::gold_amount(10, 0, unit);
+        world.loot.put({ .code = "gld" }, world.player.x, world.player.y, 10, world.fight.spawning.game, 27 * kTickMs, false, 50);
+        assert(!world.loot.ground.empty() && world.loot.ground.back().gold == coins * 150 / 100);
+        world.loot.ground.pop_back();
+    }
+
+    // Gear: a set piece's bonus list 0 is on with two of its set worn;
+    // charms in the inventory count, ones in the stash don't.
+    {
+        const auto& sets = data->rules.sets;
+        std::size_t first = 0, second = 1;
+        for (; first < sets.size(); ++first) {
+            for (second = first + 1; second < sets.size() && sets[second].set != sets[first].set; ++second) {}
+            if (second < sets.size()) break;
+        }
+        assert(second < sets.size());
+        auto piece = [](std::size_t set_id, int slot) {
+            d2d::d2s::Item worn;
+            worn.quality = 5; worn.set_id = int(set_id); worn.location = 1; worn.slot = slot;
+            return worn;
+        };
+        std::vector<d2d::d2s::Item> gear{ piece(first, 1), piece(second, 3), {} };
+        gear[0].set_props = { { 0, 0, 15 } }; gear[0].set_lists = 1; gear[0].set_list_sizes = { 1 };
+        gear[2].code = "cm1"; gear[2].panel = 1; gear[2].props = { { 80, 0, 20 } };
+        auto total = [&](int stat) {
+            int sum = 0;
+            for (const auto& prop : gear_props(*data, gear)) if (prop.stat == stat) sum += prop.value;
+            return sum;
+        };
+        assert(total(0) == 15 && total(80) == 20);
+        assert(wearer(*data, 0, gear, character.stats).str == int(character.stats.get(d2d::d2s::kStr)) + 15);
+        gear[1].slot = 0; gear[2].panel = 5;                      // one piece worn, the charm stashed
+        assert(total(0) == 0 && total(80) == 0);
+    }
+
+    // A healer's / well's cure (FUN_00578d30 / FUN_00585720): poison and the
+    // curses go, chill stays; a thawing potion's takes the chill.
+    auto& fight = world.fight;
+    const auto poisoned = [&] { return std::ranges::any_of(fight.regen, &Fight::Regen::poison); };
+    fight.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
+    fight.amplified[0] = fight.chilled = 1000 * kTickMs;
+    assert(fight.cure(26 * kTickMs) && !poisoned() && fight.amplified[0] == 0 && fight.chill_rate(26 * kTickMs) == -50);
+    assert(!fight.cure(26 * kTickMs));
+    fight.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
+    fight.potion("yps", 26 * kTickMs);
+    fight.potion("wms", 26 * kTickMs);
+    assert(!poisoned() && fight.chill_rate(26 * kTickMs) == 0);
 
     // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
     // comes out, walks off, opens his portal, walks back in: camp Cain due.
@@ -124,7 +176,7 @@ int main() {
     const auto* tristram = data->level(d2d::rules::CainQuest::kTristram);
     d2d::game::populate_level(*data, world.fight.spawning, *tristram);   // its rooms up: the Gibbet made
     const auto gibbet = std::ranges::find(tristram->npcs, 10, &Npc::operate_fn);
-    const auto cain_npc = std::ranges::find(tristram->npcs, d2d::rules::CainQuest::kCain, &Npc::hc_idx);
+    const auto cain_npc = std::ranges::find(tristram->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
     assert(gibbet != tristram->npcs.end() && cain_npc != tristram->npcs.end());
     const auto cain_index = std::size_t(cain_npc - tristram->npcs.begin());
     const auto* camp = world.level;
@@ -157,5 +209,56 @@ int main() {
     for (std::uint32_t tick = 800; tick < 800 + 60 && world.cain_walk.npc >= 0; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
     assert(world.cain_walk.npc < 0 && world.cain_walk.stage == 3 && world.cain_walk.spot_x == spot_x + 403 && world.cain_walk.spot_y == spot_y + 403 && !world.cain_portal.level);
     std::printf("OK: a spot with no room moves on 3 and opens no portal\n");
+
+    // Hover text (FUN_0048dd90), top line first, for a level 1 Amazon:
+    // a plain short sword and cap.
+    if (patch) {
+        const d2d::rules::Wearer amazon{ 0, 20, 25, 1 };
+        auto text = [&](const d2d::d2s::Item& item, const d2d::rules::Wearer* wearer) {
+            std::string joined;
+            for (const auto& line : item_lines(*data, item, 1, wearer)) joined += line.text + "|";
+            return joined;
+        };
+        d2d::d2s::Item sword{ .code = "ssd" };
+        sword.identified = true; sword.quality = 2; sword.durability = sword.max_durability = 24;
+        d2d::d2s::Item cap{ .code = "cap" };
+        cap.identified = true; cap.quality = 2; cap.defense = 3; cap.durability = cap.max_durability = 12;
+        assert(text(sword, &amazon) == "Short Sword|One-Hand Damage: 2 to 7|Durability: 24 of 24|Sword Class - Fast Attack Speed|");
+        assert(text(sword, nullptr) == "Short Sword|One-Hand Damage: 2 to 7|Durability: 24 of 24|");   // no player: no speed line
+        assert(text(cap, &amazon) == "Cap|Defense: 3|Durability: 12 of 12|");
+        // +50% defense: the number blue after "Defense: ".
+        cap.props.push_back({ .stat = 16, .value = 50 });
+        const auto cap_lines = item_lines(*data, cap, 1, &amazon);
+        assert(cap_lines[1].text == "Defense: 4" && cap_lines[1].split == 9 && cap_lines[1].tail == kTxtBlue);
+        std::printf("OK: hover text of a short sword and a cap\n");
+    }
+
+    // A Blood Moor shrine (FUN_00583c70): stamina (row 14) fills stamina,
+    // its message overhead, its sound; a resist (row 8) ends it (one
+    // shrine state: stamina filled again, FUN_00583a40) for 3600 frames.
+    const auto* moor = data->level(2);
+    d2d::game::populate_level(*data, world.fight.spawning, *moor);
+    const auto shrine = std::ranges::find(moor->npcs, 2, &Npc::operate_fn);
+    assert(shrine != moor->npcs.end());
+    const auto shrine_index = int(shrine - moor->npcs.begin());
+    world.level = moor;
+    world.swap_npcs(tristram);
+    auto& stats = world.character.stats.values;
+    stats[d2d::d2s::kStamina] = 0;
+    world.cues.due.clear();
+    world.operate(shrine_index, 900 * kTickMs, 14);
+    assert(stats[d2d::d2s::kStamina] == stats[d2d::d2s::kMaxStamina] && world.shrine_code(world.fight.boost.shrine) == 14);
+    assert(std::ranges::count(world.cues.due, data->sound_index.at("shrine_recharge"), &Cues::Cue::sound) == 1);
+    world.tick({}, 901 * kTickMs, 900 * kTickMs);
+    assert(world.npc_states[std::size_t(shrine_index)].says == 3683 + shrine->shrine && world.view().boost_code == 14);
+    const int fire = world.fight.player_combat.res[0];
+    stats[d2d::d2s::kStamina] = 0;
+    world.operate(shrine_index, 902 * kTickMs, 8);
+    world.tick({}, 903 * kTickMs, 902 * kTickMs);
+    assert(stats[d2d::d2s::kStamina] == stats[d2d::d2s::kMaxStamina] && world.view().boost_code == 8);
+    assert(world.fight.player_combat.res[0] == std::min(fire + 75, int(world.character.panel.res_cap[0])) && world.fight.boost.until == (902 + 3600) * kTickMs);
+    world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
+    assert(world.fight.boost.shrine == 0 && world.fight.player_combat.res[0] == fire);
+    std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
     return 0;
 }

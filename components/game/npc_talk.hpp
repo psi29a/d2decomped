@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // NPC talk topics: MonStats hcIdx -> speech topics. game.exe 1.14d table
 // at 0x726850, 46 (DAT_0072554c) records of 22 bytes {u32 hcIdx, u8 act,
 // u32 topics*, u32 count, u32 current gossip (runtime), u8 talked

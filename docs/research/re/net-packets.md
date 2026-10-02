@@ -305,8 +305,9 @@ way the own player's life, mana and stamina arrive.
 (level) fires the level-up event (`FUN_0045d3b0` → `FUN_004c1bc0(0x47)`,
 the own player also `FUN_0045d3e0`) and refreshes the panel
 (`FUN_004c1c10`); stats 0, 2 refresh the panel. **There is no level-up
-packet**: the level arrives as stat 12. New stat / skill points
-presumably as stats 4 / 5 through 0x1d..0x1f **(?)**.
+packet**: the level arrives as stat 12, the sound as 0x2C event 2
+(char-panel.md "Level up"). New stat / skill points presumably as stats
+4 / 5 through 0x1d..0x1f **(?)**.
 
 **0x20 stat of any unit** (10; `0x45d880`): +1 type, +2 u32 id, +5 u8
 stat, +6 u32 value (set).

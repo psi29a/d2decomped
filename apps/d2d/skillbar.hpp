@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The skill bar: the left and right skill buttons on the control panel
 // and the picker a click on one opens, plus the skill hotkeys (F1-F8).
 // The chosen skills and hotkeys start from the save (header

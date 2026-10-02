@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Parse a real DC6 out of d2data.mpq and verify structure + pixel decoding.
 #include <dc6.hpp>
 #include <mpq.hpp>

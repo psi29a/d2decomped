@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Time of day and light — game.exe 1.14d. The day is ENVIRONMENT\Env.cpp,
 // the light grid the client's (0x4744b0..0x475b20).
 // docs/research/re/lighting.md.

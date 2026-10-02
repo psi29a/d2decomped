@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The Blood Moor from real game data over many map seeds: a closed
 // border, one Den of Evil, roads, grass everywhere else, and the same
 // level from the same seed. Prints one level's cells.

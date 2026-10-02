@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for fight.hpp: Fight, the combat subsystem the World owns.
 #include "fight.hpp"
 
@@ -55,6 +56,7 @@ auto Fight::new_game(int difficulty) -> void {
         mon_level = nullptr;
         area_seen.clear();
         amplified = {};
+        chilled = 0;
         kept.clear();
         next_id = 1;
         missiles.clear();
@@ -96,14 +98,35 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         if (code.empty()) return;
         const auto& potion = game_data->rules.potions.at(code);
+        // Antidote / thawing (pSpell 6): poison / chill gone.
+        // ponytail: their states' +50 resist, +10 max for len (750) aren't kept.
+        if (potion.antidote) std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; });
+        if (potion.thawing) chilled = 0;
+        if (potion.antidote || potion.thawing) { cues.cue("item_potion_drink", now_ms, player.x, player.y); return; }
         if (potion.percent) {
             character.stats.values[kLife] = std::min(character.stats.values[kMaxLife], character.stats.values[kLife] + character.stats.values[kMaxLife] * potion.life / 100);
             character.stats.values[kMana] = std::min(character.stats.values[kMaxMana], character.stats.values[kMana] + character.stats.values[kMaxMana] * potion.mana / 100);
-        } else {
-            const double len = std::max(potion.ticks, 1) * 40.0;
-            regen.push_back({ potion.life * 256.0 / len, potion.mana * 256.0 / len, now_ms + std::uint32_t(len) });
+        } else {                                       // FUN_005be3f0: into the healthpot / manapot state, with what's left of it
+            const bool life = potion.life > 0;
+            const int stat = int(character.stats.get(life ? kVit : kEne) + character.panel.bonus[life ? kVit : kEne]);
+            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, character.character_class, life, stat, rng);
+            auto state = std::ranges::find_if(regen, [&](const Regen& regen_entry) { return !regen_entry.poison && (life ? regen_entry.life > 0 : regen_entry.mana > 0); });
+            if (state == regen.end()) state = regen.insert(regen.end(), Regen{});
+            const int left = state->until > now_ms ? int((state->until - now_ms) / 40) : 0;
+            const int len = std::max(potion.ticks, 1);
+            const int rate = d2d::rules::potion_rate(int(std::lround((life ? state->life : state->mana) * 40.0)), left, amount, len);
+            (life ? state->life : state->mana) = rate / 40.0;
+            state->until = now_ms + std::uint32_t(left + len) * 40;
         }
         cues.cue("item_potion_drink", now_ms, player.x, player.y);
+    }
+
+auto Fight::cure(std::uint32_t now_ms) -> bool {
+        const bool cursed = now_ms < amplified[0];
+        const bool poisoned = std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
+        amplified = {};
+        if (merc && merc_life > 0) merc_life = merc_st.life;
+        return cursed || poisoned;
     }
 
 auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
@@ -159,7 +182,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         const auto& anim = player_anim(mode);
         std::uint32_t len = anim.length_ms();
         if (attack_mode(mode) && anim.frames) {
-            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), player_combat.ias, player_combat.wsm);
+            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
             len = std::uint32_t(ticks) * 40;
         } else if ((mode == kModeGH || mode == kModeBL || mode == kModeSC) && anim.frames) {
             const int stat = mode == kModeGH ? player_combat.fhr : mode == kModeBL ? player_combat.fbr : player_combat.fcr;
@@ -176,23 +199,25 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
                                                      d2d::rules::StatSum* sum_out ) const -> d2d::rules::Fighter {
+        using namespace d2d::d2s;
         d2d::rules::StatSum sum = states ? *states : d2d::rules::StatSum{}, weapon_sum{};
         const d2d::d2s::Item *weapon = nullptr, *shield = nullptr, *boots = nullptr;
         auto add = [](d2d::rules::StatSum& into, const std::vector<d2d::d2s::ItemProp>& props) {
             for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
         };
         for (const auto& item : character.items) {
-            const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-            const bool charm = item.location == 0 && item.panel == 1 && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
+            const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+            const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
             if (!worn && !charm) continue;
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
-            if (worn && item.slot == 9) boots = &item;
-            if (!worn || (item.slot != 4 && item.slot != 5)) continue;
+            add(sum, set_bonus_props(*game_data, character.items, item));
+            if (worn && item.slot == d2d::d2s::body_location::kFeet) boots = &item;
+            if (!worn || (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm)) continue;
             const auto found = game_data->rules.item_base.find(item.code);
             const auto info = game_data->rules.item_info.find(item.code);
             if (found == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()) continue;
-            if (info->second.kind == 2 && (!weapon || item.slot == 4)) weapon = &item;
+            if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm)) weapon = &item;
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
         if (passives) {
@@ -202,21 +227,23 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             };
             std::vector<std::string> hands;                  // the types in slots 4 / 5
             for (const auto& item : character.items)
-                if (item.location == 1 && (item.slot == 4 || item.slot == 5)) hands.push_back(type_of(item));
+                if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)) hands.push_back(type_of(item));
             const auto is_type = [&](const std::string& type, const std::string& want) { return d2d::rules::type_is(game_data->rules, type, want); };
             const bool claws2 = hands.size() == 2 && is_type(hands[0], "h2h") && is_type(hands[1], "h2h");
             std::array<std::int64_t, 4> best{};              // 342, 343, 344, 348
             for (const auto& passive : *passives) {
                 if (passive.stat < 0 || std::size_t(passive.stat) >= sum.size()) continue;
                 if (passive.itype.empty()) { sum[std::size_t(passive.stat)] += passive.value; continue; }
-                const std::size_t mastery = passive.stat >= 342 && passive.stat <= 344 ? std::size_t(passive.stat - 342) : passive.stat == 348 ? 3 : 4;
+                const std::size_t mastery = passive.stat >= kPassiveMasteryMeleeToHit && passive.stat <= kPassiveMasteryMeleeCritical
+                                            ? std::size_t(passive.stat - kPassiveMasteryMeleeToHit)
+                                            : passive.stat == kPassiveWeaponBlock ? 3 : 4;
                 if (mastery == 4) continue;
                 const bool fits = mastery < 3 ? weapon && is_type(type_of(*weapon), passive.itype)
                                         : claws2 && std::ranges::any_of(hands, [&](const auto& hand_type) { return is_type(hand_type, passive.itype); });
                 if (fits) best[mastery] = std::max<std::int64_t>(best[mastery], passive.value);
             }
-            for (std::size_t k = 0; k < 3; ++k) sum[342 + k] += best[k];
-            sum[348] += best[3];
+            for (std::size_t k = 0; k < 3; ++k) sum[kPassiveMasteryMeleeToHit + k] += best[k];
+            sum[kPassiveWeaponBlock] += best[3];
         }
         if (weapon) {                                        // its own enhanced damage (op 13), sockets included
             add(weapon_sum, weapon->props);
@@ -228,6 +255,12 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, character.stats, gains,
                                           int(character.panel.defense), res, boots);
+        {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
+            const int diff = character.header.active_difficulty();
+            const std::int64_t penalty = character.header.expansion() ? game_data->resist_penalty[std::size_t(diff)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
+            fighter.plr = int(std::clamp<std::int64_t>(sum[kPoisonLengthReduction] + penalty, -100, 75));
+        }
+        fighter.half_freeze = sum[kHalfFreezeDuration] > 0; fighter.cannot_freeze = sum[kCannotBeFrozen] > 0;
         if (kick) {                                          // the weapon's stats off, its attack rating kept
             auto bare = sum;
             for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= weapon_sum[i];
@@ -240,23 +273,24 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
     }
 
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
+        using namespace d2d::d2s;
         std::erase_if(self_states, [&](const SelfState& state) { return now_ms >= state.until; });
         d2d::rules::StatSum st_sum{};
         const auto env = calc_env();
         const auto passives = d2d::rules::passive_stats(game_data->skills, env);
         character.panel = panel_stats(*game_data, character.header, character.items, character.stats, &passives);
         auto states = self_states;
-        if (const auto* skill = game_data->skills.get(aura); skill && skill->srvdofunc == 65) states.push_back({ aura, skill_level ? skill_level(aura) : 1, ~0u });
+        if (const auto* skill = game_data->skills.get(aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura) states.push_back({ aura, skill_level ? skill_level(aura) : 1, ~0u });
         // A totem's aura (Oak Sage, Heart of Wolverine, Spirit of Barbs: do
         // 65) while the player is within its aurarange of it.
         for (const auto& pet : pets)
-            if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == 65 && pet.monster.alive() && pet.where == level
+            if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura && pet.monster.alive() && pet.where == level
                 && std::hypot(pet.monster.unit.x - player.x, pet.monster.unit.y - player.y) * 5 <= float(calc(*skill, skill->aurarange, pet.aura_level)))
                 states.push_back({ pet.aura, pet.aura_level, ~0u });
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
             for (std::size_t i = 0; skill && i < skill->aurastat.size(); ++i)
-                if (const int id = skill->aurastat[i]; id >= 0 && id != 6 && std::size_t(id) < st_sum.size())
+                if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
         if (now_ms < boost.until)
@@ -264,9 +298,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         // Battle Orders (item_maxhp_percent 76, item_maxmana_percent 77): the
         // maxima up while it lasts, life and mana with them.
         {
-            using namespace d2d::d2s;
             const std::int64_t base_life = character.stats.values[kMaxLife] - bo_life, base_mana = character.stats.values[kMaxMana] - bo_mana;
-            const std::int64_t want_life = base_life * st_sum[76] / 100, want_mana = base_mana * st_sum[77] / 100;
+            const std::int64_t want_life = base_life * st_sum[kMaxLifePercent] / 100, want_mana = base_mana * st_sum[kMaxManaPercent] / 100;
             character.stats.values[kMaxLife] += want_life - bo_life; character.stats.values[kLife] = std::min(character.stats.values[kLife] + std::max<std::int64_t>(want_life - bo_life, 0), character.stats.values[kMaxLife]);
             character.stats.values[kMaxMana] += want_mana - bo_mana; character.stats.values[kMana] = std::min(character.stats.values[kMana] + std::max<std::int64_t>(want_mana - bo_mana, 0), character.stats.values[kMaxMana]);
             bo_life = want_life; bo_mana = want_mana;
@@ -274,7 +307,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             // the maxima follow what's worn; life and mana don't rise with
             // them, only stay under them.
             constexpr std::array<std::pair<int, int>, 3> kMax{ { { kMaxLife, kLife }, { kMaxMana, kMana }, { kMaxStamina, kStamina } } };
-            constexpr std::array<std::size_t, 3> kBonus{ 7, 9, 11 };
+            constexpr std::array<std::size_t, 3> kBonus{ kMaxLife, kMaxMana, kMaxStamina };
             for (std::size_t k = 0; k < 3; ++k) {
                 const std::int64_t want = character.panel.bonus[kBonus[k]] * 256;
                 auto& maximum = character.stats.values[std::size_t(kMax[k].first)];
@@ -284,14 +317,21 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             }
         }
         player_combat = player_fighter(&pf_kick, &st_sum, &passives, &psum);
-        constexpr int kRes[4] = { 39, 41, 43, 45 };          // Fighter::res order: fire, lightning, cold, poison
-        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's on top of the panel's (Salvation, Resist Fire, ...)
-            if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0) player_combat.res[k] = int(std::min<std::int64_t>(player_combat.res[k] + value, 95));
-        player_combat.ias += int(st_sum[68]);
-        player_combat.frw += int(st_sum[67]);
-        for (const auto& passive : passives) if (passive.stat == 67 && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed
-        player_combat.defense += int(player_combat.defense * st_sum[171] / 100);
-        player_combat.defense = std::max(int(player_combat.defense + player_combat.defense * st_sum[182] / 100), 0);
+        constexpr int kRes[4] = { kFireResist, kLightningResist, kColdResist, kPoisonResist };          // Fighter::res order: fire, lightning, cold, poison
+        constexpr std::size_t kPanelRes[4] = { 0, 2, 1, 3 };  // PanelStats::res_cap order: fire, cold, lightning, poison
+        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's or shrine's on top of the panel's (Salvation, Resist Fire, ...), to its cap
+            if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0)
+                player_combat.res[k] = int(std::min<std::int64_t>(player_combat.res[k] + value, character.panel.res_cap[kPanelRes[k]]));
+        player_combat.ias += int(st_sum[kAttackRate]);
+        player_combat.frw += int(st_sum[kVelocityPercent]);
+        for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) player_combat.frw += passive.value;   // Increased Speed
+        player_combat.defense += int(player_combat.defense * st_sum[kSkillArmorPercent] / 100);
+        player_combat.defense = std::max(int(player_combat.defense + player_combat.defense * st_sum[kArmorOverridePercent] / 100), 0);
+        const std::uint32_t chosen[2] = { character.header.left_skill, character.header.right_skill };
+        for (std::size_t k = 0; k < 2; ++k)
+            if (const auto* skill = game_data->skills.get(int(chosen[k])))
+                character.panel.attack[k] = d2d::rules::attack_line(game_data->skills, *skill, env, skill_level ? skill_level(skill->id) : 1,
+                                                                    player_combat, int(psum[kPassiveMasteryMeleeToHit]));
     }
 
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
@@ -309,7 +349,7 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
                 if (std::ranges::find(told, attack_skill) == told.end()) {
                     told.push_back(attack_skill);
                     d2d::log::info("not implemented: skill {} (srvstfunc {}, srvdofunc {}) - a plain attack for now",
-                                   skill->name, skill->srvstfunc, skill->srvdofunc);
+                                   skill->name, int(skill->srvstfunc), int(skill->srvdofunc));
                 }
             } else {
                 const int lvl = skill_level ? skill_level(attack_skill) : 0;
@@ -317,10 +357,10 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
                 if (lvl > 0 && character.stats.values[kMana] >= cost) {
                     character.stats.values[kMana] -= cost;
                     swing_skill = attack_skill;
-                    if (skill->srvstfunc == 24 || skill->srvstfunc == 37 || skill->srvstfunc == 9) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
+                    if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvstfunc == ServerStartFunction::kRepeatedHit || skill->srvstfunc == ServerStartFunction::kFend) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
                         const auto env = calc_env();
                         int value = d2d::rules::eval_calc(game_data->skills, skill->calc[0], env, skill->id, lvl);
-                        if (skill->srvstfunc == 9) value = std::min(value, int(in_reach().size()));   // Fend (FUN_005dae30): one per enemy in reach (FUN_0056bc80), at most calc1
+                        if (skill->srvstfunc == ServerStartFunction::kFend) value = std::min(value, int(in_reach().size()));   // Fend (FUN_005dae30): one per enemy in reach (FUN_0056bc80), at most calc1
                         kicks_left = std::max(value, 1) - 1;
                     }
                 } else if (!skill->attack_no_mana) {
@@ -332,7 +372,7 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
         const auto* used = game_data->skills.get(swing_skill);
         set_pmode(swing_mode(), now_ms);
         start_sequence(now_ms);
-        if (used && swing_skill != 0 && used->srvdofunc == 2 && used->aurastat[0] >= 0) self_state(*used, now_ms);
+        if (used && swing_skill != 0 && used->srvdofunc == ServerDoFunction::kResolveHit && used->aurastat[0] >= 0) self_state(*used, now_ms);
         pstruck = false;
         return true;
     }
@@ -348,7 +388,7 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         seq = d2d::rules::sequence(skill->seqnum, weapon_class);
         if (seq.empty()) return;
         start_move(*skill, now_ms);
-        const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm);
+        const auto ticks = d2d::rules::attack_ticks(int(seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
         pmode_until = now_ms + std::uint32_t(ticks) * 40;
         seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(seq.size()), 1);
         prate = 1.f;
@@ -358,12 +398,12 @@ auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         smove = {};
         seq_loop = false;
         const auto cls = std::size_t(std::max(character.character_class, 0));
-        if (skill.srvdofunc == 76) {
+        if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             smove = { move_x, move_y, cells_per_sec(float(game_data->walk_velocity[cls])), true, false };
             seq_loop = true;
             pmode_until = ~0u;
             whirl_next = now_ms;
-        } else if (skill.srvdofunc == 67) {
+        } else if (skill.srvdofunc == ServerDoFunction::kCharge) {
             smove = { move_x, move_y, cells_per_sec(float(game_data->run_velocity[cls])) * float(std::max(100, 50) + skill.par[0]) / 100.f, true, false };
             seq_loop = true;                                 // the run starts over until it reaches (FUN_005cf900)
             pmode_until = ~0u;
@@ -404,18 +444,18 @@ auto Fight::swing() -> d2d::rules::Swing {
         const auto env = calc_env();
         const auto& skill_tables = game_data->skills;
         swing.ar_pct = d2d::rules::skill_tohit(skill_tables, *skill, env, lvl);
-        if (skill->srvstfunc == 23) return swing;                   // a charge-up: a plain hit at its to-hit (FUN_005d3490)
-        if (skill->srvstfunc == 27) {                            // Dragon Tail: a kick (FUN_005d7090 -> FUN_005d54b0)
+        if (skill->srvstfunc == ServerStartFunction::kChargeUp) return swing;                   // a charge-up: a plain hit at its to-hit (FUN_005d3490)
+        if (skill->srvstfunc == ServerStartFunction::kDragonTail) {                            // Dragon Tail: a kick (FUN_005d7090 -> FUN_005d54b0)
             swing.kick = true;
             return swing;
         }
-        if (skill->srvstfunc == 24) {
+        if (skill->srvstfunc == ServerStartFunction::kDragonTalon) {
             swing.kick = true;
             swing.ed_pct = d2d::rules::calc_ln(skill->par[0], skill->par[1], lvl);
             swing.skill_lo = d2d::rules::skill_phys(skill_tables, *skill, env, lvl, false);
             swing.skill_hi = d2d::rules::skill_phys(skill_tables, *skill, env, lvl, true);
             swing.knockback = kicks_left == 0;
-        } else if (skill->srvdofunc == 150) {                    // Smite (FUN_005ce9f0): calc1 ED, calc2 stun
+        } else if (skill->srvdofunc == ServerDoFunction::kSmite) {                    // Smite (FUN_005ce9f0): calc1 ED, calc2 stun
             swing.ar_pct = 0;
             swing.smite = true;
             // With Holy Shield up (state 0x65), its damage (MinDam..MaxDam
@@ -428,15 +468,15 @@ auto Fight::swing() -> d2d::rules::Swing {
             swing.ed_pct = d2d::rules::eval_calc(skill_tables, skill->calc[0], env, skill->id, lvl);
             swing.stun_ticks = d2d::rules::eval_calc(skill_tables, skill->calc[1], env, skill->id, lvl);
             swing.knockback = (skill->result_flags & 8) != 0;
-        } else if (skill->srvdofunc == 13) {                     // Zeal's hit (FUN_005dbc60): calc2 ED, no ResultFlags
+        } else if (skill->srvdofunc == ServerDoFunction::kRepeatedHit) {                     // Zeal's hit (FUN_005dbc60): calc2 ED, no ResultFlags
             swing.ed_pct = d2d::rules::eval_calc(skill_tables, skill->calc[1], env, skill->id, lvl);
             if (skill->etype >= 0 && skill->etype < 5)
                 if (const int converted = d2d::rules::eval_calc(skill_tables, skill->calc[3], env, skill->id, lvl); converted > 0) { swing.conv_type = skill->etype; swing.conv_pct = converted; }
-        } else if (skill->srvstfunc == 29) {                     // Sacrifice (FUN_005ce790): calc1 ED on the weapon's physical
+        } else if (skill->srvstfunc == ServerStartFunction::kSacrifice) {                     // Sacrifice (FUN_005ce790): calc1 ED on the weapon's physical
             swing.ed_pct = d2d::rules::eval_calc(skill_tables, skill->calc[0], env, skill->id, lvl);
             swing.srcdam = skill->srcdam;
             swing.knockback = (skill->result_flags & 8) != 0;
-        } else if (skill->srvstfunc == 35) {                     // Vengeance (FUN_005cfe10)
+        } else if (skill->srvstfunc == ServerStartFunction::kVengeance) {                     // Vengeance (FUN_005cfe10)
             swing.fire_pct = d2d::rules::eval_calc(skill_tables, skill->calc[0], env, skill->id, lvl);
             swing.cold_pct = d2d::rules::eval_calc(skill_tables, skill->calc[1], env, skill->id, lvl);
             swing.ltng_pct = d2d::rules::eval_calc(skill_tables, skill->calc[2], env, skill->id, lvl);
@@ -448,11 +488,11 @@ auto Fight::swing() -> d2d::rules::Swing {
             // Power Strike's start (FUN_005da940) passes no to-hit bonus and
             // no ResultFlags; only Bash's adds calc2 after the damage
             // (Berserk's calc2 is its state's length).
-            if (skill->srvstfunc == 6) swing.ar_pct = 0;
+            if (skill->srvstfunc == ServerStartFunction::kElementalStrike) swing.ar_pct = 0;
             swing.ed_pct = d2d::rules::eval_calc(skill_tables, skill->calc[0], env, skill->id, lvl);
-            if (skill->srvstfunc == 32 || skill->srvdofunc == 70) swing.flat = d2d::rules::eval_calc(skill_tables, skill->calc[1], env, skill->id, lvl);
+            if (skill->srvstfunc == ServerStartFunction::kBuildHit || skill->srvdofunc == ServerDoFunction::kDoubleSwing) swing.flat = d2d::rules::eval_calc(skill_tables, skill->calc[1], env, skill->id, lvl);
             swing.srcdam = skill->srcdam;
-            swing.knockback = (skill->srvstfunc != 6 && (skill->result_flags & 8) != 0) || skill->srvdofunc == 67 || skill->srvdofunc == 78;
+            swing.knockback = (skill->srvstfunc != ServerStartFunction::kElementalStrike && (skill->result_flags & 8) != 0) || skill->srvdofunc == ServerDoFunction::kCharge || skill->srvdofunc == ServerDoFunction::kLeapAttack;
             // FUN_005d7ea0 on a hit: EType stun stands the target for the
             // skill's elemental length (FUN_0056e0c0 -> FUN_0056c8e0 case
             // 9); another element with calc4 > 0 takes calc4 % of the
@@ -480,7 +520,15 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             target.poison_rate = rate;
             target.poison_until = now_ms + std::uint32_t(blow.poison_ticks) * 40;
         }
-        if (blow.chill_ticks > 0) target.chill_until = now_ms + std::uint32_t(blow.chill_ticks) * 40;
+        // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
+        // over MonsterColdDivisor when it's negative, at least a tick, only
+        // ever lengthened.
+        // ponytail: the 20 % roll for state 107 isn't kept.
+        if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
+            const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
+            const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);
+            target.chill_until = std::max(target.chill_until, now_ms + std::uint32_t(ticks) * 40);
+        }
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length.
         // ponytail: its guards aren't applied: special monsters' 90 % to
@@ -529,7 +577,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
                 // Frenzy's and Double Swing's second hand looks for another
                 // target (FUN_0056bd10 on the odd frame, FUN_005d8e00 /
                 // FUN_005d8470).
-                if (const auto* skill = game_data->skills.get(swing_skill); skill && seq_struck % 2 == 0 && (skill->srvdofunc == 9 || skill->srvdofunc == 70))
+                if (const auto* skill = game_data->skills.get(swing_skill); skill && seq_struck % 2 == 0 && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kDoubleSwing))
                     other_target();
                 if (const auto* skill = game_data->skills.get(swing_skill); skill && moving_skill(*skill)) move_event(*skill, now_ms);
                 else hit(now_ms);
@@ -549,13 +597,15 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         auto current_swing = swing();
         auto fighter = current_swing.kick ? pf_kick : player_combat;
         const auto* skill = game_data->skills.get(swing_skill);
-        const bool charging = skill && skill->srvstfunc == 23, finishing = finisher(skill);
+        const bool charging = skill && skill->srvstfunc == ServerStartFunction::kChargeUp, finishing = finisher(skill);
         std::erase_if(charges, [&](const Charge& charge) { return now_ms >= charge.until; });
         if (finishing) add_charges(fighter, current_swing);
-        if (skill && skill->srvstfunc != 35 && std::ranges::contains(std::array{ 2, 13, 64, 7, 46, 9, 70, 76, 67, 78, 32, 11, 14, 121 }, skill->srvdofunc)) skill_element(fighter, *skill);
+        if (skill && skill->srvstfunc != ServerStartFunction::kVengeance && std::ranges::contains(std::array{ ServerDoFunction::kResolveHit, ServerDoFunction::kRepeatedHit, ServerDoFunction::kSacrifice, ServerDoFunction::kJab, ServerDoFunction::kDragonClaw,
+                ServerDoFunction::kFrenzy, ServerDoFunction::kDoubleSwing, ServerDoFunction::kWhirlwind, ServerDoFunction::kCharge, ServerDoFunction::kLeapAttack,
+                ServerDoFunction::kPoisonDagger, ServerDoFunction::kChargedStrike, ServerDoFunction::kLightningStrike, ServerDoFunction::kRabies }, skill->srvdofunc)) skill_element(fighter, *skill);
         // Hunger (do 122, FUN_005c7f10): calc1 damage %, calc2 / calc3 life /
         // mana stolen.
-        if (skill && skill->srvdofunc == 122) {
+        if (skill && skill->srvdofunc == ServerDoFunction::kHunger) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             current_swing.ed_pct += calc(*skill, skill->calc[0], lvl);
             fighter.life_steal += calc(*skill, skill->calc[1], lvl); fighter.mana_steal += calc(*skill, skill->calc[2], lvl);
@@ -566,21 +616,21 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         land(target, blow, true, now_ms);
         if (blow.hit && charging) charge(*skill, now_ms);
         if (blow.hit && finishing) release(target, now_ms);
-        if (blow.hit && skill && skill->srvdofunc == 50) dragon_tail(*skill, target, blow.phys, now_ms);
-        if (blow.hit && skill && (skill->srvdofunc == 9 || skill->srvdofunc == 120)) frenzy(*skill, now_ms);   // Feral Rage / Maul stack as Frenzy
-        if (blow.hit && skill && skill->srvstfunc == 7) impale_wear(*skill);
-        if (blow.hit && skill && (skill->srvdofunc == 11 || skill->srvdofunc == 14)) strike_bolts(*skill, target, now_ms);
+        if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kDragonTail) dragon_tail(*skill, target, blow.phys, now_ms);
+        if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kStackingStrike)) frenzy(*skill, now_ms);   // Feral Rage / Maul stack as Frenzy
+        if (blow.hit && skill && skill->srvstfunc == ServerStartFunction::kImpale) impale_wear(*skill);
+        if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kChargedStrike || skill->srvdofunc == ServerDoFunction::kLightningStrike)) strike_bolts(*skill, target, now_ms);
         // Conversion (do 79): at calc1 % the monster turns for auralen frames.
         // ponytail: it doesn't fight for the player; it stops seeing the
         // player's side (as Confuse here).
-        if (blow.hit && skill && skill->srvdofunc == 79 && monsters[target].alive()) {
+        if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kConversion && monsters[target].alive()) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             if (int(rng(100)) < calc(*skill, skill->calc[0], lvl))
                 monsters[target].cry = { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 25)) * 40 };
         }
         // Sacrifice's price (FUN_005ce8e0): calc2 % of the physical dealt,
         // no more than the target had left, off the player's life.
-        if (blow.hit && skill && skill->srvdofunc == 64) {
+        if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kSacrifice) {
             const int dealt = std::min(d2d::rules::resisted(blow.phys, target_of(target).res[0]), std::max(hp_before, 0));
             const auto env = calc_env();
             self_hurt += (std::int64_t(dealt) << 8) * d2d::rules::eval_calc(game_data->skills, skill->calc[1], env, skill->id,
@@ -594,7 +644,7 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         if (found == game_data->missiles.end()) return;
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const float x = monsters[monster_index].unit.x, y = monsters[monster_index].unit.y, dx = x - player.x, dy = y - player.y;
-        if (skill.srvdofunc == 11) {
+        if (skill.srvdofunc == ServerDoFunction::kChargedStrike) {
             for (int k = 0; k < std::max(calc(skill, skill.calc[0], lvl), 1); ++k) {
                 const float angle = (float(rng(81)) - 40) * 3.14159265f / 180;
                 launch(found->second, skill, lvl, x, y, dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle),
@@ -629,7 +679,11 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
     }
 
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
-        return std::ranges::contains(std::array{ 33, 51, 20, 55, 63, 27, 30, 6, 61, 59, 71, 69, 72, 77, 21, 52, 74 }, skill.srvdofunc);
+        return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
+            ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,
+            ServerDoFunction::kConfuse, ServerDoFunction::kAttract, ServerDoFunction::kTaunt, ServerDoFunction::kFindPotion,
+            ServerDoFunction::kFindItem, ServerDoFunction::kLeap, ServerDoFunction::kTelekinesis, ServerDoFunction::kDragonFlight,
+            ServerDoFunction::kDoubleThrow }, skill.srvdofunc);
     }
 
 auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
@@ -641,7 +695,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 if (monsters[j].alive() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(radius)) each(j);
         };
         switch (skill.srvdofunc) {
-            case 33:
+            case ServerDoFunction::kPsychicHammer:
                 if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
                     const auto monster_index = std::size_t(attack_mon);
                     auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng);
@@ -649,10 +703,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                     land(monster_index, blow, true, now_ms);
                 }
                 break;
-            case 51:
+            case ServerDoFunction::kMindBlast:
                 within(cast_x, cast_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) { land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms); });
                 break;
-            case 20: {
+            case ServerDoFunction::kStaticField: {
                 const int pct = calc(skill, skill.calc[0], lvl);
                 within(player.x, player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     d2d::rules::Blow blow{ .hit = true };
@@ -661,12 +715,12 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 });
                 break;
             }
-            case 55: case 63: {
+            case ServerDoFunction::kCorpseExplosion: case ServerDoFunction::kPoisonExplosion: {
                 const int corpse_index = corpse_near(cast_x, cast_y);
                 if (corpse_index < 0) break;
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
-                if (skill.srvdofunc == 63) {
+                if (skill.srvdofunc == ServerDoFunction::kPoisonExplosion) {
                     if (const auto found = game_data->missiles.find(skill.srvmissilea); found != game_data->missiles.end())
                         launch(found->second, skill, lvl, corpse.unit.x, corpse.unit.y, 0, 0, found->second.range, now_ms);
                     break;
@@ -674,7 +728,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 corpse_blast(skill, lvl, std::size_t(corpse_index), now_ms);
                 break;
             }
-            case 27: case 77: case 52: {
+            case ServerDoFunction::kTeleport: case ServerDoFunction::kLeap: case ServerDoFunction::kDragonFlight: {
                 // Teleport; Leap (FUN_... do 77: the jump, then knockback
                 // round the landing within aurarange); Dragon Flight (do 52:
                 // next to the monster, then a kick).
@@ -682,7 +736,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 // no flight); Leap's range (calc1) isn't checked.
                 float target_x = cast_x, target_y = cast_y;
                 const int tgt = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() ? attack_mon : -1;
-                if (skill.srvdofunc == 52) {
+                if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
                     if (tgt < 0) break;
                     const auto& target = monsters[std::size_t(tgt)];
                     const float dx = player.x - target.unit.x, dy = player.y - target.unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
@@ -692,13 +746,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 player.x = target_x; player.y = target_y;
                 player.path.clear(); player.walking = false;
                 player.goal_x = target_x; player.goal_y = target_y;
-                if (skill.srvdofunc == 77)
+                if (skill.srvdofunc == ServerDoFunction::kLeap)
                     within(target_x, target_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                         d2d::rules::Blow blow{ .hit = true };
                         blow.knockback = true;
                         land(monster_index, blow, true, now_ms);
                     });
-                if (skill.srvdofunc == 52) {
+                if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
                     d2d::rules::Swing swing;
                     swing.kick = true;
                     land(std::size_t(tgt), d2d::rules::player_blow(pf_kick, target_of(std::size_t(tgt)), int(character.stats.get(d2d::d2s::kLevel)), rng, swing),
@@ -706,7 +760,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 }
                 break;
             }
-            case 21:                                         // Telekinesis (do 21): its damage and a knockback on the monster
+            case ServerDoFunction::kTelekinesis:                                         // Telekinesis (do 21): its damage and a knockback on the monster
                 if (attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive()) {
                     auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(attack_mon)), pierce(), rng);
                     blow.knockback = true;
@@ -728,28 +782,28 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // target until the same end.
             // ponytail: the duration as the other curses' (auralen, not
             // FUN_005c37a0's divided calc); FUN_0056e2f0's AI test unread.
-            case 30: case 61: case 6: case 59: case 71: {
+            case ServerDoFunction::kCurse: case ServerDoFunction::kConfuse: case ServerDoFunction::kStateAroundCaster: case ServerDoFunction::kAttract: case ServerDoFunction::kTaunt: {
                 const std::uint32_t until = now_ms + std::uint32_t(std::max(calc(skill, skill.auralen, lvl), 25)) * 40;
-                const bool curse = skill.srvdofunc == 30 || skill.srvdofunc == 61 || skill.srvdofunc == 59;
+                const bool curse = skill.srvdofunc == ServerDoFunction::kCurse || skill.srvdofunc == ServerDoFunction::kConfuse || skill.srvdofunc == ServerDoFunction::kAttract;
                 const auto set = [&](Monster& monster, int kind, int id) {
                     if (game_data->monsters.types[std::size_t(monster.type)].switch_ai) monster.set_kind = kind, monster.set_id = id, monster.set_until = until;
                 };
                 auto put = [&](std::size_t monster_index) {
                     auto& monster = monsters[monster_index];
-                    if (skill.srvdofunc == 61 && monster.align) return;
+                    if (skill.srvdofunc == ServerDoFunction::kConfuse && monster.align) return;
                     (curse ? monster.curse : monster.cry) = { skill.id, lvl, until };
-                    if (skill.srvdofunc == 61) { monster.align = 1; set(monster, 3, 0); }
+                    if (skill.srvdofunc == ServerDoFunction::kConfuse) { monster.align = 1; set(monster, 3, 0); }
                 };
-                if (skill.srvdofunc == 59 || skill.srvdofunc == 71) {
-                    const bool lured = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() && (skill.srvdofunc == 71 || !monsters[std::size_t(attack_mon)].align);
+                if (skill.srvdofunc == ServerDoFunction::kAttract || skill.srvdofunc == ServerDoFunction::kTaunt) {
+                    const bool lured = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() && (skill.srvdofunc == ServerDoFunction::kTaunt || !monsters[std::size_t(attack_mon)].align);
                     if (lured) put(std::size_t(attack_mon));
-                    if (lured && skill.srvdofunc == 59) {
+                    if (lured && skill.srvdofunc == ServerDoFunction::kAttract) {
                         auto& lure = monsters[std::size_t(attack_mon)];
                         lure.align = 1;
                         within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t j) { if (!monsters[j].align) set(monsters[j], 2, lure.id); });
                     }
                 } else {
-                    within(skill.srvdofunc == 6 ? player.x : cast_x, skill.srvdofunc == 6 ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
+                    within(skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.x : cast_x, skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
                 }
                 break;
             }
@@ -757,9 +811,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // flies at the target as its missile (weapons.txt missiletype),
             // with calc1 damage % (stat 25).
             // ponytail: toht (stat 19) isn't added; no ammo is spent.
-            case 74:
+            case ServerDoFunction::kDoubleThrow:
                 for (const auto& item : character.items)
-                    if (item.location == 1 && (item.slot == 4 || item.slot == 5))
+                    if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
                         if (const auto found_thrown = game_data->thrown.find(item.code); found_thrown != game_data->thrown.end())
                             if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end())
                                 launch(found->second, skill, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y,
@@ -771,13 +825,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // a tier by Param1..4).
             // ponytail: the potion by the character's level (FUN_005d8100's
             // table isn't traced); Find Item rolls the monster's own class.
-            case 69: case 72: {
+            case ServerDoFunction::kFindPotion: case ServerDoFunction::kFindItem: {
                 const int corpse_index = corpse_near(cast_x, cast_y);
                 if (corpse_index < 0) break;
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
                 if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
-                if (skill.srvdofunc == 72) { loot.drop(corpse, spawning.game, now_ms); break; }
+                if (skill.srvdofunc == ServerDoFunction::kFindItem) { loot.drop(corpse, spawning.game, now_ms); break; }
                 const int tier = std::clamp(1 + int(character.stats.get(d2d::d2s::kLevel)) / 12, 1, 5);
                 const std::string code = rng(20) == 0 ? "rvs" : (rng(2) ? "hp" : "mp") + std::to_string(tier);
                 loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
@@ -807,7 +861,7 @@ auto Fight::skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill&
 auto Fight::self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         std::uint32_t until = pmode_until;
-        if (skill.srvstfunc == 39) {
+        if (skill.srvstfunc == ServerStartFunction::kBerserk) {
             const auto env = calc_env();
             const int ticks = d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl);
             until = now_ms + std::uint32_t(ticks > 0 ? ticks : 10) * 40;
@@ -822,8 +876,8 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
         std::erase_if(self_states, [&](const SelfState& state) { return state.skill == skill.id; });
         self_states.push_back({ skill.id, lvl, until });
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
-            if (skill.aurastat[k] == kBoneArmor) absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, absorb_skill = skill.id;
-        if (skill.srvdofunc == 47)
+            if (skill.aurastat[k] == d2d::d2s::kBoneArmor) absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, absorb_skill = skill.id;
+        if (skill.srvdofunc == ServerDoFunction::kCloakOfShadows)
             for (auto& monster : monsters)
                 if (monster.alive() && std::hypot(monster.unit.x - player.x, monster.unit.y - player.y) * 5 <= float(calc(skill, skill.aurarange, lvl)))
                     monster.cry = { skill.id, lvl, until };
@@ -1000,31 +1054,31 @@ auto Fight::release(std::size_t monster_index, std::uint32_t now_ms) -> void {
         }
     }
 
-auto Fight::prg(const d2d::rules::Skill& skill, int func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms) -> void {
-        if (func <= 0) return;
+auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms) -> void {
+        if (int(func) <= 0) return;
         const auto env = calc_env();
         const auto& mname = count <= 1 ? skill.srvmissilea : count == 2 ? skill.srvmissileb : skill.srvmissilec;
         const auto mit = game_data->missiles.find(mname);
         const GameData::MissileInfo* missile_info = mit == game_data->missiles.end() ? nullptr : &mit->second;
         int radius = d2d::rules::eval_calc(game_data->skills, skill.prgcalc[std::size_t(count - 1)], env, skill.id, lvl);
         if (radius == 0) radius = d2d::rules::eval_calc(game_data->skills, skill.prgcalc[0], env, skill.id, lvl);
-        if (func == 38) {
+        if (func == ServerDoFunction::kReleaseAreaHit) {
             d2d::rules::MissileDamage damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
             damage.srcdam = 0;
-            const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+            const std::array<int, 4> pierce{ int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) };
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (monsters[i].alive() && std::hypot(monsters[i].unit.x - target_x, monsters[i].unit.y - target_y) * 5 <= float(std::max(radius, 1)))
                     land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms);
             return;
         }
-        if ((func == 36 || func == 39) && missile_info) {
+        if ((func == ServerDoFunction::kReleaseNova || func == ServerDoFunction::kReleaseScatter) && missile_info) {
             auto put = [&](float x, float y, float velocity_x, float velocity_y, int range) {
                 Missile missile{ missile_info, x, y, velocity_x, velocity_y, direction32(velocity_x, velocity_y), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
                 missile.friendly = true; missile.skill = skill.id; missile.level = lvl;
                 missiles.push_back(missile);
                 return missiles.size() - 1;
             };
-            if (func == 36) {
+            if (func == ServerDoFunction::kReleaseNova) {
                 const auto shared = std::make_shared<std::vector<int>>();
                 const float speed = cells_per_sec(float(missile_info->vel));
                 const int range = missile_info->range + missile_info->lev_range * lvl + d2d::rules::eval_calc(game_data->skills, skill.calc[0], env, skill.id, lvl);
@@ -1054,24 +1108,24 @@ auto Fight::prg(const d2d::rules::Skill& skill, int func, int count, int lvl, fl
         // hop count read as: every monster in reach, the level's hops; 41's
         // spread as ±20 subtiles.
         if (!missile_info) return;
-        if (func == 40) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
-        if (func == 41) {
+        if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
+        if (func == ServerDoFunction::kReleaseSpread) {
             for (int k = 0; k < std::max(radius, 1); ++k) {
                 const float dx = float(int(rng(41)) - 20) / 5, dy = float(int(rng(41)) - 20) / 5;
                 launch(*missile_info, skill, lvl, target_x, target_y, dx, dy, missile_info->range + missile_info->lev_range * lvl, now_ms);
             }
             return;
         }
-        if (func == 37 || func == 143) {
+        if (func == ServerDoFunction::kReleaseMissileAtUnits || func == ServerDoFunction::kReleaseMissileAtUnitsSecondScan) {
             const int reach = radius > 0 ? radius : d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl);
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (monsters[i].alive() && std::hypot(monsters[i].unit.x - target_x, monsters[i].unit.y - target_y) * 5 <= float(std::max(reach, 1)))
                     launch(*missile_info, skill, lvl, target_x, target_y, monsters[i].unit.x - target_x + 0.01f, monsters[i].unit.y - target_y, missile_info->range + missile_info->lev_range * lvl, now_ms).hops = lvl + 1;
             return;
         }
-        if (std::ranges::find(told, -1000 - func) != told.end()) return;
-        told.push_back(-1000 - func);
-        d2d::log::info("not implemented: {}'s release srvprgfunc {} ({} charges)", skill.name, func, count);
+        if (std::ranges::find(told, -1000 - int(func)) != told.end()) return;
+        told.push_back(-1000 - int(func));
+        d2d::log::info("not implemented: {}'s release srvprgfunc {} ({} charges)", skill.name, int(func), count);
     }
 
 auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms) -> void {
@@ -1165,10 +1219,16 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         }
         const auto save_class = std::size_t(std::max(character.character_class, 0));
         auto exp = d2d::rules::kill_exp(monster.stats.exp, int(character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
-        exp += exp * int(psum[85]) / 100;                   // item_addexperience (the experience shrine)
+        exp += exp * int(psum[d2d::d2s::kAddExperience]) / 100;                   // item_addexperience (the experience shrine)
         const int levels_gained = d2d::rules::gain_exp(character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("killed {} (+{} exp){}", monster.npc.name, exp, levels_gained ? std::format(", level {}", character.stats.get(d2d::d2s::kLevel)) : "");
-        if (levels_gained) character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
+        if (levels_gained) {
+            character.panel = panel_stats(*game_data, character.header, character.items, character.stats);
+            // The server's unit sound event 2 (FUN_00570880 → FUN_00553380),
+            // sent to the player alone as S→C 0x2C; the client plays
+            // Sounds.txt 7, cursor_level_up, not placed (FUN_004cb9c0).
+            cues.cue(d2d::rules::sound_ids::kCursorLevelUp, now_ms, player.x, player.y);
+        }
         loot.drop(monster, spawning.game, now_ms);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super });
     }
@@ -1269,7 +1329,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
         } else if (pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!pstruck && now_ms >= player.mode_ms + player_anim(kModeSC).action_ms()) {
                 pstruck = true;
-                if (const auto* skill = game_data->skills.get(swing_skill); skill && skill->srvdofunc == 113) {
+                if (const auto* skill = game_data->skills.get(swing_skill); skill && skill->srvdofunc == ServerDoFunction::kBookOrScroll) {
                     portal_due = true;                         // Town Portal (FUN_005bf3d0): the World opens it
                 } else if (skill && missile_skill(*skill)) {
                     fire(*skill, now_ms);
@@ -1290,11 +1350,11 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
 
 auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto* skill = game_data->skills.get(swing_skill);
-        if (skill && skill->srvdofunc == 67 && attack_mon >= 0) {
+        if (skill && skill->srvdofunc == ServerDoFunction::kCharge && attack_mon >= 0) {
             smove.target_x = monsters[std::size_t(attack_mon)].unit.x; smove.target_y = monsters[std::size_t(attack_mon)].unit.y;
         }
         const float dx = smove.target_x - player.x, dy = smove.target_y - player.y, distance = std::hypot(dx, dy);
-        const bool whirl = skill && skill->srvdofunc == 76;
+        const bool whirl = skill && skill->srvdofunc == ServerDoFunction::kWhirlwind;
         if (distance < 0.05f || (!whirl && !smove.fly && distance <= kMeleeReach)) { if (whirl) pmode_until = now_ms; return; }
         player.dir = direction16(dx, dy);
         const float step = std::min(smove.speed * elapsed, distance), next_x = player.x + dx / distance * step, next_y = player.y + dy / distance * step;
@@ -1303,13 +1363,13 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
     }
 
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
-        if (skill.srvdofunc == 76) {
+        if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < whirl_next) return;
             const auto& attack_anim = player_anim(kModeA1);
-            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm);
+            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), player_combat.ias, player_combat.wsm, chill_rate(now_ms));
             whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
             const int hands = int(std::ranges::count_if(character.items, [&](const d2d::d2s::Item& item) {
-                return item.location == 1 && (item.slot == 4 || item.slot == 5) && game_data->rules.item_info.contains(item.code)
+                return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
                     && game_data->rules.item_info.at(item.code).kind == 2; }));
             for (int hand = 0; hand < (hands >= 2 ? 2 : 1); ++hand) {
                 std::vector<int> nearby;
@@ -1322,7 +1382,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             }
             return;
         }
-        if (skill.srvdofunc == 67) {
+        if (skill.srvdofunc == ServerDoFunction::kCharge) {
             const auto frame_index = seq_at(now_ms);
             const auto run_end = std::size_t(std::ranges::find_if(seq, [](const auto& frame) { return frame.mode != kModeRN; }) - seq.begin());
             if (frame_index < run_end) {                               // running: in reach, on to the attack frames
@@ -1369,7 +1429,7 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
         const auto env = calc_env();
         if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
         for (auto& item : character.items)
-            if (item.location == 1 && (item.slot == 4 || item.slot == 5) && game_data->rules.item_info.contains(item.code)
+            if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
                 && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
                 if (found != game_data->rules.item_base.end() && found->second.stackable) item.quantity = std::max(int(item.quantity) - 1, 0);
@@ -1380,9 +1440,15 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
     }
 
 auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const -> const GameData::MissileInfo* {
-        static constexpr int kDo[] = { 8, 17, 22, 10, 12, 26, 28, 24, 19, 73, 80, 117, 118, 123, 43, 48, 68, 75, 44, 125, 95 };
-        static constexpr int kSt[] = { 0, 4, 8, 11, 26, 33 };
-        const bool plain = (skill.srvstfunc == 0 || skill.srvstfunc == 4) && skill.srvdofunc == 0;
+        static constexpr ServerDoFunction kDo[] = { ServerDoFunction::kMissileFan, ServerDoFunction::kScatteredBolts, ServerDoFunction::kNova, ServerDoFunction::kGuidedMissile,
+            ServerDoFunction::kStrafe, ServerDoFunction::kChainLightning, ServerDoFunction::kMissileAtTarget, ServerDoFunction::kMissileWall,
+            ServerDoFunction::kBreath, ServerDoFunction::kBlessedHammer, ServerDoFunction::kFistOfTheHeavens, ServerDoFunction::kFirestorm,
+            ServerDoFunction::kWindMissile, ServerDoFunction::kVolcano, ServerDoFunction::kShockField, ServerDoFunction::kBladeFury,
+            ServerDoFunction::kWarCry, ServerDoFunction::kGrimWard, ServerDoFunction::kBladeSentinel, ServerDoFunction::kWakeOfDestruction,
+            ServerDoFunction::kMonsterBreath };
+        static constexpr ServerStartFunction kSt[] = { ServerStartFunction::kNone, ServerStartFunction::kCheckAmmo, ServerStartFunction::kStrafe,
+            ServerStartFunction::kCheckMana, ServerStartFunction::kBladeFury, ServerStartFunction::kTargetCorpse };
+        const bool plain = (skill.srvstfunc == ServerStartFunction::kNone || skill.srvstfunc == ServerStartFunction::kCheckAmmo) && skill.srvdofunc == ServerDoFunction::kNone;
         const bool multi = std::ranges::contains(kSt, skill.srvstfunc) && std::ranges::contains(kDo, skill.srvdofunc);
         const auto& name = plain ? skill.srvmissile : skill.srvmissilea;
         if ((!plain && !multi) || name.empty()) return nullptr;
@@ -1436,7 +1502,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             missile.target_x = cast_x; missile.target_y = cast_y;                    // where it was sent (Molten Boulder's roll)
             return missile;
         };
-        if (skill.srvdofunc == 8) {
+        if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
             const int count = std::max(calc1, 1);
             float side_x = dy * 5, side_y = -dx * 5;                 // subtiles, turned a right angle
             while (side_x * side_x + side_y * side_y > 3) { side_x = std::trunc(side_x / 2); side_y = std::trunc(side_y / 2); }
@@ -1445,23 +1511,23 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 const float spread = float(k) - float(count) / 2;
                 send(dx + spread * side_x / 5, dy + spread * side_y / 5, range);
             }
-        } else if (skill.srvdofunc == 17) {
+        } else if (skill.srvdofunc == ServerDoFunction::kScatteredBolts) {
             for (int k = 0; k < std::max(calc1, 1); ++k) {
                 const float angle = (float(rng(81)) - 40) * 3.14159265f / 180;
                 send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
             }
-        } else if (skill.srvdofunc == 22 || skill.srvdofunc == 68) {
+        } else if (skill.srvdofunc == ServerDoFunction::kNova || skill.srvdofunc == ServerDoFunction::kWarCry) {
             // A war cry (do 68, FUN_005d83e0): the nova of its missile (range
             // its row's), then its state on the caster (FUN_005d8290).
             for (int k = 0; k < 64; ++k) {
                 const float angle = float(k) * 2 * 3.14159265f / 64;
-                send(std::cos(angle), std::sin(angle), skill.srvdofunc == 68 ? missile_info.range : missile_info.range + calc1).struck = shared;
+                send(std::cos(angle), std::sin(angle), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1).struck = shared;
             }
-            if (skill.srvdofunc == 68 && !skill.aurastate.empty()) start_state(skill, lvl, now_ms);
-        } else if (skill.srvdofunc == 10) {
+            if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) start_state(skill, lvl, now_ms);
+        } else if (skill.srvdofunc == ServerDoFunction::kGuidedMissile) {
             auto& missile = send(dx, dy, range);
             missile.target = target; missile.ed_pct = calc1;
-        } else if (skill.srvdofunc == 12) {
+        } else if (skill.srvdofunc == ServerDoFunction::kStrafe) {
             const int radius = calc(skill, skill.aurarange, lvl);
             std::vector<int> nearby;
             if (target >= 0) nearby.push_back(target);
@@ -1472,11 +1538,11 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             const int count = std::clamp(int(nearby.size()), low, high);
             for (int k = 0; k < count; ++k)
                 strafe.push_back({ nearby.empty() ? -1 : nearby[std::size_t(k) % nearby.size()], now_ms + std::uint32_t(k) * 120 });
-        } else if (skill.srvdofunc == 26) {
+        } else if (skill.srvdofunc == ServerDoFunction::kChainLightning) {
             send(dx, dy, range).hops = calc1;
-        } else if (skill.srvdofunc == 28) {
+        } else if (skill.srvdofunc == ServerDoFunction::kMissileAtTarget) {
             launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, range, now_ms);
-        } else if (skill.srvdofunc == 24) {
+        } else if (skill.srvdofunc == ServerDoFunction::kMissileWall) {
             const float around_x = target >= 0 ? monsters[std::size_t(target)].unit.x : cast_x;
             const float around_y = target >= 0 ? monsters[std::size_t(target)].unit.y : cast_y;
             const float perp_x = around_y - player.y, perp_y = player.x - around_x;
@@ -1484,22 +1550,22 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             launch(missile_info, skill, lvl, around_x, around_y, -perp_x, -perp_y, range, now_ms);
             if (const auto found = game_data->missiles.find(skill.srvmissileb); found != game_data->missiles.end())
                 launch(found->second, skill, lvl, around_x, around_y, 0, 0, found->second.range + found->second.lev_range * lvl, now_ms);
-        } else if (skill.srvdofunc == 19 || skill.srvdofunc == 48) {
+        } else if (skill.srvdofunc == ServerDoFunction::kBreath || skill.srvdofunc == ServerDoFunction::kBladeFury) {
             channel = skill.id;
-        } else if (skill.srvdofunc == 73) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
+        } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             auto& missile = send(dx, dy, range);
             missile.target_x = player.x; missile.target_y = player.y;
             missile.turn = int(std::atan2(dy, dx) * 1000);
-        } else if (skill.srvdofunc == 80) {                      // Fist of the Heavens (FUN_005d0670): on the target
+        } else if (skill.srvdofunc == ServerDoFunction::kFistOfTheHeavens) {                      // Fist of the Heavens (FUN_005d0670): on the target
             if (target < 0) return;
             const auto& target_monster = monsters[std::size_t(target)];
             launch(missile_info, skill, lvl, target_monster.unit.x, target_monster.unit.y, 0, 0, range, now_ms).target = target;
-        } else if (skill.srvdofunc == 117 || skill.srvdofunc == 118) {   // Firestorm (FUN_005c7160), Twister / Tornado (FUN_005c72f0)
+        } else if (skill.srvdofunc == ServerDoFunction::kFirestorm || skill.srvdofunc == ServerDoFunction::kWindMissile) {   // Firestorm (FUN_005c7160), Twister / Tornado (FUN_005c72f0)
             for (int k = 0; k < std::max(calc1, 1); ++k) {
                 const float angle = k == 0 ? 0.f : (float(rng(41)) - 20) * 3.14159265f / 180;
                 send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
             }
-        } else if (skill.srvdofunc == 44) {                      // Blade Sentinel: out to the point and back, Param1 frames
+        } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
             // ponytail: do 44 (FUN_005d6020) moves a trap monster between
             // the caster and the point; here its missile row does, hitting
             // as it passes (NextHit).
@@ -1507,11 +1573,11 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             missile.origin_x = player.x; missile.origin_y = player.y;
             const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
             missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed;
-        } else if (skill.srvdofunc == 75) {                      // Grim Ward: its start row at the point
+        } else if (skill.srvdofunc == ServerDoFunction::kGrimWard) {                      // Grim Ward: its start row at the point
             launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, missile_info.range, now_ms);
-        } else if (skill.srvdofunc == 123) {                     // Volcano (FUN_005c8080): at the target point
+        } else if (skill.srvdofunc == ServerDoFunction::kVolcano) {                     // Volcano (FUN_005c8080): at the target point
             launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, range, now_ms);
-        } else if (skill.srvdofunc == 43) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
+        } else if (skill.srvdofunc == ServerDoFunction::kShockField) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
             const int count = std::max(calc(skill, skill.prgcalc[0], lvl), 1), radius = std::max(calc(skill, skill.aurarange, lvl), 1);
             for (int k = 0; k < count; ++k) {
                 const float target_x = cast_x + float(int(rng(2 * radius + 1)) - radius) / 5, target_y = cast_y + float(int(rng(2 * radius + 1)) - radius) / 5;
@@ -1535,7 +1601,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         std::erase_if(strafe, [&](const std::pair<int, std::uint32_t>& strafed) {
             if (now_ms < strafed.second) return false;
             const auto* skill = game_data->skills.get(swing_skill);
-            if (!skill || skill->srvdofunc != 12) return true;
+            if (!skill || skill->srvdofunc != ServerDoFunction::kStrafe) return true;
             const auto& missile_info = *skill_missile(*skill);
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             float target_x = cast_x, target_y = cast_y;
@@ -1550,7 +1616,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             else {
                 const int lvl = skill_level ? skill_level(skill->id) : 1;
                 const auto& missile_info = *skill_missile(*skill);
-                if (skill->srvdofunc == 19)
+                if (skill->srvdofunc == ServerDoFunction::kBreath)
                     launch(missile_info, *skill, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y, std::max(calc(*skill, skill->calc[0], lvl), 1), now_ms);
                 else if (frame % 3 == 0)                     // Blade Fury (FUN_005d68a0): one per attack frame
                     launch(missile_info, *skill, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y, missile_info.range, now_ms);
@@ -1564,7 +1630,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             const int age = int(now_ms - missile.born) / 40;
             const auto& missile_info = *missile.info;
             if (missile_info.srv_do == 7 && age % std::max(missile_info.param1, 1) == 0) {
-                if (missile.target < 0 && skill->srvstfunc == 0) {
+                if (missile.target < 0 && skill->srvstfunc == ServerStartFunction::kNone) {
                     float best = 1e9f;
                     for (std::size_t i = 0; i < monsters.size(); ++i)
                         if (const float distance = std::hypot(monsters[i].unit.x - cast_x, monsters[i].unit.y - cast_y); monsters[i].alive() && distance < best) {
@@ -1645,7 +1711,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // Blessed Hammer (do 73's path 14): round its caster's spot and out.
             // ponytail: the client path's shape isn't traced: a turn each 1.6
             // s, out at a fifth of its speed.
-            if (skill->srvdofunc == 73 && missile_info.srv_do <= 1) {
+            if (skill->srvdofunc == ServerDoFunction::kBlessedHammer && missile_info.srv_do <= 1) {
                 const float seconds = float(now_ms - missile.born) / 1000, radius = seconds * cells_per_sec(float(missile_info.vel)) * 0.2f;
                 const float ang = float(missile.turn) / 1000 + seconds * 2 * 3.14159265f / 1.6f;
                 missile.x = missile.target_x + radius * std::cos(ang); missile.y = missile.target_y + radius * std::sin(ang);
@@ -1670,7 +1736,7 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
         if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(monster_index, now_ms); }
     }
 
-auto Fight::pierce() const -> std::array<int, 4> { return { int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) }; }
+auto Fight::pierce() const -> std::array<int, 4> { return { int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) }; }
 
 auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms) -> bool {
         const auto* skill = game_data->skills.get(missile.skill);
@@ -1741,7 +1807,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             if (missile_info.hit_func == 47) return false;             // the boulder rolls on (FUN_005ac550 returns 1)
             return true;
         }
-        return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(psum[328]));
+        return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(psum[d2d::d2s::kPierceIndex]));
     }
 
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze ) -> void {
@@ -1850,7 +1916,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         if (lvl < 1) return;
         const auto env = calc_env();
         aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
-        if (skill->srvdofunc == 65) {
+        if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
             for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
                 if (skill->aurastat[i] == 6) {
                     using namespace d2d::d2s;
@@ -1862,7 +1928,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
         // calc2 life and mana back.
         // ponytail: its callback isn't traced; one corpse a pulse.
-        if (skill->srvdofunc == 82) {
+        if (skill->srvdofunc == ServerDoFunction::kRedemption) {
             using namespace d2d::d2s;
             const int radius = calc(*skill, skill->aurarange, lvl);
             for (auto& monster : monsters)
@@ -1877,12 +1943,12 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                 }
             return;
         }
-        if ((skill->srvdofunc != 66 && skill->srvdofunc != 81) || skill->etype < 0 || skill->etype > 4) return;
+        if ((skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze) || skill->etype < 0 || skill->etype > 4) return;
         const auto damage = d2d::rules::MissileDamage{ .etype = skill->etype,
                                                    .elo = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, false, 0, true),
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, *skill, env, lvl) };
-        const std::array<int, 4> pierce{ int(psum[333]), int(psum[334]), int(psum[335]), int(psum[336]) };
+        const std::array<int, 4> pierce{ int(psum[d2d::d2s::kPassiveFirePierce]), int(psum[d2d::d2s::kPassiveLightningPierce]), int(psum[d2d::d2s::kPassiveColdPierce]), int(psum[d2d::d2s::kPassivePoisonPierce]) };
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].alive() && in_aura(monsters[i]))
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms);
@@ -1903,7 +1969,7 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target);
         const auto* skill = game_data->skills.get(aura);
-        if (!skill || (skill->srvdofunc != 66 && skill->srvdofunc != 81) || !in_aura(monsters[monster_index])) return target;
+        if (!skill || (skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze) || !in_aura(monsters[monster_index])) return target;
         apply_target_stats(*skill, skill_level ? skill_level(aura) : 1, target);
         return target;
     }
@@ -1925,13 +1991,13 @@ auto Fight::apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d:
     }
 
 auto Fight::summon_skill(const d2d::rules::Skill& skill) const -> bool {
-        if (skill.srvdofunc == 58) return true;                  // Revive: the corpse's own monster
+        if (skill.srvdofunc == ServerDoFunction::kRevive) return true;                  // Revive: the corpse's own monster
         return !skill.summon.empty() && game_data->monsters.row(skill.summon) >= 0
-            && (skill.srvdofunc == 56 || skill.srvdofunc == 57 || skill.srvdofunc == 31 || skill.srvdofunc == 16 || skill.srvdofunc == 114
-                || skill.srvdofunc == 144 || skill.srvdofunc == 15 || skill.srvdofunc == 49 || skill.srvdofunc == 60 || skill.srvdofunc == 62
-                || skill.srvdofunc == 115
-                || (skill.srvdofunc == 119 && (skill.pettype == "spiritwolf" || skill.pettype == "fenris" || skill.pettype == "grizzly" || skill.pettype == "totem"))
-                || (skill.srvdofunc == 45 && trap_shot(skill) >= 0));
+            && (skill.srvdofunc == ServerDoFunction::kGolem || skill.srvdofunc == ServerDoFunction::kIronGolem || skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kValkyrie || skill.srvdofunc == ServerDoFunction::kRaven
+                || skill.srvdofunc == ServerDoFunction::kHydra || skill.srvdofunc == ServerDoFunction::kDecoy || skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kBoneWall || skill.srvdofunc == ServerDoFunction::kBonePrison
+                || skill.srvdofunc == ServerDoFunction::kVine
+                || (skill.srvdofunc == ServerDoFunction::kDruidSummon && (skill.pettype == "spiritwolf" || skill.pettype == "fenris" || skill.pettype == "grizzly" || skill.pettype == "totem"))
+                || (skill.srvdofunc == ServerDoFunction::kTrap && trap_shot(skill) >= 0));
     }
 
 auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
@@ -1978,7 +2044,7 @@ auto Fight::skill_named(std::string_view name) const -> const d2d::rules::Skill*
 
 auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> const GameData::MissileInfo* {
         std::string name = skill.srvmissile.empty() ? skill.srvmissilea : skill.srvmissile;
-        if (skill.srvdofunc == 149 && !name.empty() && name.back() == '1') name.back() = char('1' + std::clamp(variant, 0, 3));
+        if (skill.srvdofunc == ServerDoFunction::kVariantMissile && !name.empty() && name.back() == '1') name.back() = char('1' + std::clamp(variant, 0, 3));
         const auto found = game_data->missiles.find(name);
         return name.empty() || found == game_data->missiles.end() ? nullptr : &found->second;
     }
@@ -1993,7 +2059,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
             if (corpse < 0) return;
             monsters[std::size_t(corpse)].corpse_used = true;
             x = monsters[std::size_t(corpse)].unit.x; y = monsters[std::size_t(corpse)].unit.y;
-            if (skill.srvdofunc == 58) type = monsters[std::size_t(corpse)].type;
+            if (skill.srvdofunc == ServerDoFunction::kRevive) type = monsters[std::size_t(corpse)].type;
         }
         if (type < 0) return;
         // Bone Wall (do 60, FUN_005c58b0): one on the point, then its makers
@@ -2002,20 +2068,20 @@ auto Fight::summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
         // point at 0x6e304c / 0x6e307c.
         // ponytail: the makers are laid at once, a subtile apart; calc2's
         // text is 'par34' (Param3 taken).
-        if (skill.srvdofunc == 60) {
+        if (skill.srvdofunc == ServerDoFunction::kBoneWall) {
             const float perp_x = y - player.y, perp_y = player.x - x, distance = std::max(std::hypot(perp_x, perp_y), 0.01f);
             const int count = std::max(skill.par[2], 2) / 2;
             for (int k = -count; k <= count; ++k) summon_one(skill, type, lvl, env, x + perp_x / distance * float(k) * 0.4f, y + perp_y / distance * float(k) * 0.4f, now_ms);
             return;
         }
-        if (skill.srvdofunc == 62) {
+        if (skill.srvdofunc == ServerDoFunction::kBonePrison) {
             static constexpr int kRingX[12] = { -1, 1, 3, 4, 4, 3, -1, 1, -3, -4, -4, -3 };
             static constexpr int kRingY[12] = { -4, -4, -3, -1, 1, 3, 4, 4, 3, -1, 1, -3 };
             for (std::size_t k = 0; k < 12; ++k) summon_one(skill, type, lvl, env, x + float(kRingX[k]) / 5, y + float(kRingY[k]) / 5, now_ms);
             return;
         }
         // Hydra (do 144, FUN_005ca910): three at once.
-        for (int k = skill.srvdofunc == 144 ? 3 : 1; k > 0; --k) summon_one(skill, type, lvl, env, x + float(k - 1) * 0.6f, y, now_ms);
+        for (int k = skill.srvdofunc == ServerDoFunction::kHydra ? 3 : 1; k > 0; --k) summon_one(skill, type, lvl, env, x + float(k - 1) * 0.6f, y, now_ms);
     }
 
 auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> void {
@@ -2023,7 +2089,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
         while (skill.pettype != "none" && std::ranges::count_if(pets, same) >= max) pets.erase(std::ranges::find_if(pets, same));
         const int clvl = int(character.stats.get(d2d::d2s::kLevel));
-        const int bonus = skill.srvdofunc == 114 || skill.srvdofunc == 119 ? d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl) : 0;
+        const int bonus = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon ? d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl) : 0;
         const int plvl = std::max(std::min(clvl, clvl * 3 / 4 + bonus), 1);
         Pet pet;
         auto& monster = pet.monster;
@@ -2042,7 +2108,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
         // stats at its level, life and level brought down to the owner's
         // when it's above it.
-        if (skill.srvdofunc != 58) {
+        if (skill.srvdofunc != ServerDoFunction::kRevive) {
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
             monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
@@ -2056,8 +2122,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
             monster.stats.a1_min = damage.phys_lo >> 8; monster.stats.a1_max = std::max(damage.phys_hi >> 8, monster.stats.a1_min);
         }
-        monster.stats.level = skill.srvdofunc == 58 ? std::min(monster.stats.level, clvl) : skill.srvdofunc == 49 || skill.srvdofunc == 15 ? clvl : plvl;
-        if (skill.srvdofunc != 58 && !game_data->monsters.lvl.empty()) {
+        monster.stats.level = skill.srvdofunc == ServerDoFunction::kRevive ? std::min(monster.stats.level, clvl) : skill.srvdofunc == ServerDoFunction::kMirrorImage || skill.srvdofunc == ServerDoFunction::kDecoy ? clvl : plvl;
+        if (skill.srvdofunc != ServerDoFunction::kRevive && !game_data->monsters.lvl.empty()) {
             const auto& level_row = game_data->monsters.lvl[std::min<std::size_t>(std::size_t(plvl), game_data->monsters.lvl.size() - 1)];
             monster.stats.armor_class = level_row.armor_class[std::size_t(monster.difficulty)];
             monster.stats.to_hit = level_row.to_hit[std::size_t(monster.difficulty)];
@@ -2073,21 +2139,22 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         for (std::size_t k = 0; k < 6; ++k)
             if (skill.aurastat[k] >= 0) pet_stats[skill.aurastat[k]] += calc(skill, skill.aura_calc[k], lvl);
         auto stat = [&](int id) { const auto found = pet_stats.find(id); return found == pet_stats.end() ? 0 : found->second; };
-        monster.stats.hit_points += stat(7) >> 8;                                               // maxhp, 256ths
+        using namespace d2d::d2s;
+        monster.stats.hit_points += stat(kMaxLife) >> 8;                                               // maxhp, 256ths
         monster.stats.hit_points += int(std::int64_t(monster.stats.hit_points) * calc(skill, skill.calc[0], lvl) / 100);
         monster.hit_points = monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
-        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) { *damage += stat(111); *damage += *damage * stat(25) / 100; }   // item_normaldamage, damagepercent
-        monster.stats.to_hit += stat(19); monster.stats.to_hit += monster.stats.to_hit * stat(119) / 100;              // tohit, item_tohit_percent
-        monster.stats.armor_class += stat(31); monster.stats.armor_class += monster.stats.armor_class * (stat(16) + stat(171)) / 100;   // armorclass, item / skill_armor_percent
+        for (int* damage : { &monster.stats.a1_min, &monster.stats.a1_max }) { *damage += stat(kNormalDamage); *damage += *damage * stat(kDamagePercent) / 100; }   // item_normaldamage, damagepercent
+        monster.stats.to_hit += stat(kToHit); monster.stats.to_hit += monster.stats.to_hit * stat(kToHitPercent) / 100;              // tohit, item_tohit_percent
+        monster.stats.armor_class += stat(kArmorClass); monster.stats.armor_class += monster.stats.armor_class * (stat(kArmorPercent) + stat(kSkillArmorPercent)) / 100;   // armorclass, item / skill_armor_percent
         const auto& base_res = type_info.diff[std::size_t(monster.difficulty)].res;
-        pet.res = { base_res[2] + stat(39), base_res[3] + stat(41), base_res[4] + stat(43), base_res[5] + stat(45) };
-        pet.thorns = stat(131); pet.fire_lo = stat(48); pet.fire_hi = std::max(stat(49), pet.fire_lo); pet.speed_pct = stat(67);
+        pet.res = { base_res[2] + stat(kFireResist), base_res[3] + stat(kLightningResist), base_res[4] + stat(kColdResist), base_res[5] + stat(kPoisonResist) };
+        pet.thorns = stat(kThornsPercent); pet.fire_lo = stat(kFireMinDamage); pet.fire_hi = std::max(stat(kFireMaxDamage), pet.fire_lo); pet.speed_pct = stat(kVelocityPercent);
         for (std::size_t k = 0; k < 5; ++k) {
             const auto* k_s = skill_named(skill.sumskill[k]);
             const int skill_level_value = k_s ? calc(skill, skill.sumsk_calc[k], lvl) : 0;
             if (!k_s || skill_level_value < 1) continue;
             if (k_s->aura) { pet.aura = k_s->id; pet.aura_level = skill_level_value; }
-            else if (pet_missile(*k_s) && skill.srvdofunc != 115 && skill.srvdofunc != 45) { pet.ranged = k_s->id; pet.ranged_level = skill_level_value; }
+            else if (pet_missile(*k_s) && skill.srvdofunc != ServerDoFunction::kVine && skill.srvdofunc != ServerDoFunction::kTrap) { pet.ranged = k_s->id; pet.ranged_level = skill_level_value; }
         }
         monster.unit.x = monster.home_x = x; monster.unit.y = monster.home_y = y;
         monster.unit.dir = player.dir;
@@ -2095,23 +2162,23 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         pet.where = level;
         pet.variant = int(rng(4));
         switch (skill.srvdofunc) {
-            case 58: pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40; break;   // Revive: calc2 frames
-            case 144:                                                                                   // Hydra: Param1 frames, it stands
+            case ServerDoFunction::kRevive: pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40; break;   // Revive: calc2 frames
+            case ServerDoFunction::kHydra:                                                                                   // Hydra: Param1 frames, it stands
                 pet.until = now_ms + std::uint32_t(std::max(skill.par[0], 1)) * 40;
                 if (const auto* hydra = skill_named("HydraMissile")) { pet.ranged = hydra->id; pet.ranged_level = lvl; }
                 break;
-            case 15:                                  // Decoy (FUN_005dc000): owner's life x calc3 %, calc2 frames, it stands
+            case ServerDoFunction::kDecoy:                                  // Decoy (FUN_005dc000): owner's life x calc3 %, calc2 frames, it stands
                 monster.hit_points = monster.stats.hit_points = std::max(int(character.stats.fixed(d2d::d2s::kMaxLife) * calc(skill, skill.calc[2], lvl) / 100), 1);
                 pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40;
                 pet.idle = true;
                 break;
-            case 49: pet.mirror = true; break;          // Shadow Warrior / Master (FUN_005d6e70): the owner's level and gear
-            case 114: pet.hits = std::max(skill.par[4], 1); break;   // Raven: its attacks
-            case 60: case 62: pet.idle = true; pet.until = now_ms + 24000; break;   // bone: it stands (24 s: ponytail, the published time)
-            case 115: monster.stats.level = std::max(calc(skill, skill.calc[1], lvl), 1); break;   // Vines (FUN_005c6a80): calc2 is its level
+            case ServerDoFunction::kMirrorImage: pet.mirror = true; break;          // Shadow Warrior / Master (FUN_005d6e70): the owner's level and gear
+            case ServerDoFunction::kRaven: pet.hits = std::max(skill.par[4], 1); break;   // Raven: its attacks
+            case ServerDoFunction::kBoneWall: case ServerDoFunction::kBonePrison: pet.idle = true; pet.until = now_ms + 24000; break;   // bone: it stands (24 s: ponytail, the published time)
+            case ServerDoFunction::kVine: monster.stats.level = std::max(calc(skill, skill.calc[1], lvl), 1); break;   // Vines (FUN_005c6a80): calc2 is its level
             default: break;
         }
-        if (skill.srvdofunc == 45) {                             // a trap (FUN_005d6170 -> FUN_005d5e10)
+        if (skill.srvdofunc == ServerDoFunction::kTrap) {                             // a trap (FUN_005d6170 -> FUN_005d5e10)
             pet.shot_skill = trap_shot(skill);
             for (std::size_t k = 0; k < 5; ++k)
                 if (game_data->skills.by_name.contains(skill.sumskill[k]) && game_data->skills.by_name.at(skill.sumskill[k]) == pet.shot_skill)
@@ -2136,7 +2203,7 @@ auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
         // its reach goes up.
         if (const auto* pet_skill = game_data->skills.get(pet.skill))
             for (std::size_t summon_index = 0; summon_index < 5; ++summon_index)
-                if (const auto* bone_skill = skill_named(pet_skill->sumskill[summon_index]); bone_skill && bone_skill->srvdofunc == 55) {
+                if (const auto* bone_skill = skill_named(pet_skill->sumskill[summon_index]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion) {
                     const int corpse = corpse_near(monster.unit.x, monster.unit.y);
                     if (corpse >= 0) { corpse_blast(*bone_skill, pet.shot_level, std::size_t(corpse), now_ms); break; }
                 }
@@ -2149,8 +2216,8 @@ auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
         const float speed = cells_per_sec(float(missile_info.vel));
         // Inferno Sentry's (do 95, FUN_005cc4e0) is a stream of flames:
         // here eight at once, their reach staggered.
-        const int count = skill->srvdofunc == 17 ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1)
-                    : skill->srvdofunc == 95 ? 8 : 1;
+        const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1)
+                    : skill->srvdofunc == ServerDoFunction::kMonsterBreath ? 8 : 1;
         for (int j = 0; j < count; ++j) {
             const float angle = count > 1 ? (float(rng(81)) - 40) * 3.14159265f / 180 : 0.f;
             const float aim_x = dx * std::cos(angle) - dy * std::sin(angle), aim_y = dx * std::sin(angle) + dy * std::cos(angle);
@@ -2158,7 +2225,7 @@ auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
                        now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.level = pet.shot_level;
             x.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
-            if (skill->srvdofunc == 95) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
+            if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
             missiles.push_back(x);
         }
         if (--pet.shots <= 0) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }
@@ -2192,7 +2259,7 @@ auto Fight::pets_cross(const Level* from, const Level* destination, float dx, fl
 
 auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(pet.aura);
-        if (!skill || skill->srvdofunc != 66 || now_ms < pet.aura_next || skill->etype < 0 || skill->etype > 4) return;
+        if (!skill || skill->srvdofunc != ServerDoFunction::kEnemyAura || now_ms < pet.aura_next || skill->etype < 0 || skill->etype > 4) return;
         pet.aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
         const int radius = calc(*skill, skill->aurarange, pet.aura_level);
         const auto damage = d2d::rules::MissileDamage{ .etype = skill->etype,
@@ -2214,7 +2281,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (pet.shot_skill >= 0) { trap_turn(pet, now_ms); continue; }
             if (pet.aura >= 0) pet_aura(pet, now_ms);
             if (pet.idle) continue;                            // Decoy stands where it was cast
-            if (const auto* skill = game_data->skills.get(pet.skill); skill && skill->srvdofunc == 115 && now_ms >= pet.aura_next) {
+            if (const auto* skill = game_data->skills.get(pet.skill); skill && skill->srvdofunc == ServerDoFunction::kVine && now_ms >= pet.aura_next) {
                 // The vines: Poison Creeper poisons what's within 1.5 cells
                 // with the skill's poison; Carrion Vine / Solar Creeper eat a
                 // corpse within 5 cells for Param6 seconds, giving Param5 %
@@ -2353,7 +2420,7 @@ auto Fight::frenzy(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
 
 auto Fight::next_target() -> bool {
         const auto* skill = game_data->skills.get(swing_skill);
-        if (skill && skill->srvdofunc == 13) { other_target(); return attack_mon >= 0; }
+        if (skill && skill->srvdofunc == ServerDoFunction::kRepeatedHit) { other_target(); return attack_mon >= 0; }
         return attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive();
     }
 
@@ -2374,7 +2441,7 @@ auto Fight::engage(std::uint32_t now_ms) -> std::optional<std::pair<float, float
             cast_missile(attack_skill, target.unit.x, target.unit.y, now_ms);
             return std::nullopt;
         }
-        if (skill && moving_skill(*skill) && (skill->srvdofunc != 67 || std::hypot(target.unit.x - player.x, target.unit.y - player.y) > kMeleeReach)) {
+        if (skill && moving_skill(*skill) && (skill->srvdofunc != ServerDoFunction::kCharge || std::hypot(target.unit.x - player.x, target.unit.y - player.y) > kMeleeReach)) {
             player.dir = direction16(target.unit.x - player.x, target.unit.y - player.y);
             move_x = target.unit.x; move_y = target.unit.y;                  // Whirlwind to it, Charge and Leap Attack at it
             start_swing(now_ms);
@@ -2403,6 +2470,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             std::vector<Foe> foes{ Foe{ player.x, player.y, int(character.stats.get(d2d::d2s::kLevel)), true, player.walking, player_combat },
                                    Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
                                         merc && merc->walking, merc_fighter() } };
+            foes[0].life_pct = int(std::int64_t(character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(character.stats.get(d2d::d2s::kMaxLife), 1));
             foes[1].pet = true;                                  // the merc: its MonStats class's size
             if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
                 foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
@@ -2432,7 +2500,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (std::abs(monster.unit.x - player.x) < 30 && std::abs(monster.unit.y - player.y) < 30
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door))
                     killed(i, now_ms);                           // on the player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
@@ -2490,12 +2558,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // Poison works on the player over its ticks (a negative potion).
             // One poison at a time: a new one at least as strong replaces it
             // (and its length), a weaker one is ignored (FUN_0057ac50).
-            if (foe.poison > 0) {
-                const Regen poison{ -foe.poison * 256.0 / (foe.poison_ticks * 40.0), 0, now_ms + std::uint32_t(foe.poison_ticks) * 40, true };
+            if (foe.poison > 0 && foe.poison_ticks > 0) {
+                const Regen poison{ -foe.poison / 40.0, 0, now_ms + std::uint32_t(foe.poison_ticks) * 40, true };
                 const auto old = std::ranges::find_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; });
                 if (old == regen.end()) regen.push_back(poison);
                 else if (poison.life <= old->life) *old = poison;
             }
+            if (foe.chill_ticks > 0) chilled = std::max(chilled, now_ms + std::uint32_t(foe.chill_ticks) * 40);   // only ever lengthened (FUN_0057af80)
             for (std::size_t k = 0; k < 2; ++k)                  // a Cursed boss's Amplify Damage: its auralen
                 if (const auto* skill = game_data->skills.get(66); skill && foes[k].amplify > 0) {
                     amplified[k] = now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, foes[k].amplify), 25)) * 40;
@@ -2550,7 +2619,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
             auto val = [&](const d2d::rules::Calc& calc_row) { return d2d::rules::eval_calc(game_data->skills, calc_row, env, skill->id, aura_monster.aura_lvl); };
             const float radius = float(val(skill->aurarange)) / 5;                     // subtiles -> cells
             auto in_range = [&](float x, float y) { return std::hypot(x - aura_monster.unit.x, y - aura_monster.unit.y) <= radius; };
-            if (skill->srvdofunc == 65) {
+            if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
                 for (auto& monster : monsters)
                     if (monster.alive() && in_range(monster.unit.x, monster.unit.y))
                         for (std::size_t i = 0; i < skill->aurastat.size(); ++i) {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The client's view of the game (components/game): its headers, and
 // each game name the client uses, brought into d2d::client one by one.
 // A new name the client needs goes on this list.

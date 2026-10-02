@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Scene: GameData (gamedata.hpp) plus what the client draws and plays.
 #pragma once
 
@@ -149,6 +150,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite quest_bg, quest_tabs, quest_sockets;
     std::array<d2d::dc6::Sprite, 27> quest_icons;
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
+    d2d::dc6::Sprite run_button;                        // PANEL\runbutton (DAT_007bef0c)
     int                   bg_tiles_across{4};
 
     // ACT1 palette — the actual town palette (fechar/sky are frontend-only).
@@ -158,6 +160,12 @@ struct Scene : GameData {
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
     d2d::font::Font  font30;                           // Font30 (font id 2): the death screen's lines
     d2d::dc6::Sprite you_died, you_died_inst;          // UI\ENG\youdiedhardcore, youdiedinst (FUN_00453100)
+    // The game menu and the mini-panel (docs/research/re/menu.md): the menus'
+    // text images by name (UI\ENG\<name>), the slider (Widgets\OptBar,
+    // OptBarC, OptSkull), CURSOR\pentspin, PANEL\menubutton, minipanel_s
+    // and minipanelbtn.
+    std::unordered_map<std::string, d2d::dc6::Sprite> menu_text;
+    d2d::dc6::Sprite pentspin, opt_bar, opt_bar_c, opt_skull, menu_button, minipanel, minipanel_btn;
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
     // game.exe's level-type names (0x6e7d50: "None", "1 Town", ...),
     // TileName through its orientation names (0x6e7f90: fl wl wr wtlr

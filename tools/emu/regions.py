@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's monster regions for a game seed: FUN_00547d20's step, then FUN_005479c0.
 
     uv run python regions.py <map seed> [difficulty] [expansion]   # one line per level with monsters

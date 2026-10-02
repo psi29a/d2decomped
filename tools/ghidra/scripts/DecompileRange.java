@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Decompile every function whose entry point falls in [start, end) to one .c
 // file. Args: <start-hex> <end-hex> <output.c>
 //@category Decompiler

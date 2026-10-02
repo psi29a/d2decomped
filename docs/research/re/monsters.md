@@ -104,8 +104,9 @@ distinct Ids (bugs.md #13).
 
 d2d: `Spawning` (components/game/gamedata.hpp, `start_spawning`,
 `player_moved`), run by `Fight::rooms_up` every tick and on arrival. The
-camp's rooms are 8×8 splits row by row (their order isn't traced), and
-closeness stands in for the border flags.
+camp's rooms are 8×8 splits row by row, the level's list newest first
+(town-start.md "The camp populating"), and closeness stands in for the
+border flags.
 
 ## Room population — FUN_0054ec90
 

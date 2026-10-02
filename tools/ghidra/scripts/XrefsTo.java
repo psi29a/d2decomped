@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // List every reference TO a target address — code refs, data refs,
 // callers, whatever the reference database knows. Args:
 //   <target-hex> <output.txt>

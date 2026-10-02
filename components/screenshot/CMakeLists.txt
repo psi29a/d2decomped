@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # PNG framebuffer dump for local dev screenshots. Uses system zlib for the
 # IDAT stream — bundled StormLib pulls in the same library, so no extra deps.
 find_package(ZLIB REQUIRED)

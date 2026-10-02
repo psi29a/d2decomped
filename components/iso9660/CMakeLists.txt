@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Header-only ISO 9660 + Joliet reader. Consumed by launcher and by
 # tests/test_iso9660.
 add_library(iso9660 INTERFACE)

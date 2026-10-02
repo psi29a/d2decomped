@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Finding the user's classic Diablo II in place (registry, default folders,
 # macOS apps, Wine prefixes) and refusing D2R. Plain C++, no Qt, no
 # StormLib. docs/design/install-detect.md. The target is install_detect:

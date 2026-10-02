@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // render_ingame: world + every in-game panel composed per frame.
 #pragma once
 
@@ -54,6 +55,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    std::span<const Unit> extra_units = {}, float player_rate = 1.f,
                    const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true,
                    const Unit* player_look = nullptr,     // its states' colour shift and overlays
-                   bool show_items = false);
+                   bool show_items = false,
+                   const Hud& hud = {});            // the HUD's poison tint, run button
 
 }  // namespace d2d::client

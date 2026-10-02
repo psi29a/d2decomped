@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp screenshot writer — dump a raw RGBA framebuffer to PNG.
 //
 // Minimal PNG encoder: signature + IHDR + one IDAT (zlib-compressed via

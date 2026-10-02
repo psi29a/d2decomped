@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # FindOpenAL.cmake - search for OpenAL, preferring Homebrew (openal-soft) on macOS
 # Sets:
 #  OPENAL_LIBRARY

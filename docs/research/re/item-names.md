@@ -40,3 +40,34 @@ parent's ItemTypes ancestry reaches `shld`), each mod code resolved
 through Properties.txt (`func` 1/3 = value, 15/16 = min/max, 17 = param,
 5/6/7 = min/max/% damage). Runewords get their rune bonuses this way —
 the save only stores the runeword's own list.
+
+## Hover text
+
+game.exe's `FUN_0048dd90` (UI\inv.cpp) builds an item's tooltip as one
+string drawn bottom-up: each helper appends its line(s) after the ones
+below it, so the call order is bottom to top. Top line first (d2d
+`item_lines`):
+
+| Line | Function | String | Shown when / colour |
+|---|---|---|---|
+| name | `FUN_0048c060` | — | quality colour (as before) |
+| Defense: N | `FUN_00485ee0` | 3461 | armor, total > 0; N blue when ≠ base |
+| Chance to Block: N% | `FUN_00485be0` | 11018, `"%d%%"` 0x6d9bec | shields: block column + stat 20 + class BlockFactor, cap 75; blue over the column |
+| Smite / Kick Damage: a to b | `FUN_00485d40` | 3468 / 21782, "to" 3464 | Paladin + shield (no other class's) / Assassin + boots; armor.txt mindam/maxdam |
+| Throw / One-Hand / Two-Hand Damage: a to b | `FUN_00485410`, `FUN_00485240` | 3467 / 3465 / 3466 | weapons: stats 21-24/159-160 (`FUN_0062d300`: low quality ×3/4 floor 1/2, ethereal ×3/2), min ×(100+18)%, max ×(100+17+219·clvl/8)% + 218·clvl/8; throw line for ItemTypes Throwable; Barbarian + 1-or-2-handed gets both; numbers blue when raised |
+| Quantity: N | `FUN_00486100` | 3462 | identified, not socketed, stacks |
+| spelldesc | `FUN_00486370` | misc.txt spelldescstr | replaces quantity; mode 2 scales potions by class (`FUN_0062a5d0` life, `FUN_0062a620` mana: ×1.5 Ama/Pal/Asn, ×2 Barb life / Sor/Nec/Dru mana) |
+| Keep in Inventory to Gain Bonus | — | 20438 | charms |
+| socket filler | `FUN_004865d0`, `FUN_004e6850`, `FUN_004e67d0`, `FUN_004e6410` | 11080; 11075/11076/11073/11074 | type sock; gems/runes add Weapons/Armor/Helms/Shields groups (gems.txt), the label + " " (3995) before each group's top line |
+| Durability: a of b | `FUN_00484e90`, `FUN_00629930` | 3457, "of" 3463 | durability column, not nodurability / indestructible / throwable; b blue with stat 75 |
+| (Class Only) | — | 10917 + class | class items; red for another class (`FUN_0062eaf0`) |
+| Required Dexterity / Strength: N | `FUN_00485170` / `FUN_004850a0` | 3459 / 3458 | weapons/armor: column + column·stat91/100 − 10 ethereal; red when unmet |
+| Required Level: N | `FUN_00484ff0`, `FUN_0062b5b0` | 3469 | identified, > 1: affix/set/unique levelreq (crafted +10+3/affix, ≤ 98), base, sockets, + stat 92 |
+| Class - Speed | `FUN_004861d0`, `FUN_0062a710` | class table 0x721eb0, " - " 3996, 4088 + band | weapons with a player: frames<<8 / ((100+IAS−WSM)·animspeed/100) of the class's A1 anim, banded by DAT_00721f10 (rows 10..27) and column 0x722078; speed blue with stat 93 |
+| Unidentified | — | 3455 | red |
+| properties | `FUN_004e6410` | | blue |
+| Ethereal (Cannot be Repaired), Socketed (N) | `FUN_00484b10` | 22745, 3453 | blue |
+
+Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
+line (`FUN_00486670`), Holy Shield's block and smite, time-of-day stats
+268-273, throwing potions' missile damage, charged skill details.

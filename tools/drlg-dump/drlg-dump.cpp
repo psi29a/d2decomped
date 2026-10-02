@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // drlg-dump <mpq dir> <map seed> [level] — our generator's level in the
 // same text form as tools/emu/drlg.py prints game.exe's, for diffing.
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.
@@ -216,14 +217,31 @@ static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, cons
     std::ostringstream out;
     char line[160];
     for (const int lid : levels) {
-        auto level = d2d::game::build_level(game, *game.builder, lid);
-        if (!level) continue;
-        const auto& made = *level;
-        const auto base = made.npcs.size();
+        const bool camp = lid == game.town.id;       // the camp: built with the map seed, its units there already
+        auto level = camp ? nullptr : d2d::game::build_level(game, *game.builder, lid);
+        if (!level && !camp) continue;
+        if (level && spawning.levels.contains(&game.town))   // next door to the camp made already (install_level's link)
+            level->nearby.push_back({ &game.town, game.town.world_x - level->world_x, game.town.world_y - level->world_y });
+        auto& made = camp ? game.town : *level;
+        const auto base = camp ? std::size_t(0) : made.npcs.size();
         out << "level " << lid << '\n';
         auto& state = spawning.levels[&made];
         std::size_t from = base;
-        d2d::game::populate_level(game, spawning, made, walk_order(made.rooms.size(), seed, kind), [&](std::size_t room) {
+        std::vector<std::size_t> objects;             // the objects in the order made: the order they're opened
+        const int camp_wide = (made.ds1.width() + 6) / 8;   // 8x8 rooms, row by row, less the DS1's edge
+        const auto count = camp ? std::size_t(camp_wide) * std::size_t((made.ds1.height() + 6) / 8) : made.rooms.size();
+        d2d::game::populate_level(game, spawning, made, walk_order(count, seed, kind), [&](std::size_t room) {
+            if (camp) {                               // no room seeds: the units made, objects listed
+                std::snprintf(line, sizeof line, "room %d,%d rgn %08x game %08x", int(room) % camp_wide * 8, int(room) / camp_wide * 8, spawning.objects.low, spawning.game.low);
+                out << line;
+                for (std::size_t i = made.npcs.size(); i-- > 0;)
+                    if (made.npcs[i].root == "objects" && made.npcs[i].room == int(room)) {
+                        objects.push_back(i);
+                        out << ' ' << made.npcs[i].object_id << '@' << int(made.npcs[i].x * 5) << ',' << int(made.npcs[i].y * 5);
+                    }
+                out << '\n';
+                return;
+            }
             const auto& group = state.group_rooms[room];
             std::snprintf(line, sizeof line, "room %d,%d r1 %08x seed %08x post %08x rgn %08x game %08x", made.rooms[room].x, made.rooms[room].y,
                           made.room1_seeds[room], group.pre, group.post, spawning.objects.low, spawning.game.low);
@@ -236,8 +254,9 @@ static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, cons
         auto alvl = [&](int id) { return area[std::size_t(id)][0]; };
         const auto [low, high] = d2d::rules::kChestLevels[0];
         const auto tc = d2d::rules::chest_tc(0, 0, alvl(lid), alvl(low), alvl(high));
-        for (auto i = base; i < made.npcs.size(); ++i) {
-            auto& npc = level->npcs[i];
+        if (!camp) for (auto i = base; i < made.npcs.size(); ++i) objects.push_back(i);
+        for (const auto i : objects) {
+            auto& npc = made.npcs[i];
             if (npc.root != "objects" || !std::ranges::contains(std::array{ 1, 3, 4, 5, 14, 26 }, npc.operate_fn)) continue;
             std::vector<d2d::rules::Drop> drops;
             // ON already (PreOperate, a gold placeholder's InitFn 28): its OperateFn does nothing.
@@ -260,7 +279,7 @@ static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, cons
         }
         std::snprintf(line, sizeof line, "rgn %08x:%08x game %08x:%08x\n", spawning.objects.low, spawning.objects.high, spawning.game.low, spawning.game.high);
         out << line;
-        built.push_back(std::move(level));
+        if (level) built.push_back(std::move(level));
     }
     return out.str();
 }

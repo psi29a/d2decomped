@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Frontend widgets: screen enum, buttons, mouse, NPC menus + speech, char-create state.
 #pragma once
 
@@ -66,7 +67,8 @@ constexpr const char* kClassKey[7] = {
 // The screen's class order (kClassKey) <-> the .d2s class id (AM SO NE
 // PA BA DZ AS: Character::character_class).
 constexpr int kSaveClassToUi[7] = { 3, 4, 1, 2, 0, 5, 6 };
-constexpr int kUiToSaveClass[7] = { 4, 2, 3, 0, 1, 5, 6 };
+constexpr int kUiToSaveClass[7] = { d2d::d2s::kBarbarian, d2d::d2s::kNecromancer, d2d::d2s::kPaladin, d2d::d2s::kAmazon,
+                                    d2d::d2s::kSorceress, d2d::d2s::kDruid, d2d::d2s::kAssassin };
 
 // D2's frontend records store (x, y, w, h) with y = the BOTTOM row
 // (bottom-left anchor, like its DC6 blits): the full-screen BG record is
@@ -151,7 +153,7 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 // kept inside the screen.
 struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
-    // What choosing a line does. ponytail: trade/hire/gamble/... just close.
+    // What choosing a line does.
     enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk, kGoEast, kImbue };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
     std::vector<Line> lines;

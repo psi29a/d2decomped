@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Unit + integration coverage for the dev control channel.
 //   1. tokenize() edge cases (pure, cross-platform).
 //   2. On POSIX, bind a real socket in $TMPDIR, connect via AF_UNIX, exchange

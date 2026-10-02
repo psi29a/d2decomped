@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp — Bink cinematics through ffmpeg (binkvideo + binkaudio_rdft).
 //
 // D2's videos live in d2video/d2xvideo.mpq: the Blizzard / Blizzard North

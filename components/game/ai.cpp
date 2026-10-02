@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ai.hpp: monsters, NPCs and the merc: spawning, paths, the AI step.
 #include "ai.hpp"
 
@@ -293,13 +294,13 @@ constexpr std::array<Seq, 5> kSeqs{ { { "seq_shamanresurrect", "A2", 17, 12 }, {
 // Its skill `id`'s level (Sk*lvl + the difficulty's bonus), 1 when not its own.
 int skill_level(const GameData& game_data, const Monster& monster, int id) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
-    for (std::size_t n = 0; n < 3; ++n)
+    for (std::size_t n = 0; n < type_info.skill.size(); ++n)
         if (id >= 0 && skill_id(game_data, type_info.skill[n]) == id) return d2d::rules::monster_skill_level(type_info.sk_lvl[n], monster.difficulty);
     return 1;
 }
 // The sequence a monster's skill `id` plays, else nullptr.
 const Seq* skill_seq(const GameData& game_data, const d2d::rules::MonType& type_info, int id) {
-    for (std::size_t n = 0; n < 3; ++n)
+    for (std::size_t n = 0; n < type_info.skill.size(); ++n)
         if (id >= 0 && skill_id(game_data, type_info.skill[n]) == id)
             for (const auto& seq : kSeqs) if (seq.name == type_info.sk_mode[n]) return &seq;
     return nullptr;
@@ -365,7 +366,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const bool shared = indoor && !force && monster.area >= 0 && seen;
     const bool flag = shared && !monster.sighted && (*seen)[monster.area];
     const bool need_sight = force || (indoor && !monster.sighted && !flag);
-    const bool town = level.id == 1 || level.id == 40 || level.id == 75 || level.id == 103 || level.id == 109;
+    const bool town = d2d::rules::level_ids::is_town(level.id);
     const int x = subtile(unit.x), y = subtile(unit.y);
     const int best = aidist > 0 ? aidist : 35;
     const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
@@ -429,14 +430,14 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 // ponytail: the seed as its look left it (FUN_00573cb0's draws and the
 // rest between aren't taken; world.cpp's spawns keep the default); the
 // no-target wander on the fight's rng;
-// first-sight speech (FUN_005b1140), door opening and the no-target
+// first-sight speech (FUN_005b1140) and the no-target
 // wander (FUN_0064d910; the old home wander stands in) left out; in melee
 // skips the path test (FUN_00622aa0, mask 0x804); paths
 // (FUN_005de190) as path_to's, a circle as a walk to the point n
 // subtiles to the side of the target; a back-off sets off when its end
 // and first step are open; no teleporting mod.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
-           float walk, float run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen) {
+           float walk, float run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen, const OpenDoor* open_door) {
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
@@ -473,6 +474,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.wandering = false;
     }
     if (now_ms < monster.next_act) return true;
+    // The driver's first step (FUN_005b10e0 → FUN_005b0f50): with opendoors
+    // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
+    // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
+    // ponytail: the 0x800 test taken as true (its own footprint stamps it;
+    // a moving path's cached word, path +0x54, isn't traced).
+    if (type_info.open_doors && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
     const int x = subtile(unit.x), y = subtile(unit.y);
     const auto [target, best, nearest] = search_target(game_data, level, monster, foes, now_ms, seen);
     monster.aware = target != nullptr;
@@ -529,6 +536,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     in.spot_free = !level.unit_blocked(unit.x + float(type_info.spawn_x) / 5, unit.y + float(type_info.spawn_y) / 5);
     in.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
     in.off_x = target_x - x; in.off_y = target_y - y;
+    int pace = 0;
+    in.pace = &pace; in.state3 = &monster.ai_state3;
+    in.target_life_pct = target->life_pct;
+    in.laying = now_ms < monster.laid_until;
+    in.velocity = type_info.velocity; in.run = type_info.run;
+    in.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90
         unit.dir = direction16(dx, dy);
         set_mode(game_data, monster, mode, now_ms);
@@ -565,6 +578,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     } else {
         act = d2d::rules::mon_think(type_info.ai_name, in, monster.seed, away);
     }
+    monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
     if (rally)                                                     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too
         for (auto& other : pack)
             if (other.alive() && other.leader == monster.leader) other.ai_command = 1;
@@ -611,10 +625,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // thinks' skill tests draw nothing).
             const auto& name = type_info.skill[std::size_t(act.n)];
             const int id = skill_id(game_data, name);
+            // Spider Lay and the vampires' shots play their Sk mode itself.
+            // ponytail: VampireFirewall / VampireMeteor (srvdofunc 24 / 28)
+            // stand, as no Act 1 vampire's aip5 lets it cast them.
             const Seq* seq = skill_seq(game_data, type_info, id);
-            if (!seq || (name == "Resurrect" && corpse < 0)) { idle(0); return true; }
-            use(seq->mode, id);
-            monster.mode_until = now_ms + seq->frames * game_data.npc_timing(monster.npc, seq->mode).ms_per_frame();
+            const bool plain = name == "SpiderLay" || name == "VampireFireball" || name == "VampireMissile";
+            if ((!seq && !plain) || (name == "Resurrect" && corpse < 0)) { idle(0); return true; }
+            use(seq ? seq->mode : std::string_view(type_info.sk_mode[std::size_t(act.n)]), id);
+            if (seq) monster.mode_until = now_ms + seq->frames * game_data.npc_timing(monster.npc, seq->mode).ms_per_frame();
             monster.skill_unit = name == "Resurrect" ? corpse : -1;
             // Where a Nest's young come out: Blood Raven's spot off the
             // target, else spawnx / spawny off itself.
@@ -666,7 +684,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
 
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack,
-                    std::vector<Monster>* born, AreaSeen* seen) {
+                    std::vector<Monster>* born, AreaSeen* seen, const OpenDoor* open_door) {
     auto& unit = monster.unit;
     // After the nearest one alive (the player or the merc), or the monster
     // its search took (Confuse, Attract).
@@ -710,7 +728,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // An attack, a taunt (the Fallen's S2), a skill's sequence (kSeqs, its
     // event frame), a young one coming out (spawnmode S1).
     const bool attack = monster.mode == "A1" || monster.mode == "A2";
-    if (attack || monster.mode == "S1" || monster.mode == "S2") {
+    if (attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC") {
         const auto& timing = game_data.npc_timing(monster.npc, monster.mode);
         const Seq* seq = skill_seq(game_data, type_info, monster.skill);
         const auto skill = [&](const char* name) { return seq && monster.skill == skill_id(game_data, name); };
@@ -772,6 +790,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 andariel_missile(game_data, monster, "andypoisonbolt", dx, dy, now_ms, missiles, skill_level(game_data, monster, kAndyPoisonBolt));
             } else if (monster.skill >= 0 && monster.skill == skill_id(game_data, "CountessFirewall")) {
                 countess_firewall(game_data, monster, now_ms, missiles);
+            } else if (const int fireball = skill_id(game_data, "VampireFireball"); monster.skill >= 0 && (monster.skill == fireball || monster.skill == skill_id(game_data, "VampireMissile"))) {
+                // srvmissile vampirefireball / firehead at the target.
+                andariel_missile(game_data, monster, monster.skill == fireball ? "vampirefireball" : "firehead", dx, dy, now_ms, missiles, skill_level(game_data, monster, monster.skill));
+            } else if (monster.skill >= 0 && monster.skill == skill_id(game_data, "SpiderLay")) {
+                // srvdofunc 23 (FUN_005c9c10): its aurastate spiderlay for
+                // auralen 300 frames, aurastat velocitypercent -100.
+                // ponytail: the slowed state on those about (auratargetstate) left out.
+                monster.laid_until = now_ms + 300 * 40;
             } else if (attack && foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
@@ -800,16 +826,19 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         monster.skill = -1;
         monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
     }
-    // Chilled, it moves at coldeffect % slower.
+    // Chilled, it moves at coldeffect % slower; its think's pace on, Spider
+    // Lay's -100 % off (velocitypercent, stat 0x43).
+    // ponytail: laid, it creeps at the 10 % floor, not rooted.
     const float chill = now_ms < monster.chill_until ? float(100 + type_info.diff[std::size_t(monster.difficulty)].cold_effect) / 100.f : 1.f;
-    const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed, 10)) / 100;
+    const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
+    const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace, 10)) / 100;
     if (now_ms < monster.flee_until) {
         if (monster.mode != "WL") set_mode(game_data, monster, "WL", now_ms);
         if (!monster_step(level, monster, unit.x - dx, unit.y - dy, cells_per_sec(float(type_info.run)) * elapsed * chill, crowd)) monster.flee_until = 0;
         return false;
     }
-    const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed, 10)) / 100;
-    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen)) return false;
+    const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace, 10)) / 100;
+    if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door)) return false;
     // An AI not traced finds its foe as the traced ones do (search_target),
     // at its thinks: when next_act is due and no chase is under way (a chase
     // runs as think()'s does, move_frame). With none it thinks again aidel
@@ -817,6 +846,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // ponytail: it chases the nearest foe whichever it found.
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
+        if (type_info.open_doors && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
+            if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+            monster.next_act = now_ms + 5 * 40;
+            return false;
+        }
         const Foe* found = search_target(game_data, level, monster, foes, now_ms, seen).target;
         monster.aware = foe.alive && found;
         if (found) monster.chase = int(found - foes.data());

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The devctl verbs that drive and read the game for scripted tests
 // (docs/control_channel.md): input (click, key, move, wheel), debug
 // set-ups, and reads of the game's state (state, items, npcs, monsters,
@@ -106,7 +107,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
         else if (verb == "hand" && verb_args.size() >= 3) town.net.send(cmd::ToCursor{ int_arg(2) });
         else if (verb == "use" && verb_args.size() >= 3) town.net.send(cmd::UseItem{ int_arg(2) });
-        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ 1, int_arg(2), int_arg(3) });
+        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
         else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
@@ -189,8 +190,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
                 if (const auto& npc = town.level->npcs[i]; npc.operate_fn > 0 && npc.root == "objects")
-                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == 2 ? "shrine" : npc.operate_fn == 4 ? "chest" : std::format("op{}", npc.operate_fn),
-                                       npc.operate_fn == 2 ? npc.shrine : npc.operate_fn == 4 ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
+                    out += std::format("{}\t{:.1f}\t{:.1f}\t{}\t{}\t{}\t{}\n", i, npc.x, npc.y, npc.operate_fn == d2d::rules::operate_fn::kShrine ? "shrine" : npc.operate_fn == d2d::rules::operate_fn::kChest ? "chest" : std::format("op{}", npc.operate_fn),
+                                       npc.operate_fn == d2d::rules::operate_fn::kShrine ? npc.shrine : npc.operate_fn == d2d::rules::operate_fn::kChest ? npc.trap : npc.object_id, npc.locked ? "locked" : "-",
                                        i < town.npc_states.size() && !town.npc_states[i].mode.empty() ? town.npc_states[i].mode : std::string_view(npc.mode));
             return out + "ok\n";
         }
@@ -313,7 +314,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "unid") {       // unidentify every carried item
-            for (auto& item : town.world.character.items) if (item.location == 0 && item.panel == 1) item.identified = false;
+            for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) item.identified = false;
             return "ok " + std::to_string(d2d::rules::unidentified(town.world.character.items)) + "\n";
         }
         if (args.size() >= 3 && args[1] == "boss" && scene) {   // the nearest plain monster: a unique with <mod>...
@@ -336,11 +337,11 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
-            std::erase_if(town.world.character.items, [](const auto& item) { return item.location == 0 && item.panel == 1; });
+            std::erase_if(town.world.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
-            for (auto& item : town.world.character.items) if (item.location == 1) item.durability = d2d::rules::max_durability(item) / 2;
+            for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kEquipped) item.durability = d2d::rules::max_durability(item) / 2;
             return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)
@@ -362,8 +363,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 if (skill.cls.empty() || skill.id < 0) continue;
                 auto& fight = town.fight;
                 const bool built = skill_built(skill) || self_cast(skill) || fight.missile_skill(skill) || fight.spot_skill(skill) || fight.summon_skill(skill) || skill.aura
-                                || (skill.srvstfunc == 0 && skill.srvdofunc == 0 && (skill.passive_stat[0] >= 0 || skill.passive));
-                if (!built) out += std::format("{} {} st{} do{}\n", skill.id, skill.name, skill.srvstfunc, skill.srvdofunc);
+                                || (skill.srvstfunc == d2d::rules::ServerStartFunction::kNone && skill.srvdofunc == d2d::rules::ServerDoFunction::kNone && (skill.passive_stat[0] >= 0 || skill.passive));
+                if (!built) out += std::format("{} {} st{} do{}\n", skill.id, skill.name, int(skill.srvstfunc), int(skill.srvdofunc));
             }
             return out + "ok\n";
         }
@@ -408,12 +409,13 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("items", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
+        const auto hover_wearer = d2d::game::wearer(*scene, character.character_class, character.items, character.stats);
         for (const auto& item : character.items) {
             out += "[" + item.code + " loc=" + std::to_string(item.location) + " slot=" + std::to_string(item.slot)
                  + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel) + " id=" + std::to_string(item.id)
                  + std::format(" size={}x{}", d2d::rules::item_size(scene->rules, item.code).first, d2d::rules::item_size(scene->rules, item.code).second)
                  + " at=" + std::to_string(item.column) + "," + std::to_string(item.row) + "]\n";
-            for (const auto& line : item_lines(*scene, item, int(character.stats.get(d2d::d2s::kLevel))))
+            for (const auto& line : item_lines(*scene, item, hover_wearer.lvl, &hover_wearer))
                 out += "  " + line.text + "\n";
         }
         return out + "ok\n";
@@ -502,6 +504,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " pets=" + [&] { std::string list; for (const auto& pet : town.fight.pets) list += (list.empty() ? "" : ",") + std::to_string(pet.monster.hit_points) + "/" + std::to_string(pet.monster.stats.hit_points) + ":" + std::string(pet.monster.mode); return list.empty() ? std::string("-") : list; }()
              + " lskill=" + std::to_string(town.skillbar.left) + " rskill=" + std::to_string(town.skillbar.right)
              + " picker=" + std::to_string(town.skillbar.picking)
+             + " gamemenu=" + std::to_string(town.game_menu.open ? town.game_menu.menu + 1 : 0) + ":" + std::to_string(town.game_menu.sel)
+             + " mini=" + (town.mini.open ? "1" : "0") + " volume=" + std::to_string(audio.master_volume) + "," + std::to_string(audio.music_volume)
              + " charges=" + [&] {
                    std::string charges;
                    for (const auto& charge : town.fight.charges) charges += std::format("{}{}:{}", charges.empty() ? "" : ",", charge.skill, charge.count);

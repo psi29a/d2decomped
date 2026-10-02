@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Parse two real COF files (already used as byte-length canary in test_mpq).
 #include <cof.hpp>
 #include <mpq.hpp>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Combat rules over hand-made tables: hit chance, the fighter built from
 // gear, speed breakpoints, both blows (block, dodge, reductions,
 // resistances, crits, crushing blow, leech), experience and levels, the
@@ -169,6 +170,22 @@ int main() {
     auto taken = monster_blow(defender, 1, false, mon, false, rng);
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, false, mon, false, rng);
     assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
+    {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
+        MonStats cold_mon = mon;
+        cold_mon.elements[0] = { 2, 100, 10, 10, 40, "A1" };
+        cold_mon.elements[1] = { 3, 100, 8, 8, 50, "A1" };
+        Fighter chilly;
+        chilly.res[2] = 50; chilly.res[3] = 25; chilly.plr = 20;
+        auto cold_hit = monster_blow(chilly, 1, false, cold_mon, false, rng);
+        for (int i = 0; i < 20 && !cold_hit.hit; ++i) cold_hit = monster_blow(chilly, 1, false, cold_mon, false, rng);
+        assert(cold_hit.hit && cold_hit.damage == 100 + 5 && cold_hit.chill_ticks == 20);   // 40 less 50 % cold
+        assert(cold_hit.poison == 60 && cold_hit.poison_ticks == 80);                     // 80 / 256 a tick less 25 %, 100 ticks less 20 %
+        chilly.half_freeze = true;
+        assert(chill_length(chilly, 40) == 10);
+        chilly.cannot_freeze = true;
+        assert(chill_length(chilly, 40) == 0);
+        assert(attack_ticks(16, 256, 0, 0, -50) == attack_ticks(16, 256, 0, 50));       // chill's -50 attackrate
+    }
     // Dodge a swing standing, avoid a missile, evade on the move.
     Fighter agile;
     agile.dodge = 100;
@@ -187,7 +204,7 @@ int main() {
         assert(missile_blow(damage, missile_target, { 0, 90, 0, 0 }, rng).damage == 0);       // immune: pierce doesn't reach
         damage.etype = 2;
         const auto cold_kill = missile_blow(damage, missile_target, { 0, 0, 500, 0 }, rng);
-        assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 25);                    // -100 % at the least
+        assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 50);                    // -100 % at the least, the length too
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);
@@ -215,6 +232,19 @@ int main() {
     assert(gain_exp(stats, 1200, next, gains) == 2);                          // 1600: past 500 and 1500
     assert(stats.get(d2d::d2s::kLevel) == 3 && stats.get(d2d::d2s::kStatPts) == 10 && stats.get(d2d::d2s::kSkillPts) == 2);
     assert(stats.fixed(d2d::d2s::kMaxLife) == 54 && stats.fixed(d2d::d2s::kLife) == 54);   // 2 levels x 8 quarters
+    stats.values[d2d::d2s::kLife] = 1 << 8; stats.values[d2d::d2s::kMana] = 0;
+    assert(gain_exp(stats, 3000, next, gains) == 1 && stats.fixed(d2d::d2s::kLife) == 56 && stats.get(d2d::d2s::kMana) == stats.get(d2d::d2s::kMaxMana));   // a level fills them
+    // Stamina: a run frame costs RunDrain x 2, x (armor speed / 10 + 1),
+    // less the slower-drain percent, at least 1 (FUN_0057f240).
+    assert(stamina_drain(20, 0, 0) == 40 && stamina_drain(20, 10, 0) == 80 && stamina_drain(20, 20, 0) == 120);
+    assert(stamina_drain(20, 0, 25) == 30 && stamina_drain(20, 0, 100) == 1 && stamina_drain(20, 0, 150) == 1);
+    // Regen (FUN_00580500): max >> 8 standing, >> 9 walking (none below
+    // 1.0 walking), none running unless the bonus is 1000+; plus bonus %.
+    const std::int64_t stamina_max = 20 << 8;
+    assert(stamina_regen(1000, stamina_max, 1, 0) == 1020 && stamina_regen(1000, stamina_max, 5, 0) == 1020);
+    assert(stamina_regen(1000, stamina_max, 2, 0) == 1010 && stamina_regen(100, stamina_max, 2, 0) == 100 && stamina_regen(100, stamina_max, 6, 0) == 110);
+    assert(stamina_regen(1000, stamina_max, 3, 0) == 1000 && stamina_regen(1000, stamina_max, 3, 1000) == 1220);
+    assert(stamina_regen(1000, stamina_max, 1, 50) == 1030 && stamina_regen(stamina_max - 5, stamina_max, 1, 0) == stamina_max);
     // The merc: level from experience, stats from its band.
     Tables merc_tables;
     merc_tables.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,

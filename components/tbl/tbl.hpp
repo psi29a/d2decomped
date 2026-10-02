@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp TBL string-table parser.
 //
 // Format (Phrozen Keep spec, confirmed by our RE of D2 1.14d's

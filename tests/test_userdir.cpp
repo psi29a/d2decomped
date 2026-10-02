@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // .cfg parsing + per-platform user dir shape.
 #include <userdir.hpp>
 

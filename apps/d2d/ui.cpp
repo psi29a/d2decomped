@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ui.hpp: buttons, NPC menus and speech.
 #include "ui.hpp"
 
@@ -54,10 +55,11 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
     menu.npc = npc;
     menu.lines.push_back({ npc_info.name, 21, 0, 0, true });
     auto entries = found->entries;
-    if (npc_info.hc_idx == 150 && clvl > 7) entries = { 0xd35, 0xd45 };
-    if (npc_info.hc_idx == 148 && respec) entries[2] = 0x2ba0;
-    if (npc_info.hc_idx == 155 && east) entries = { 0xd35, 0xd36 };
-    if (npc_info.hc_idx == 154 && imbue) entries = { 0xd35, 0xd06, 0xfb1 };
+    namespace monster_ids = d2d::rules::monster_ids;
+    if (npc_info.hc_idx == monster_ids::kKashya && clvl > 7) entries = { 0xd35, 0xd45 };
+    if (npc_info.hc_idx == monster_ids::kAkara && respec) entries[2] = 0x2ba0;
+    if (npc_info.hc_idx == monster_ids::kWarriv && east) entries = { 0xd35, 0xd36 };
+    if (npc_info.hc_idx == monster_ids::kCharsi && imbue) entries = { 0xd35, 0xd06, 0xfb1 };
     for (const auto id : entries)
         if (id && !(id == 0xfb4 && unidentified == 0))
             menu.lines.push_back({ string_id(scene, id), 15, 0, 0, false,

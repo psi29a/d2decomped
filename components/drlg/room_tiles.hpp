@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Room tiles (RoomTile.cpp): which DT1 tile each cell of a room gets when
 // game.exe brings the room up (FUN_0061b730) — the walk over its DS1 words
 // (plain rooms FUN_0067d710), the per-word rules (FUN_0066e9b0), the rarity
@@ -105,26 +106,36 @@ inline constexpr std::array<DoorRow, 13> kDoorRows = { { { 7, 0, 1, 14, 5, 0 }, 
                                                        { 1, 2, 0, 62, 0, 3 }, { 1, 2, 1, 63, 3, 0 }, { 0, 0, 1, 16, 0, 0 }, { 0, 0, 0, 64, 0, 0 },
                                                        { 2, 0, 1, 47, 5, 0 } } };
 
-// FUN_0066bc20 + FUN_0066bbc0: the level's rooms (list order) within a
-// 6-tile gap on both axes, itself included, then bubble-sorted so a room
-// wholly left of or above the one before it moves ahead.
-inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, std::size_t self) {
+// FUN_0066bc20 + FUN_0066bbc0: the level's rooms (list order, the first
+// `own`) within a 6-tile gap on both axes, itself included, then
+// bubble-sorted so a room wholly left of or above the one before it moves
+// ahead; then each close room of the levels next door (those past `own`),
+// appended and the list sorted again (FUN_0066be80, FUN_0066bda0).
+inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, std::size_t self, std::size_t own) {
     const auto& room = rooms[self];
     std::vector<std::size_t> close_rooms;
-    for (std::size_t i = 0; i < rooms.size(); ++i) {
-        const auto& other = rooms[i];
+    auto close = [&](const BuiltRoom& other) {
         const int gap_x = room.x < other.x ? other.x - room.width - room.x : room.x - other.width - other.x;
         const int gap_y = room.y < other.y ? other.y - room.height - room.y : room.y - other.height - other.y;
-        if (gap_x < 6 && gap_y < 6) close_rooms.push_back(i);
-    }
-    for (std::size_t k = close_rooms.size() ? close_rooms.size() - 1 : 0; k > 0; --k)
-        for (std::size_t i = 0; i + 1 < close_rooms.size(); ++i) {
-            const auto &first = rooms[close_rooms[i]], &second = rooms[close_rooms[i + 1]];
-            if (second.x + second.width <= first.x || second.y + second.height <= first.y) std::swap(close_rooms[i], close_rooms[i + 1]);
-        }
+        return gap_x < 6 && gap_y < 6;
+    };
+    auto sort = [&] {
+        for (std::size_t k = close_rooms.size() ? close_rooms.size() - 1 : 0; k > 0; --k)
+            for (std::size_t i = 0; i + 1 < close_rooms.size(); ++i) {
+                const auto &first = rooms[close_rooms[i]], &second = rooms[close_rooms[i + 1]];
+                if (second.x + second.width <= first.x || second.y + second.height <= first.y) std::swap(close_rooms[i], close_rooms[i + 1]);
+            }
+    };
+    for (std::size_t i = 0; i < own; ++i) if (close(rooms[i])) close_rooms.push_back(i);
+    sort();
+    for (std::size_t i = own; i < rooms.size(); ++i) if (close(rooms[i])) { close_rooms.push_back(i); sort(); }
     return close_rooms;
 }
 
+inline constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
+inline constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
+inline constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
+                                     { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
 // FUN_0066d110 (a LvlPrest Logicals preset): the room cut into areas by
 // its walls. blocks: FUN_0066c870's wall cells (own layer-0 walls, near
 // rooms' non-floor chain tiles inside it); FUN_0066c580 labels them by
@@ -133,10 +144,6 @@ inline std::vector<std::size_t> near_rooms(const std::vector<BuiltRoom>& rooms, 
 // orientation and floor layer 0 word slices.
 inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const std::vector<std::size_t>& nearby,
                         const std::vector<std::uint32_t>& orients, const std::vector<std::uint32_t>& floors) {
-    static constexpr int kDx[4] = { 1, 0, -1, 0 }, kDy[4] = { 0, 1, 0, -1 };                        // 0x6eee14
-    static constexpr int kRow[20] = { -1, 0, 1, 2, 2, 0, 1, 3, 0, 1, 0, 1, 4, -1, 4, 0, 0, 0, 0, 0 };  // 0x6eeea0
-    [[maybe_unused]] static constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, { 15, 3, 0, 9, 7 },  // 0x6eee24
-                                         { 39, 0, 0, 5, 3 }, { 31, 31, 31, 31, 31 }, { 31, 31, 31, 31, 31 } };
     auto& room = rooms[self];
     const int w = room.width + 1, h = room.height + 1;
     std::vector<std::uint32_t> labels(std::size_t(w * h));
@@ -216,10 +223,12 @@ inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const s
 // `slots`: the level's warp slots (warp_slots). `order`: the rooms (list
 // indices) in the order they come up (FUN_0061b190), empty for list order;
 // a room's picks and its share of an edge depend on which are up already.
+// `outside`: the up rooms of the levels next door (the camp's) in this
+// level's tiles, list order; up before the level's, after them in the result.
 inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& made, const std::vector<PlainRoom>& plain,
                                                const OutdoorData& data, const RoomDt1s& dt1s, int level,
                                                const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes,
-                                               const std::vector<std::size_t>& order = {}) {
+                                               const std::vector<std::size_t>& order = {}, std::vector<BuiltRoom> outside = {}) {
     using namespace room_tiles_detail;
     auto note = [&](std::string message) { if (std::ranges::find(notes, message) == notes.end()) notes.push_back(std::move(message)); };
     std::vector<BuiltRoom> rooms;                       // game.exe's list: newest room first
@@ -229,15 +238,17 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             for (const auto& plain_room : plain) if (plain_room.x == made_room->x && plain_room.y == made_room->y) room.plain = &plain_room;
         rooms.push_back(std::move(room));
     }
+    const std::size_t own = rooms.size();
+    for (auto& room : outside) rooms.push_back(std::move(room));
     // Each room's tile seed and DT1s outlive its walk: a later room re-picking a shared tile rolls the owner's.
     std::vector<d2d::rules::Rng> rngs(rooms.size());
     std::vector<decltype(room_dt1_list(0u, dt1s))> lists(rooms.size());
     std::map<std::pair<int, int>, std::vector<Unit>> preset_units;   // by the preset's origin: units no room has taken yet
-    for (std::size_t step = 0; step < rooms.size(); ++step) {
+    for (std::size_t step = 0; step < own; ++step) {
         const std::size_t room_index = order.empty() ? step : order[step];
         auto& room = rooms[room_index];
         room.upper = true;
-        room.step = step;
+        room.step = rooms.size() - own + step;
         const Preset* pre = nullptr;
         const d2d::ds1::Map* map = nullptr;
         if (!room.plain) {
@@ -274,7 +285,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     unit.x += room.seed->preset_x * 5;
                     unit.y += room.seed->preset_y * 5;
                 }
-                if (level == 2 && room.seed->def >= 4 && room.seed->def <= 7 && room.seed->file == 3 && data.ids.monstats > 0x10a)
+                if (level == level_ids::kBloodMoor && room.seed->def >= 4 && room.seed->def <= 7 && room.seed->file == 3 && data.ids.monstats > 0x10a)
                     list.insert(list.begin(), { 1, 0x10a, 1, (room.seed->preset_x + pre->width / 2) * 5, (room.seed->preset_y + pre->height / 2) * 5, 0 });   // FUN_006664a0: Flavie
                 found = preset_units.emplace(key, std::move(list)).first;
             }
@@ -289,7 +300,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             }
         }
         const auto& list = lists[room_index] = room_dt1_list(room.plain ? room.plain->dt1_mask : pre->dt1_mask, dt1s);
-        const auto nearby = near_rooms(rooms, room_index);
+        const auto nearby = near_rooms(rooms, room_index, own);
         // Reset by FUN_0066ee40; a plain room's init (grass, roads, stamps) rolls it on.
         auto& rng = rngs[room_index] = room.plain ? room.plain->seed : d2d::rules::Rng{ room.seed->seed };
         if (room.plain)
@@ -430,7 +441,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if ((tile_orient == 10 || tile_orient == 11) && style > 7) return;
             if (tile_orient == 0 && style == 30 && seq <= 1) tile_word |= 0x80000000u;
             if (tile_word & 0x80000000u) {
-                if ((tile_orient == 8 || tile_orient == 9) && (level < 111 || (level > 112 && level != 117))) { door(nullptr, tile_word, tile_orient, x, y); return; }
+                if ((tile_orient == 8 || tile_orient == 9) && (level < level_ids::kFrigidHighlands || (level > level_ids::kArreatPlateau && level != level_ids::kFrozenTundra))) { door(nullptr, tile_word, tile_orient, x, y); return; }
                 if (tile_orient == 10 || tile_orient == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
@@ -462,7 +473,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             }
             if (tile_word & 2) add(1, x, y, 0, tile_word);
             else if (fill && x < room.x + room.width && y < room.y + room.height) {                   // FillBlanks, first floor layer
-                const std::uint32_t blank = level == 0x4a ? 0x1e00100u : 0x1e00000u;
+                const std::uint32_t blank = level == level_ids::kArcaneSanctuary ? 0x1e00100u : 0x1e00000u;
                 const auto [tile_file, tile_index] = pick(0, blank);
                 room.tiles.push_back({ 1, x, y, 0, tile_file, tile_index, (tile_word & ~0x80u) | 0x80000000u });
             }
@@ -470,7 +481,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 const auto added = add(0, x, y, tile_orient, tile_word);
                 if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], tile_word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, tile_word);
-                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) warp_wall(added, tile_word, tile_orient, x, y);
+                if ((tile_orient == 10 || tile_orient == 11) && level != level_ids::kMatronsDen) warp_wall(added, tile_word, tile_orient, x, y);
             }
             if (tile_word & 0x8000000u) add(2, x, y, 13, tile_word);
         };

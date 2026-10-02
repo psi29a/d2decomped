@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // In-game panels: inventory, character, HUD, stash/cube, belt, automap, waypoints.
 #pragma once
 
@@ -8,13 +9,17 @@
 #include <d2s_items.hpp>
 #include <dc6.hpp>
 #include <quests.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -28,7 +33,7 @@ namespace d2d::client {
 // Items draw through their inventory colormap (Scene::item_pal).
 // ponytail: no cube.
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
-                    const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, int clvl = 1,
+                    const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr);
 
 // Character panel (left of the inventory: 800x600 puts the left panels
@@ -52,6 +57,13 @@ constexpr PanelText kCharValues[] = {
     { 232, 270, 267,  7 }, { 273, 270, 308,  6 }, {  77, 308, 112,  1 },
     { 232, 308, 267,  9 }, { 273, 308, 308,  8 }, { 273, 348, 307, 39 },
     { 273, 372, 307, 43 }, { 273, 396, 307, 41 }, { 273, 420, 307, 45 },
+};
+// The left / right skill's attack blocks (FUN_004ed570): {x0, y, x1} at
+// 0x72d840, 6 per block: name, "Damage", its value, the attack rating
+// label, unused, its value. id is unused.
+constexpr PanelText kAttackBlock[] = {
+    { 162,  93, 258, 0 }, { 162, 101, 258, 0 }, { 263,  98, 307, 0 }, { 162, 160, 270, 0 }, { 162, 163, 270, 0 }, { 270, 160, 310, 0 },
+    { 162, 117, 258, 0 }, { 162, 125, 258, 0 }, { 263, 122, 307, 0 }, { 162, 184, 270, 0 }, { 162, 187, 270, 0 }, { 270, 184, 310, 0 },
 };
 
 // Stat point buttons, from game.exe's table at 0x724a48 (14-byte records
@@ -77,9 +89,51 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   globes: fill = cur * 80 / max rows of hlthmana frame 0 (life; 2 when
 //   poisoned) / 1 (mana), bottom at H-13, x 29 / W-111; then the glass
 //   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
+//   life: at least 2 rows while alive; hlthmana frame 2 poisoned (state 2).
+//   exp bar (FUN_00498ea0): (exp - prev) * 119 / (next - prev) px, two
+//   lines at H-38 / H-37 from W/2-144 in palette index 255; none at the
+//   max level.
+//   run button (FUN_00497480): runbutton frame 0 walk / 2 run (+1 held
+//   under the cursor), x W/2-145, bottom H-10.
+//   stamina bar (FUN_004975b0): cur * 102 / max px by 18 at (W/2-127,
+//   H-27), draw mode 2; gold (FUN_004fb180(f4, c0, 4c)), red under 25 px,
+//   blue over max.
+//   hover (FUN_00502280, centred, bottom): "Stamina: %d / %d" at W/2-76,
+//   H-52; "Experience: %u / %u" at W/2-146, H-51; "Run (key)" at W/2-145,
+//   H-23 (FUN_00497300). Globes (FUN_00498120): "Life: %d / %d" /
+//   "Mana: %d / %d" plain, centred on 65 / W-80, bottom H-95.
 // The maxima include what's worn (Fight::item_max).
-// ponytail: no poison tint, stamina bar, skill icons or run/walk yet.
-void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats);
+// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no
+// smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
+// (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
+// DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
+struct Hud { bool poisoned = false, running = false, run_down = false; };
+void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
+              const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
+// The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
+// H-28..H-8. A press plays Sounds.txt 4 (FUN_004b9a00); the release over
+// it toggles run (FUN_004996a0 → FUN_0044be80).
+bool over_run_button(int mouse_x, int mouse_y);
+
+// The red New Stats / New Skills buttons over the HUD while stat 4 / 5
+// are unspent (UI 6 / 7, set each frame by FUN_004a64c0; drawn by
+// FUN_004a6b30 / FUN_004a6e60). x is the socket's left, -1 hidden:
+// stats at 40 (W/2+40 with a left panel open), skills at W-73 (W/2-73
+// with a right one); both hidden with both sides open or a store, stats
+// with the character panel, skills with the tree. levelsocket frame 0
+// bottom at H-105, level frame 0 (1 held and under the cursor) at x+3,
+// bottom H-109; the label (3986 / 3987) centred on the socket, bottom
+// H-142.
+struct LevelButtons {
+    int stats_x = -1, skills_x = -1;
+    bool stats_down = false, skills_down = false;
+};
+LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open);
+// The hit boxes (FUN_004a6580 / FUN_004a6630), both edges excluded:
+// x+1..x+33 by H-138..H-103 (stats), x+1..x+32 by H-137..H-103 (skills).
+bool over_stats_button(int x, int mouse_x, int mouse_y);
+bool over_skills_button(int x, int mouse_x, int mouse_y);
+void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const LevelButtons& buttons, int mouse_x, int mouse_y);
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
@@ -90,7 +144,7 @@ std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout,
 // A left-side storage panel: the stash (panel 5) or the cube (panel 4).
 void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
-                  int mouse_x, int mouse_y, int clvl);
+                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the
@@ -99,7 +153,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // and its items. Hovering an item shows its hover text.
 // ponytail: no slot hotkey numbers.
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, int clvl, bool popup);
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup);
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's
@@ -109,22 +163,44 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // (40, 15), with DC6's bottom-left anchoring.
 // ponytail: reveals tiles within 12 of the player (D2 reveals by room),
 // cel picked by a tile hash rather than the game's RNG, no fade near the
-// centre, no player/NPC marks.
+// centre, no player/NPC marks; no unit icons or town miniatures of its own
+// (a game.exe file's are kept, the miniatures not drawn).
 // One automap per Levels.txt Layer: the town and the act 1 wilderness
 // share layer 0, so the map shows them together; cells sit in act
 // coordinates.
+// A cell goes in its list's tree (FUN_00457b00) unless one sits at its
+// (x, y) already that it matches: same cel group (0x711258 -> 0x7a3150),
+// or it has none.
+// Saved next to the character (d2s_automap.hpp): load_automap reads the
+// layer's cells in, save_automap appends the ones added since.
 struct Automap {
-    struct Cell { int cel, x, y; };
+    struct Cell { int cel, x, y; int list = 0; bool saved = false; };   // list: 0 floors, 1 walls, 2 units, 3 miniatures
     std::vector<Cell> cells;
+    std::set<std::tuple<int, int, int, int>> placed;               // list, y, x, cel group (-1 none)
     std::unordered_map<int, std::vector<std::uint8_t>> revealed;   // per level, per DS1 tile
     bool open = false;
+    bool add(const Cell& cell);
 };
+
+// Interchangeable cels (0x711258, cel then group).
+inline constexpr int kCelGroups[][2] = {
+    {0,0},{1,0},{2,0},{3,0},{6,1},{7,1},{8,1},{11,2},{12,2},{13,3},{14,3},{20,4},{38,4},{21,5},{39,5},{46,6},{47,6},
+    {48,6},{49,6},{51,7},{52,7},{53,7},{54,7},{60,8},{70,8},{61,9},{71,9},{120,10},{169,10},{171,10},{121,11},{170,11},
+    {172,11},{257,12},{258,12},{259,12},{266,13},{267,13},{337,14},{338,14},{472,15},{473,15},{474,15},{475,15},
+    {520,16},{521,16},{522,16},{533,17},{534,17} };
+// The player mark's outline (0x6d6638), half-scale steps.
+inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
+
+// The layer's saved cells into `automap` (FUN_00458750), and its new ones
+// out (FUN_004584c0); `dir` "" saves nothing.
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
+void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
 
 // The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),
 // in the left-panel spot at 800x600 (+80, +60 on game.exe's numbers):

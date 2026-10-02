@@ -49,3 +49,40 @@ are groups 2–5 on their own.
 Every Act 1 town variant (townE1/N1/S1/W1) has exactly one 30/0, one
 32/0 and one 33/0. townE1: 30/0 at tile 30,13 (next to the stash and
 campfire), 32/0 at 32,13, 33/0 at 34,20.
+
+## The camp populating
+
+The camp is one preset (Act 1 def 1, townE1-4, kind 2) split into 8×8
+rooms (FUN_00666680), row by row, each put at the head of the level's
+list (level +0x10): 35 for the 56×40 town (the DS1 is 57×41, its last
+column and row an edge). Each room populates as it comes up
+(FUN_0052d0f0) like any other, but nothing in it rolls:
+
+- FUN_0054f060 steps the room's seed; no object groups (FUN_00552610)
+  and no monster population (FUN_0054ec90) come of it, so the object
+  seed (game +0x10f0) stays put through the town.
+- FUN_005559a0 makes the room's preset units: the objects first (type
+  2), then the monsters (type 1), each pass in the room's preset list
+  order, the DS1's reversed; a unit flagged +0x1c & 1 is left out.
+- Each unit made (FUN_00555230 → FUN_00552df0) takes one step of the
+  game seed (game +0xd0), its unit seed `{low, 666}`.
+- A critter is never made: FUN_0054e490 returns at once when
+  FUN_004638a0(row, 0xd), MonStats2's flag 13 (`critter`), is set. The
+  camp's chickens (MonPreset act 1 id 3) cost nothing; its cows do.
+
+So the game seed after the town is the seed stepped once per object and
+non-critter monster of the rooms up. d2d: `populate` (gamedata.cpp) for
+a level without generated rooms; `load_npcs` gives each unit its room.
+Checked in the emulator: `LEVELS=1,2,8,4,9 uv run python diff_drlg.py
+1-20 0 game`, the game and object seeds through the camp and every level
+after it.
+
+With the camp up first, a Blood Moor room on its edge shares edge tiles
+with the camp's rooms: the near list (FUN_0066c370 → FUN_0066be80) takes
+the close rooms up in the levels next door too, appended and the list
+sorted again, so FUN_0066e940 finds the camp's edge tiles and the room
+rolls fewer picks on its seed (its room1 seed moves). d2d: `camp_rooms`
+(gamedata.cpp) lays the camp's rooms up on its preset (LvlPrest def 1)
+and hands them to `level_room_tiles` as `outside`; no DT1s, so the
+camp's tiles are found, never picked. Checked: the same diff, every
+room1 and room seed of seeds 1-20.

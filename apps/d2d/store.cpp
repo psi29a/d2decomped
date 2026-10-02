@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for store.hpp: the store panel.
 #include "store.hpp"
 
@@ -60,7 +61,7 @@ std::array<int, 4> store_button_frames(const Store& store) {
     return { 2, 4, repair ? 6 : 0, repair ? 18 : 10 };
 }
 
-void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, int clvl) {
+void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
     if (store.npc < 0) return;
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     if (scene.store_panel.frames_per_direction() >= 4) {
@@ -70,8 +71,6 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
         blit_sprite(framebuffer, scene.store_panel.frame(0, 2), pal, kCharPanelX, kCharPanelY + int(frame.height));
         blit_sprite(framebuffer, scene.store_panel.frame(0, 3), pal, kCharPanelX + int(frame.width), kCharPanelY + int(frame.height));
     }
-    static constexpr int kTabLabelX[4] = { 42, 121, 201, 281 };
-    static constexpr std::uint16_t kTabString[4] = { 0xfc4, 0xfc5, 0xfc5, 0xfc7 };
     for (int i = 0; i < 4; ++i) {
         const bool active = i == store.tab;
         if (scene.store_tabs.frames_per_direction() >= 8) {
@@ -107,7 +106,8 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
         if (mouse_x >= x && mouse_x < x + width && mouse_y >= y && mouse_y < y + height) { hover = &item; hover_box = { x, y, width, height }; }
     }
     if (hover) {
-        auto lines = item_lines(scene, *hover, clvl);
+        const int clvl = wearer ? wearer->lvl : 1;
+        auto lines = item_lines(scene, *hover, clvl, wearer);
         // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0).
         // At the gamble screen, the gamble price (FUN_00629370).
         const int price = store.gamble ? d2d::rules::gamble_price(scene.rules, hover->code, clvl)

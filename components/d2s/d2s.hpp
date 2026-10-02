@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s character-save header parser.
 //
 // Reads only the fixed header the char-select screen needs: name, class,
@@ -33,8 +34,7 @@
 //   +0x279 "WS" + 6 bytes, then per difficulty 24 bytes: 02 01 and a
 //              bitfield of activated waypoints (Levels.txt Waypoint
 //              index, LSB first; 39 used)
-// ponytail: header only. Stats/skills/items are bit-packed sections after
-// 0x2FD; parse them when gameplay needs more than what char-select shows.
+// Stats/skills/items, the bit-packed sections after 0x2FD: d2s_items.hpp.
 #pragma once
 
 #include <algorithm>
@@ -49,6 +49,9 @@
 namespace d2d::d2s {
 
 inline constexpr std::uint32_t kMagic = 0xAA55AA55;
+// The class id (header +0x28): charstats.txt's row order. Plain, so it
+// indexes the per-class tables.
+enum PlayerClass : int { kAmazon, kSorceress, kNecromancer, kPaladin, kBarbarian, kDruid, kAssassin };
 // D2R (97+) moved the name field; pre-1.09 used a different header.
 inline constexpr std::uint32_t kMinVersion = 92;
 inline constexpr std::uint32_t kMaxVersion = 96;

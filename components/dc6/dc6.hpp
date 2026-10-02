@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp DC6 sprite parser.
 //
 // DC6 = Diablo Cel format 6. Palette-indexed sprite frames, RLE-encoded.

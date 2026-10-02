@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.28)
 project(D2Decomp LANGUAGES CXX)
 
@@ -24,6 +25,12 @@ endif()
 # avoids those names.
 if(WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+# The near/far guard: off Windows, cmake/no_near_far.hpp makes either name a
+# compile error ("'near' is a windows.h macro"), so it fails here and not
+# only in the MSVC CI.
+if(NOT WIN32)
+    add_compile_options("SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/cmake/no_near_far.hpp")
 endif()
 
 # Structs here lean on default member initializers and are aggregate-

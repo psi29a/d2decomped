@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Logging, after ../opendf's DF::Log: each line goes to stdout (warnings
 // and errors to stderr) and, stamped with the time since launch, to
 // <user dir>/d2d.log. Init sections read like ../thirdeye's

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # d2d_check_headers(<name> LINK <libs...>): every .hpp in the calling
 # directory compiles on its own (one generated .cpp each), so a header
 # includes what it uses. Built with the rest when D2D_CHECK_HEADERS is on.

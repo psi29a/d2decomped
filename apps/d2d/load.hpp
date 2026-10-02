@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Loading the Scene: composites, saves, and load_scene.
 #pragma once
 

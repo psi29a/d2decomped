@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s writer: the parser (d2s.hpp, d2s_items.hpp) run backwards.
 //
 // A save is written over its original file (the template): the header's
@@ -48,7 +49,9 @@ struct BitWriter {
 inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* props, std::size_t count) {
     for (std::size_t i = 0; i < count;) {
         const int id = props[i].stat;
-        const std::size_t run = id == 17 || id == 48 || id == 50 || id == 52 ? 2 : id == 54 || id == 57 ? 3 : 1;
+        const std::size_t run = id == kMaxDamagePercent || id == kFireMinDamage || id == kLightningMinDamage || id == kMagicMinDamage ? 2
+                                : id == kColdMinDamage || id == kPoisonMinDamage                                                   ? 3
+                                                                                                                                   : 1;
         writer.write(std::uint32_t(id), 9);
         for (std::size_t k = 0; k < run && i < count; ++k, ++i) {
             if (props[i].stat < 0 || std::size_t(props[i].stat) >= item_tables.stats.size() || !item_tables.stats[std::size_t(props[i].stat)].save_bits)

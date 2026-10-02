@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // World sounds due later (a monster's cry after its delay, an item landing),
 // from a place. The World queues them; the client plays them when due
 // (audio.hpp play_cues).

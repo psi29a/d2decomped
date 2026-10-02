@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe's drop roller as the oracle (docs/research/re/drops.md).
 
     uv run python drops.py 1-20000          # diff tools/drop-dump against game.exe, one job per seed
@@ -21,7 +22,10 @@ the ilvl; FUN_00557ab0 rolls its coins / stack / durability / defence
 (FUN_00627260, set stat, hooked to record them), then FUN_005566b0 (unique)
 or FUN_005c2940 (set) picks off its own seed on a game whose one-per-game
 list (+0x1b24) carries on from job to job. A failed pick triples (unique)
-or doubles (set) the durability, as FUN_00557450 goes on to.
+or doubles (set) the durability, as FUN_00557450 goes on to. One that
+took shows its mods (FUN_00627030 add / FUN_00627150 set on the item's
+list), each set bonus list (states 0xa5..0xa9, as "i[...]"), ethereal
+(FUN_00556ca0) and its own seed after.
 
 Objects: a job is (object seed, unit seed, OperateFn, objects.txt id, level,
 difficulty, locked, sparkling). The OperateFn (FUN_00585f60 chest,
@@ -89,6 +93,24 @@ def item_codes(e):
     return codes
 
 
+def item_flags(e, codes):
+    """Per item index: always magic, quest, can rare, only unique, always normal (read up front off game.exe's getters)."""
+    item, flags = e.alloc(0x100), []
+    for i in range(len(codes)):
+        e.w32(item, 4); e.w32(item + 4, i)
+        flags.append([e.call(f, item, ecx=item) & 0xFF for f in (0x62e9e0, 0x628cd0, 0x62e990, 0x628c70, 0x62ea30)])
+    return flags
+
+
+def made_quality(flags, quality):
+    """FUN_00557450's flags on an asked quality."""
+    magic, quest, rare, unique, normal = flags
+    if magic: quality = 7 if quest else quality if 4 <= quality <= 9 else 4
+    if not rare and quality == 6: quality = 4
+    if unique: quality = 7
+    return 2 if normal else quality
+
+
 class Oracle:
     def __init__(self, items=False):
         self.e = e = drlg.boot()
@@ -101,11 +123,35 @@ class Oracle:
         e.w32(self.unit, 1)                            # a monster
         self.made, self.players, self.mf = [], 1, 0
         if items:
-            self.stats = {}
+            # A fake stat store: the item's own (base) stats, set / read by
+            # FUN_00627260 / FUN_006253b0 / FUN_00625500, and its one modifier
+            # list (FUN_00625790 / FUN_006257d0 find it) that the property funcs
+            # (FUN_00627030 add, FUN_00627150 set) and staffmods write.
+            self.flags = item_flags(e, self.codes)     # before the stat hooks: the getters read stats
+            self.stats, self.mods, self.sets, LIST = {}, {}, {}, 0x5157
+            self.shift = {int(r["ID"]): int(r["ValShift"] or 0) for r in txt_rows(e, "ItemStatCost") if r.get("ID")}
             self.item, self.data, self.args, self.seed = e.alloc(0x200), e.alloc(0x200), e.alloc(0x100), e.alloc(8)
+            def total(e):
+                stat, param = e.arg(1), e.arg(2)
+                value = self.stats.get(stat, 0) + self.mods.get((stat, param), 0)
+                return value + (self.maxdur() - self.stats.get(0x49, 0) - self.mods.get((0x49, 0), 0) if stat == 0x49 else 0)
+            def kept(e):                               # the item's list, or a set's bonus list (states 0xa5..0xa9)
+                return self.mods if e.arg(0) == LIST else self.sets.setdefault(e.arg(0) - LIST - 0xa5, {})
+            def add(e):
+                kept(e)[(e.arg(1), e.arg(3))] = kept(e).get((e.arg(1), e.arg(3)), 0) + e.arg(2)
+            def put(e):
+                kept(e)[(e.arg(1), e.arg(3))] = e.arg(2)
             e.hook(0x627260, lambda e: self.stats.__setitem__(e.arg(1), e.arg(2)), 4)   # set stat: recorded
-            e.hook(0x625480, lambda e: self.stats.get(e.arg(1), 0), 3)
-            e.hook(0x65fec0, lambda e: 0, 6)           # the item's event / packet
+            for a in (0x6253b0, 0x625500): e.hook(a, lambda e: self.stats.get(e.arg(1), 0), 3)
+            e.hook(0x625480, total, 3)
+            for a in (0x625790, 0x6257d0): e.hook(a, lambda e: LIST + e.arg(1), 3)   # a state's list (a set's bonuses) apart
+            e.hook(0x627030, add, 4)
+            e.hook(0x627150, put, 4)
+            e.hook(0x625d00, lambda e: self.mods.get((e.arg(1), e.arg(2)), 0) if e.arg(0) == LIST else 0, 3)
+            e.hook(0x625e00, lambda e: self.maxdur(), 1)   # max durability with item_maxdurability_percent (op 13)
+            self.gear = {r["code"] for f in ("Weapons", "Armor") for r in txt_rows(e, f)}
+            affixes = e.call(0x633ed0)                 # {count, rows, prefixes, suffixes, automagic}: data+0x36 is a row + 1
+            self.auto0 = (e.r32(affixes + 16) - e.r32(affixes + 4)) // 0x90
             return
 
         def make(e):                                   # FUN_0055a550(ecx item; game, quality, unique/set index, flags)
@@ -132,7 +178,11 @@ class Oracle:
         items = "".join(f" {c}:{q}" + (f"*{m}" if m else "") for c, q, m in self.made)
         return f"{seed:08x} {tc}@{lvl}>{up} i{ilvl} p{players} m{mf}:{items} -> {e.r32(self.unit + 0x20):08x}"
 
-    def make(self, seed, code, ilvl, quality, bovine):
+    def maxdur(self):
+        base = self.stats.get(0x49, 0) + self.mods.get((0x49, 0), 0)
+        return base + base * self.mods.get((0x4b, 0), 0) // 100
+
+    def make(self, seed, code, ilvl, quality, bovine, diff=0):
         e = self.e
         item, data, args, gs = self.item, self.data, self.args, self.seed
         for a, n in ((item, 0x200), (data, 0x200), (args, 0x100)): e.mu.mem_write(a, b"\0" * n)
@@ -149,17 +199,34 @@ class Oracle:
         e.w32(args + 0xc, ilvl)
         e.w32(args + 0x80, bovine)
         e.w32(args + 0xfc, item)                       # FUN_00557ab0's EDX: where the item's pointer is
-        self.stats = {}
+        self.stats, self.mods, self.sets = {}, {}, {}
+        e.mu.mem_write(self.game + 0x6d, bytes([diff]))
+        if quality <= 3:                               # FUN_00557450 too: the quality's own rolls, ethereal, sockets, automagic
+            e.w32(args + 0x30, quality)
+            e.call(0x557ab0, args, 1, ecx=self.game, edx=args + 0xfc)
+            st = self.stats
+            props = ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.mods.items()) if v)
+            return (f"{seed:08x} {code} i{ilvl} q{quality} d{diff}: seeds {unit_seed:08x} {own_seed:08x} qty {st.get(0x46, 0)}"
+                    f" dur {st.get(0x48, 0)}/{st.get(0x49, 0)} def {st.get(0x1f, 0)} | q{e.r32(data)} sub {e.s32(data + 0x28)}"
+                    f" flags {e.r32(data + 0x18) & 0x400800:x} sock {st.get(0xc2, 0)} pic {e.read(data + 0x49, 1)[0]}"
+                    f" auto {max(e.r16(data + 0x36) - self.auto0, 0)} [{props}] -> {e.r32(gs):08x} {e.r32(item + 0x20):08x} {e.r32(data + 4):08x}")
         e.call(0x557ab0, args, 0, ecx=self.game, edx=args + 0xfc)
-        pick = -1
+        pick, made = -1, ""
         if quality in (5, 7):
+            e.call(0x629df0, item, 0xFFFFFFFF)         # no unique / set yet (a quest unique without a row keeps it)
             ok = e.call(0x5566b0, self.game, item, args) if quality == 7 else e.call(0x5c2940, ecx=item, edx=args)
-            if ok & 0xFF: pick = struct.unpack("<i", struct.pack("<I", e.call(0x629da0, item)))[0]
+            if ok & 0xFF:
+                pick = struct.unpack("<i", struct.pack("<I", e.call(0x629da0, item)))[0]
+                e.w32(data, quality)
+                e.call(0x556ca0, regs={"ebx": args, "esi": item})   # FUN_00557450's tail: ethereal (not a set)
+                props = ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.mods.items()) if v)
+                sets = "".join(f" {i}[" + ",".join(f"{s}:{p}={((v & 0xffffffff ^ 0x80000000) - 0x80000000) >> self.shift.get(s, 0)}" for (s, p), v in sorted(self.sets[i].items()) if v) + "]" for i in sorted(self.sets))
+                made = f" flags {e.r32(data + 0x18) & 0x400000:x} [{props}]{sets} {e.r32(data + 4):08x}"
             elif self.stats.get(0x49, 0):
                 for s in (0x48, 0x49): self.stats[s] = min(self.stats[s] * (3 if quality == 7 else 2), 255)
         st = self.stats
         return (f"{seed:08x} {code} i{ilvl} q{quality}{' cow' if bovine else ''}: seeds {unit_seed:08x} {own_seed:08x} gold {st.get(0xe, 0)}"
-                f" qty {st.get(0x46, 0)} dur {st.get(0x48, 0)}/{st.get(0x49, 0)} def {st.get(0x1f, 0)} pick {pick} -> {e.r32(gs):08x}")
+                f" qty {st.get(0x46, 0)} dur {st.get(0x48, 0)}/{st.get(0x49, 0)} def {st.get(0x1f, 0)} pick {pick}{made} -> {e.r32(gs):08x}")
 
     def entries(self, i):
         """Class i as `name:prob` over its entries (the expansion cumulative, +0xc total)."""
@@ -182,11 +249,7 @@ class Objects:
     def __init__(self, oracle):
         self.o = o = oracle
         e = o.e
-        item = e.alloc(0x100)
-        self.flags = []                                # per item index: always magic, quest, can rare, only unique, always normal
-        for i in range(len(o.codes)):
-            e.w32(item, 4); e.w32(item + 4, i)
-            self.flags.append([e.call(f, item, ecx=item) & 0xFF for f in (0x62e9e0, 0x628cd0, 0x62e990, 0x628c70, 0x62ea30)])
+        self.flags = item_flags(e, o.codes)
         self.lid, self.extra = 2, []
         self.room, self.obj, self.data, self.rgn = e.alloc(0x100), e.alloc(0x200), e.alloc(0x40), e.alloc(8)
         for addr, n, fn in ((0x620bb0, 1, lambda e: self.room), (0x61a1b0, 1, lambda e: self.lid), (0x621b30, 1, lambda e: 1),
@@ -209,12 +272,7 @@ class Objects:
                 if a: self.stand_levels.setdefault(a - (a > 1), (d, l))
 
     def made(self, code, quality):
-        """FUN_00557450's flags on an asked quality."""
-        magic, quest, rare, unique, normal = self.flags[self.o.codes.index(code)]
-        if magic: quality = 7 if quest else quality if 4 <= quality <= 9 else 4
-        if not rare and quality == 6: quality = 4
-        if unique: quality = 7
-        return 2 if normal else quality
+        return made_quality(self.flags[self.o.codes.index(code)], quality)
 
     def open(self, seed, unit, op, cls, lid, diff, locked, sparkle):
         o, e = self.o, self.o.e
@@ -280,7 +338,15 @@ def item_jobs(o, first, last):
     sets = sorted({r["item"] for r in txt_rows(o.e, "SetItems") if r.get("item") in o.codes})
     for s in range(first, last + 1):
         seed, ilvl = (s * 0x9E3779B1) & 0xFFFFFFFF, 1 + s * 13 % 99
-        if s % 2: yield seed, o.codes[s // 2 % len(o.codes)], ilvl, (2, 4, 6, 3)[s // 2 % 4], 0
+        if s % 2:
+            i, quality = s // 2 % len(o.codes), (2, 4, 6, 3, 1, 3)[s // 2 % 6]
+            if quality <= 3:                           # as FUN_00557450 makes it (low: weapons / armor only)
+                quality = made_quality(o.flags[i], quality if quality > 1 or o.codes[i] in o.gear else 2)
+                if quality <= 3:
+                    if o.codes[i] != "elx":            # not elixirs: FUN_00556a60's magic affix
+                        yield seed, o.codes[i], ilvl, quality, 0, s // 12 % 3
+                    continue
+            yield seed, o.codes[i], ilvl, quality, 0
         elif s % 4: yield seed, uniques[s // 4 % len(uniques)], ilvl, 7, 0
         else: yield seed, sets[s // 4 % len(sets)], ilvl, 5, int(s % 3 == 0)
 

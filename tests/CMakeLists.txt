@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # All tests. Each `test_*.cpp` becomes its own executable + ctest entry.
 # ponytail: no framework, no fixtures. asserts + int main.
 
@@ -27,6 +28,7 @@ d2d_add_test(test_screenshot screenshot)   # zlib transitive via screenshot
 d2d_add_test(test_palette mpq palette)
 d2d_add_test(test_font mpq font)
 d2d_add_test(test_d2s d2s mpq compcode)
+d2d_add_test(test_automap d2s)
 d2d_add_test(test_protocol game)
 d2d_add_test(test_game game)
 
@@ -43,6 +45,9 @@ d2d_add_test(test_drops rules)
 d2d_add_test(test_skills rules)
 d2d_add_test(test_drlg drlg)
 d2d_add_test(test_outdoor drlg mpq)
+# game.exe's copied tables against the real game.exe (skips without one).
+d2d_add_test(test_exe_tables game dc6 dcc font palette)   # game brings install_detect, rules, drlg, compcode
+target_include_directories(test_exe_tables PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).
 # Python3_EXECUTABLE rather than `python3`: Windows installs it as python.exe.
@@ -54,18 +59,22 @@ endif()
 
 # Optional game-data inputs, handed to the tests that use them (they skip
 # those parts when unset): -DD2_PATCH_INSTALLER=.../LODPatch_114d.exe,
-# -DD2_SAVES_DIR=<dir of real .d2s saves>.
+# -DD2_SAVES_DIR=<dir of real .d2s saves>, -DD2_GAME_EXE=.../game.exe.
 set(D2_PATCH_INSTALLER "$ENV{D2_PATCH_INSTALLER}" CACHE FILEPATH "LODPatch_114d.exe for the 1.14d tables")
+set(D2_GAME_EXE "$ENV{D2_GAME_EXE}" CACHE FILEPATH "game.exe 1.14d (1.14.3.71) for test_exe_tables")
 set(D2_SAVES_DIR "$ENV{D2_SAVES_DIR}" CACHE PATH "Real .d2s saves for parser checks")
 set(d2d_test_env "")
 if (D2_PATCH_INSTALLER)
     list(APPEND d2d_test_env "D2_PATCH_INSTALLER=${D2_PATCH_INSTALLER}")
 endif()
+if (D2_GAME_EXE)
+    list(APPEND d2d_test_env "D2_GAME_EXE=${D2_GAME_EXE}")
+endif()
 if (D2_SAVES_DIR)
     list(APPEND d2d_test_env "D2_SAVES_DIR=${D2_SAVES_DIR}")
 endif()
 if (d2d_test_env)
-    set_tests_properties(test_d2s test_outdoor test_game PROPERTIES ENVIRONMENT "${d2d_test_env}")
+    set_tests_properties(test_d2s test_outdoor test_game test_exe_tables PROPERTIES ENVIRONMENT "${d2d_test_env}")
     if (TARGET d2d AND Python3_Interpreter_FOUND)
         set_tests_properties(smoke_d2d PROPERTIES ENVIRONMENT "${d2d_test_env}")
     endif()

@@ -162,6 +162,37 @@ The path is D2DynamicPath (unit +0x2c):
 - Units update in the active rooms around each player. The near list FUN_0066c370 takes rooms less than 6 tiles apart.
 - d2d updates every monster within 30 cells of the player (Fight::world). That covers more than game.exe's active rooms, and a monster can't take a target past 0x37 subtiles (11 tiles) anyway.
 
+## Thinks: Fetish, Arach, Vampire, Griswold, the Smith
+
+Act 1's last untraced MonAIs (MonStats AI column, levels 2..39): fetish1 (Catacombs, MonAI 30), arach1 (26), vampire5 (28), and the superuniques Griswold (griswold row, 90) and the Smith (smith, 98). All are search type 1. Think params block: [0] AI control (+0x14 / +0x18 / +0x1c the scratch words), [2] target, [5] distance, [6] in melee, [7] MonStats row. aip1..5 are MonStats +0x56 / +0x5c / +0x62 / +0x68 / +0x6e + difficulty × 2; Skill1..4 +0x170..+0x176, Sk1..4mode bytes +0x180..+0x183.
+
+| AI | think | in `mon_think` |
+|---|---|---|
+| Arach | FUN_005f4510 | life % own (FUN_00621f20); Spider Lay unless in state 0x16 (FUN_00639df0) |
+| Vampire | FUN_005f4a70 | aip5 bits 0 / 1 / 2: shots (Skill1 / Skill4) / Skill2 / Skill3; second target FUN_005ddc30 |
+| Fetish | FUN_005f53e0 | the target's life % against aip4; leader commands through FUN_0058ee80 / FUN_0058ed10 |
+| Griswold | FUN_005e5ac0 | |
+| Smith | FUN_005e3890 | pace (100 − life %) / 2 |
+
+- **rand(100).** FUN_0045c390 on the unit seed is one step, the same as the inline `seed % 100`.
+- **Pace.** FUN_005de190(pct −126..126, steps) → FUN_005a6260 writes the monster's path ctx (monster data +0x2c): +0x18 type, +0x1c pct, +0x20 steps (cap 0x4d), each only when not 0. FUN_005a63f0, in FUN_005a7c20 for any mode but GH, takes them and clears all three; the pct goes to ctx +0x10 and FUN_005a6380 puts it on as stat 0x43 (velocitypercent). So a pace speeds the very next mode only. The Fetish's is 50, the Vampire's Run × 100 / Velocity − 100 clamped to 0..120.
+- **Back-off flags.** FUN_005defe0(target, n, f) sets steps n when n > 5 and calls FUN_005deb60 with flags 4 when f. A failed mode start schedules the think aidel on (FUN_005a73e0); flags 4 then remove the pending type-2 events (FUN_00540e60(2, 0)). Flags 2 is the walk's 70 % wander 4, else stand 10.
+- **Second target (FUN_005ddc30).** The skill-set target (FUN_005dd610), else FUN_005dd0b0 mode 6 (callback FUN_005dcbd0: the near rooms' units, enemies by FUN_005dc970, FUN_005dc380 distance under 0x31, sight always (mask 4), threat 2 or more primary, else secondary), then FUN_005dd510.
+- **Skills.** Spider Lay is srvdofunc 23 (FUN_005c9c10; aurastate spiderlay = state 0x16, auralen 300, aurastat velocitypercent −100, anim A2). VampireFireball and VampireMissile are srvmissile vampirefireball / firehead (SC). VampireFirewall is srvdofunc 24 (FUN_005c9ea0, the Countess's), VampireMeteor 28 (FUN_005ca3e0). The srvdofunc table is at 0x7322b0. vampire5's aip5 is 1, so in Act 1 it only shoots.
+
+## Doors — FUN_005b0f50
+
+Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):
+
+1. FUN_00648eb0(path): the collision word under it (FUN_0064d9b0, mask 0x7fff), cached at path +0x54. Bit 0x800 must be set.
+2. FUN_005dd0b0 mode 8 (FUN_005dce60 over the near rooms, callback FUN_005dcd50): an object (type 2) with Objects.txt +0x13a (IsDoor) set, in mode 0 (closed), the nearest by squared subtile distance (FUN_005b0bd0) under 9.
+3. Its Objects.txt row (FUN_00640e90, 0x1c0 bytes each) +0x16d (MonsterOK) set: FUN_00584540(2, id) operates it, stand 5 (FUN_005de080), and the driver stops. The stand comes whether or not it was operated.
+4. FUN_00584540 operates only in reach (FUN_00623660): FUN_00641530 (`unit_distance`, the object's SizeX) 0, else the monster within 2 of the object's rect (its spot less half SizeX / SizeY), the corners (both axes 2 out) not for a monster under size 3; an object without a size, within 1 of its spot. Then FUN_00584420 runs its OperateFn (FUN_00581d40 for a door: 500 ms since it last changed).
+
+In Act 1 the IsDoor objects are OperateFn 8 (MonsterOK on all but 47 and 75) and 229 / 230 (OperateFn 29, not MonsterOK). Most of Act 1's walkers have opendoors: the Fallen, Shamans, skeletons, Corrupt Rogues, Griswold, the Smith, Andariel.
+
+Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its search), through `Fight::open_door` → `World::monster_door` (`rules::door_pick`, `rules::object_reach`, `operate_door`). The 0x800 test is taken as true: the monster's own footprint stamps it (collision.md); what a moving path caches at +0x54 isn't traced. Ties go by the level's object order, not the near rooms' unit lists.
+
 ## In d2d
 
 - `ai.cpp search_target` is the search for both the traced thinks and the AIs not traced (those used to notice within 8 cells and chase within 16, by eye).
@@ -183,3 +214,5 @@ Approximated (`ponytail:` in ai.cpp, fight.cpp, monsters.hpp):
 - The search pather (type 0xf, FUN_0067c2d0) is `rules::find_path`'s turns over its first 0x28 subtiles. Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
 - A dead pet is skipped (game.exe takes it off the list), and a dead monster leaves list 9.
 - An untraced AI chases the nearest foe, whichever it found.
+- A pace (`ThinkIn::pace` → `Monster::move_pct`) adds to the move's speed %; Spider Lay's −100 % leaves it creeping at the 10 % floor, and its slowed state on those about is left out. A foe's life % (`Foe::life_pct`) is the player's only.
+- The Vampire's second target (FUN_005ddc30) is its target. VampireFirewall / VampireMeteor stand (no Act 1 vampire casts them). The Fetish's leader commands never come, and the pathers 2 / 0xd and FUN_005defe0's steps are `path_to`'s.

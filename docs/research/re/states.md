@@ -47,5 +47,6 @@ tint byte, so a save's tints leave it out.
 ## Not yet
 
 - LoopWaitTime isn't applied.
-- The player's own chill and poison aren't modelled by the fight, so
-  they don't show.
+- The player's own chill ("cold") and poison show as on a monster
+  (View chilled / poisoned, `player_states`). The chill's −50 on
+  other_animrate (stat 69) isn't applied.

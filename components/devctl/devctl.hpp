@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp dev control channel — Unix domain socket for local development.
 //
 // Same shape as third-eye's THIRDEYE::control (docs/control_channel.md over

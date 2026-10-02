@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // mpq-cat <mpq dir> <file>... — write files from the game's MPQ stack to
 // stdout, in d2d's order (1.14d patch via $D2_PATCH_INSTALLER, then
 // d2exp, d2data, d2char, sounds). For reading excel tables while RE'ing.

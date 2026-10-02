@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Diff our level generator against game.exe's over a range of map seeds.
 
     uv run python diff_drlg.py 1-3000 [level] [tiles|units|seeds|monsters|objgroups|drops|collision|game]     # level defaults to 2 (the Blood Moor)

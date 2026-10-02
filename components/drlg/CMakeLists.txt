@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Header-only level generation (game.exe's DRLG): act layout, outdoors.
 add_library(drlg INTERFACE)
 target_include_directories(drlg INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

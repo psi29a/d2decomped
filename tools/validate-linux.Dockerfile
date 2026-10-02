@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 FROM ubuntu:26.04
 
 # Deps for the CI Linux job (build, tidy, ctest). Baked once so

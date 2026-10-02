@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // NPC behaviour: town NPCs patrolling their DS1 paths.
 #pragma once
 
@@ -15,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -41,6 +43,7 @@ struct UnitState {
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
     bool alert = false;               // has something new to say on a quest: the balloon over its head
     std::string_view mode;            // an object's mode now, "" = its start mode (Npc::mode)
+    std::uint16_t says = 0;           // string id over its head (a shrine's message), 0 none
     std::vector<std::pair<float, float>> path;   // a walk_path route being followed
 };
 
@@ -93,6 +96,10 @@ void merc_follow(const Level& level, UnitState& unit, float player_x, float play
 // the components it rolled, where it is, its stats and what it's doing.
 // Spawn areas' shared "seen" flags by ai.cpp's area key (search_target).
 using AreaSeen = std::unordered_map<int, bool>;
+// A monster that opens doors at a think (FUN_005b0f50): the world finds,
+// and operates in reach, its door; true when it found one.
+struct Monster;
+using OpenDoor = std::function<bool(const Monster&, std::uint32_t now_ms)>;
 
 struct Monster {
     int id = -1;                              // its unit id (D2's GUID: the server's, stable while the game runs)
@@ -172,9 +179,13 @@ struct Monster {
     bool wandering = false;
     // The MonAI thinks: the last mode it left other than NU (monster data
     // +0x54, FUN_005a68e0; GH: it got hit), the AI's scratch words (+0x14,
-    // +0x18), its command (the Fallen's 1: charge), the corpse a skill raises.
+    // +0x18, +0x1c), its command (the Fallen's 1: charge), the corpse a
+    // skill raises; the velocity % of the move its last think started
+    // (rules::ThinkIn::pace), until when it's in Spider Lay's state (0x16).
     std::string_view left_mode = "NU";
-    int ai_state = 0, ai_state2 = 0, ai_command = 0, skill_unit = -1;
+    int ai_state = 0, ai_state2 = 0, ai_state3 = 0, ai_command = 0, skill_unit = -1;
+    int move_pct = 0;
+    std::uint32_t laid_until = 0;
     // Its unit seed (+0x20) as its look left it: what its thinks draw. A
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd), its
     // map AI's points (subtiles), half freeze durations (stat 0x76).
@@ -202,7 +213,8 @@ struct Foe {
     bool alive = true, moving = false;        // moving: block falls to a third
     d2d::rules::Fighter fighter;                    // defense, block, reductions, resistances, thorns
     int damage = 0;                           // life lost this frame, whole points
-    int poison = 0, poison_ticks = 0;         // poison taken this frame: total, over ticks
+    int poison = 0, poison_ticks = 0;         // poison taken this frame: life per tick (256ths), for ticks
+    int chill_ticks = 0;                      // chilled this frame, ticks
     bool blocked = false;                     // blocked a hit this frame
     std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
@@ -211,11 +223,13 @@ struct Foe {
     bool pet = false;                         // the merc, a summon: in the player's list
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
     int threat = 14;                          // FUN_005dc920: a player's 14, a monster's MonStats threat
+    int life_pct = 100;                       // FUN_00621f20 (a Fetish's think); ponytail: the player's only, the rest full
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         damage += taken.damage;
-        if (taken.poison > 0) { poison += taken.poison; poison_ticks = std::max(poison_ticks, taken.poison_ticks); }
+        if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
+        chill_ticks = std::max(chill_ticks, taken.chill_ticks);
     }
 };
 
@@ -379,9 +393,10 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `pack`: all the level's monsters, `monster` among them (its group, the
 // dying, corpses to raise); `born`: gets what it lays (a nest's young).
 // `seen`: the spawn areas' shared "seen" flags (monster data +0x50's +0x24).
+// `open_door`: its door at a think (OpenDoor).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
-                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr);
+                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

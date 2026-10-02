@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The day's clock and the light grid against game.exe's numbers.
 #include <light.hpp>
 

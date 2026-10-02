@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Monster spawning and stats over hand-made tables: the region takes
 // every listed type once, rooms fill by density, Fallen come as a leader
 // with a party, nothing lands on a blocked subtile or by the entrance.
@@ -10,6 +11,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -195,6 +197,17 @@ int main() {
     {
         assert(ai_distance(3, -4) == 5 && ai_distance(0, 0) == 0);
         assert(unit_distance(0, 0, 3, 2) == 0 && unit_distance(4, 0, 3, 2) == 1 && unit_distance(5, 0, 3, 2) == 3 && unit_distance(0, 9, 3, 2) == 14);
+        // A monster's door (FUN_005dcd50): the nearest under 9 squared, the
+        // first on a tie; in reach (FUN_00623660): touching, else 2 about
+        // its rect, a small unit's corners 1 in (the object's spot less
+        // half its size, so a 1x1's far corner is in, its near one out).
+        {
+            const std::array<std::pair<int, int>, 4> spots{ { { 2, 2 }, { 1, -1 }, { -1, 1 }, { 3, 0 } } };
+            assert(door_pick(spots) == 1 && door_pick(std::span(spots).subspan(3)) == -1 && door_pick(std::span(spots).first(1)) == 0);
+            assert(object_reach(2, 0, 2, 1, 3) && object_reach(-2, -2, 1, 3, 1) && object_reach(2, 2, 1, 7, 1));
+            assert(object_reach(2, 2, 1, 1, 1) && !object_reach(-2, -2, 1, 1, 1) && object_reach(-2, -2, 3, 1, 1) && !object_reach(-3, 0, 1, 1, 1));
+            assert(object_reach(1, 1, 1, 0, 0) && !object_reach(-1, 2, 1, 0, 0));
+        }
         // Line of sight (FUN_00622920; tools/emu/sight.py has game.exe's word on these).
         {
             const auto wall = [](int wall_x, int wall_y) { return [=](int x, int y) { return x == wall_x && y == wall_y; }; };
@@ -357,6 +370,67 @@ int main() {
         in.aip[2] = 100; roll = Rng{ 6 };
         assert(mon_think("Brute", in, roll, no_away).act != MonAct::circle && steps(6, roll) == 2);
         assert(!traced_ai("Imp") && mon_think("Imp", in, roll, no_away).act == MonAct::untraced);
+        // Griswold: in melee 80 % A1, else 50 % walks in, else stands 10;
+        // the Smith walks in at half the life % he's lost.
+        int state2 = 0, state3 = 0, pace = 0;
+        for (std::uint32_t seed = 1; seed < 30; ++seed)
+            for (const bool in_melee : { false, true }) {
+                in = { .in_melee = in_melee, .state = &state };
+                Rng mirror{ seed };
+                roll = Rng{ seed };
+                const auto act = mon_think("Griswold", in, roll, no_away);
+                assert(act.act == (in_melee ? (mirror(100) < 80 ? MonAct::a1 : MonAct::idle) : (mirror(100) < 50 ? MonAct::walk : MonAct::idle)) && roll.low == mirror.low);
+            }
+        in = { .life_pct = 40, .state = &state, .pace = &pace };
+        roll = Rng{ 2 };
+        const auto smith = mon_think("Smith", in, roll, no_away);
+        assert(traced_ai("Smith") && smith.act == MonAct::walk && smith.n == 7 && pace == 30 && steps(2, roll) == 0);
+        // Fetish: squares up in melee; after aip3 thinks, its target over
+        // aip4 % life, backs off at pace 50 (blocked: no pace, a think at
+        // once); out of melee walks in at pace 50.
+        in = { .aip = { 100, 7, 2, 50 }, .in_melee = true, .state = &state, .state2 = &state2, .pace = &pace, .target_life_pct = 90 };
+        state = 0; pace = 0; roll = Rng{ 3 };
+        assert(mon_think("Fetish", in, roll, no_away).act == MonAct::a1 && state == 1 && state2 == 0 && steps(3, roll) == 1);
+        state2 = 2; roll = Rng{ 3 };
+        assert(mon_think("Fetish", in, roll, ok_away).act == MonAct::none && state == 2 && state2 == 0 && pace == 50 && steps(3, roll) == 0);
+        state = 1; state2 = 2; roll = Rng{ 3 };
+        assert(mon_think("Fetish", in, roll, no_away).act == MonAct::none && state == 2 && pace == 0);
+        in.in_melee = false; state = 0; roll = Rng{ 3 };
+        const auto fetish_walk = mon_think("Fetish", in, roll, no_away);
+        assert(fetish_walk.act == MonAct::walk && fetish_walk.n == 7 && pace == 50 && steps(3, roll) == 0);
+        in.dist = 20; state = 2; state2 = 1; roll = Rng{ 3 };
+        assert(mon_think("Fetish", in, roll, no_away).act != MonAct::walk && state == 0 && state2 == 0);
+        // Arach: hurt, healed past 75 % it charges (aip3 %); hurt in melee
+        // under aip5 % life it lays (Skill1), or laid, backs off 8 (blocked:
+        // stands aidel).
+        in = { .aip = { 0, 0, 100, 10, 50 }, .life_pct = 80, .state = &state, .state2 = &state2, .state3 = &state3, .aidel = 9 };
+        in.skill[0] = true;
+        state = 1; roll = Rng{ 4 };
+        const auto arach_charge = mon_think("Arach", in, roll, no_away);
+        assert(traced_ai("Arach") && arach_charge.act == MonAct::walk && arach_charge.n == 0 && state == 2 && steps(4, roll) == 1);
+        in.in_melee = true; in.life_pct = 10; state = 0; roll = Rng{ 4 };
+        const auto lay = mon_think("Arach", in, roll, no_away);
+        assert(lay.act == MonAct::skill && lay.n == 0 && state == 1 && steps(4, roll) == 1);
+        in.laying = true; state = 0; roll = Rng{ 4 };
+        const auto stuck = mon_think("Arach", in, roll, no_away);
+        assert(stuck.act == MonAct::idle && stuck.n == 9 && state == 1);
+        // Vampire (aip5 bit 0: shots): hit in melee 30 % a shot (Skill1 or
+        // Skill4), else A1; fleeing near it backs off 8 at Run / Velocity's
+        // pace; within aip3, aip2 % a shot.
+        in = { .aip = { 100, 100, 30, 0, 1 }, .in_melee = true, .got_hit = true, .dist = 1, .life_pct = 100, .state = &state, .state2 = &state2,
+               .pace = &pace, .state3 = &state3, .velocity = 6, .run = 9 };
+        for (std::uint32_t seed = 1; seed < 30; ++seed) {
+            state = 0; state2 = 0; roll = Rng{ seed };
+            Rng mirror{ seed };
+            const auto act = mon_think("Vampire", in, roll, no_away);
+            const MonAct want = mirror(100) > 30 ? MonAct::a1 : MonAct::skill;
+            assert(act.act == want && state == 1 && state2 == 1 && (want == MonAct::a1 || act.n == (mirror(100) < 50 ? 0 : 3)) && roll.low == mirror.low);
+        }
+        in.got_hit = false; in.in_melee = false; in.life_pct = 50; in.dist = 5; state = 2; pace = 0; roll = Rng{ 5 };
+        assert(mon_think("Vampire", in, roll, ok_away).act == MonAct::none && pace == 50 && steps(5, roll) == 0);
+        state = 1; in.dist = 10; roll = Rng{ 5 };
+        const auto shoot = mon_think("Vampire", in, roll, no_away).act;           // 25 % circles 4 first
+        assert((shoot == MonAct::skill || shoot == MonAct::circle) && state == 1 && steps(5, roll) == 3);
         // Fallen: a scare backs off (and a scream roll) or falls through;
         // charging walks in without a draw; a leader taunts, rallying.
         int command = 1;

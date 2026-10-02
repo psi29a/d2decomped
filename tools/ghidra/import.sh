@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Headless import + auto-analyze of a D2 PE into a shared Ghidra project.
 # Reruns are idempotent: -overwrite replaces the imported program.
 #

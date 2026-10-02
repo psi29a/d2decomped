@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Sound output (OpenAL): voice, music, ambience and UI channels.
 #pragma once
 
@@ -68,6 +69,19 @@ struct Audio {
     Channel ambience_old;                        // the day's (night's) ambience, fading out under `ambience`
     std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
     int voice_sound() const { return voice.sound; }
+    // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
+    // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
+    // if it's a Music Vol one, then everything by master / 100.
+    // ponytail: master is the listener's gain, so it scales cinematics too.
+    int master_volume = 100, music_volume = 50;
+    [[nodiscard]] float out_gain(const Channel& channel, float gain) const {
+        return &channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain;
+    }
+    void apply_volume() {
+        if (!ok) return;
+        alListenerf(AL_GAIN, float(master_volume) / 100.f);
+        for (auto* channel : { &music, &music_old }) set_gain(*channel, channel->gain);
+    }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads).
     std::future<std::optional<Decoded>> music_job;
@@ -134,7 +148,7 @@ struct Audio {
         alBufferData(channel.buf, decoded.format, decoded.pcm.data(), ALsizei(decoded.pcm.size()), decoded.freq);
         alGenSources(1, &channel.src);
         alSourcei(channel.src, AL_BUFFER, ALint(channel.buf));
-        alSourcef(channel.src, AL_GAIN, gain);
+        alSourcef(channel.src, AL_GAIN, out_gain(channel, gain));
         channel.gain = gain;
         channel.fade_t1 = 0;
         alSourcei(channel.src, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
@@ -194,7 +208,7 @@ struct Audio {
     }
     void set_gain(Channel& channel, float gain) {
         channel.gain = gain;
-        if (channel.src) alSourcef(channel.src, AL_GAIN, gain);
+        if (channel.src) alSourcef(channel.src, AL_GAIN, out_gain(channel, gain));
     }
     void fade(Channel& channel, float target_gain, std::uint64_t duration_ms) {
         channel.fade_from = channel.gain;

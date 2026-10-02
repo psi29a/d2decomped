@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """game.exe under unicorn: map the PE, stub its imports, call its functions.
 
 The oracle for bit-exactness checks: run game.exe's own code on the same

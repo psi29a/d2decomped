@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Scan the whole loaded program's memory for a byte pattern and print
 // every match address. Pattern uses "??" for wildcards in a single byte.
 // Args: <hex-pattern-with-spaces-or-??> <output.txt>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Store rules over hand-made tables: prices, buy/sell gold, placement, stock.
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -135,8 +136,8 @@ int main() {
     cursor_tables.item_info["cap"] = { .width = 2, .height = 2, .type = "helm", .kind = 1, .req_lvl = 5 };
     cursor_tables.item_info["hp1"] = { .type = "hpot" };
     cursor_tables.item_info["box"] = { .width = 2, .height = 2 };
-    const Wearer sorc{ .cls = 1, .str = 30, .dex = 30, .lvl = 10 };
-    const Wearer barb{ .cls = 4, .str = 30, .dex = 30, .lvl = 10 };
+    const Wearer sorc{ .cls = d2d::d2s::kSorceress, .str = 30, .dex = 30, .lvl = 10 };
+    const Wearer barb{ .cls = d2d::d2s::kBarbarian, .str = 30, .dex = 30, .lvl = 10 };
     auto item_at = [](const std::vector<Item>& items, int loc, int slot) -> const Item* {
         for (const auto& x : items) if (x.location == loc && x.slot == slot) return &x;
         return nullptr;
@@ -162,10 +163,10 @@ int main() {
     std::vector<Item> empty;
     held = item("cap");
     assert(!equip(cursor_tables, empty, held, 3, sorc));                                     // not a torso item
-    assert(!equip(cursor_tables, empty, held, 1, Wearer{ .cls = 1, .lvl = 4 }));             // level 5 needed
+    assert(!equip(cursor_tables, empty, held, 1, Wearer{ .cls = d2d::d2s::kSorceress, .lvl = 4 }));             // level 5 needed
     assert(equip(cursor_tables, empty, held, 1, sorc) && !held && item_at(empty, 1, 1));
     held = item("ssd");
-    assert(!equip(cursor_tables, empty, held, 4, Wearer{ .cls = 1, .str = 10 }));            // 25 strength needed
+    assert(!equip(cursor_tables, empty, held, 4, Wearer{ .cls = d2d::d2s::kSorceress, .str = 10 }));            // 25 strength needed
     assert(equip(cursor_tables, empty, held, 4, sorc));
     held = item("buc");
     assert(equip(cursor_tables, empty, held, 5, sorc) && !held);                             // sword + shield
@@ -312,6 +313,26 @@ int main() {
     assert(generate_item(gamble_tables, "cap", 10, 5, roll).quality == 6);              // no set cap: rare instead
     const auto rare_cap = generate_item(gamble_tables, "cap", 10, 6, roll);
     for (const auto& prop : rare_cap.props) if (prop.stat == 43) assert(prop.value == 10); // res-all: func 3 repeats the value
+    {   // apply_mod: min == max draws nothing; charges (FUN_0065f6a0) at a level off ilvl and reqlevel
+        gamble_tables.properties["charged"] = { { .func = 19, .stat = 204 } };
+        gamble_tables.skill_levels.assign(45, { 1, 20 });
+        gamble_tables.skill_levels[44] = { 6, 20 };
+        std::vector<d2d::d2s::ItemProp> got;
+        Rng still{ 9 };
+        apply_mod(gamble_tables, { "str", "", 5, 5 }, got, still);
+        assert(got.size() == 1 && got[0].value == 5 && still.low == 9 && still.high == 666);
+        got.clear();
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still);   // no item: ilvl 1, level 1, full
+        assert(got.size() == 1 && got[0].param == (44 << 6 | 1) && got[0].value == 22 + 22 * 256 && still.low == 9);
+        got.clear();
+        d2d::d2s::Item wand;
+        wand.ilvl = 30;
+        const ModItem on{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &on);   // level (30 - 6) / 4 + 1 = 7
+        const int charges = 20 + 20 * 7 / 8;
+        assert(got.size() == 1 && got[0].param == (44 << 6 | 7) && got[0].value >> 8 == charges);
+        assert((got[0].value & 0xff) > charges / 8 && (got[0].value & 0xff) <= charges);
+    }
 
     // Gambling: rings cost their gamble cost; upgrade odds grow with level.
     assert(gamble_price(gamble_tables, "rin", 50) == 50000);
@@ -390,6 +411,46 @@ int main() {
     std::vector<d2d::d2s::Item> belt_items{ in_belt("hp1", 1), in_belt("hp1", 5), in_belt("isc", 2) };
     assert(drink_belt(potion_tables, belt_items, 1) == "hp1" && belt_items.size() == 2 && belt_items[0].column == 1);
     assert(drink_belt(potion_tables, belt_items, 2).empty() && drink_belt(potion_tables, belt_items, 0).empty() && belt_items.size() == 2);   // a scroll, nothing
+
+    // A potion's amount: calc << 8, the class's bonus, no roll at 0 vitality.
+    Rng potion_rng{ 9 };
+    assert(potion_amount(30, 0, true, 0, potion_rng) == 11520 && potion_amount(30, 4, true, 0, potion_rng) == 15360);   // Amazon x1.5, Barbarian x2
+    assert(potion_amount(30, 1, true, 0, potion_rng) == 7680 && potion_amount(20, 1, false, 0, potion_rng) == 10240);   // Sorceress: life x1, mana x2
+    assert(potion_amount(20, 4, false, 0, potion_rng) == 5120 && potion_amount(20, 6, false, 0, potion_rng) == 7680);
+    Rng roll_a{ 9 }, roll_b{ 9 };
+    const int half = roll_b(50) >> 1;
+    assert(potion_amount(30, 1, true, 50, roll_a) == (roll_b(100) < half ? 15360 : 7680));                        // rand(vit) / 2 > rand(100): doubled
+    // The state over what's left: hp1 alone 7680 / 192 a frame; another
+    // with 96 frames left: (40 x 96 + 7680) / (96 + 192).
+    assert(potion_rate(0, 0, 7680, 192) == 40 && potion_rate(40, 96, 7680, 192) == 40 && potion_rate(40, 96, 15360, 160) == 75);
+
+    // Picking up: hp potions to their column, then a free one (autobelt);
+    // scrolls to their tome, else the inventory; keys onto their stack.
+    Tables pick_tables;
+    pick_tables.types["hpot"].beltable = pick_tables.types["mpot"].beltable = pick_tables.types["scro"].beltable = true;
+    pick_tables.types["key"].autostack = true;
+    for (const char* code : { "hp1", "hp2", "mp1" }) { pick_tables.item_base[code].autobelt = true; pick_tables.item_info[code].type = code[0] == 'h' ? "hpot" : "mpot"; }
+    pick_tables.item_info["isc"].type = "scro"; pick_tables.item_info["ibk"].type = "book"; pick_tables.item_base["ibk"].max_stack = 20;
+    pick_tables.item_info["key"].type = "key"; pick_tables.item_base["key"].stackable = true; pick_tables.item_base["key"].max_stack = 12;
+    auto ground_item = [](const char* code, int quantity) { d2d::d2s::Item picked; picked.code = code; picked.quantity = quantity; picked.location = 3; return picked; };
+    std::vector<d2d::d2s::Item> carried{ in_belt("hp1", 2), in_belt("mp1", 0) };
+    auto picked = ground_item("hp2", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 8) == Pickup::kGone && carried.back().location == 2 && carried.back().column == 6);   // hp1's column, a row up
+    picked = ground_item("hp2", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().column == 1);   // one row: hp's full, the first free column
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1);   // no tome: not the belt
+    carried.push_back(stored("ibk", 1, 2, 0)); carried.back().quantity = 19;
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().quantity == 20);
+    carried.back().quantity = 15;
+    picked = ground_item("ibk", 9);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kStays && carried.back().quantity == 20 && picked.quantity == 4);   // the rest stays on the ground
+    carried.push_back(stored("key", 1, 4, 0)); carried.back().quantity = 10;
+    picked = ground_item("key", 5);
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried[carried.size() - 2].quantity == 12 && carried.back().quantity == 3);
+    picked = ground_item("key", 10);
+    assert(pick_up(pick_tables, carried, picked, 1, 1, 4) == Pickup::kNoRoom && carried.back().quantity == 12 && picked.quantity == 1);   // the stack fills, the rest has no room
 
     std::puts("test_rules: ok");
 }

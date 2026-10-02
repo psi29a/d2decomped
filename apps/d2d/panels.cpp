@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for panels.hpp: inventory, character, HUD, automap, waypoint panels.
 #include "panels.hpp"
 
@@ -7,26 +8,30 @@
 #include "ui.hpp"
 
 #include <d2s.hpp>
+#include <d2s_automap.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <quests.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace d2d::client {
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
-                    const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , int clvl ,
+                    const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
                     const std::function<std::string(const d2d::d2s::Item&)>* price) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
@@ -48,12 +53,12 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
         std::array<int, 4> rect{};
-        if (item.location == 0 && item.panel == 1) {
+        if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) {
             const auto info = scene.rules.item_info.find(item.code);
             const int item_width = info != scene.rules.item_info.end() ? info->second.width : 1;
             const int item_height = info != scene.rules.item_info.end() ? info->second.height : 1;
             rect = { layout.grid_x + item.column * layout.box_w, layout.grid_y + item.row * layout.box_h, item_width * layout.box_w, item_height * layout.box_h };
-        } else if (item.location == 1 && item.slot >= 1 && item.slot <= 10) {
+        } else if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast) {
             rect = layout.slots[std::size_t(item.slot)];
         }
         if (rect[2] <= 0) continue;
@@ -61,7 +66,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }
     if (hover) {
-        auto lines = item_lines(scene, *hover, clvl);
+        auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
         if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });
         draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
@@ -112,7 +117,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         // Glyph cells blit bottom-anchored at y, like any DC6 (font6 cells
         // are 11 tall with the baseline on row 8).
         const int text_y = panel_y + y - int(font.sheet().frame(0, 0).height) + 1;
-        static constexpr std::array<std::array<std::uint8_t, 3>, 5> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 255, 255, 255 }, { 105, 105, 255 }, { 199, 179, 119 } } };
+        static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
+                                                                              { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 100 } } };
         if (colour == 0) font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, text_y, label);
         else font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, text_y, label, kRgb[std::size_t(colour)][0], kRgb[std::size_t(colour)][1], kRgb[std::size_t(colour)][2]);
     };
@@ -128,28 +134,66 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         }
     }
     for (const auto& value_def : kCharValues) {
-        const bool fixed = value_def.id >= 6 && value_def.id <= 11;       // life/mana/stamina, 8.8
+        const bool fixed = value_def.id >= d2d::d2s::kLife && value_def.id <= d2d::d2s::kMaxStamina;       // life/mana/stamina, 8.8
         std::int64_t value = fixed ? stats.fixed(value_def.id) : stats.get(value_def.id);
         int colour = 0;                                   // 1 red, 3 blue, 4 gold
-        if (value_def.id < 12 && value_def.id != 6 && value_def.id != 8 && value_def.id != 10) {   // the maxima already hold theirs (Fight::item_max)
+        if (value_def.id < d2d::d2s::kLevel && value_def.id != d2d::d2s::kLife && value_def.id != d2d::d2s::kMana && value_def.id != d2d::d2s::kStamina) {   // the maxima already hold theirs (Fight::item_max)
             const auto bonus = panel.bonus[std::size_t(value_def.id)];
-            if (value_def.id < 4) value += bonus;
+            if (value_def.id <= d2d::d2s::kVit) value += bonus;
             colour = bonus > 0 ? 3 : bonus < 0 ? 1 : 0;
         }
         auto res = [&](int resist_index) { value = panel.res[std::size_t(resist_index)]; colour = value >= panel.res_cap[std::size_t(resist_index)] ? 4 : value < 0 ? 1 : 0; };
         switch (value_def.id) {
-            case 30: value = panel.next; break;
-            case 31: value = panel.defense; break;
-            case 39: res(0); break;
-            case 43: res(1); break;
-            case 41: res(2); break;
-            case 45: res(3); break;
+            case d2d::d2s::kNextExperience: value = panel.next; break;
+            case d2d::d2s::kArmorClass: value = panel.defense; break;
+            case d2d::d2s::kFireResist: res(0); break;
+            case d2d::d2s::kColdResist: res(1); break;
+            case d2d::d2s::kLightningResist: res(2); break;
+            case d2d::d2s::kPoisonResist: res(3); break;
             default: break;
         }
-        if (value_def.id == 30 && value < 0) continue;                // max level: blank
+        if (value_def.id == d2d::d2s::kNextExperience && value < 0) continue;                // max level: blank
         const auto txt = std::to_string(value);
-        const bool small_font = (fixed || value_def.id == 31) && (value > 999 || f16.measure(txt) >= value_def.right - value_def.left);
+        const bool small_font = (fixed || value_def.id == d2d::d2s::kArmorClass) && (value > 999 || f16.measure(txt) >= value_def.right - value_def.left);
         text(small_font ? font8 : f16, value_def.left, value_def.right, value_def.y, txt, colour);
+    }
+    // The left and right skill's blocks (FUN_004eda20 -> FUN_004ed570): the
+    // SkillDesc "str alt" name upper-cased (FUN_00452180) in font6; "Damage"
+    // (0xfdd) and its value, font16 unless 11/7 of its font6 width overflows
+    // the box, then font6 a pixel up (FUN_004e96e0); "%s\nAttack Rating"
+    // (0xfdf; 0xfe1 "%s\nRating" for Attack) at y-4 / y+4 and the value in
+    // font16, font8 from 1000 (FUN_004e9940). The numbers come from the
+    // server (rules::attack_line).
+    // ponytail: dual wield's two-value line (FUN_004e9870), the hover
+    // tooltips (FUN_004a7340..), the "K" formats past 9999 and other
+    // languages' y-1 aren't drawn.
+    for (std::size_t block = 0; block < 2; ++block) {
+        const auto& line = panel.attack[block];
+        const auto* skill = scene.skills.get(line.skill);
+        if (!skill) continue;
+        const auto* rec = &kAttackBlock[block * 6];
+        std::string skill_name;
+        if (auto found = lookup_string(scene, skill->str_alt)) skill_name = u16_to_latin1(*found);
+        else if (auto fallback = lookup_string(scene, std::uint16_t(0x1506))) skill_name = u16_to_latin1(*fallback);
+        for (auto& ch : skill_name) ch = char(std::toupper(static_cast<unsigned char>(ch)));
+        text(font6, rec[0].left, rec[0].right, rec[0].y, skill_name);
+        if (line.damage) {
+            if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
+            const int top = std::max(line.max, line.min + 1);
+            const auto range = std::to_string(line.min) + "-" + std::to_string(top);
+            const bool wide = font6.measure(range) * 11 / 7 > rec[2].right - rec[2].left;
+            text(wide ? font6 : f16, rec[2].left, rec[2].right, rec[2].y - (wide ? 1 : 0), range, line.damage_colour);
+        }
+        if (line.attack_rating != 0) {
+            if (auto found = lookup_string(scene, std::uint16_t(line.skill == 0 ? 0xfe1 : 0xfdf))) {
+                auto label = u16_to_latin1(*found);
+                if (const auto at = label.find("%s"); at != label.npos) label.replace(at, 2, skill_name);
+                const auto newline = label.find('\n');
+                text(font6, rec[3].left, rec[3].right, rec[3].y - 4, label.substr(0, newline));
+                if (newline != label.npos) text(font6, rec[3].left, rec[3].right, rec[3].y + 4, label.substr(newline + 1));
+            }
+            text(line.attack_rating < 1000 ? f16 : font8, rec[5].left, rec[5].right, rec[5].y, std::to_string(line.attack_rating), line.ar_colour);
+        }
     }
     std::string cls = class_idx >= 0 && class_idx < 7 ? kClassKey[class_idx] : "";
     if (auto found = lookup_string(scene, cls)) cls = u16_to_latin1(*found);
@@ -179,7 +223,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     }
 }
 
-void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats) {
+void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, const Hud& hud, int mouse_x, int mouse_y) {
+    using namespace d2d::d2s;
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     const int width = int(kScreenWidth), height = int(kScreenHeight);
     auto at_bottom = [&](const d2d::dc6::Sprite& spr, int frame, int x, int bottom) {
@@ -195,7 +240,8 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     auto fill = [&](int frame, int x, std::int64_t cur, std::int64_t max) {
         if (max <= 0 || frame >= int(scene.globes.frames_per_direction())) return;
         const auto& frame_ref = scene.globes.frame(0, std::uint32_t(frame));
-        const int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        if (frame != 1 && rows == 1) rows = 2;               // life: 2 rows at least while alive
         const int top = height - 13 - int(frame_ref.height);
         for (int y = int(frame_ref.height) - rows; y < int(frame_ref.height); ++y)
             for (int left = 0; left < int(frame_ref.width); ++left) {
@@ -207,10 +253,150 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
                 pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
             }
     };
-    fill(0, 29, stats.fixed(d2d::d2s::kLife), stats.fixed(d2d::d2s::kMaxLife));
-    fill(1, width - 0x6f, stats.fixed(d2d::d2s::kMana), stats.fixed(d2d::d2s::kMaxMana));
+    fill(hud.poisoned ? 2 : 0, 29, stats.fixed(kLife), stats.fixed(kMaxLife));
+    fill(1, width - 0x6f, stats.fixed(kMana), stats.fixed(kMaxMana));
     at_bottom(scene.globe_glass, 0, 28, height - 5);
     at_bottom(scene.globe_glass, 1, width - 0x6e, height - 9);
+    auto str = [&](int id) {
+        const auto found = lookup_string(scene, std::uint16_t(id));
+        return found ? u16_to_latin1(*found) : std::string{};
+    };
+    auto put = [&](int x, int y, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
+        pixel[0] = r; pixel[1] = g; pixel[2] = b;
+    };
+    constexpr std::array<std::uint8_t, 3> kWhite{ 255, 255, 255 }, kBlue{ 105, 105, 255 };
+    std::vector<std::pair<std::array<int, 2>, TextLine>> hovers;   // centre x, bottom: drawn over the bars
+    auto over = [&](int left, int top, int right, int bottom) { return mouse_x >= left && mouse_x <= right && mouse_y >= top && mouse_y <= bottom; };
+    // Experience: the level's share of 119 px.
+    const auto lvl = stats.get(kLevel), exp_now = stats.values[kExp];
+    if (lvl >= 1 && std::size_t(lvl) < scene.exp_next.size()) {
+        const auto next = scene.exp_next[std::size_t(lvl)], prev = scene.exp_next[std::size_t(lvl - 1)];
+        if (over(width / 2 - 0x92, height - 0x2b, width / 2 - 0x17, height - 0x22)) {
+            auto format = str(0x1043);
+            for (auto at = format.find("%u"); at != std::string::npos; at = format.find("%u")) format[at + 1] = 'd';
+            hovers.push_back({ { width / 2 - 0x92, height - 0x33 }, { game::d2_format(format, { exp_now, next }), kWhite } });
+        }
+        if (next > prev) {
+            std::int64_t num = exp_now > prev ? exp_now - prev : 0, den = next - prev;
+            if (num > 0x226b901) { num >>= 7; den >>= 7; }
+            int share = den > 0 ? int(num * 0x77 / den) : 0;
+            if (share > 0x77) share = 0;
+            const auto colour = pal[0xff];
+            if (lvl < 99 && share > 0)
+                for (int x = width / 2 - 0x90; x <= width / 2 - 0x90 + share; ++x) {
+                    put(x, height - 0x26, colour.r, colour.g, colour.b);
+                    put(x, height - 0x25, colour.r, colour.g, colour.b);
+                }
+        }
+    }
+    // Run / walk.
+    const bool on_run = over_run_button(mouse_x, mouse_y);
+    at_bottom(scene.run_button, (hud.running ? 2 : 0) + (hud.run_down && on_run ? 1 : 0), width / 2 - 0x91, height - 10);
+    if (on_run) {
+        auto special = str(0x1052);
+        if (const auto at = special.find("%s"); at != std::string::npos) special.replace(at, 2, "R");
+        hovers.push_back({ { width / 2 - 0x91, height - 0x17 }, { str(0x1053) + special, kWhite } });
+    }
+    // Stamina: 102 px when full, in the palette entry nearest its colour
+    // (FUN_004fb180), at three quarters (draw mode 2).
+    auto nearest = [&](int r, int g, int b) {
+        int best = 1 << 30;
+        std::array<std::uint8_t, 3> out{};
+        for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
+            const auto colour = pal[std::uint8_t(i)];
+            const int distance = (colour.r - r) * (colour.r - r) + (colour.g - g) * (colour.g - g) + (colour.b - b) * (colour.b - b);
+            if (distance < best) { best = distance; out = { colour.r, colour.g, colour.b }; }
+        }
+        return out;
+    };
+    std::int64_t stamina = stats.values[kStamina], stamina_max = stats.values[kMaxStamina];
+    auto rgb = nearest(0xf4, 0xc0, 0x4c);
+    if (stamina_max + 5 < stamina) { stamina_max = stamina; rgb = nearest(0, 0, 0xff); }
+    const int bar = stamina_max < 1 ? 0 : int(stamina * 0x66 / stamina_max);
+    if (stamina_max < 1 || bar < 0x19) rgb = nearest(0xff, 0, 0);
+    for (int y = height - 0x1b; y < height - 0x1b + 0x12; ++y)
+        for (int x = width / 2 - 0x7f; x < width / 2 - 0x7f + bar; ++x) {
+            if (x < 0 || y < 0 || x >= width || y >= height) continue;
+            auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
+            for (std::size_t c = 0; c < 3; ++c) pixel[c] = std::uint8_t((rgb[c] * 3 + pixel[c]) / 4);
+        }
+    if (over(width / 2 - 0x7f, height - 0x1b, width / 2 - 0x19, height - 9)) {
+        auto shown = stats.values[kStamina] >> 8;
+        const auto top = stats.values[kMaxStamina] >> 8;
+        const bool more = shown > top;
+        if (more) shown = top;
+        hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more ? kBlue : kWhite } });
+    }
+    for (const auto& [at, line] : hovers) draw_hover_text(framebuffer, scene, { line }, at[0], at[0], at[1], at[1]);
+    // The globes' text (FUN_00498120): plain, centred, in the frame's font.
+    // ponytail: taken as font16, as for the level buttons.
+    auto globe_text = [&](int centre, const std::string& text) {
+        const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
+    };
+    if (over(0x1e, height - 0x4b, 0x6e, height - 0xf)) {
+        auto life = stats.values[kLife] >> 8;
+        if (stats.values[kLife] > 0 && life < 1) life = 1;
+        globe_text(0x41, game::d2_format(str(0x1045), { life, stats.values[kMaxLife] >> 8 }));
+    }
+    if (over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
+        globe_text(width - 0x50, game::d2_format(str(0x1046), { stats.values[kMana] >> 8, stats.values[kMaxMana] >> 8 }));
+}
+
+bool over_run_button(int mouse_x, int mouse_y) {
+    const int width = int(kScreenWidth), height = int(kScreenHeight);
+    return mouse_x >= width / 2 - 0x91 && mouse_x <= width / 2 - 0x80 && mouse_y >= height - 0x1c && mouse_y <= height - 8;
+}
+
+// UI 6 / 7 latch on when points are unspent and their panel is shut, off
+// when none are left; drawn only while not hidden (FUN_004a6a00 /
+// FUN_004a6d50), so on screen that's points and panel shut. The panel
+// state (FUN_0045ae90): 1 right open, 2 left, 3 both.
+// ponytail: UI 0x16's cases (with the inventory / tree) aren't kept.
+LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open) {
+    const int width = int(kScreenWidth);
+    LevelButtons out;
+    if ((left_open && right_open) || store_open) return out;
+    if (stats.get(d2d::d2s::kStatPts) != 0 && !char_open) out.stats_x = left_open ? width / 2 + 0x28 : 0x28;
+    if (stats.get(d2d::d2s::kSkillPts) > 0 && !tree_open) out.skills_x = (right_open ? width - width / 2 : width) - 0x49;
+    return out;
+}
+
+bool over_stats_button(int x, int mouse_x, int mouse_y) {
+    const int height = int(kScreenHeight);
+    return x >= 0 && mouse_x > x && mouse_x < x + 0x22 && mouse_y > height - 0x8b && mouse_y < height - 0x66;
+}
+
+bool over_skills_button(int x, int mouse_x, int mouse_y) {
+    const int height = int(kScreenHeight);
+    return x >= 0 && mouse_x > x && mouse_x < x + 0x21 && mouse_y > height - 0x8a && mouse_y < height - 0x66;
+}
+
+void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const LevelButtons& buttons, int mouse_x, int mouse_y) {
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    const int height = int(kScreenHeight);
+    auto at_bottom = [&](const d2d::dc6::Sprite& spr, int frame, int x, int bottom) {
+        if (frame >= int(spr.frames_per_direction())) return;
+        const auto& frame_ref = spr.frame(0, std::uint32_t(frame));
+        blit_sprite(framebuffer, frame_ref, pal, x, bottom - int(frame_ref.height));
+    };
+    // The label in the font the frame left set.
+    // ponytail: taken as font16; FUN_004a6b30 sets none of its own.
+    auto button = [&](int x, int label_id, bool pressed) {
+        if (x < 0 || scene.level_socket.frames_per_direction() == 0) return;
+        if (const auto found = lookup_string(scene, std::uint16_t(label_id))) {
+            const auto label = u16_to_latin1(*found);
+            const int socket_w = int(scene.level_socket.frame(0, 0).width);
+            const int text_y = height - 0x8e - int(scene.font.sheet().frame(0, 0).height) + 1;
+            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x + 1 + socket_w / 2 - scene.font.measure(label) / 2, text_y, label);
+        }
+        at_bottom(scene.level_socket, 0, x, height - 0x69);
+        at_bottom(scene.level_button, pressed ? 1 : 0, x + 3, height - 0x6d);
+    };
+    button(buttons.stats_x, 0xf92, buttons.stats_down && over_stats_button(buttons.stats_x, mouse_x, mouse_y));
+    button(buttons.skills_x, 0xf93, buttons.skills_down && over_skills_button(buttons.skills_x, mouse_x, mouse_y));
 }
 
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item) {
@@ -222,7 +408,7 @@ std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout,
 
 void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
-                  int mouse_x, int mouse_y, int clvl) {
+                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     if (art.frames_per_direction() >= 4) {
         const auto& frame = art.frame(0, 0);
@@ -234,7 +420,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
-        if (item.location != 0 || item.panel != panel) continue;
+        if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
         const auto [x, y, width, height] = grid_rect(scene, layout, item);
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
@@ -242,11 +428,11 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         }
         if (mouse_x >= x && mouse_x < x + width && mouse_y >= y && mouse_y < y + height) { hover = &item; hover_box = { x, y, width, height }; }
     }
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, clvl), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
+    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, int clvl, bool popup) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
@@ -258,7 +444,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
-        if (item.location != 2 || item.column < 0 || item.column >= belt.boxes || (!popup && item.column > 3)) continue;
+        if (item.location != d2d::d2s::item_location::kBelt || item.column < 0 || item.column >= belt.boxes || (!popup && item.column > 3)) continue;
         const auto& box = belt.box[std::size_t(item.column)];
         if (box[1] <= box[0]) continue;
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
@@ -268,7 +454,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
         }
         if (mouse_x >= box[0] && mouse_x <= box[1] && mouse_y >= box[2] && mouse_y <= box[3]) { hover = &item; hover_box = box; }
     }
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, clvl), hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
+    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
 }
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash) {
@@ -279,6 +465,41 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
         return rule.cels[hash % rule.cels.size()];
     }
     return -1;
+}
+
+bool Automap::add(const Cell& cell) {
+    int group = -1;
+    for (const auto& pair : kCelGroups)
+        if (pair[0] == cell.cel) group = pair[1];
+    // ponytail: matches against every cell at (x, y); the tree only meets those on its search path.
+    const auto at = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
+    const bool taken = group < 0 ? at != placed.end() && std::get<0>(*at) == cell.list && std::get<1>(*at) == cell.y && std::get<2>(*at) == cell.x
+                                 : placed.count({ cell.list, cell.y, cell.x, group }) != 0;
+    if (taken) return false;
+    placed.insert({ cell.list, cell.y, cell.x, group });
+    cells.push_back(cell);
+    return true;
+}
+
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
+    if (dir.empty() || name.empty()) return;
+    const auto file = d2d::d2s::automap_file(dir, name, map_seed);
+    if (file.empty()) return;
+    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low);
+    for (std::size_t list = 0; list < loaded.lists.size(); ++list)
+        for (const auto& cell : loaded.lists[list]) automap.add({ cell.cel, cell.x, cell.y, int(list), true });
+}
+
+void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
+    if (dir.empty() || name.empty()) return;
+    d2d::d2s::AutomapLayer fresh;
+    fresh.object_seed = game::object_seed(map_seed).low;
+    for (const auto& cell : automap.cells)
+        if (!cell.saved) fresh.lists[std::size_t(cell.list)].push_back({ std::int16_t(cell.cel), std::int16_t(cell.x), std::int16_t(cell.y) });
+    if (std::all_of(fresh.lists.begin(), fresh.lists.end(), [](const auto& list) { return list.empty(); })) return;
+    const auto file = d2d::d2s::automap_file(dir, name, map_seed);
+    if (file.empty() || !d2d::d2s::append_automap(file, layer, fresh)) return;
+    for (auto& cell : automap.cells) cell.saved = true;
 }
 
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y) {
@@ -299,13 +520,13 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
             for (const auto& layer : map.floors()) {
                 const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
                 if (tile.hidden || !(tile.prop1 & 2)) continue;
-                if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.cells.push_back({ cel, automap_x, automap_y });
+                if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.add({ cel, automap_x, automap_y, 0 });
             }
             for (const auto& layer : map.walls()) {
                 const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
                 if (tile.hidden || tile.wall_type == 0) continue;
                 if (const int cel = automap_cel(scene, level, tile.wall_type, tile.style, tile.sequence, hash); cel >= 0)
-                    automap.cells.push_back({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0) });
+                    automap.add({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0), 1 });
             }
         }
 }
@@ -316,7 +537,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const int scroll_x = int(std::lround((player_x - player_y) * 80 / 10)) - int(kScreenWidth) / 2 + 40;
     const int scroll_y = int(std::lround((player_x + player_y) * 40 / 10)) - int(kScreenHeight) / 2 + 15;
     for (const auto& cell : automap.cells) {
-        if (cell.cel < 0 || std::uint32_t(cell.cel) >= scene.automap_cels.frames_per_direction()) continue;
+        if (cell.list == 3 || cell.cel < 0 || std::uint32_t(cell.cel) >= scene.automap_cels.frames_per_direction()) continue;   // miniatures: another cel file
         const auto& frame = scene.automap_cels.frame(0, std::uint32_t(cell.cel));
         const int x = cell.x - scroll_x, y = cell.y - scroll_y;
         if (x < -32 || x > int(kScreenWidth) + 32 || y < -64 || y > int(kScreenHeight) + 64) continue;
@@ -326,7 +547,6 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
     // - 8), in the palette colour nearest FUN_004fb180(0, 0, 0xff) — the
     // palette is BGR, so red (party green, other players blue).
-    static constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
     std::uint8_t marker_red = 255, marker_green = 0, marker_blue = 0;
     {
         int best = 1 << 30;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp composite component table — what a .d2s appearance byte means.
 //
 // A save's appearance bytes (header 0x88, one per layer HD TR LG RA LA RH

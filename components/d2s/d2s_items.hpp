@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // D2Decomp .d2s item-list parser (1.10+ saves, versions 92..96).
 //
 // The player's items follow the header/quest/waypoint/stat/skill sections
@@ -36,9 +37,46 @@ namespace d2d::d2s {
 
 struct ItemProp { int stat = 0, param = 0, value = 0; };
 
+// Item::location, the save's 3 bits: where the item is.
+namespace item_location {
+inline constexpr int kStored = 0;      // in a grid: Item::panel says which
+inline constexpr int kEquipped = 1;    // worn: Item::slot says where
+inline constexpr int kBelt = 2;        // Item::column is the belt box
+inline constexpr int kGround = 3;
+inline constexpr int kCursor = 4;
+inline constexpr int kSocketed = 6;
+}  // namespace item_location
+
+// Item::panel, the save's 3 bits: the grid a stored item is in.
+namespace item_panel {
+inline constexpr int kInventory = 1;
+inline constexpr int kCube = 4;
+inline constexpr int kStash = 5;
+}  // namespace item_panel
+
+// Item::slot, the save's 4 bits: where an equipped item is worn
+// (BodyLocs.txt's rows: head, neck, tors, rarm, larm, rrin, lrin, belt,
+// feet, glov), then the weapon switch's two hands.
+namespace body_location {
+inline constexpr int kHead = 1;
+inline constexpr int kNeck = 2;
+inline constexpr int kTorso = 3;
+inline constexpr int kRightArm = 4;
+inline constexpr int kLeftArm = 5;
+inline constexpr int kRightRing = 6;
+inline constexpr int kLeftRing = 7;
+inline constexpr int kBelt = 8;
+inline constexpr int kFeet = 9;
+inline constexpr int kGloves = 10;
+inline constexpr int kRightArmSwitch = 11;
+inline constexpr int kLeftArmSwitch = 12;
+inline constexpr int kFirst = kHead;      // the body's slots, kFirst..kLast
+inline constexpr int kLast = kGloves;
+}  // namespace body_location
+
 struct Item {
     std::string code;                  // "hax", "ear" for ears
-    int  location = 0, slot = 0, column = 0, row = 0, panel = 0;
+    int  location = 0, slot = 0, column = 0, row = 0, panel = 0;   // item_location, body_location, grid cell, item_panel
     bool identified = false, socketed = false, ethereal = false,
          personalized = false, runeword = false, simple = false;
     int  quality = 2;                  // 1 low .. 8 crafted; 2 = normal
@@ -106,6 +144,55 @@ struct ItemTables {
     }
 };
 
+// ItemStatCost rows: 0..15 the character's own (Stats::values), the rest
+// the ones d2d reads off items, skills and states (the Stat column in
+// words; the row's name where it isn't obvious).
+enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 5,
+              kLife = 6, kMaxLife = 7, kMana = 8, kMaxMana = 9, kStamina = 10,
+              kMaxStamina = 11, kLevel = 12, kExp = 13, kGold = 14, kGoldBank = 15,
+              kArmorPercent = 16,                    // item_armor_percent: enhanced defense
+              kMaxDamagePercent = 17, kMinDamagePercent = 18,   // item_maxdamage_percent, item_mindamage_percent
+              kToHit = 19, kToBlock = 20,
+              kMinDamage = 21, kMaxDamage = 22, kSecondaryMinDamage = 23, kSecondaryMaxDamage = 24,   // one-handed, two-handed
+              kDamagePercent = 25, kManaRecovery = 26,
+              kManaRecoveryBonus = 27, kStaminaRecoveryBonus = 28, kNextExperience = 30,
+              kArmorClass = 31, kArmorClassVsMissile = 32, kArmorClassVsHandToHand = 33,
+              kNormalDamageReduction = 34, kMagicDamageReduction = 35, kDamageResist = 36, kMagicResist = 37,
+              kFireResist = 39, kLightningResist = 41, kColdResist = 43, kPoisonResist = 45,
+              kFireMinDamage = 48, kFireMaxDamage = 49, kLightningMinDamage = 50, kLightningMaxDamage = 51,
+              kMagicMinDamage = 52, kMagicMaxDamage = 53, kColdMinDamage = 54, kColdMaxDamage = 55, kColdLength = 56,
+              kPoisonMinDamage = 57, kPoisonMaxDamage = 58, kPoisonLength = 59,
+              kLifeDrainMinDamage = 60, kManaDrainMinDamage = 62,   // life / mana steal
+              kVelocityPercent = 67, kAttackRate = 68,
+              kQuantity = 70, kDurability = 72, kMaxDurability = 73,
+              kHitPointRegeneration = 74,           // hpregen: replenish life
+              kMaxDurabilityPercent = 75, kMaxLifePercent = 76, kMaxManaPercent = 77,
+              kAttackerTakesDamage = 78,
+              kGoldFind = 79, kMagicFind = 80,      // item_goldbonus, item_magicbonus
+              kKnockback = 81, kAddExperience = 85, kLightRadius = 89,
+              kRequirementPercent = 91, kLevelRequirement = 92,   // item_req_percent, item_levelreq
+              kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99, kFasterBlockRate = 102,
+              kFasterCastRate = 105,
+              kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
+              kPoisonLengthReduction = 110,         // item_poisonlengthresist
+              kNormalDamage = 111, kHalfFreezeDuration = 118, kToHitPercent = 119,
+              kAllSkills = 127, kAttackerTakesLightningDamage = 128, kThornsPercent = 131,
+              kBoneArmor = 132,
+              kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,
+              kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
+              kThrowMinDamage = 159, kThrowMaxDamage = 160,
+              kSkillArmorPercent = 171, kArmorOverridePercent = 182,
+              kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left
+              kArmorPerLevel = 214, kMaxDamagePerLevel = 218, kMaxDamagePercentPerLevel = 219, kToHitPerLevel = 224,
+              kDeadlyStrikePerLevel = 250,          // the per-level ones in eighths
+              kPoisonCount = 326, kPierceIndex = 328,   // pierce_idx: chance to pierce
+              kPassiveFireMastery = 329, kPassiveLightningMastery = 330, kPassiveColdMastery = 331, kPassivePoisonMastery = 332,   // EType order
+              kPassiveFirePierce = 333, kPassiveLightningPierce = 334, kPassiveColdPierce = 335, kPassivePoisonPierce = 336,
+              kPassiveCriticalStrike = 337, kPassiveDodge = 338, kPassiveAvoid = 339, kPassiveEvade = 340,
+              kPassiveMasteryMeleeToHit = 342, kPassiveMasteryMeleeDamage = 343, kPassiveMasteryMeleeCritical = 344,
+              kPassiveWeaponBlock = 348,
+              kQuestItemDifficulty = 356, kPassiveMagicMastery = 357 };
+
 namespace detail {
 struct Bits {
     std::span<const std::byte> bytes;
@@ -126,8 +213,8 @@ inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemPro
         if (id == 0x1ff) return;
         // Stats that carry the next ones with them.
         int run = 1;
-        if (id == 17 || id == 48 || id == 50 || id == 52) run = 2;
-        if (id == 54 || id == 57) run = 3;
+        if (id == kMaxDamagePercent || id == kFireMinDamage || id == kLightningMinDamage || id == kMagicMinDamage) run = 2;
+        if (id == kColdMinDamage || id == kPoisonMinDamage) run = 3;
         for (int stat = id; stat < id + run; ++stat) {
             if (std::size_t(stat) >= item_tables.stats.size() || item_tables.stats[std::size_t(stat)].save_bits == 0)
                 throw std::runtime_error("d2s items: unknown stat " + std::to_string(stat));
@@ -216,9 +303,6 @@ struct Stats {
     [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? values[std::size_t(id)] : 0; }
     [[nodiscard]] std::int64_t fixed(int id) const { return get(id) >> 8; }   // life/mana/stamina
 };
-enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 5,
-              kLife = 6, kMaxLife = 7, kMana = 8, kMaxMana = 9, kStamina = 10,
-              kMaxStamina = 11, kLevel = 12, kExp = 13, kGold = 14, kGoldBank = 15 };
 
 inline Stats parse_stats(std::span<const std::byte> save, const ItemTables& item_tables) {
     constexpr std::size_t kGf = 0x2FD;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The skill tree panel ('T'): docs/research/re/skill-tree.md.
 #pragma once
 

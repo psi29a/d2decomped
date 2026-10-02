@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Maze levels (DrlgType 1, .\DRLG\Maze.cpp): act 1's caves, the Den of
 // Evil first — rooms grown beside random rooms (FUN_00671210), special
 // rooms placed from tables (FUN_00672550), each room a cave preset picked
@@ -214,10 +215,10 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         set_def(last);
         set_def(first);
     } else if (maze.type == 10) {
-        const auto& sides = level == 34 ? std::vector{ 1, 2, 3, 0 } : seed.next() & 1 ? std::vector{ 0, 2 } : std::vector{ 1, 3 };
+        const auto& sides = level == level_ids::kCatacombsLevel1 ? std::vector{ 1, 2, 3, 0 } : seed.next() & 1 ? std::vector{ 0, 2 } : std::vector{ 1, 3 };
         for (const int side : sides) arm(first, side);
         auto& room = rooms[std::size_t(first)];
-        room.def = level == 34 ? 0x122 : sides.front() == 0 ? 0x120 : 0x121;
+        room.def = level == level_ids::kCatacombsLevel1 ? 0x122 : sides.front() == 0 ? 0x120 : 0x121;
         room.special = true;
         room.file = -1;
     }
@@ -265,11 +266,11 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         };
         if (maze.type == 8) {                                                       // FUN_006726d0
             special(kSpecials[10][std::size_t(turn)]);
-            special(kSpecials[level == 29 ? 13 : level == 30 ? 14 : 11][std::size_t(turn)]);
-            if (level != 31) special(kSpecials[12][std::size_t(turn)]);
+            special(kSpecials[level == level_ids::kJailLevel1 ? 13 : level == level_ids::kJailLevel2 ? 14 : 11][std::size_t(turn)]);
+            if (level != level_ids::kJailLevel3) special(kSpecials[12][std::size_t(turn)]);
         } else if (maze.type == 10) {                                               // FUN_006727a0
             special(kSpecials[15][std::size_t(turn)]);
-            if (level == 35) special(kSpecials[16][std::size_t(turn)]);
+            if (level == level_ids::kCatacombsLevel2) special(kSpecials[16][std::size_t(turn)]);
         } else if (maze.type == 7) {                                                // FUN_00673120
             // The anchor: the rightmost / lowest / leftmost room (by court file) a room fits beside (FUN_00672340's probe, then freed).
             const int side = std::array{ 2, 3, 0 }[std::size_t(court_file)];
@@ -297,14 +298,14 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             else { special(kSpecials[18][std::size_t(turn)]); special(kSpecials[17][std::size_t(turn)]); }
         } else if (maze.type == 4) {
             special(kSpecials[5][std::size_t(turn)]);
-            if (level == 18) special(kSpecials[6][std::size_t(turn)]);
-            if (level == 19 || level == 133) special(kSpecials[8][std::size_t(turn)]);
-            if (level > 20 && level < 25) special(kSpecials[9][std::size_t(turn)]);
+            if (level == level_ids::kCrypt) special(kSpecials[6][std::size_t(turn)]);
+            if (level == level_ids::kMausoleum || level == level_ids::kMatronsDen) special(kSpecials[8][std::size_t(turn)]);
+            if (level >= level_ids::kTowerCellarLevel1 && level < level_ids::kTowerCellarLevel5) special(kSpecials[9][std::size_t(turn)]);
         } else {
             special(kSpecials[0][std::size_t(turn)]);
-            special(kSpecials[level == 8 ? 1 : 2][std::size_t(turn)]);
-            if (level == 9) special(kSpecials[3][std::size_t(turn)]);
-            if (level == 10) special(kSpecials[4][std::size_t(turn)]);
+            special(kSpecials[level == level_ids::kDenOfEvil ? 1 : 2][std::size_t(turn)]);
+            if (level == level_ids::kCaveLevel1) special(kSpecials[3][std::size_t(turn)]);
+            if (level == level_ids::kUndergroundPassageLevel1) special(kSpecials[4][std::size_t(turn)]);
         }
     }
 
@@ -328,7 +329,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
 
     // Theme rooms (FUN_006735f0): up to rooms / 5 + 1 (at least 2) plain
     // rooms of def base + perm[i] become def + 15, file rolled later.
-    if (level != 8) {
+    if (level != level_ids::kDenOfEvil) {
         const int base = maze_base(maze.type);
         int at = int(seed.next() % 15);
         std::array<int, 15> perm{};

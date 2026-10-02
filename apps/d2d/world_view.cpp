@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for world_view.hpp: drawing the world: tiles, walls, units, lights.
 #include "world_view.hpp"
 

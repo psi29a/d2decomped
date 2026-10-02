@@ -52,6 +52,77 @@ baseline on row 8; font16 16 px, row 14), so the cell top is
 The save's active difficulty is the `difficulty[3]` byte at d2s 0xA8
 with bit 0x80 set.
 
+## Attack blocks (FUN_004eda20 -> FUN_004ed570, UI\SkillDesc.cpp)
+
+FUN_004a7d00 calls FUN_004eda20(player): the left skill (FUN_00620190 ->
+FUN_00643930, skill list +8) as block 0, the right (FUN_006201d0 ->
+FUN_00643960, +0xc) as block 6. Boxes `{x0, y, x1}` (i32) at 0x72d840,
+six per block, panel coordinates with the same y base as the values:
+
+| rec | left | right | what |
+|---|---|---|---|
+| +0 | 162, 93, 258 | 162, 117, 258 | name |
+| +1 | 162, 101, 258 | 162, 125, 258 | "Damage" (0xfdd) |
+| +2 | 263, 98, 307 | 263, 122, 307 | damage value |
+| +3 | 162, 160, 270 | 162, 184, 270 | attack rating label |
+| +4 | 162, 163, 270 | 162, 187, 270 | unused |
+| +5 | 270, 160, 310 | 270, 184, 310 | attack rating value |
+
+Languages 6..9 move records 0 and 6 up a pixel once (0x72d844 / 0x72d88c).
+
+- **Name**: SkillDesc `str alt` (FUN_004e6e30: +0xe; 0x1506 "an evil
+  force" if missing), upper-cased through the table at 0x730578
+  (FUN_00452180), font6, colour 0. Always drawn.
+- **Gate**: damage needs SkillDesc `descdam` (+0x12) with a handler in
+  the table at 0x72d768; the rating needs `descatt` (+0x14) with one in
+  0x72d7f8. Both need FUN_004d9fc0 (usable) in {0, 1, 6, 8}.
+- **Damage**: "Damage" in font6 at +1, then the descdam handler draws the
+  value at +2 through FUN_004e96e0: max raised to min + 1 if not above
+  it, `"%d-%d"` (`"%s%d-%dK"` / `"%s%dK-%dK"` past 9999); font16, or
+  font6 one pixel up when 11/7 of its font6 width overflows `x1 - x0`.
+  - 1 (0x4ea170; Attack): two weapons (FUN_006235a0: barbarian /
+    assassin) -> FUN_004e99f0, else FUN_004ea010.
+  - 7 (0x4ea010; Jab, Bash ..): FUN_004e86f0 the weapon (stats 21/22,
+    23/24 two-handed, 1-2 + 1/+2 barehanded; floors 1 / 2) x (100 + 18 /
+    17 + % ) / 100 + 111 + `ddam calc2`, where % = `ddam calc1` + 25 +
+    the weapon mastery (FUN_00645830) + str x StrBonus + dex x DexBonus
+    (all strength barehanded), at least -90; FUN_004e89a0 its elements
+    (table 0x6dbee4: fire 48/49 colour 1, lightning 50/51 colour 9, cold
+    54/55 and magic 52/53 colour 3, each with its mastery, min kept <=
+    max; poison 57/58 x 59 >> 8 colour 2), then min >= 1, max >= min + 1;
+    plus the skill's MinDam (FUN_00647bc0) and EMin with mastery
+    (FUN_00644d50), both >> 8.
+  - 5 (0x4ead60; Fire Bolt, Magic Arrow ..): colour by EType
+    (FUN_004e6fb0: fire 1, lightning 9, cold / magic 3, poison 2), SrcDam
+    / 128 of the weapon's (FUN_004e9660), the skill's MinDam and EMin
+    (x ELen for poison).
+- **Attack rating**: the descatt handler fills (ar, colour, ar2, colour2).
+  When either is set: `"%s\nAttack Rating"` (0xfdf; 0xfe1 `"%s\nRating"`
+  for skill 0, Attack) with the upper-cased name, font6, halves at y-4 /
+  y+4 of +3. One value (FUN_004e9940): `%d` at +5, font16, font8 from
+  1000. Two (FUN_004e9870, dual wield): font6 at y-6 / y+2 (y-7 for
+  languages 6..9).
+  - 1 / 5 (0x4e9040): FUN_00622560 `(dex - 7) x 5 + 19 + ToHitFactor`,
+    x (1 + (119 + the skill's ToHit, FUN_006449f0) %), + 325 when the
+    skill's flag is set (colour 3).
+  - 2 (0x4e9510; Attack): the same plus the weapon mastery % (FUN_00645830,
+    stat 342) — FUN_004e8ec0; 0 for weapon type 0x26. Two weapons:
+    FUN_004e93a0, both hands.
+  - 3 (0x4e9590, FUN_004e9160) throws, 4 (0x4e95c0) the other hand.
+  - Colour 3 / 1 when the states (FUN_0063a3c0 / FUN_0063a3e0, damage:
+    FUN_0063a380 / FUN_0063a3a0) say so.
+- Hover tooltips (chance to hit / be hit): FUN_004a7340, FUN_004a74a0,
+  FUN_004a7ae0, FUN_004a7180.
+
+d2d: `rules::attack_line` (components/rules/skills.hpp) computes the
+numbers on the server in `Fight::update_fighters` from the Fighter
+(`phys_lo/hi/pct`, `elem`, `ar_base/pct`), `skill_tohit`, `skill_phys`,
+`elem_damage`; they reach the client in the View
+(`View::attack_lines`, section 0) and `draw_char_panel` draws them.
+Not done: descdam 2..4, 6, 8..24, descatt 3 / 4, dual wield, the states'
+colours, stat 325, the usability gate, the K formats, barehanded strength,
+tooltips.
+
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
 Shown while stat 4 (unspent stat points) is non-zero. Table at `0x724a48`,
@@ -81,3 +152,122 @@ What a point does is the server's: d2d adds CharStats' per-point gains
 (`LifePerVitality`, `StaminaPerVitality`, `ManaPerMagic`, in quarter
 points) to current and max — `components/rules` `spend_stat_points`. The
 0x3a handler itself isn't traced yet.
+
+## Level up: the New Stats / New Skills buttons, the sound
+
+**Server** (`FUN_00570880`, from the experience add `FUN_0057e510` →
+`FUN_0057eb10`): level (stat 12) from experience (`FUN_00611860`),
+stat 0x1e the next threshold; per level gained max life / stamina / mana
++= CharStats bytes +0x43 / +0x44 / +0x45 (×64), stat 4 += StatPerLevel
+(+0x50), stat 5 += 1. Then **life to its max if above 0
+(`FUN_00625d10`), mana and stamina to theirs (`FUN_00625d60` /
+`FUN_00625db0`)**. `FUN_00553380(unit, 2, unit)` queues unit sound
+event 2 (unit +0x6e = 2, +0x70 = the player, flag 0x400 at +0xc4); every
+client gets packet 0x75 with the new level (`FUN_005538d0(…,
+FUN_00570850)` → `FUN_0053da90`); items re-checked (`FUN_0055f500`).
+
+**Sound**: the update pass sees flag 0x400 and `FUN_00571740` sends
+S→C 0x2C (builder `FUN_0053d780`) to the levelling player only. Client:
+`0x45e110` → `FUN_004cbde0`; a player's code outside 10..0x12 /
+0x54..0x5d goes to `FUN_004cb9c0`, whose switch (`0x4cbc55`, table
+`0x4cbd7c`) maps 2 → Sounds.txt 7 `cursor_level_up` (cursor\levelup.wav),
+EDX 0: not placed (1 → 0xeb, 3..6 → 0xa..0xd). The merc's level up is
+code 0x5b → Sounds.txt 8 at the player. Packet 0x5D also plays 7 for
+some quest states (`FUN_004a2cb0`); that's the quests'.
+
+**No overlay**: nothing visual. Overlay.txt, States.txt and Missiles.txt
+have no level-up row, no LvlUp / LevelUp .dcc is in the MPQs, and the
+client's stat 12 handler (`FUN_0045d3b0` → `FUN_004c1bc0` →
+`FUN_004c1350`) only re-checks item requirements.
+
+**Buttons** (UI 6 stats, UI 7 skills; art `Panel\Level` → `0x7c02dc`,
+`Panel\Levelsocket` → `0x7c02e0`, loaded by `FUN_004a6460`).
+`FUN_004a64c0` each frame (not with UI 0xb up): UI 6 off when stat 4 = 0,
+on when ≠ 0 and the character panel (UI 2) is shut; UI 7 off when
+stat 5 ≤ 0, on when > 0 and the tree (UI 4) is shut. The panel state
+`FUN_0045ae90`: 1 right open, 2 left, 3 both.
+
+| | stats `FUN_004a6b30` | skills `FUN_004a6e60` |
+|---|---|---|
+| hidden (held flag cleared) | `FUN_004a6a00`: both sides, UI 2, UI 0xc (store), UI 0x16 with 1 or 4 | `FUN_004a6d50`: both sides, UI 4, UI 0xc, UI 0x16 with 1 |
+| socket x | 40; W/2+40 with a left panel | W−73; W−W/2−73 with a right panel |
+| label | string 3986, bottom H−142 | 3987 |
+| hit box (`FUN_004a6580` / `FUN_004a6630`) | x < mx < x+34, H−139 < my < H−102 | x < mx < x+33, H−138 < my < H−102 |
+| held flag | `0x7c02e4` | `0x7c02e8` |
+
+The label (`FUN_00502320`, colour 0, the frame's current font) is
+centred on the socket: x + 1 + socketW/2 − textW/2; drawn always. Then
+levelsocket frame 0 at (x, bottom H−105), level frame 0, or 1 while held
+and under the cursor, at (x+3, bottom H−109). Press over it
+(`FUN_004a66e0` / `FUN_004a6790`): held, Sounds.txt 4
+cursor_button_click. Release still over it (`FUN_004a6840` /
+`FUN_004a6920`): UI 6 off and UI 2 on (the character panel) / UI 7 off
+and UI 4 on (the tree); any release lets go. With `FUN_004f5160` = 2 the
+buttons sit on the control panel instead (`FUN_004a6a70` /
+`FUN_004a6da0`, hit `FUN_004a65e0` / `FUN_004a6690`: W/2−194 / W/2+163,
+bottom H−8, frame 2, a hover tooltip at H−50); d2d draws the other layout.
+
+## The HUD: globes, experience, run / walk, stamina
+
+`FUN_00499450` draws the control panel in order: `FUN_004983d0` (frames),
+`FUN_00496f80` life globe, `FUN_00497110` mana globe, `FUN_00498ea0`
+experience bar, `FUN_00497480` run button, `FUN_004975b0` stamina bar,
+`FUN_004977c0` mini-panel button, then the belt / skill area. Shown
+values go through `FUN_00496dd0` (a smoothing of stats 6 / 8 / 10).
+
+**Life globe** (`FUN_00496f80`): rows = cur × 80 / max; 1 row becomes 2
+while not dead (mode 0x11). `hlthmana` frame 2 with state 2 (poison),
+else 0, at x 0x1d, bottom H−0xd. With state 100 (a healing potion) a
+preview fill up to hpregen (stat 0x4a) × 80 / 100 rows; mana the same
+with state 0x6a / stat 0x1a.
+
+**Experience** (`FUN_00498ea0`): lvl stat 12, exp stat 13; next / prev =
+`FUN_00611800(class, lvl)` / `(class, lvl − 1)` (experience.txt). If next
+> prev: num = exp − prev (0 below), den = next − prev, both >> 7 when
+num > 0x226b901; width = num × 0x77 / den, 0 past 0x77. Below the max
+level (`FUN_00611830`) and width > 0, two lines (`FUN_004f6380`) from
+W/2−0x90 to +width at H−0x26 and H−0x25, palette index 0xff. Hover
+x W/2−0x92..W/2−0x17, y H−0x2b..H−0x22: string 0x1043 "Experience: %u /
+%u" (exp, next), centred on W/2−0x92, bottom H−0x33.
+
+**Run button** (`FUN_00497480`, `Panel\runbutton` → `0x7bef0c`): frame 0
+walking, 2 running, +1 while held (`0x7befd8`) and under the cursor; x
+W/2−0x91, bottom H−10. Hit box `FUN_00497440`: x W/2−0x91..W/2−0x80, y
+H−0x1c..H−8. Hover tooltip `FUN_00497300`: 0x1053 "Run" plus 0x1052 " (%s)"
+for each key bound to hotkey 0x23, centred on W/2−0x91, bottom H−0x17.
+Mouse down (`FUN_00499500`, only below H−0x30): held, Sounds.txt 4
+(`FUN_004b9a00`). Mouse up (`FUN_004996a0`): over it, the run flag
+(`0x7a0660`) toggles, `FUN_0044be80(!FUN_0044be90())`.
+
+**Stamina bar** (`FUN_004975b0`): colours `FUN_004fb180(r, g, b)` red
+(ff, 0, 0), gold (f4, c0, 4c), blue (0, 0, ff) (the palette as RGB).
+max = `FUN_00625db0`; over max + 5, or state 0x18: max = cur, blue.
+width = cur × 0x66 / max (0 with max < 1); red under 0x19. Rect
+(`FUN_0046efd0` → `FUN_004f6300`) at (W/2−0x7f, H−0x1b), width × 0x12,
+draw mode 2. Hover x W/2−0x7f..W/2−0x19, y H−0x1b..H−9: 0x1044 "Stamina:
+%d / %d" (cur >> 8, max >> 8; past max, or state 0x88, cur = max in
+colour 3), centred on W/2−0x4c, bottom H−0x34.
+
+**Globe text** (`FUN_00498120`, from `FUN_00456ee0` at 0x457104): with
+"Show HP Text" (`0x7befdc`) or the cursor in x 0x1e..0x6e, y
+H−0x4b..H−0xf: 0x1045 "Life: %d / %d" (cur >> 8, at least 1 alive), plain
+(`FUN_00502320`), centred on 0x41, bottom H−0x5f; mana 0x1046 with
+`0x7befe0` or x W−0x6f..W−0x1f, centred on W−0x50. A click on a globe
+(`FUN_00499500`) toggles its flag (registry "Show HP Text" / "Show MP
+Text").
+
+**Stamina** (server). Regen `FUN_00580500` each frame (`FUN_00580810`
+event 3, after life `FUN_00580610` and mana `FUN_005806f0`): by mode
+(unit+0x10) 1 / 5 shift 8; 2 shift 9 but none below 256; 6 shift 9;
+others none unless staminarecoverybonus (stat 28) ≥ 1000 (then 8). Below
+max: add = max >> shift, + add × bonus / 100, capped at max. Drain
+`FUN_0057f240` from the run frame `FUN_00580c20` (mode 3): none in town
+(`FUN_0061ab00`); CharStats RunDrain (+0x42) × 2, × (armor.txt speed
+(Items +0xd8) / 10 + 1) with body armor (location 3), − stat 0x9a ×
+drain / 100, at least 1; at 0 it returns 0 and `FUN_0057f090` walks
+(mode 2, 6 in town): a move runs only with stamina ≠ 0.
+
+d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
+`World::stamina_frame`, each 40 ms frame; `draw_hud` (panels.cpp) with
+the poison frame, bars, run button and texts; the button's press /
+release in `Town::update`.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # d2d — the game binary. SDL3 windowing + streaming framebuffer texture;
 # devctl + screenshot still wired to the same in-memory buffer.
 find_package(SDL3 CONFIG REQUIRED)
@@ -8,7 +9,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
 
 add_executable(d2d
-    main.cpp common.cpp cursor.cpp frontend.cpp ingame.cpp items.cpp load.cpp panels.cpp
+    main.cpp common.cpp cursor.cpp frontend.cpp gamemenu.cpp ingame.cpp items.cpp load.cpp panels.cpp
     scene.cpp skilltree.cpp store.cpp town.cpp ui.cpp window.cpp world_view.cpp)
 target_link_libraries(d2d PRIVATE
     game mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot

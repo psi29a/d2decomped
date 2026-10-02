@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Shrines and chests (objects.txt InitFn 1 / OperateFn 2 and OperateFn 4),
 // from game.exe 1.14d. docs/research/re/objects.md.
 #pragma once
@@ -50,7 +51,8 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
 // its stat; combat FUN_005839b0: Arg0 % of the attack rating as tohit (19)
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,
 // staminarecoverybonus (28) 1000), by Code. `ar`: the player's rating.
-// Skills FUN_00583bf0: +Arg0 all skills (item_allskills, 127).
+// Skills FUN_00583bf0: state 0x86 alone, its +2 hard-coded (FUN_00644150,
+// added to every skill's level with item_allskills in FUN_00644180).
 inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, int attack_rating) {
     switch (shrine.code) {
     case 6:  return { { 171, shrine.arg0 } };                  // skill_armor_percent
@@ -59,7 +61,7 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, in
     case 9:  return { { 43, shrine.arg0 } };                   // coldresist
     case 10: return { { 41, shrine.arg0 } };                   // lightresist
     case 11: return { { 45, shrine.arg0 } };                   // poisonresist
-    case 12: return { { 127, shrine.arg0 } };                  // item_allskills
+    case 12: return { { 127, 2 } };                            // item_allskills
     case 13: return { { 27, shrine.arg0 } };                   // manarecoverybonus
     case 14: return { { 28, 1000 } };                     // staminarecoverybonus
     case 15: return { { 85, shrine.arg0 } };                   // item_addexperience
@@ -68,19 +70,40 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, in
 }
 
 // The recharges (FUN_005828e0 .. FUN_005829a0) on life / mana / their
-// maxima, any fixed point: 1 both full, 2 life full, 3 mana full, 4 life
+// maxima, any fixed point: 1 both set to max, 2 life, 3 mana (set, not
+// raised: over-max life comes down), 4 life
 // down Arg0 %, mana up Arg1 % of that; 5 the other way round.
 // (4 and 5 aren't rolled — roll_shrine turns them into 2 and 3.)
 inline void shrine_recharge(const ShrineRow& shrine, std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana) {
     switch (shrine.code) {
-    case 1: life = std::max(life, max_life); mana = std::max(mana, max_mana); break;
-    case 2: life = std::max(life, max_life); break;
-    case 3: mana = std::max(mana, max_mana); break;
+    case 1: life = max_life; mana = max_mana; break;
+    case 2: life = max_life; break;
+    case 3: mana = max_mana; break;
     case 4: { const auto moved = life * shrine.arg0 / 100; life -= moved; mana += moved * shrine.arg1 / 100; break; }
     case 5: { const auto moved = mana * shrine.arg0 / 100; mana -= moved; life += moved * shrine.arg1 / 100; break; }
     default: break;
     }
 }
+
+// By Code, the client's table at 0x6da8c0 (20-byte rows {fnA, fnB,
+// overlays, sound}): the Sounds.txt sound object event 0x15 plays
+// (FUN_004bd550), and the States.txt state the boosters give (the server's
+// table at 0x6e1850 {fn, stat, state}: 128..137, all curse = 1, so a new
+// one ends the old, FUN_0056e970). Their overlays are the state's.
+inline constexpr std::array<const char*, 23> kShrineSound = {
+    "", "shrine_refill", "shrine_refill", "shrine_recharge", "shrine_exchange", "shrine_exchange",
+    "shrine_armorboost", "shrine_combatboost", "shrine_resistfire", "shrine_resistcold", "shrine_resistlightning",
+    "shrine_resistpoison", "shrine_skill", "shrine_recharge", "shrine_recharge", "shrine_experience",
+    "shrine_ofenirhs", "shrine_portal", "shrine_gemupgrade", "shrine_storm", "shrine_portal",
+    "shrine_exploding", "shrine_poison" };
+inline constexpr std::array<const char*, 10> kShrineState = {
+    "shrine_armor", "shrine_combat", "shrine_resist_fire", "shrine_resist_cold", "shrine_resist_lightning",
+    "shrine_resist_poison", "shrine_skill", "shrine_mana_regen", "shrine_stamina", "shrine_experience" };
+inline std::string_view shrine_sound(int code) { return code >= 0 && code < int(kShrineSound.size()) ? kShrineSound[std::size_t(code)] : ""; }
+inline std::string_view shrine_state(int code) { return code >= 6 && code <= 15 ? kShrineState[std::size_t(code - 6)] : ""; }
+// FUN_00583c70: a shrine with a Reset comes back Reset x 1200 + 1 frames
+// on (timer 5), not minutes.
+inline std::uint32_t shrine_reset_frames(int reset) { return reset > 0 ? std::uint32_t(reset) * 1200u + 1 : 0; }
 
 // The gem shrine (FUN_00582c40): the first gem in the inventory with a
 // better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,
@@ -88,7 +111,7 @@ inline void shrine_recharge(const ShrineRow& shrine, std::int64_t& life, std::in
 // "" when `upgrade` took one.
 inline std::string gem_shrine(const Tables& tables, std::vector<d2s::Item>& items, Rng& seed) {
     for (auto& item : items) {
-        if (item.location != 0 || item.panel != 1) continue;
+        if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
         const auto found = tables.item_base.find(item.code);
         if (found == tables.item_base.end() || found->second.better_gem.empty() || found->second.better_gem == "non") continue;
         item.code = found->second.better_gem;
@@ -147,27 +170,27 @@ Opened open_container(int op, int object_id, bool locked, bool sparkle, Rng& obj
     Opened out;
     auto undead = [&] { out.undead = (objects.next() % 10000 & 0xffffe000u) != 0; };
     auto magic = [](int quality) { return quality >= 4; };
-    if (op == 1) {
+    if (op == operate_fn::kCasket) {
         if (!round(0)) out.opened = false;
         else undead();
-    } else if (op == 3) {
+    } else if (op == operate_fn::kUrn) {
         if (objects(100) < 21) round(0);
-    } else if (op == 5) {
+    } else if (op == operate_fn::kBarrel) {
         undead();
         if (objects(100) < 21) round(0);
-    } else if (op == 14) {
+    } else if (op == operate_fn::kCorpse) {
         round(0);
-    } else if (op == 26) {
+    } else if (op == operate_fn::kBookshelf) {
         const bool scroll = objects(20) < 13;
         out.extra.push_back(std::string(objects.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk"));
-    } else if (op == 4 && object_id != 397) {
+    } else if (op == operate_fn::kChest && object_id != object_ids::kSparklyChest) {
         const int forced = sparkle ? objects(100) < 5 ? 6 : 4 : 0;   // drawn for 397 too, unused
         if (objects(100) >= 25 || sparkle || locked) {
             int magics = 0;
             for (int i = locked ? 2 : 1; i > 0; --i) magics += magic(round(forced));
             for (int i = 0; sparkle && magics == 0 && i < 10; ++i) if (magic(round(forced))) break;
         }
-    } else if (op == 4) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
+    } else if (op == operate_fn::kChest) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
         auto extra = [&](const char* code, int count) { for (; count > 0; --count) out.extra.emplace_back(code); };
         auto fallback = [&] {                          // 10 tries for a magic item, at least 4 rounds, gold and potions
             int plain = 0;
@@ -271,7 +294,7 @@ inline std::string stand_item(const Tables& tables, bool weapon, int ilvl, Rng& 
 // A well's drink (FUN_00585720): life (Parm3 & 2) and mana (& 1) up
 // Parm1 / 256 of their maxima, stamina always; false when none was short
 // (the well keeps its charge). Every well's Parm1 128, Parm3 3.
-// ponytail: the poison / freeze cures and the merc's drink aren't here.
+// The poison / freeze / curse cures and the merc's drink are Fight::cure.
 inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana, std::int64_t& stamina, std::int64_t max_stamina) {
     bool drank = false;
     for (auto [value, max] : { std::pair{ &life, max_life }, { &mana, max_mana }, { &stamina, max_stamina } })

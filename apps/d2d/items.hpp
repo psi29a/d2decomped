@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Item hover text drawn (the lines: item_text.hpp).
 #pragma once
 

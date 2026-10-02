@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Drops: treasure classes (TreasureClassEx and the auto weapN / armoN
 // classes) and item quality rolls (ItemRatio), as game.exe rolls them
 // (docs/research/re/drops.md).
@@ -111,7 +112,8 @@ inline int stand_quality(const Tables& tables, const std::string& code, int ilvl
 // A gold pile's coins (FUN_00557ab0, the first draw on the new item's
 // unit seed): ilvl (at least 1, FUN_00558d90) + rand(5 ilvl), at least 1;
 // a ",mul=N" entry scales it by N / 256 (FUN_0055a6d0).
-// ponytail: gold find (FUN_005589a0: + killer stat 0x4f %) isn't applied.
+// Gold find (FUN_005589a0: times 100 + the killer's stat 0x4f, / 100) is
+// the caller's (Loot::put).
 inline int gold_amount(int ilvl, int mul, Rng& item_seed) {
     ilvl = std::max(ilvl, 1);
     const int gold = std::max(ilvl + item_seed(5 * ilvl), 1);

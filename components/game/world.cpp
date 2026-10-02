@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for world.hpp: the World, the game server and its 25 Hz tick.
 #include "world.hpp"
 
@@ -101,6 +102,8 @@ auto World::view() const -> View {
         view.player = player;
         view.running = running;
         view.dead = fight.dead();
+        view.poisoned = std::ranges::any_of(fight.regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });
+        view.chilled = fight.chill_rate(now) != 0;
         view.pmode = fight.pmode;
         view.prate = fight.prate;
         view.seq.assign(fight.seq.begin(), fight.seq.end()); view.seq_frame_ms = fight.seq_frame_ms; view.seq_loop = fight.seq_loop;
@@ -137,7 +140,7 @@ auto World::view() const -> View {
             states.resize(neighbour.level->npcs.size());
             view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
         }
-        if (now < fight.boost.until) view.boost = fight.boost.stats;
+        if (now < fight.boost.until) { view.boost = fight.boost.stats; view.boost_code = shrine_code(fight.boost.shrine); }
         view.aura = fight.aura;
         view.gold_lost = int(gold_lost);
         for (const auto& state : fight.self_states) view.buffs.push_back(state.skill);
@@ -163,7 +166,8 @@ auto World::view() const -> View {
         {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
-            view.light_bonus = sum.size() > 89 ? int(sum[89]) : 0;
+            view.light_bonus = sum.size() > d2d::d2s::kLightRadius ? int(sum[d2d::d2s::kLightRadius]) : 0;
+            view.attack_lines = character.panel.attack;
         }
         view.has_character = true;
         view.header = character.header; view.stats = character.stats; view.items = character.items; view.held = held;
@@ -196,7 +200,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         const int diff = character.header.active_difficulty();
         if (object.operate_fn == d2d::rules::ToolsQuest::kStand) { malus_stand(npc_index, now_ms); return; }
         if (is_door(object.operate_fn)) { operate_door(npc_index, now_ms); return; }
-        if (object.operate_fn == 7) { explode(npc_index, now_ms); return; }
+        if (object.operate_fn == d2d::rules::operate_fn::kExplodingBarrel) { explode(npc_index, now_ms); return; }
         const auto& area_levels = game_data->area_level;
         auto alvl = [&](int id) { return std::size_t(id) < area_levels.size() ? area_levels[std::size_t(id)][std::size_t(std::clamp(diff, 0, 2))] : 1; };
         const int here = alvl(level->id);
@@ -222,7 +226,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // life / 32 .. life / 8 each), then mode 1.
         // ponytail: as explode's, the hit roll is taken as a hit; the fire
         // half isn't resisted; the event (FUN_005417d0) isn't here.
-        if (object.operate_fn == 30) {
+        if (object.operate_fn == d2d::rules::operate_fn::kTrapObject) {
             auto& life = character.stats.values[d2d::d2s::kLife];
             for (int blast = 0; blast < 2 && life > 0; ++blast) {
                 const auto low = std::max<std::int64_t>(life >> 5, 1);
@@ -233,11 +237,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             d2d::log::info("trap object {} went off", npc_index);
             return;
         }
-        if (object.operate_fn == 22) {               // a well (FUN_005858a0): 2 x Parm2 drinks (InitFn 16), NU -> OP -> ON
+        if (object.operate_fn == d2d::rules::operate_fn::kWell) {               // a well (FUN_005858a0): 2 x Parm2 drinks (InitFn 16), NU -> OP -> ON
             auto& well = doors.try_emplace({ level, npc_index }, Door{ 0, 0 }).first->second;
             auto& stat_values = character.stats.values;
-            if (well.mode >= 2 || !d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
-                                                           stat_values[kStamina], stat_values[kMaxStamina])) return;
+            if (well.mode >= 2) return;
+            const bool drank = d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
+                                                      stat_values[kStamina], stat_values[kMaxStamina]);
+            if (!fight.cure(now_ms) && !drank) return;   // a cure counts as a drink too
             well = { well.mode + 1, now_ms };
             to_mode(well.mode);
             d2d::log::info("well {}: mode {}", npc_index, kObjectModes[std::size_t(well.mode)]);
@@ -249,13 +255,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // (InitFn 2's; FUN_00582510).
         // ponytail: the barrel's opening step for a player (FUN_006439b0 /
         // FUN_00580a70) and the events (FUN_005417d0) aren't here.
-        if (const int op = object.operate_fn; op == 1 || op == 3 || op == 5 || op == 14) {
+        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kCasket || op == d2d::rules::operate_fn::kUrn || op == d2d::rules::operate_fn::kBarrel || op == d2d::rules::operate_fn::kCorpse) {
             const auto [opened, drops] = open();
             if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
             if (opened.undead) spring_trap(8, object.x, object.y, here, now_ms, 1);
-            if (const int trap = force >= 0 ? force : object.trap; trap && op != 5) spring_trap(trap, object.x, object.y, here, now_ms);
+            if (const int trap = force >= 0 ? force : object.trap; trap && op != d2d::rules::operate_fn::kBarrel) spring_trap(trap, object.x, object.y, here, now_ms);
             d2d::log::info("opened object {} (op {})", npc_index, op);
             return;
         }
@@ -263,21 +269,21 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // (stand_item) off its room's seed at the area level less one, made
         // off that seed too (FUN_00558d90), its quality rolled (Drop quality
         // 0: stand_quality); a bookshelf (26) its book (open_container).
-        if (const int op = object.operate_fn; op == 19 || op == 20 || op == 26) {
+        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kArmorStand || op == d2d::rules::operate_fn::kWeaponRack || op == d2d::rules::operate_fn::kBookshelf) {
             operated[{ level, npc_index }] = now_ms;
             to_mode(2);
             const int ilvl = here > 1 ? here - 1 : here;
-            if (op == 26) open();
+            if (op == d2d::rules::operate_fn::kBookshelf) open();
             else if (auto& room_seeds = fight.spawning.levels[level].room_seeds; std::size_t(object.room) < room_seeds.size()) {
                 auto& room_seed = room_seeds[std::size_t(object.room)];
-                if (const auto code = d2d::rules::stand_item(game_data->rules, op == 20, ilvl, room_seed); !code.empty())
+                if (const auto code = d2d::rules::stand_item(game_data->rules, op == d2d::rules::operate_fn::kWeaponRack, ilvl, room_seed); !code.empty())
                     loot.put({ .code = code, .quality = 0 }, object.x, object.y, ilvl, room_seed, now_ms);
             }
             d2d::log::info("opened object {} (op {})", npc_index, op);
             return;
         }
-        if (object.operate_fn == 4 && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
-            const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == 0 && item.panel == 1 && item.code == "key"; });
+        if (object.operate_fn == d2d::rules::operate_fn::kChest && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
+            const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && item.code == "key"; });
             if (key == character.items.end()) { d2d::log::info("I need a key."); return; }
             if (key->quantity > 1) --key->quantity;
             else character.items.erase(key);
@@ -286,15 +292,15 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // read every time.
         // ponytail: its text (message 127 to the player, FUN_005456a0) isn't
         // shown; the read goes straight to the quest's heard callback.
-        if (object.operate_fn == 6) {
+        if (object.operate_fn == d2d::rules::operate_fn::kMoldyTome) {
             operated.try_emplace({ level, npc_index }, now_ms);
             tower.read_tome(quests());
             d2d::log::info("The Forgotten Tower: read the Moldy Tome");
             return;
         }
-        if (object.operate_fn == 9 || object.operate_fn == 10 || object.operate_fn == 12) { cain_operate(npc_index, now_ms); return; }
+        if (object.operate_fn == d2d::rules::operate_fn::kCairnStone || object.operate_fn == d2d::rules::operate_fn::kGibbet || object.operate_fn == d2d::rules::operate_fn::kInifussTree) { cain_operate(npc_index, now_ms); return; }
         operated[{ level, npc_index }] = now_ms;
-        if (object.operate_fn == 4) {
+        if (object.operate_fn == d2d::rules::operate_fn::kChest) {
             const auto drops = open().second;
             d2d::log::info("opened a chest: {} drops{}", drops, object.trap ? std::format(", trap {}", object.trap) : "");
             if (const int trap = force >= 0 ? force : object.trap) spring_trap(trap, object.x, object.y, here, now_ms);
@@ -305,8 +311,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         const auto& shrine = game_data->shrines[std::size_t(row)];
         auto& stat_values = character.stats.values;
         d2d::rules::shrine_recharge(shrine, stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana]);
-        if (auto boost = d2d::rules::shrine_boost(shrine, fight.player_combat.attack_rating); !boost.empty())
+        // A booster's state ends the one before (curse = 1, FUN_0056e970);
+        // the stamina state's end (FUN_00583a40) and its start fill stamina.
+        if (auto boost = d2d::rules::shrine_boost(shrine, fight.player_combat.attack_rating); !boost.empty()) {
+            if (shrine.code == 14 || shrine_code(fight.boost.shrine) == 14) stat_values[kStamina] = stat_values[kMaxStamina];
             fight.boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u };
+        }
+        if (const auto sound = d2d::rules::shrine_sound(shrine.code); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         if (shrine.code == 17) open_portal_at(player.x + 1, player.y + 1, now_ms);   // portal (FUN_00582a30): 5 subtiles on each axis
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, character.items, rng); !code.empty())
@@ -352,9 +363,9 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         const auto& door = level->npcs[std::size_t(npc_index)];
         auto& state = doors.try_emplace({ level, npc_index }, Door{ mode_index(door.mode), 0 }).first->second;
         int mode = -1;
-        if (door.operate_fn == 18) {                   // secret door (FUN_00583ff0): slides open (OP), once
+        if (door.operate_fn == d2d::rules::operate_fn::kSecretDoor) {                   // secret door (FUN_00583ff0): slides open (OP), once
             if (state.mode == 0) mode = 1;
-        } else if (door.operate_fn == 16) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
+        } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
             // ponytail: the level's nearest warp for the room's warp unit.
             if (state.mode == 0) mode = 2;
             else if (state.mode == 2 && !level->warps.empty())
@@ -377,6 +388,34 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
+// A monster's door at a think (FUN_005b0f50): of the level's closed (mode
+// 0) IsDoor objects, the nearest under 9 subtiles squared (FUN_005dd0b0
+// mode 8, rules::door_pick); with MonsterOK, FUN_00584540 operates it
+// (OperateFn 8) when in reach (FUN_00623660, rules::object_reach). Found,
+// the monster stands 5 either way.
+// ponytail: the level's objects in list order, not the near rooms' unit
+// lists (a tie between two doors may go the other way).
+auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
+        if (fight.mon_level != level) return false;
+        const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
+        std::vector<std::pair<int, int>> spots;
+        std::vector<int> at;
+        for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+            const auto& door = level->npcs[i];
+            const auto state = doors.find({ level, int(i) });
+            if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
+            spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
+            at.push_back(int(i));
+        }
+        const int pick = d2d::rules::door_pick(spots);
+        if (pick < 0 || !level->npcs[std::size_t(at[std::size_t(pick)])].monster_ok) return false;
+        const auto& door = level->npcs[std::size_t(at[std::size_t(pick)])];
+        const auto [dx, dy] = spots[std::size_t(pick)];
+        if (d2d::rules::object_reach(-dx, -dy, game_data->monsters.types[std::size_t(monster.type)].size, door.size_x, door.size_y))
+            operate_door(at[std::size_t(pick)], now_ms);
+        return true;
+    }
+
 auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         const auto& barrel = level->npcs[std::size_t(npc_index)];
@@ -395,7 +434,7 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
                 if (auto& monster = fight.monsters[k]; monster.alive() && nearby(monster.unit.x, monster.unit.y, 3) && hurt(*game_data, monster, int(blast(monster.hit_points)), now_ms))
                     fight.killed(k, now_ms);
         for (std::size_t k = 0; k < level->npcs.size(); ++k)          // the next barrels along (class 11, still NU)
-            if (const auto& other = level->npcs[k]; other.object_id == 11 && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)
+            if (const auto& other = level->npcs[k]; other.object_id == d2d::rules::object_ids::kExplodingBarrel && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)
                 explode(int(k), now_ms);
         set_footprint(*level, barrel, barrel.collision >> 1 & 1);
         d2d::log::info("barrel {} exploded", npc_index);
@@ -592,14 +631,14 @@ auto World::swap_npcs(const Level* from) -> void {
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest)
-                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::CainQuest::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
+                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::monster_ids::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
         // The stones come up (FUN_005935e0): the portal again, the stones lit.
         if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
             for (std::size_t i = 0; i < level->npcs.size(); ++i) {
                 const auto& stone = level->npcs[i];
-                if (stone.operate_fn != 9) continue;
+                if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
                 operated.try_emplace({ level, int(i) }, 0u);
-                if (stone.object_id == 17 && !portal[2].level) {
+                if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
                     const auto [x, y] = level->nearest_free(stone.x + 4, stone.y + 4);
                     portal[2] = { level, x, y, now };
                 }
@@ -694,7 +733,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // drops two chipped gems and a standard one (0x7361dc / 0x736444).
 // ponytail: loot's rng, not the game's quest rng (game+0x10f4).
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        if (!andy.killed(quests(), level->id == d2d::rules::AndyQuest::kLair)) return;
+        if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
         const int diff = character.header.active_difficulty();
         character.header.progression = std::uint8_t(std::max<int>(character.header.progression, diff * (character.header.expansion() ? 5 : 4) + 1));
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
@@ -745,7 +784,7 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
         if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
             tower.treasure = true;
             for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
-                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == 371) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureFrames });
+                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureFrames });
         }
         if (!quest_kill) return;
         static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
@@ -865,17 +904,17 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         const auto& object = level->npcs[std::size_t(npc_index)];
         const bool fresh = !operated.contains({ level, npc_index });
         auto& quest_bits = quests();
-        if (object.operate_fn == 12) {
+        if (object.operate_fn == d2d::rules::operate_fn::kInifussTree) {
             if (!cain.tree(quest_bits, carries("bks") || carries("bkd"))) return;
             operated[{ level, npc_index }] = now_ms;
             loot.put({ .code = "bks" }, object.x, object.y, 1, fight.spawning.game, now_ms);
             d2d::log::info("Search for Cain: the Scroll of Inifuss");
             return;
         }
-        if (object.operate_fn == 10) {
+        if (object.operate_fn == d2d::rules::operate_fn::kGibbet) {
             if (!cain.gibbet(quest_bits, fresh)) return;
             operated[{ level, npc_index }] = now_ms;
-            const auto found = std::ranges::find(level->npcs, Cain::kCain, &Npc::hc_idx);
+            const auto found = std::ranges::find(level->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
             const bool spawned = found != level->npcs.end();
             cain.rescued(spawned);
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
@@ -917,7 +956,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
     }
 
 auto World::level_name(const Level& level) -> const char* {
-        return !level.name.empty() ? level.name.c_str() : level.id == 1 ? "Rogue Encampment" : "?";   // Levels.txt LevelName
+        return !level.name.empty() ? level.name.c_str() : level.id == d2d::rules::level_ids::kRogueEncampment ? "Rogue Encampment" : "?";   // Levels.txt LevelName
     }
 
 auto World::use_warp() -> void {
@@ -1005,7 +1044,7 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
 auto World::make_corpse() -> void {
         Corpse corpse{ level, player.x, player.y, player.dir, {}, exp_lost * 75 / 100, fight.gfx() };
         for (auto item_it = character.items.begin(); item_it != character.items.end();)
-            if (item_it->location == 1) { corpse.items.push_back(std::move(*item_it)); item_it = character.items.erase(item_it); }
+            if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = character.items.erase(item_it); }
             else ++item_it;
         if (held) { corpse.items.push_back(std::move(*held)); corpse.items.back().location = 1; held.reset(); }   // ponytail: the held item's slot
         if (corpses.size() >= 16) corpses.erase(corpses.begin());
@@ -1019,15 +1058,15 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         corpse.exp = 0;
         const auto& layout = game_data->inv_layout[std::size_t(character.header.cls % 7)];
         for (auto item_it = corpse.items.begin(); item_it != corpse.items.end();) {
-            const bool worn = std::ranges::any_of(character.items, [&](const Item& worn_item) { return worn_item.location == 1 && worn_item.slot == item_it->slot; });
-            if (!worn && item_it->slot >= 1 && item_it->slot <= 12) { character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            const bool worn = std::ranges::any_of(character.items, [&](const Item& worn_item) { return worn_item.location == d2d::d2s::item_location::kEquipped && worn_item.slot == item_it->slot; });
+            if (!worn && item_it->slot >= d2d::d2s::body_location::kFirst && item_it->slot <= d2d::d2s::body_location::kLeftArmSwitch) { character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
             std::optional<Item> held_item = *item_it;
-            held_item->location = 0;
+            held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;
-            for (const auto& x : character.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+            for (const auto& x : character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
             if (const auto [x, y] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); x >= 0
-                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, 1, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
+                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
         if (corpse.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(corpse_index));
@@ -1146,13 +1185,13 @@ auto World::deal(const Command& command) -> bool {
         // then it's used (FUN_0058fd50: bit 0 on, 1 off).
         if (const auto* respec = std::get_if<cmd::Respec>(&command)) {
             using d2d::rules::qbit;
-            if (std::size_t(respec->npc) >= level->npcs.size() || level->npcs[std::size_t(respec->npc)].hc_idx != d2d::rules::DenQuest::kAkara
-                || !qbit(quests(), 41, 1)) return true;
+            if (std::size_t(respec->npc) >= level->npcs.size() || level->npcs[std::size_t(respec->npc)].hc_idx != d2d::rules::monster_ids::kAkara
+                || !qbit(quests(), d2d::rules::kRespecQuest, 1)) return true;
             const auto cls = std::size_t(std::clamp<int>(character.header.cls, 0, 6));
             const auto& start = game_data->class_start[cls];
             d2d::rules::respec(character.stats, { start.str, start.ene, start.dex, start.vit }, game_data->class_gains[cls]);
-            d2d::rules::qset(quests(), 41, 0);
-            d2d::rules::qset(quests(), 41, 1, false);
+            d2d::rules::qset(quests(), d2d::rules::kRespecQuest, 0);
+            d2d::rules::qset(quests(), d2d::rules::kRespecQuest, 1, false);
             d2d::log::info("Akara reset the stat and skill points");
             return true;
         }
@@ -1161,13 +1200,16 @@ auto World::deal(const Command& command) -> bool {
         // and its town's waypoint is active.
         if (const auto* east = std::get_if<cmd::GoEast>(&command)) {
             using d2d::rules::qbit;
-            if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::AndyQuest::kWarriv
+            if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::monster_ids::kWarriv
                 || !qbit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             if (!qbit(quests(), 7, 0)) { d2d::rules::qset(quests(), 7, 0); d2d::rules::qset(quests(), 7, 13); }
-            andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
-            cain.enter(quests(), level->id, d2d::rules::CainQuest::kLut);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
-            set_waypoint(waypoint_index(*game_data, d2d::rules::AndyQuest::kLut));
-            d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein)");
+            andy.enter(quests(), level->id, d2d::rules::level_ids::kLutGholein);
+            cain.enter(quests(), level->id, d2d::rules::level_ids::kLutGholein);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
+            set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kLutGholein));
+            auto& difficulty = character.header.difficulty[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
+            difficulty = std::uint8_t((difficulty & ~7) | 0x80 | 1);   // the save's act: game.exe starts it in Lut Gholein
+            went_east = true;
+            d2d::log::info("not implemented: Act 2 (Warriv's caravan to Lut Gholein); the game ends here");
             return true;
         }
         // Charsi's imbue (FUN_00579d60, kind 0 at hcIdx 0x9a): while it's
@@ -1175,7 +1217,7 @@ auto World::deal(const Command& command) -> bool {
         // reward's used (FUN_00591790).
         // ponytail: no S->C 0x58 result; the new item stays in hand.
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
-            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::ToolsQuest::kCharsi
+            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::monster_ids::kCharsi
                 || !d2d::rules::qbit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !held || !d2d::rules::imbuable(game_data->rules, *held)) return true;
             auto made = d2d::rules::imbue_item(game_data->rules, *held, int(character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = held->location; made.panel = held->panel; made.column = held->column; made.row = held->row;
@@ -1200,14 +1242,14 @@ auto World::deal(const Command& command) -> bool {
         // (tile + 3 subtiles, FUN_0066ad80), which lights up if it's dark.
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
             const int index = waypoint_index(*game_data, travel->level);
-            if (now - arrived_at < 10000 || std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != 23
+            if (now - arrived_at < 10000 || std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != d2d::rules::operate_fn::kWaypoint
                 || travel->level == level->id || !character.header.waypoint(character.header.active_difficulty(), index)) return true;
             const Level* destination = game_data->level(travel->level);
             if (!destination || destination->ds1.width() == 0) { d2d::log::info("not implemented: level {} (a waypoint)", travel->level); return true; }
             // Its preset (objects.txt SubClass 0x40): its room makes it as the player lands.
             const auto& subclass = game_data->obj_subclass;
             const auto unit = std::ranges::find_if(destination->units, [&](const auto& preset) {
-                return preset.type == 2 && preset.id >= 0 && std::size_t(preset.id) < subclass.size() && (subclass[std::size_t(preset.id)] & 0x40);
+                return preset.type == d2d::rules::unit_type::kObject && preset.id >= 0 && std::size_t(preset.id) < subclass.size() && (subclass[std::size_t(preset.id)] & d2d::rules::object_ids::kSubclassWaypoint);
             });
             const bool known = unit != destination->units.end();
             const float arrive_x = known ? std::floor((float(unit->x) + 0.5f) / 5) + 0.6f : float(destination->ds1.width()) / 2;
@@ -1310,13 +1352,13 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_grid = std::get_if<cmd::ToGrid>(&command)) {
-            const auto* layout = to_grid->panel == 1 ? &game_data->inv_layout[std::size_t(cls)] : to_grid->panel == 4 ? &game_data->cube_layout
-                          : to_grid->panel == 5 ? &game_data->stash_layout[character.expansion ? 1 : 0] : nullptr;
+            const auto* layout = to_grid->panel == d2d::d2s::item_panel::kInventory ? &game_data->inv_layout[std::size_t(cls)] : to_grid->panel == d2d::d2s::item_panel::kCube ? &game_data->cube_layout
+                          : to_grid->panel == d2d::d2s::item_panel::kStash ? &game_data->stash_layout[character.expansion ? 1 : 0] : nullptr;
             if (held && layout) d2d::rules::put_in_grid(tables, character.items, held, to_grid->panel, layout->cols, layout->rows, to_grid->col, to_grid->row);
             return;
         }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
-            if (held && to_body->slot >= 1 && to_body->slot <= 10) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(cls, character.items, character.stats));
+            if (held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(*game_data, cls, character.items, character.stats));
             return;
         }
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {
@@ -1367,9 +1409,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             walk_to(npc_x, npc_y, true);
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
-            const bool usable = is_door(npc.operate_fn) || npc.operate_fn == 22 || npc.operate_fn == 6 || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
-            const bool quest_object = npc.operate_fn == 9 || npc.operate_fn == 10 || npc.operate_fn == 12;   // the quest says what it does
-            if (npc.operate_fn == 32 || npc.operate_fn == 23 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || quest_object || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
+            const bool usable = is_door(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kWell || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || (operable(npc.operate_fn) && !npc.preoperated && !operated.contains({ level, interact->npc }));
+            const bool quest_object = npc.operate_fn == d2d::rules::operate_fn::kCairnStone || npc.operate_fn == d2d::rules::operate_fn::kGibbet || npc.operate_fn == d2d::rules::operate_fn::kInifussTree;   // the quest says what it does
+            if (npc.operate_fn == d2d::rules::operate_fn::kStash || npc.operate_fn == d2d::rules::operate_fn::kWaypoint || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || quest_object || (npc.root == "monsters" && menu)) interact_npc = interact->npc;
             return;
         }
         const auto& use_skill = std::get<cmd::UseSkill>(command);
@@ -1378,7 +1420,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const bool live = monster_index >= 0 && fight.monsters[std::size_t(monster_index)].alive();
         if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) player.walking = false;
-        } else if (skill && skill->srvdofunc == 76 && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
+        } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
             fight.move_x = use_skill.x; fight.move_y = use_skill.y;
             fight.attack_mon = -1;
             fight.attack_skill = use_skill.skill;
@@ -1401,6 +1443,30 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         }
     }
 
+// A frame's stamina (FUN_00580c20 / FUN_00580810 event 3): a run outside
+// town drains it (FUN_0057f240), at 0 the run is a walk (FUN_0057f090: no
+// run at stamina 0); then it regens by mode (FUN_00580500).
+// ponytail: the run stays a run while stamina lasts and walks at 0 each
+// frame, not at the next move as game.exe; the same since a walk at 0 never
+// regens.
+auto World::stamina_frame() -> void {
+        using namespace d2d::d2s;
+        if (fight.dead()) return;
+        const bool town = level == &game_data->town;
+        auto& stamina = character.stats.values[kStamina];
+        const bool run = player.walking && fight.pmode < 0 && running && stamina > 0;
+        if (run && !town) {
+            int armor_speed = 0;
+            for (const auto& item : character.items)
+                if (item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kTorso)
+                    if (const auto found = game_data->rules.item_base.find(item.code); found != game_data->rules.item_base.end()) armor_speed = found->second.speed;
+            stamina = std::max<std::int64_t>(0, stamina - d2d::rules::stamina_drain(game_data->run_drain[std::size_t(std::max(character.character_class, 0))],
+                                                                                  armor_speed, int(fight.psum[kStaminaDrainPercent])));
+        }
+        const int mode = fight.pmode >= 0 ? -1 : player.walking ? (run ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        stamina = d2d::rules::stamina_regen(stamina, character.stats.values[kMaxStamina], mode, int(fight.psum[kStaminaRecoveryBonus]));
+    }
+
 auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
@@ -1419,22 +1485,32 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         if (now_ms - day_at > 1000) day_at = now_ms;
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step();
-            if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
+            if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
             burial.tick();
             tower.tick();
             tower_treasure(day_at);
+            stamina_frame();
+        }
+        if (fight.boost.until && now_ms >= fight.boost.until) {     // the state runs out
+            if (shrine_code(fight.boost.shrine) == 14) character.stats.values[d2d::d2s::kStamina] = character.stats.values[d2d::d2s::kMaxStamina];
+            fight.boost = {};
         }
         fight.update_fighters(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
-        // to NU after its reset time (Shrines.txt, minutes; 0 never).
+        // to NU after its reset time (Shrines.txt Reset x 1200 + 1 frames;
+        // 0 never).
         for (auto entry = operated.begin(); entry != operated.end();) {
             const auto& [key, when_ms] = *entry;
             const auto npc_index = std::size_t(key.second);
             const auto& npc = key.first->npcs[npc_index];
-            const int reset = npc.operate_fn == 2 && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
-            const bool back = reset > 0 && now_ms - when_ms >= std::uint32_t(reset) * 60000u;
-            if (key.first == level && npc_index < npc_states.size())
+            const int reset = npc.operate_fn == d2d::rules::operate_fn::kShrine && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
+            const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
+            if (key.first == level && npc_index < npc_states.size()) {
                 npc_states[npc_index].mode = back ? std::string_view{} : now_ms - when_ms < std::uint32_t(npc.op_frames) * 40u ? "OP" : "ON";
+                // Its message overhead (ShrMsgN, 3683 + row: FUN_00661110 on
+                // "%d", 4 chars x 8 + 125 frames).
+                npc_states[npc_index].says = std::uint16_t(npc.operate_fn == d2d::rules::operate_fn::kShrine && !back && now_ms - when_ms < 157u * kTickMs ? 3683 + npc.shrine : 0);
+            }
             entry = back ? operated.erase(entry) : std::next(entry);
         }
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in
@@ -1472,11 +1548,11 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const auto& state = npc_states[std::size_t(interact_npc)];
             const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
             if (std::hypot(npc_x - player.x, npc_y - player.y) < 2.f) {
-                if (operable(npc.operate_fn) || npc.operate_fn == 6 || npc.operate_fn == d2d::rules::ToolsQuest::kStand || npc.operate_fn == 9 || npc.operate_fn == 10 || npc.operate_fn == 12) {
+                if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || npc.operate_fn == d2d::rules::operate_fn::kCairnStone || npc.operate_fn == d2d::rules::operate_fn::kGibbet || npc.operate_fn == d2d::rules::operate_fn::kInifussTree) {
                     operate(interact_npc, now_ms);
-                } else if (npc.operate_fn == 32) {
+                } else if (npc.operate_fn == d2d::rules::operate_fn::kStash) {
                     events.push_back(ev::OpenUI{ ev::OpenUI::stash, interact_npc });
-                } else if (npc.operate_fn == 23) {
+                } else if (npc.operate_fn == d2d::rules::operate_fn::kWaypoint) {
                     // FUN_00584e30: touching activates this level's waypoint
                     // (the town's, index 0, always is); an unlit one lights
                     // up (mode 1 → 2) and the panel waits for the next touch.
@@ -1485,14 +1561,15 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     if (npc.mode == "NU" && !operated.contains({ level, interact_npc })) operated[{ level, interact_npc }] = now_ms;
                     else events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, interact_npc });
                 } else {
-                    if (d2d::rules::is_healer(npc.hc_idx)) d2d::rules::heal(character.stats);
+                    if (d2d::rules::is_healer(npc.hc_idx)) { d2d::rules::heal(character.stats); fight.cure(now_ms); }
                     // In Hell, a Den of Evil done before the reset existed
                     // opens it on meeting Akara (FUN_0058fd20: quest 41 bits
                     // 13 and 1).
-                    if (npc.hc_idx == d2d::rules::DenQuest::kAkara && character.header.active_difficulty() == 2) {
+                    if (npc.hc_idx == d2d::rules::monster_ids::kAkara && character.header.active_difficulty() == 2) {
                         auto& quest_bits = quests();
                         using d2d::rules::qbit;
-                        if (qbit(quest_bits, 1, 0) && !qbit(quest_bits, 41, 1) && !qbit(quest_bits, 41, 0)) { d2d::rules::qset(quest_bits, 41, 13); d2d::rules::qset(quest_bits, 41, 1); }
+                        constexpr int kRespec = d2d::rules::kRespecQuest;
+                        if (qbit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !qbit(quest_bits, kRespec, 1) && !qbit(quest_bits, kRespec, 0)) { d2d::rules::qset(quest_bits, kRespec, 13); d2d::rules::qset(quest_bits, kRespec, 1); }
                     }
                     events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, quest_talk(npc.hc_idx) });
                 }
@@ -1531,9 +1608,11 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 player.goal_x = target_x; player.goal_y = target_y;
             }
             const auto save_class = std::size_t(std::max(character.character_class, 0));
-            // Faster run/walk: its effective % (150 x v / (150 + v)) on velocity.
-            const float vel = float(running ? game_data->run_velocity[save_class] : game_data->walk_velocity[save_class])
-                            * float(100 + d2d::rules::effective_speed(fight.player_combat.frw, 150)) / 100.f;
+            // FUN_00623f50: the walk velocity x a % (at least 25) of 100 (run: run x 100 / walk),
+            // faster run/walk's effective % (150 x v / (150 + v)) and chill's -50.
+            const int walk = std::max(game_data->walk_velocity[save_class], 1);
+            const int base = running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] * 100 / walk : 100;
+            const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();
         }
@@ -1550,29 +1629,6 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
-        // A monster that opens doors (MonStats opendoors) whose way is shut by
-        // a door (FUN_005b0f50, each think: its path's next collision has
-        // 0x800) operates it as the player would (FUN_00584540 → OperateFn 8)
-        // and stands 5 frames; before the think it would have had.
-        // ponytail: "in its way" read as standing or walking (NU / WL: a
-        // chase pressed on the door walks in place) while aware, within a
-        // cell of a closed door's footprint; game.exe's path collision test
-        // (FUN_00648eb0) and door search (FUN_005dd0b0) aren't ported.
-        if (fight.mon_level == level)
-            for (auto& monster : fight.monsters) {
-                if (!monster.alive() || !monster.aware || (monster.mode != "NU" && monster.mode != "WL") || now_ms < monster.next_act
-                    || !game_data->monsters.types[std::size_t(monster.type)].open_doors) continue;
-                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
-                    const auto& door = level->npcs[i];
-                    if (door.operate_fn != 8) continue;
-                    const auto state = doors.find({ level, int(i) });
-                    if ((state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
-                    if (std::abs(monster.unit.x - door.x) > float(door.size_x) / 10 + 1 || std::abs(monster.unit.y - door.y) > float(door.size_y) / 10 + 1) continue;
-                    operate_door(int(i), now_ms);
-                    monster.next_act = now_ms + 5 * 40;
-                    break;
-                }
-            }
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
@@ -1585,8 +1641,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         }
         use_portal(now_ms);
         }
-        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::AndyQuest::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
-        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::BurialQuest::kBloodRaven) blood_raven_died(now_ms);
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::monster_ids::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::monster_ids::kBloodRaven) blood_raven_died(now_ms);
         for (const auto& kill : fight.kills) if (kill.super == d2d::rules::TowerQuest::kCountess) countess_died(now_ms);
         fight.kills.clear();
         cross_level();

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The Den of Evil through a game: Akara gives it, the Den's cleared, she
 // rewards once; a later game picks the state up from the flags.
 #include <quests.hpp>
@@ -66,14 +67,14 @@ int main() {
     assert(andy.state == 2 && andy.log == 1 && qbit(andy_bits, 6, 2) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 171);
     andy.enter(andy_bits, 1, 2);
     assert(andy.state == 3 && qbit(andy_bits, 6, 3) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 177);
-    andy.enter(andy_bits, 36, AndyQuest::kLair);
+    andy.enter(andy_bits, 36, d2d::rules::level_ids::kCatacombsLevel4);
     assert(andy.killed(andy_bits, true) && andy.state == 4 && qbit(andy_bits, 6, 1) && qbit(andy_bits, 6, 13) && andy.cain);
     assert(!andy.killed(andy_bits, true));                                            // no second drop
     int portal_tick = 0;
     for (int i = 2; i <= 12; ++i) if (andy.tick()) portal_tick = i;
     assert(portal_tick == 10 && andy.log == 3 && andy.after_kill == 0);
     assert(andy.alert(andy_bits, AndyQuest::kWarriv) && andy.talk(andy_bits, AndyQuest::kWarriv)[0].string == 183 && andy.talk(andy_bits, AndyQuest::kWarriv)[0].greet);
-    assert(andy.talk(andy_bits, AndyQuest::kCain)[0].string == 184 && andy.talk(andy_bits, 154)[0].string == 180);
+    assert(andy.talk(andy_bits, AndyQuest::kCain)[0].string == 184 && andy.talk(andy_bits, monster_ids::kCharsi)[0].string == 180);
     assert(andy.said(andy_bits, AndyQuest::kWarriv, 183) && qbit(andy_bits, 6, 0) && !qbit(andy_bits, 6, 1) && andy.state == 5 && andy.log == 0xd);
     assert(!andy.said(andy_bits, AndyQuest::kWarriv, 183) && !andy.alert(andy_bits, AndyQuest::kWarriv));
 
@@ -242,9 +243,9 @@ int main() {
     CainQuest late;
     late.join(late_bits, false, false);
     late.open();
-    late.enter(late_bits, 1, CainQuest::kLut);
+    late.enter(late_bits, 1, d2d::rules::level_ids::kLutGholein);
     assert(late.state == 7 && late.log == 5 && qbit(late_bits, 4, 14) && late.missed && late.camp_due);
-    assert(late.enter(late_bits, CainQuest::kLut, 1) && late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 125);
+    assert(late.enter(late_bits, d2d::rules::level_ids::kLutGholein, 1) && late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 125);
     late.said(late_bits, CainQuest::kCampCain, 125, false);
     assert(late.talk(late_bits, CainQuest::kCampCain, false)[0].string == 123);    // game.exe's: rec+0x1c, not list B yet
     late.said(late_bits, CainQuest::kCampCain, 123, false);

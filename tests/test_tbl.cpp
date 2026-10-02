@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Parse a real string.tbl out of d2data.mpq and verify a couple of known
 // English strings. Skips when the MPQ isn't reachable (same rule as test_mpq).
 #include <mpq.hpp>

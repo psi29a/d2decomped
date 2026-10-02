@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Definitions for ingame.hpp: the in-game frame and the rain.
 #include "ingame.hpp"
 
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -55,7 +57,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    int class_idx,
                    const Scene::Appearance& gfx,
                    std::string_view name,
-                   bool hardcore,
+                   [[maybe_unused]] bool hardcore,   // game.exe draws no caption in game
                    float cam_x,
                    float cam_y,
                    int player_mode,
@@ -80,7 +82,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    std::span<const Unit> extra_units , float player_rate ,
                    const Lighting* light , d2d::rules::Rain* rain , bool player_visible ,
                    const Unit* player_look ,     // its states' colour shift and overlays
-                   bool show_items) {             // Alt held: every ground item's name
+                   bool show_items,               // Alt held: every ground item's name
+                   const Hud& hud) {
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -119,6 +122,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const bool unselectable = state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1);
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
             if (state && state->alert) units.back().overlay = &scene.npc_alert;
+            if (state) units.back().says = state->says;
             units.back().shadow = npc.root != "objects";
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
@@ -151,6 +155,17 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         render_world(framebuffer, scene, level, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
         if (rain) draw_rain(framebuffer, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
+        // What a unit says (a shrine's message), centred over it.
+        // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:
+        // font, colour and height (here 100 px over its feet) are guesses.
+        for (const auto& unit : units) {
+            if (!unit.says) continue;
+            const auto text = string_id(scene, unit.says);
+            const int pixel_x = int(kScreenWidth) / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
+            const int pixel_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
+            const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
+        }
         // Alt ("Show Items"): each ground item's name in a dark box over it,
         // nudged up clear of the ones already placed; the label under the
         // mouse is the item it points at (a click picks it up).
@@ -193,6 +208,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
                                box[1] - scene.font.line_height() - 2, hovered_name, colour[0], colour[1], colour[2]);
         }
+        // Who reads the hover text: red requirements, class lines, attack speed.
+        std::optional<d2d::rules::Wearer> wearer_value;
+        if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
+        const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
         if (inventory && class_idx >= 0 && class_idx < 7)
         {
             // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
@@ -202,29 +221,29 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                     return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
                 };
             draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                           mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1, &sell_price);
+                           mouse_x, mouse_y, hover_wearer, &sell_price);
             if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
         }
         if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         if (store && store->npc >= 0)
         {
-            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer);
             if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
         }
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)
-                draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, 4, mouse_x, mouse_y,
-                             hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+                draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, d2d::d2s::item_panel::kCube, mouse_x, mouse_y,
+                             hover_wearer);
             else
-                draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], 5,
-                             mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1);
+                draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], d2d::d2s::item_panel::kStash,
+                             mouse_x, mouse_y, hover_wearer);
         }
         if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
-        if (hud_stats) draw_hud(framebuffer, scene, *hud_stats);
-        if (belt) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hud_stats ? int(hud_stats->get(d2d::d2s::kLevel)) : 1,
+        if (hud_stats) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
+        if (belt) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
                             belt_popup);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
@@ -250,41 +269,6 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
         blit_dc6_grid(framebuffer, scene.credits_bg, scene.pal, 0, 0, scene.bg_tiles_across);
     }
-    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
-    if (speech && speech->npc >= 0) return;               // the dev overlay would cover the speech box
-    if (level.id != 1 && !level.dt1s.empty()) return;             // outside camp the top is the monster bar's
-
-    std::string cls = kClassKey[class_idx];
-    if (auto found = lookup_string(scene, kClassKey[class_idx])) cls = u16_to_latin1(*found);
-
-    constexpr const char* welcome = "WELCOME TO SANCTUARY";
-    const int welcome_width = scene.font.measure(welcome);
-    // Dev HUD at the top edge, clear of the player at screen centre.
-    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - welcome_width/2, 8,
-                       welcome, 255, 208, 80);
-
-    // On hardcore, D2 marks the caption with a red " (HC)" suffix — we
-    // fudge that with a red tint on the trailing tag.
-    const std::string line = name.empty() ? cls : std::string(name) + " the " + cls;
-    const int line_width = scene.font.measure(line);
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - line_width/2, 28, line);
-    if (hardcore) {
-        constexpr const char* tag = " (HARDCORE)";
-        const int tag_width = scene.font.measure(tag);
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - line_width/2 + line_width, 28,
-                           tag, 220, 60, 60);
-        (void)tag_width;
-    }
-
-    if (inventory || char_stats || stash || belt_popup) return;   // the hint would run under a panel
-    constexpr const char* hint =
-        "d2d dev build — click to walk around the Rogue camp";
-    const int hint_width = scene.font.measure(hint);
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - hint_width/2, int(kScreenHeight) - 140, hint);   // above the HUD bar
-    constexpr const char* esc = "press Esc to return to title";
-    const int esc_width = scene.font.measure(esc);
-    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - esc_width/2, int(kScreenHeight) - 120,
-                       esc, 200, 200, 200);
 }
 
 }  // namespace d2d::client

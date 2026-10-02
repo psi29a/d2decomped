@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Drops over hand-made tables: auto weapN classes, gold (and its
 // multiplier), NoDrop odds and players, quality rolls (rings at least
 // magic, potions plain), the 6-item cap, TC upgrades.
@@ -118,6 +119,16 @@ int main() {
         const int any = roll_shrine(rows, 0, 2, object_rng);
         assert(any >= 1 && any <= 3);
     }
+    // Recharges set to max (over-max life comes down); the skill shrine's
+    // +2 whatever its Arg0; sounds, states and resets by Code.
+    std::int64_t shrine_life = 900, shrine_mana = 10;
+    shrine_recharge({ .code = 1 }, shrine_life, 800, shrine_mana, 50);
+    assert(shrine_life == 800 && shrine_mana == 50);
+    assert((shrine_boost({ .code = 12, .arg0 = 5 }, 0) == std::vector<std::pair<int, int>>{ { 127, 2 } }));
+    assert((shrine_boost({ .code = 7, .arg0 = 200, .arg1 = 200 }, 150) == std::vector<std::pair<int, int>>{ { 19, 300 }, { 25, 200 } }));
+    assert(shrine_sound(1) == "shrine_refill" && shrine_sound(10) == "shrine_resistlightning" && shrine_sound(20) == "shrine_portal" && shrine_sound(23).empty());
+    assert(shrine_state(8) == "shrine_resist_fire" && shrine_state(14) == "shrine_stamina" && shrine_state(5).empty() && shrine_state(16).empty());
+    assert(shrine_reset_frames(5) == 6001 && shrine_reset_frames(0) == 0);
     // Chests: traps and locks by the classic area level, a unit seed of
     // 1..0xfffe; a locked chest drops twice, others are empty a quarter of
     // the time; a sparkling one tries up to 11 rounds for a magic item.

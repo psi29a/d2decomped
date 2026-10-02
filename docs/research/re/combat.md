@@ -40,13 +40,71 @@ replaces it (value and length) only if it is at least as strong
 Healing potions are also `hpregen` (misc.txt stat1), in their own state, so
 potion and poison add up in the same regen tick.
 
+## Drinking a potion
+
+C→S 0x20 (inventory, FUN_0055e170) and 0x26 (belt, FUN_00562390) both go
+through FUN_005bf240, which runs the item's pSpell (Items +0x94) from the
+table at 0x741790 (8 bytes an entry, the second the server's): pSpell 3,
+FUN_005be3f0, healing / mana; pSpell 5, FUN_005beac0, rejuvenation.
+FUN_00562390's shift flag gives a belt potion to the hireling
+(FUN_00574ec0(7, 0)), types hpot 0x4c, apot 0x50, wpot 0x51 only.
+
+FUN_005be3f0, for each of the item's stats (Items +0x9e, calc +0xa4):
+- `amount = calc`; `hpregen` (0x4a) `<< 8` through FUN_0062a5d0, the
+  class's life bonus (amazon, paladin, assassin ×1.5 as `v + (v >> 1)`;
+  barbarian ×2; others ×1; a non-player ×2); `manarecovery` (0x1a)
+  `<< 8` through FUN_0062a620 (amazon, paladin, assassin ×1.5; sorceress,
+  necromancer, druid ×2; others ×1). No HealthPotionPercent in 1.14d.
+- if vitality (life) / energy (mana) > 0: `r = rand(stat) >> 1`, and
+  `rand(100) < r` doubles it (the unit seed, +0x20).
+- `<< ISC ValShift` (0 for both); classic only: FUN_005c6870.
+- into the state (Items +0x98) for `len` (calc +0xb0) frames, joining
+  what's left of it: `left = end − now`, per frame
+  `(old × left + amount) / (left + len)`, lasting `left + len`; it ends
+  through FUN_0056e900.
+
+FUN_005beac0: each stat a percent of the max (ISC +0x32's stat) by MulDiv
+(FUN_00483360), 100 the max itself, capped; no class bonus, no roll.
+d2d: rules::potion_amount / potion_rate, Fight::potion.
+
+## Picking up
+
+C→S 0x16 → FUN_00548b00 (an item: within 5, a clear path); action 0 is
+FUN_00563560's auto-place, else to the cursor (FUN_0055cf50).
+FUN_00563560:
+1. FUN_0055cc90 may it be taken; not: message 0x13 (impossible).
+2. gold: FUN_0055c850.
+3. stacking, FUN_00560020: a scroll (0x16) into an inventory tome of its
+   Books kind with room (FUN_0063c3b0, FUN_0055ffa0 / FUN_0055ef20); a tome
+   (0x12) into one (FUN_0055d370): past its maxstack the picked one keeps
+   the rest on the ground; a stackable AutoStack type into the inventory's
+   matching stacks (FUN_0055d0d0, FUN_0063c200, the match FUN_0062c850:
+   class, quality, flags, stats 0x15–0x18, 0x9f, 0xa0; max FUN_006295b0:
+   maxstack + stat 254, ≤ 511), the rest placed on.
+4. FUN_0055d710: into a free body location it fits.
+5. the belt: FUN_0062bad0 (own type Beltable), FUN_00628ba0 (autobelt, or
+   a bottom match not isc / tsc: FUN_0063c560), FUN_0063c790 →
+   FUN_0063c600: 1×1; columns 0–3 whose bottom item matches (FUN_00628a40:
+   the same code, or both in hp1–5 / mp1–5 / rvs, rvl, 0x744660–0x744698)
+   take their lowest free box below the belt's boxes; else, autobelt, the
+   first free bottom box; FUN_0063afd0 places it.
+6. the inventory: FUN_005600a0 → FUN_0063b950; no room: message 0x17.
+
+Messages voice on the client (FUN_004cb9c0): the class's table off
+0x72a008 (amazon 0x727eac), 0x13 → +8, 0x14 → +0x18, 0x15 → +0xc,
+0x16 → +0x10, 0x17 → +0x14 (cantcarry, amazon sound 0xb76), 0x18 → +0x1c;
+the same sound within 0x4b of FUN_0044db00's clock is skipped.
+d2d: rules::pick_up, Loot::take. ponytail: no step 4; stacks match by
+code; the voice's repeat guard; the doubling rolls d2d's rng; no
+shift-click to the hireling.
+
 ## Regeneration — who can die to poison
 
 - **Players**: FUN_00580810 (event 3 callback, re-armed every frame) calls
   FUN_00580610: `life += hpregen`, capped at max life; then
   **`if (life < 0x100) life = 0x100`**. Negative regen (poison, burning) can
-  never take a player below 1 life. Then mana (FUN_00580500) and stamina
-  (FUN_005806f0).
+  never take a player below 1 life. Then mana (FUN_005806f0) and stamina
+  (FUN_00580500; char-panel.md, the HUD).
 - **Monsters**: FUN_005a6920: `life += hpregen` (less a state's own
   contribution when FUN_0063a750 says so), capped at max, clamped at **0**.
   At 0 the monster dies; the kill goes to the owner of its state 2 (poison)
@@ -123,9 +181,72 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   percentages, like the physical damage.
 - Mana regeneration: all of max mana in 120 s, times (100 + bonus) %.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
+- Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's
+  socketed in them (gems.txt by weapon / shield / other), inventory charms,
+  and a set piece's bonus lists that are on (list i with i + 2 pieces of
+  its set worn). The Fighter, the char panel, +skills (`skill_level`), the
+  equip check (`wearer`) and magic / gold find (stat 0x50 FUN_005585d0 /
+  0x4f FUN_005589a0, drops.md) all read them. Sets.txt's partial / full
+  bonuses aren't added. An add func 1 list (keyed to another piece)
+  counts pieces.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
-  DamageRegen), set bonuses in the stat sums, the weapon swap, cold slowing
-  the player, poison length reduction, champions/uniques.
+  DamageRegen), the weapon swap, champions/uniques.
+
+## Cold, freeze and poison lengths (SUnitDmg.cpp)
+
+The damage record (ints): [9] cold, [10] / [0xb] poison per tick (256ths
+of life) / length, [0xc] cold length, [0xd] freeze length.
+
+- **Building it** (`FUN_0057b7d0`): [0xc] += stat 56 coldlength when cold
+  damage > 0; [10] = roll(stat 57, 58), [0xb] += stat 59 (over stat 326 when
+  above 1, or stat 101 instead). A monster's El per mode
+  (`FUN_005a502b` / `FUN_005a5245`): cold 54 / 55 = min / max, 56 = Dur;
+  poison 57 / 58 = min × 10 / max × 10, 59 = Dur × 2; frze (12) has no
+  case.
+- **Before resists** (`FUN_0057c140`): cold or freeze length: stat 153
+  (cannot be frozen) zeroes both, else 118 (half freeze duration) halves
+  them. State 0x85 zeroes the poison length, 0x83 the burn's.
+- **Resists** (`FUN_0057c1e0`, the table at 0x732980: 12 × 44 bytes {record
+  offset, resist, max, attacker pierce, absorb %, absorb flat, ...}, read
+  by `FUN_0057bf80` → `FUN_0057be00`): value × (100 − res) / 100, res at
+  most 100. Cold and freeze length use cold resist (43 / 44 / pierce 335);
+  the poison length uses stat 110 poison length reduction (pierce 336),
+  poison resist only the per-tick damage. `FUN_0057be00`: stat − pierce;
+  a player adds the difficulty penalty to all but physical / magic, caps
+  at 75 + the max stat (≤ 95; 75 with none, so PLR's 75), −100 the least;
+  monsters uncapped.
+- **Applied** (`FUN_0057c6c0`): chill `FUN_0057af80` ([0xc]), freeze
+  `FUN_0057b230` ([0xd]), poison `FUN_0057ac50` ([10], [0xb]).
+  - Chill: state 11, −50 on stats 67 velocitypercent, 68 attackrate, 69
+    other_animrate for a player; a monster's MonStats coldeffect
+    (+0x168 + difficulty), none at 0, the length over DifficultyLevels
+    MonsterColdDivisor (+0x18) when negative, 20 % for state 0x6b. At least
+    1 tick, only ever lengthened; then `FUN_00623f50` re-rates.
+  - Freeze: a player's is chill. A monster's is state 1, the length over
+    MonsterFreezeDivisor (+0x14).
+  - Poison: state 2, hpregen −per tick; a new one at least as strong
+    replaces the old.
+- **Rates** (`FUN_00623f50`): walk % = effective FRW (table 0x6e8e24) +
+  stat 67 (100; running run × 100 / walk), at least 25, on the walk
+  velocity; attack % = effective IAS + stat 68, 15..175 (attack_ticks'
+  eias, chill as −50 SIAS).
+- Ported: `chill_length` / `monster_blow` (combat.hpp), `Fight::land`
+  (monsters), `Fight::chill_rate`; the merc and the chill's 0x6b roll aren't.
+
+## Cures
+
+- **NPC heal** (`FUN_00578d30`, from `FUN_00578e70` / `FUN_00578ed0`):
+  life, mana, stamina to max; states 2 (poison) and 1 (freeze) off, and
+  every state flagged at DataTables+0xfc (`FUN_00578c20` →
+  `FUN_0063a460`: the curses). Pets: `FUN_00578ca0` (life, curses,
+  poison, freeze). Chill stays.
+- **Well** (`FUN_00585720`, in OperateFn 22 `FUN_005858a0`): life / mana
+  Parm1 / 256, stamina; the same states off, each one counting as a
+  drink. Pets: `FUN_005856a0`.
+- **Antidote / thawing** (misc.txt pSpell 6): states antidote / thawing
+  for len 750 (+50 poison / cold resist, +10 max), clearing cstate1 / 2
+  (poison; freeze, cold). Akara stocks both. The timed resist isn't
+  ported.
 
 ## Death
 

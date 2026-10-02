@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Local-dev-only Unix-domain-socket control channel. Zero cost when unused
 # (nothing binds, no threads spawned). See docs/control_channel.md.
 add_library(devctl STATIC devctl.cpp)

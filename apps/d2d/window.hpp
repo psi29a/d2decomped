@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // SDL window/renderer and SDL event -> Mouse/text translation.
 #pragma once
 
