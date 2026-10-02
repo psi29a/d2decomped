@@ -799,10 +799,10 @@ Think mon_think(std::string_view ai, const ThinkIn& in, Rng& rng, Away&& away) {
         return idle2;
     }
     // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
-    // within aip2; else wanders 3, bar in the Burial Grounds (level 17).
+    // within aip2; else wanders 3, bar in the Burial Grounds.
     if (ai == "Zombie") {
         if (in.in_melee) return a1_or_a2(aip[3]);
-        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != 17) return think_wander(rng, 3);
+        if (!in.got_hit && !(in.dist < aip[1] && r() < aip[0]) && in.level != level_ids::kBurialGrounds) return think_wander(rng, 3);
         return { MonAct::run };
     }
     // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a

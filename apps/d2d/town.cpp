@@ -935,7 +935,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         std::erase_if(state_clock.seen, [&](const auto& entry) { return frame_ms - entry.second.last > 5000; });
         Unit player_look{};
         dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
-        const bool town = level->id == 1;             // TN/TW in town, NU/WL outside
+        const bool town = level->id == d2d::rules::level_ids::kRogueEncampment;             // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = std::max(character.character_class, 0);
         if (pmode == kModeDD) unit.mode_ms = frame_ms - (scene->composite(cls, kModeDT, view.gfx).length_ms() - 1);

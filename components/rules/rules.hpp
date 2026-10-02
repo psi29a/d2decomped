@@ -4,6 +4,7 @@
 // the excel-derived Tables (filled by d2d's loader, or by hand in tests).
 #pragma once
 
+#include "level_ids.hpp"
 #include "monster_ids.hpp"
 
 #include <d2s.hpp>

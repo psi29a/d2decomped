@@ -733,7 +733,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // drops two chipped gems and a standard one (0x7361dc / 0x736444).
 // ponytail: loot's rng, not the game's quest rng (game+0x10f4).
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        if (!andy.killed(quests(), level->id == d2d::rules::AndyQuest::kLair)) return;
+        if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
         const int diff = character.header.active_difficulty();
         character.header.progression = std::uint8_t(std::max<int>(character.header.progression, diff * (character.header.expansion() ? 5 : 4) + 1));
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
@@ -956,7 +956,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
     }
 
 auto World::level_name(const Level& level) -> const char* {
-        return !level.name.empty() ? level.name.c_str() : level.id == 1 ? "Rogue Encampment" : "?";   // Levels.txt LevelName
+        return !level.name.empty() ? level.name.c_str() : level.id == d2d::rules::level_ids::kRogueEncampment ? "Rogue Encampment" : "?";   // Levels.txt LevelName
     }
 
 auto World::use_warp() -> void {
@@ -1203,9 +1203,9 @@ auto World::deal(const Command& command) -> bool {
             if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::monster_ids::kWarriv
                 || !qbit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             if (!qbit(quests(), 7, 0)) { d2d::rules::qset(quests(), 7, 0); d2d::rules::qset(quests(), 7, 13); }
-            andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
-            cain.enter(quests(), level->id, d2d::rules::CainQuest::kLut);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
-            set_waypoint(waypoint_index(*game_data, d2d::rules::AndyQuest::kLut));
+            andy.enter(quests(), level->id, d2d::rules::level_ids::kLutGholein);
+            cain.enter(quests(), level->id, d2d::rules::level_ids::kLutGholein);   // the Rogues get him if he's still caged (FUN_00596de0 / FUN_00597310)
+            set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kLutGholein));
             auto& difficulty = character.header.difficulty[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
             difficulty = std::uint8_t((difficulty & ~7) | 0x80 | 1);   // the save's act: game.exe starts it in Lut Gholein
             went_east = true;
@@ -1485,7 +1485,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         if (now_ms - day_at > 1000) day_at = now_ms;
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step();
-            if (andy.tick() && level->id == d2d::rules::AndyQuest::kLair) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
+            if (andy.tick() && level->id == d2d::rules::level_ids::kCatacombsLevel4) fight.portal_due = true;   // tick 10 of her death (FUN_00596490)
             burial.tick();
             tower.tick();
             tower_treasure(day_at);

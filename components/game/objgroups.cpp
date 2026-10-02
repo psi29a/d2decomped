@@ -600,13 +600,13 @@ struct ObjectRooms {
     int special(int id) {
         if (id < 580) return 136;
         if (id == 582) return 0x133;
-        const int act = level.id < 40 ? 0 : level.id < 75 ? 1 : level.id < 103 ? 2 : 3;   // FUN_006427f0
+        const int act = level.id < d2d::rules::level_ids::kLutGholein ? 0 : level.id < d2d::rules::level_ids::kKurastDocks ? 1 : level.id < d2d::rules::level_ids::kPandemoniumFortress ? 2 : 3;   // FUN_006427f0
         const auto low = rgn.next();
         int pick;
-        if (act == 1) pick = level.id == 0x4a ? std::array{ 0x183, 0x185, 0x186, 0x187 }[low & 3] : std::array{ 0x57, 0x58 }[low & 1];
-        else if (act == 2) pick = level.id == 0x53 ? std::array{ 0x149, 0x14a, 0x14b, 0x14c }[low & 3] : std::array{ 0xb5, 0xb7 }[low & 1];
+        if (act == 1) pick = level.id == d2d::rules::level_ids::kArcaneSanctuary ? std::array{ 0x183, 0x185, 0x186, 0x187 }[low & 3] : std::array{ 0x57, 0x58 }[low & 1];
+        else if (act == 2) pick = level.id == d2d::rules::level_ids::kTravincal ? std::array{ 0x149, 0x14a, 0x14b, 0x14c }[low & 3] : std::array{ 0xb5, 0xb7 }[low & 1];
         else pick = std::array{ 5, 6, 0x8b, 0x8c, 0x8d, 0x90, 0xb0, 0xb1, 0xc6, 0xf0, 0xf1, 0xf2, 0xf3 }[low % 13];
-        return id == 580 && level.id == 0x19 ? 0x173 : pick;
+        return id == 580 && level.id == d2d::rules::level_ids::kTowerCellarLevel5 ? 0x173 : pick;
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
     void presets(std::size_t room_at, bool monsters) {
@@ -838,7 +838,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     for (std::size_t i = 0; i < level.units.size(); ++i)
         if (level.units[i].type == 2 && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & 0x40))
             level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;
-    if (level.id == 2 && game_data.town.ds1.width() > 0) {
+    if (level.id == d2d::rules::level_ids::kBloodMoor && game_data.town.ds1.width() > 0) {
         const auto& town = game_data.town;
         const int tx = town.world_x, ty = town.world_y, tw = town.ds1.width(), th = town.ds1.height();
         for (std::size_t i = 0; i < level.rooms.size(); ++i) {

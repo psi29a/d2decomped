@@ -3,6 +3,7 @@
 // D2Game/Quests/a1q1.cpp, docs/research/re/quests.md).
 #pragma once
 
+#include "level_ids.hpp"
 #include "monster_ids.hpp"
 
 #include <array>
@@ -50,7 +51,7 @@ struct QuestMsg { int string = 0; bool greet = false; };
 // 13 cleared in this game, 14 cleared by someone else, 15 closed.
 // ponytail: one player — the party and late-joiner lists are left out.
 struct DenQuest {
-    static constexpr int kQuest = 1, kAkara = monster_ids::kAkara, kDen = 8;
+    static constexpr int kQuest = 1, kAkara = monster_ids::kAkara, kDen = level_ids::kDenOfEvil;
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
@@ -149,7 +150,7 @@ struct DenQuest {
 // ponytail: one player — the rewarded list (rec+0x1c) is a bool, the
 // party share of the kill (LAB_00590e70) is left out.
 struct BurialQuest {
-    static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = 17, kBloodRaven = monster_ids::kBloodRaven;
+    static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = level_ids::kBurialGrounds, kBloodRaven = monster_ids::kBloodRaven;
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
     int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
     int log = 0;        // +0xb
@@ -261,7 +262,7 @@ struct BurialQuest {
 // / +0x108) and the rewarded list (rec+0x1c) are a bool each for them.
 struct AndyQuest {
     static constexpr int kQuest = 6, kCain = monster_ids::kCampCain, kAkara = monster_ids::kAkara, kKashya = monster_ids::kKashya,
-                         kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel, kLair = 37, kLut = 40;
+                         kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel;
     int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
     int log = 0;        // +0xb
     int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
@@ -353,12 +354,12 @@ struct AndyQuest {
     // The player went from level `from` to `to` (FUN_00596010).
     void enter(QuestBits& quest_bits, int from, int to) {
         if (to < 34 || to > 37) {
-            if (state == 4 && to == kLut) state = 5;
+            if (state == 4 && to == level_ids::kLutGholein) state = 5;
             else if (from == 1 && state == 2 && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
             return;
         }
         if (state <= 2) state = 3;
-        if (to == kLair && log < 2) log = 1;
+        if (to == level_ids::kCatacombsLevel4 && log < 2) log = 1;
         mark(quest_bits);
     }
     // Andariel died (FUN_005965a0). True: the player's kill for the quest
@@ -388,7 +389,7 @@ struct AndyQuest {
 // the party's bits, the voices and the quest-item-gone rewind (+0xc4,
 // FUN_00592c80: d2d's scrolls only go by the quest) are left out.
 struct CainQuest {
-    static constexpr int kQuest = 4, kAkara = monster_ids::kAkara, kCain = monster_ids::kCain, kCampCain = monster_ids::kCampCain, kTown = 1, kStony = 4, kTristram = 38, kLut = 40;
+    static constexpr int kQuest = 4, kAkara = monster_ids::kAkara, kCain = monster_ids::kCain, kCampCain = monster_ids::kCampCain, kStony = level_ids::kStonyField, kTristram = level_ids::kTristram;
     int state = 0;      // +0xc: 0 init, 1 open, 2 Akara told, 3 out of town, 4 scroll, 5 deciphered / stones, 6 done, 7 the Rogues got him
     int log = 0;        // +0xb
     bool active = true; // rec+9: closed at join by bit 0 or 15 (FUN_00544410)
@@ -509,13 +510,13 @@ struct CainQuest {
     bool enter(QuestBits& quest_bits, int from, int to) {
         if (to == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
         const bool fresh = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
-        if (from == kTown) {
+        if (from == level_ids::kRogueEncampment) {
             rewarded = missed = false;
             // ponytail: marked now, not at the next event 4 (FUN_00592e20)
             if (fresh && state == 2) { state = 3; mark(quest_bits); }
         }
-        if (to == kTown) return camp_spawn();
-        if (to == kLut && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
+        if (to == level_ids::kRogueEncampment) return camp_spawn();
+        if (to == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
         return false;
     }
     // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
@@ -609,7 +610,7 @@ struct CainQuest {
 // cellar-5 list and party passes are left out; rec+9 (active) is taken as
 // always set, so the tome never starts read (InitFn 4, FUN_00595a00).
 struct TowerQuest {
-    static constexpr int kQuest = 5, kTower = 20, kCellar = 25, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
+    static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
     // Param1, Param2, Param3).
     static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5;

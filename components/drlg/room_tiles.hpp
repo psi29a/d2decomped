@@ -285,7 +285,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     unit.x += room.seed->preset_x * 5;
                     unit.y += room.seed->preset_y * 5;
                 }
-                if (level == 2 && room.seed->def >= 4 && room.seed->def <= 7 && room.seed->file == 3 && data.ids.monstats > 0x10a)
+                if (level == level_ids::kBloodMoor && room.seed->def >= 4 && room.seed->def <= 7 && room.seed->file == 3 && data.ids.monstats > 0x10a)
                     list.insert(list.begin(), { 1, 0x10a, 1, (room.seed->preset_x + pre->width / 2) * 5, (room.seed->preset_y + pre->height / 2) * 5, 0 });   // FUN_006664a0: Flavie
                 found = preset_units.emplace(key, std::move(list)).first;
             }
@@ -441,7 +441,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if ((tile_orient == 10 || tile_orient == 11) && style > 7) return;
             if (tile_orient == 0 && style == 30 && seq <= 1) tile_word |= 0x80000000u;
             if (tile_word & 0x80000000u) {
-                if ((tile_orient == 8 || tile_orient == 9) && (level < 111 || (level > 112 && level != 117))) { door(nullptr, tile_word, tile_orient, x, y); return; }
+                if ((tile_orient == 8 || tile_orient == 9) && (level < level_ids::kFrigidHighlands || (level > level_ids::kArreatPlateau && level != level_ids::kFrozenTundra))) { door(nullptr, tile_word, tile_orient, x, y); return; }
                 if (tile_orient == 10 || tile_orient == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
@@ -473,7 +473,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             }
             if (tile_word & 2) add(1, x, y, 0, tile_word);
             else if (fill && x < room.x + room.width && y < room.y + room.height) {                   // FillBlanks, first floor layer
-                const std::uint32_t blank = level == 0x4a ? 0x1e00100u : 0x1e00000u;
+                const std::uint32_t blank = level == level_ids::kArcaneSanctuary ? 0x1e00100u : 0x1e00000u;
                 const auto [tile_file, tile_index] = pick(0, blank);
                 room.tiles.push_back({ 1, x, y, 0, tile_file, tile_index, (tile_word & ~0x80u) | 0x80000000u });
             }
@@ -481,7 +481,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 const auto added = add(0, x, y, tile_orient, tile_word);
                 if (tile_orient == 8 || tile_orient == 9) door(&room.tiles[added], tile_word, tile_orient, x, y);
                 if (tile_orient == 3) add(0, x, y, 4, tile_word);
-                if ((tile_orient == 10 || tile_orient == 11) && level != 0x85) warp_wall(added, tile_word, tile_orient, x, y);
+                if ((tile_orient == 10 || tile_orient == 11) && level != level_ids::kMatronsDen) warp_wall(added, tile_word, tile_orient, x, y);
             }
             if (tile_word & 0x8000000u) add(2, x, y, 13, tile_word);
         };
