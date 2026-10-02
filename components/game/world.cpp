@@ -631,7 +631,7 @@ auto World::swap_npcs(const Level* from) -> void {
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest)
-                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::CainQuest::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
+                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::monster_ids::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
         // The stones come up (FUN_005935e0): the portal again, the stones lit.
         if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
             for (std::size_t i = 0; i < level->npcs.size(); ++i) {
@@ -914,7 +914,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (object.operate_fn == 10) {
             if (!cain.gibbet(quest_bits, fresh)) return;
             operated[{ level, npc_index }] = now_ms;
-            const auto found = std::ranges::find(level->npcs, Cain::kCain, &Npc::hc_idx);
+            const auto found = std::ranges::find(level->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
             const bool spawned = found != level->npcs.end();
             cain.rescued(spawned);
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
@@ -1185,13 +1185,13 @@ auto World::deal(const Command& command) -> bool {
         // then it's used (FUN_0058fd50: bit 0 on, 1 off).
         if (const auto* respec = std::get_if<cmd::Respec>(&command)) {
             using d2d::rules::qbit;
-            if (std::size_t(respec->npc) >= level->npcs.size() || level->npcs[std::size_t(respec->npc)].hc_idx != d2d::rules::DenQuest::kAkara
-                || !qbit(quests(), 41, 1)) return true;
+            if (std::size_t(respec->npc) >= level->npcs.size() || level->npcs[std::size_t(respec->npc)].hc_idx != d2d::rules::monster_ids::kAkara
+                || !qbit(quests(), d2d::rules::kRespecQuest, 1)) return true;
             const auto cls = std::size_t(std::clamp<int>(character.header.cls, 0, 6));
             const auto& start = game_data->class_start[cls];
             d2d::rules::respec(character.stats, { start.str, start.ene, start.dex, start.vit }, game_data->class_gains[cls]);
-            d2d::rules::qset(quests(), 41, 0);
-            d2d::rules::qset(quests(), 41, 1, false);
+            d2d::rules::qset(quests(), d2d::rules::kRespecQuest, 0);
+            d2d::rules::qset(quests(), d2d::rules::kRespecQuest, 1, false);
             d2d::log::info("Akara reset the stat and skill points");
             return true;
         }
@@ -1200,7 +1200,7 @@ auto World::deal(const Command& command) -> bool {
         // and its town's waypoint is active.
         if (const auto* east = std::get_if<cmd::GoEast>(&command)) {
             using d2d::rules::qbit;
-            if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::AndyQuest::kWarriv
+            if (std::size_t(east->npc) >= level->npcs.size() || level->npcs[std::size_t(east->npc)].hc_idx != d2d::rules::monster_ids::kWarriv
                 || !qbit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             if (!qbit(quests(), 7, 0)) { d2d::rules::qset(quests(), 7, 0); d2d::rules::qset(quests(), 7, 13); }
             andy.enter(quests(), level->id, d2d::rules::AndyQuest::kLut);
@@ -1217,7 +1217,7 @@ auto World::deal(const Command& command) -> bool {
         // reward's used (FUN_00591790).
         // ponytail: no S->C 0x58 result; the new item stays in hand.
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
-            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::ToolsQuest::kCharsi
+            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::monster_ids::kCharsi
                 || !d2d::rules::qbit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !held || !d2d::rules::imbuable(game_data->rules, *held)) return true;
             auto made = d2d::rules::imbue_item(game_data->rules, *held, int(character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = held->location; made.panel = held->panel; made.column = held->column; made.row = held->row;
@@ -1565,10 +1565,11 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     // In Hell, a Den of Evil done before the reset existed
                     // opens it on meeting Akara (FUN_0058fd20: quest 41 bits
                     // 13 and 1).
-                    if (npc.hc_idx == d2d::rules::DenQuest::kAkara && character.header.active_difficulty() == 2) {
+                    if (npc.hc_idx == d2d::rules::monster_ids::kAkara && character.header.active_difficulty() == 2) {
                         auto& quest_bits = quests();
                         using d2d::rules::qbit;
-                        if (qbit(quest_bits, 1, 0) && !qbit(quest_bits, 41, 1) && !qbit(quest_bits, 41, 0)) { d2d::rules::qset(quest_bits, 41, 13); d2d::rules::qset(quest_bits, 41, 1); }
+                        constexpr int kRespec = d2d::rules::kRespecQuest;
+                        if (qbit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !qbit(quest_bits, kRespec, 1) && !qbit(quest_bits, kRespec, 0)) { d2d::rules::qset(quest_bits, kRespec, 13); d2d::rules::qset(quest_bits, kRespec, 1); }
                     }
                     events.push_back(ev::OpenUI{ ev::OpenUI::talk, interact_npc, quest_talk(npc.hc_idx) });
                 }
@@ -1640,8 +1641,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         }
         use_portal(now_ms);
         }
-        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::AndyQuest::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
-        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::BurialQuest::kBloodRaven) blood_raven_died(now_ms);
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::monster_ids::kAndariel) andariel_died(kill, now_ms);   // a pet's kill too, the player dead
+        for (const auto& kill : fight.kills) if (kill.type == d2d::rules::monster_ids::kBloodRaven) blood_raven_died(now_ms);
         for (const auto& kill : fight.kills) if (kill.super == d2d::rules::TowerQuest::kCountess) countess_died(now_ms);
         fight.kills.clear();
         cross_level();

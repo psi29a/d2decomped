@@ -1116,8 +1116,8 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then
     // (World::cain_walk).
     if (const auto gibbet = std::ranges::find_if(level->units, [](const auto& unit) { return unit.type == 2 && unit.id == 26; });
-        id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::CainQuest::kCain < int(game_data.mon_bin.size())) {
-        auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::CainQuest::kCain)]];
+        id == d2d::rules::CainQuest::kTristram && gibbet != level->units.end() && d2d::rules::monster_ids::kCain < int(game_data.mon_bin.size())) {
+        auto npc = game_data.mon_npc[game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kCain)]];
         npc.x = (float(gibbet->x) + 0.5f) / 5 + 0.6f;
         npc.y = (float(gibbet->y) + 0.5f) / 5 + 0.6f;
         npc.quest = d2d::rules::CainQuest::kQuest;   // out of the walk grid

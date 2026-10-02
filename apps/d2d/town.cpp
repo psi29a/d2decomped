@@ -907,7 +907,7 @@ auto Town::open_menu(int npc) -> void {
             int(character.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(character.items), [&] {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
-                return !d2d::rules::qbit(quest_bits, 41, 0) && (d2d::rules::qbit(quest_bits, 41, 1) || difficulty == 2);
+                return !d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
             character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
     }

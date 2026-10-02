@@ -4,6 +4,8 @@
 // the excel-derived Tables (filled by d2d's loader, or by hand in tests).
 #pragma once
 
+#include "monster_ids.hpp"
+
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 
@@ -280,7 +282,8 @@ inline int vendor_index(int hc_idx) {
 }
 
 inline bool is_repair_vendor(int hc_idx) {
-    return hc_idx == 0x9a || hc_idx == 0xb2 || hc_idx == 0xfd || hc_idx == 0x101 || hc_idx == 0x1ff;
+    using namespace monster_ids;
+    return hc_idx == kCharsi || hc_idx == kFara || hc_idx == kHratli || hc_idx == kHalbu || hc_idx == kLarzuk;
 }
 
 inline Store open_store(const Tables& tables, int hc_idx, std::string npc_id, Rng& rng) {
@@ -687,13 +690,14 @@ inline bool learn_skill(const Tables& tables, int cls, int skill_index, std::arr
 }
 
 // Healers restore life and mana when you talk to them: Akara, Fara,
-// Ormus, Jamella, Malah (MonStats hcIdx).
+// Akara, Fara, Ormus, Jamella, Malah (MonStats hcIdx).
 // ponytail: the list is D2's known healers, not located in game.exe;
 // the cures are Fight::cure (FUN_00578d30). The save's max
 // life/mana are base values without gear (current can be higher), so
 // healing only raises to them; the true max needs item stat totals.
 inline bool is_healer(int hc_idx) {
-    return hc_idx == 148 || hc_idx == 178 || hc_idx == 255 || hc_idx == 405 || hc_idx == 513;
+    using namespace monster_ids;
+    return hc_idx == kAkara || hc_idx == kFara || hc_idx == kOrmus || hc_idx == kJamella || hc_idx == kMalah;
 }
 inline void heal(d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;

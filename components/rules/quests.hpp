@@ -3,6 +3,8 @@
 // D2Game/Quests/a1q1.cpp, docs/research/re/quests.md).
 #pragma once
 
+#include "monster_ids.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +25,9 @@ inline void qset(QuestBits& quest_bits, int quest, int bit, bool set = true) {
     auto& byte = quest_bits[std::size_t(bit_index >> 3)];
     byte = std::uint8_t(set ? byte | mask : byte & ~mask);
 }
+// Akara's reset of the stat and skill points (the Den of Evil's reward):
+// its flags are quest 41's (0 used, 1 open, 13 opened late).
+inline constexpr int kRespecQuest = 41;
 
 // A quest message an NPC has for the player (FUN_00543790): its string.tbl
 // id; `greet` plays as the NPC is clicked (kind 0), else it's a talk topic
@@ -45,7 +50,7 @@ struct QuestMsg { int string = 0; bool greet = false; };
 // 13 cleared in this game, 14 cleared by someone else, 15 closed.
 // ponytail: one player — the party and late-joiner lists are left out.
 struct DenQuest {
-    static constexpr int kQuest = 1, kAkara = 148, kDen = 8;
+    static constexpr int kQuest = 1, kAkara = monster_ids::kAkara, kDen = 8;
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
@@ -130,8 +135,8 @@ struct DenQuest {
         if (qbit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 0xd; }
         qset(quest_bits, kQuest, 0);
         qset(quest_bits, kQuest, 1, false);
-        qset(quest_bits, 41, 13);
-        qset(quest_bits, 41, 1);
+        qset(quest_bits, kRespecQuest, 13);
+        qset(quest_bits, kRespecQuest, 1);
         for (int bit = 2; bit < 12; ++bit) qset(quest_bits, kQuest, bit, false);
         return true;
     }
@@ -144,7 +149,7 @@ struct DenQuest {
 // ponytail: one player — the rewarded list (rec+0x1c) is a bool, the
 // party share of the kill (LAB_00590e70) is left out.
 struct BurialQuest {
-    static constexpr int kQuest = 2, kKashya = 150, kBurial = 17, kBloodRaven = 267;
+    static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = 17, kBloodRaven = monster_ids::kBloodRaven;
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
     int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
     int log = 0;        // +0xb
@@ -255,7 +260,8 @@ struct BurialQuest {
 // ponytail: one player — the Cain / Akara / Kashya lists (+0x000 / +0x084
 // / +0x108) and the rewarded list (rec+0x1c) are a bool each for them.
 struct AndyQuest {
-    static constexpr int kQuest = 6, kCain = 265, kAkara = 148, kKashya = 150, kWarriv = 155, kAndariel = 156, kLair = 37, kLut = 40;
+    static constexpr int kQuest = 6, kCain = monster_ids::kCampCain, kAkara = monster_ids::kAkara, kKashya = monster_ids::kKashya,
+                         kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel, kLair = 37, kLut = 40;
     int state = 0;      // +0xc: 0 init, 1 available, 2 Cain gave it, 3 Catacombs, 4 Andariel dead, 5 done
     int log = 0;        // +0xb
     int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
@@ -382,7 +388,7 @@ struct AndyQuest {
 // the party's bits, the voices and the quest-item-gone rewind (+0xc4,
 // FUN_00592c80: d2d's scrolls only go by the quest) are left out.
 struct CainQuest {
-    static constexpr int kQuest = 4, kAkara = 148, kCain = 146, kCampCain = 265, kTown = 1, kStony = 4, kTristram = 38, kLut = 40;
+    static constexpr int kQuest = 4, kAkara = monster_ids::kAkara, kCain = monster_ids::kCain, kCampCain = monster_ids::kCampCain, kTown = 1, kStony = 4, kTristram = 38, kLut = 40;
     int state = 0;      // +0xc: 0 init, 1 open, 2 Akara told, 3 out of town, 4 scroll, 5 deciphered / stones, 6 done, 7 the Rogues got him
     int log = 0;        // +0xb
     bool active = true; // rec+9: closed at join by bit 0 or 15 (FUN_00544410)
@@ -672,7 +678,7 @@ struct TowerQuest {
     // The balloon over `npc` (FUN_005952c0): the success talk's due, not
     // with Warriv or Gheed.
     [[nodiscard]] bool alert(const QuestBits&, int npc) const {
-        return due && (npc == 150 || npc == 154 || npc == 148 || npc == 265);
+        return due && (npc == monster_ids::kKashya || npc == monster_ids::kCharsi || npc == monster_ids::kAkara || npc == monster_ids::kCampCain);
     }
     // The player heard `string` from `npc` (FUN_00594960). True: the first
     // success talk after the kill — the chain opens (rec+0xf0, FUN_00595240
@@ -688,7 +694,8 @@ struct TowerQuest {
             else if (changed) mark(quest_bits);
             return false;
         }
-        const bool town = npc == 154 || npc == 150 || npc == 265 || npc == 155 || npc == 148 || npc == 147;
+        const bool town = npc == monster_ids::kCharsi || npc == monster_ids::kKashya || npc == monster_ids::kCampCain || npc == monster_ids::kWarriv
+                       || npc == monster_ids::kAkara || npc == monster_ids::kGheed;
         if (!town || string < 140 || string > 145) return false;
         bool chain = false;
         if (qbit(quest_bits, kQuest, 13) && first_talk) { first_talk = false; state = 5; chain = true; }
@@ -739,7 +746,7 @@ struct TowerQuest {
 // count (+0x9c) and the reset when the last carrier loses it (0x5918d0,
 // events 6 / 9) are left out.
 struct ToolsQuest {
-    static constexpr int kQuest = 3, kCharsi = 154, kClvl = 8, kStand = 21;   // kStand: the stand's OperateFn
+    static constexpr int kQuest = 3, kCharsi = monster_ids::kCharsi, kClvl = 8, kStand = 21;   // kStand: the stand's OperateFn
     int state = 0;           // +0xc: 0 closed, 1 open, 2 Charsi gave it, 3 out of town, 4 the malus dropped, 5 returned
     int log = 0;             // +0xb
     bool active = true;      // +9: off when the player joins with it done or closed (FUN_00546270)

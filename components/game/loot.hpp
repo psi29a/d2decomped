@@ -100,12 +100,12 @@ struct Loot {
         std::vector<d2d::rules::Drop> drops;
         d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, 1, magic_find, kMost);
         // FUN_0055a6d0 counts the drop before FUN_005589a0 (0x55af4c): the
-        // one that fills the count leaves without gold find.
+        // one that fills the count leaves without gold find. A Hell Bovine's
+        // drops are flagged 1 (FUN_0055a550): the Cow King set (29) drops.
         for (std::size_t i = 0; i < drops.size(); ++i)
-            put(drops[i], monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == kHellBovine,
+            put(drops[i], monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == d2d::rules::monster_ids::kHellBovine,
                 int(i) + 1 < kMost ? gold_find : 0);
     }
-    static constexpr int kHellBovine = 0x187;   // MonStats: FUN_0055a550 flags its drops 1: the Cow King set (29) drops
     // One drop round (x, y). A made item (FUN_00555230) takes two steps of
     // the game seed (+0xd0): its unit seed {low, 666} (FUN_00552df0), then
     // its own {low, 666} (FUN_00552e90); gold's coins come off the first.
