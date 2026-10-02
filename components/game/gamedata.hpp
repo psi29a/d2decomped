@@ -354,6 +354,7 @@ struct GameData {
     bool tile_pixels = false;
     std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
     std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
+    std::array<int, 3> cold_divisor{};           // DifficultyLevels MonsterColdDivisor (+0x18): a monster's chill length / it
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;

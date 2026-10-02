@@ -134,6 +134,16 @@ struct Fight {
     AreaSeen area_seen;                              // their spawn areas' "seen" flags (ai.cpp search_target)
     OpenDoor open_door;                              // a monster's door at a think (the world's doors)
     std::array<std::uint32_t, 2> amplified{};        // the player's / merc's Amplify Damage (a Cursed boss) runs out
+    std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
+    // Chill's -50 attackrate / velocitypercent (FUN_0057af80 -> FUN_00623f50).
+    [[nodiscard]] int chill_rate(std::uint32_t now_ms) const { return now_ms < chilled ? -50 : 0; }
+    // A healer's and a well's cure (FUN_00578d30 / FUN_00585720): poison
+    // (state 2), freeze (state 1: a player's is chill, FUN_0057b230, so
+    // none) and the curses (FUN_00578c20, the states flagged at
+    // DataTables+0xfc); chill stays. The merc's (FUN_00578ca0 / FUN_005856a0)
+    // fills its life too. True when the player lost any.
+    // ponytail: the merc's poison isn't kept, nor whether its drink counts.
+    bool cure(std::uint32_t now_ms);
     int game_difficulty = 0;                         // new_game's
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away

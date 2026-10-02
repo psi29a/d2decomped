@@ -176,7 +176,7 @@ struct Tables {
     std::array<std::array<QualityRatio, 6>, 4> quality_ratio{};
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
     // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once).
-    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false; };
+    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; };
     std::unordered_map<std::string, Potion> potions;
 };
 
@@ -664,7 +664,7 @@ inline bool learn_skill(const Tables& tables, int cls, int skill_index, std::arr
 // Healers restore life and mana when you talk to them: Akara, Fara,
 // Ormus, Jamella, Malah (MonStats hcIdx).
 // ponytail: the list is D2's known healers, not located in game.exe;
-// poison/curse removal isn't done. The save's max
+// the cures are Fight::cure (FUN_00578d30). The save's max
 // life/mana are base values without gear (current can be higher), so
 // healing only raises to them; the true max needs item stat totals.
 inline bool is_healer(int hc_idx) {

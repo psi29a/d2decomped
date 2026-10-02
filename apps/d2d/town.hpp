@@ -93,6 +93,8 @@ inline std::vector<std::string_view> monster_states(const Scene& scene, const Mo
 }
 inline std::vector<std::string_view> player_states(const Scene& scene, const View& view) {
     std::vector<std::string_view> out;
+    if (view.poisoned) out.push_back("poison");
+    if (view.chilled) out.push_back("cold");
     for (const int buff : view.buffs) if (const auto* skill = scene.skills.get(buff)) out.push_back(skill->aurastate);
     if (view.aura > 0) if (const auto* skill = scene.skills.get(view.aura)) out.push_back(skill->aurastate);
     return out;

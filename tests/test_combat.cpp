@@ -169,6 +169,22 @@ int main() {
     auto taken = monster_blow(defender, 1, false, mon, false, rng);
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, false, mon, false, rng);
     assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
+    {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
+        MonStats cold_mon = mon;
+        cold_mon.elements[0] = { 2, 100, 10, 10, 40, "A1" };
+        cold_mon.elements[1] = { 3, 100, 8, 8, 50, "A1" };
+        Fighter chilly;
+        chilly.res[2] = 50; chilly.res[3] = 25; chilly.plr = 20;
+        auto cold_hit = monster_blow(chilly, 1, false, cold_mon, false, rng);
+        for (int i = 0; i < 20 && !cold_hit.hit; ++i) cold_hit = monster_blow(chilly, 1, false, cold_mon, false, rng);
+        assert(cold_hit.hit && cold_hit.damage == 100 + 5 && cold_hit.chill_ticks == 20);   // 40 less 50 % cold
+        assert(cold_hit.poison == 60 && cold_hit.poison_ticks == 80);                     // 80 / 256 a tick less 25 %, 100 ticks less 20 %
+        chilly.half_freeze = true;
+        assert(chill_length(chilly, 40) == 10);
+        chilly.cannot_freeze = true;
+        assert(chill_length(chilly, 40) == 0);
+        assert(attack_ticks(16, 256, 0, 0, -50) == attack_ticks(16, 256, 0, 50));       // chill's -50 attackrate
+    }
     // Dodge a swing standing, avoid a missile, evade on the move.
     Fighter agile;
     agile.dodge = 100;
@@ -187,7 +203,7 @@ int main() {
         assert(missile_blow(damage, missile_target, { 0, 90, 0, 0 }, rng).damage == 0);       // immune: pierce doesn't reach
         damage.etype = 2;
         const auto cold_kill = missile_blow(damage, missile_target, { 0, 0, 500, 0 }, rng);
-        assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 25);                    // -100 % at the least
+        assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 50);                    // -100 % at the least, the length too
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);
