@@ -394,14 +394,14 @@ inline int ai_distance(int dx, int dy) {
     return dy < dx ? (dy + dx * 2) / 2 : (dx + dy * 2) / 2;
 }
 
+inline constexpr std::array<std::array<int, 8>, 8> kNear{ {
+    { -1, -1, -1, 0, 2, 4, 6, 8 }, { -1, -1, 0, 1, 2, 4, 6, 8 }, { -1, 0, 0, 2, 3, 5, 7, 8 }, { 0, 1, 2, 2, 4, 5, 7, 8 },
+    { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
 // Distance between two units of sizes `size_a` / `size_b` (MonStats2
 // SizeX; a player's 2), subtiles apart (FUN_00641530): close up, the
 // 8x8 table at 0x6eb180 (one less when either is size 3), else the deltas
 // less their half sizes, the smaller plus twice the larger.
 inline int unit_distance(int dx, int dy, int size_a, int size_b) {
-    static constexpr std::array<std::array<int, 8>, 8> kNear{ {
-        { -1, -1, -1, 0, 2, 4, 6, 8 }, { -1, -1, 0, 1, 2, 4, 6, 8 }, { -1, 0, 0, 2, 3, 5, 7, 8 }, { 0, 1, 2, 2, 4, 5, 7, 8 },
-        { 2, 2, 3, 4, 5, 6, 7, 9 }, { 4, 4, 5, 5, 6, 7, 8, 9 }, { 6, 6, 7, 7, 7, 8, 10, 10 }, { 8, 8, 8, 8, 9, 9, 10, 11 } } };
     dx = std::abs(dx); dy = std::abs(dy);
     if (dx < 8 && dy < 8 && size_a < 4 && size_b < 4) {
         int nearby = kNear[std::size_t(dy)][std::size_t(dx)];
@@ -460,6 +460,10 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
     return false;
 }
 
+inline constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
+inline constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
+    { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
+    { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
 // A move's path toward subtile (to_x, to_y), the toward pather of path
 // types 2 / 5 / 6 / 0xd (FUN_00679c80; a monster's walk and run are 0xd,
 // `steps` path +0x91: 5, FUN_005a63f0). The straight line (FUN_00679720, a
@@ -476,10 +480,6 @@ bool sight_blocked(int x1, int y1, int size1, int x2, int y2, int size2, Blocked
 // tools/emu/moves.py checks it against game.exe.
 template <class Blocked>
 std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, int steps, int nearby, Blocked&& blocked) {
-    static constexpr std::array<std::array<int, 2>, 8> kDir{ { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } } };   // DAT_006f1798
-    static constexpr std::array<std::array<int, 3>, 25> kTry{ { { 5, 4, 6 }, { 4, 5, 6 }, { 4, 3, 5 }, { 4, 3, 2 }, { 3, 4, 2 }, { 6, 5, 4 }, { 5, 4, 6 },
-        { 4, 3, 5 }, { 3, 4, 2 }, { 2, 3, 4 }, { 6, 7, 5 }, { 6, 7, 5 }, { 6, 7, 5 }, { 2, 1, 3 }, { 2, 1, 3 }, { 6, 7, 0 }, { 7, 0, 6 }, { 0, 1, 7 },
-        { 1, 0, 2 }, { 2, 1, 0 }, { 7, 0, 6 }, { 0, 7, 6 }, { 0, 1, 7 }, { 0, 1, 2 }, { 1, 0, 2 } } };   // DAT_006f1518
     using P = std::pair<int, int>;
     auto sign = [](int value) { return value >= 0 ? 1 : -1; };
     P end{ to_x, to_y };
@@ -681,6 +681,10 @@ inline AndarielAct andariel_think(bool in_melee, const std::array<int, 8>& aip, 
     return AndarielAct::walk;
 }
 
+inline constexpr std::array<int, 8> kRing{ 29, 28, 27, 26, 25, 24, 31, 30 };
+inline constexpr std::array<std::array<int, 9>, 8> kSweep{ {
+    { 27, 14, 15, 3, 99, 7, 21, 22, 31 }, { 26, 12, 13, 2, 99, 6, 19, 20, 30 }, { 25, 10, 11, 1, 99, 5, 17, 18, 29 }, { 24, 8, 9, 0, 99, 4, 15, 16, 28 },
+    { 31, 22, 23, 7, 99, 3, 13, 14, 27 }, { 30, 20, 7, 6, 99, 2, 1, 12, 26 }, { 29, 18, 19, 5, 99, 1, 9, 10, 25 }, { 28, 16, 17, 4, 99, 0, 23, 8, 24 } } };
 // Where Andariel's spray missile on SC frame `frame` is aimed, subtiles
 // from her, facing `dir64` (FUN_005cb580): the radius-3 ring point that
 // way (0x6e3188 into the DIR32 ring table FUN_0063e7e0), then frames 4..12
@@ -688,10 +692,6 @@ inline AndarielAct andariel_think(bool in_melee, const std::array<int, 8>& aip, 
 inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
     static constexpr std::array<int, 32> kDx{ 0, -1, -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -3, -3, -3, 0, 3, 3, 3 };
     static constexpr std::array<int, 32> kDy{ -1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -2, -1, 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2, -3, -3, 0, 3, 3, 3, 0, -3 };
-    static constexpr std::array<int, 8> kRing{ 29, 28, 27, 26, 25, 24, 31, 30 };
-    static constexpr std::array<std::array<int, 9>, 8> kSweep{ {
-        { 27, 14, 15, 3, 99, 7, 21, 22, 31 }, { 26, 12, 13, 2, 99, 6, 19, 20, 30 }, { 25, 10, 11, 1, 99, 5, 17, 18, 29 }, { 24, 8, 9, 0, 99, 4, 15, 16, 28 },
-        { 31, 22, 23, 7, 99, 3, 13, 14, 27 }, { 30, 20, 7, 6, 99, 2, 1, 12, 26 }, { 29, 18, 19, 5, 99, 1, 9, 10, 25 }, { 28, 16, 17, 4, 99, 0, 23, 8, 24 } } };
     const auto octant = std::size_t(((dir64 + 4) >> 3) & 7);
     int x = kDx[std::size_t(kRing[octant])], y = kDy[std::size_t(kRing[octant])];
     if (const int sweep = kSweep[octant][std::size_t(std::clamp(frame - 4, 0, 8))]; sweep != 99) { x += kDx[std::size_t(sweep)]; y += kDy[std::size_t(sweep)]; }

@@ -70,8 +70,6 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
         blit_sprite(framebuffer, scene.store_panel.frame(0, 2), pal, kCharPanelX, kCharPanelY + int(frame.height));
         blit_sprite(framebuffer, scene.store_panel.frame(0, 3), pal, kCharPanelX + int(frame.width), kCharPanelY + int(frame.height));
     }
-    static constexpr int kTabLabelX[4] = { 42, 121, 201, 281 };
-    static constexpr std::uint16_t kTabString[4] = { 0xfc4, 0xfc5, 0xfc5, 0xfc7 };
     for (int i = 0; i < 4; ++i) {
         const bool active = i == store.tab;
         if (scene.store_tabs.frames_per_direction() >= 8) {

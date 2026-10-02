@@ -181,6 +181,15 @@ struct Automap {
     bool add(const Cell& cell);
 };
 
+// Interchangeable cels (0x711258, cel then group).
+inline constexpr int kCelGroups[][2] = {
+    {0,0},{1,0},{2,0},{3,0},{6,1},{7,1},{8,1},{11,2},{12,2},{13,3},{14,3},{20,4},{38,4},{21,5},{39,5},{46,6},{47,6},
+    {48,6},{49,6},{51,7},{52,7},{53,7},{54,7},{60,8},{70,8},{61,9},{71,9},{120,10},{169,10},{171,10},{121,11},{170,11},
+    {172,11},{257,12},{258,12},{259,12},{266,13},{267,13},{337,14},{338,14},{472,15},{473,15},{474,15},{475,15},
+    {520,16},{521,16},{522,16},{533,17},{534,17} };
+// The player mark's outline (0x6d6638), half-scale steps.
+inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
+
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);

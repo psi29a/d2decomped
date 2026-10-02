@@ -39,6 +39,16 @@ Structs/enums we recover live under `gdt/` as `.gdt` files (Ghidra
 Data Type archives). Attach in Ghidra: *File → Open File System… →
 .gdt* then drag types onto listing.
 
+## Tables copied from game.exe
+
+A constant table copied from game.exe into the code gets an entry in
+`tests/test_exe_tables.cpp` (`kTables`: name, address, check). The test
+compares it element-wise with the real game.exe 1.14.3.71
+(`D2_GAME_EXE`, else `$D2_MPQ_DIR/bin/game.exe`, else
+`~/Workspace/private/diablo2/bin/game.exe`; it skips without one). A
+table local to a function moves to namespace scope in its header so the
+test can see it.
+
 ## What NOT to commit
 
 - The Ghidra project directory (`project/`).

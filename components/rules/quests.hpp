@@ -78,15 +78,15 @@ struct DenQuest {
     // What `npc` (MonStats hcIdx) says about it (FUN_0058ff90): the block
     // for the state (0x736cd0), or "successful" while the reward is due;
     // the blocks at 0x7366b0.
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { 148, 64, true } },
+        { { 148, 65, false }, { 155, 70, false }, { 147, 69, false }, { 150, 66, false }, { 154, 67, false } },
+        { { 150, 72, false }, { 155, 75, false }, { 154, 73, false }, { 148, 71, false }, { 147, 74, false } },
+        { { 150, 77, false }, { 155, 80, false }, { 154, 78, false }, { 148, 76, true }, { 147, 79, false } },
+        { { 155, 80, false }, { 154, 78, false }, { 147, 79, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { 148, 64, true } },
-            { { 148, 65, false }, { 155, 70, false }, { 147, 69, false }, { 150, 66, false }, { 154, 67, false } },
-            { { 150, 72, false }, { 155, 75, false }, { 154, 73, false }, { 148, 71, false }, { 147, 74, false } },
-            { { 150, 77, false }, { 155, 80, false }, { 154, 78, false }, { 148, 76, true }, { 147, 79, false } },
-            { { 155, 80, false }, { 154, 78, false }, { 147, 79, false } },
-        };
         int block = 3;
         if (!qbit(quest_bits, kQuest, 1)) {
             if (qbit(quest_bits, kQuest, 0) || (state > 3 && !qbit(quest_bits, kQuest, 13))) return {};
@@ -179,15 +179,15 @@ struct BurialQuest {
     }
     // What `npc` says about it (FUN_00590b10): blocks at 0x736ce8 by the
     // state (0x737180: -1, 0, 1, 2, 3, 4).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kKashya, 81, true } },
+        { { kKashya, 82, false }, { 155, 86, false }, { 154, 83, false }, { 148, 85, false }, { 147, 84, false } },
+        { { kKashya, 87, false }, { 155, 91, false }, { 154, 89, false }, { 148, 88, false }, { 147, 90, false } },
+        { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
+        { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kKashya, 81, true } },
-            { { kKashya, 82, false }, { 155, 86, false }, { 154, 83, false }, { 148, 85, false }, { 147, 84, false } },
-            { { kKashya, 87, false }, { 155, 91, false }, { 154, 89, false }, { 148, 88, false }, { 147, 90, false } },
-            { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
-            { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
-        };
         int block = -1;
         if (qbit(quest_bits, kQuest, 1)) block = 3;
         else if (rewarded) block = 4;
@@ -295,15 +295,15 @@ struct AndyQuest {
     }
     // What `npc` says about it (FUN_00595e20): blocks at 0x7382e0 by the
     // state (0x7382c4: -1, 0, 1, 2, 3, 4).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kCain, 166, true } },
+        { { kAkara, 168, false }, { kKashya, 172, false }, { 154, 169, false }, { kCain, 167, false }, { 147, 170, false }, { kWarriv, 171, false } },
+        { { kKashya, 178, false }, { kWarriv, 177, false }, { 147, 175, false }, { kCain, 173, false }, { 154, 176, false }, { kAkara, 174, false } },
+        { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
+        { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kCain, 166, true } },
-            { { kAkara, 168, false }, { kKashya, 172, false }, { 154, 169, false }, { kCain, 167, false }, { 147, 170, false }, { kWarriv, 171, false } },
-            { { kKashya, 178, false }, { kWarriv, 177, false }, { 147, 175, false }, { kCain, 173, false }, { 154, 176, false }, { kAkara, 174, false } },
-            { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
-            { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
         const bool listed = (npc == kCain && cain) || (npc == kAkara && akara) || (npc == kKashya && kashya);
         const bool cak = npc == kCain || npc == kAkara || npc == kKashya;
@@ -428,20 +428,20 @@ struct CainQuest {
     // state (0x737648: -1, 0, 1, 2, 3, 4).
     // ponytail: the bkd a player still carries once the stones are done
     // isn't taken here (the fifth stone took the only one).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[10] = {
+        { { kAkara, 97, true } },
+        { { kAkara, 99, false }, { 150, 98, false }, { 154, 100, false }, { 147, 102, false }, { 155, 101, false } },
+        { { 150, 105, false }, { 155, 107, false }, { 154, 103, false }, { kAkara, 104, false }, { 147, 106, false } },
+        { { 150, 108, false }, { 155, 111, false }, { 154, 109, false }, { kAkara, 112, true }, { 147, 110, false } },
+        { { 150, 113, false }, { 155, 116, false }, { 154, 114, false }, { kAkara, 117, false }, { 147, 115, false } },
+        { { 150, 119, false }, { 155, 122, false }, { 154, 121, false }, { kCampCain, 123, true }, { kAkara, 118, true }, { 147, 120, false } },
+        { { kCampCain, 125, true } },
+        { { kCampCain, 123, false }, { kAkara, 118, false }, { 147, 120, false } },
+        { { kCampCain, 125, false } },
+        { { kCain, 124, true } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[10] = {
-            { { kAkara, 97, true } },
-            { { kAkara, 99, false }, { 150, 98, false }, { 154, 100, false }, { 147, 102, false }, { 155, 101, false } },
-            { { 150, 105, false }, { 155, 107, false }, { 154, 103, false }, { kAkara, 104, false }, { 147, 106, false } },
-            { { 150, 108, false }, { 155, 111, false }, { 154, 109, false }, { kAkara, 112, true }, { 147, 110, false } },
-            { { 150, 113, false }, { 155, 116, false }, { 154, 114, false }, { kAkara, 117, false }, { 147, 115, false } },
-            { { 150, 119, false }, { 155, 122, false }, { 154, 121, false }, { kCampCain, 123, true }, { kAkara, 118, true }, { 147, 120, false } },
-            { { kCampCain, 125, true } },
-            { { kCampCain, 123, false }, { kAkara, 118, false }, { 147, 120, false } },
-            { { kCampCain, 125, false } },
-            { { kCain, 124, true } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13), b14 = qbit(quest_bits, kQuest, 14);
         int block = -1;
         if (npc == kCampCain && !thanked && b13) block = 5;
@@ -648,14 +648,14 @@ struct TowerQuest {
     }
     // What `npc` says about it (FUN_00594c50): blocks at 0x737ed8 by the
     // state (0x7382ac: -1, -1, 0, 1, 2, 3, -1).
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[4] = {
+        { { 265, 131, false }, { 154, 129, false }, { 148, 130, false }, { 155, 132, false }, { 150, 133, false }, { 147, 128, false } },
+        { { 150, 134, false }, { 155, 136, false }, { 154, 137, false }, { 148, 138, false }, { 265, 135, false }, { 147, 139, false } },
+        { { 150, 140, true }, { 155, 141, true }, { 265, 145, true }, { 154, 144, true }, { 148, 143, true }, { 147, 142, true } },
+        { { 150, 140, false }, { 155, 141, false }, { 265, 145, false }, { 154, 144, false }, { 148, 143, false }, { 147, 142, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[4] = {
-            { { 150, 133, false }, { 155, 132, false }, { 154, 129, false }, { 148, 130, false }, { 265, 131, false }, { 147, 128, false } },
-            { { 150, 134, false }, { 155, 136, false }, { 154, 137, false }, { 148, 138, false }, { 265, 135, false }, { 147, 139, false } },
-            { { 150, 140, true }, { 155, 141, true }, { 154, 144, true }, { 148, 143, true }, { 265, 145, true }, { 147, 142, true } },
-            { { 150, 140, false }, { 155, 141, false }, { 154, 144, false }, { 148, 143, false }, { 265, 145, false }, { 147, 142, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
         if (b0 && !b13) return {};
         if (state > 3 && !due && !told) return {};
@@ -770,15 +770,15 @@ struct ToolsQuest {
     // What `npc` says about it (FUN_005916a0): holding the malus at clvl
     // 8+, block 3 (Charsi's "the malus!"); else the block for the state
     // (0x737630: -1, 0, 1, 2, 3, 4; state 4 skipped). Blocks at 0x737198.
+    struct E { int npc, string; bool greet; };
+    static inline const std::vector<E> kBlocks[5] = {
+        { { kCharsi, 146, true } },
+        { { 148, 148, false }, { 150, 149, false }, { 265, 147, false }, { kCharsi, 150, false }, { 147, 151, false }, { 155, 153, false } },
+        { { 150, 156, false }, { 155, 159, false }, { kCharsi, 157, false }, { 265, 154, false }, { 148, 155, false }, { 147, 158, false } },
+        { { 150, 162, false }, { 155, 165, false }, { kCharsi, 163, true }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+        { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
+    };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool holding, int clvl) const {
-        struct E { int npc, string; bool greet; };
-        static const std::vector<E> kBlocks[5] = {
-            { { kCharsi, 146, true } },
-            { { 148, 148, false }, { 150, 149, false }, { 265, 147, false }, { kCharsi, 150, false }, { 147, 151, false }, { 155, 153, false } },
-            { { 150, 156, false }, { 155, 159, false }, { kCharsi, 157, false }, { 265, 154, false }, { 148, 155, false }, { 147, 158, false } },
-            { { 150, 162, false }, { 155, 165, false }, { kCharsi, 163, true }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
-            { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
-        };
         const bool b0 = qbit(quest_bits, kQuest, 0);
         if (b0 && !qbit(quest_bits, kQuest, 13)) return {};
         int block = -1;

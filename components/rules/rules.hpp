@@ -1132,6 +1132,8 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 // stacks match by code (FUN_0062c850 also compares quality and flags);
 // tomes by the Books.txt pairs tsc / tbk, isc / ibk.
 enum class Pickup { kGone, kStays, kNoRoom };
+// The belt groups of FUN_00628a40, 3-char codes in game.exe order (0x744684 hp, 0x74466c mp, 0x744660 rv).
+inline constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvlrvs" };
 inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
     using d2d::d2s::Item;
     const auto in_inventory = [](const Item& carried) { return carried.location == 0 && carried.panel == 1; };
@@ -1165,7 +1167,6 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
         std::array<const Item*, 16> box{};
         for (const auto& carried : items) if (carried.location == 2 && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
         const auto group = [](const std::string& code) {
-            static constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvsrvl" };
             for (std::size_t i = 0; i < kGroups.size(); ++i)
                 for (std::size_t at = 0; code.size() == 3 && at < kGroups[i].size(); at += 3) if (kGroups[i].substr(at, 3) == code) return int(i);
             return -1;
