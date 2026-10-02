@@ -408,12 +408,13 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("items", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
+        const auto hover_wearer = d2d::game::wearer(character.character_class, character.items, character.stats);
         for (const auto& item : character.items) {
             out += "[" + item.code + " loc=" + std::to_string(item.location) + " slot=" + std::to_string(item.slot)
                  + " q=" + std::to_string(item.quality) + " panel=" + std::to_string(item.panel) + " id=" + std::to_string(item.id)
                  + std::format(" size={}x{}", d2d::rules::item_size(scene->rules, item.code).first, d2d::rules::item_size(scene->rules, item.code).second)
                  + " at=" + std::to_string(item.column) + "," + std::to_string(item.row) + "]\n";
-            for (const auto& line : item_lines(*scene, item, int(character.stats.get(d2d::d2s::kLevel))))
+            for (const auto& line : item_lines(*scene, item, hover_wearer.lvl, &hover_wearer))
                 out += "  " + line.text + "\n";
         }
         return out + "ok\n";

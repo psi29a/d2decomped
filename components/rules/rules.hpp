@@ -1096,10 +1096,12 @@ inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>&
 // Barbarian x2; mana FUN_0062a620: Amazon, Paladin, Assassin x1.5,
 // Sorceress, Necromancer, Druid x2), then doubled when rand(vitality /
 // energy) / 2 beats rand(100), the drinker's seed (unit +0x20).
+template <class T> T potion_bonus(T amount, int cls, bool life) {
+    if (cls == 0 || cls == 3 || cls == 6) return amount + (amount >> 1);
+    return (life ? cls == 4 : cls == 1 || cls == 2 || cls == 5) ? amount * 2 : amount;
+}
 inline int potion_amount(int calc, int cls, bool life, int stat, Rng& rng) {
-    int amount = calc << 8;
-    if (cls == 0 || cls == 3 || cls == 6) amount += amount >> 1;
-    else if (life ? cls == 4 : cls == 1 || cls == 2 || cls == 5) amount *= 2;
+    int amount = potion_bonus(calc << 8, cls, life);
     if (stat > 0) {
         const int half = rng(stat) >> 1;
         if (rng(100) < half) amount *= 2;

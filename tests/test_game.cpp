@@ -6,6 +6,7 @@
 #include <character_store.hpp>
 #include <drops.hpp>
 #include <gamedata_load.hpp>
+#include <item_text.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -157,5 +158,28 @@ int main() {
     for (std::uint32_t tick = 800; tick < 800 + 60 && world.cain_walk.npc >= 0; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
     assert(world.cain_walk.npc < 0 && world.cain_walk.stage == 3 && world.cain_walk.spot_x == spot_x + 403 && world.cain_walk.spot_y == spot_y + 403 && !world.cain_portal.level);
     std::printf("OK: a spot with no room moves on 3 and opens no portal\n");
+
+    // Hover text (FUN_0048dd90), top line first, for a level 1 Amazon:
+    // a plain short sword and cap.
+    if (patch) {
+        const d2d::rules::Wearer amazon{ 0, 20, 25, 1 };
+        auto text = [&](const d2d::d2s::Item& item, const d2d::rules::Wearer* wearer) {
+            std::string joined;
+            for (const auto& line : item_lines(*data, item, 1, wearer)) joined += line.text + "|";
+            return joined;
+        };
+        d2d::d2s::Item sword{ .code = "ssd" };
+        sword.identified = true; sword.quality = 2; sword.durability = sword.max_durability = 24;
+        d2d::d2s::Item cap{ .code = "cap" };
+        cap.identified = true; cap.quality = 2; cap.defense = 3; cap.durability = cap.max_durability = 12;
+        assert(text(sword, &amazon) == "Short Sword|One-Hand Damage: 2 to 7|Durability: 24 of 24|Sword Class - Fast Attack Speed|");
+        assert(text(sword, nullptr) == "Short Sword|One-Hand Damage: 2 to 7|Durability: 24 of 24|");   // no player: no speed line
+        assert(text(cap, &amazon) == "Cap|Defense: 3|Durability: 12 of 12|");
+        // +50% defense: the number blue after "Defense: ".
+        cap.props.push_back({ .stat = 16, .value = 50 });
+        const auto cap_lines = item_lines(*data, cap, 1, &amazon);
+        assert(cap_lines[1].text == "Defense: 4" && cap_lines[1].split == 9 && cap_lines[1].tail == kTxtBlue);
+        std::printf("OK: hover text of a short sword and a cap\n");
+    }
     return 0;
 }

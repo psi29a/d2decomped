@@ -8,6 +8,7 @@
 #include <d2s_items.hpp>
 #include <dc6.hpp>
 #include <quests.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cstddef>
@@ -31,7 +32,7 @@ namespace d2d::client {
 // Items draw through their inventory colormap (Scene::item_pal).
 // ponytail: no cube.
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
-                    const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, int clvl = 1,
+                    const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr);
 
 // Character panel (left of the inventory: 800x600 puts the left panels
@@ -142,7 +143,7 @@ std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout,
 // A left-side storage panel: the stash (panel 5) or the cube (panel 4).
 void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
-                  int mouse_x, int mouse_y, int clvl);
+                  int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the
@@ -151,7 +152,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // and its items. Hovering an item shows its hover text.
 // ponytail: no slot hotkey numbers.
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, int clvl, bool popup);
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup);
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's

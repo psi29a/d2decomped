@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -31,8 +32,14 @@ namespace d2d::game {
 // prefix/suffix ID = MagicPrefix/MagicSuffix raw data row (row 0 is the
 // blank "none"); rare names = RarePrefix row (id - 156) + RareSuffix row
 // (id - 1); runeword ID = rank of its RunewordN + 27.
-// ponytail: no requirements, durability, set bonus lines or weapon damage.
-struct TextLine { std::string text; std::array<std::uint8_t, 3> rgb; };
+// A line can change colour once, at `split` (game.exe's mid-line "\xffc3"
+// before a modified number): text[split..] is drawn in `tail`.
+struct TextLine {
+    std::string text;
+    std::array<std::uint8_t, 3> rgb;
+    std::size_t split = std::string::npos;
+    std::array<std::uint8_t, 3> tail{};
+};
 
 // D2's printf subset in its strings: %d, %+d, %s, %%. Args in order.
 inline std::string d2_format(std::string_view format, std::initializer_list<std::variant<std::int64_t, std::string>> args) {
@@ -226,7 +233,61 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // ponytail: no charges/books/ammo branches, automagic affix, durability
 // or the reduced-prices stat.
 
-inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl) {
+// game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
+// 10..27 (frames, below), column by class and bow/crossbow (0x722078);
+// 1 Very Fast .. 5 Very Slow. Under 10 is 1, 28 and over 5.
+inline constexpr std::array<std::uint8_t, 90> kSpeedBand{
+    1, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 2, 1, 1,  2, 1, 2, 2, 1,  2, 1, 2, 2, 2,
+    2, 2, 3, 2, 2,  3, 2, 3, 3, 2,  3, 2, 3, 3, 3,  3, 2, 4, 3, 3,  4, 3, 4, 4, 3,  4, 3, 4, 4, 4,
+    4, 3, 5, 4, 4,  5, 4, 5, 5, 4,  5, 4, 5, 5, 5,  5, 4, 5, 5, 5,  5, 5, 5, 5, 5,  5, 5, 5, 5, 5 };
+inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 }, { 0, 3 }, { 0, 3 }, { 1, 4 }, { 0, 3 } };
+
+// An item's required level (FUN_0062b5b0): its affixes' / set item's /
+// unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
+// most 98), at least the base's and each socketed item's, plus
+// item_levelreq (stat 92); never below 0.
+// ponytail: no classlevelreq, automagic affix or the charged / oskill
+// skills' levels (stats 97, 107).
+inline int required_level(const GameData& game_data, const d2d::d2s::Item& item) {
+    auto at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
+    int level = 0;
+    switch (item.quality) {
+        case 4: level = std::max(at(game_data.prefix_req, item.prefix), at(game_data.suffix_req, item.suffix)); break;
+        case 5: level = at(game_data.set_req, item.set_id); break;
+        case 7: level = at(game_data.unique_req, item.unique_id); break;
+        case 6: case 8: {
+            int count = 0;
+            for (std::size_t i = 0; i < 6; ++i)
+                if (item.affixes[i] > 0) { level = std::max(level, at(i % 2 == 0 ? game_data.prefix_req : game_data.suffix_req, item.affixes[i])); ++count; }
+            if (item.quality == 8) level = std::min(level + 10 + 3 * count, 98);
+            break;
+        }
+        default: break;
+    }
+    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) level = std::max(level, info->second.req_lvl);
+    for (const auto& socketed : item.socketed_items) level = std::max(level, required_level(game_data, socketed));
+    for (const auto& prop : item.props) if (prop.stat == 92) level += int(prop.value);
+    return std::max(level, 0);
+}
+
+// An item's hover text as the client's FUN_0048dd90 (UI\inv.cpp) builds
+// it. The string is drawn bottom-up, so its segments, top line first:
+// name (FUN_0048c060), defense (FUN_00485ee0), block (FUN_00485be0),
+// smite/kick (FUN_00485d40), damage (FUN_00485410), quantity / spelldesc
+// (FUN_00486100 / FUN_00486370), charm, socket filler (FUN_004865d0),
+// durability (FUN_00484e90), class only, required dexterity / strength /
+// level (FUN_00485170 / FUN_004850a0 / FUN_00484ff0, red when unmet,
+// FUN_0062eaf0), weapon speed (FUN_004861d0), "Unidentified" (red),
+// properties (blue, FUN_004e6410), ethereal / sockets (blue, FUN_00484b10).
+// A number the item's mods changed is blue. `wearer` is the hovering
+// player (class, strength, dexterity, level); without one there are no
+// red requirements, class bonuses, speed or spelldesc lines, as game.exe
+// without a player unit. docs/research/re/item-names.md.
+// ponytail: no set bonus lists, Holy Shield's block / smite, time-of-day
+// damage (272/273), the gold quest-item line (FUN_00486670) or
+// throwing-potion damage.
+inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
+                                        const d2d::rules::Wearer* wearer = nullptr) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
         const auto found = lookup_string(game_data, key);
@@ -275,35 +336,159 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     const bool unid = !item.identified && item.quality >= 4 && !item.runeword;
     if (unid) out = { { base, out.front().rgb } };
     if (item.personalized && !item.owner.empty()) out.front().text = item.owner + "'s " + out.front().text;
-    if (item.defense >= 0) {
-        // Shown with the item's own +% and flat defence applied (16, 31).
-        std::int64_t enhanced_defense = 0, flat = 0;
-        for (const auto& prop : item.props) {
-            if (prop.stat == 16) enhanced_defense += prop.value;
-            if (prop.stat == 31) flat += prop.value;
-            if (prop.stat == 214) flat += prop.value * clvl / 8;         // armor per level
-        }
-        const auto def = std::int64_t(item.defense) * (100 + enhanced_defense) / 100 + flat;
-        out.push_back({ str("ItemStats1h") + " " + std::to_string(def), def != item.defense ? kTxtBlue : kTxtWhite });
-    }
-    if (item.max_durability > 0 && !d2d::rules::indestructible(item))
-        out.push_back({ str("ItemStats1d") + " " + std::to_string(item.durability) + " " + str("ItemStats1j") + " "
-                        + std::to_string(d2d::rules::max_durability(item)), kTxtWhite });
-    if (item.quantity >= 0) out.push_back({ str("ItemStats1i") + " " + std::to_string(item.quantity), kTxtWhite });
-    if (unid) {
-        const auto unidentified = str("ItemStats1b");                // "Unidentified"
-        out.push_back({ unidentified.empty() || unidentified == "ItemStats1b" ? "Unidentified" : unidentified, kTxtRed });
-        return out;
-    }
+    if (info == game_data.rules.item_info.end()) return out;
+
+    // The item's stat list: its own and its sockets' (game.exe links them).
     auto props = item.props;
     for (const auto& socketed : item.socketed_items) {
         const auto gem_props = socket_props(game_data, item, socketed);
         props.insert(props.end(), gem_props.begin(), gem_props.end());
     }
-    for (auto& line : prop_lines(game_data, std::move(props), clvl)) out.push_back({ std::move(line), kTxtBlue });
-    if (item.ethereal) out.push_back({ "Ethereal", kTxtBlue });
-    if (item.socketed) out.push_back({ "Socketed (" + std::to_string(item.sockets) + ")", kTxtBlue });
+    auto stat = [&](int id) {
+        std::int64_t sum = 0;
+        for (const auto& prop : props) if (prop.stat == id) sum += prop.value;
+        return sum;
+    };
+    auto has = [&](int id) { return std::ranges::any_of(props, [&](const auto& prop) { return prop.stat == id && prop.value; }); };
+    auto line = [](std::string head, std::string tail, bool blue) {
+        TextLine text_line{ head + tail, kTxtWhite };
+        if (blue) { text_line.split = head.size(); text_line.tail = kTxtBlue; }
+        return text_line;
+    };
+    const auto& type = info->second.type;
+    const auto is = [&](std::string_view want) { return d2d::rules::type_is(game_data.rules, type, want); };
+    const auto base_row = game_data.rules.item_base.find(item.code);
+    const d2d::rules::ItemBase no_base{};
+    const auto& item_base = base_row != game_data.rules.item_base.end() ? base_row->second : no_base;
+    const auto desc_row = game_data.item_desc.find(item.code);
+    const GameData::ItemDesc no_desc{};
+    const auto& desc = desc_row != game_data.item_desc.end() ? desc_row->second : no_desc;
+    const bool weapon = is("weap"), armor = is("armo"), throwable = game_data.throwable.contains(type);
+    const int cls = wearer && wearer->cls >= 0 && wearer->cls < 7 ? wearer->cls : -1;
+    if (wearer) clvl = wearer->lvl;
+    const std::string space = " ", to = space + string_id(game_data, 3464) + space;            // "to"
+
+    // Defense: armorclass with its +% (16, on the base) and flat adds.
+    if (armor && item.defense >= 0) {
+        const auto def = std::int64_t(item.defense) * (100 + stat(16)) / 100 + stat(31) + stat(214) * clvl / 8;
+        if (def > 0) out.push_back(line(string_id(game_data, 3461) + space, std::to_string(def), def != item.defense));
+    }
+    // Chance to block (shields): the item's toblock (the block column +
+    // 20s) plus the class's BlockFactor, at most 75; blue over the column.
+    if (is("shld")) {
+        std::int64_t block = item_base.block + stat(20);
+        if (cls >= 0) block += game_data.class_gains[std::size_t(cls)].block;
+        block = std::min<std::int64_t>(block, 75);
+        if (block) out.push_back(line(string_id(game_data, 11018), std::to_string(block) + "%", block > item_base.block));
+    }
+    // Smite (a Paladin's shield) / kick damage (an Assassin's boots): the armor.txt mindam / maxdam.
+    const std::string class_code = d2d::rules::type_class(game_data.rules, type);
+    if ((is("shld") && cls == 3 && (class_code.empty() || class_code == "pal")) || (is("boot") && cls == 6))
+        out.push_back({ string_id(game_data, is("shld") ? 3468 : 21782) + space + std::to_string(item_base.mindam) + to + std::to_string(item_base.maxdam), kTxtWhite });
+    // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
+    // the record (FUN_0062d300 sets them: low quality 3/4, ethereal 3/2),
+    // the +% (18 min, 17 max) on that base, then the flat adds.
+    if (weapon) {
+        auto base_damage = [&](std::size_t index) {
+            int value = desc.dam[index];
+            if (item.quality == 1 && value) value = std::max(value * 3 / 4, index % 2 ? 2 : 1);
+            if (item.ethereal) value = value * 3 / 2;
+            return value;
+        };
+        auto damage = [&](int kind, bool max_over_min, int label, bool blue_mods) {
+            static constexpr int kStat[3][2] = { { 21, 22 }, { 23, 24 }, { 159, 160 } };
+            const std::int64_t low_base = base_damage(std::size_t(kind) * 2), high_base = base_damage(std::size_t(kind) * 2 + 1);
+            const std::int64_t low = low_base * (100 + stat(18)) / 100 + stat(kStat[kind][0]);
+            std::int64_t high = high_base * (100 + stat(17) + stat(219) * clvl / 8) / 100 + stat(kStat[kind][1]) + stat(218) * clvl / 8;
+            high = std::max(high, max_over_min ? low + 1 : low);
+            const bool blue = low_base < low || high_base < high || blue_mods;
+            return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to + std::to_string(high), blue);
+        };
+        if (throwable && desc.dam[5]) out.push_back(damage(2, false, 3467, has(17) || has(18) || has(159) || has(160)));
+        if (cls == 4 && info->second.one_or_two) {
+            out.push_back(damage(0, false, 3465, false));
+            out.push_back(damage(1, false, 3466, false));
+        } else {
+            out.push_back(info->second.two_handed ? damage(1, true, 3466, false) : damage(0, true, 3465, false));
+        }
+    }
+    // Quantity (stat 70; anything that stacks), unless unidentified or
+    // socketed; a misc.txt spelldesc takes its place (FUN_00486370).
+    {
+        std::string text;
+        if (item.identified && !item.socketed && (item.quantity > 0 || item_base.max_stack > 0))
+            text = string_id(game_data, 3462) + space + std::to_string(std::max(item.quantity, 0));
+        if (wearer && desc.spell_desc >= 1 && desc.spell_desc <= 4 && !desc.spell_str.empty()) {
+            std::int64_t value = desc.spell_calc;
+            if (desc.spell_desc == 2 && cls >= 0) {
+                // Potions by class (FUN_0062a5d0 life, FUN_0062a620 mana): x1.5 or x2.
+                if (desc.spell_stat == 6 || desc.spell_stat == 74) value = d2d::rules::potion_bonus(value, cls, true);
+                if (desc.spell_stat == 8 || desc.spell_stat == 26) value = d2d::rules::potion_bonus(value, cls, false);
+            }
+            const std::string spell = str(desc.spell_str);
+            text = desc.spell_desc == 1 ? spell : desc.spell_desc == 4 ? d2_format(spell, { value }) : spell + space + std::to_string(value);
+        }
+        if (!text.empty()) out.push_back({ text, kTxtWhite });
+    }
+    if (is("char")) out.push_back({ string_id(game_data, 20438), kTxtWhite });            // "Keep in Inventory to Gain Bonus"
+    // Socket fillers (FUN_004e6850): a gem's or rune's gems.txt bonus per
+    // kind, each kind's label before its top line (FUN_004e6410).
+    if (is("sock")) {
+        out.push_back({ string_id(game_data, 11080), kTxtWhite });                            // "Can be Inserted into Socketed Items"
+        if (const auto gem = game_data.gem_props.find(item.code); gem != game_data.gem_props.end() && (is("gem") || is("rune"))) {
+            out.push_back({ std::string{}, kTxtWhite });
+            static constexpr std::pair<int, std::size_t> kKinds[4] = { { 11075, 0 }, { 11076, 1 }, { 11073, 1 }, { 11074, 2 } };
+            for (const auto& [label, kind] : kKinds) {
+                auto kind_lines = prop_lines(game_data, gem->second[kind], clvl);
+                if (kind_lines.empty()) kind_lines.emplace_back();
+                kind_lines.front() = string_id(game_data, std::uint16_t(label)) + space + kind_lines.front();
+                for (auto& kind_line : kind_lines) out.push_back({ std::move(kind_line), kTxtWhite });
+            }
+        }
+    }
+    // Durability (FUN_00629930: a durability column, not nodurability, not
+    // indestructible; not throwing weapons): blue max when 75 changed it.
+    if (item_base.durability && !desc.nodurability && item.max_durability > 0 && !d2d::rules::indestructible(item) && !throwable)
+        out.push_back(line(string_id(game_data, 3457) + space + std::to_string(item.durability) + space + string_id(game_data, 3463) + space,
+                           std::to_string(d2d::rules::max_durability(item)), has(75)));
+    auto requirement = [&](std::string text, bool met) { out.push_back({ std::move(text), met ? kTxtWhite : kTxtRed }); };
+    for (int index = 0; index < 7; ++index)
+        if (class_code == d2d::rules::kClassCode[std::size_t(index)]) requirement(string_id(game_data, std::uint16_t(10917 + index)), cls < 0 || cls == index);
+    // Strength / dexterity (weapons and armor): the column, item_req_percent
+    // (91) on it, 10 less when ethereal.
+    if (weapon || armor) {
+        auto required = [&](int column) { return column + (stat(91) ? column * stat(91) / 100 : 0) - (item.ethereal ? 10 : 0); };
+        const auto dex = required(info->second.req_dex), strength = required(info->second.req_str);
+        if (info->second.req_dex && dex > 0) requirement(string_id(game_data, 3459) + space + std::to_string(dex), !wearer || (wearer->dex > 0 && wearer->dex >= dex));
+        if (info->second.req_str && strength > 0) requirement(string_id(game_data, 3458) + space + std::to_string(strength), !wearer || (wearer->str > 0 && wearer->str >= strength));
+    }
+    if (const int level = required_level(game_data, item); item.identified && level > 1)
+        requirement(string_id(game_data, 3469) + space + std::to_string(level), !wearer || wearer->lvl >= level);
+    // Weapon speed (FUN_0062a710): the class's A1 frames << 8 over the
+    // animation speed x (100 + IAS (93) - WSM) / 100, banded; class name first.
+    if (weapon && cls >= 0) {
+        std::string upper = desc.wclass;
+        for (auto& c : upper) c = char(std::toupper(static_cast<unsigned char>(c)));
+        const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
+        const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + stat(93) - item_base.speed) * std::int64_t(anim->second.speed) / 100 : 0;
+        const std::int64_t frames = rate > 0 ? (std::int64_t(anim->second.frames) << 8) / rate : 45;
+        const int band = frames >= 28 ? 5 : frames < 10 ? 1
+                       : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is("bow") || is("xbow") ? 1 : 0])];
+        static constexpr std::pair<std::string_view, int> kClassName[] = { { "staf", 4085 }, { "axe", 4078 }, { "swor", 4079 }, { "knif", 4080 },
+            { "tpot", 4081 }, { "jave", 4082 }, { "spea", 4083 }, { "bow", 4084 }, { "pole", 4086 }, { "xbow", 4087 }, { "h2h", 21258 },
+            { "h2h2", 21258 }, { "orb", 4085 }, { "wand", 4085 }, { "blun", 4077 } };
+        std::string head;
+        for (const auto& [want, id] : kClassName)
+            if (is(want)) { head = string_id(game_data, std::uint16_t(id)) + space + string_id(game_data, 3996) + space; break; }
+        out.push_back(line(head, string_id(game_data, std::uint16_t(4088 + band)), has(93)));
+    }
+    if (unid) out.push_back({ string_id(game_data, 3455), kTxtRed });                         // "Unidentified"
+    else for (auto& prop_line : prop_lines(game_data, std::move(props), clvl)) out.push_back({ std::move(prop_line), kTxtBlue });
+    if ((weapon || armor) && (item.ethereal || item.socketed)) {
+        std::string text = item.ethereal ? string_id(game_data, 22745) : std::string{};          // "Ethereal (Cannot be Repaired)"
+        if (item.socketed) text += (item.ethereal ? ", " : "") + string_id(game_data, 3453) + " (" + std::to_string(item.sockets) + ")";
+        out.push_back({ text, kTxtBlue });
+    }
     return out;
 }
-
 }  // namespace d2d::game
