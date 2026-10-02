@@ -120,6 +120,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const bool unselectable = state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1);
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
             if (state && state->alert) units.back().overlay = &scene.npc_alert;
+            if (state) units.back().says = state->says;
             units.back().shadow = npc.root != "objects";
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
@@ -152,6 +153,17 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         render_world(framebuffer, scene, level, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
         if (rain) draw_rain(framebuffer, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
+        // What a unit says (a shrine's message), centred over it.
+        // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:
+        // font, colour and height (here 100 px over its feet) are guesses.
+        for (const auto& unit : units) {
+            if (!unit.says) continue;
+            const auto text = string_id(scene, unit.says);
+            const int pixel_x = int(kScreenWidth) / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
+            const int pixel_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
+            const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
+        }
         // Alt ("Show Items"): each ground item's name in a dark box over it,
         // nudged up clear of the ones already placed; the label under the
         // mouse is the item it points at (a click picks it up).

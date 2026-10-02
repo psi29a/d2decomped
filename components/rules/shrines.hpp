@@ -50,7 +50,8 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
 // its stat; combat FUN_005839b0: Arg0 % of the attack rating as tohit (19)
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,
 // staminarecoverybonus (28) 1000), by Code. `ar`: the player's rating.
-// Skills FUN_00583bf0: +Arg0 all skills (item_allskills, 127).
+// Skills FUN_00583bf0: state 0x86 alone, its +2 hard-coded (FUN_00644150,
+// added to every skill's level with item_allskills in FUN_00644180).
 inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, int attack_rating) {
     switch (shrine.code) {
     case 6:  return { { 171, shrine.arg0 } };                  // skill_armor_percent
@@ -59,7 +60,7 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, in
     case 9:  return { { 43, shrine.arg0 } };                   // coldresist
     case 10: return { { 41, shrine.arg0 } };                   // lightresist
     case 11: return { { 45, shrine.arg0 } };                   // poisonresist
-    case 12: return { { 127, shrine.arg0 } };                  // item_allskills
+    case 12: return { { 127, 2 } };                            // item_allskills
     case 13: return { { 27, shrine.arg0 } };                   // manarecoverybonus
     case 14: return { { 28, 1000 } };                     // staminarecoverybonus
     case 15: return { { 85, shrine.arg0 } };                   // item_addexperience
@@ -68,19 +69,40 @@ inline std::vector<std::pair<int, int>> shrine_boost(const ShrineRow& shrine, in
 }
 
 // The recharges (FUN_005828e0 .. FUN_005829a0) on life / mana / their
-// maxima, any fixed point: 1 both full, 2 life full, 3 mana full, 4 life
+// maxima, any fixed point: 1 both set to max, 2 life, 3 mana (set, not
+// raised: over-max life comes down), 4 life
 // down Arg0 %, mana up Arg1 % of that; 5 the other way round.
 // (4 and 5 aren't rolled — roll_shrine turns them into 2 and 3.)
 inline void shrine_recharge(const ShrineRow& shrine, std::int64_t& life, std::int64_t max_life, std::int64_t& mana, std::int64_t max_mana) {
     switch (shrine.code) {
-    case 1: life = std::max(life, max_life); mana = std::max(mana, max_mana); break;
-    case 2: life = std::max(life, max_life); break;
-    case 3: mana = std::max(mana, max_mana); break;
+    case 1: life = max_life; mana = max_mana; break;
+    case 2: life = max_life; break;
+    case 3: mana = max_mana; break;
     case 4: { const auto moved = life * shrine.arg0 / 100; life -= moved; mana += moved * shrine.arg1 / 100; break; }
     case 5: { const auto moved = mana * shrine.arg0 / 100; mana -= moved; life += moved * shrine.arg1 / 100; break; }
     default: break;
     }
 }
+
+// By Code, the client's table at 0x6da8c0 (20-byte rows {fnA, fnB,
+// overlays, sound}): the Sounds.txt sound object event 0x15 plays
+// (FUN_004bd550), and the States.txt state the boosters give (the server's
+// table at 0x6e1850 {fn, stat, state}: 128..137, all curse = 1, so a new
+// one ends the old, FUN_0056e970). Their overlays are the state's.
+inline constexpr std::array<const char*, 23> kShrineSound = {
+    "", "shrine_refill", "shrine_refill", "shrine_recharge", "shrine_exchange", "shrine_exchange",
+    "shrine_armorboost", "shrine_combatboost", "shrine_resistfire", "shrine_resistcold", "shrine_resistlightning",
+    "shrine_resistpoison", "shrine_skill", "shrine_recharge", "shrine_recharge", "shrine_experience",
+    "shrine_ofenirhs", "shrine_portal", "shrine_gemupgrade", "shrine_storm", "shrine_portal",
+    "shrine_exploding", "shrine_poison" };
+inline constexpr std::array<const char*, 10> kShrineState = {
+    "shrine_armor", "shrine_combat", "shrine_resist_fire", "shrine_resist_cold", "shrine_resist_lightning",
+    "shrine_resist_poison", "shrine_skill", "shrine_mana_regen", "shrine_stamina", "shrine_experience" };
+inline std::string_view shrine_sound(int code) { return code >= 0 && code < int(kShrineSound.size()) ? kShrineSound[std::size_t(code)] : ""; }
+inline std::string_view shrine_state(int code) { return code >= 6 && code <= 15 ? kShrineState[std::size_t(code - 6)] : ""; }
+// FUN_00583c70: a shrine with a Reset comes back Reset x 1200 + 1 frames
+// on (timer 5), not minutes.
+inline std::uint32_t shrine_reset_frames(int reset) { return reset > 0 ? std::uint32_t(reset) * 1200u + 1 : 0; }
 
 // The gem shrine (FUN_00582c40): the first gem in the inventory with a
 // better grade (misc.txt BetterGem) goes up one (FUN_00582ac0); with none,

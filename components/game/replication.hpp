@@ -53,7 +53,7 @@ inline Npc npc(In& input) {
     return npc;
 }
 inline void unit(Out& out, const UnitState& unit_state) {
-    out.f32(unit_state.x).f32(unit_state.y).u8(unit_state.dir).u8(unit_state.walking).u8(unit_state.hidden).u8(unit_state.alert).u32(unit_state.mode_ms).str(unit_state.mode);
+    out.f32(unit_state.x).f32(unit_state.y).u8(unit_state.dir).u8(unit_state.walking).u8(unit_state.hidden).u8(unit_state.alert).u32(unit_state.mode_ms).str(unit_state.mode).u16(unit_state.says);
 }
 inline UnitState unit(In& input) {
     UnitState unit;
@@ -61,6 +61,7 @@ inline UnitState unit(In& input) {
     unit.dir = input.get<std::uint8_t>(); unit.walking = input.get<std::uint8_t>(); unit.hidden = input.get<std::uint8_t>(); unit.alert = input.get<std::uint8_t>();
     unit.mode_ms = input.get<std::uint32_t>();
     unit.mode = intern(input.str());
+    unit.says = input.get<std::uint16_t>();
     return unit;
 }
 // Items as their save form (d2s_write.hpp), then their unit ids.
@@ -165,6 +166,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
             chunk.i32(line.skill).u8(line.damage).i32(line.min).i32(line.max).u8(line.damage_colour).i32(line.attack_rating).u8(line.ar_colour);
         chunk.u16(int(view.boost.size()));
         for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
+        chunk.u8(view.boost_code);
         chunk.i32(view.gold_lost);
         chunk.u16(int(view.buffs.size()));
         for (const int buff : view.buffs) chunk.i32(buff);
@@ -347,6 +349,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         }
         view.boost.clear();
         for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
+        view.boost_code = byte();
         view.gold_lost = i32();
         view.buffs.clear();
         for (int count = u16(); count > 0 && input.ok; --count) view.buffs.push_back(i32());
