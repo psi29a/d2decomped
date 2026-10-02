@@ -75,8 +75,11 @@ no draw, a power of two masks, else mod).
    flag modifiers (never). FUN_0055a550 makes it; gold with a mul has its
    coins (stat 0xe) set to coins * mul >> 8. A made item counts (one
    FUN_00555da0 finds no floor for isn't made and doesn't); at `max` the
-   roll stops. FUN_005589a0 then adds the killer's gold find
-   (stat 0x4f %, plus its owner's) to gold.
+   roll stops. The count goes up first (0x55af4c): only a drop that
+   leaves it under `max` reaches FUN_005589a0 (0x55af59), which for gold
+   (type index 4) sets coins = coins * (100 + gf) / 100, gf the killer's
+   stat 0x4f (FUN_00625500) plus its owner's (FUN_0058f0d0). `Loot::drop`
+   passes the gear's 0x4f, 0 for the drop that fills 6.
 
 ## Quality — FUN_00558640
 
@@ -158,6 +161,52 @@ seed (FUN_00650e50 before them only reads it):
   weight rarity, 0 counts 1; rand(total), then subtract.
 - A failed unique goes rare with durability x3, a failed set x2.
 
+## Item mods — FUN_0065fec0, FUN_0065fd70
+
+FUN_0065fec0 (item, row, kind: 1 superior, 3 unique, 4 set, 0 / 2 / 5
+affixes, through FUN_0065fe10) runs each mod's Properties.txt row through
+FUN_0065fd70: up to 7 (func, stat, set, val) entries, each func off the
+table at 0x7462f8, called with ECX = kind and (item, mod, set, stat, val,
+first, ...). `first` is what the first func returned; later funcs reuse
+it. The value draw (FUN_0065e9e0) is min + rand(max - min + 1), none
+when min == max; each func draws only when it needs one:
+
+- 1 / 2 / 13 / 21 / 22 always; 12 / 36 draw the param. 3 / 4 / 5 / 6 / 7
+  / 8 / 9 / 10 / 14 / 24 reuse `first` (0: a draw). 17 is the param (0: a
+  draw). 15 / 16 are min / max. 11 / 18 / 20 / 23 don't draw; 19 draws
+  the charges.
+- FUN_0065ea50 stores (stat, param, value) on the item's list and
+  returns the value; nothing (and 0) for no stat or a 0. Stat 58 (poison
+  max) adds 326 = 1.
+- FUN_0065ccc0 (ac rule): on func 2 / 4, and 1 / 3 / 13 when ECX is 1
+  (superior), stat 16 / 31 on an armor with maxac sets the defence to
+  max(def + 1, maxac + 1). It also handles the base damage stats 0x11 /
+  0x16 and 0x12 / 0x15.
+- 11 (FUN_0065f470), chance to cast: param skill * 64 + (level & 63),
+  value min (5 if < 1). Level = max when > 0. With max == 0 it is
+  (ilvl - req) / 4 + 1, at least 1, at most maxlvl (FUN_004aa8b0, Skills
+  +300; 20 without). With max < 0 it is (ilvl - req) / max(-(max(99 -
+  req, 1) / max), 1), at least 1. req = Skills reqlevel (FUN_00644710,
+  +0x174; 0x7fffffff unknown).
+- 19 (FUN_0065f6a0), charges: level as 11. c = 5 for min 0, -min + -min
+  * level / 8 for min < 0, else min; clamped to 1..255. now = (rand(c - c
+  / 8) + c / 8 + 1) & 0xff; value now + c * 256, param skill << 6 | level.
+- 14, sockets: min(grid at most 6, FUN_0062bc20), the value `first` or a
+  draw, else the param. Sets flag 0x800 and stat 0xc2.
+- 23, ethereal (FUN_0065e4d0): flag 0x400000, damage stats and armor
+  defence (31) x 3/2. Durability is untouched (FUN_00556ca0 halves it).
+- A set (kind 4): 9 props, then aprop1a..aprop5b, slot k in pair (k >>
+  1) + 2. With add func 0, every slot goes to the main list (state 0,
+  flags 0x40). Otherwise state 0x6edb40[pair] (0xa5..0xa9), flags
+  0x6edb5c[pair] (0x2040): a list of its own, the d2s set list k >> 1, on
+  with (k >> 1) + 2 pieces worn. Those still draw and still take the
+  func-2 ac rule (Milabrega's Robe's ac% in list 0 sets its defence to
+  234).
+
+`apply_mod` / `generate_item` (rules.hpp) follow this. The set lists go
+to `Item::set_props` / `set_lists` / `set_list_sizes`, which
+`set_bonus_props` (character.hpp) reads back.
+
 ## Chests — FUN_00585b90
 
 The act's chest class by tier (area level against the act's two marker
@@ -234,9 +283,10 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   rolls it (FUN_00627260 hooked to record the stats), FUN_005566b0 /
   FUN_005c2940 pick on a game whose one-per-game list carries on; diffed
   against `drop-dump items` (`Loot::put`'s path): both seeds, coins,
-  stack, durability, defence, the pick, the game seed after. 40000 /
-  40000 match (17339 defence rolls, 1660 stacks, 8094 picks, 9502 failed
-  unique picks, the Cow King's set with and without a bovine).
+  stack, durability, defence, the pick, the game seed after. For a
+  unique / set that took, it also compares the mods (FUN_00627030 /
+  FUN_00627150 hooked per list), each set bonus list, ethereal and the
+  own seed after. 39980 / 39980 match (4803 with set lists).
 
 - `uv run python drops.py objects 1-20000`: every container class
   (OperateFn 1 / 3 / 4 / 5 / 14 / 26) in turn at varied levels,
@@ -260,5 +310,7 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 - An assassin opens a locked chest without a key (player +4 == 6) isn't
   modeled; the barrel's opening step for a player and the events aren't
   either.
-- One player, no magic or gold find in `loot.hpp`; the picture
-  (VarInvGfx) draw and affixes past the pick aren't game.exe's.
+- One player in `loot.hpp`. Magic / gold find count gear only (no
+  skills, no minion's owner). The picture (VarInvGfx) draw and affixes
+  past the pick aren't game.exe's.
+- Func 18 (by time) is dropped.

@@ -41,12 +41,58 @@ inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, c
     return out;
 }
 
+// A worn set item's bonus lists that are on: list i (aprop(i+1)a / b,
+// FUN_0065fec0 kind 4) with i + 2 pieces of its set worn.
+// ponytail: add func 1 lists (by which other piece is worn) count pieces
+// too; Sets.txt's partial / full set bonuses aren't added.
+inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
+                                                const d2d::d2s::Item& item) {
+    std::vector<d2d::d2s::ItemProp> out;
+    const auto& sets = game_data.rules.sets;
+    auto set_of = [&](const d2d::d2s::Item& piece) {
+        return piece.quality == 5 && piece.set_id >= 0 && std::size_t(piece.set_id) < sets.size() ? sets[std::size_t(piece.set_id)].set : -1;
+    };
+    const int set = set_of(item);
+    if (set < 0 || item.set_props.empty()) return out;
+    std::vector<int> pieces;
+    for (const auto& piece : items)
+        if (piece.location == 1 && piece.slot >= 1 && piece.slot <= 10 && set_of(piece) == set && std::ranges::find(pieces, piece.set_id) == pieces.end())
+            pieces.push_back(piece.set_id);
+    std::size_t at = 0, list = 0;
+    for (int bit = 0; bit < 5; ++bit) {
+        if (!(item.set_lists >> bit & 1) || list >= item.set_list_sizes.size()) continue;
+        const std::size_t size = std::min(item.set_list_sizes[list++], item.set_props.size() - at);
+        if (int(pieces.size()) >= bit + 2) out.insert(out.end(), item.set_props.begin() + std::ptrdiff_t(at), item.set_props.begin() + std::ptrdiff_t(at + size));
+        at += size;
+    }
+    return out;
+}
+
+// Everything the character's gear gives: worn items (slots 1..10), what's
+// socketed in them, their set bonuses on, inventory charms.
+inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
+    std::vector<d2d::d2s::ItemProp> out;
+    for (const auto& item : items) {
+        const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
+        const bool charm = item.location == 0 && item.panel == 1 && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
+        if (!worn && !charm) continue;
+        out.insert(out.end(), item.props.begin(), item.props.end());
+        for (const auto& socketed : item.socketed_items) {
+            const auto filled = socket_props(game_data, item, socketed);
+            out.insert(out.end(), filled.begin(), filled.end());
+        }
+        const auto bonus = set_bonus_props(game_data, items, item);
+        out.insert(out.end(), bonus.begin(), bonus.end());
+    }
+    return out;
+}
+
 // The char panel's computed values (stat 30 next level, 31 defence,
 // resistances 39/43/41/45), as FUN_004a7d00 shows them. From the save's
 // base stats and gear.
 // ponytail: equipped slots 1..10 (the primary weapon set), socket
-// bonuses and charms, the passives with no weapon type (Iron Skin's
-// defense %, Natural Resistance); no set bonuses or auras.
+// bonuses, set bonus lists (set_bonus_props) and charms, the passives
+// with no weapon type (Iron Skin's defense %, Natural Resistance); no auras.
 struct PanelStats {
     std::int64_t next = -1, defense = 0;
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
@@ -76,6 +122,9 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         if (!worn && !charm) continue;
         add(item.props);
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
+        const auto bonus = set_bonus_props(game_data, items, item);
+        add(bonus);
+        for (const auto& prop : bonus) if (prop.stat == 214) per_level += prop.value;
         std::int64_t enhanced_defense = 0;
         for (const auto& prop : item.props) {
             if (prop.stat == 16) enhanced_defense += prop.value;            // item_armor_percent: this item's base

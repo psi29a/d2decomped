@@ -312,6 +312,26 @@ int main() {
     assert(generate_item(gamble_tables, "cap", 10, 5, roll).quality == 6);              // no set cap: rare instead
     const auto rare_cap = generate_item(gamble_tables, "cap", 10, 6, roll);
     for (const auto& prop : rare_cap.props) if (prop.stat == 43) assert(prop.value == 10); // res-all: func 3 repeats the value
+    {   // apply_mod: min == max draws nothing; charges (FUN_0065f6a0) at a level off ilvl and reqlevel
+        gamble_tables.properties["charged"] = { { .func = 19, .stat = 204 } };
+        gamble_tables.skill_levels.assign(45, { 1, 20 });
+        gamble_tables.skill_levels[44] = { 6, 20 };
+        std::vector<d2d::d2s::ItemProp> got;
+        Rng still{ 9 };
+        apply_mod(gamble_tables, { "str", "", 5, 5 }, got, still);
+        assert(got.size() == 1 && got[0].value == 5 && still.low == 9 && still.high == 666);
+        got.clear();
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still);   // no item: ilvl 1, level 1, full
+        assert(got.size() == 1 && got[0].param == (44 << 6 | 1) && got[0].value == 22 + 22 * 256 && still.low == 9);
+        got.clear();
+        d2d::d2s::Item wand;
+        wand.ilvl = 30;
+        const ModItem on{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &on);   // level (30 - 6) / 4 + 1 = 7
+        const int charges = 20 + 20 * 7 / 8;
+        assert(got.size() == 1 && got[0].param == (44 << 6 | 7) && got[0].value >> 8 == charges);
+        assert((got[0].value & 0xff) > charges / 8 && (got[0].value & 0xff) <= charges);
+    }
 
     // Gambling: rings cost their gamble cost; upgrade odds grow with level.
     assert(gamble_price(gamble_tables, "rin", 50) == 50000);

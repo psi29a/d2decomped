@@ -1346,7 +1346,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
-            if (held && to_body->slot >= 1 && to_body->slot <= 10) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(cls, character.items, character.stats));
+            if (held && to_body->slot >= 1 && to_body->slot <= 10) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(*game_data, cls, character.items, character.stats));
             return;
         }
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {

@@ -116,6 +116,43 @@ int main() {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+    {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
+        auto seed = world.fight.spawning.game;
+        d2d::rules::Rng unit{ seed.next() };
+        const int coins = d2d::rules::gold_amount(10, 0, unit);
+        world.loot.put({ .code = "gld" }, world.player.x, world.player.y, 10, world.fight.spawning.game, 27 * kTickMs, false, 50);
+        assert(!world.loot.ground.empty() && world.loot.ground.back().gold == coins * 150 / 100);
+        world.loot.ground.pop_back();
+    }
+
+    // Gear: a set piece's bonus list 0 is on with two of its set worn;
+    // charms in the inventory count, ones in the stash don't.
+    {
+        const auto& sets = data->rules.sets;
+        std::size_t first = 0, second = 1;
+        for (; first < sets.size(); ++first) {
+            for (second = first + 1; second < sets.size() && sets[second].set != sets[first].set; ++second) {}
+            if (second < sets.size()) break;
+        }
+        assert(second < sets.size());
+        auto piece = [](std::size_t set_id, int slot) {
+            d2d::d2s::Item worn;
+            worn.quality = 5; worn.set_id = int(set_id); worn.location = 1; worn.slot = slot;
+            return worn;
+        };
+        std::vector<d2d::d2s::Item> gear{ piece(first, 1), piece(second, 3), {} };
+        gear[0].set_props = { { 0, 0, 15 } }; gear[0].set_lists = 1; gear[0].set_list_sizes = { 1 };
+        gear[2].code = "cm1"; gear[2].panel = 1; gear[2].props = { { 80, 0, 20 } };
+        auto total = [&](int stat) {
+            int sum = 0;
+            for (const auto& prop : gear_props(*data, gear)) if (prop.stat == stat) sum += prop.value;
+            return sum;
+        };
+        assert(total(0) == 15 && total(80) == 20);
+        assert(wearer(*data, 0, gear, character.stats).str == int(character.stats.get(d2d::d2s::kStr)) + 15);
+        gear[1].slot = 0; gear[2].panel = 5;                      // one piece worn, the charm stashed
+        assert(total(0) == 0 && total(80) == 0);
+    }
 
     // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
     // comes out, walks off, opens his portal, walks back in: camp Cain due.

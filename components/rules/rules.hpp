@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -47,6 +48,10 @@ struct ItemType {
     bool always_magic = false, can_rare = true, always_normal = false;   // Magic / Rare / Normal columns
     bool treasure_class = false;       // TreasureClass: game.exe makes <code>3 .. <code>96 classes of it
     int rarity = 1;                    // Rarity: its bases' weight in those classes
+    bool throwable = false;            // Throwable (the item's own type, FUN_0062ba80)
+    std::array<int, 3> max_sock{};     // MaxSock1 / 25 / 40: by ilvl <= 25, <= 40, above
+    int staff_mods = 7;                // StaffMods class (ama .. ass = 0 .. 6), 7 none
+    int var_inv_gfx = 0;               // VarInvGfx: pictures to pick from
 };
 // TreasureClassEx.txt row: picks, the NoDrop weight, quality modifiers
 // (Unique, Set, Rare, Magic, in 1024ths off the odds) and the weighted
@@ -77,6 +82,10 @@ struct ItemBase {
     bool only_unique = false;                          // Items +0x129 (unique): drops unique
     int spawn_stack = 0;                               // misc.txt spawnstack (Items +0xec)
     int rarity = 0;                                    // weapons / armor.txt rarity (Items +0xfc): a stand's pick
+    int gem_sockets = 0, auto_prefix = 0, magic_lvl = 0;  // gemsockets (+0x138), auto prefix (+0xf8), magic lvl (+0x140)
+    bool has_inv = false, no_durability = false;          // hasinv (+0x137), nodurability (+0x113)
+    bool quest_diff = false;                              // questdiffcheck (+0x12b): stat 356 = the difficulty made in
+    int max_1h = 0, max_2h = 0;                           // weapons.txt maxdam (+0xff) / 2handmaxdam (+0x103)
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };
@@ -106,7 +115,11 @@ struct Affix {
 // UniqueItems / SetItems row (without separators, as the save's IDs).
 // UniqueItems / SetItems row: ladder (flag 8) never drops outside a ladder
 // game, nolimit (flag 2) isn't one per game; set: its Sets.txt row.
-struct Special { std::string code; int level = 0, rarity = 1; bool enabled = true; std::vector<Mod> mods; bool ladder = false, nolimit = false; int set = -1; };
+struct Special {
+    std::string code; int level = 0, rarity = 1; bool enabled = true; std::vector<Mod> mods; bool ladder = false, nolimit = false; int set = -1;
+    std::vector<Mod> bonus;                                // a set's aprop1a..aprop5b, all 10 (unused: no code)
+    bool bonus_apart = false;                              // add func: the bonuses go to their own lists (else the item's)
+};
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
@@ -163,6 +176,15 @@ struct Tables {
     std::array<std::vector<ClassSkill>, 7> class_skills;   // by d2s class, Skills.txt order
     // Item generation.
     std::vector<Affix> prefixes, suffixes;                 // raw rows (row 0 blank), = save IDs
+    std::vector<Affix> automagic;                          // AutoMagic rows: class_affix - 1
+    // QualityItems rows (superior): which bases take it (armor, weapon,
+    // shield, scepter, wand, staff, bow, boots, gloves, belt: the record's
+    // flags, FUN_0065e7d0) and its mods.
+    struct Superior { std::array<bool, 10> fits{}; std::vector<Mod> mods; };
+    std::vector<Superior> superior;
+    std::vector<std::string> skill_itype;                  // Skills.txt itypea1 by Id (staffmods)
+    std::vector<std::pair<int, int>> skill_levels;         // Skills.txt reqlevel, maxlvl by Id (FUN_00644710 / FUN_004aa8b0)
+    std::array<int, 7> class_first_skill{};                // per class its first skill Id (FUN_006460f0)
     std::vector<Special> uniques, sets;
     std::unordered_map<std::string, std::vector<PropFunc>> properties;
     std::unordered_map<std::string, int> skill_id;         // Skills.txt skill name -> Id
@@ -684,16 +706,42 @@ inline bool pick_up(std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::
     return true;
 }
 
-// A mod's stats, per Properties.txt funcs, in the save's (stat, param,
-// value) form: 1/2/8 value, 3 the previous value again, 5/6/7 min/max/%
-// damage, 10 skill tab (txt param class*3+tab -> class<<3|tab), 11
-// chance to cast (param level | skill<<6, value chance), 15/16/17 min /
-// max / param, 19 charges (value charges | charges<<8), 20 indestructible,
-// 21 class skills, 22 single skill.
-// ponytail: 12 (random skill), 18 (by time), 23, 24 (monster type) and
-// 36 are dropped; sockets (14) and ethereal (23) aren't set on the item.
-inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng) {
-    const auto found = tables.properties.find(mod.code);
+// A mod's stats, per Properties.txt funcs (FUN_0065fd70 over the func
+// table at 0x7462f8), in the save's (stat, param, value) form. A func
+// that takes a value draws min..max (FUN_0065e9e0: none when min == max)
+// when it needs one: 1 / 2 / 13 / 21 / 22 always, 12 / 36 as the param;
+// 3 / 4 / 5 / 6 / 7 / 8 / 9 / 10 / 14 / 24 reuse what the first func
+// gave (0: a draw), 17 the param (0: a draw); 15 / 16 are min / max and
+// 11 / 18 / 20 / 23 don't draw. Nothing is stored for no stat or a 0
+// (FUN_0065ea50, which counts a poison with poison max damage).
+// 1 / 2 / 3 / 4 / 8 value, 5 / 6 / 7 min / max / % damage, 9 / 22 / 24
+// param, 10 skill tab (class*3+tab -> class<<3|tab), 11 chance to cast
+// (param skill<<6 | level, value chance, 5 if none), 12 random skill
+// (param min..max, value param), 19 charges (FUN_0065f6a0: of c = min
+// rand(c - c/8) + c/8 + 1 now, value now | c<<8), 20 indestructible
+// (stat 152), 21 class skills, 36 the param drawn, value the func's val.
+// With `on` (the item the mods land on, FUN_0065fec0's kind 1 superior)
+// as game.exe: ac% (2 / 4), and on a superior ac / dur% (1 / 3 / 13),
+// first raise an armor's defence to maxac + 1 (FUN_0065ccc0); min / max
+// damage (5 / 6) go to the one-hand, two-hand and throw stats the base has
+// (FUN_0065ecf0 / FUN_0065ee80; anything but a weapon all three); dmg%
+// (7) too small to move the base's max is +1 max damage instead
+// (FUN_0065f010); dur% (13) fills the durability to the new most
+// (FUN_0065fc90); ethereal (23) makes it so.
+// 11 / 19's level is max, or with none off ilvl and the skill's reqlevel
+// ((ilvl - req) / 4 + 1 up to its maxlvl; negative: one per (99 - req) /
+// -max levels past req). Codes match whatever their case.
+// ponytail: 18 (by time) is dropped; sockets (14) only draws; 5 / 6 don't
+// clamp a negative to the base (kept by max damage, not min); without
+// `on` (affixes) damage is one-hand, charges full and 11 / 19 off ilvl 1.
+struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool throwable, raise; };   // raise: ac / dur% (1 / 3 / 13) raise the defence too (superior: FUN_0065fec0 kind 1)
+inline std::string lower_case(std::string_view text) {
+    std::string out(text);
+    for (auto& letter : out) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+    return out;
+}
+inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng, const ModItem* on = nullptr) {
+    const auto found = tables.properties.find(lower_case(mod.code));
     if (found == tables.properties.end()) return;
     auto skill = [&](const std::string& name) {
         if (!name.empty() && name[0] >= '0' && name[0] <= '9') return std::atoi(name.c_str());
@@ -702,25 +750,95 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
     };
     const int par = mod.param.empty() ? 0 : (mod.param[0] >= '0' && mod.param[0] <= '9') || mod.param[0] == '-'
                                                ? std::atoi(mod.param.c_str()) : skill(mod.param);
-    int value = rng.range(std::min(mod.min, mod.max), std::max(mod.min, mod.max)), last = value;
-    for (const auto& property_func : found->second) {
-        switch (property_func.func) {
-            case 1: case 2: case 8: if (property_func.stat >= 0) out.push_back({ property_func.stat, par, value }); last = value; break;
-            case 3: if (property_func.stat >= 0) out.push_back({ property_func.stat, par, last }); break;
-            case 5: out.push_back({ 21, 0, value }); break;
-            case 6: out.push_back({ 22, 0, value }); break;
-            case 7: out.push_back({ 17, 0, value }); out.push_back({ 18, 0, value }); break;
-            case 10: if (property_func.stat >= 0) out.push_back({ property_func.stat, (par / 3) << 3 | (par % 3), value }); break;
-            case 11: if (property_func.stat >= 0) out.push_back({ property_func.stat, (mod.max & 63) | skill(mod.param) << 6, mod.min }); break;
-            case 15: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, mod.min }); break;
-            case 16: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, mod.max }); break;
-            case 17: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, par }); break;
-            case 19: if (property_func.stat >= 0) out.push_back({ property_func.stat, (mod.max & 63) | skill(mod.param) << 6, mod.min | mod.min << 8 }); break;
-            case 20: if (property_func.stat >= 0) out.push_back({ property_func.stat, 0, 1 }); break;
-            case 21: if (property_func.stat >= 0) out.push_back({ property_func.stat, property_func.val, value }); break;
-            case 22: if (property_func.stat >= 0) out.push_back({ property_func.stat, skill(mod.param), value }); break;
+    auto draw = [&] { return rng.range(std::min(mod.min, mod.max), std::max(mod.min, mod.max)); };
+    auto put = [&](int stat, int param, int amount) {     // FUN_0065ea50
+        if (stat < 0 || amount == 0) return 0;
+        out.push_back({ stat, param, amount });
+        if (stat == 58) out.push_back({ 326, 0, 1 });      // poison max damage counts a poison (poison_count)
+        return amount;
+    };
+    auto damage = [&](int one_hand, int two_hand, int thrown, int amount) {
+        const bool weapon = !on || on->kind == 2;
+        if (!weapon || !on || on->base->max_1h != 0 || on->base->max_2h == 0) put(one_hand, 0, amount);
+        if (on && (!weapon || on->base->max_2h != 0 || on->base->max_1h == 0)) put(two_hand, 0, amount);
+        if (on && (!weapon || on->throwable)) put(thrown, 0, amount);
+        return amount;
+    };
+    auto skill_level = [&] {                               // FUN_0065f470 / FUN_0065f6a0
+        const bool known = par >= 0 && std::size_t(par) < tables.skill_levels.size();
+        const int req = known ? tables.skill_levels[std::size_t(par)].first : 0x7fffffff;
+        const int ilvl = on ? on->item->ilvl : 1;
+        if (mod.max > 0) return mod.max;
+        if (mod.max < 0) return std::max((ilvl - req) / std::max(-(std::max(99 - req, 1) / mod.max), 1), 1);
+        const int most = known && tables.skill_levels[std::size_t(par)].second >= 1 ? tables.skill_levels[std::size_t(par)].second : 20;
+        return std::min(std::max((ilvl - req) / 4 + 1, 1), most);
+    };
+    int first = 0;                                         // the first func's result, FUN_0065fd70's param_8
+    for (std::size_t k = 0; k < found->second.size(); ++k) {
+        const auto& property_func = found->second[k];
+        const int stat = property_func.stat, func = property_func.func;
+        auto value = [&] { return first != 0 ? first : draw(); };
+        if (on && on->kind == 1 && on->base->maxac != 0 && (stat == 16 || stat == 31)
+            && (func == 2 || func == 4 || (on->raise && (func == 1 || func == 3 || func == 13))))
+            on->item->defense = std::max(on->item->defense + 1, on->base->maxac + 1);
+        int result = 0;
+        switch (func) {
+            case 1: case 2: result = put(stat, 0, draw()); break;
+            case 3: case 4: case 8: result = put(stat, 0, value()); break;
+            case 5: result = damage(21, 23, 159, value()); break;
+            case 6: result = damage(22, 24, 160, value()); break;
+            case 7:
+                result = value();
+                if (on && on->kind == 2 && std::max(on->base->max_1h, on->base->max_2h) * result / 100 == 0) damage(22, 24, 160, 1);
+                else { put(18, 0, result); put(17, 0, result); }
+                break;
+            case 9: if (const int amount = value(); amount != 0) result = put(stat, par, amount); break;
+            case 10: if (const int amount = value(); amount != 0) result = put(stat, par % 3 + par / 3 * 8, amount); break;
+            case 11: result = put(stat, par * 64 + (skill_level() & 63), mod.min < 1 ? 5 : mod.min); break;
+            case 12: result = put(stat, draw(), par); break;
+            case 13:
+                result = put(stat, 0, draw());
+                if (on && result != 0) {
+                    int percent = 0, more = on->item->max_durability;
+                    for (const auto& prop : out) {
+                        if (prop.stat == 75) percent += prop.value;
+                        if (prop.stat == 73) more += prop.value;
+                    }
+                    if (const int most = more + more * percent / 100; most > 0) on->item->durability = most;
+                }
+                break;
+            case 14: if (on && first < 1) draw(); break;
+            case 15: result = mod.min; if (stat == 21) damage(21, 23, 159, result); else put(stat, 0, result); break;
+            case 16: result = mod.max; if (stat == 22) damage(22, 24, 160, result); else put(stat, 0, result); break;
+            case 17:
+                result = par != 0 ? par : draw();
+                if (result != 0 && stat == 22) damage(22, 24, 160, result);
+                else put(stat, 0, result);
+                break;
+            case 19: {
+                if (stat < 0) break;
+                const int level = skill_level();
+                const int charges = mod.min == 0 ? 5 : std::clamp(mod.min < 0 ? -mod.min + -mod.min * level / 8 : mod.min, 1, 255);
+                const int now = on ? (rng(charges - charges / 8) + charges / 8 + 1) & 0xff : charges;
+                out.push_back({ stat, par << 6 | (level & 63), now + charges * 256 });
+                result = charges;
+                break;
+            }
+            case 20: if (on) result = put(152, 0, 1); break;
+            case 21: result = put(stat, property_func.val, draw()); break;
+            case 22: result = put(stat, par, draw()); break;
+            case 23:
+                if (on && !on->item->ethereal && on->item->max_durability > 0) {   // FUN_0065e4d0
+                    on->item->ethereal = true;
+                    if (on->kind == 1) on->item->defense = on->item->defense * 3 / 2;   // durability as it was (FUN_00556ca0 halves it, not this)
+                    result = 1;
+                }
+                break;
+            case 24: result = put(stat, par, value()); break;
+            case 36: result = put(stat, draw(), property_func.val); break;
             default: break;
         }
+        if (k == 0) first = result;
     }
 }
 
@@ -767,12 +885,27 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
 // (+0x1b24): a unique found already fails (but a quest item's); one found
 // is added unless nolimit. A set 29 (the Cow King's) drops only from a Hell Bovine (`bovine`).
 // A failed unique turns rare with 3x durability, a set 2x (FUN_00557450).
+// With a unit seed (a made drop) the rest of FUN_00557ab0 / FUN_00557450
+// too, in its order: the picture (ItemTypes VarInvGfx) off the unit seed;
+// low (FUN_005c2d40): sub rand(4), durability dur*33/100, defence 75%;
+// superior (FUN_005c2970): a QualityItems row rand(8) (4 if throwable or
+// nodurability) redrawn until FUN_0065e7d0 fits, its mods (ac% sets the
+// defence to maxac + 1 first, dur% raises durability); staffmods
+// (FUN_005c0f90) on low / normal / superior; then ethereal (FUN_00556ca0:
+// rand(100) < 5, not low / set / quest: defence 3/2, max durability / 2 +
+// 1), sockets (FUN_00556b60, normal / superior: rand(100) < 33, the own
+// seed's first low % the most + 1, the most = gemsockets / MaxSock by
+// ilvl / 3, 4, 6 by difficulty) and the AutoMagic class affix (FUN_005c1560
+// off the base's auto prefix group).
 // ponytail: rare affix count 3..6 alternating prefix/suffix, magic 1/4
 // prefix, 1/4 suffix, 1/2 both; the classic (version < 100) rules and
-// forced picks (struct +0x40) aren't here; no set bonus lists; without a
-// unit seed everything comes off `rng` (stores, gambling, imbue).
+// forced picks (struct +0x40) aren't here; without a unit seed everything
+// comes off `rng` (stores, gambling, imbue) and none of the above is
+// rolled; base damage isn't kept on the item, so low's 75%, ethereal's 3/2
+// and dmg%'s +1 max damage on a weak weapon only reach its props.
 inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
-                                    Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false) {
+                                    Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
+                                    int difficulty = 0) {
     d2d::d2s::Item item;
     item.code = code;
     item.identified = true;
@@ -790,19 +923,145 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
             item.max_durability = std::min(base.durability, 255);
         };
         if (type == "bowq" || type == "xboq") stack(base.max_stack);
-        else if (info && info->kind == 1) { durability(); item.defense = seed.range(base.minac, base.maxac); }
+        else if (info && info->kind == 1) { durability(); item.defense = base.minac + seed(base.maxac - base.minac + 1); }   // FUN_00556360: draws when minac == maxac too
         else if (info && info->kind == 2) { if (base.stackable) stack(base.max_stack); durability(); }
         else if (base.stackable) stack(base.spawn_stack < base.min_stack || base.spawn_stack == 0 ? std::max(base.min_stack, base.max_stack) : base.spawn_stack);
     } else if (found != tables.item_base.end()) {
         if (info && info->kind == 1) item.defense = rng.range(found->second.minac, found->second.maxac);
         if ((item.max_durability = found->second.durability) > 0) item.durability = item.max_durability;
     }
+    const ItemBase* base = found != tables.item_base.end() ? &found->second : nullptr;
+    const auto type_found = tables.types.find(type);
+    const ItemType* item_type = type_found != tables.types.end() ? &type_found->second : nullptr;
+    const int kind = info ? info->kind : 0;                // 1 armor, 2 weapon
+    const std::uint32_t start = rng.low;                   // data+0x10 (FUN_00627df0): the socket count
+    if (unit_seed && item_type && item_type->var_inv_gfx > 0) item.picture = (*unit_seed)(item_type->var_inv_gfx);
+    auto stat_total = [&](int stat) {
+        int total = 0;
+        for (const auto& prop : item.props) if (prop.stat == stat) total += prop.value;
+        return total;
+    };
+    auto max_durability = [&] { const int most = item.max_durability + stat_total(73); return most + most * stat_total(75) / 100; };   // FUN_00625e00
+    auto has_durability = [&] { return base && !base->no_durability && base->durability > 0 && item.max_durability > 0 && stat_total(152) < 1; };
+    // Staffmods (FUN_005c0f90): 0-3 class skills of the type's class off
+    // tiers by ilvl, at level 1-3 (low: 1). A drop's percent add is 0.
+    auto staff_mods = [&] {
+        if (!item_type || item_type->staff_mods >= 7) return;
+        auto percent = [&] { return int(rng.next() % 100); };
+        const int roll = percent(), count = roll < 31 ? 0 : roll < 71 ? 1 : roll < 91 ? 2 : 3;
+        const int tier = item.ilvl >= 37 ? 5 : item.ilvl >= 25 ? 4 : item.ilvl >= 19 ? 3 : item.ilvl >= 12 ? 2 : 1;
+        const int first = tables.class_first_skill[std::size_t(item_type->staff_mods)];
+        std::array<int, 3> picks{ -1, -1, -1 };
+        for (int k = 0; k < count; ++k) {
+            const int tier_roll = percent();
+            int at = std::max(tier_roll < 11 ? tier - 2 : tier_roll < 31 ? tier - 1 : tier_roll < 81 ? tier : tier + 1, 1);
+            if (item.quality == 1) at = std::min(at, 4);
+            int skill = 0;
+            for (int tries = 0; tries < 6; ++tries) {
+                skill = int(rng.next() % 5) + (at - 1) * 5 + first;
+                const bool usable = skill < 0 || std::size_t(skill) >= tables.skill_itype.size() || tables.skill_itype[std::size_t(skill)].empty()
+                                 || type_is(tables, type, tables.skill_itype[std::size_t(skill)]);
+                if (usable && std::ranges::find(picks, skill) == picks.end()) { picks[std::size_t(k)] = skill; break; }
+            }
+            int level = 1;
+            if (item.quality != 1) { const int level_roll = percent(); level = level_roll < 60 ? 1 : level_roll < 90 ? 2 : 3; }
+            const auto old = std::ranges::find_if(item.props, [&](const auto& prop) { return prop.stat == 107 && prop.param == skill; });
+            if (old != item.props.end()) old->value = level;
+            else item.props.push_back({ 107, skill, level });
+        }
+    };
+    // FUN_00557450's tail on every quality: ethereal, sockets, the class affix.
+    auto finish = [&] {
+        if (!unit_seed || !base) return item;
+        if ((kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability() && rng(100) < 5) {
+            item.ethereal = true;                          // FUN_0065e4d0
+            if (kind == 1) item.defense = item.defense * 3 / 2;
+            if (has_durability()) { item.max_durability = item.max_durability / 2 + 1; item.durability = max_durability(); }
+        }
+        if (item.quality >= 2 && item.quality <= 3 && base->has_inv && !base->stackable && item_type && info) {
+            const int by_ilvl = item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)];
+            const int most = std::min(base->gem_sockets, by_ilvl);                         // FUN_0062bc20
+            const int capped = std::min(most, std::array{ 3, 4, 6 }[std::size_t(std::clamp(difficulty, 0, 2))]);
+            if (capped > 0 && rng(100) < 33) {
+                item.socketed = true;                      // FUN_0062bcb0: at most the grid, 6
+                item.sockets = std::min({ int(start % std::uint32_t(capped)) + 1, info->width * info->height, 6 });
+            }
+        }
+        static constexpr std::array kAuto{ 1, 2, 3, 4, 6, 8, 9 };
+        if (base->auto_prefix != 0 && std::ranges::find(kAuto, item.quality) != kAuto.end()) {
+            rng.next();                                    // FUN_005c1560's coin (forced on)
+            const int level = std::max(item.ilvl, qlvl);
+            const int alvl = std::clamp(base->magic_lvl ? level + base->magic_lvl : level < 99 - qlvl / 2 ? level - qlvl / 2 : 2 * level - 99, 1, 99);
+            std::vector<std::pair<int, int>> fits;         // (row, weight)
+            int total = 0;
+            for (std::size_t row = 0; row < tables.automagic.size(); ++row) {
+                const auto& affix = tables.automagic[row];
+                if (!affix.spawnable || affix.frequency <= 0 || affix.group != base->auto_prefix || affix.level > alvl || (affix.max_level > 0 && affix.max_level < alvl))
+                    continue;
+                if (std::ranges::none_of(affix.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) continue;
+                if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
+                const int weight = base->magic_lvl ? affix.frequency * affix.level : affix.frequency;
+                fits.push_back({ int(row), weight });
+                total += weight;
+            }
+            if (!fits.empty()) {
+                int roll = rng(total + 1), chosen = fits.back().first;   // FUN_00472280: 0..total, total the last
+                for (const auto& [fit_row, weight] : fits) if ((roll -= weight) < 0) { chosen = fit_row; break; }
+                item.class_affix = chosen + 1;
+                const ModItem on{ &item, base, kind, item_type && item_type->throwable, false };
+                for (const auto& mod : tables.automagic[std::size_t(chosen)].mods) apply_mod(tables, mod, item.props, rng, &on);
+            }
+        }
+        if (base->quest && base->quest_diff) item.props.push_back({ 356, 0, difficulty });   // FUN_00557ab0 after FUN_00557450
+        return item;
+    };
     // Low / normal / superior: no affixes; stacks (arrows, bolts, keys) roll
-    // their quantity. ponytail: superior items' own bonuses aren't rolled.
+    // their quantity.
     if (quality <= 3) {
         item.quality = std::max(quality, 1);
-        if (!unit_seed && found != tables.item_base.end() && found->second.stackable) item.quantity = rng.range(found->second.min_stack, found->second.max_stack);
-        return item;
+        if (!unit_seed && base && base->stackable) item.quantity = rng.range(base->min_stack, base->max_stack);
+        if (!unit_seed || !base) return item;
+        bool made = true;                                  // low / superior that doesn't take: FUN_005572a0, normal off a fresh own seed
+        if (item.quality == 1 && kind != 1 && kind != 2) {
+            made = false;
+        } else if (item.quality == 1) {
+            item.qsub = rng(4);
+            if (has_durability()) {
+                const int most = std::max(base->durability * 33 / 100, 1);
+                item.durability = std::max((*unit_seed)(most >> 1) + (most >> 1), 1);
+                item.max_durability = most;
+            }
+            if (kind == 1) item.defense = std::max(item.defense * 75 / 100, 1);
+            staff_mods();
+        } else if (item.quality == 3) {
+            made = false;
+            const bool four = (item_type && item_type->throwable) || base->no_durability;
+            const int rows = four ? std::min(4, int(tables.superior.size())) : int(tables.superior.size());
+            auto fits = [&](const Tables::Superior& row) {       // FUN_0065e7d0
+                const auto& flag = row.fits;
+                auto one_of = [&](std::initializer_list<std::string_view> codes) { return std::ranges::find(codes, std::string_view(type)) != codes.end(); };
+                if (flag[1] && type_is(tables, type, "weap") && !one_of({ "staf", "bow", "xbow", "scep", "wand" })) return true;
+                if (flag[0] && type_is(tables, type, "armo") && !one_of({ "shie", "boot", "glov", "belt" })) return true;
+                return (type == "shie" && flag[2]) || (type == "scep" && flag[3]) || (type == "wand" && flag[4]) || (type == "staf" && flag[5])
+                    || ((type == "bow" || type == "xbow") && flag[6]) || (type == "boot" && flag[7]) || (type == "glov" && flag[8]) || (type == "belt" && flag[9]);
+            };
+            std::vector<bool> tried(std::size_t(rows), false);
+            for (int left = rows; left > 0; --left) {
+                int pick = 0;
+                do pick = rng(rows); while (tried[std::size_t(pick)]);
+                const auto& row = tables.superior[std::size_t(pick)];
+                if (!fits(row)) { tried[std::size_t(pick)] = true; continue; }
+                item.qsub = pick;
+                made = true;
+                const ModItem on{ &item, base, kind, item_type && item_type->throwable, true };
+                for (const auto& mod : row.mods) apply_mod(tables, mod, item.props, rng, &on);   // FUN_0065fec0 kind 1
+                staff_mods();
+                break;
+            }
+        }
+        if (!made) { rng = Rng(start); item.quality = 2; item.qsub = -1; }
+        if (item.quality == 2) staff_mods();
+        return finish();
     }
     auto special = [&](const std::vector<Special>& list) {
         auto fits = [&](const Special& row) { return row.enabled && !row.ladder && row.code == code && row.level <= item.ilvl && (row.set != 29 || bovine); };
@@ -819,7 +1078,8 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     };
     if (quality == 7 || quality == 5) {
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
-        int special_row = special(list);
+        const int picked = special(list);
+        int special_row = picked;
         if (quality == 7 && special_row >= 0 && found_uniques && found != tables.item_base.end() && !found->second.quest) {
             if (found_uniques->size() <= std::size_t(special_row)) found_uniques->resize(std::size_t(special_row) + 1);
             if ((*found_uniques)[std::size_t(special_row)]) special_row = -1;
@@ -828,8 +1088,25 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         if (special_row >= 0) {
             item.quality = quality;
             (quality == 7 ? item.unique_id : item.set_id) = special_row;
-            for (const auto& mod : list[std::size_t(special_row)].mods) apply_mod(tables, mod, item.props, rng);
-            return item;
+            const ModItem on{ &item, base, kind, item_type && item_type->throwable, false };
+            const auto& row = list[std::size_t(special_row)];
+            for (const auto& mod : row.mods) apply_mod(tables, mod, item.props, rng, base ? &on : nullptr);
+            // A set's bonuses: aprop(i)a / b to list i - 1 (the d2s set lists,
+            // on with i + 1 pieces worn), or the item's own with no add func.
+            std::array<std::vector<d2d::d2s::ItemProp>, 5> lists;
+            for (std::size_t k = 0; k < row.bonus.size(); ++k)
+                apply_mod(tables, row.bonus[k], row.bonus_apart ? lists[k / 2 % 5] : item.props, rng, base ? &on : nullptr);
+            for (std::size_t i = 0; i < lists.size(); ++i)
+                if (!lists[i].empty()) {
+                    item.set_lists |= 1 << i;
+                    item.set_list_sizes.push_back(lists[i].size());
+                    item.set_props.insert(item.set_props.end(), lists[i].begin(), lists[i].end());
+                }
+            return finish();
+        }
+        if (quality == 7 && picked < 0 && base && base->only_unique) {    // no row (the Malus, Gidbinn): FUN_005566b0 keeps it unique, id unset
+            item.quality = 7;
+            return finish();
         }
         if (item.max_durability > 0) {
             const int times = quality == 7 ? 3 : 2;
@@ -863,7 +1140,7 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
-    return item;
+    return item;                                           // ponytail: magic / rare affixes aren't game.exe's, so no tail (ethereal, class affix)
 }
 
 // Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1

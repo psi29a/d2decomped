@@ -83,10 +83,10 @@ inline bool finisher(const d2d::rules::Skill* skill) {
 // The character's level in a skill (the World's for the fight, the skill
 // bar's for show): points (a class skill's from the save's skill bytes in
 // Skills.txt order; Attack, and a tome's skill with the tome carried, 1),
-// then with the bonuses of worn items, what's socketed in them and `extra`
-// (the skill shrine's +all skills) — only on skills that have points.
-// ponytail: other general skills, item charges, charms and set bonuses
-// don't count yet.
+// then with what the gear gives (gear_props: worn, socketed, set bonuses,
+// charms) and `extra` (the skill shrine's +all skills) — only on skills
+// that have points.
+// ponytail: other general skills and item charges don't count yet.
 inline int skill_base_level(const GameData& game_data, const Character& character, int id) {
     const auto& ids = game_data.skills.class_ids[std::size_t(std::max(character.character_class, 0))];
     if (const auto found = std::ranges::find(ids, id); found != ids.end()) return character.stats.skills[std::size_t(found - ids.begin())];
@@ -101,14 +101,8 @@ inline int skill_level(const GameData& game_data, const Character& character, in
     const int base = skill_base_level(game_data, character, id);
     if (!skill || skill->cls.empty()) return base;
     std::vector<d2d::d2s::ItemProp> props = extra;
-    for (const auto& item : character.items) {
-        if (item.location != 1 || item.slot < 1 || item.slot > 10) continue;
-        props.insert(props.end(), item.props.begin(), item.props.end());
-        for (const auto& socketed : item.socketed_items) {
-            const auto gem_props = socket_props(game_data, item, socketed);
-            props.insert(props.end(), gem_props.begin(), gem_props.end());
-        }
-    }
+    const auto gear = gear_props(game_data, character.items);
+    props.insert(props.end(), gear.begin(), gear.end());
     const int bonus = d2d::rules::item_skill_bonus(*skill, std::max(character.character_class, 0), props);
     return base > 0 ? base + bonus : 0;
 }

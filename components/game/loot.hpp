@@ -86,17 +86,31 @@ struct Loot {
         const bool quest_open = type_info.tc_quest_id && !quest_tc.empty() && !header.quest_flag(diff, type_info.tc_quest_id, 15)
                                 && !header.quest_flag(diff, type_info.tc_quest_id, 1) && !header.quest_flag(diff, type_info.tc_quest_id, type_info.tc_quest_cp);
         const auto rolled = d2d::rules::tc_upgrade(game_data->rules, quest_open ? quest_tc : treasure_class, diff > 0 && !type_info.tc_fixed ? monster.stats.level : 0);
-        // ponytail: no magic find, one player.
+        // The killer's magic find (stat 80) and gold find (79) from its gear.
+        // ponytail: one player; the player's kills only (no minion's owner,
+        // FUN_0058f0d0), gear only (no skill / state find).
+        int magic_find = 0, gold_find = 0;
+        for (const auto& prop : gear_props(*game_data, character.items)) {
+            if (prop.stat == 80) magic_find += prop.value;
+            if (prop.stat == 79) gold_find += prop.value;
+        }
+        constexpr int kMost = 6;
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops);
-        for (const auto& dropped : drops) put(dropped, monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == kHellBovine);
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, 1, magic_find, kMost);
+        // FUN_0055a6d0 counts the drop before FUN_005589a0 (0x55af4c): the
+        // one that fills the count leaves without gold find.
+        for (std::size_t i = 0; i < drops.size(); ++i)
+            put(drops[i], monster.unit.x, monster.unit.y, monster.stats.level, game_seed, now_ms, monster.type == kHellBovine,
+                int(i) + 1 < kMost ? gold_find : 0);
     }
     static constexpr int kHellBovine = 0x187;   // MonStats: FUN_0055a550 flags its drops 1: the Cow King set (29) drops
     // One drop round (x, y). A made item (FUN_00555230) takes two steps of
     // the game seed (+0xd0): its unit seed {low, 666} (FUN_00552df0), then
     // its own {low, 666} (FUN_00552e90); gold's coins come off the first.
-    // It lands where drop_spot finds room from the dropper's subtile.
-    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false) {
+    // It lands where drop_spot finds room from the dropper's subtile; gold
+    // times (100 + gold_find) / 100 (FUN_005589a0).
+    void put(const d2d::rules::Drop& dropped, float x, float y, int ilvl, d2d::rules::Rng& game_seed, std::uint32_t now_ms, bool bovine = false,
+             int gold_find = 0) {
         {
             GroundItem ground_item;
             std::tie(ground_item.x, ground_item.y) = drop_at(x, y);
@@ -105,12 +119,13 @@ struct Loot {
                 ground_item.item.code = "gld";
                 d2d::rules::Rng unit_seed{ game_seed.next() };
                 game_seed.next();
-                ground_item.gold = dropped.gold ? dropped.gold : d2d::rules::gold_amount(ilvl, dropped.mul, unit_seed);
+                ground_item.gold = dropped.gold ? dropped.gold : d2d::rules::gold_amount(ilvl, dropped.mul, unit_seed) * (100 + gold_find) / 100;
                 ground_item.label = std::to_string(ground_item.gold) + " Gold";
             } else {
                 d2d::rules::Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
                 const int quality = dropped.quality ? dropped.quality : d2d::rules::stand_quality(game_data->rules, dropped.code, ilvl, item_seed);
-                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, quality, item_seed, &unit_seed, &found_uniques, bovine);
+                ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, quality, item_seed, &unit_seed, &found_uniques, bovine,
+                                                            character.header.active_difficulty());
                 ground_item.item.identified = quality <= 3;
                 const auto lines = item_lines(*game_data, ground_item.item, int(character.stats.get(d2d::d2s::kLevel)));
                 if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
