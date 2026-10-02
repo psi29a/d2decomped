@@ -494,8 +494,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // or the stash opens it in the left panel, as D2 does.
         if (mouse.rpress_this_frame)
             for (const auto& item : character.items) {
-                if (item.code != "box" || item.location != 0) continue;
-                const bool in_inv = inv_open && item.panel == 1, in_stash = stash_open && item.panel == 5;
+                if (item.code != "box" || item.location != d2d::d2s::item_location::kStored) continue;
+                const bool in_inv = inv_open && item.panel == d2d::d2s::item_panel::kInventory, in_stash = stash_open && item.panel == d2d::d2s::item_panel::kStash;
                 if (!in_inv && !in_stash) continue;
                 const auto rect = grid_rect(*scene, in_inv ? lay : scene->stash_layout[character.expansion ? 1 : 0], item);
                 if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
@@ -680,8 +680,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
                 for (std::size_t i = 0; i < character.items.size(); ++i) {
                     const auto& item = character.items[i];
-                    const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-                    if (!(item.location == 0 && item.panel == 1) && !(worn && store.mode == 3)) continue;
+                    const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+                    if (!(item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) && !(worn && store.mode == 3)) continue;
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
                         if (store.mode == 2) net.send(cmd::Sell{ item.id });

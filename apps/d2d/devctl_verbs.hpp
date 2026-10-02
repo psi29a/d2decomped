@@ -107,7 +107,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
         else if (verb == "hand" && verb_args.size() >= 3) town.net.send(cmd::ToCursor{ int_arg(2) });
         else if (verb == "use" && verb_args.size() >= 3) town.net.send(cmd::UseItem{ int_arg(2) });
-        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ 1, int_arg(2), int_arg(3) });
+        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
         else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
@@ -314,7 +314,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "unid") {       // unidentify every carried item
-            for (auto& item : town.world.character.items) if (item.location == 0 && item.panel == 1) item.identified = false;
+            for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) item.identified = false;
             return "ok " + std::to_string(d2d::rules::unidentified(town.world.character.items)) + "\n";
         }
         if (args.size() >= 3 && args[1] == "boss" && scene) {   // the nearest plain monster: a unique with <mod>...
@@ -337,11 +337,11 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
-            std::erase_if(town.world.character.items, [](const auto& item) { return item.location == 0 && item.panel == 1; });
+            std::erase_if(town.world.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
-            for (auto& item : town.world.character.items) if (item.location == 1) item.durability = d2d::rules::max_durability(item) / 2;
+            for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kEquipped) item.durability = d2d::rules::max_durability(item) / 2;
             return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)

@@ -160,7 +160,7 @@ struct Loot {
         const auto lines = item_lines(*game_data, item, int(character.stats.get(d2d::d2s::kLevel)));
         if (!lines.empty()) { ground_item.label = lines[0].text; ground_item.rgb = lines[0].rgb; }
         ground_item.item = std::move(item);
-        ground_item.item.location = 3;                 // on the ground
+        ground_item.item.location = d2d::d2s::item_location::kGround;
         land(std::move(ground_item), now_ms);
     }
     // Onto the floor: its flippy plays and its drop sound at its drop frame.

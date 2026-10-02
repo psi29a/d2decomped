@@ -283,7 +283,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             return;
         }
         if (object.operate_fn == 4 && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
-            const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == 0 && item.panel == 1 && item.code == "key"; });
+            const auto key = std::ranges::find_if(character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && item.code == "key"; });
             if (key == character.items.end()) { d2d::log::info("I need a key."); return; }
             if (key->quantity > 1) --key->quantity;
             else character.items.erase(key);
@@ -1044,7 +1044,7 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
 auto World::make_corpse() -> void {
         Corpse corpse{ level, player.x, player.y, player.dir, {}, exp_lost * 75 / 100, fight.gfx() };
         for (auto item_it = character.items.begin(); item_it != character.items.end();)
-            if (item_it->location == 1) { corpse.items.push_back(std::move(*item_it)); item_it = character.items.erase(item_it); }
+            if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = character.items.erase(item_it); }
             else ++item_it;
         if (held) { corpse.items.push_back(std::move(*held)); corpse.items.back().location = 1; held.reset(); }   // ponytail: the held item's slot
         if (corpses.size() >= 16) corpses.erase(corpses.begin());
@@ -1058,15 +1058,15 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         corpse.exp = 0;
         const auto& layout = game_data->inv_layout[std::size_t(character.header.cls % 7)];
         for (auto item_it = corpse.items.begin(); item_it != corpse.items.end();) {
-            const bool worn = std::ranges::any_of(character.items, [&](const Item& worn_item) { return worn_item.location == 1 && worn_item.slot == item_it->slot; });
-            if (!worn && item_it->slot >= 1 && item_it->slot <= 12) { character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            const bool worn = std::ranges::any_of(character.items, [&](const Item& worn_item) { return worn_item.location == d2d::d2s::item_location::kEquipped && worn_item.slot == item_it->slot; });
+            if (!worn && item_it->slot >= d2d::d2s::body_location::kFirst && item_it->slot <= d2d::d2s::body_location::kLeftArmSwitch) { character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
             std::optional<Item> held_item = *item_it;
-            held_item->location = 0;
+            held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;
-            for (const auto& x : character.items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+            for (const auto& x : character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
             if (const auto [x, y] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); x >= 0
-                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, 1, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
+                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
         if (corpse.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(corpse_index));
@@ -1352,13 +1352,13 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_grid = std::get_if<cmd::ToGrid>(&command)) {
-            const auto* layout = to_grid->panel == 1 ? &game_data->inv_layout[std::size_t(cls)] : to_grid->panel == 4 ? &game_data->cube_layout
-                          : to_grid->panel == 5 ? &game_data->stash_layout[character.expansion ? 1 : 0] : nullptr;
+            const auto* layout = to_grid->panel == d2d::d2s::item_panel::kInventory ? &game_data->inv_layout[std::size_t(cls)] : to_grid->panel == d2d::d2s::item_panel::kCube ? &game_data->cube_layout
+                          : to_grid->panel == d2d::d2s::item_panel::kStash ? &game_data->stash_layout[character.expansion ? 1 : 0] : nullptr;
             if (held && layout) d2d::rules::put_in_grid(tables, character.items, held, to_grid->panel, layout->cols, layout->rows, to_grid->col, to_grid->row);
             return;
         }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
-            if (held && to_body->slot >= 1 && to_body->slot <= 10) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(*game_data, cls, character.items, character.stats));
+            if (held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) d2d::rules::equip(tables, character.items, held, to_body->slot, wearer(*game_data, cls, character.items, character.stats));
             return;
         }
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {
@@ -1458,7 +1458,7 @@ auto World::stamina_frame() -> void {
         if (run && !town) {
             int armor_speed = 0;
             for (const auto& item : character.items)
-                if (item.location == 1 && item.slot == 3)
+                if (item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kTorso)
                     if (const auto found = game_data->rules.item_base.find(item.code); found != game_data->rules.item_base.end()) armor_speed = found->second.speed;
             stamina = std::max<std::int64_t>(0, stamina - d2d::rules::stamina_drain(game_data->run_drain[std::size_t(std::max(character.character_class, 0))],
                                                                                   armor_speed, int(fight.psum[154])));

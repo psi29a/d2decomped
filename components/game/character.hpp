@@ -57,7 +57,7 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
     if (set < 0 || item.set_props.empty()) return out;
     std::vector<int> pieces;
     for (const auto& piece : items)
-        if (piece.location == 1 && piece.slot >= 1 && piece.slot <= 10 && set_of(piece) == set && std::ranges::find(pieces, piece.set_id) == pieces.end())
+        if (piece.location == d2d::d2s::item_location::kEquipped && piece.slot >= d2d::d2s::body_location::kFirst && piece.slot <= d2d::d2s::body_location::kLast && set_of(piece) == set && std::ranges::find(pieces, piece.set_id) == pieces.end())
             pieces.push_back(piece.set_id);
     std::size_t at = 0, list = 0;
     for (int bit = 0; bit < 5; ++bit) {
@@ -74,8 +74,8 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
 inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
     std::vector<d2d::d2s::ItemProp> out;
     for (const auto& item : items) {
-        const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-        const bool charm = item.location == 0 && item.panel == 1 && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
+        const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+        const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
         if (!worn && !charm) continue;
         out.insert(out.end(), item.props.begin(), item.props.end());
         for (const auto& socketed : item.socketed_items) {
@@ -117,8 +117,8 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
     };
     std::int64_t item_def = 0, per_level = 0;
     for (const auto& item : items) {
-        const bool worn = item.location == 1 && item.slot >= 1 && item.slot <= 10;
-        const bool charm = item.location == 0 && item.panel == 1
+        const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
+        const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory
                         && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
         if (!worn && !charm) continue;
         add(item.props);

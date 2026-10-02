@@ -233,10 +233,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)
-                draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, 4, mouse_x, mouse_y,
+                draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, d2d::d2s::item_panel::kCube, mouse_x, mouse_y,
                              hover_wearer);
             else
-                draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], 5,
+                draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], d2d::d2s::item_panel::kStash,
                              mouse_x, mouse_y, hover_wearer);
         }
         if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));

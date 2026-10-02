@@ -110,9 +110,9 @@ inline NewCharacter new_character(const GameData& game_data, int cls, const std:
     for (const auto& entry : start.items)
         for (int k = 0; k < std::max(entry.count, 1); ++k) {
             auto item = d2d::rules::generate_item(game_data.rules, entry.code, 1, 2, rng);
-            if (entry.loc == "rarm" || entry.loc == "larm") { item.location = 1; item.slot = entry.loc == "rarm" ? 4 : 5; }
-            else if (entry.code.starts_with("hp") || entry.code.starts_with("mp")) { item.location = 2; item.column = belt++; }
-            else { item.location = 0; item.panel = 1; item.column = inv++; }
+            if (entry.loc == "rarm" || entry.loc == "larm") { item.location = d2d::d2s::item_location::kEquipped; item.slot = entry.loc == "rarm" ? d2d::d2s::body_location::kRightArm : d2d::d2s::body_location::kLeftArm; }
+            else if (entry.code.starts_with("hp") || entry.code.starts_with("mp")) { item.location = d2d::d2s::item_location::kBelt; item.column = belt++; }
+            else { item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = inv++; }
             made.items.push_back(std::move(item));
         }
     return made;

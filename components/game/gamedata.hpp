@@ -324,7 +324,7 @@ struct GameData {
     [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {}) const {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& item : items)
-            if (item.location == 1) {
+            if (item.location == d2d::d2s::item_location::kEquipped) {
                 int colour = item_colours.of(item.quality, item.unique_id, item.set_id, item.prefix, item.suffix, item.affixes, item.class_affix,
                                         item.socketed && !item.socketed_items.empty() ? item.socketed_items[0].code : std::string{});
                 if (const auto piece = item_pieces.find(item.code); piece != item_pieces.end() && item_types)

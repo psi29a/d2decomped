@@ -255,7 +255,7 @@ inline bool store_place(const Tables& tables, Store& store, int tab, d2d::d2s::I
         std::vector<const d2d::d2s::Item*> placed;
         for (const auto& placed_item : store.tabs[std::size_t(i)]) placed.push_back(&placed_item);
         if (const auto [x, y] = free_spot(tables, placed, 10, 10, width, height); x >= 0) {
-            item.column = x; item.row = y; item.location = 0; item.panel = 1;
+            item.column = x; item.row = y; item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory;
             store.tabs[std::size_t(i)].push_back(std::move(item));
             return true;
         }
@@ -416,7 +416,7 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
 inline int store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     int repaired = 0;
     for (auto& item : items)
-        if (item.location == 1 || (item.location == 0 && item.panel == 1)) repaired += store_repair(tables, store, item, stats);
+        if (item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory)) repaired += store_repair(tables, store, item, stats);
     return repaired;
 }
 
@@ -430,12 +430,12 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     const int price = item_price(tables, item, store.npc_id, false, store.header);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
     std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+    for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [x, y] = free_spot(tables, inv, 10, 4, width, height);
     if (x < 0) return false;
     auto bought = item;
-    bought.column = x; bought.row = y; bought.location = 0; bought.panel = 1;
+    bought.column = x; bought.row = y; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
     items.push_back(std::move(bought));
     // Carried gold first, then the stash (the store shows it for that).
     // ponytail: that order is a guess; the server's buy isn't RE'd.
@@ -504,7 +504,7 @@ inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot,
     const auto* info = info_of(tables, item);
     if (!info) return false;
     const auto found = tables.types.find(info->type);
-    if (found == tables.types.end() || slot < 1 || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
+    if (found == tables.types.end() || slot < d2d::d2s::body_location::kFirst || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
     if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
         return false;
     return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= info->req_lvl;
@@ -542,13 +542,13 @@ inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2
 // 5 stash) with its top-left cell at (col, row).
 inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                         int panel, int cols, int rows, int col, int row) {
-    if (!held || (panel == 4 && held->code == "box")) return false;   // the cube can't go in itself
+    if (!held || (panel == d2d::d2s::item_panel::kCube && held->code == "box")) return false;   // the cube can't go in itself
     const auto [width, height] = item_size(tables, held->code);
     if (col < 0 || row < 0 || col + width > cols || row + height > rows) return false;
     int hit = -1;
     for (std::size_t i = 0; i < items.size(); ++i) {
         const auto& placed_item = items[i];
-        if (placed_item.location != 0 || placed_item.panel != panel) continue;
+        if (placed_item.location != d2d::d2s::item_location::kStored || placed_item.panel != panel) continue;
         const auto [item_width, item_height] = item_size(tables, placed_item.code);
         if (placed_item.column < col + width && col < placed_item.column + item_width && placed_item.row < row + height && row < placed_item.row + item_height) {
             if (hit >= 0) return false;
@@ -558,7 +558,7 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
     auto put = std::move(*held);
     held.reset();
     if (hit >= 0) { held = std::move(items[std::size_t(hit)]); items.erase(items.begin() + hit); }
-    put.location = 0; put.panel = panel; put.column = col; put.row = row; put.slot = 0;
+    put.location = d2d::d2s::item_location::kStored; put.panel = panel; put.column = col; put.row = row; put.slot = 0;
     items.push_back(std::move(put));
     return true;
 }
@@ -572,12 +572,12 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                   int slot, const Wearer& wearer) {
     if (!held || !can_wear(tables, *held, slot, wearer)) return false;
-    const bool hand = slot == 4 || slot == 5;
-    const int other = hand ? 9 - slot : 0;
+    const bool hand = slot == d2d::d2s::body_location::kRightArm || slot == d2d::d2s::body_location::kLeftArm;
+    const int other = hand ? d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot : 0;
     int off = -1;                                      // the item coming off
     for (std::size_t i = 0; i < items.size(); ++i) {
         const auto& worn = items[i];
-        if (worn.location != 1) continue;
+        if (worn.location != d2d::d2s::item_location::kEquipped) continue;
         const bool comes_off = worn.slot == slot
             || (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer));
         if (!comes_off) continue;
@@ -587,7 +587,7 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
     auto put = std::move(*held);
     held.reset();
     if (off >= 0) { held = std::move(items[std::size_t(off)]); items.erase(items.begin() + off); }
-    put.location = 1; put.slot = slot; put.panel = 0; put.column = 0; put.row = 0;
+    put.location = d2d::d2s::item_location::kEquipped; put.slot = slot; put.panel = 0; put.column = 0; put.row = 0;
     items.push_back(std::move(put));
     return true;
 }
@@ -609,8 +609,8 @@ inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items
     auto put = std::move(*held);
     held.reset();
     for (std::size_t i = 0; i < items.size(); ++i)
-        if (items[i].location == 2 && items[i].column == box) { held = std::move(items[i]); items.erase(items.begin() + std::ptrdiff_t(i)); break; }
-    put.location = 2; put.column = box; put.row = 0; put.panel = 0; put.slot = 0;
+        if (items[i].location == d2d::d2s::item_location::kBelt && items[i].column == box) { held = std::move(items[i]); items.erase(items.begin() + std::ptrdiff_t(i)); break; }
+    put.location = d2d::d2s::item_location::kBelt; put.column = box; put.row = 0; put.panel = 0; put.slot = 0;
     items.push_back(std::move(put));
     return true;
 }
@@ -1256,11 +1256,11 @@ inline bool store_gamble(const Tables& tables, Store& store, int index, std::vec
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
     auto item = gamble_item(tables, code, clvl, store.header.active_difficulty(), rng);
     std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& x : items) if (x.location == 0 && x.panel == 1) inv.push_back(&x);
+    for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [x, y] = free_spot(tables, inv, 10, 4, width, height);
     if (x < 0) return false;
-    item.location = 0; item.panel = 1; item.column = x; item.row = y;
+    item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = x; item.row = y;
     items.push_back(std::move(item));
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
@@ -1357,20 +1357,20 @@ inline bool hire(const MercOffer& offer, d2d::d2s::Header& header, d2d::d2s::Sta
 // A potion drunk from where it's carried: gone, and a belt one's column
 // moves down. Returns its code, "" if it isn't a potion.
 inline std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::vector<d2d::d2s::Item>::iterator potion) {
-    if (potion == items.end() || !tables.potions.contains(potion->code) || potion->location == 1) return {};
+    if (potion == items.end() || !tables.potions.contains(potion->code) || potion->location == d2d::d2s::item_location::kEquipped) return {};
     std::string code = potion->code;
-    const int col = potion->location == 2 ? potion->column : -1;
+    const int col = potion->location == d2d::d2s::item_location::kBelt ? potion->column : -1;
     items.erase(potion);
     if (col >= 0)
         for (int box = col + 4; box < 16; box += 4)
-            for (auto& item : items) if (item.location == 2 && item.column == box) item.column = box - 4;
+            for (auto& item : items) if (item.location == d2d::d2s::item_location::kBelt && item.column == box) item.column = box - 4;
     return code;
 }
 inline std::string drink_item(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id) {
     return drink_at(tables, items, std::ranges::find(items, id, &d2d::d2s::Item::id));
 }
 inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int col) {
-    return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == 2 && item.column == col; }));
+    return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kBelt && item.column == col; }));
 }
 
 // A healing / mana potion's amount in 256ths (FUN_005be3f0): calc1 << 8,
@@ -1418,7 +1418,7 @@ enum class Pickup { kGone, kStays, kNoRoom };
 inline constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvlrvs" };
 inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
     using d2d::d2s::Item;
-    const auto in_inventory = [](const Item& carried) { return carried.location == 0 && carried.panel == 1; };
+    const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
     const auto max_stack = [&](const std::string& code) { const auto found = tables.item_base.find(code); return found != tables.item_base.end() ? found->second.max_stack : 0; };
     const auto* info = info_of(tables, item);
     const std::string type = info ? info->type : std::string{};
@@ -1447,7 +1447,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     const bool autobelt = base != tables.item_base.end() && base->second.autobelt;
     if (type_row != tables.types.end() && type_row->second.beltable && width == 1 && height == 1 && (autobelt || (item.code != "isc" && item.code != "tsc"))) {
         std::array<const Item*, 16> box{};
-        for (const auto& carried : items) if (carried.location == 2 && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
+        for (const auto& carried : items) if (carried.location == d2d::d2s::item_location::kBelt && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
         const auto group = [](const std::string& code) {
             for (std::size_t i = 0; i < kGroups.size(); ++i)
                 for (std::size_t at = 0; code.size() == 3 && at < kGroups[i].size(); at += 3) if (kGroups[i].substr(at, 3) == code) return int(i);
@@ -1461,7 +1461,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
         }
         for (int col = 0; col < 4 && slot < 0 && autobelt; ++col) if (!box[std::size_t(col)]) slot = col;
         if (slot >= 0) {
-            item.location = 2; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
+            item.location = d2d::d2s::item_location::kBelt; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
             items.push_back(std::move(item));
             return Pickup::kGone;
         }
@@ -1470,7 +1470,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     for (const auto& carried : items) if (in_inventory(carried)) inventory.push_back(&carried);
     const auto [x, y] = free_spot(tables, inventory, cols, rows, width, height);
     if (x < 0) return Pickup::kNoRoom;
-    item.location = 0; item.panel = 1; item.column = x; item.row = y;
+    item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = x; item.row = y;
     items.push_back(std::move(item));
     return Pickup::kGone;
 }
@@ -1479,13 +1479,13 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
 // ponytail: the server's scope isn't traced (stash and cube are left).
 inline int unidentified(const std::vector<d2d::d2s::Item>& items) {
     return int(std::ranges::count_if(items, [](const auto& item) {
-        return !item.identified && (item.location == 1 || item.location == 2 || (item.location == 0 && item.panel == 1));
+        return !item.identified && (item.location == d2d::d2s::item_location::kEquipped || item.location == d2d::d2s::item_location::kBelt || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory));
     }));
 }
 inline int identify_all(std::vector<d2d::d2s::Item>& items) {
     int count = 0;
     for (auto& item : items)
-        if (!item.identified && (item.location == 1 || item.location == 2 || (item.location == 0 && item.panel == 1))) {
+        if (!item.identified && (item.location == d2d::d2s::item_location::kEquipped || item.location == d2d::d2s::item_location::kBelt || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))) {
             item.identified = true;
             ++count;
         }
