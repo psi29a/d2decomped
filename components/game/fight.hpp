@@ -32,6 +32,9 @@
 
 namespace d2d::game {
 
+using d2d::rules::ServerDoFunction;
+using d2d::rules::ServerStartFunction;
+
 // The skills d2d uses as game.exe does so far (docs/research/re/skills.md):
 // the Bash family (srvstfunc 32 builds the record, srvdofunc 2 resolves
 // it: Bash, Stun, Concentrate; 6 Power Strike, 39 Berserk, 35 Vengeance
@@ -47,18 +50,31 @@ namespace d2d::game {
 // Every other skill swings a plain attack for now.
 // Skills that move the player: Whirlwind (38 / 76), Charge (31 / 67),
 // Leap Attack (41 / 78).
+// Whether a skill runs this start and do function pair.
+inline bool runs(const d2d::rules::Skill& skill, ServerStartFunction start, ServerDoFunction action) {
+    return skill.srvstfunc == start && skill.srvdofunc == action;
+}
 inline bool moving_skill(const d2d::rules::Skill& skill) {
-    return (skill.srvstfunc == 38 && skill.srvdofunc == 76) || (skill.srvstfunc == 31 && skill.srvdofunc == 67) || (skill.srvstfunc == 41 && skill.srvdofunc == 78);
+    return runs(skill, ServerStartFunction::kWhirlwind, ServerDoFunction::kWhirlwind) || runs(skill, ServerStartFunction::kCharge, ServerDoFunction::kCharge)
+        || runs(skill, ServerStartFunction::kLeapAttack, ServerDoFunction::kLeapAttack);
 }
 inline bool skill_built(const d2d::rules::Skill& skill) {
-    return (skill.srvdofunc == 2 && (skill.srvstfunc == 32 || skill.srvstfunc == 6 || skill.srvstfunc == 39 || skill.srvstfunc == 35)) || (skill.srvstfunc == 24 && skill.srvdofunc == 42)
-        || (skill.srvstfunc == 23 && (skill.srvdofunc == 34 || skill.srvdofunc == 35)) || (skill.srvstfunc == 27 && skill.srvdofunc == 50)
-        || (skill.srvstfunc == 37 && skill.srvdofunc == 13) || (skill.srvstfunc == 29 && skill.srvdofunc == 64) || skill.srvdofunc == 150
-        || (skill.srvstfunc == 5 && skill.srvdofunc == 7) || (skill.srvstfunc == 25 && skill.srvdofunc == 46) || skill.srvdofunc == 9 || skill.srvdofunc == 70
-        || (skill.srvstfunc == 9 && skill.srvdofunc == 13) || (skill.srvstfunc == 7 && skill.srvdofunc == 2) || (skill.srvstfunc == 16 && skill.srvdofunc == 32)
-        || (skill.srvstfunc == 6 && skill.srvdofunc == 11) || (skill.srvstfunc == 10 && skill.srvdofunc == 14) || (skill.srvstfunc == 32 && skill.srvdofunc == 79)
-        || (skill.srvstfunc == 56 && skill.srvdofunc == 120) || (skill.srvstfunc == 58 && skill.srvdofunc == 2) || skill.srvdofunc == 122
-        || (skill.srvstfunc == 57 && skill.srvdofunc == 121)
+    return runs(skill, ServerStartFunction::kBuildHit, ServerDoFunction::kResolveHit) || runs(skill, ServerStartFunction::kElementalStrike, ServerDoFunction::kResolveHit)
+        || runs(skill, ServerStartFunction::kBerserk, ServerDoFunction::kResolveHit) || runs(skill, ServerStartFunction::kVengeance, ServerDoFunction::kResolveHit)
+        || runs(skill, ServerStartFunction::kDragonTalon, ServerDoFunction::kDragonTalon)
+        || runs(skill, ServerStartFunction::kChargeUp, ServerDoFunction::kChargeUp) || runs(skill, ServerStartFunction::kChargeUp, ServerDoFunction::kElementalChargeUp)
+        || runs(skill, ServerStartFunction::kDragonTail, ServerDoFunction::kDragonTail)
+        || runs(skill, ServerStartFunction::kRepeatedHit, ServerDoFunction::kRepeatedHit) || runs(skill, ServerStartFunction::kSacrifice, ServerDoFunction::kSacrifice)
+        || skill.srvdofunc == ServerDoFunction::kSmite
+        || runs(skill, ServerStartFunction::kJab, ServerDoFunction::kJab) || runs(skill, ServerStartFunction::kDragonClaw, ServerDoFunction::kDragonClaw)
+        || skill.srvdofunc == ServerDoFunction::kFrenzy || skill.srvdofunc == ServerDoFunction::kDoubleSwing
+        || runs(skill, ServerStartFunction::kFend, ServerDoFunction::kRepeatedHit) || runs(skill, ServerStartFunction::kImpale, ServerDoFunction::kResolveHit)
+        || runs(skill, ServerStartFunction::kPoisonDagger, ServerDoFunction::kPoisonDagger)
+        || runs(skill, ServerStartFunction::kElementalStrike, ServerDoFunction::kChargedStrike) || runs(skill, ServerStartFunction::kLightningStrike, ServerDoFunction::kLightningStrike)
+        || runs(skill, ServerStartFunction::kBuildHit, ServerDoFunction::kConversion)
+        || runs(skill, ServerStartFunction::kStackingStrike, ServerDoFunction::kStackingStrike) || runs(skill, ServerStartFunction::kFireClaws, ServerDoFunction::kResolveHit)
+        || skill.srvdofunc == ServerDoFunction::kHunger
+        || runs(skill, ServerStartFunction::kRabies, ServerDoFunction::kRabies)
         || moving_skill(skill);
 }
 // Self casts (right click, no target): their aurastate on the caster for
@@ -67,9 +83,12 @@ inline bool skill_built(const d2d::rules::Skill& skill) {
 // Venom), 23 (Energy Shield, Blaze), 25 (Enchant, on the caster), 29
 // (Thunder Storm), 47 (Cloak of Shadows).
 inline bool self_cast(const d2d::rules::Skill& skill) {
-    return (skill.srvstfunc == 36 || skill.srvstfunc == 0 || skill.srvstfunc == 13 || skill.srvstfunc == 28) && !skill.aurastate.empty()
-        && (skill.srvdofunc == 18 || skill.srvdofunc == 25 || skill.srvdofunc == 29 || skill.srvdofunc == 47 || (skill.srvdofunc == 23 && skill.srvmissilea.empty())
-            || (skill.srvdofunc == 23 && skill.name == "Blaze") || skill.srvdofunc == 116 || skill.srvdofunc == 124 || skill.srvdofunc == 54);
+    return (skill.srvstfunc == ServerStartFunction::kHolyShield || skill.srvstfunc == ServerStartFunction::kNone || skill.srvstfunc == ServerStartFunction::kThunderStorm
+            || skill.srvstfunc == ServerStartFunction::kBladeShield) && !skill.aurastate.empty()
+        && (skill.srvdofunc == ServerDoFunction::kSelfState || skill.srvdofunc == ServerDoFunction::kEnchant || skill.srvdofunc == ServerDoFunction::kThunderStorm
+            || skill.srvdofunc == ServerDoFunction::kCloakOfShadows || (skill.srvdofunc == ServerDoFunction::kSelfStateWithMissile && skill.srvmissilea.empty())
+            || (skill.srvdofunc == ServerDoFunction::kSelfStateWithMissile && skill.name == "Blaze") || skill.srvdofunc == ServerDoFunction::kShapeShift
+            || skill.srvdofunc == ServerDoFunction::kStormAroundCaster || skill.srvdofunc == ServerDoFunction::kBladeShield);
 }
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
@@ -78,7 +97,7 @@ inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK ||
 // ponytail: whether Dragon Flight's kick (do 52) releases isn't traced;
 // here it doesn't.
 inline bool finisher(const d2d::rules::Skill* skill) {
-    return !skill || skill->id == 0 || skill->srvdofunc == 42 || skill->srvdofunc == 50 || skill->srvdofunc == 46;
+    return !skill || skill->id == 0 || skill->srvdofunc == ServerDoFunction::kDragonTalon || skill->srvdofunc == ServerDoFunction::kDragonTail || skill->srvdofunc == ServerDoFunction::kDragonClaw;
 }
 
 // The character's level in a skill (the World's for the fight, the skill
@@ -459,7 +478,7 @@ struct Fight {
     // (Royal Strike, Fists of Fire's first) are logged once; 39's points
     // come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms);
-    void prg(const d2d::rules::Skill& skill, int func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
+    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
     // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0).

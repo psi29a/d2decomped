@@ -363,8 +363,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 if (skill.cls.empty() || skill.id < 0) continue;
                 auto& fight = town.fight;
                 const bool built = skill_built(skill) || self_cast(skill) || fight.missile_skill(skill) || fight.spot_skill(skill) || fight.summon_skill(skill) || skill.aura
-                                || (skill.srvstfunc == 0 && skill.srvdofunc == 0 && (skill.passive_stat[0] >= 0 || skill.passive));
-                if (!built) out += std::format("{} {} st{} do{}\n", skill.id, skill.name, skill.srvstfunc, skill.srvdofunc);
+                                || (skill.srvstfunc == d2d::rules::ServerStartFunction::kNone && skill.srvdofunc == d2d::rules::ServerDoFunction::kNone && (skill.passive_stat[0] >= 0 || skill.passive));
+                if (!built) out += std::format("{} {} st{} do{}\n", skill.id, skill.name, int(skill.srvstfunc), int(skill.srvdofunc));
             }
             return out + "ok\n";
         }

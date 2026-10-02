@@ -1420,7 +1420,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const bool live = monster_index >= 0 && fight.monsters[std::size_t(monster_index)].alive();
         if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) player.walking = false;
-        } else if (skill && skill->srvdofunc == 76 && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
+        } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
             fight.move_x = use_skill.x; fight.move_y = use_skill.y;
             fight.attack_mon = -1;
             fight.attack_skill = use_skill.skill;

@@ -272,7 +272,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     for (std::size_t row_index = 0; row_index < skills_table.size(); ++row_index) {
         skill_missiles.emplace(skills_table.get(row_index, "srvmissile"));
         for (const char* column : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(skills_table.get(row_index, column));
-        if (const std::string missile_name(skills_table.get(row_index, "srvmissilea")); num(skills_table.get(row_index, "srvdofunc")) == 149 && !missile_name.empty())   // necromage1..4
+        if (const std::string missile_name(skills_table.get(row_index, "srvmissilea")); d2d::rules::ServerDoFunction(num(skills_table.get(row_index, "srvdofunc"))) == d2d::rules::ServerDoFunction::kVariantMissile && !missile_name.empty())   // necromage1..4
             for (char digit = '2'; digit <= '4'; ++digit) skill_missiles.emplace(missile_name.substr(0, missile_name.size() - 1) + digit);
     }
     // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
@@ -439,7 +439,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
-        skill_row.srvstfunc = number("srvstfunc"); skill_row.srvdofunc = number("srvdofunc");
+        skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
         skill_row.anim = text("anim"); skill_row.range = text("range");
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
@@ -479,7 +479,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc");
         skill_row.aurastate = text("aurastate"); skill_row.auratarget = text("auratargetstate"); skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum");
         for (int i = 0; i < 3; ++i) {
-            skill_row.prgfunc[std::size_t(i)] = number("srvprgfunc" + std::to_string(i + 1));
+            skill_row.prgfunc[std::size_t(i)] = d2d::rules::ServerDoFunction(number("srvprgfunc" + std::to_string(i + 1)));
             skill_row.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));
         }
         skill_row.prgstack = text("prgstack") == "1";

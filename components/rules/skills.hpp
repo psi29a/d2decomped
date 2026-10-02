@@ -184,6 +184,149 @@ inline Calc compile_calc(std::string_view src, const CalcNames& names, std::stri
     return out;
 }
 
+// ---- skill functions
+
+// Skills.txt srvstfunc: the index into game.exe's server start function
+// table (0x732140, index 0 empty), run when the skill starts (FUN_0056f640).
+// Named for what the function does; the ones d2d reads (the column holds
+// others, 1..65).
+enum class ServerStartFunction : int {
+    kNone = 0,
+    kCheckAmmo = 4,                // FUN_005da8b0: the bow and javelin skills, only the ammo checked
+    kJab = 5,
+    kElementalStrike = 6,          // FUN_005da940: Power Strike, Charged Strike; no to-hit bonus, the element
+    kImpale = 7,
+    kStrafe = 8,                   // FUN_005dacd0
+    kFend = 9,                     // FUN_005dae30
+    kLightningStrike = 10,
+    kCheckMana = 11,               // FUN_005c8fa0: Inferno, Arctic Blast
+    kThunderStorm = 13,
+    kPoisonDagger = 16,            // FUN_005c30a0
+    kChargeUp = 23,                // the Assassin's charge-ups (FUN_005d3490 hits)
+    kDragonTalon = 24,             // FUN_005d5970: calc1 kicks
+    kDragonClaw = 25,
+    kBladeFury = 26,
+    kDragonTail = 27,
+    kBladeShield = 28,
+    kSacrifice = 29,               // FUN_005ce790
+    kCharge = 31,                  // FUN_005cf6b0
+    kBuildHit = 32,                // FUN_005d7ea0: the Bash family's hit record (calc1 ED, calc2 added, calc4 conversion)
+    kTargetCorpse = 33,            // Find Potion, Grim Ward
+    kVengeance = 35,               // FUN_005cfe10
+    kHolyShield = 36,
+    kRepeatedHit = 37,             // FUN_005daf40: Zeal, Fury; calc1 hits stored
+    kWhirlwind = 38,               // FUN_005d8f50
+    kBerserk = 39,                 // FUN_005d97f0
+    kLeapAttack = 41,              // FUN_005da540
+    kStackingStrike = 56,          // Feral Rage, Maul
+    kRabies = 57,
+    kFireClaws = 58,               // FUN_005c7e00
+};
+
+// Skills.txt srvdofunc (and srvprgfunc1..3, which index the same table):
+// the index into game.exe's server do function table (0x7322b0), run on
+// the skill's action frame (FUN_0056f7f0). Named for what the function
+// does; the ones d2d reads (the column holds others, up to 152).
+enum class ServerDoFunction : int {
+    kNone = 0,
+    kAttack = 1,                   // FUN_0056f070: the plain attack
+    kResolveHit = 2,               // FUN_0056f1f0: the skill's states, then the record its start built
+    kStateAroundCaster = 6,        // FUN_005db1c0: Inner Sight, Slow Missiles
+    kJab = 7,                      // FUN_005db2d0
+    kMissileFan = 8,               // FUN_005db410: Multiple Shot, Teeth, Shock Wave
+    kFrenzy = 9,                   // FUN_005d8e00
+    kGuidedMissile = 10,           // Guided Arrow, Bone Spirit
+    kChargedStrike = 11,           // FUN_005db850
+    kStrafe = 12,                  // FUN_005dba40
+    kRepeatedHit = 13,             // FUN_005dbc60: Zeal, Fend, Fury; a hit a frame, then another target
+    kLightningStrike = 14,
+    kDecoy = 15,                   // FUN_005dc000
+    kValkyrie = 16,
+    kScatteredBolts = 17,          // FUN_005c9300: Charged Bolt and the monsters' bolts
+    kSelfState = 18,               // FUN_005c9480: the armors, Holy Shield, Burst of Speed, Fade, Venom
+    kBreath = 19,                  // FUN_005c8ca0: Inferno, Arctic Blast
+    kStaticField = 20,
+    kTelekinesis = 21,
+    kNova = 22,                    // FUN_005c9b50: the novas, Howl
+    kSelfStateWithMissile = 23,    // FUN_005c9c10: Blaze, Energy Shield, SpiderLay
+    kMissileWall = 24,             // FUN_005c9ea0: the fire walls
+    kEnchant = 25,
+    kChainLightning = 26,
+    kTeleport = 27,
+    kMissileAtTarget = 28,         // Meteor, Blizzard, Eruption, the catapults
+    kThunderStorm = 29,
+    kCurse = 30,                   // FUN_005c37c0: the Necromancer's curses
+    kRaiseSkeleton = 31,           // Raise Skeleton, Raise Skeletal Mage
+    kPoisonDagger = 32,            // FUN_005c4cd0
+    kPsychicHammer = 33,           // FUN_005d3140
+    kChargeUp = 34,                // FUN_005d3490: Tiger Strike, Cobra Strike, Royal Strike
+    kElementalChargeUp = 35,       // FUN_005d35d0: Fists of Fire, Claws of Thunder, Blades of Ice
+    kReleaseNova = 36,             // FUN_005d4db0: a nova of the count's missile
+    kReleaseMissileAtUnits = 37,   // FUN_005d4e70 -> FUN_005d4150: a missile at each unit in reach
+    kReleaseAreaHit = 38,          // FUN_005d3e80: the skill's damage on everything in reach
+    kReleaseScatter = 39,          // FUN_005d3f90: missiles at random points in reach
+    kReleaseAtTarget = 40,         // FUN_005d5010: the count's missile standing at the target
+    kReleaseSpread = 41,           // FUN_005d5080: missiles toward random points round the target
+    kDragonTalon = 42,             // FUN_005d5880 kicks
+    kShockField = 43,              // FUN_005d5d70
+    kBladeSentinel = 44,           // FUN_005d6020
+    kTrap = 45,                    // FUN_005d6170: the Assassin's sentries
+    kDragonClaw = 46,              // FUN_005d6340
+    kCloakOfShadows = 47,
+    kBladeFury = 48,
+    kMirrorImage = 49,             // FUN_005d6e70: Shadow Warrior, Shadow Master
+    kDragonTail = 50,
+    kMindBlast = 51,
+    kDragonFlight = 52,
+    kBladeShield = 54,             // FUN_005d7e10
+    kCorpseExplosion = 55,
+    kGolem = 56,                   // FUN_005c5100: Clay, Blood, Fire Golem
+    kIronGolem = 57,
+    kRevive = 58,                  // FUN_005c56c0
+    kAttract = 59,                 // FUN_005c3b90
+    kBoneWall = 60,                // FUN_005c58b0
+    kConfuse = 61,                 // FUN_005c3f20
+    kBonePrison = 62,              // FUN_005c5d00
+    kPoisonExplosion = 63,
+    kSacrifice = 64,               // FUN_005ce8e0
+    kFriendlyAura = 65,            // FUN_005cf010: the Paladin's and the Druid spirits' friendly auras
+    kEnemyAura = 66,               // FUN_005cf3a0: Holy Fire, Holy Shock, Sanctuary, Conviction
+    kCharge = 67,                  // FUN_005cf900
+    kWarCry = 68,                  // FUN_005d83e0: the Barbarian's shouts and cries
+    kFindPotion = 69,              // FUN_005d81c0
+    kDoubleSwing = 70,             // FUN_005d8470
+    kTaunt = 71,                   // FUN_005d8570
+    kFindItem = 72,                // FUN_005d8780
+    kBlessedHammer = 73,           // FUN_005d0040
+    kDoubleThrow = 74,             // FUN_005d88b0
+    kGrimWard = 75,
+    kWhirlwind = 76,               // FUN_005d9580
+    kLeap = 77,
+    kLeapAttack = 78,              // FUN_005da7e0
+    kConversion = 79,
+    kFistOfTheHeavens = 80,        // FUN_005d0670
+    kHolyFreeze = 81,              // FUN_005d0920
+    kRedemption = 82,
+    kMonsterBreath = 95,           // FUN_005cc4e0: FetishInferno, the inferno sentries
+    kBookOrScroll = 113,           // Identify, Town Portal
+    kRaven = 114,
+    kVine = 115,                   // FUN_005c6a80: Plague Poppy, Cycle of Life, Vines
+    kShapeShift = 116,             // FUN_005c6ec0: Werewolf, Werebear
+    kFirestorm = 117,              // FUN_005c7160
+    kWindMissile = 118,            // FUN_005c72f0: Twister, Tornado
+    kDruidSummon = 119,            // the spirits, wolves and Grizzly
+    kStackingStrike = 120,         // Feral Rage, Maul
+    kRabies = 121,
+    kHunger = 122,                 // FUN_005c7f10
+    kVolcano = 123,                // FUN_005c8080
+    kStormAroundCaster = 124,      // FUN_005c8190: Armageddon, Hurricane
+    kWakeOfDestruction = 125,
+    kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan
+    kHydra = 144,                  // FUN_005ca910
+    kVariantMissile = 149,         // FUN_005ce0b0: srvmissilea with the caster's variant 1..4 (necromage1..4)
+    kSmite = 150,                  // FUN_005ce9f0
+};
+
 // ---- skill rows
 
 // A Skills.txt row: the columns game.exe's skill records hold (0x23c-byte
@@ -191,7 +334,8 @@ inline Calc compile_calc(std::string_view src, const CalcNames& names, std::stri
 struct Skill {
     int id = -1;
     std::string name, cls, desc;           // skill, charclass ("ama".. or ""), skilldesc
-    int srvstfunc = 0, srvdofunc = 0;
+    ServerStartFunction srvstfunc = ServerStartFunction::kNone;   // srvstfunc: the server start function
+    ServerDoFunction srvdofunc = ServerDoFunction::kNone;         // srvdofunc: the server do function
     std::string anim, range;               // anim (A1, SC, KK, ...), range (h2h, rng, both, none)
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
     bool attack_no_mana = false;
@@ -230,7 +374,7 @@ struct Skill {
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
     int prgdam = 0;
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
-    std::array<int, 3> prgfunc{};          // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
+    std::array<ServerDoFunction, 3> prgfunc{};   // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     std::array<Calc, 3> prgcalc;           // prgcalc1..3 (+0x38..): by the charges held (FUN_005d3da0)
     bool prgstack = false;                 // a release runs srvprgfunc 1..n, not just n (FUN_005d5220)
     std::string srvmissileb, srvmissilec;  // +0x4a / +0x4c: 2 / 3 charges' missile (FUN_005d3cf0)
