@@ -7,8 +7,12 @@
 // per-row iteration follow spellsel.cpp FUN_004aa7e0 (kLeftX = 0x50,
 // kRightX = screen_width - 0x80, up to five rows keyed by SkillDesc
 // ListRow 0..4). docs/research/re/skills.md "Skill HUD" has the trace.
-// ponytail: game.exe doesn't draw hotkey labels on the picker icons;
-// this is a d2d addition (font_small "F1"..).
+// Each picker icon bound to a hotkey shows its key's name (FUN_004a8ed0 /
+// FUN_004a9300 over the 16 slots, then FUN_004a8df0): colour 4 (gold),
+// cut to 40 px, left edge at x + 0x22, or right-aligned at x + 47 when
+// wider than 13 px, baseline at the icon's bottom - 0x23.
+// ponytail: the font is whatever is current there (untraced), font8 here;
+// the names are F1..F8 (the save's slots), not the key config's.
 #pragma once
 
 #include "common.hpp"
@@ -158,8 +162,12 @@ struct SkillBar {
                 icon(row_list[row][column], x, y);
                 for (std::size_t k = 0; k < 8; ++k) {
                     const auto hotkey = character.header.hotkeys[k];
-                    if ((hotkey & 0xffff) != 0xffff && int(hotkey & 0x7fff) == row_list[row][column] && ((hotkey & 0x8000) != 0) == on_left)
-                        scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x + 2, y - 12, "F" + std::to_string(k + 1));
+                    if ((hotkey & 0xffff) != 0xffff && int(hotkey & 0x7fff) == row_list[row][column] && ((hotkey & 0x8000) != 0) == on_left) {
+                        const auto label = "F" + std::to_string(k + 1);
+                        const int width = scene->font_small.measure(label);
+                        scene->font_small.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + 0x22 + std::min(0, 13 - width),
+                                                      y - 0x23 - scene->font_small.line_height(), label, 199, 179, 119);
+                    }
                 }
             }
         if (const int id = picked(mouse_x, mouse_y); id >= 0)

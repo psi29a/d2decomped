@@ -1100,9 +1100,15 @@ Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
   and iterates 0..4 outer-first (`if (local_c == *(char*)(iVar2 + 5))`
   in FUN_004aa3a0). 0 is general, 1..4 are class categories — five rows
   max, not four.
-- ➖ hotkey label: **game.exe does not draw hotkey text on picker icons**
-  (FUN_004aa3a0 renders icons only, no text). Ours is a d2d addition;
-  no game.exe layout to match.
+- ✅ hotkey label (corrected 2026-10-02: it is drawn). FUN_004aa3a0's
+  icon draw FUN_004a9870 ends in FUN_004a8ed0 (left) / FUN_004a9300
+  (right): for each of the 16 hotkey slots (skill 0x7c06c8 + 4k, item
+  0x7c0768 + 4k, left flag 0x7c07b8 + 4k) bound to this icon,
+  FUN_004a8df0(ECX = key action 0x0e + k, EDX = x + 0x22, y − 0x23,
+  colour 4). That fetches the bound key's name (FUN_00469aa0 /
+  FUN_0046a530; none → nothing), cuts it to 40 px, right-aligns it at
+  x + 47 when wider than 13 px and draws it (FUN_00502320). FUN_004a9260
+  then draws a number at the icon's bottom (an item skill's charges).
 
 ### Traced 2026-09-29 (2nd HUD pass)
 
