@@ -56,7 +56,11 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
             pixel[0] = filled_here ? 0x88 : 0x20; pixel[1] = filled_here ? 0x08 : 0x10; pixel[2] = filled_here ? 0x08 : 0x10;
         }
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(name) / 2, top + 2, name);
+    // Its name's colour (FUN_00454ad0): gold for uniques, blue for champions.
+    const int colour = d2d::rules::bar_name_colour(monster.boss, scene.monsters.types[std::size_t(monster.type)].id);
+    const std::array<std::uint8_t, 3> tint = colour == d2d::rules::kNameGold ? std::array<std::uint8_t, 3>{ 199, 179, 119 }
+                                             : colour == d2d::rules::kNameBlue ? std::array<std::uint8_t, 3>{ 105, 105, 255 } : std::array<std::uint8_t, 3>{ 255, 255, 255 };
+    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(name) / 2, top + 2, name, tint[0], tint[1], tint[2]);
     // The label under it (uniques and minions, d2d::rules::kUModLabel):
     // Demon / Undead, then its mods; a minion's "Minion". Champions have
     // none: their name says it.

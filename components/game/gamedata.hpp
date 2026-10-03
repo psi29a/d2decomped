@@ -455,7 +455,8 @@ struct GameData {
     // SuperUniques.txt (without its Expansion row): name, MonStats row of
     // its Class, minions.
     struct SuperUnique { std::string name; int type = -1, min_grp = 0, max_grp = 0; std::vector<int> mods; std::array<std::string, 3> treasure_classes;
-                         std::array<int, 3> utrans{}; bool autopos = false, stacks = false; };   // Utrans by difficulty: its colour; AutoPos, Stacks
+                         std::array<int, 3> utrans{}; bool autopos = false, stacks = false;   // Utrans by difficulty: its colour; AutoPos, Stacks
+                         std::string sound; };                                                   // MonSound: its own MonSounds row (rules::boss_sound)
     std::vector<SuperUnique> superuniques;
     d2d::rules::UMods umods;                           // MonUMod.txt: champion / unique mods and constants
     std::array<std::vector<std::string>, 3> unique_names;   // UniquePrefix / Suffix / Appellation, resolved

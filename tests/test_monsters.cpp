@@ -140,6 +140,16 @@ int main() {
             assert(aura.skill != 118 && aura.level >= 2 && aura.level <= 3);
         }
         assert(boss_aura(40, 5, 37).skill == 122 && boss_aura(40, 5, 37).level == 5);
+        // The name over the life bar (FUN_00454ad0): uniques gold, champions
+        // blue, Duriel gold whatever he is; Andariel white.
+        assert(bar_name_colour(Boss::superunique, "corruptrogue3") == kNameGold && bar_name_colour(Boss::champion, "zombie1") == kNameBlue);
+        assert(bar_name_colour(Boss::none, "duriel") == kNameGold && bar_name_colour(Boss::none, "andariel") == kNameWhite && bar_name_colour(Boss::minion, "fallen1") == kNameWhite);
+        // A monster's sound set (FUN_004ca410): the Countess's own; a boss
+        // or minion zombie's UMonSound; a plain one's MonSound.
+        MonType zombie;
+        zombie.sound = "zombie"; zombie.usound = "zombieunique";
+        assert(boss_sound(zombie, Boss::superunique, "countess") == "countess" && boss_sound(zombie, Boss::superunique, "") == "zombieunique");
+        assert(boss_sound(zombie, Boss::minion, "") == "zombieunique" && boss_sound(zombie, Boss::none, "") == "zombie");
     }
     // A monster's look (FUN_005739d0, checked against game.exe on 2000
     // unit seeds): rand(sets) on its unit seed; without sets, a roll per

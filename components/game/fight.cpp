@@ -152,7 +152,8 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
 auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         if (monster.mode == monster.last_mode) return;
         monster.last_mode = monster.mode;
-        const auto found = game_data->mon_sounds.find(game_data->monsters.types[std::size_t(monster.type)].sound);
+        const auto& superunique = monster.super >= 0 && std::size_t(monster.super) < game_data->superuniques.size() ? game_data->superuniques[std::size_t(monster.super)].sound : std::string();
+        const auto found = game_data->mon_sounds.find(d2d::rules::boss_sound(game_data->monsters.types[std::size_t(monster.type)], monster.boss, superunique));
         if (found == game_data->mon_sounds.end()) return;
         const auto& sounds = found->second;
         if (monster.mode == "A1" || monster.mode == "A2") {

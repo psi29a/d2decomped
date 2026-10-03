@@ -203,6 +203,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.el_type[std::size_t(element)] = element_type == kEl.end() ? -1 : int(element_type - kEl.begin());
         }
         type_info.sound = text("MonSound");
+        type_info.usound = text("UMonSound");
         type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1";
         type_info.montype = text("MonType");
         for (int difficulty = 0; difficulty < 3; ++difficulty) {
@@ -325,7 +326,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.cel_file = missiles_table.get(row_index, "CelFile");
         game_data.missiles.emplace(name, std::move(missile_info));
     }
-    // SuperUniques.txt: name (string key), Class, minions.
+    // SuperUniques.txt: name (string key), Class, minions. Replaceable and
+    // EClass are never read by game.exe (docs/research/re/superuniques.md).
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) if (monstats.get(row_index, "Id") != "Expansion") ms_bin.push_back(row_index);
     if (const auto superuniques_table = txt("SuperUniques"); superuniques_table.size() > 0)
@@ -339,7 +341,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                            num(superuniques_table.get(row_index, "MaxGrp")), mods,
                                            { std::string(superuniques_table.get(row_index, "TC")), std::string(superuniques_table.get(row_index, "TC(N)")), std::string(superuniques_table.get(row_index, "TC(H)")) },
                                            { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) },
-                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0 });
+                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0,
+                                           std::string(superuniques_table.get(row_index, "MonSound")) });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
