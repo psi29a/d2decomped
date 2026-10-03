@@ -183,7 +183,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.party_min = num(text("PartyMin")); type_info.party_max = num(text("PartyMax"));
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
-        type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
+        type_info.no_ratio = text("noRatio") == "1";
+        type_info.tc_fixed = type_info.no_ratio || text("boss") == "1";
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));

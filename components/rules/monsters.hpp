@@ -350,11 +350,17 @@ void populate_room(const Monsters& monsters, const Region& reg, int density, Spa
     }
 }
 
-// A monster's stats at `level`: MonStats' percentages of the MonLvl row
-// (1.10+ tables; normal uses the monster's own Level). HP is rolled.
-// ponytail: the stat init (MONSTER_InitStats in 1.10) isn't traced in
-// game.exe — this is the documented txt contract.
-// Elemental attacks come as MonLvl damage percentages too (El1..3 MinD/MaxD).
+// A monster's stats at `level` (FUN_00573cb0 with FUN_006538a0): MonLvl's
+// row for the level (at most its last; the L- columns in an expansion
+// game) x MonStats' percentage / 100, or the MonStats value itself for a
+// noRatio row; life min + rand(max - min + 1) on the unit's seed.
+// Elemental attacks: MonLvl damage x El1..3 MinD / MaxD % the same way
+// (FUN_005a4f50), the length as written. tools/emu/monstats.py checks
+// every row and difficulty against game.exe.
+// ponytail: single player; the /players life and experience bonus
+// (FUN_005738f0 / FUN_00573910: 50 % a player past 2) waits for players;
+// Nightmare / Hell take the area's level (FUN_0061dca0) for a ratio row,
+// not Level(N) / Level(H), which waits for those difficulties.
 struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
@@ -369,7 +375,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     if (monsters.lvl.empty()) return stats;
     const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(stats.level), monsters.lvl.size() - 1)];
     const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
-    auto pct = [](int base, int percent) { return base * percent / 100; };
+    auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     const int hit_points = level_row.hit_points[std::size_t(difficulty_index)];
     stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
     stats.armor_class  = pct(level_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);

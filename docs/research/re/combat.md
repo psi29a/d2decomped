@@ -177,8 +177,6 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   tables.
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
-- Monster elemental damage: El1..3 MinD/MaxD taken as MonLvl DM
-  percentages, like the physical damage.
 - Mana regeneration: all of max mana in 120 s, times (100 + bonus) %.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
 - Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's

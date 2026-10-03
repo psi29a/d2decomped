@@ -15,6 +15,22 @@ monster-ai.md.
   MonStats `MonStatsEx` names the MonStats2 row.
 - 1.14d stats are percentages of MonLvl.txt: HP = MonLvl HP × minHP..maxHP / 100
   (zombie1 level 1: 7 × 101..181 % = 7..12). We read the LoD `L-*` columns.
+- **Stat init** (`FUN_00573cb0`, Monster.cpp): level = MonStats Level
+  (`+0xaa` + difficulty; Nightmare / Hell in an expansion game take the
+  area's level, `FUN_0061dca0`, unless noRatio or flag `+0xc & 0x40`);
+  resistances from `+0x144..`; then `FUN_006538a0`(row, L- columns,
+  difficulty, level, mask, out): the MonLvl row (`[0x744304]+0xb70`, 0x78
+  bytes: AC, TH, HP, DM, XP groups of 6 ints, classic then L-, by
+  difficulty; level at most the last row) × the MonStats % / 100
+  (`FUN_00483360`), or the MonStats value as written for a noRatio row
+  (`+0xc & 4`, `DAT_006ce270`). Life = min + rand(max − min + 1) on the
+  unit seed (+0x20), + the /players bonus % (`FUN_00573930` →
+  `FUN_005738f0`: 0, 0, 50, 100 .. per player count; experience
+  `FUN_00573910` the same), at most 0x7fffff, stats 6 / 7 in 256ths;
+  defense stat 31, experience stat 13. Per mode (`FUN_005a4f50`) A1 / A2
+  / S1 damage and to-hit, and El1..3 MinD / MaxD as DM % the same way
+  (length as written). Checked: `tools/emu/monstats.py` (every row ×
+  difficulty, 2202/2202).
 
 ## Monster region — FUN_005479c0 / FUN_005475e0
 

@@ -91,6 +91,16 @@ int main() {
         assert(stats.level == 1 && stats.hit_points >= 7 && stats.hit_points <= 12);
         assert(stats.armor_class == 5 && stats.to_hit == 8 && stats.a1_min == 1 && stats.a1_max == 3 && stats.exp == 33);
     }
+    // A noRatio row (FUN_006538a0, flag +0xc & 4) takes its MonStats values
+    // as written: life 101..181, defense 84, experience 111, damage 51..151.
+    {
+        auto raw = monsters;
+        raw.types[0].no_ratio = true;
+        Rng raw_rng{ 3 };
+        const auto stats = monster_stats(raw, 0, 0, raw_rng);
+        assert(stats.hit_points >= 101 && stats.hit_points <= 181 && stats.armor_class == 84 && stats.exp == 111);
+        assert(stats.to_hit == 101 && stats.a1_min == 51 && stats.a1_max == 151);
+    }
     // Champions and uniques (uniques.hpp) on a small MonUMod: champion
     // chance 20; hell uniques take 3 mods, never twice; the stat rules.
     {
