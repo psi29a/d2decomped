@@ -40,9 +40,8 @@ AI control +0x20 is a circular list of commands, found by type
    stand 20 (FUN_005de080: the next think 20 frames on).
 2. Classes 0x109, 0x200, 0xff, 0xc9, 0xfe have their own steps first
    (Cain in Act 5, Larzuk, Ormus, Jerhyn, Alkor): none in Act 1.
-3. FUN_005e68f0: only with someone in the NPC's interact list (monster
-   data +0x30, FUN_00572c10 adds to it): turn to them, a 60-think count,
-   walk back home past 16 (FUN_005e6860). Returns 0 with the list empty.
+3. FUN_005e68f0, the visitor (below): returns 0 with no player to heed
+   and nobody talking, so the NPC goes on with its commands.
 4. FUN_005e6ae0, the commands:
    - Command 4 with thinks left: one off; over 3 from its spot
      (FUN_005dc5c0: the larger axis gap plus half the smaller) walk there
@@ -77,6 +76,44 @@ way (Warriv's turn, Charsi at the anvil). A walk ends with a think at once
 (WL's mode end), a special mode at its end goes NU and thinks aidel (15)
 frames on (monster-ai.md "When it thinks").
 
+## The visitor — FUN_005e68f0 (ECX game, EDX unit, stack the block)
+
+Only for an NPC with an interact holder (monster data +0x30, whose first
+word heads the list FUN_00572c10 adds a talking player to).
+
+- **Who.** FUN_005ddf20 → FUN_005dd0b0 with callback FUN_005dde80: a
+  player (type 0) under 16 off by FUN_005dc380 (each axis gap less the
+  NPC's size, FUN_00620510: MonStats2 +8, 2 for the camp's; then the larger
+  plus half the smaller) and, for an NPC with the interact flags, only one
+  FUN_00544590 says yes to: the NPC has a quest message for them (the "!"
+  balloon, quests.md). None: the NPC itself.
+- **Talking** when the list has a player (FUN_00572dc0), the visitor is in
+  it (FUN_00572de0), or the visitor is busy (FUN_00535060: in an
+  interaction), or AI control +0x14 > 0. Then: with +0x14 over 36 and the
+  NPC over 2 off (+0x18, +0x1c), a walk there (FUN_005ded90; bugs.md 16:
+  no path, the think comes aidel on); else with +0x14 > 0 its path stopped
+  (FUN_00648730) and stand 8. +0x14 then counts down (below 0: reset to 0).
+  With +0x14 at 0 nothing is scheduled.
+- **Else**, with a visitor that isn't the NPC:
+  - under 3 off (or over 23): path stopped; AI control +0x18 at 0 → 60
+    and the player gets unit sound 0x12 (FUN_00553380: the client's
+    FUN_004cbde0 → FUN_004e0590, a greeting), else it counts down; stand 20.
+  - else FUN_005e6860(16): over 16 from home (command 10) → command 4 =
+    {home, 12, 10}, stand 10. Otherwise pace type 1 (FUN_005de190) and a
+    walk toward the player (FUN_005de6d0 → FUN_005de4e0, mode 2): at most
+    3 subtiles (distance − 2 under 5), ending 2 off, the step split between
+    the axes by their gaps and both raised by one until they sum to it.
+- **A talk's start** (FUN_00548b00 case 1, within 0x33, NPC MonStats +0xd
+  with both interact bits): the NPC's path stopped, AI control +0x14 = 40
+  (FUN_0058ec00), its pending think dropped and one next frame; then the
+  player, within 6 and not busy, is added to the list (FUN_00573020 →
+  FUN_00572c10).
+
+So an NPC with a "!" for you walks up to you inside 16 subtiles, greets
+you 2 off and every 60 thinks after, and doesn't stray past 16 from
+home; talked to, it stands. Nothing on the server turns it: it faces you
+because it walked to you. (Read from the code; npcs.py has no player.)
+
 ## Checked
 
 `tools/emu/npcs.py <seed>` runs game.exe's FUN_005e7130 on the camp's
@@ -89,8 +126,10 @@ diff_drlg.py 1-40 0 npcs`: 40/40.
 `rules::npc_think` (components/rules/town_npcs.hpp) is the think;
 `npc_patrol` (components/game/ai.cpp) drives it: stands as frames, walks
 along `walk_path` at Velocity, the special modes as S1 / S2 for their
-animation's length. Not here (ponytails): FUN_005e68f0 (a busy NPC stands
-still, thinking 8 frames after), game.exe's pathers for the walk.
+animation's length. The visitor: `NpcVisitor` (`npc_patrol` fills it
+from the player and the NPC's `alert`). Not here (ponytails): the greeting
+sound, the think once +0x14 runs out mid-talk, game.exe's pathers for the
+walk.
 
 ## The other wanderer — FUN_0054ef50
 
