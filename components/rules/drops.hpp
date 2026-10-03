@@ -203,9 +203,9 @@ inline void roll_drops(const Tables& tables, const std::string& treasure_class, 
 // One chest round (FUN_00585b90): its class `tc` (chest_tc) off the
 // object's unit seed, qualities at its tier (A..C = 0..2), onto `out`.
 // Returns the first item's quality as made (made_quality), 0 for none.
-inline int chest_round(const Tables& tables, const std::string& tc, Rng& unit_seed, std::vector<Drop>& out, int forced) {
+inline int chest_round(const Tables& tables, const std::string& treasure_class, Rng& unit_seed, std::vector<Drop>& out, int forced) {
     const auto first = out.size();
-    roll_drops(tables, tc, tc.back() - 'A', unit_seed, out, 1, 0, 6, forced);
+    roll_drops(tables, treasure_class, treasure_class.back() - 'A', unit_seed, out, 1, 0, 6, forced);
     return out.size() > first ? made_quality(tables, out[first].code, out[first].quality) : 0;
 }
 

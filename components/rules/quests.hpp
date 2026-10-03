@@ -229,9 +229,9 @@ struct BurialQuest {
         log = 1; pending = false;
         mark(quest_bits);
     }
-    // The player went from level `from` to `to` (FUN_00590fa0).
-    void enter(QuestBits& quest_bits, int from, int to) {
-        if (to == kBurial && open) {
+    // The player went from level `from` to `dest` (FUN_00590fa0).
+    void enter(QuestBits& quest_bits, int from, int dest) {
+        if (dest == kBurial && open) {
             const bool bumped = state < 3;
             if (bumped) state = 3;
             if (log <= 1) { log = 2; mark(quest_bits); return; }
@@ -313,15 +313,15 @@ struct AndyQuest {
         { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
     };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
+        const bool bit0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
         const bool listed = (npc == kCain && cain) || (npc == kAkara && akara) || (npc == kKashya && kashya);
         const bool cak = npc == kCain || npc == kAkara || npc == kKashya;
         int block = -1;
         if (listed) block = 3;
         else if (qbit(quest_bits, kQuest, 1)) block = cak ? 4 : 3;
         else if (rewarded) block = 4;
-        else if (state == 1 && npc == kCain && !b0) block = 0;
-        else if (state != 0 && !(b0 && !b13) && !(state >= 4 && !b13) && !(b0 && b13)) block = state - 1;
+        else if (state == 1 && npc == kCain && !bit0) block = 0;
+        else if (state != 0 && !(bit0 && !b13) && !(state >= 4 && !b13) && !(bit0 && b13)) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0 && block <= 4)
             for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
@@ -329,9 +329,9 @@ struct AndyQuest {
     }
     // The balloon over `npc` (FUN_005967f0).
     [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1);
-        if (npc == kCain) return cain || (!b0 && state == 1 && !b1);
-        if (npc == kWarriv) return !b0 && b1;
+        const bool bit0 = qbit(quest_bits, kQuest, 0), bit1 = qbit(quest_bits, kQuest, 1);
+        if (npc == kCain) return cain || (!bit0 && state == 1 && !bit1);
+        if (npc == kWarriv) return !bit0 && bit1;
         return (npc == kAkara && akara) || (npc == kKashya && kashya);
     }
     // The player heard `string` from `npc` (FUN_00595c60). True: Warriv's
@@ -352,15 +352,15 @@ struct AndyQuest {
     void talk_closed(int npc) {
         if (npc == kCain && cain_pending) { log = 1; cain_pending = false; }
     }
-    // The player went from level `from` to `to` (FUN_00596010).
-    void enter(QuestBits& quest_bits, int from, int to) {
-        if (to < 34 || to > 37) {
-            if (state == 4 && to == level_ids::kLutGholein) state = 5;
+    // The player went from level `from` to `dest` (FUN_00596010).
+    void enter(QuestBits& quest_bits, int from, int dest) {
+        if (dest < 34 || dest > 37) {
+            if (state == 4 && dest == level_ids::kLutGholein) state = 5;
             else if (from == 1 && state == 2 && !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
             return;
         }
         if (state <= 2) state = 3;
-        if (to == level_ids::kCatacombsLevel4 && log < 2) log = 1;
+        if (dest == level_ids::kCatacombsLevel4 && log < 2) log = 1;
         mark(quest_bits);
     }
     // Andariel died (FUN_005965a0). True: the player's kill for the quest
@@ -451,13 +451,13 @@ struct CainQuest {
         { { kCain, 124, true } },
     };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13), b14 = qbit(quest_bits, kQuest, 14);
+        const bool bit0 = qbit(quest_bits, kQuest, 0), bit1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13), b14 = qbit(quest_bits, kQuest, 14);
         int block = -1;
         if (npc == kCampCain && !thanked && b13) block = 5;
-        else if (b1) block = npc == kCampCain && thanked ? 7 : 5;
+        else if (bit1) block = npc == kCampCain && thanked ? 7 : 5;
         else if (missed) block = 6;
-        else if (rewarded) block = npc == kCampCain && !thanked ? 5 : b14 ? 8 : b0 ? 7 : -1;
-        else if (!b14 && state != 0 && !b0 && !qbit(quest_bits, kQuest, 15)) block = bks ? 3 : state == 4 ? 2 : state <= 5 ? state - 1 : -1;
+        else if (rewarded) block = npc == kCampCain && !thanked ? 5 : b14 ? 8 : bit0 ? 7 : -1;
+        else if (!b14 && state != 0 && !bit0 && !qbit(quest_bits, kQuest, 15)) block = bks ? 3 : state == 4 ? 2 : state <= 5 ? state - 1 : -1;
         if (npc == kCain) block = 9;
         std::vector<QuestMsg> out;
         if (block >= 0)
@@ -466,8 +466,8 @@ struct CainQuest {
     }
     // The balloon over `npc` (FUN_00592fb0).
     [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool bks = false) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0), b1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13);
-        if (npc == kAkara) return (state == 4 && !b0 && !b1 && bks) || (state == 1 && !b0 && !b1) || (state == 6 && b13 && !b0) || b1;
+        const bool bit0 = qbit(quest_bits, kQuest, 0), bit1 = qbit(quest_bits, kQuest, 1), b13 = qbit(quest_bits, kQuest, 13);
+        if (npc == kAkara) return (state == 4 && !bit0 && !bit1 && bks) || (state == 1 && !bit0 && !bit1) || (state == 6 && b13 && !bit0) || bit1;
         return npc == kCampCain && (missed || (!thanked && b13));
     }
     // The player heard `string` from `npc` (FUN_00592250). decipher: Akara
@@ -506,18 +506,18 @@ struct CainQuest {
         if (akara_log) { log = 1; akara_log = false; mark(quest_bits); }
         if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; }
     }
-    // The player went from level `from` to `to` (FUN_00596de0). True:
+    // The player went from level `from` to `dest` (FUN_00596de0). True:
     // camp Cain's due in the camp (FUN_00592960).
-    bool enter(QuestBits& quest_bits, int from, int to) {
-        if (to == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
+    bool enter(QuestBits& quest_bits, int from, int dest) {
+        if (dest == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
         const bool fresh = !qbit(quest_bits, kQuest, 0) && !qbit(quest_bits, kQuest, 1);
         if (from == level_ids::kRogueEncampment) {
             rewarded = missed = false;
             // ponytail: marked now, not at the next event 4 (FUN_00592e20)
             if (fresh && state == 2) { state = 3; mark(quest_bits); }
         }
-        if (to == level_ids::kRogueEncampment) return camp_spawn();
-        if (to == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
+        if (dest == level_ids::kRogueEncampment) return camp_spawn();
+        if (dest == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
         return false;
     }
     // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
@@ -547,14 +547,14 @@ struct CainQuest {
         return true;
     }
     // The stones' order from the quest rng (game+0x10f4 +0x18, drawn on in
-    // place; FUN_00592e90): seed = lo * 0x6ac690c5 + hi; step n goes to
-    // slot lo % 5 if it's free.
-    void stone_order(std::uint32_t& lo, std::uint32_t& hi) {
+    // place; FUN_00592e90): seed = low * 0x6ac690c5 + high; step n goes to
+    // slot low % 5 if it's free.
+    void stone_order(std::uint32_t& low, std::uint32_t& high) {
         order = {};
-        for (int n = 0; n < 5;) {
-            const std::uint64_t seed = std::uint64_t(lo) * 0x6ac690c5u + hi;
-            lo = std::uint32_t(seed); hi = std::uint32_t(seed >> 32);
-            if (!order[lo % 5]) order[lo % 5] = 17 + n++;
+        for (int step = 0; step < 5;) {
+            const std::uint64_t seed = std::uint64_t(low) * 0x6ac690c5u + high;
+            low = std::uint32_t(seed); high = std::uint32_t(seed >> 32);
+            if (!order[low % 5]) order[low % 5] = 17 + step++;
         }
         ordered = true;
     }
@@ -665,12 +665,12 @@ struct TowerQuest {
         { { 150, 140, false }, { 155, 141, false }, { 265, 145, false }, { 154, 144, false }, { 148, 143, false }, { 147, 142, false } },
     };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
-        if (b0 && !b13) return {};
+        const bool bit0 = qbit(quest_bits, kQuest, 0), b13 = qbit(quest_bits, kQuest, 13);
+        if (bit0 && !b13) return {};
         if (state > 3 && !due && !told) return {};
         int block = -1;
         if (due) block = 2;
-        else if (b0) { if (!told) return {}; block = 3; }
+        else if (bit0) { if (!told) return {}; block = 3; }
         else if (state >= 2 && state <= 5) block = state - 2;
         std::vector<QuestMsg> out;
         if (block >= 0)
@@ -704,14 +704,14 @@ struct TowerQuest {
         if (due) { due = false; told = true; }
         return chain;
     }
-    // The player went from level `from` to `to` (FUN_00595010).
-    void enter(QuestBits& quest_bits, int from, int to) {
-        if (to == kTower) {
+    // The player went from level `from` to `dest` (FUN_00595010).
+    void enter(QuestBits& quest_bits, int from, int dest) {
+        if (dest == kTower) {
             if (state == 0) { state = 2; log = 3; }
             else if (state <= 3 && log == 1) log = 4;
             else return;
             mark(quest_bits);
-        } else if (to == kCellar) {
+        } else if (dest == kCellar) {
             if (state > 3 || log == 2) return;
             state = 3; log = 2;
             mark(quest_bits);
@@ -789,11 +789,11 @@ struct ToolsQuest {
         { { 150, 162, false }, { 155, 165, false }, { 265, 160, false }, { 148, 161, false }, { 147, 164, false } },
     };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool holding, int clvl) const {
-        const bool b0 = qbit(quest_bits, kQuest, 0);
-        if (b0 && !qbit(quest_bits, kQuest, 13)) return {};
+        const bool bit0 = qbit(quest_bits, kQuest, 0);
+        if (bit0 && !qbit(quest_bits, kQuest, 13)) return {};
         int block = -1;
-        if (holding) { if (clvl >= kClvl && !b0) block = 3; }
-        else if (!b0 && state != 0 && state != 4) block = state - 1;
+        if (holding) { if (clvl >= kClvl && !bit0) block = 3; }
+        else if (!bit0 && state != 0 && state != 4) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0 && block <= 4)
             for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
@@ -930,28 +930,28 @@ inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, 
     auto entry = [&](int string, int speech, int shown, int state, bool marks) {
         return QuestText{ string == 3725 ? 0 : string, -1, speech == 3725 ? 0 : speech, shown, state, marks };
     };
-    const bool b0 = flag(0), b1 = flag(1), b13 = flag(13);
-    int s = quest_state.log[std::size_t(quest)];
-    if (b0) {                                               // done: 13 in this game, 11 before
-        s = b13 ? 13 : 11;
-        return entry(rec[std::size_t(2 * s + 1)], rec[1], flag(12) ? 1 : 0, s, false);
+    const bool bit0 = flag(0), bit1 = flag(1), b13 = flag(13);
+    int log_state = quest_state.log[std::size_t(quest)];
+    if (bit0) {                                               // done: 13 in this game, 11 before
+        log_state = b13 ? 13 : 11;
+        return entry(rec[std::size_t(2 * log_state + 1)], rec[1], flag(12) ? 1 : 0, log_state, false);
     }
-    if (b13 && b1 && rec[2] != 0xffff) {                    // the reward's due
-        s = rec[2] + 1;
-        return entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], 3, s, true);
+    if (b13 && bit1 && rec[2] != 0xffff) {                    // the reward's due
+        log_state = rec[2] + 1;
+        return entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], 3, log_state, true);
     }
-    if (b1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
-    if (s == 0)
-        return (game(13) || game(15)) && !b13 && !b1 ? entry(3729, 3725, 3, -1, false) : QuestText{};
-    if (s > 13) return {};
+    if (bit1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
+    if (log_state == 0)
+        return (game(13) || game(15)) && !b13 && !bit1 ? entry(3729, 3725, 3, -1, false) : QuestText{};
+    if (log_state > 13) return {};
     if (quest == 1) {                                       // the Den (name 3714): its count
-        QuestText text = entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3, s, true);
-        if (s == 3 || s == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
+        QuestText text = entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
+        if (log_state == 3 || log_state == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
         return text;
     }
-    int line = rec[std::size_t(2 * s + 1)];
-    if ((!b13 && !b1 && game(13)) || flag(14) || line == 3727) line = 3729;
-    return entry(line, rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3, s, true);
+    int line = rec[std::size_t(2 * log_state + 1)];
+    if ((!b13 && !bit1 && game(13)) || flag(14) || line == 3727) line = 3729;
+    return entry(line, rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
 }
 // The quest log's acts (FUN_004a2220): an act's tab is there once the act
 // before it is over (quests 7, 15, 23, 26 done; the fifth only in the

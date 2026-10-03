@@ -563,10 +563,10 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
         const int total = std::max(fighter.phys_pct + pct, -90);
         line.min = int((std::int64_t(fighter.phys_lo) * (100 + total) / 100) >> 8) + flat;
         line.max = int((std::int64_t(fighter.phys_hi) * (100 + total) / 100) >> 8) + flat;
-        for (std::size_t k : { 0u, 1u, 2u, 4u, 3u }) {
-            const auto& [lo, hi] = fighter.elem[k];
-            line.min += std::min(lo, hi); line.max += hi;
-            if (lo != 0 || hi != 0) line.damage_colour = kElemColour[k];
+        for (std::size_t elem : { 0u, 1u, 2u, 4u, 3u }) {
+            const auto& [low, high] = fighter.elem[elem];
+            line.min += std::min(low, high); line.max += high;
+            if (low != 0 || high != 0) line.damage_colour = kElemColour[elem];
         }
         if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
     };
