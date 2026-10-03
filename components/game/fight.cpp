@@ -2240,6 +2240,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
         foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat;
+        foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         return foe;
     }
 
@@ -2472,6 +2473,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                                         merc && merc->walking, merc_fighter() } };
             foes[0].life_pct = int(std::int64_t(character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(character.stats.get(d2d::d2s::kMaxLife), 1));
             foes[1].pet = true;                                  // the merc: its MonStats class's size
+            foes[1].life_pct = int(std::int64_t(merc_life) * 100 / std::max(merc_st.life, 1));
             if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
                 foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %

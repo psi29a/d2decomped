@@ -223,7 +223,7 @@ struct Foe {
     bool pet = false;                         // the merc, a summon: in the player's list
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
     int threat = 14;                          // FUN_005dc920: a player's 14, a monster's MonStats threat
-    int life_pct = 100;                       // FUN_00621f20 (a Fetish's think); ponytail: the player's only, the rest full
+    int life_pct = 100;                       // FUN_00621f20 (a Fetish's think): life x 100 / max life
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
@@ -380,8 +380,8 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // aidel ticks between attacks;
 // otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
 // random spot within 3 cells.
-// ponytail: an AI whose think isn't traced (rules::traced_ai) gets one
-// melee think (MonStats aip1..8 unread); distances and timings by eye;
+// ponytail: later acts only (every Act 1 MonStats AI is traced): an AI
+// whose think isn't traced (rules::traced_ai) gets one melee think (MonStats aip1..8 unread); distances and timings by eye;
 // chasing goes straight at the player, sliding to a stop at walls.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].

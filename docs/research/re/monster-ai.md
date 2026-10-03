@@ -90,6 +90,27 @@ Mode 5 (FUN_005dcf70, callback FUN_005dca70), block {primary, best 0x7fffffff, n
 2. Else, a door near (FUN_0064d910 mask 0x40) and FUN_0046c140: wander 5.
 3. Else stand: 10 frames when `nearest` < 25, `nearest` − 10 under 35, else 25.
 
+- FUN_0046c140(ECX class, EDX 2) is the MonStats2 mode bit (record +0x18 → MonStats2 row, 0x134 bytes, byte +0xf0 + bit / 8 & DAT_006ce268[bit & 7] = 1 << bit): bit 2 is mWL (checked in the emulator against MonStats2.txt). So only a monster with a walk wanders.
+- FUN_0064d910(room, x, y, the path's collision pattern FUN_00649180, mask 0x40) tests the grid under the unit.
+- There's no other idle wander: Levels.txt MonWndr is the wanderer spawn (objgroups.cpp), not this. d2d's old home wander (2–5 s, 3 cells) is gone; `think` does the above on the unit seed (`rules::think_wander`).
+
+## The attack's target
+
+FUN_005ddf90 / FUN_005dead0 / FUN_005deb60 build the mode ctx with FUN_005a7e60 ([0] mode, [1] unit, [2] the target) and FUN_005a7c20 puts the target on the path (+0x58). A hit, a shot or a skill goes at that unit, not at whoever is nearest. In d2d `Monster::chase` holds it for every mode a think starts (`use`, a walk), cleared when the search finds nobody; `monster_update`'s foe is that one while it lives, else the nearest of the player's side.
+
+## The Gargoyle Trap's shot — FUN_005cc050 (srvdofunc 93)
+
+FUN_00553540 gives the trap's target. On the axis the trap is nearer the target, the trap's coordinate moves up to 4 toward the target's; on the other axis the point takes the target's. With offset (dx, dy) = point − trap, the missile (FUN_0059fa30, flags 3) starts at trap + dx / 6 − 1, trap + dy / 6 − 1 (C division, −1 on both axes whatever the sign; bugs.md #14) and flies along (dx, dy). `rules::gargoyle_shot`.
+
+## Missile velocity — FUN_0059fa30
+
+Every missile made here (Andariel's, the Shaman's, a MissA shot, the player's skills through FUN_0056ecb0 / FUN_0056ee90, flags 0x21 / 0x420, no flag 4) gets path velocity ((Vel + VelLev × lvl / 8) << 8) × 75 / 100 (FUN_00648690: path +0x7c, the walk's field). d2d moves every missile at `cells_per_sec(Vel)`, 4/3 too fast. That's left as one change for all missiles (ai.cpp, fight.cpp, world.cpp), after the missile stepper is traced.
+
+## Boss mods in the hit
+
+- Cursed (FUN_005a2530, unique flag set): the monster seed's next draw, `& 3` not 0, then Amplify Damage (66) at level mlvl / 5 + 1 through FUN_0056dbc0(ECX game, EDX 3; monster, level, radius, FUN_005a23d0): radius aurarangecalc (Skills +0x64, ln12: 3 + (lvl − 1)) clamped 1..40, round FUN_0056d2c0's point (the monster's target unit, else its path target). FUN_005a23d0 curses each enemy there (FUN_00554200). d2d: the player's side within the radius of the one struck.
+- Mana burn (FUN_005a1f90): MonLvl DM (L-DM in an expansion game) for the difficulty × MonUMod constants FUN_005a00f0(0x10 + d) / (0x13 + d), or (0x1c + d) / (0x1f + d) with the unique flag, / 100, into stats 62 / 63. Champions never get the mod.
+
 ## Confuse and Attract
 
 - Confuse (FUN_005c3f20, each unit FUN_005c3de0): a monster that's evil, an enemy of the caster, alive and passes FUN_0056e2f0 gets the curse state, alignment 1, list 9, kind 3 (FUN_00573090) and event 10 at the end. Its remove callback (FUN_005c3db0) puts alignment 0 back (not on +0xc4 & 0x80000000), drops the state and takes it off the list.
@@ -213,6 +234,6 @@ Approximated (`ponytail:` in ai.cpp, fight.cpp, monsters.hpp):
 - Confuse's and Attract's duration is auralen's, not FUN_005c37a0's; FUN_0056e2f0's test is unread.
 - The search pather (type 0xf, FUN_0067c2d0) is `rules::find_path`'s turns over its first 0x28 subtiles. Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
 - A dead pet is skipped (game.exe takes it off the list), and a dead monster leaves list 9.
-- An untraced AI chases the nearest foe, whichever it found.
+- An untraced AI (none in Act 1: every Act 1 MonStats AI is traced) goes at what it found from the next frame on.
 - A pace (`ThinkIn::pace` → `Monster::move_pct`) adds to the move's speed %; Spider Lay's −100 % leaves it creeping at the 10 % floor, and its slowed state on those about is left out. A foe's life % (`Foe::life_pct`) is the player's only.
 - The Vampire's second target (FUN_005ddc30) is its target. VampireFirewall / VampireMeteor stand (no Act 1 vampire casts them). The Fetish's leader commands never come, and the pathers 2 / 0xd and FUN_005defe0's steps are `path_to`'s.

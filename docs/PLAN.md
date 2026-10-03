@@ -589,7 +589,8 @@ follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
 (monster-ai.md: outdoor no sight, indoor sight then spawn-area alert);
 Cain's portal at game.exe's spot. Still approximate (ponytail): object
 seed per level, not game-wide; units/objects/room seeds keep list order on
-relevel; search_target treats all foes alike.
+relevel. (search_target was already FUN_005dd7f0's; what a monster then hits
+now follows its target: monster-ai.md "The attack's target".)
 
 **Checkpoint 2026-10-01, one object seed.** The object seed (game +0x10f0)
 is one per game (`Spawning::objects`): every room's presets and groups and
