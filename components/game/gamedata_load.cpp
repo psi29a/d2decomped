@@ -186,7 +186,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
         type_info.no_ratio = text("noRatio") == "1";
-        type_info.tc_fixed = type_info.no_ratio || text("boss") == "1";
+        type_info.boss_column = text("boss") == "1";
+        type_info.tc_fixed = type_info.no_ratio || type_info.boss_column;
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
@@ -708,6 +709,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t row = 0; row < 3; ++row) {
             game_data.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));
             game_data.cold_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterColdDivisor")).c_str());
+            game_data.curse_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "AiCurseDivisor")).c_str());
         }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
@@ -1268,7 +1270,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto per = [&](const char* column) { return std::atoi(std::string(charstats.get(class_index, column)).c_str()); };
         game_data.class_gains[class_index] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
-                                 per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };
+                                 per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor"), per("ManaRegen") };
         auto& start = game_data.class_start[class_index];
         start = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(class_index, "StartSkill")) };
         for (int i = 1; i <= 10; ++i)

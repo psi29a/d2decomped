@@ -293,10 +293,15 @@ lines (missile names aren't passed in). What it does:
   ticks at least; cold: 50 ticks at least).
 - Stun (FUN_0057c6c0 → FUN_0057aae0): record +0x44 (or, when 0, gear stat 66
   × SrcDam / 128). Monsters flagged special (FUN_005a0180) shrug it off 90 %
-  of the time; a MonStats +0x0c flag (mask 0x6ce280) or MonStats +0x32 = 0
-  makes them immune; ids 0x10f / 0x152 / 0x167 / 0x230–0x231 cap it at 13
-  frames; others at 250. State 21 (stunned) for that many frames, refreshed
-  by a new stun.
+  of the time (the attacker's seed); MonStats boss (+0x0c & 0x40: mask
+  0x6ce280 of the bit table at 0x6ce268) or Velocity (+0x32, the loader's
+  field at 0x651614) 0 makes them immune; the hirelings (FUN_0063ee90: ids
+  0x10f RogueHireling, 0x152 Guard, 0x167 Iron Wolf, 0x230 / 0x231 the act 5
+  ones) cap it at 13 frames; others at 250. State 21 (stunned) for that many
+  frames, refreshed by a new stun. Special is FUN_005a0180's EDX 8: monster
+  data +0x16 & 8, set by FUN_005a0320 on every unique, champion and
+  superunique placed (FUN_005a09e0, FUN_005a48c0, FUN_005a4940), not on
+  minions. d2d: `Fight::land`.
 - Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
   ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
 
@@ -846,6 +851,17 @@ lines (missile names aren't passed in). What it does:
 - Do **69** (FUN_005d81c0, Find Potion) / **72** (FUN_005d8780, Find Item):
   a corpse without state 0x76 (then marked), at calc1 %: a potion
   (FUN_005d8100) / a treasure drop of a tier by Param1..4 (FUN_005a8000).
+  FUN_005d8100: the caster's level id (FUN_00620bb0 → FUN_0061a1b0) to an
+  act by 0x6eb2f0's starts {1, 40, 75, 103, 109} (FUN_006427f0), the row act
+  + difficulty × 5 of 0x741b58 (15 rows of {healing, mana, rejuvenation}:
+  hp2 mp2 rvs; hp3 mp3 rvs ×2; hp4 mp4 rvl ×3; hp4 mp5 rvl; hp5 mp5 rvl ×8);
+  the caster's rand(100) below Param3 (+0x150, 30) the mana one, below
+  Param3 + Param4 (+0x154, 10) the rejuvenation, else the healing one.
+  d2d: `rules::find_potion`.
+- Curse lengths (FUN_005c37a0): auralen / DifficultyLevels AiCurseDivisor
+  (+0x1c; 1, 2, 4) for Confuse (FUN_005c3f20), Attract (FUN_005c3bcc), and
+  do 30's curses whose auratargetstate is 23 dimvision or 56 terror
+  (FUN_005c3400); the other curses keep auralen.
 - Aura event functions seen: 1 Chilling Armor (hitbymissile), 2 Frozen
   Armor (damagedinmelee), 3 Shiver Armor (attackedinmelee), 4 Iron Maiden
   (domeleedamage), 5 Life Tap (damagedinmelee / damagedbymissile), 22 /
@@ -861,7 +877,7 @@ lines (missile names aren't passed in). What it does:
   effects), Thunder Storm's pace and reach, Confuse / Attract / Conversion
   (the monster only stops seeing the player's side), Battle Command's
   +1 skills, the war cries on the merc and pets, Leap's and Dragon
-  Flight's movement (they arrive at once), Find Potion's table.
+  Flight's movement (they arrive at once).
 
 ### The rest (phase 6, part 5)
 - Royal Strike's releases: **40** (FUN_005d5010: the count's missile

@@ -623,7 +623,19 @@ struct ClassGains {
     int life_per_vit = 0, stamina_per_vit = 0, mana_per_energy = 0;
     int life_per_level = 0, stamina_per_level = 0, mana_per_level = 0, stat_per_level = 5, to_hit = 0;
     int block = 0;                                     // BlockFactor
+    int mana_regen = 120;                              // ManaRegen (record +0x3a): seconds to fill the mana globe
 };
+
+// The player's mana a frame (FUN_005806f0, 256ths), unless state 0x55
+// (nomanaregen) is on: max mana over ManaRegen x 25 frames (7500 when it's
+// 0), at least 1, times (100 + manarecoverybonus (27)) / 100 (FUN_00483360,
+// truncating); plus
+// manarecovery (26), flat. The caller caps it at what's missing.
+inline std::int64_t mana_per_frame(std::int64_t max_mana, int regen_seconds, int bonus_pct, int flat) {
+    const std::int64_t frames = regen_seconds * 25 != 0 ? regen_seconds * 25 : 7500;
+    const std::int64_t base = std::max<std::int64_t>(max_mana / frames, 1);
+    return base * (100 + bonus_pct) / 100 + flat;
+}
 
 // Spends up to n unspent stat points (stat 4) on stat (0 strength, 1
 // energy, 2 dexterity, 3 vitality), as the char panel's buttons ask with
@@ -1372,6 +1384,23 @@ inline std::string drink_item(const Tables& tables, std::vector<d2d::d2s::Item>&
 }
 inline std::string drink_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int col) {
     return drink_at(tables, items, std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kBelt && item.column == col; }));
+}
+
+// Find Potion's potion (FUN_005d8100): a row by the act (the level id
+// against 0x6eb2f0's starts 1, 40, 75, 103, 109) + difficulty x 5 of the
+// table at 0x741b58 {healing, mana, rejuvenation}; the caster's roll
+// (rand(100)) below Param3 takes the mana potion, below Param3 + Param4 the
+// rejuvenation, else the healing one.
+inline std::string find_potion(int level_id, int difficulty, int roll, int mana_chance, int rejuv_chance) {
+    static constexpr std::array<std::array<const char*, 3>, 15> kPotions{ {
+        { "hp2", "mp2", "rvs" }, { "hp3", "mp3", "rvs" }, { "hp3", "mp3", "rvs" }, { "hp4", "mp4", "rvl" }, { "hp4", "mp4", "rvl" },
+        { "hp4", "mp4", "rvl" }, { "hp4", "mp5", "rvl" }, { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" },
+        { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" }, { "hp5", "mp5", "rvl" } } };
+    static constexpr std::array<int, 5> kActStart{ 1, 40, 75, 103, 109 };
+    int act = 0;
+    while (act + 1 < int(kActStart.size()) && level_id >= kActStart[std::size_t(act) + 1]) ++act;
+    const int column = roll < mana_chance ? 1 : roll < mana_chance + rejuv_chance ? 2 : 0;
+    return kPotions[std::size_t(std::clamp(act + std::clamp(difficulty, 0, 2) * 5, 0, 14))][std::size_t(column)];
 }
 
 // A healing / mana potion's amount in 256ths (FUN_005be3f0): calc1 << 8,

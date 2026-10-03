@@ -22,6 +22,7 @@ struct MonType {
     std::array<std::string, 3> tc_quest;        // TreasureClass4: while quest TCQuestId isn't done (flags 15, 1, TCQuestCP)
     int tc_quest_id = 0, tc_quest_cp = 0;
     bool tc_fixed = false;                      // noRatio or boss (MonStats +0xc & 0x44): its TC never moves on by level
+    bool boss_column = false;                   // boss (+0xc & 0x40, FUN_0063e9f0): can't be stunned (FUN_0057aae0)
     bool no_ratio = false;                      // noRatio (+0xc & 4): stats as written, not MonLvl percentages (FUN_006538a0)
     int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
     int min_grp = 0, max_grp = 0, party_min = 0, party_max = 0, sparse = 0, rarity = 0;

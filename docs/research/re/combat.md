@@ -93,7 +93,16 @@ FUN_00563560:
 Messages voice on the client (FUN_004cb9c0): the class's table off
 0x72a008 (amazon 0x727eac), 0x13 → +8, 0x14 → +0x18, 0x15 → +0xc,
 0x16 → +0x10, 0x17 → +0x14 (cantcarry, amazon sound 0xb76), 0x18 → +0x1c;
-the same sound within 0x4b of FUN_0044db00's clock is skipped.
+the same sound within 0x4b of FUN_0044db00's clock (DAT_007a0498, +1 each
+client game frame in FUN_0044c790: 75 frames, 3 s) is skipped.
+Message 0x15 is the client's own: FUN_004610c0 asks FUN_004d9fc0 →
+FUN_00647960 whether the skill can go; reason 1 (short of mana:
+FUN_00647540's cost `(mana + lvlmana × (lvl − 1)) << manashift` against
+stat 8, or FUN_006440f0's minmana × 256) voices table 0x711ddc[reason]
+(0, 0x15, 0x13, 0x13, 0x13): `<class>_needmana_1` (amazon 0xb8d). A skill
+with AttackNoMana (Skills +7 & 0x10) swings Attack instead, silently. The
+server (FUN_0056f640) just drops a skill it can't pay for. d2d:
+`Fight::need_mana`.
 d2d: rules::pick_up, Loot::take. ponytail: no step 4; stacks match by
 code; the voice's repeat guard; the doubling rolls d2d's rng; no
 shift-click to the hireling.
@@ -105,6 +114,13 @@ shift-click to the hireling.
   **`if (life < 0x100) life = 0x100`**. Negative regen (poison, burning) can
   never take a player below 1 life. Then mana (FUN_005806f0) and stamina
   (FUN_00580500; char-panel.md, the HUD).
+- **Mana a frame** (FUN_005806f0, 256ths): unless state 0x55 (nomanaregen),
+  `max(maxmana / (CharStats ManaRegen (+0x3a) × 25), 1)` (7500 frames when
+  ManaRegen is 0; it's 120 for every class), times `(100 + stat 27) / 100`
+  through FUN_00483360 (truncating); plus stat 26 flat; capped at what's
+  missing. Integer per frame: 20 max mana regains 1/256 a frame, 0.1 a
+  second, not 20 / 120. A full globe removes state 0x6a (manapot). d2d:
+  `rules::mana_per_frame`, `Fight::apply_regen`.
 - **Monsters**: FUN_005a6920: `life += hpregen` (less a state's own
   contribution when FUN_0063a750 says so), capped at max, clamped at **0**.
   At 0 the monster dies; the kill goes to the owner of its state 2 (poison)
@@ -180,7 +196,6 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   tables.
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
-- Mana regeneration: all of max mana in 120 s, times (100 + bonus) %.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
 - Stat sums (`gear_props`, character.hpp) cover worn slots 1..10, what's
   socketed in them (gems.txt by weapon / shield / other), inventory charms,
