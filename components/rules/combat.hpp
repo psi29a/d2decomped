@@ -277,7 +277,8 @@ struct Swing {
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
 // takes a quarter of its current life (less physical resistance).
-// ponytail: crushing blow's boss / difficulty divisors aren't applied.
+// ponytail: crushing blow's boss / difficulty divisors aren't applied (its
+// code isn't located in game.exe yet).
 inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}) {
     Blow blow;
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
@@ -306,8 +307,9 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
     damage = damage * swing.srcdam / 128;
     // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
-    // pct % of the physical moves to the element, calc2's add comes after.
-    // ponytail: poison conversion (an eighth, 50-tick length) isn't done.
+    // pct % of the physical moves to the element, calc2's add comes after;
+    // cold chills and poison runs at least 50 ticks, poison an eighth of
+    // it a tick (record [10], 256ths).
     const std::int64_t conv = swing.conv_type >= 0 && swing.conv_type < 5 ? damage * std::clamp(swing.conv_pct, 0, 100) / 100 : 0;
     damage -= conv;
     int phys = int(std::max<std::int64_t>(damage >> 8, swing.kick || conv ? 0 : 1)) + swing.flat;
@@ -333,6 +335,13 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
         elem += element_damage;
     }
+    if (conv > 0 && swing.conv_type == 3) {
+        const int ticks = std::max(fighter.poison_len, 50);
+        blow.poison += resisted(int(conv / 8 * ticks >> 8), target.res[5]);
+        blow.poison_ticks = std::max(blow.poison_ticks, ticks);
+    }
+    if (conv > 0 && swing.conv_type == 2 && resisted(int(conv >> 8), target.res[4]) > 0)
+        blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
     int crushing_blow = 0;
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) { blow.crushing = true; crushing_blow = resisted(target.hit_points / 4, target.res[0]); }
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
@@ -393,8 +402,8 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, bool moving, const 
 // Experience for a kill: the monster's, less when the character outlevels
 // it by more than 5 (81 / 62 / 43 / 24 % at 6..9 levels, 5 % from 10), or
 // scaled by clvl / mlvl when the monster is more than 5 levels higher.
-// ponytail: single player, no party share, no experience.txt ExpRatio
-// past level 69.
+// ponytail: single player: the party share waits for a party; Experience.txt
+// ExpRatio (past level 69) waits for later acts.
 inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
     static constexpr int kPenalty[5] = { 81, 62, 43, 24, 5 };
     if (clvl > mlvl + 5) return std::int64_t(exp) * kPenalty[std::min(clvl - mlvl - 6, 4)] / 100;

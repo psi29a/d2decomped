@@ -150,9 +150,12 @@ d2d matches both, and the one-poison-at-a-time rule.
   Poison (57/58 over 59, with poison mastery 332) is split by stat 326.
   Cold length += stat 56, stun += stat 66.
 - Leech: life stat 60, mana 62, stamina 64 (a monster's scaled by SrcDam).
-- Conversion (record byte +0x65): a % of physical moved to an element
-  (Fists of Fire and friends); cold / poison conversions give at least 50
-  ticks.
+- Conversion (record byte +0x65, the % at +0x68, last in `FUN_0057b7d0`):
+  `FUN_00483360(physical, %, 100)` leaves the physical and goes to fire
+  [4] (1), lightning [7] (2), magic [8] (3), cold [9] (4, cold length [0xc]
+  at least 50), poison [10] (5: an eighth of it a tick, length [0xb] at
+  least 50), 10 a random one of 1..10; 11 fire with burn length [6] ≥ 50,
+  12 cold with freeze length [0xd] ≥ 50. d2d: `player_blow`.
 
 ## Corrections applied (phase 0)
 
