@@ -37,9 +37,11 @@ def main():
     env.setdefault("D2_PATCH_INSTALLER", str(Path.home() / "Downloads/Diablo II + LoD/patch/LODPatch_114d.exe"))
     env.setdefault("ORDER", "shuffle")                  # collision, game: the rooms' order, both sides; units: game.exe's
     with tempfile.TemporaryDirectory() as out:
-        subprocess.run([str(emu.ROOT / "build/tools/drlg-dump/drlg-dump"), emu.data_path(), f"{first}-{last}", str(lid), out] + ([what] if tiles else []),
-                       env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Ours runs while game.exe's emulator boots; waited for before the first compare.
+        dump = subprocess.Popen([str(emu.BUILD / "tools/drlg-dump/drlg-dump"), emu.data_path(), f"{first}-{last}", str(lid), out] + ([what] if tiles else []),
+                                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         e = drlg.boot()
+        if dump.wait(): sys.exit(f"drlg-dump failed ({dump.returncode})")
         bad = []
         rooms = [0, 0]                                  # monsters: rooms alike, rooms populated by either
         for seed in range(first, last + 1):

@@ -19,6 +19,7 @@ from unicorn.x86_const import *
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+BUILD = ROOT / os.environ.get("D2_BUILD", "build")   # sweep.sh: build-release
 STUB, STUB_SIZE = 0x7F000000, 0x10000        # one 16-byte slot per import / hooked function
 STACK, STACK_SIZE = 0x7E000000, 0x800000
 HEAP, HEAP_SIZE = 0x20000000, 0x5C000000     # bump allocator, never frees (~60 KB per Blood Moor act)
@@ -68,7 +69,7 @@ class Emu:
         mu.hook_add(UC_HOOK_MEM_INVALID, self._bad)
         self.files = {}
         self._mpqs = os.path.join(data_path())
-        self._cat = ROOT / "build" / "tools" / "mpq-cat" / "mpq-cat"
+        self._cat = BUILD / "tools" / "mpq-cat" / "mpq-cat"
         self.last_error = 0
 
     # ---- memory -------------------------------------------------------
