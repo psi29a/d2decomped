@@ -219,6 +219,69 @@ then.
   0xe2 (hit from 0xe6, 0x1e x 0x21), which plays the quest's message again.
 
 d2d: `draw_quest_log` / `quest_text` / `quest_button_at` in panels.hpp,
-opened with Q; the View carries the Den's state, log state and count.
-ponytail: the Den's record only; the questdone plate and the buttons'
-hover text aren't drawn.
+opened with Q; the View carries the log states, the game's flags and the
+Den's count. All six Act 1 records are in (quests-act1.md).
+
+### The panel in full (FUN_004a34f0, FUN_004a3e40, FUN_004a42a0)
+
+- **Tabs:** an act's tab is drawn only once the act before it is over
+  (quests 7, 15, 23, 26 bit 0; the fifth needs the expansion): the open
+  tab frame 2 × act, the others 2 × act + 1, the rest none. The classic
+  game loads `questtabs` (four, x 5, 0x52, 0x9f, 0xec, bottom 32), the
+  expansion `expquesttabs` (five, bottom 33). A press in the top 0x1c rows
+  (FUN_004a26f0, 0x40 a tab, 0x50 classic) switches tab: the old tab's
+  pending done animations count as seen (FUN_004a2760 sets bit 12), the
+  act falls back to the last open one (FUN_004a2220), the pick is made
+  again (FUN_004a3220(act, 1)).
+- **Icons** by the picker's +0x266: 2 frame 26; 3 frame 0, 25 while held
+  (0x7bf2b5, the icon the mouse went down on); 1 frame 24, or while held
+  `questdone` frame = the icon's index a row up (0x724220 = −1); 0 the done
+  animation. The socket under it: frame 1 and a row up (0x72421c = −1)
+  when picked (0x7bf2b9).
+- **Text:** font 8 (FontFormal11). The name centred at x 0xa0, bottom 248;
+  the lines left-aligned at x 16 (0x724214), from y 270 (0x724210), 20
+  apart, wrapped to 270 (FUN_00502970). Not drawn while a questlast replay
+  plays (0x7bf2b3).
+- **Clicks:** an icon is held only when it has text (+0x264), with
+  cursor_button_click (Sounds.txt 4); let go on the same icon and it is
+  picked and remembered for the tab (0x7bf2bd). Hit boxes 0x38 × 0x34 at
+  0x723eb0 (the slot table's second pair). Close: hit x 0x116..0x139, y
+  0x188..0x1a9 (FUN_004a2690); questlast: 0xe6..0x103 by 0x187..0x1a7
+  (FUN_004a2610). Hover texts (font 9, FUN_00502280, bottom 0x5f above the
+  panel's): 4144 "Close" centred at 0x128, 3720 "Speech" at 0xf1.
+- **Opening** (FUN_004a3fe0 → FUN_004a2300, FUN_004a3220(act, 0)): the
+  player's act's tab (as far as open), the animation counters reset. The
+  pick: the Quest Log button's quest for the tab (0x7bf280); else, in the
+  table's order, the first quest whose state changed since it was last
+  read (+0x263: the picker keeps each quest's state at 0x7bf380) or whose
+  done animation is to play; else the tab's remembered pick; else the
+  first under way (shown 3).
+- **Shutting** (UI 0xf off, FUN_00455ae0 → FUN_004a28d0): the tab's pending
+  done animations count as seen.
+
+### The Quest Log button (UI 0x11)
+
+S→C 0x5d (6 bytes: quest, flags, log state, s16; `FUN_0045e540` →
+`FUN_004a2cb0`) with no flags is a quest's log state: with the log shut it
+turns on UI 0x11 and keeps the quest's slot for its tab (`FUN_004a2c30`,
+0x7bf298 = 1); with it open the quest is picked if it's in the tab. The
+server sends it from `FUN_00544190` (each log change sent per player) and
+`FUN_00545920` (log 12, "another player"). Flags 2 are sounds: event 4
+(Akara's ring, `FUN_005458e0(player, 4)`) plays item_ring (241).
+
+`FUN_004a2a80` draws it like New Stats (levelsocket, level, the label
+3928 "Quest Log" centred over it). Its row (0x7241c0, 20 bytes x0, x1,
+y0, y1, label bottom, filled for 640 × 480 at 0x6cac30, drawn + H − 480;
+`FUN_004a2900` picks): x 40 (W/2 + 40 with only the left panel open), y
+H−195..H−160 (label H−198), or H−140..H−105 (H−143) with the left panel
+and the character panel open. Not drawn with both panels open or the log
+up. Pressed over it (`FUN_004a2a20`): held, Sounds.txt 4; let go over it
+(`FUN_004a4110`): UI 0x11 off and the log opens on its quest. Opening the
+log with Q doesn't turn it off.
+
+d2d: `quest_log_open` / `_close` / `_tab` / `_notify`, `quest_log_button`
+(panels.hpp), `rules::quest_log_pick` / `quest_log_act`.
+ponytail: a change in the View's log state stands in for each 0x5d (so a
+log change the server keeps to itself, Burial's 13 at the reward, also
+brings the button); the player's act is taken as Act 1's; the description
+stays up while questlast replays.

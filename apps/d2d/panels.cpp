@@ -652,9 +652,80 @@ void draw_waypoints(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     }
 }
 
+QuestText quest_log_read(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state, bool& fresh) {
+    const auto text = quest_text(quest_bits, quest, quest_state);
+    auto& last = quest_log.last_state[std::size_t(quest)];
+    fresh = text.marks && text.state != last;
+    if (text.state >= 0) last = text.state;
+    return text;
+}
+
+// FUN_004a3220: the tab's quests in the table's order, read as the panel
+// draws them, then the pick.
+static void quest_log_select(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, bool reset) {
+    std::vector<d2d::rules::QuestLogPick> entries;
+    for (const auto& entry : kQuestLog) {
+        if (entry.act != quest_log.act) continue;
+        bool fresh = false;
+        const int shown = quest_log_read(quest_log, quest_bits, entry.quest, quest_state, fresh).shown;
+        entries.push_back({ entry.slot, shown, fresh });
+    }
+    const auto act = std::size_t(quest_log.act);
+    quest_log.slot = d2d::rules::quest_log_pick(entries, quest_log.pending[act], quest_log.remembered[act]);
+    if (reset) quest_log.pending.fill(-1);
+}
+
+// The tab's done animations still to play count as seen (FUN_004a2760).
+static void quest_log_mark_seen(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state) {
+    for (const auto& entry : kQuestLog)
+        if (entry.act == quest_log.act && quest_text(quest_bits, entry.quest, quest_state).shown == 0) quest_log.seen[std::size_t(entry.quest)] = true;
+}
+
+void quest_log_open(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, int player_act) {
+    quest_log.open = true;
+    quest_log.notified = false;
+    quest_log.act = d2d::rules::quest_log_act(quest_bits, player_act);
+    quest_log.frame.fill(0);
+    quest_log.frame_ms.fill(0);
+    quest_log.pressed = -1;
+    quest_log.close_down = quest_log.last_down = false;
+    quest_log_select(quest_log, quest_bits, quest_state, false);
+}
+
+void quest_log_close(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state) {
+    if (!quest_log.open) return;
+    quest_log_mark_seen(quest_log, quest_bits, quest_state);
+    quest_log.open = false;
+    quest_log.pressed = -1;
+    quest_log.close_down = quest_log.last_down = false;
+}
+
+void quest_log_tab(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, int act, bool expansion) {
+    if (act < 0 || act >= 5 || act == quest_log.act || (act == 4 && !expansion)) return;
+    quest_log_mark_seen(quest_log, quest_bits, quest_state);
+    quest_log.act = d2d::rules::quest_log_act(quest_bits, act);   // FUN_004a2220
+    quest_log.frame.fill(0);
+    quest_log.frame_ms.fill(0);
+    quest_log_select(quest_log, quest_bits, quest_state, true);
+    quest_log.pressed = -1;                   // FUN_004a2390
+    quest_log.close_down = quest_log.last_down = false;
+}
+
+void quest_log_notify(QuestLog& quest_log, int quest) {
+    const auto found = std::ranges::find(kQuestLog, quest, &QuestEntry::quest);
+    if (found == kQuestLog.end()) return;
+    if (!quest_log.open) {
+        quest_log.button = quest_log.notified = true;
+        quest_log.pending[std::size_t(found->act)] = found->slot;     // FUN_004a2c30
+    } else if (found->act == quest_log.act) {
+        quest_log.slot = found->slot;
+    }
+}
+
 bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits,
-                    const QuestState& quest_state, std::uint32_t now_ms) {
+                    const QuestState& quest_state, std::uint32_t now_ms, bool expansion, int mouse_x, int mouse_y) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    const auto& font = scene.font_formal11.line_height() > 0 ? scene.font_formal11 : scene.font;   // font 8
     const int panel_x = kCharPanelX, panel_y = kCharPanelY;
     bool sound = false;
     auto bottom = [&](const d2d::dc6::Sprite& sprite, std::uint32_t frame, int x, int y) {   // DC6s draw up from their bottom-left
@@ -664,48 +735,99 @@ bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     };
     bottom(scene.quest_bg, 0, 0, 256); bottom(scene.quest_bg, 1, 256, 256);
     bottom(scene.quest_bg, 2, 0, 432); bottom(scene.quest_bg, 3, 256, 432);
-    for (int act = 0; act < 5; ++act) bottom(scene.quest_tabs, std::uint32_t(act * 2 + (act == quest_log.act ? 0 : 1)), kQuestTabX[std::size_t(act)], 33);
+    // The tabs: the open one's frame 2 x act, the others' + 1, an act not
+    // yet reached none.
+    const bool classic_tabs = !expansion && scene.quest_tabs_classic.frames_per_direction() > 0;
+    const auto& tabs = classic_tabs ? scene.quest_tabs_classic : scene.quest_tabs;
+    for (int act = 0; act < (expansion ? 5 : 4); ++act) {
+        const int x = expansion ? kQuestTabX[std::size_t(act)] : kQuestTabXClassic[std::size_t(act)];
+        if (act == quest_log.act) bottom(tabs, std::uint32_t(act * 2), x, expansion ? 33 : 32);
+        else if (d2d::rules::quest_act_open(quest_bits, act, expansion)) bottom(tabs, std::uint32_t(act * 2 + 1), x, expansion ? 33 : 32);
+    }
+    // Each quest's icon by `shown`: 2 frame 26 (not started); 3 frame 0,
+    // 25 while held; 1 frame 24, its questdone plate (by its icon) a row up
+    // while held; 0 the done animation. Its socket under it, frame 1 and a
+    // row up when picked.
+    QuestText picked;
     const QuestEntry* sel = nullptr;
     for (const auto& entry : kQuestLog) {
         if (entry.act != quest_log.act) continue;
-        const auto [x, y] = kQuestSlot[std::size_t(entry.slot)];
-        const bool selected = entry.slot == quest_log.slot;
-        if (selected) sel = &entry;
-        const int shown = quest_text(quest_bits, entry.quest, quest_state).shown;
-        int frame = quest_icon_frame(shown, selected);
+        const auto& slot = kQuestSlot[std::size_t(entry.slot)];
+        bool fresh = false;
+        const auto text = quest_log_read(quest_log, quest_bits, entry.quest, quest_state, fresh);
+        const bool held = entry.slot == quest_log.pressed;
+        const auto& icon = scene.quest_icons[std::size_t(entry.icon)];
         const auto quest_index = std::size_t(entry.quest);
-        if (shown == 0 && quest_index < quest_log.seen.size() && !quest_log.seen[quest_index]) {   // the done animation
+        if (text.shown == 0 && !quest_log.seen[quest_index]) {   // the done animation
             if (!quest_log.frame_ms[quest_index]) quest_log.frame_ms[quest_index] = now_ms;
             if (now_ms - quest_log.frame_ms[quest_index] > 100) {
                 quest_log.frame_ms[quest_index] = now_ms;
                 if (++quest_log.frame[quest_index] == 1) sound = true;
             }
             if (quest_log.frame[quest_index] > 24) { quest_log.frame[quest_index] = 24; quest_log.seen[quest_index] = true; }
-            frame = quest_log.frame[quest_index];
+            bottom(icon, std::uint32_t(quest_log.frame[quest_index]), slot.x, slot.y);
+        } else if (text.shown <= 1) {
+            if (held) bottom(scene.quest_done, std::uint32_t(entry.icon), slot.x, slot.y - 1);
+            else bottom(icon, 24, slot.x, slot.y);
+        } else {
+            bottom(icon, text.shown == 2 ? 26u : held ? 25u : 0u, slot.x, slot.y);
         }
-        bottom(scene.quest_icons[std::size_t(entry.icon)], std::uint32_t(frame), x, y);
-        bottom(scene.quest_sockets, selected ? 1u : 0u, x - 4, y + 5);
+        const bool selected = entry.slot == quest_log.slot;
+        bottom(scene.quest_sockets, selected ? 1u : 0u, slot.x - 4, slot.y + 5 - (selected ? 1 : 0));
+        if (selected && text.shown != 2) { sel = &entry; picked = text; }
     }
     if (std::uint32_t(11) < scene.store_buttons.frames_per_direction()) bottom(scene.store_buttons, quest_log.close_down ? 11u : 10u, 0x116, 422);
     bottom(scene.quest_last, quest_log.last_down ? 1u : 0u, 0xe2, 422);
+    // The buttons' hover texts (FUN_00502280, centred, bottom 0x5f above the panel's).
+    if (const int button = quest_button_at(mouse_x, mouse_y); button) {
+        const int centre = panel_x + (button == 1 ? 0x128 : 0xf1), hover_bottom = panel_y + 480 - 0x5f;
+        draw_hover_text(framebuffer, scene, { { string_id(scene, button == 1 ? 0x1030 : 0xe88), kTxtWhite } }, centre, centre, hover_bottom, hover_bottom);
+    }
     if (!sel) return sound;
-    auto centred = [&](const std::string& text, int y) { scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + (320 - scene.font.measure(text)) / 2, panel_y + y - scene.font.line_height(), text); };
-    centred(string_id(scene, std::uint16_t(sel->name)), 248);
-    if (const auto quest_text_entry = quest_text(quest_bits, sel->quest, quest_state); quest_text_entry.string) {   // word-wrapped to 270 px (FUN_00502970(0x10e))
-        std::string text = string_id(scene, std::uint16_t(quest_text_entry.string)), row;
-        if (quest_text_entry.count >= 0) text += std::to_string(quest_text_entry.count);
+    // The name centred at 160, the lines from x 16, wrapped to 270 (FUN_00502970).
+    auto line = [&](const std::string& text, int x, int y) { font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, panel_y + y - font.line_height(), text); };
+    const auto name = string_id(scene, std::uint16_t(sel->name));
+    line(name, 0xa0 - font.measure(name) / 2, 248);
+    if (picked.string) {
+        std::string text = string_id(scene, std::uint16_t(picked.string)), row;
+        if (picked.count >= 0) text += std::to_string(picked.count);
         int y = 270;
         std::size_t start = 0;
         while (start < text.size()) {
             const auto end = std::min(text.find(' ', start), text.size());
             const std::string word = text.substr(start, end - start);
-            if (!row.empty() && scene.font.measure(row + " " + word) > 270) { centred(row, y); y += 20; row.clear(); }
+            if (!row.empty() && font.measure(row + " " + word) > 270) { line(row, 16, y); y += 20; row.clear(); }
             row += (row.empty() ? "" : " ") + word;
             start = end + 1;
         }
-        if (!row.empty()) centred(row, y);
+        if (!row.empty()) line(row, 16, y);
     }
     return sound;
+}
+
+QuestLogButton quest_log_button(const QuestLog& quest_log, bool left_open, bool right_open, bool char_open) {
+    if (!quest_log.button || quest_log.open || (left_open && right_open)) return {};
+    const int width = int(kScreenWidth), height = int(kScreenHeight);
+    const bool low = left_open && char_open;            // rows 1 / 3, else 2 (FUN_004a2900)
+    const int x0 = left_open ? width / 2 + 0x28 : 0x28;
+    return { x0, x0 + 0x23, height - (low ? 0x8c : 0xc3), height - (low ? 0x69 : 0xa0), height - (low ? 0x8f : 0xc6) };
+}
+
+void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const QuestLogButton& button, bool held, int mouse_x, int mouse_y) {
+    if (button.x0 < 0 || scene.level_socket.frames_per_direction() == 0) return;
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    auto at_bottom = [&](const d2d::dc6::Sprite& sprite, int frame, int x, int bottom_y) {
+        if (frame >= int(sprite.frames_per_direction())) return;
+        const auto& frame_ref = sprite.frame(0, std::uint32_t(frame));
+        blit_sprite(framebuffer, frame_ref, pal, x, bottom_y - int(frame_ref.height));
+    };
+    // ponytail: the label in font16, as the level buttons' (the frame's font).
+    const auto label = string_id(scene, 0xf58);
+    const int socket_w = int(scene.level_socket.frame(0, 0).width);
+    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, button.x0 + 1 + socket_w / 2 - scene.font.measure(label) / 2,
+                    button.label - int(scene.font.sheet().frame(0, 0).height) + 1, label);
+    at_bottom(scene.level_socket, 0, button.x0, button.y1);
+    at_bottom(scene.level_button, held && over_quest_log_button(button, mouse_x, mouse_y) ? 1 : 0, button.x0 + 3, button.y1 - 4);
 }
 
 }  // namespace d2d::client

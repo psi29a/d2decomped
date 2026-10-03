@@ -174,8 +174,10 @@ const ExeTable kTables[] = {
     } },
     { "client::kQuestSlot", 0x723ea8, [](const Exe& exe, std::uint32_t a) {
         for (std::uint32_t i = 0; i < 6; ++i) {
-            eq(2 * i, client::kQuestSlot[i].first, exe.i32(a + 16 * i));
-            eq(2 * i + 1, client::kQuestSlot[i].second, exe.i32(a + 16 * i + 4));
+            eq(4 * i, client::kQuestSlot[i].x, exe.i32(a + 16 * i));
+            eq(4 * i + 1, client::kQuestSlot[i].y, exe.i32(a + 16 * i + 4));
+            eq(4 * i + 2, client::kQuestSlot[i].hit_x, exe.i32(a + 16 * i + 8));
+            eq(4 * i + 3, client::kQuestSlot[i].hit_y, exe.i32(a + 16 * i + 12));
         }
     } },
     { "client::kTabLabelX/kTabString", 0x722110, [](const Exe& exe, std::uint32_t a) {   // 18-byte {x, ?, u16 string}

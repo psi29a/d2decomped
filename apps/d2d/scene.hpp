@@ -148,6 +148,8 @@ struct Scene : GameData {
     // expquesttabs, questsockets, and each quest's icon (a1q1 .. a5q6).
     d2d::dc6::Sprite quest_last;                        // ui\menu\questlast: replay the quest's message
     d2d::dc6::Sprite quest_bg, quest_tabs, quest_sockets;
+    d2d::dc6::Sprite quest_tabs_classic;                // ui\menu\questtabs: the classic game's four tabs
+    d2d::dc6::Sprite quest_done;                        // ui\menu\questdone: a finished quest's plate while held, by its icon
     std::array<d2d::dc6::Sprite, 27> quest_icons;
     d2d::dc6::Sprite ctrl_panel, globes, globe_glass; // 800ctrlpnl7 / hlthmana / overlap
     d2d::dc6::Sprite run_button;                        // PANEL\runbutton (DAT_007bef0c)

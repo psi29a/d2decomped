@@ -1289,6 +1289,7 @@ auto World::deal(const Command& command) -> bool {
                 const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
                 loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, player.x, player.y, kIlvl[diff], fight.spawning.game, now);
                 loot.take(loot.ground.size() - 1);
+                cues.cue("item_ring", now, player.x, player.y);   // FUN_005458e0(4): S->C 0x5d flags 2, the client's item_ring (FUN_004a2cb0)
                 d2d::log::info("Search for Cain: done, Akara's ring");
             }
             const int den_was = den.state, burial_was = burial.state;

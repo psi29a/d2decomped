@@ -235,6 +235,11 @@ struct Town {
     [[nodiscard]] int hovered_ground() const;
     // The New Stats / New Skills buttons as the panels stand.
     [[nodiscard]] LevelButtons level_buttons_now() const;
+    // The quest log's inputs: this difficulty's flags, what the server told.
+    [[nodiscard]] const d2d::rules::QuestBits& quest_bits() const;
+    [[nodiscard]] QuestState quest_state() const { return { view.quest_log, view.game_quests, view.den_left }; }
+    void toggle_quest_log();               // Q and the mini-panel (FUN_004a3fe0)
+    [[nodiscard]] QuestLogButton quest_log_button_now() const;
 
     // The client's side of a click: what it asks the server for
     // (protocol.hpp). A held left button re-aims the walk; a press picks
@@ -250,6 +255,7 @@ struct Town {
     void handle(const Event& event, std::uint32_t frame_ms);
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
     bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
+    bool quest_log_was_open = false;               // UI 0xf last frame: shutting it marks the animations seen (FUN_004a28d0)
     int replay_speech = 0;                         // questlast: a quest message to play again
     d2d::rules::Rain rain;                         // the weather (its state lasts the session, like game.exe's)
     std::uint32_t rain_ms = 0;

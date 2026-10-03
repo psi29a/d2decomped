@@ -565,8 +565,7 @@ dungeon objects (containers, stands, wells, bookshelves, exploding
 barrels); 17 Act 1 MonAI thinks including Blood Raven; walk-through level
 links (Levels.txt Vis with Warp -1: Outer Cloister ↔ Barracks, Inner
 Cloister ↔ Cathedral); lone warp units (the Forgotten Tower's stairs).
-Open: the quest log text past the Den and the in-game quest chain,
-bit-exact object groups, dungeon monster population, drops, the Countess's
+Open: bit-exact object groups, dungeon monster population, drops, the Countess's
 AI and superunique specials.
 
 **Checkpoint 2026-09-30, placement.** Random object groups and monster
@@ -578,6 +577,10 @@ patches (FUN_0064c860), in the order the player brings rooms up (relevel;
 ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
 scatter, the Tristram portal position, the HC smoke's
 extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
+Quest log (2026-10-03): all six Act 1 records, and the panel as game.exe
+draws it (tabs by act reached, held icons and the questdone plate, the
+pick on opening, hover texts, FontFormal11) and the Quest Log button a
+quest's news brings up (UI 0x11, S->C 0x5d); quests.md.
 
 **Checkpoint 2026-10-01.** Full sweep (`sweep.sh 1-20 monsters objgroups
 drops collision tiles`): 190/190, every level 2–39. Object drops roll off
