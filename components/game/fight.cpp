@@ -13,6 +13,7 @@
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <skills.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>

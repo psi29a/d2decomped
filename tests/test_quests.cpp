@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The Den of Evil through a game: Akara gives it, the Den's cleared, she
 // rewards once; a later game picks the state up from the flags.
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
 #include <quests.hpp>
 
 #include <algorithm>

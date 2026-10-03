@@ -16,6 +16,7 @@
 #include "units.hpp"
 
 #include <ds1.hpp>
+#include <level_ids.hpp>
 #include <rules.hpp>
 
 #include <algorithm>

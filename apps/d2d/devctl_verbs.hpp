@@ -19,6 +19,7 @@
 #include <d2s_items.hpp>
 #include <devctl.hpp>
 #include <light.hpp>
+#include <object_ids.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>

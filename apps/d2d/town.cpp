@@ -17,6 +17,7 @@
 #include "world_view.hpp"
 
 #include <d2s_items.hpp>
+#include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
 #include <quests.hpp>

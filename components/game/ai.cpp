@@ -5,6 +5,7 @@
 #include "gamedata.hpp"
 
 #include <combat.hpp>
+#include <level_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>

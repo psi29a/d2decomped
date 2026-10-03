@@ -22,6 +22,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <light.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>

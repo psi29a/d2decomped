@@ -3,6 +3,7 @@
 // from game.exe 1.14d. docs/research/re/objects.md.
 #pragma once
 
+#include "object_ids.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>

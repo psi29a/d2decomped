@@ -8,7 +8,10 @@
 #include <drops.hpp>
 #include <gamedata_load.hpp>
 #include <item_text.hpp>
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <world.hpp>

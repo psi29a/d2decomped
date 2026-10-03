@@ -6,6 +6,7 @@
 #include "scene.hpp"
 
 #include <dc6.hpp>
+#include <monster_ids.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
 #include <rules.hpp>

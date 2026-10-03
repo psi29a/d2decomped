@@ -11,8 +11,10 @@
 #include <drops.hpp>
 #include <dt1.hpp>
 #include <install.hpp>
+#include <monster_ids.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
+#include <object_ids.hpp>
 #include <outdoor_data.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>

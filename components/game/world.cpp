@@ -14,7 +14,10 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>

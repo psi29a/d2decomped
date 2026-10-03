@@ -8,9 +8,12 @@
 
 #include <compcode.hpp>
 #include <dt1.hpp>
+#include <level_ids.hpp>
 #include <maze.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <mpq.hpp>
+#include <object_ids.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <quests.hpp>

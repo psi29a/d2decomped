@@ -5,6 +5,7 @@
 // combat.hpp, what they drop in drops.hpp.
 #pragma once
 
+#include "level_ids.hpp"
 #include "montypes.hpp"
 #include "rules.hpp"
 #include "uniques.hpp"

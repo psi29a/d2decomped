@@ -14,6 +14,7 @@
 
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <monster_ids.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
 

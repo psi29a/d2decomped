@@ -9,7 +9,9 @@
 // objgroups; levels in turn in one game: drlg-dump ... game.
 #include "gamedata.hpp"
 #include "log.hpp"
+#include <level_ids.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <txt.hpp>
