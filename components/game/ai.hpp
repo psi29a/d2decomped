@@ -69,12 +69,13 @@ struct Crowd {
 
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)
 // when due: a stand thinks again n frames on, a walk at its end, a special
-// mode (S1, S2) aidel (15) frames after it ends. NPCs in `busy` (menu,
-// speech or store open on them) stand still and think 8 frames after.
+// mode (S1, S2) aidel (15) frames after it ends. An NPC with a "!" walks
+// up to `player` within 16 and greets it; one in `busy` (menu, speech or
+// store open on it) stops and stands (rules::npc_think's visitor).
 // ponytail: the walk is walk_path's route at Velocity, not game.exe's
 // pathers (toward 0xd, search 0xf); an NPC's first think comes at once.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {});
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr);
 
 // A walkable route from (x, y) to (gx, gy), in cells: rules::find_path
 // over subtiles with the unit collision test, then string-pulled (a turn
