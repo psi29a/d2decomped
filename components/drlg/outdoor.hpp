@@ -243,17 +243,17 @@ struct Gen {
         return cells;
     }
     bool anywhere(int def, int file, int match, int mask) {           // FUN_00674730
-        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2))
-            if (fits(x + 1, y + 1, def, match, mask)) { place(x + 1, y + 1, def, file, false); return true; }
+        for (auto [cell_x, cell_y] : shuffled(cells_wide - 2, cells_high - 2))
+            if (fits(cell_x + 1, cell_y + 1, def, match, mask)) { place(cell_x + 1, cell_y + 1, def, file, false); return true; }
         return false;
     }
     bool by_road(int def, int file) {                              // FUN_00674920
         static constexpr std::array<int, 8> around_x = { -1, 0, 0, 1, -1, 1, 1, -1 }, around_y = { 0, -1, 1, 0, -1, 1, -1, 1 };
-        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2))
-            if (g2c.get(x + 1, y + 1) & 0x80)
+        for (auto [cell_x, cell_y] : shuffled(cells_wide - 2, cells_high - 2))
+            if (g2c.get(cell_x + 1, cell_y + 1) & 0x80)
                 for (int k = 0; k < 8; ++k)
-                    if (fits(x + 1 + around_x[std::size_t(k)], y + 1 + around_y[std::size_t(k)], def, 0, 0xf)) {
-                        place(x + 1 + around_x[std::size_t(k)], y + 1 + around_y[std::size_t(k)], def, file, false);
+                    if (fits(cell_x + 1 + around_x[std::size_t(k)], cell_y + 1 + around_y[std::size_t(k)], def, 0, 0xf)) {
+                        place(cell_x + 1 + around_x[std::size_t(k)], cell_y + 1 + around_y[std::size_t(k)], def, file, false);
                         return true;
                     }
         return anywhere(def, file, 0, 0xf);
@@ -498,11 +498,11 @@ struct Gen {
         const int spots = spots_x * spots_y;
         if (spots <= 0) return false;
         const bool skip22 = type == 1 && act1 && spots_x <= 5 && spots_y <= 5;
-        for (auto [x, y] : shuffled(spots_x, spots_y)) {
-            if (skip22 && x == 2 && y == 2) continue;
-            if (!sub_match(*sub.map, group, x, y)) continue;
+        for (auto [spot_x, spot_y] : shuffled(spots_x, spots_y)) {
+            if (skip22 && spot_x == 2 && spot_y == 2) continue;
+            if (!sub_match(*sub.map, group, spot_x, spot_y)) continue;
             const int variant = seed(group.variants);
-            sub_apply(*sub.map, group, x, y, (group.width + 1) * (variant + 1));
+            sub_apply(*sub.map, group, spot_x, spot_y, (group.width + 1) * (variant + 1));
             if (sub.bord_type == 0 || sub.bord_type == 1) return true;
         }
         return false;
@@ -553,29 +553,29 @@ struct Gen {
     // vertex where the outline turns, none on a contact span (flag 1),
     // up to its last turn, becomes cliffs (style 1).
     void cliffs() {
-        auto next = [&](int v) { return verts[std::size_t(v)].next; };
-        auto vx = [&](int v) { return verts[std::size_t(v)].x; };
-        auto vy = [&](int v) { return verts[std::size_t(v)].y; };
-        auto contact = [&](int v) { return (verts[std::size_t(v)].flags & 1) != 0; };
+        auto next = [&](int vert) { return verts[std::size_t(vert)].next; };
+        auto vert_x = [&](int vert) { return verts[std::size_t(vert)].x; };
+        auto vert_y = [&](int vert) { return verts[std::size_t(vert)].y; };
+        auto contact = [&](int vert) { return (verts[std::size_t(vert)].flags & 1) != 0; };
         int prev = head;
-        for (int v = next(head); v != head; v = next(v)) prev = v;
+        for (int vert = next(head); vert != head; vert = next(vert)) prev = vert;
         int cur = head, start = head;
         bool wrapped = false;
         for (;;) {
             int walk = cur;
             const int after = next(cur);
-            if (((vx(cur) < vx(after) && vy(cur) < vy(prev)) || (vy(after) < vy(cur) && vx(cur) < vx(prev))) && !contact(cur) && !contact(prev)) {
-                int last = -1, to;
+            if (((vert_x(cur) < vert_x(after) && vert_y(cur) < vert_y(prev)) || (vert_y(after) < vert_y(cur) && vert_x(cur) < vert_x(prev))) && !contact(cur) && !contact(prev)) {
+                int last = -1, following;
                 do {
                     if (walk == start) wrapped = true;
-                    to = next(walk);
-                    if (vy(walk) < vy(to) || vx(to) < vx(walk) || contact(walk) || contact(to)) break;
-                    const int beyond = next(to);
-                    if (!contact(to) && ((vx(walk) < vx(to) && vy(to) < vy(beyond)) || (vy(to) < vy(walk) && vx(to) < vx(beyond)))) last = walk;
-                    walk = to;
-                } while (to != cur);
+                    following = next(walk);
+                    if (vert_y(walk) < vert_y(following) || vert_x(following) < vert_x(walk) || contact(walk) || contact(following)) break;
+                    const int beyond = next(following);
+                    if (!contact(following) && ((vert_x(walk) < vert_x(following) && vert_y(following) < vert_y(beyond)) || (vert_y(following) < vert_y(walk) && vert_x(following) < vert_x(beyond)))) last = walk;
+                    walk = following;
+                } while (following != cur);
                 if (last != -1) {
-                    for (int v = cur; v != last; v = next(v)) verts[std::size_t(v)].style = 1;
+                    for (int vert = cur; vert != last; vert = next(vert)) verts[std::size_t(vert)].style = 1;
                     verts[std::size_t(last)].style = 1;
                     flags |= 0x20;
                 }
@@ -794,7 +794,7 @@ struct Gen {
             const auto& goal = road_goals[std::size_t(i)];
             auto path = search((start.x - level.rect.x) / 8, (start.y - level.rect.y) / 8, (goal.x - level.rect.x) / 8, (goal.y - level.rect.y) / 8);
             if (path.empty()) { note("drlg: a road found no way"); continue; }
-            for (auto [x, y] : path) if (g2c.in(x, y)) g2c.op(x, y, 0x80, 0);
+            for (auto [cell_x, cell_y] : path) if (g2c.in(cell_x, cell_y)) g2c.op(cell_x, cell_y, 0x80, 0);
             // FUN_00681240: goal := C, start := B, the rest jittered, A
             // after B, D before C unless it's the plain hub.
             static constexpr std::array<int, 4> jitter_x = { 1, 0, -1, 0 }, jitter_y = { 0, 1, 0, -1 };
@@ -819,11 +819,11 @@ struct Gen {
     // ---- shrines, waypoints, fills (FUN_00674e40, FUN_00674b70, FUN_00680580)
     void shrines(int count) {
         int corner = int(seed.next() & 3);
-        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2)) {
+        for (auto [cell_x, cell_y] : shuffled(cells_wide - 2, cells_high - 2)) {
             if (count < 1) return;
-            if (!free_cell(x + 1, y + 1)) continue;
-            g18.op(x + 1, y + 1, 0x1000u << corner, 0);
-            g2c.op(x + 1, y + 1, 0x1000, 0);
+            if (!free_cell(cell_x + 1, cell_y + 1)) continue;
+            g18.op(cell_x + 1, cell_y + 1, 0x1000u << corner, 0);
+            g2c.op(cell_x + 1, cell_y + 1, 0x1000, 0);
             corner = (corner + 1) & 3;
             --count;
         }
@@ -831,21 +831,21 @@ struct Gen {
     void waypoint() {
         if (level.rect.level == level_ids::kColdPlains) {                                            // by the Blood Moor's exit
             int slot = 8;
-            for (const auto& n : level.neighbours) if (n.rect.level == level_ids::kBloodMoor) slot = n.slot;
+            for (const auto& neighbour : level.neighbours) if (neighbour.rect.level == level_ids::kBloodMoor) slot = neighbour.slot;
             const std::uint32_t bit = slot < 8 ? 1u << (slot + 4) : 0;
             for (int y = 0; y < cells_high; ++y)
                 for (int x = 0; x < cells_wide; ++x) {
                     if (!(g18.get(x, y) & bit) || !(g2c.get(x, y) & 0x400)) continue;
-                    const int wx = std::clamp(x, 1, cells_wide - 2), wy = std::clamp(y, 1, cells_high - 2);
-                    g18.op(wx, wy, 0x20000, 0);
-                    g2c.op(wx, wy, 0x800, 0);
+                    const int way_x = std::clamp(x, 1, cells_wide - 2), way_y = std::clamp(y, 1, cells_high - 2);
+                    g18.op(way_x, way_y, 0x20000, 0);
+                    g2c.op(way_x, way_y, 0x800, 0);
                     return;
                 }
         }
-        for (auto [x, y] : shuffled(cells_wide - 2, cells_high - 2)) {
-            if (!free_cell(x + 1, y + 1)) continue;
-            g18.op(x + 1, y + 1, 0x10000, 0);
-            g2c.op(x + 1, y + 1, 0x800, 0);
+        for (auto [cell_x, cell_y] : shuffled(cells_wide - 2, cells_high - 2)) {
+            if (!free_cell(cell_x + 1, cell_y + 1)) continue;
+            g18.op(cell_x + 1, cell_y + 1, 0x10000, 0);
+            g2c.op(cell_x + 1, cell_y + 1, 0x800, 0);
             return;
         }
     }
@@ -946,8 +946,8 @@ inline void stamp_room(Room& room, const OutdoorData& data, const OutdoorLevel& 
                     const int first_pick = rng(spots), second_pick = rng(spots);
                     std::swap(spots_list[std::size_t(first_pick)], spots_list[std::size_t(second_pick)]);
                 }
-                for (auto [x, y] : spots_list)
-                    if (fit(group, x + 1, y + 1)) { stamp(group, x + 1, y + 1); break; }
+                for (auto [spot_x, spot_y] : spots_list)
+                    if (fit(group, spot_x + 1, spot_y + 1)) { stamp(group, spot_x + 1, spot_y + 1); break; }
             } else {
                 for (int k = 0; k < trials; ++k) {
                     const int x = rng(spots_x) + 1, y = rng(spots_y) + 1;

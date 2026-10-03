@@ -315,12 +315,12 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
     for (const int other_index : list) { min_x = std::min(min_x, rooms[std::size_t(other_index)].x); min_y = std::min(min_y, rooms[std::size_t(other_index)].y); }
     for (const int other_index : list) { rooms[std::size_t(other_index)].x -= min_x; rooms[std::size_t(other_index)].y -= min_y; }
     if (court_room != -1 && court) {                   // the Barracks beside level 27: its rect is its rooms' box (FUN_00642520)
-        auto& [x, y, width, height] = *court;
+        auto& [court_x, court_y, width, height] = *court;
         const auto& room = rooms[std::size_t(court_room)];
-        const int target_x = court_file == 0 ? x - maze.width : court_file == 1 ? x + width / 2 - 6 : x + width;
-        const int target_y = court_file == 0 ? y + height / 2 : court_file == 1 ? y - maze.height : y + height / 2 + 1;
-        x = target_x - room.x;
-        y = target_y - room.y;
+        const int target_x = court_file == 0 ? court_x - maze.width : court_file == 1 ? court_x + width / 2 - 6 : court_x + width;
+        const int target_y = court_file == 0 ? court_y + height / 2 : court_file == 1 ? court_y - maze.height : court_y + height / 2 + 1;
+        court_x = target_x - room.x;
+        court_y = target_y - room.y;
         width = height = 0;
         for (const int other_index : list) {
             width = std::max(width, rooms[std::size_t(other_index)].x + rooms[std::size_t(other_index)].width);
@@ -332,7 +332,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
     // rooms of def base + perm[i] become def + 15, file rolled later.
     if (level != level_ids::kDenOfEvil) {
         const int base = maze_base(maze.type);
-        int at = int(seed.next() % 15);
+        int slot = int(seed.next() % 15);
         std::array<int, 15> perm{};
         for (int i = 0; i < 15; ++i) perm[std::size_t(i)] = i;
         for (int i = 0; i < 15; ++i) {
@@ -340,10 +340,10 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             std::swap(perm[swap_a], perm[swap_b]);
         }
         int left = std::max(2, int(list.size()) / 5 + 1);
-        for (int tries = int(list.size()) * 2; left && tries; --tries, at = (at + 1) % 15)
+        for (int tries = int(list.size()) * 2; left && tries; --tries, slot = (slot + 1) % 15)
             for (const int other_index : list) {
                 auto& room = rooms[std::size_t(other_index)];
-                if (room.special || room.def != perm[std::size_t(at)] + base) continue;
+                if (room.special || room.def != perm[std::size_t(slot)] + base) continue;
                 room.special = true;
                 room.def += 15;
                 room.file = -1;
