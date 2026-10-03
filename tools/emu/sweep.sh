@@ -11,6 +11,7 @@ root=../..
     -DD2_PATCH_INSTALLER="${D2_PATCH_INSTALLER:-$HOME/Downloads/Diablo II + LoD/patch/LODPatch_114d.exe}" >/dev/null || exit 1
 cmake --build "$root/build-release" --target drlg-dump mpq-cat >/dev/null || { echo "build-release failed" >&2; exit 1; }
 export D2_BUILD=build-release
+uv sync -q || exit 1   # once, before the jobs: parallel first-time syncs race
 seeds=${1:-1-50}; shift; kinds=${*:-monsters objgroups}
 total=$(( $(echo $kinds | wc -w) * 38 )); count=$(echo "$seeds" | awk -F- '{print $2 - $1 + 1}')
 start=$(date +%s)
