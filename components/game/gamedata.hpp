@@ -725,11 +725,11 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
                                                                  float x, float y, bool arrived);
 // Every room of the level populated at once, newest first: tools/emu
 // monsters.py's order, for diffing against game.exe (drlg-dump monsters).
-// The rooms come up `up` (Level::rooms indices) first, the rest in list
+// The rooms come up `came_up` (Level::rooms indices) first, the rest in list
 // order. Returns each room in the order populated with its first spawn's
 // index; `done` hears of each room as it's populated.
 std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& game_data, Spawning& spawning, const Level& level,
-                                                                 const std::vector<std::size_t>& up = {},
+                                                                 const std::vector<std::size_t>& came_up = {},
                                                                  const std::function<void(std::size_t)>& done = {});
 void stamp_footprints(Level& level);
 // One unit's footprint into the walk grid (stamp_footprints).
@@ -756,7 +756,7 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
 // tests them; the first nearest (Manhattan) wins, none: the start.
 template <class Flags>
 std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
-    auto hit = [&](int at_x, int at_y, int mask) { const int f = flags(at_x, at_y); return f == 0x27 || (f & mask); };
+    auto hit = [&](int at_x, int at_y, int mask) { const int cell_flags = flags(at_x, at_y); return cell_flags == 0x27 || (cell_flags & mask); };
     auto walk = [&](int at_x, int at_y) {
         static constexpr int kStepX[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kStepY[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
         auto dir = [&] { return field[std::size_t((at_y - y + 128) * 256 + at_x - x + 128)]; };
@@ -774,13 +774,13 @@ std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int
     if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
     if (clear(at_x, at_y)) return { at_x, at_y };
     int best = -1, best_x = at_x, best_y = at_y;
-    for (int r = 1; r < 50 && best < 0; ++r) {
-        auto test = [&](int tx, int ty) {
-            const int d = std::abs(tx - at_x) + std::abs(ty - at_y);
-            if (clear(tx, ty) && (best < 0 || d < best)) { best = d; best_x = tx; best_y = ty; }
+    for (int ring = 1; ring < 50 && best < 0; ++ring) {
+        auto test = [&](int test_x, int test_y) {
+            const int distance = std::abs(test_x - at_x) + std::abs(test_y - at_y);
+            if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
         };
-        for (int ty = at_y - r; ty <= at_y + r; ++ty) { test(at_x - r, ty); test(at_x + r, ty); }
-        for (int tx = at_x - r + 1; tx <= at_x + r - 1; ++tx) { test(tx, at_y - r); test(tx, at_y + r); }
+        for (int ty = at_y - ring; ty <= at_y + ring; ++ty) { test(at_x - ring, ty); test(at_x + ring, ty); }
+        for (int tx = at_x - ring + 1; tx <= at_x + ring - 1; ++tx) { test(tx, at_y - ring); test(tx, at_y + ring); }
     }
     return { best_x, best_y };
 }
@@ -792,7 +792,7 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
-void relevel(Level& level, const std::vector<std::size_t>& up, const GameData* game_data = nullptr, const Spawning* spawning = nullptr);
+void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data = nullptr, const Spawning* spawning = nullptr);
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);

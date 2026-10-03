@@ -2,12 +2,15 @@
 // Definitions for ai.hpp: monsters, NPCs and the merc: spawning, paths, the AI step.
 #include "ai.hpp"
 
+#include "game.hpp"
 #include "gamedata.hpp"
 
 #include <combat.hpp>
 #include <level_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
+#include <town_npcs.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -43,20 +46,20 @@ std::vector<std::pair<float, float>> walk_path(const Level& level, float x, floa
     // stand clear (samples let a corner through that stopped the walk).
     auto walls_clear = [&](float from_x, float from_y, float to_x, float to_y) {
         for (const auto& [offset_x, offset_y] : { std::pair{ 0.f, 0.f }, { -0.2f, 0.f }, { 0.2f, 0.f }, { 0.f, -0.2f }, { 0.f, 0.2f } }) {
-            const float ax = (from_x + offset_x) * 5, ay = (from_y + offset_y) * 5, bx = (to_x + offset_x) * 5, by = (to_y + offset_y) * 5;
-            int cx = int(std::floor(ax)), cy = int(std::floor(ay));
-            const int step_x = bx > ax ? 1 : -1, step_y = by > ay ? 1 : -1;
-            const float delta_x = bx != ax ? 1 / std::abs(bx - ax) : HUGE_VALF, delta_y = by != ay ? 1 / std::abs(by - ay) : HUGE_VALF;
-            float next_x = bx != ax ? (step_x > 0 ? float(cx + 1) - ax : ax - float(cx)) * delta_x : HUGE_VALF;
-            float next_y = by != ay ? (step_y > 0 ? float(cy + 1) - ay : ay - float(cy)) * delta_y : HUGE_VALF;
-            for (int left = std::abs(int(std::floor(bx)) - cx) + std::abs(int(std::floor(by)) - cy);; --left) {
-                if (level.blocked(centre(cx), centre(cy))) return false;
+            const float start_x = (from_x + offset_x) * 5, start_y = (from_y + offset_y) * 5, end_x = (to_x + offset_x) * 5, end_y = (to_y + offset_y) * 5;
+            int cell_x = int(std::floor(start_x)), cell_y = int(std::floor(start_y));
+            const int step_x = end_x > start_x ? 1 : -1, step_y = end_y > start_y ? 1 : -1;
+            const float delta_x = end_x != start_x ? 1 / std::abs(end_x - start_x) : HUGE_VALF, delta_y = end_y != start_y ? 1 / std::abs(end_y - start_y) : HUGE_VALF;
+            float next_x = end_x != start_x ? (step_x > 0 ? float(cell_x + 1) - start_x : start_x - float(cell_x)) * delta_x : HUGE_VALF;
+            float next_y = end_y != start_y ? (step_y > 0 ? float(cell_y + 1) - start_y : start_y - float(cell_y)) * delta_y : HUGE_VALF;
+            for (int left = std::abs(int(std::floor(end_x)) - cell_x) + std::abs(int(std::floor(end_y)) - cell_y);; --left) {
+                if (level.blocked(centre(cell_x), centre(cell_y))) return false;
                 if (left <= 0) break;
-                if (next_x < next_y) { cx += step_x; next_x += delta_x; }
-                else if (next_y < next_x) { cy += step_y; next_y += delta_y; }
+                if (next_x < next_y) { cell_x += step_x; next_x += delta_x; }
+                else if (next_y < next_x) { cell_y += step_y; next_y += delta_y; }
                 else {                                                     // through a corner: both sides
-                    if (level.blocked(centre(cx + step_x), centre(cy)) || level.blocked(centre(cx), centre(cy + step_y))) return false;
-                    cx += step_x; cy += step_y; next_x += delta_x; next_y += delta_y; --left;
+                    if (level.blocked(centre(cell_x + step_x), centre(cell_y)) || level.blocked(centre(cell_x), centre(cell_y + step_y))) return false;
+                    cell_x += step_x; cell_y += step_y; next_x += delta_x; next_y += delta_y; --left;
                 }
             }
         }
@@ -216,7 +219,7 @@ int subtile(float cells) { return int(std::floor(cells * 5)); }
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
     const int x = subtile(unit.x), y = subtile(unit.y);
-    auto centre = [](int at) { return (float(at) + 0.5f) / 5; };
+    auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
     auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit); };
     auto& steps = monster.steps;
     steps.clear();
@@ -229,10 +232,10 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
             const auto found = d2d::rules::find_path(x, y, to_x, to_y, blocked, 400);
             const std::size_t count = std::min<std::size_t>(found.size(), 0x28);
             std::pair prev{ x, y };
-            for (std::size_t n = 0; n < count; ++n) {
-                if (n + 1 == count || found[n + 1].first - found[n].first != found[n].first - prev.first
-                    || found[n + 1].second - found[n].second != found[n].second - prev.second) steps.push_back(found[n]);
-                prev = found[n];
+            for (std::size_t node = 0; node < count; ++node) {
+                if (node + 1 == count || found[node + 1].first - found[node].first != found[node].first - prev.first
+                    || found[node + 1].second - found[node].second != found[node].second - prev.second) steps.push_back(found[node]);
+                prev = found[node];
             }
         }
         while (monster.step < int(steps.size()) && centre(steps[std::size_t(monster.step)].first) == unit.x
@@ -322,23 +325,23 @@ constexpr std::array<Seq, 5> kSeqs{ { { "seq_shamanresurrect", "A2", 17, 12 }, {
 // Its skill `id`'s level (Sk*lvl + the difficulty's bonus), 1 when not its own.
 int skill_level(const GameData& game_data, const Monster& monster, int id) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
-    for (std::size_t n = 0; n < type_info.skill.size(); ++n)
-        if (id >= 0 && skill_id(game_data, type_info.skill[n]) == id) return d2d::rules::monster_skill_level(type_info.sk_lvl[n], monster.difficulty);
+    for (std::size_t slot = 0; slot < type_info.skill.size(); ++slot)
+        if (id >= 0 && skill_id(game_data, type_info.skill[slot]) == id) return d2d::rules::monster_skill_level(type_info.sk_lvl[slot], monster.difficulty);
     return 1;
 }
 // The sequence a monster's skill `id` plays, else nullptr.
 const Seq* skill_seq(const GameData& game_data, const d2d::rules::MonType& type_info, int id) {
-    for (std::size_t n = 0; n < type_info.skill.size(); ++n)
-        if (id >= 0 && skill_id(game_data, type_info.skill[n]) == id)
-            for (const auto& seq : kSeqs) if (seq.name == type_info.sk_mode[n]) return &seq;
+    for (std::size_t slot = 0; slot < type_info.skill.size(); ++slot)
+        if (id >= 0 && skill_id(game_data, type_info.skill[slot]) == id)
+            for (const auto& seq : kSeqs) if (seq.name == type_info.sk_mode[slot]) return &seq;
     return nullptr;
 }
 
 // The level room holding (x, y) cells, -1 none.
 int room_at(const Level& level, float x, float y) {
     for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-        const auto& r = level.rooms[i];
-        if (x >= float(r.x) && y >= float(r.y) && x < float(r.x + r.width) && y < float(r.y + r.height)) return int(i);
+        const auto& room = level.rooms[i];
+        if (x >= float(room.x) && y >= float(room.y) && x < float(room.x + room.width) && y < float(room.y + room.height)) return int(i);
     }
     return -1;
 }
@@ -375,7 +378,7 @@ int area_at(const Level& level, float x, float y) {
     const int room = room_at(level, x, y);
     if (room >= 0 && std::size_t(room) < level.room_areas.size())
         for (std::size_t i = 0; i < level.room_areas[std::size_t(room)].size(); ++i)
-            if (const auto& a = level.room_areas[std::size_t(room)][i]; int(x) >= a.left && int(y) >= a.top && int(x) < a.right && int(y) < a.bottom)
+            if (const auto& area = level.room_areas[std::size_t(room)][i]; int(x) >= area.left && int(y) >= area.top && int(x) < area.right && int(y) < area.bottom)
                 return level.id << 20 | room << 8 | int(std::min<std::size_t>(i, 255));
     return -1;
 }
@@ -403,9 +406,9 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const auto mode5 = [&](int align) {                             // FUN_005dd0b0 mode 5
         std::vector<d2d::rules::NearFoe> nears;
         for (const auto& foe : foes) {
-            auto& n = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
-            n.blocked = need_sight && n.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
-            n.waking = foe.of && foe.alive && foe.of->sighted && here >= 0 && area_at(level, foe.x, foe.y) == here;
+            auto& entry = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
+            entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
+            entry.waking = foe.of && foe.alive && foe.of->sighted && here >= 0 && area_at(level, foe.x, foe.y) == here;
         }
         return d2d::rules::search_near(nears, align, need_sight);
     };
@@ -420,7 +423,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     if (!found.target) monster.set_kind = 0;                        // FUN_00573120
     if (!found.target && monster.align == 0) {
         std::vector<d2d::rules::SearchFoe> picks;
-        std::vector<Foe*> at;
+        std::vector<Foe*> pick_foes;
         for (auto& foe : foes) {
             if (foe.of && !(foe.of->align == 1 && foe.alive)) continue;   // list 9: neutral monsters
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
@@ -428,13 +431,13 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
             if (now_ms < monster.blind_until && std::hypot(foe.x - unit.x, foe.y - unit.y) >= 1.5f) pick.dead = true;   // blind: arm's length
             if (pick.pet && pick.dead) pick.distance = 0x7fffffff;
             pick.blocked = need_sight && (pick.list || pick.distance < best) && d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
-            at.push_back(&foe);
+            pick_foes.push_back(&foe);
         }
         const auto pick = d2d::rules::search_pick(picks, best, need_sight);
-        found = { pick.target >= 0 ? at[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
+        found = { pick.target >= 0 ? pick_foes[std::size_t(pick.target)] : nullptr, pick.best, pick.nearest };
     } else if (!found.target) {
         const auto pick = mode5(monster.align);
-        if (const int i = pick.target >= 0 ? pick.target : pick.second; i >= 0) found = { &foes[std::size_t(i)], pick.target >= 0 ? pick.best : pick.second_best };
+        if (const int choice = pick.target >= 0 ? pick.target : pick.second; choice >= 0) found = { &foes[std::size_t(choice)], pick.target >= 0 ? pick.best : pick.second_best };
     }
     if (found.target && monster.align != 2) {
         monster.sighted = true;
@@ -480,11 +483,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal; one
     // with no path can't start, and a spot move then thinks aidel on
     // (FUN_005a73e0).
-    auto set_off = [&](bool running, const Foe* at) {
+    auto set_off = [&](bool running, const Foe* foe) {
         monster.budget = 0x14;
-        monster.wandering = !at;
-        if (!path_to(level, monster, at ? subtile(at->x) : subtile(unit.goal_x), at ? subtile(at->y) : subtile(unit.goal_y), at, crowd)) {
-            if (!at) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
+        monster.wandering = !foe;
+        if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe, crowd)) {
+            if (!foe) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
             return false;
         }
         const std::string_view mode = running && has_run ? "RN" : "WL";
@@ -531,11 +534,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     const int target_x = subtile(target->x), target_y = subtile(target->y);
     const float dx = target->x - unit.x, dy = target->y - unit.y;
-    d2d::rules::ThinkIn in{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
-    in.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
-    in.got_hit = monster.left_mode == "GH";
-    in.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
-    for (std::size_t skill = 0; skill < 3; ++skill) in.skill[skill] = !type_info.skill[skill].empty();
+    d2d::rules::ThinkIn input{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
+    input.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
+    input.got_hit = monster.left_mode == "GH";
+    input.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
+    for (std::size_t skill = 0; skill < 3; ++skill) input.skill[skill] = !type_info.skill[skill].empty();
     // The Fallen's inputs: a unit in DT within 15 (FUN_005dc530), its lead.
     // A Shaman's corpse (FUN_005dd0b0, the last found): a unique's
     // (FUN_005a0180 mask 8, not 4; FUN_005f1380) any Fallen's or Shaman's
@@ -546,35 +549,35 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
     int corpse = -1;
-    in.command = &monster.ai_command; in.rally = &rally;
-    in.leader = !pack.empty() && monster.leader == int(self);
+    input.command = &monster.ai_command; input.rally = &rally;
+    input.leader = !pack.empty() && monster.leader == int(self);
     using d2d::rules::Boss;
     auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
     for (std::size_t i = 0; i < pack.size(); ++i) {
         const auto& other = pack[i];
         const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) in.dying = true;
+        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) input.dying = true;
         if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) continue;
         const int base = game_data.monsters.types[std::size_t(other.type)].base;
         if (unique(monster) ? (base == 19 || base == 58) && !unique(other) && d2d::rules::ai_distance(off_x, off_y) < 80
-                            : other.leader == int(self) && off_x * off_x + off_y * off_y <= in.aip[3] * in.aip[3])
+                            : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
             corpse = int(i);
     }
-    in.corpse = corpse >= 0;
+    input.corpse = corpse >= 0;
     // A nest's: the frame (its init's taken at its first think), the spot
     // spawnx / spawny off (FUN_005fd350 tests crownest's only).
     const int frame = int(now_ms / 40);
     if (nest && monster.ai_state == 0) monster.ai_state = frame;
-    in.frame = frame; in.state2 = &monster.ai_state2;
-    in.spot_free = !level.unit_blocked(unit.x + float(type_info.spawn_x) / 5, unit.y + float(type_info.spawn_y) / 5);
-    in.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
-    in.off_x = target_x - x; in.off_y = target_y - y;
+    input.frame = frame; input.state2 = &monster.ai_state2;
+    input.spot_free = !level.unit_blocked(unit.x + float(type_info.spawn_x) / 5, unit.y + float(type_info.spawn_y) / 5);
+    input.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
+    input.off_x = target_x - x; input.off_y = target_y - y;
     int pace = 0;
-    in.pace = &pace; in.state3 = &monster.ai_state3;
-    in.target_life_pct = target->life_pct;
-    in.laying = now_ms < monster.laid_until;
-    in.velocity = type_info.velocity; in.run = type_info.run;
-    in.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
+    input.pace = &pace; input.state3 = &monster.ai_state3;
+    input.target_life_pct = target->life_pct;
+    input.laying = now_ms < monster.laid_until;
+    input.velocity = type_info.velocity; input.run = type_info.run;
+    input.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
         unit.dir = direction16(dx, dy);
@@ -584,8 +587,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         attack_starts(game_data, monster, mode, rng);
     };
     // FUN_005defe0 / FUN_005df140: n subtiles on from the target, by axis.
-    auto away = [&](int n, bool running) {
-        const int off_x = n * ((x > target_x) - (x < target_x)), off_y = n * ((y > target_y) - (y < target_y));
+    auto away = [&](int subtiles, bool running) {
+        const int off_x = subtiles * ((x > target_x) - (x < target_x)), off_y = subtiles * ((y > target_y) - (y < target_y));
         const float goal_x = (float(x + off_x) + 0.5f) / 5, goal_y = (float(y + off_y) + 0.5f) / 5;
         const float span = std::max(std::hypot(goal_x - unit.x, goal_y - unit.y), 0.01f), probe = std::min(0.2f, span);
         if (level.unit_blocked(goal_x, goal_y) || level.unit_blocked(unit.x + (goal_x - unit.x) / span * probe, unit.y + (goal_y - unit.y) / span * probe)) return false;
@@ -596,7 +599,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     d2d::rules::Think act;
     if (andariel) {
         using d2d::rules::AndarielAct;
-        switch (d2d::rules::andariel_think(in.in_melee, in.aip, monster.seed)) {
+        switch (d2d::rules::andariel_think(input.in_melee, input.aip, monster.seed)) {
             case AndarielAct::spray: use("SC", kAndrialSpray); return true;   // SQ: seq_andarielspray plays SC
             case AndarielAct::bolt: use("A1", kAndyPoisonBolt); return true;
             case AndarielAct::melee: act = { MonAct::a1 }; break;
@@ -608,9 +611,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const int home = room(monster.home_x, monster.home_y);
         const d2d::rules::CountessIn where{ room(unit.x, unit.y) != home, room(target->x, target->y) != home,
                                             x == subtile(monster.home_x) && y == subtile(monster.home_y) };
-        act = d2d::rules::countess_think(in, where, monster.path, monster.seed);
+        act = d2d::rules::countess_think(input, where, monster.path, monster.seed);
     } else {
-        act = d2d::rules::mon_think(type_info.ai_name, in, monster.seed, away);
+        act = d2d::rules::mon_think(type_info.ai_name, input, monster.seed, away);
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
     if (rally)                                                     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too
@@ -640,10 +643,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             unit.dir = direction16(float(act.x - x), float(act.y - y));
             return true;
         case MonAct::keep: {                                       // FUN_005de4e0: toward, or from, the target to keep x off
-            const int go = std::min(std::abs(best - act.x), act.n), sign = best < act.x ? -1 : 1;
-            const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, go);
-            int step_x = sum ? across * go / sum : 0, step_y = sum ? down * go / sum : 0;
-            while (sum && step_x + step_y < go) { ++step_x; ++step_y; }
+            const int stride = std::min(std::abs(best - act.x), act.n), sign = best < act.x ? -1 : 1;
+            const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, stride);
+            int step_x = sum ? across * stride / sum : 0, step_y = sum ? down * stride / sum : 0;
+            while (sum && step_x + step_y < stride) { ++step_x; ++step_y; }
             walk_to(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign, false);
             return true;
         }

@@ -161,8 +161,8 @@ auto World::view() const -> View {
                                std::uint8_t(tools.log_state(quest_bits, holding_malus(), clvl)), std::uint8_t(cain.log_state(quest_bits)),
                                std::uint8_t(tower.log_state(quest_bits)), std::uint8_t(andy.log_state(quest_bits)) };
             for (int quest = 1; quest < 7; ++quest) {
-                const bool b0 = d2d::rules::qbit(quest_bits, quest, 0) || d2d::rules::qbit(quest_bits, quest, 15);
-                if (b0 && !d2d::rules::qbit(quest_bits, quest, 13) && !d2d::rules::qbit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
+                const bool bit0 = d2d::rules::qbit(quest_bits, quest, 0) || d2d::rules::qbit(quest_bits, quest, 15);
+                if (bit0 && !d2d::rules::qbit(quest_bits, quest, 13) && !d2d::rules::qbit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
             }
             const bool done[7] = { false, den.state >= 4, burial.state >= 4, tools.game_returned, cain.rescued_flag, tower.dead, andy.log == 0xd };
             for (std::size_t quest = 1; quest < 7; ++quest)
@@ -284,31 +284,31 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // ponytail: the barrel's opening step for a player (a swing at it:
         // FUN_006439b0 / FUN_00580a70) isn't here; it waits on the player's
         // modes in fight.cpp (agent G's).
-        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kCasket || op == d2d::rules::operate_fn::kUrn || op == d2d::rules::operate_fn::kBarrel || op == d2d::rules::operate_fn::kCorpse) {
+        if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kCasket || operate_id == d2d::rules::operate_fn::kUrn || operate_id == d2d::rules::operate_fn::kBarrel || operate_id == d2d::rules::operate_fn::kCorpse) {
             const auto [opened, drops] = open();
             if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
             if (opened.undead) spring_trap(8, object.x, object.y, here, now_ms, 1);
-            if (const int trap = force >= 0 ? force : object.trap; trap && op != d2d::rules::operate_fn::kBarrel) arm_trap(trap, object.x, object.y, here, now_ms);
-            d2d::log::info("opened object {} (op {})", npc_index, op);
+            if (const int trap = force >= 0 ? force : object.trap; trap && operate_id != d2d::rules::operate_fn::kBarrel) arm_trap(trap, object.x, object.y, here, now_ms);
+            d2d::log::info("opened object {} (op {})", npc_index, operate_id);
             return;
         }
         // An armor stand's armor (19) or a weapon rack's weapon (20)
         // (stand_item) off its room's seed at the area level less one, made
         // off that seed too (FUN_00558d90), its quality rolled (Drop quality
         // 0: stand_quality); a bookshelf (26) its book (open_container).
-        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kArmorStand || op == d2d::rules::operate_fn::kWeaponRack || op == d2d::rules::operate_fn::kBookshelf) {
+        if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kArmorStand || operate_id == d2d::rules::operate_fn::kWeaponRack || operate_id == d2d::rules::operate_fn::kBookshelf) {
             operated[{ level, npc_index }] = now_ms;
             to_mode(2);
             const int ilvl = here > 1 ? here - 1 : here;
-            if (op == d2d::rules::operate_fn::kBookshelf) open();
+            if (operate_id == d2d::rules::operate_fn::kBookshelf) open();
             else if (auto& room_seeds = fight.spawning.levels[level].room_seeds; std::size_t(object.room) < room_seeds.size()) {
                 auto& room_seed = room_seeds[std::size_t(object.room)];
-                if (const auto code = d2d::rules::stand_item(game_data->rules, op == d2d::rules::operate_fn::kWeaponRack, ilvl, room_seed); !code.empty())
+                if (const auto code = d2d::rules::stand_item(game_data->rules, operate_id == d2d::rules::operate_fn::kWeaponRack, ilvl, room_seed); !code.empty())
                     loot.put({ .code = code, .quality = 0 }, object.x, object.y, ilvl, room_seed, now_ms);
             }
-            d2d::log::info("opened object {} (op {})", npc_index, op);
+            d2d::log::info("opened object {} (op {})", npc_index, operate_id);
             return;
         }
         if (object.operate_fn == d2d::rules::operate_fn::kChest && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
@@ -430,20 +430,20 @@ auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
         if (fight.mon_level != level) return false;
         const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
         std::vector<std::pair<int, int>> spots;
-        std::vector<int> at;
+        std::vector<int> door_indices;
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
             const auto& door = level->npcs[i];
             const auto state = doors.find({ level, int(i) });
             if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
             spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
-            at.push_back(int(i));
+            door_indices.push_back(int(i));
         }
         const int pick = d2d::rules::door_pick(spots);
-        if (pick < 0 || !level->npcs[std::size_t(at[std::size_t(pick)])].monster_ok) return false;
-        const auto& door = level->npcs[std::size_t(at[std::size_t(pick)])];
+        if (pick < 0 || !level->npcs[std::size_t(door_indices[std::size_t(pick)])].monster_ok) return false;
+        const auto& door = level->npcs[std::size_t(door_indices[std::size_t(pick)])];
         const auto [dx, dy] = spots[std::size_t(pick)];
         if (d2d::rules::object_reach(-dx, -dy, game_data->monsters.types[std::size_t(monster.type)].size, door.size_x, door.size_y))
-            operate_door(at[std::size_t(pick)], now_ms);
+            operate_door(door_indices[std::size_t(pick)], now_ms);
         return true;
     }
 
@@ -583,8 +583,8 @@ auto World::enter(const Character& entering) -> void {
         corpses.clear();
         if (!entering.corpse.empty() && game_data) {
             const auto& town = game_data->town;
-            const auto [x, y] = town.nearest_free(town.start.first + 1.f, town.start.second + 1.f);
-            corpses.push_back({ &town, x, y, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
+            const auto [spot_x, spot_y] = town.nearest_free(town.start.first + 1.f, town.start.second + 1.f);
+            corpses.push_back({ &town, spot_x, spot_y, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
         }
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
@@ -701,8 +701,8 @@ auto World::swap_npcs(const Level* from) -> void {
                 if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
                 operated.try_emplace({ level, int(i) }, 0u);
                 if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
-                    const auto [x, y] = level->nearest_free(stone.x + 4, stone.y + 4);
-                    portal[2] = { level, x, y, now };
+                    const auto [spot_x, spot_y] = level->nearest_free(stone.x + 4, stone.y + 4);
+                    portal[2] = { level, spot_x, spot_y, now };
                 }
             }
     }
@@ -891,8 +891,8 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
                 const float off_x = float(rng(2 * radius + 1) - radius) / 5, off_y = float(rng(2 * radius + 1) - radius) / 5;
-                const auto [x, y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
-                loot.put({ .code = "gld" }, x, y, here, fight.spawning.game, now_ms);
+                const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
+                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
             }
             --spawner.left;
         }
@@ -999,10 +999,10 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (lit == Cain::Stone::lit) return;
         character.items.erase(std::ranges::find(character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
         const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
-        const auto [x, y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
-        portal[2] = { level, x, y, now_ms };
-        cues.cue("object_townportal", now_ms, x, y);
-        d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", x, y);
+        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
+        portal[2] = { level, spot_x, spot_y, now_ms };
+        cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", spot_x, spot_y);
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -1133,8 +1133,8 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             std::vector<const Item*> inv;
             for (const auto& x : character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
-            if (const auto [x, y] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); x >= 0
-                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
+            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); column >= 0
+                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
         if (corpse.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(corpse_index));
@@ -1156,12 +1156,12 @@ auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(player.x,
 auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> void {
         const auto& town = game_data->town;
         if (level == &town || town.portal_spot.first < 0) return;
-        const auto [x, y] = level->nearest_free(portal_x, portal_y);
+        const auto [spot_x, spot_y] = level->nearest_free(portal_x, portal_y);
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
-        portal[0] = { level, x, y, now_ms };
+        portal[0] = { level, spot_x, spot_y, now_ms };
         portal[1] = { &town, town_x, town_y, now_ms };
-        cues.cue("object_townportal", now_ms, x, y);
-        d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), x, y, town_x, town_y);
+        cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), spot_x, spot_y, town_x, town_y);
     }
 
 auto World::use_portal(std::uint32_t now_ms) -> void {

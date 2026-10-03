@@ -539,7 +539,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto found = ms_row.find(place);
         if (found == ms_row.end()) continue;            // place_* markers etc.
         // FUN_0054e490: a critter (MonStats2 flag 0xd: the camp's chickens) is never made.
-        if (const auto ex = ms2_row.find(std::string(monstats.get(found->second, "MonStatsEx"))); ex != ms2_row.end() && ms2.get(ex->second, "critter") == "1") continue;
+        if (const auto ex_row = ms2_row.find(std::string(monstats.get(found->second, "MonStatsEx"))); ex_row != ms2_row.end() && ms2.get(ex_row->second, "critter") == "1") continue;
         auto npc = monster(found->second);
         if (npc.code.empty()) continue;
         npc.x = (float(object.x) + 0.5f) / 5;
@@ -1066,11 +1066,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
         game_data.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         game_data.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
-        for (const auto& [to, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
+        for (const auto& [target, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
                                                           { &game_data.suffix_req, "MagicSuffix", "levelreq", true },
                                                           { &game_data.unique_req, "UniqueItems", "lvl req", false },
                                                           { &game_data.set_req, "SetItems", "lvl req", false } })
-            for (const auto& level : pairs(file_name, column, column, all)) to->push_back(level.first);
+            for (const auto& level : pairs(file_name, column, column, all)) target->push_back(level.first);
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
         auto affixes = [&](const char* file_name) {

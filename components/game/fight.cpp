@@ -828,7 +828,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                     if (lured && skill.srvdofunc == ServerDoFunction::kAttract) {
                         auto& lure = monsters[std::size_t(attack_mon)];
                         lure.align = 1;
-                        within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t j) { if (!monsters[j].align) set(monsters[j], 2, lure.id); });
+                        within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t index) { if (!monsters[index].align) set(monsters[index], 2, lure.id); });
                     }
                 } else {
                     within(skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.x : cast_x, skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
@@ -2541,8 +2541,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
             for (std::size_t i = sides; i < foes.size(); ++i)
-                if (const auto k = i - sides; hurt(*game_data, monsters[k], foes[i].damage, now_ms))
-                    killed(k, now_ms, cursed(monsters[k]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* by) -> const Monster& { return *by; }));
+                if (const auto monster_index = i - sides; hurt(*game_data, monsters[monster_index], foes[i].damage, now_ms))
+                    killed(monster_index, now_ms, cursed(monsters[monster_index]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* attacker) -> const Monster& { return *attacker; }));
             foes.resize(sides);
             for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);

@@ -142,7 +142,7 @@ struct Loot {
     [[nodiscard]] std::pair<float, float> drop_at(float x, float y) const {
         const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
         if (level->walk.empty()) return { x, y };
-        const auto [sx, sy] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
+        const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
             if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
             int flags = level->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01;
             if (ground_level == level)
@@ -150,7 +150,7 @@ struct Loot {
                     if (int(std::floor(lying.x * 5)) == at_x && int(std::floor(lying.y * 5)) == at_y) flags |= 0x200;
             return flags;
         });
-        return { (float(sx) + 0.5f) / 5, (float(sy) + 0.5f) / 5 };
+        return { (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5 };
     }
     // An item the player drops (C→S 0x17, FUN_00563c00): at the nearest
     // free spot to (x, y) (FUN_00555da0), named as its tooltip names it.

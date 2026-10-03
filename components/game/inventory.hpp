@@ -37,8 +37,8 @@ inline void stow_held(const GameData& game_data, std::vector<d2d::d2s::Item>& it
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& item : items) if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&item);
     const auto [width, height] = d2d::rules::item_size(game_data.rules, held->code);
-    if (const auto [x, y] = d2d::rules::free_spot(game_data.rules, inv, 10, 4, width, height); x >= 0) {
-        d2d::rules::put_in_grid(game_data.rules, items, held, d2d::d2s::item_panel::kInventory, 10, 4, x, y);
+    if (const auto [column, row] = d2d::rules::free_spot(game_data.rules, inv, 10, 4, width, height); column >= 0) {
+        d2d::rules::put_in_grid(game_data.rules, items, held, d2d::d2s::item_panel::kInventory, 10, 4, column, row);
         return;
     }
     held->location = d2d::d2s::item_location::kCursor;

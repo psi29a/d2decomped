@@ -59,12 +59,12 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
     for (const auto& piece : items)
         if (piece.location == d2d::d2s::item_location::kEquipped && piece.slot >= d2d::d2s::body_location::kFirst && piece.slot <= d2d::d2s::body_location::kLast && set_of(piece) == set && std::ranges::find(pieces, piece.set_id) == pieces.end())
             pieces.push_back(piece.set_id);
-    std::size_t at = 0, list = 0;
+    std::size_t offset = 0, list = 0;
     for (int bit = 0; bit < 5; ++bit) {
         if (!(item.set_lists >> bit & 1) || list >= item.set_list_sizes.size()) continue;
-        const std::size_t size = std::min(item.set_list_sizes[list++], item.set_props.size() - at);
-        if (int(pieces.size()) >= bit + 2) out.insert(out.end(), item.set_props.begin() + std::ptrdiff_t(at), item.set_props.begin() + std::ptrdiff_t(at + size));
-        at += size;
+        const std::size_t size = std::min(item.set_list_sizes[list++], item.set_props.size() - offset);
+        if (int(pieces.size()) >= bit + 2) out.insert(out.end(), item.set_props.begin() + std::ptrdiff_t(offset), item.set_props.begin() + std::ptrdiff_t(offset + size));
+        offset += size;
     }
     return out;
 }

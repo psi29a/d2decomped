@@ -8,21 +8,22 @@
 // against game.exe: tools/emu objgroups.py, drlg-dump <seed> <level>
 // objgroups; levels in turn in one game: drlg-dump ... game.
 #include "gamedata.hpp"
-#include "log.hpp"
 #include <level_ids.hpp>
 #include <monsters.hpp>
+#include <montypes.hpp>
 #include <object_ids.hpp>
 #include <rules.hpp>
-#include <shrines.hpp>
 #include <txt.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <bitset>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -64,7 +65,7 @@ struct ObjectRooms {
     std::vector<std::pair<int, int>> ways;
     int warp_dist = 2025;
 
-    static bool none(const Level& level, std::size_t i);
+    static bool none(const Level& level, std::size_t room_index);
     void load(Spawning& spawning, std::size_t room_index);
     void rooms_up(const Spawning& spawning);
     void save(Spawning& spawning) const;
@@ -86,14 +87,14 @@ struct ObjectRooms {
     }
     [[nodiscard]] std::uint16_t own(int x, int y) const {
         if (!in_room[std::size_t(y / 5) * std::size_t(width / 5) + std::size_t(x / 5)]) return 0x27;
-        const auto at = std::size_t(y) * std::size_t(width) + std::size_t(x);
-        return std::uint16_t((at < level.tile_walk.size() ? level.tile_walk[at] : 0) | stamps[at]);
+        const auto cell = std::size_t(y) * std::size_t(width) + std::size_t(x);
+        return std::uint16_t((cell < level.tile_walk.size() ? level.tile_walk[cell] : 0) | stamps[cell]);
     }
-    // FUN_0064d800: a w x h area centred on (x, y) (FUN_0064ceb0 across the rooms).
-    [[nodiscard]] bool hit(int x, int y, int w, int h, int mask) const {
-        if (w < 2 && h < 2) { const auto flags = at(x, y); return flags == 0x27 || (flags & mask); }
-        for (int ty = y - (h >> 1); ty < y - (h >> 1) + h; ++ty)
-            for (int tx = x - (w >> 1); tx < x - (w >> 1) + w; ++tx)
+    // FUN_0064d800: a size_x x size_y area centred on (x, y) (FUN_0064ceb0 across the rooms).
+    [[nodiscard]] bool hit(int x, int y, int size_x, int size_y, int mask) const {
+        if (size_x < 2 && size_y < 2) { const auto flags = at(x, y); return flags == 0x27 || (flags & mask); }
+        for (int ty = y - (size_y >> 1); ty < y - (size_y >> 1) + size_y; ++ty)
+            for (int tx = x - (size_x >> 1); tx < x - (size_x >> 1) + size_x; ++tx)
                 if (const auto flags = at(tx, ty); flags == 0x27 || (flags & mask)) return true;
         return false;
     }
@@ -105,9 +106,9 @@ struct ObjectRooms {
         if (size == 2) { stamp(x, y, 3, 1, bits); stamp(x, y, 1, 3, bits); }
         else if (size > 0) stamp(x, y, size, size, bits);
     }
-    void stamp(int x, int y, int w, int h, std::uint16_t bits) {
-        for (int ty = y - (h >> 1); ty < y - (h >> 1) + h; ++ty)
-            for (int tx = x - (w >> 1); tx < x - (w >> 1) + w; ++tx)
+    void stamp(int x, int y, int size_x, int size_y, std::uint16_t bits) {
+        for (int ty = y - (size_y >> 1); ty < y - (size_y >> 1) + size_y; ++ty)
+            for (int tx = x - (size_x >> 1); tx < x - (size_x >> 1) + size_x; ++tx)
                 if (tx >= 0 && ty >= 0 && tx < width && ty < height) stamps[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
@@ -123,8 +124,8 @@ struct ObjectRooms {
         add_object(game_data, builder.objects, builder.obj_row, level, id, x, y, rgn);
         const bool door = obj(id, "IsDoor"), missile = obj(id, "BlockMissile");
         const std::uint16_t bits = door ? obj(id, "BlocksVis") ? 0x806 : missile ? 0x808 : 0x400 : obj(id, "SubClass") & 4 ? 0x8000 : missile ? 0x404 : 0x400;
-        const bool on = level.npcs.size() > before && level.npcs.back().preoperated;
-        if (obj(id, on ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), bits);
+        const bool operated = level.npcs.size() > before && level.npcs.back().preoperated;
+        if (obj(id, operated ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), bits);
         const auto unit = game.next();                                 // FUN_00552df0: its seed
         if (level.npcs.size() > before) {
             auto& npc = level.npcs.back();
@@ -151,21 +152,21 @@ struct ObjectRooms {
             if (!inside_room(last_x + dx, last_y + dy)) continue;
             last_x = x + dx; last_y = y + dy;
             if (hit(last_x, last_y, 1, 1, 0x3f11)) continue;
-            const auto [at_x, at_y] = drop_spot(game_data.field, last_x, last_y, [&](int fx, int fy) { return at(fx, fy); });
+            const auto [at_x, at_y] = drop_spot(game_data.field, last_x, last_y, [&](int probe_x, int probe_y) { return at(probe_x, probe_y); });
             stamp(at_x, at_y, 1, 1, 0x200);
             game.next(); game.next();
         }
     }
 
-    // FUN_00550220: clear of walls, objects and doors round a sx x sy object.
-    [[nodiscard]] bool fits_wide(int x, int y, int sx, int sy) const {
-        return sx + 2 <= room.w && sy + 2 <= room.h && room.x + 1 < x && room.y + 1 < y && x < room.x - sx - 2 + room.w
-            && y < room.y - sy - 2 + room.h && !hit(x, y, sx + 7, sy + 7, 0xc01) && !hit(x, y, sx, sy, 0x3f11);
+    // FUN_00550220: clear of walls, objects and doors round a size_x x size_y object.
+    [[nodiscard]] bool fits_wide(int x, int y, int size_x, int size_y) const {
+        return size_x + 2 <= room.w && size_y + 2 <= room.h && room.x + 1 < x && room.y + 1 < y && x < room.x - size_x - 2 + room.w
+            && y < room.y - size_y - 2 + room.h && !hit(x, y, size_x + 7, size_y + 7, 0xc01) && !hit(x, y, size_x, size_y, 0x3f11);
     }
     // FUN_005502f0
-    [[nodiscard]] bool fits_near(int x, int y, int sx, int sy) const {
-        return room.w > 1 && room.h > 1 && room.x + 2 < x && room.y + 2 < y && x < room.x - sx + room.w && y < room.y - sy + room.h
-            && !hit(x, y, sx + 2, sy + 2, 0x3f11);
+    [[nodiscard]] bool fits_near(int x, int y, int size_x, int size_y) const {
+        return room.w > 1 && room.h > 1 && room.x + 2 < x && room.y + 2 < y && x < room.x - size_x + room.w && y < room.y - size_y + room.h
+            && !hit(x, y, size_x + 2, size_y + 2, 0x3f11);
     }
     [[nodiscard]] bool inside(int x, int y) const {
         return room.x + 1 <= x && room.y + 1 <= y && x < room.x - 1 + room.w && y < room.y - 1 + room.h;
@@ -174,11 +175,11 @@ struct ObjectRooms {
         return std::ranges::none_of(spots, [&](const auto& spot) { return std::abs(spot.first - x) < gap || std::abs(spot.second - y) < gap; });
     }
     // FUN_00550380: 5 random spots on the object seed.
-    Spot at_random(int id, int sx, int sy) {
+    Spot at_random(int id, int size_x, int size_y) {
         if (room.w < 2 || room.h < 2) return {};
         for (int tries = 0; tries < 5; ++tries) {
-            const int x = room.x + rgn(room.w - sx - 1), y = room.y + rgn(room.h - sy - 1);
-            if (inside(x, y) && !hit(x, y, sx + 6, sy + 6, 0x3f11)) { make(id, x, y, true); return std::pair{ x, y }; }
+            const int x = room.x + rgn(room.w - size_x - 1), y = room.y + rgn(room.h - size_y - 1);
+            if (inside(x, y) && !hit(x, y, size_x + 6, size_y + 6, 0x3f11)) { make(id, x, y, true); return std::pair{ x, y }; }
         }
         return {};
     }
@@ -189,35 +190,35 @@ struct ObjectRooms {
     Spot scatter(int id, int density, int prob) {
         if (!gate(prob)) return {};
         Spot last;
-        for (int n = count(density); n > 0; --n) last = at_random(id, obj(id, "SizeX"), obj(id, "SizeY"));
+        for (int remaining = count(density); remaining > 0; --remaining) last = at_random(id, obj(id, "SizeX"), obj(id, "SizeY"));
         return last;
     }
     // FUN_00551150: 30 in 100, a body (103) where it stands.
     void companion(const Spot& spot) {
         if (spot && rgn.next() % 100 > 70) make(103, spot->first, spot->second, true);
     }
-    // FUN_00550c20: clusters of a table's objects, spaced 2 x (l8 + rand(l10)) along a random direction.
+    // FUN_00550c20: clusters of a table's objects, spaced 2 x (gap_base + rand(gap_rand)) along a random direction.
     void cluster(int id, int density, int prob) {
         if (!gate(prob)) return;
         static constexpr std::array<int, 2> kCasket{ 3, 28 }, kUrn{ 89, 284 }, kPot{ 208, 209 };        // 0x731d5c, 0x731d78, 0x731d80
         static constexpr std::array<int, 3> kCorpse{ 79, 53, 1 };                                   // 0x731d50
         static constexpr std::array<int, 5> kRock{ 4, 9, 52, 94, 95 };                              // 0x731d64
         const int* table;
-        int size, tries = 12, l8 = 5, l10 = 5;
+        int size, tries = 12, gap_base = 5, gap_rand = 5;
         bool close = false;                                                                          // FUN_005502f0 for the rest
         if (id == 3) { table = kCasket.data(); size = 2; tries = 18; }
         else if (id == 79 || id == 1) { table = kCorpse.data(); size = 3; }
-        else if (id == 4) { table = kRock.data(); size = 5; l8 = 1; l10 = 0; close = true; }
+        else if (id == 4) { table = kRock.data(); size = 5; gap_base = 1; gap_rand = 0; close = true; }
         else if (id == 89) { table = kUrn.data(); size = 2; }
-        else if (id == 208 || id == 209) { table = kPot.data(); size = 2; l8 = 1; l10 = 0; close = true; }
+        else if (id == 208 || id == 209) { table = kPot.data(); size = 2; gap_base = 1; gap_rand = 0; close = true; }
         else return;
-        const int sx = obj(id, "SizeX"), sy = obj(id, "SizeY");
+        const int size_x = obj(id, "SizeX"), size_y = obj(id, "SizeY");
         int left = count(density);
         if (left < 1) return;
         for (; tries > 0; --tries) {
             int pick = table[rgn(size)];
-            int x = room.x + rgn(room.w - sx - 1), y = room.y + rgn(room.h - sy - 1);
-            if (fits_wide(x, y, sx, sy)) {
+            int x = room.x + rgn(room.w - size_x - 1), y = room.y + rgn(room.h - size_y - 1);
+            if (fits_wide(x, y, size_x, size_y)) {
                 make(pick, x, y, true);
                 bool ok = true;
                 for (int placed = 1;;) {
@@ -225,10 +226,10 @@ struct ObjectRooms {
                     if (!ok) break;
                     ok = false;
                     for (int k = 0; k < std::max(left, 4) * 3 && !ok; ++k) {
-                        const int d = int(rgn.next() & 7);
-                        x += (rgn(l10) + l8) * kAroundX[std::size_t(d)] * 2;
-                        y += (rgn(l10) + l8) * kAroundY[std::size_t(d)] * 2;
-                        ok = close ? fits_near(x, y, sx, sy) : fits_wide(x, y, sx, sy);
+                        const int dir = int(rgn.next() & 7);
+                        x += (rgn(gap_rand) + gap_base) * kAroundX[std::size_t(dir)] * 2;
+                        y += (rgn(gap_rand) + gap_base) * kAroundY[std::size_t(dir)] * 2;
+                        ok = close ? fits_near(x, y, size_x, size_y) : fits_wide(x, y, size_x, size_y);
                     }
                     if (!ok) continue;
                     pick = table[rgn(size)];
@@ -243,12 +244,12 @@ struct ObjectRooms {
     // FUN_00551850: barrels, objects.txt 7's size and spacing, 8 at most.
     void barrels(int density, int prob) {
         if (!gate(prob)) return;
-        const int sx = obj(7, "SizeX"), sy = obj(7, "SizeY"), space_x = obj(7, "Xspace"), space_y = obj(7, "Yspace");
+        const int size_x = obj(7, "SizeX"), size_y = obj(7, "SizeY"), space_x = obj(7, "Xspace"), space_y = obj(7, "Yspace");
         int placed = 0;
         for (int left = count(density), tries = left * 2; left > 0 && tries > 0; --tries) {
             const int first = rgn.next() % 3 ? 7 : 11;                                             // 0x551933: 1 in 3 exploding
             int x = room.x + rgn(room.w), y = room.y + rgn(room.h);
-            if (!fits_near(x, y, sx, sy)) continue;
+            if (!fits_near(x, y, size_x, size_y)) continue;
             make(first, x, y, true);
             if (++placed >= 8) return;
             bool ok = true;
@@ -257,10 +258,10 @@ struct ObjectRooms {
                 if (!ok) break;
                 ok = false;
                 for (int k = 0; k < 15 && !ok; ++k) {
-                    const int d = int(rgn.next() & 7);
-                    x += space_x * kAroundX[std::size_t(d)];
-                    y += space_y * kAroundY[std::size_t(d)];
-                    ok = fits_near(x, y, sx, sy);
+                    const int dir = int(rgn.next() & 7);
+                    x += space_x * kAroundX[std::size_t(dir)];
+                    y += space_y * kAroundY[std::size_t(dir)];
+                    ok = fits_near(x, y, size_x, size_y);
                 }
                 if (!ok) continue;
                 make(rgn.next() & 3 ? 7 : 11, x, y, true);                                         // 0x551b82: 1 in 4 an exploding barrel
@@ -274,16 +275,16 @@ struct ObjectRooms {
     void layout(int id, int prob) {
         if (!gate(prob)) return;
         rgn(4);
-        const int sx = obj(id, "SizeX"), sy = obj(id, "SizeY");
+        const int size_x = obj(id, "SizeX"), size_y = obj(id, "SizeY");
         for (int tries = 8; tries > 0; --tries) {
-            const int x = room.x + rgn(room.w - sx - 1), y = room.y + rgn(room.h - sy - 1);
+            const int x = room.x + rgn(room.w - size_x - 1), y = room.y + rgn(room.h - size_y - 1);
             if (fits_wide(x, y, 5, 5)) return;                                                     // ponytail: the layout's list is empty, nothing placed
         }
     }
     // FUN_00551580: the room seed's gate, then the first at_random that lands.
     void single(int id, int density, int prob) {
         if (int(seed.next() % 100) > prob) return;
-        for (int n = count(density); n > 0; --n)
+        for (int remaining = count(density); remaining > 0; --remaining)
             if (at_random(id, obj(id, "SizeX"), obj(id, "SizeY"))) return;
     }
     // FUN_005516c0: a well, 4 at most (and an eighth of the rooms), 100 subtiles off the others on both axes.
@@ -305,19 +306,19 @@ struct ObjectRooms {
     // (FUN_00547330) it's 30 tries, forced, and one made becomes a refill
     // shrine (FUN_00552ac0, FUN_0054f770's class-2 pick).
     void shrine(int id, int prob) {
-        const int sx = obj(id, "SizeX"), sy = obj(id, "SizeY"), orient = obj(id, "Orientation");
+        const int size_x = obj(id, "SizeX"), size_y = obj(id, "SizeY"), orient = obj(id, "Orientation");
         const int roll = int(seed.next() % 100);
         const bool forced = target > 0 && (counter << 7) / target > 0x60 && refills == 0;
         if (!forced && prob < roll) return;
         if (shrines.size() == 10 || int(shrines.size()) > target / 8) return;
         for (int tries = forced ? 30 : 3; tries > 0; --tries) {
-            if (sx + 2 > room.w || sy + 2 > room.h) return;
+            if (size_x + 2 > room.w || size_y + 2 > room.h) return;
             for (int k = 0; k < 5; ++k) {                                                            // FUN_00550a30, on the room seed
                 int x, y;
                 if (orient == 1) { x = room.x + room.w / 4 + seed(room.w / 2); y = room.y + seed(1) + 1; }
                 else if (orient == 2) { x = room.x + seed(1) + 1; y = room.y + room.h / 4 + seed(room.h / 2); }
-                else { x = room.x + seed(room.w - sx - 1); y = room.y + seed(room.h - sy - 1); }
-                if (!inside(x, y) || hit(x, y, sx + 6, sy + 6, 0x3f11) || !apart(shrines, x, y, 50)) continue;
+                else { x = room.x + seed(room.w - size_x - 1); y = room.y + seed(room.h - size_y - 1); }
+                if (!inside(x, y) || hit(x, y, size_x + 6, size_y + 6, 0x3f11) || !apart(shrines, x, y, 50)) continue;
                 const int kind = make(id, x, y, true);
                 if (kind == 2) ++refills;
                 else if (forced) {
@@ -350,12 +351,12 @@ struct ObjectRooms {
     [[nodiscard]] const d2d::rules::MonType* type_at(int type) const {
         return type >= 0 && std::size_t(type) < game_data.monsters.types.size() ? &game_data.monsters.types[std::size_t(type)] : nullptr;
     }
-    [[nodiscard]] int size_of(int type) const { const auto* t = type_at(type); return t ? t->size : 2; }
+    [[nodiscard]] int size_of(int type) const { const auto* info = type_at(type); return info ? info->size : 2; }
     // FUN_0061b130 → FUN_0066ce30: the id of the room's area holding a subtile.
     [[nodiscard]] std::uint32_t area_id(int x, int y) const {
         if (index < level.room_areas.size())
-            for (const auto& a : level.room_areas[index])
-                if (x / 5 >= a.left && y / 5 >= a.top && x / 5 < a.right && y / 5 < a.bottom) return a.id;
+            for (const auto& room_area : level.room_areas[index])
+                if (x / 5 >= room_area.left && y / 5 >= room_area.top && x / 5 < room_area.right && y / 5 < room_area.bottom) return room_area.id;
         return 0xffffffff;
     }
     // FUN_005b2a00's test (FUN_0064d9b0): the type's shape (MonStats2 SizeX:
@@ -363,11 +364,11 @@ struct ObjectRooms {
     // ponytail: spawnCol 1 takes FUN_005b2700 (no ring walk) in game.exe; act 1 has none.
     [[nodiscard]] bool fits(int type, int x, int y) const {
         static constexpr int kMask[4] = { 0x3c01, 0x1c0, 0x3f11, 0 };
-        const auto* t = type_at(type);
-        const int col = t ? t->spawn_col : 0;
+        const auto* info = type_at(type);
+        const int col = info ? info->spawn_col : 0;
         // FUN_005fd350: a nest's (by BaseId) laying spot clear for a plus too.
         // ponytail: vilemother1's (298) check is off for population's calls; left out.
-        const int base = t ? t->base : -1;
+        const int base = info ? info->base : -1;
         if (const auto nest = [&](int dx, int dy, int mask) { return hit_shape(x + dx, y + dy, 2, mask); };
             (base == 206 && nest(0, 3, 0x3c01)) || (base == 228 && nest(0, 2, 0x3c01)) || (base == 334 && nest(-2, -2, 0x1c0)) || (base == 528 && nest(2, 4, 0x3c01)))
             return false;
@@ -380,21 +381,21 @@ struct ObjectRooms {
     // area being populated when `bound` (its rect and its id), else the room.
     bool put(int type, int x, int y, int radius, bool bound, int& out_x, int& out_y) {
         const bool in_area = bound && area.w > 0;
-        auto at = bounds(in_area);
-        const bool ok = d2d::rules::monster_detail::place(at, x, y, radius, [&](int tx, int ty) { return (!in_area || area_id(tx, ty) == area.id) && fits(type, tx, ty); }, out_x, out_y);
-        seed = at.seed;
+        auto spawn_room = bounds(in_area);
+        const bool ok = d2d::rules::monster_detail::place(spawn_room, x, y, radius, [&](int test_x, int test_y) { return (!in_area || area_id(test_x, test_y) == area.id) && fits(type, test_x, test_y); }, out_x, out_y);
+        seed = spawn_room.seed;
         return ok;
     }
     // FUN_0054dc40: 20 random spots of the area (else the room) where
     // `type` fits, none within WarpDist of an entrance (FUN_0054db50) if `near`.
     bool spot(int type, bool nearby, int& out_x, int& out_y) {
         const bool in_area = area.w > 0;
-        auto at = bounds(in_area);
+        auto spawn_room = bounds(in_area);
         auto by_way = [&](int x, int y) {
-            return nearby && std::ranges::any_of(ways, [&](const auto& w) { return (x - w.first) * (x - w.first) + (y - w.second) * (y - w.second) < warp_dist; });
+            return nearby && std::ranges::any_of(ways, [&](const auto& way) { return (x - way.first) * (x - way.first) + (y - way.second) * (y - way.second) < warp_dist; });
         };
-        const bool ok = d2d::rules::room_spot(at, [&](int tx, int ty) { return (!in_area || area_id(tx, ty) == area.id) && fits(type, tx, ty); }, by_way, out_x, out_y);
-        seed = at.seed;
+        const bool ok = d2d::rules::room_spot(spawn_room, [&](int test_x, int test_y) { return (!in_area || area_id(test_x, test_y) == area.id) && fits(type, test_x, test_y); }, by_way, out_x, out_y);
+        seed = spawn_room.seed;
         return ok;
     }
     // FUN_00555230 for a monster, FUN_00552df0: its seed off the game's.
@@ -408,7 +409,7 @@ struct ObjectRooms {
         // FUN_005b1cf0: a boss's mods, each FUN_005a4850(mod, 1); FUN_005a0320
         // counts a unique only as it first sets flag 8, so one a boss.
         // ponytail: Act 1's bosses by BaseId (Andariel, Blood Raven, the Maggot Queen); later acts' aren't.
-        if (const auto* t = type_at(type)) pop.uniques += t->base == 156 || t->base == 267 || t->base == 284 ? 1 : 0;
+        if (const auto* info = type_at(type)) pop.uniques += info->base == 156 || info->base == 267 || info->base == 284 ? 1 : 0;
         const auto value = game.next();
         d2d::rules::Rng own{ value };
         const std::vector<d2d::rules::Components>* sets = nullptr;
@@ -432,10 +433,10 @@ struct ObjectRooms {
         if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value });
         return own;
     }
-    void tag(std::size_t at, d2d::rules::Boss kind, std::vector<int> mods = {}, int name_seed = 0) {
-        if (!spawns || at >= spawns->size()) return;
-        auto& s = (*spawns)[at];
-        s.boss = kind; s.mods = std::move(mods); s.name_seed = name_seed;
+    void tag(std::size_t spawn_index, d2d::rules::Boss kind, std::vector<int> mods = {}, int name_seed = 0) {
+        if (!spawns || spawn_index >= spawns->size()) return;
+        auto& spawn = (*spawns)[spawn_index];
+        spawn.boss = kind; spawn.mods = std::move(mods); spawn.name_seed = name_seed;
     }
     // FUN_005b2830: PartyMin..Max on the leader's seed, minion1 / minion2 in
     // turn, radius 4 round it in its room (FUN_005b23c0, no party of their own).
@@ -503,9 +504,9 @@ struct ObjectRooms {
             own.next();                                                 // FUN_005a48c0 → FUN_005a0c00: a champion's minion count, rolled and unused
             for (int count = own(3) + 1; count > 0; --count)
                 if (int at_x, at_y; put(row, spot_x, spot_y, 4, false, at_x, at_y)) {
-                    const auto at = spawns ? spawns->size() : 0;
+                    const auto spawn_index = spawns ? spawns->size() : 0;
                     auto next = made(row, at_x, at_y);
-                    tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    tag(spawn_index, Boss::champion, { d2d::rules::umod::champion });
                     ++pop.uniques;
                     party(row, next, at_x, at_y);
                 }
@@ -521,14 +522,14 @@ struct ObjectRooms {
         ++pop.rooms_done;
         const int density = std::min(level.mon.density[0], 10000);
         if (none || density <= 0 || pop.rooms_total == 0 || index >= level.room_areas.size()) return;
-        for (const auto& a : level.room_areas[index]) {
-            if (!a.id || a.skip || (!a.left && !a.right)) continue;
-            area = { a.left * 5, a.top * 5, (a.right - a.left) * 5, (a.bottom - a.top) * 5, a.id };
+        for (const auto& room_area : level.room_areas[index]) {
+            if (!room_area.id || room_area.skip || (!room_area.left && !room_area.right)) continue;
+            area = { room_area.left * 5, room_area.top * 5, (room_area.right - room_area.left) * 5, (room_area.bottom - room_area.top) * 5, room_area.id };
             for (int tries = (area.h / 3) * (area.w / 3); tries > 0; --tries) {
                 if (int(game.next() % 100000) > density) continue;
                 if (region.types.empty()) { area = {}; return; }
                 int type = d2d::rules::pick_type(region, seed);
-                if (const auto* t = type_at(type); t && t->place_spawn >= 0 && seed(100) > 20) type = t->place_spawn;
+                if (const auto* info = type_at(type); info && info->place_spawn >= 0 && seed(100) > 20) type = info->place_spawn;
                 bool boss = false;                                      // FUN_005be020: its 1 and 2 both a group
                 if (pop.uniques < pop.umin) boss = seed(100) < pop.rooms_done * 100 / pop.rooms_total;
                 if (!boss && pop.uniques < pop.umax) boss = seed(100) < 6;
@@ -561,9 +562,9 @@ struct ObjectRooms {
             tag(first, Boss::champion, std::move(boss.mods), boss.name_seed);
             for (int count = own(3) + 1; count > 0; --count)
                 if (int at_x, at_y; put(row, x, y, 4, true, at_x, at_y)) {
-                    const auto at = spawns->size();
+                    const auto spawn_index = spawns->size();
                     auto next = made(row, at_x, at_y);
-                    tag(at, Boss::champion, { d2d::rules::umod::champion });
+                    tag(spawn_index, Boss::champion, { d2d::rules::umod::champion });
                     ++pop.uniques;
                     party(row, next, at_x, at_y);
                 }
@@ -629,9 +630,9 @@ struct ObjectRooms {
         const auto& types = game_data.monsters.types;
         auto own = [&](int base_bin) {
             int row = int(game_data.mon_bin[std::size_t(base_bin)]);
-            const auto listed = std::ranges::find_if(level.mon.mon, [&](int m) { return m >= 0 && std::size_t(m) < types.size() && types[std::size_t(m)].base == types[std::size_t(row)].base; });
+            const auto listed = std::ranges::find_if(level.mon.mon, [&](int mon_row) { return mon_row >= 0 && std::size_t(mon_row) < types.size() && types[std::size_t(mon_row)].base == types[std::size_t(row)].base; });
             if (listed != level.mon.mon.end()) row = *listed;
-            else if (std::ranges::any_of(level.mon.mon, [](int m) { return m >= 0; })) {
+            else if (std::ranges::any_of(level.mon.mon, [](int mon_row) { return mon_row >= 0; })) {
                 // FUN_0063ec70: else up its class while the next's Level is at most MonLvl1Ex + 1.
                 // ponytail: NextInClass as the rows of its base in order.
                 const int top = std::size_t(level.id) < game_data.area_level.size() ? game_data.area_level[std::size_t(level.id)][0] + 1 : 0;
@@ -674,7 +675,7 @@ struct ObjectRooms {
     bool open(std::size_t room_at, int room_themes) {
         const auto flags = level.room_flags[room_at];
         if ((flags & 0x30000) || (flags & 0x800000) || (room_at < level.road_rooms.size() && level.road_rooms[room_at])) return false;   // FUN_0066ba90: a plain room on a path
-        if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t f) { return !(f & 0x800000); }));
+        if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t room_flag) { return !(room_flag & 0x800000); }));
         ++counter;
         if (room_themes) {                                                                              // FUN_00552400
             // ponytail: a theme's own fn (0x731e6c) never runs for act 1's
@@ -786,8 +787,8 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
 }  // namespace
 
 // FUN_0054ebc0: none in a room flagged 0x800000 or nopop; the level's total (FUN_00642be0) leaves them out.
-bool ObjectRooms::none(const Level& level, std::size_t i) {
-    return (i < level.nopop_rooms.size() && level.nopop_rooms[i]) || (level.room_flags[i] & 0x800000);
+bool ObjectRooms::none(const Level& level, std::size_t room_index) {
+    return (room_index < level.nopop_rooms.size() && level.nopop_rooms[room_index]) || (level.room_flags[room_index] & 0x800000);
 }
 
 // The game's seeds in for room `room_index`, the level's rooms up so far.
@@ -817,10 +818,10 @@ void ObjectRooms::rooms_up(const Spawning& spawning) {
     in_room.assign(tiles_wide * std::size_t(level.ds1.height()), false);
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end()) return;
-    for (const auto up : found->second.order)
-        if (up < level.rooms.size())
-            for (int y = level.rooms[up].y; y < level.rooms[up].y + level.rooms[up].height && y < level.ds1.height(); ++y)
-                for (int x = level.rooms[up].x; x < level.rooms[up].x + level.rooms[up].width && x < level.ds1.width(); ++x) in_room[std::size_t(y) * tiles_wide + std::size_t(x)] = true;
+    for (const auto came_up : found->second.order)
+        if (came_up < level.rooms.size())
+            for (int y = level.rooms[came_up].y; y < level.rooms[came_up].y + level.rooms[came_up].height && y < level.ds1.height(); ++y)
+                for (int x = level.rooms[came_up].x; x < level.rooms[came_up].x + level.rooms[came_up].width && x < level.ds1.width(); ++x) in_room[std::size_t(y) * tiles_wide + std::size_t(x)] = true;
 }
 
 void ObjectRooms::save(Spawning& spawning) const {
@@ -844,11 +845,11 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;
     if (level.id == d2d::rules::level_ids::kBloodMoor && game_data.town.ds1.width() > 0) {
         const auto& town = game_data.town;
-        const int tx = town.world_x, ty = town.world_y, tw = town.ds1.width(), th = town.ds1.height();
+        const int town_x = town.world_x, town_y = town.world_y, town_w = town.ds1.width(), town_h = town.ds1.height();
         for (std::size_t i = 0; i < level.rooms.size(); ++i) {
             const auto& made = level.rooms[i];
             const int x = level.world_x + made.x, y = level.world_y + made.y;
-            const int gap_x = x < tx ? tx - made.width - x : x - tw - tx, gap_y = y < ty ? ty - made.height - y : y - th - ty;
+            const int gap_x = x < town_x ? town_x - made.width - x : x - town_w - town_x, gap_y = y < town_y ? town_y - made.height - y : y - town_h - town_y;
             if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
         }
     }
