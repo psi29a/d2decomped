@@ -63,7 +63,10 @@ struct Npc {
     int size_x = 0, size_y = 0;          // collision footprint, subtiles
     std::string name;                    // hover label; "" = not selectable
     std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
+    std::vector<int> actions;            // each path point's DS1 action (town_npcs.hpp)
     float velocity = 3;                  // MonStats Velocity
+    bool npc_ai = false;                 // MonStats AI "Npc" (FUN_005e7130): thinks with rules::npc_think
+    std::uint32_t modes = 0;             // MonStats2 mS1 / mS2 as bits 8 / 9 (FUN_0046c140)
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     int object_id = 0;                   // an object's objects.txt Id
     bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)

@@ -124,3 +124,8 @@ uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at ea
 ponytail: `__cinit` (C++ static constructors) isn't run, because its C
 initialisers want locale setup. Add it when a global constructor turns out
 to matter.
+
+- `npcs.py`: the camp's NPCs thinking (MonAI Npc, FUN_005e7130) with its
+  effects hooked, against `drlg-dump ... npcs` (`rules::npc_think`):
+  `THINKS=150 uv run python diff_drlg.py 1-40 0 npcs`. See
+  `docs/research/re/town-npcs.md`.

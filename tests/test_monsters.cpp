@@ -5,6 +5,7 @@
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
+#include <town_npcs.hpp>
 #include <uniques.hpp>
 
 #include <array>
@@ -576,6 +577,26 @@ int main() {
         in.home_dist = 41;
         assert(countess_think(in, {}, path, roll).act == MonAct::home);
         assert(d2d::rules::monster_skill_level(10, 2) == 17);
+    }
+    {   // A town NPC's think (MonAI Npc, FUN_005e7130; tools/emu npcs.py).
+        using d2d::rules::NpcAct;
+        assert(d2d::rules::npc_distance(0, 0, 4, 1) == 4 && d2d::rules::npc_distance(0, 0, 1, 4) == 4);
+        d2d::rules::NpcBrain brain;
+        Rng seed{ 5 };
+        const d2d::rules::NpcPoint path[] = { { 4, 30, 30 } };
+        auto act = d2d::rules::npc_think(brain, seed, path, 10, 10, 0x9a, 1u << 8, 1);
+        assert(act.kind == NpcAct::Kind::stand && act.frames == 20 && brain.home_x == 10 && seed.low == 5);   // home, no draw
+        auto peek = seed;
+        const bool roams = peek(100) < 66;
+        act = d2d::rules::npc_think(brain, seed, path, 10, 10, 0x9a, 1u << 8, 1);
+        assert(roams ? act.kind == NpcAct::Kind::walk && act.x == 30 && brain.linger_count == 12 && brain.special_mode == 8
+                     : act.kind == NpcAct::Kind::stand && act.frames == 8);
+        brain.linger_count = 1;                             // the last linger, 4 off: back to it
+        brain.special_mode = 8; brain.special_x = brain.linger_x = 30; brain.special_y = brain.linger_y = 30; brain.special_tries = 4;
+        act = d2d::rules::npc_think(brain, seed, path, 34, 30, 0x9a, 1u << 8, 1);
+        assert(act.kind == NpcAct::Kind::walk && brain.linger_count == 0);
+        act = d2d::rules::npc_think(brain, seed, path, 30, 30, 0x9a, 1u << 8, 1);   // there: S1 at the anvil
+        assert(act.kind == NpcAct::Kind::mode && act.mode == 8 && act.face == 0x38 && brain.special_mode == 0);
     }
     std::puts("ok");
 }

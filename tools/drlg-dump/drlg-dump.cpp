@@ -27,6 +27,7 @@
 #include <room_tiles.hpp>
 #include <shrines.hpp>
 #include <tile_pick.hpp>
+#include <town_npcs.hpp>
 #include <txt.hpp>
 
 #include <algorithm>
@@ -284,6 +285,50 @@ static std::string dump_game(d2d::game::GameData& game, std::uint32_t seed, cons
     return out.str();
 }
 
+// The camp's NPCs thinking (tools/emu npcs.py): its rooms populated in list
+// order, then each NPC with the Npc AI and a path thinks `thinks` times
+// (rules::npc_think); a walk puts it at the spot, every other one 4
+// subtiles short on x; its mode is NU at each think. Lines sorted.
+static std::string dump_npcs(d2d::game::GameData& game, std::uint32_t seed, int thinks) {
+    d2d::game::set_map_seed(game, seed);
+    auto spawning = d2d::game::start_spawning(game, 0);
+    auto& camp = game.town;
+    const auto count = std::size_t((camp.ds1.width() + 6) / 8) * std::size_t((camp.ds1.height() + 6) / 8);
+    d2d::game::populate_level(game, spawning, camp, walk_order(count, seed, "list"));
+    std::vector<std::string> lines;
+    char text[64];
+    for (const auto& npc : camp.npcs) {
+        if (!npc.npc_ai || npc.path.empty() || npc.quest) continue;
+        std::vector<d2d::rules::NpcPoint> path;
+        for (std::size_t i = 0; i < npc.path.size(); ++i)
+            path.push_back({ i < npc.actions.size() ? npc.actions[i] : 0, int(npc.path[i].first * 5), int(npc.path[i].second * 5) });
+        int x = int(npc.x * 5), y = int(npc.y * 5), walks = 0;
+        auto rng = npc.seed;
+        std::snprintf(text, sizeof text, "npc %d @%d,%d seed %08x path", npc.hc_idx, x, y, rng.low);
+        std::string line = text;
+        for (const auto& point : path) line += ' ' + std::to_string(point.action) + ':' + std::to_string(point.x) + ',' + std::to_string(point.y);
+        line += ':';
+        d2d::rules::NpcBrain brain;
+        for (int think = 0; think < thinks; ++think) {
+            const auto act = d2d::rules::npc_think(brain, rng, path, x, y, npc.hc_idx, npc.modes, 1);
+            if (act.face >= 0) line += " f" + std::to_string(act.face);
+            switch (act.kind) {
+            case d2d::rules::NpcAct::Kind::stand: line += " s" + std::to_string(act.frames); break;
+            case d2d::rules::NpcAct::Kind::mode: line += " m" + std::to_string(act.mode); break;
+            case d2d::rules::NpcAct::Kind::walk:
+                line += " w" + std::to_string(act.x) + ',' + std::to_string(act.y);
+                x = act.x + (++walks % 2 == 0 ? 4 : 0); y = act.y;
+                break;
+            }
+        }
+        lines.push_back(line);
+    }
+    std::ranges::sort(lines);
+    std::string out;
+    for (const auto& line : lines) out += line + '\n';
+    return out;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::fprintf(stderr, "usage: drlg-dump <mpq dir> <map seed> [level]\n"); return 2; }
     const fs::path dir = argv[1];
@@ -327,6 +372,22 @@ int main(int argc, char** argv) {
             }
             if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << out.str();
             else std::fputs(out.str().c_str(), stdout);
+            if (seed == last) break;
+        }
+        return 0;
+    }
+    if (argc > 4 && std::string(argv[argc - 1]) == "npcs") {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game = d2d::game::load_game_data(dir, patch ? fs::path(patch) : fs::path{}, 1);
+        if (!game) return 1;
+        const char* thinks = std::getenv("THINKS");
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        for (auto seed = first;; ++seed) {
+            const auto text = dump_npcs(*game, seed, thinks ? std::atoi(thinks) : 40);
+            if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << text;
+            else std::fputs(text.c_str(), stdout);
             if (seed == last) break;
         }
         return 0;

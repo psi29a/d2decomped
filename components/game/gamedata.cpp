@@ -148,6 +148,8 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.utrans = { std::atoi(std::string(ms2.get(row2, "Utrans")).c_str()), std::atoi(std::string(ms2.get(row2, "Utrans(N)")).c_str()),
                  std::atoi(std::string(ms2.get(row2, "Utrans(H)")).c_str()) };
     if (const auto velocity = monstats.get(row, "Velocity"); !velocity.empty()) npc.velocity = float(std::atoi(std::string(velocity).c_str()));
+    npc.npc_ai = monstats.get(row, "AI") == "Npc";
+    npc.modes = (ms2.get(row2, "mS1") == "1" ? 1u << 8 : 0u) | (ms2.get(row2, "mS2") == "1" ? 1u << 9 : 0u);
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
     // whose name key "Dummy" reads "an evil force".
@@ -294,7 +296,13 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         state.up[made_index] = true;
         for (const char* root : { "objects", "monsters" })
             for (auto it = level.npcs.rbegin(); it != level.npcs.rend(); ++it)
-                if (it->room == int(made_index) && !it->quest && it->root == root) it->seed = d2d::rules::Rng{ spawning.game.next() };
+                if (it->room == int(made_index) && !it->quest && it->root == root) {
+                    it->seed = d2d::rules::Rng{ spawning.game.next() };
+                    // Its init's two draws: the look (FUN_005739d0) and the life
+                    // (FUN_00573cb0); what the Npc AI thinks on (town_npcs.hpp).
+                    // ponytail: the rogues' init draws (up to 11) aren't stepped; nothing rolls on them.
+                    if (it->npc_ai) { it->seed.next(); it->seed.next(); }
+                }
         return;
     }
     const auto& monsters = game_data.monsters;

@@ -541,8 +541,10 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (npc.code.empty()) continue;
         npc.x = (float(object.x) + 0.5f) / 5;
         npc.y = (float(object.y) + 0.5f) / 5;
-        for (const auto& point : object.path)
+        for (const auto& point : object.path) {
             npc.path.emplace_back((float(point.x) + 0.5f) / 5, (float(point.y) + 0.5f) / 5);
+            npc.actions.push_back(point.action);
+        }
         game_data.town.npcs.push_back(std::move(npc));
     }
 
