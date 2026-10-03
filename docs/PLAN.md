@@ -609,6 +609,34 @@ NPCs walk on game.exe's think (MonAI Npc, town-npcs.md: `diff_drlg.py 1-40 0
 npcs` 40/40); the MonWndr wanderer (FUN_0054ef50) is written up there, its
 draw stepped, the monster not made (1 room in 1.1 million).
 
+**Checkpoint 2026-10-03, research pass.** Nine topics researched in
+game.exe and built where Act 1 needs them:
+- The quest log panel and its Quest Log button (quests.md); the chain,
+  "!" alerts and done flash were already in.
+- Monster hits follow the think's target; no idle wander; Cursed's seed
+  and radius; Gargoyle Trap shots (monster-ai.md).
+- The calc compiler ported (FUN_006c1ae0, all 1,650 calcs match):
+  Bone Wall's `par34` reads as `par3` (skills.md, bugs.md #2).
+- Superuniques: boss sound sets, life-bar name colours
+  (superuniques.md). Open: Andariel and Blood Raven spawn without the
+  unique flag (gold name, Blood Raven's half freeze).
+- Monster stats as FUN_00573cb0 (noRatio rows; monstats.py 2202/2202);
+  poison and cold conversion (monsters.md, combat.md).
+- Town NPCs walk on game.exe's think (town-npcs.md).
+- A room's life on the server traced; act bosses count one unique
+  (drlg.md, bugs.md #15).
+- Chest traps fire 35 frames on, Act 1's swap to firebolt; object
+  blasts rolled and resisted; the Moldy Tome speaks (objects.md).
+- Stun guards, exact mana regen, the need-mana voice, Find Potion by
+  act (combat.md, skills.md).
+Shortcut comments were sorted per file into Act 1 work / networking /
+later acts / another area; most Act 1 ones left are small and invisible.
+Open and noticed: missiles fly 4/3 too fast (every game.exe missile is
+velocity x 75/100, FUN_0059fa30; the stepper isn't traced). The sweep
+(`tools/emu/sweep.sh`) now runs a Release drlg-dump, one emulator boot
+per level, with live progress. Full sweep after the merges (1-20, six kinds,
+levels 2–39): 228/228; ctest 31/31.
+
 **Step 3 — networking** (the deferred item 7 above).
 
 Blood Moor polish (2026-09-27): ambient events and song resume done
