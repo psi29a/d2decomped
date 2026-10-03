@@ -828,8 +828,9 @@ void ObjectRooms::save(Spawning& spawning) const {
     if (std::size_t(level.id) < spawning.regions.size()) spawning.regions[std::size_t(level.id)] = region;
 }
 
-// At build time: the room flags FUN_00552560 reads, and the level's units
-// off its rooms (the camp's edge).
+// At build time: the room flags FUN_00552560 reads. Every unit has a room:
+// game.exe never makes a preset unit no room takes (drlg.md "Units off
+// every room"), nor does level_room_tiles.
 void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level) {
     ObjectRooms pop{ game_data, builder, level };
     level.room_flags.resize(level.rooms.size());
@@ -849,11 +850,6 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
             if (gap_x < 6 && gap_y < 6) level.room_flags[i] |= 0x800000;
         }
     }
-    // ponytail: no room brings these up in game.exe; their rolls take a
-    // throwaway copy of the object seed as a game starts.
-    auto rgn = object_seed(game_data.map_seed);
-    for (std::size_t i = 0; i < level.units.size(); ++i)
-        if (level.unit_rooms[i] < 0 && level.units[i].type == d2d::rules::unit_type::kObject) add_object(game_data, builder.objects, builder.obj_row, level, level.units[i].id, level.units[i].x, level.units[i].y, rgn);
 }
 
 d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index, bool all) {

@@ -648,6 +648,88 @@ d2d: `components/drlg/units.hpp` (`ds1_units`), `room_tiles.hpp`
 (`BuiltRoom::units`); the app makes them objects, NPCs and monsters
 (`load_npcs`, `load_monsters`).
 
+**Units off every room.** FUN_00666710 is the only hand-out (its one
+caller is the preset room init FUN_006667d0). A unit of the record that
+lies inside no room of the preset stays in the record and nothing ever
+makes it. d2d drops them the same way (`level_room_tiles`' leftovers), so
+every `Level::units` entry has a room.
+
+## A room's life on the server (2026-10-03)
+
+The room2 status (+0x44) is the shallowest depth at which a player's
+near-list walk holds it: 0 the player's room, 1 its near list, 2 and 3
+the lists of those lists, 4 none. Each depth has a u16 counter (+0xc + 2 ×
+depth). A room2 sits in one of five status lists (DRLG act +0xa0 + 0xec ×
+status, links +0x1c / +0xe8; FUN_0061b210 moves it).
+
+- **Entering a room** (FUN_0061a110(new room1, old room1) → FUN_0061b6f0
+  (ECX old room2, EDX new room2)): FUN_0061b490 walks the new room
+  (BL = 0) and FUN_0061b390 its near list three deep. The walk is depth
+  first: a room's deeper visits run before its own callback. A callback
+  (table 0x744384, by depth) runs only when the room's status is ≥ that
+  depth and no counter at that depth or shallower is set yet. Then the
+  counter goes up.
+  - depth 3, FUN_0061b320: the DT1 list (FUN_0066f240) and, for a preset
+    room, its preset units (FUN_00667890 → FUN_00667620; the roll steps
+    the room's own +0x14 seed in place, but FUN_0066ee40 resets it before
+    the tiles). Status 3.
+  - depth 2, FUN_0061bb10: status 2.
+  - depth 1, FUN_0061b2d0: tiles and room1 (FUN_0061b190), if it has
+    neither.
+  - depth 0, FUN_0061b2c0: status 0.
+  Each near list includes the room itself, so a depth-1 room gets all four
+  callbacks in the order 3, 2, 1.
+- **Leaving** (the old room2): FUN_0061b5b0 lowers each counter it raised
+  and runs 0x744394's callbacks. These set the status to the shallowest
+  set counter (FUN_0061b4f0). At status 4, FUN_0061b560 frees the tiles
+  (FUN_0066f1a0) only when DRLG act +0x8c & 1 (FUN_00642a00). That bit is
+  1 on the client (FUN_006194a0's client branch passes 1) and 0 on the
+  server. The client's frame (FUN_0044c790 → FUN_0061b920) also brings
+  up one status-2 room every 5 frames. The server never does: its room1s
+  come only from depth 1 (and a warp's landing room, FUN_0052d0f0).
+- **Freeing** (FUN_0052d240, every 12th server frame from FUN_0052d870):
+  for each act's room1 (list +0x10, next +0x7c), FUN_0061a790 resets the
+  room1's idle count (+0xc) while a player is in it (+0x78), else counts
+  one more. Past 10 sweeps (≥ 132 frames, about 5 s), and if FUN_0061ba30
+  agrees, the room1 goes. FUN_0061ba30 wants no flag 0x400000 and status
+  > 1. In a town (FUN_006426a0: levels 1, 0x28, 0x4b, 0x67, 0x6d) or the
+  Arreat Summit (0x78), every room of the level must be at ≥ 2.
+  Then:
+  - each unit of the room1 (+0x74, next +0xe8) goes to FUN_005433f0
+    (SUnitInactive.cpp). Monsters are stored (FUN_005431f0). Objects are
+    stored on the level's or the unit's terms: town portals 0x3b / 0x3c
+    always, and objects.txt +0x173 / +0x174. Items and warp tiles are
+    stored too. Every unit but an item is then removed (FUN_00555600).
+  - FUN_0061a910 unlinks the room1 from the near rooms' lists and calls
+    FUN_0066b4c0. That clears room2 +0x30 and keeps the room1's
+    populated bit in room2 +0x60. If the room has tiles (0x100000),
+    FUN_0066f1a0 frees them along with the plain room's grids or the
+    preset's DS1 slice.
+- **Coming back** (a player's walk reaches it at depth 1 again):
+  FUN_0061b190 rebuilds the tiles from the reset seed (FUN_0066ee40),
+  against whichever near rooms are up now. FUN_006422a0 steps the room2
+  seed again, so the new room1 has a new seed. Its flags start from
+  room2 +0x60, so FUN_0052d160 sees it populated: no presets, no object
+  groups, no monsters. FUN_00542b40 remakes the stored units instead:
+  monsters through FUN_005424f0 (a superunique by FUN_005a4440,
+  superuniques.md), everything else through FUN_005557d0 with its stored
+  mode. An object whose objects.txt row has +0x167 & 0x20 catches up on
+  the frames it was away, one FUN_005417d0 event per step it missed.
+  Not traced: whether the remakes step the game seed.
+- Proven by the emulator: the preset units come out the same whether the
+  rooms come up one by one (FUN_0061b730) or through the real walk
+  (FUN_0061b6f0, every room stepped into in a shuffled order; levels 2–7,
+  17, 18, 20 seeds each).
+
+d2d: a room comes up the first time a player's near list reaches it
+(`player_moved`). Its room1 seed is the first one, and it is populated
+once (`LevelState::up`). ponytail: no room is ever freed. game.exe frees a
+room about 5 s after the last player moves 2+ rooms away, and rebuilds it on
+return, with a new room1 seed, its edge tiles re-laid against the rooms
+up then, and its units restored from storage. Matching that needs the
+unit storage (SUnitInactive.cpp) and tiles laid as events (up and freed),
+not as one order.
+
 ## Checking against game.exe — what's proven, what isn't
 
 **How it's proven.** `tools/emu` runs game.exe 1.14d itself under unicorn:

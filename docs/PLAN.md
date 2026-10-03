@@ -588,8 +588,7 @@ their own seeds and land as FUN_00555da0 finds room (drops.md); collision
 follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
 (monster-ai.md: outdoor no sight, indoor sight then spawn-area alert);
 Cain's portal at game.exe's spot. Still approximate (ponytail): object
-seed per level, not game-wide; units/objects/room seeds keep list order on
-relevel. (search_target was already FUN_005dd7f0's; what a monster then hits
+seed per level, not game-wide (both closed by the next checkpoint). (search_target was already FUN_005dd7f0's; what a monster then hits
 now follows its target: monster-ai.md "The attack's target".)
 
 **Checkpoint 2026-10-01, one object seed.** The object seed (game +0x10f0)
@@ -602,8 +601,10 @@ units` brings game.exe's rooms up in $ORDER), the spawn areas too (the game
 seed through the monsters matches). `diff_drlg.py 1-20 0 game` (Blood Moor, Den, Stony Field,
 Cave 1 in one game, rooms shuffled, every container opened): 20/20; reverse
 and list order, and touching levels (3,2,17,18,5,6,7) 20/20. Still
-approximate (ponytail): the units off a level's rooms, relevel laying the
-whole level. Since: the camp populates as game.exe (town-start.md), and its
+approximate (ponytail): relevel laying the whole level (same result, only
+slower), and rooms never freed. Units off every room turned out never to be
+made by game.exe either (2026-10-03, drlg.md "A room's life on the server":
+the near-list walk, the 5 s freeing, the storage and restore). Since: the camp populates as game.exe (town-start.md), and its
 NPCs walk on game.exe's think (MonAI Npc, town-npcs.md: `diff_drlg.py 1-40 0
 npcs` 40/40); the MonWndr wanderer (FUN_0054ef50) is written up there, its
 draw stepped, the monster not made (1 room in 1.1 million).

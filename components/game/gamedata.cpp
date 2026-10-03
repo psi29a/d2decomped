@@ -563,6 +563,10 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     // play gets its room1 (FUN_0061b2d0), made at the head of the act's
     // room list; the next tick populates the list's new rooms from the
     // head (FUN_0052d160), newest first.
+    // ponytail: a room stays up for good. game.exe frees one ~5 s after no
+    // player holds it within depth 1 (FUN_0052d240) and remakes it on return:
+    // new room1 seed, edge tiles re-laid, units from storage (drlg.md "A
+    // room's life on the server").
     std::vector<NearRoom> fresh;
     for (const auto& near_room : near_list(game_data, level, room)) {
         auto& state = spawning.levels[near_room.level];
@@ -908,9 +912,10 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
 // (tools/emu diff_drlg.py <level> units, rooms in $ORDER), its spawn areas
 // too (diff_drlg.py game: the game seed through the monsters); the object
 // groups follow as the rooms populate (room_objects, on these seeds).
-// ponytail: the whole level is laid again (~15 ms for the Stony Field)
-// each time rooms come up; bring them up one at a time, as game.exe does,
-// if that hitches.
+// ponytail: the whole level is laid again (Debug ~15 ms for the Stony
+// Field) each time rooms come up, where game.exe lays only the new ones;
+// the result is the same (rooms laid later never change earlier ones),
+// only slower. Lay one at a time (level_room_tiles' state kept) if that hitches.
 void relevel(Level& level, const std::vector<std::size_t>& up, const GameData* game_data, const Spawning* spawning) {
     if (!level.assets) return;
     auto outside = game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};
@@ -1118,7 +1123,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     if (std::size_t(id) < game_data.level_mon.size()) level->mon = game_data.level_mon[std::size_t(id)];
     // Its preset units (Level::units) come as their rooms populate
     // (populate: objects, and monsters MonStats marks as NPCs, Flavie by the
-    // Blood Moor's way in); the rooms' flags, and the units off the rooms, now.
+    // Blood Moor's way in); the rooms' flags now.
     place_objects(game_data, builder, *level);
     // Tristram Cain (monster 0x92): the Gibbet's opening makes him at its
     // x + 3, y + 3 (FUN_00593290); here from the start, hidden till then

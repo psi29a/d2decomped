@@ -80,8 +80,10 @@ distinct Ids (bugs.md #13).
   list itself) runs FUN_0061b2d0: no room1 yet (+0x30) → FUN_0061b190
   builds its tiles (FUN_0066ee40 / FUN_0066ee70) and its room1
   (FUN_006422a0 → FUN_00619890), put at the **head** of the act's room
-  list (act +0x10, next +0x7c) and the act marked (+0x54). Depth 2 / 3
-  only load tiles and presets (FUN_0061bb10, FUN_0061b320).
+  list (act +0x10, next +0x7c) and the act marked (+0x54). Depth 3 loads
+  the DT1 list and preset units (FUN_0061b320); depth 2 only sets the
+  status (FUN_0061bb10). The walk, freeing and return: drlg.md "A room's
+  life on the server".
 - **The near list** (FUN_0066c370): the level's rooms under 6 tiles apart
   on both axes, in the level's list order, itself included, bubble-sorted
   (FUN_0066bbc0); then, for a room flagged for a level next door (+0x28

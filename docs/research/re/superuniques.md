@@ -122,5 +122,6 @@ FUN_005424f0 calls FUN_005a4440 to rebuild a stored monster when its room
 comes back. It re-applies the saved mods and the superunique index. It
 re-binds quests by hcIdx: 6 → 5, 0x27 → 4, and the later acts'.
 
-It does **not** re-set special AI 0xd on a restored Countess. That belongs
-to the unit-storage work (agent D's scope); recorded here only.
+It does **not** re-set special AI 0xd on a restored Countess (bugs.md 15).
+d2d never frees a room, so a d2d Countess keeps it (drlg.md "A room's
+life on the server").
