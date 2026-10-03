@@ -403,9 +403,10 @@ struct ObjectRooms {
         const auto& types = game_data.monsters.types;
         stamp_shape(at_x, at_y, size_of(type), 0x100);
         stamp_shape(at_x, at_y, size_of(type) - 1, 0x1000);
-        // FUN_005b1cf0: a boss's mods, each FUN_005a4850(mod, 1) a unique counted (FUN_005a0320).
+        // FUN_005b1cf0: a boss's mods, each FUN_005a4850(mod, 1); FUN_005a0320
+        // counts a unique only as it first sets flag 8, so one a boss.
         // ponytail: Act 1's bosses by BaseId (Andariel, Blood Raven, the Maggot Queen); later acts' aren't.
-        if (const auto* t = type_at(type)) pop.uniques += t->base == 156 ? 1 : (t->base == 267 || t->base == 284) ? 2 : 0;
+        if (const auto* t = type_at(type)) pop.uniques += t->base == 156 || t->base == 267 || t->base == 284 ? 1 : 0;
         const auto value = game.next();
         d2d::rules::Rng own{ value };
         const std::vector<d2d::rules::Components>* sets = nullptr;

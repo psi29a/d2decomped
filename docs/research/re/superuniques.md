@@ -86,9 +86,8 @@ the kill's MonStats row (world.cpp), so the quest side works. What's missing:
 - flag 8: the gold name, and the "Demon" / "Undead" label on the bar;
 - Blood Raven's half freeze.
 
-objgroups.cpp counts 2 uniques for Blood Raven and the Maggot Queen. By
-FUN_005a0320's flag-8 guard it should be 1. The sweep passes either way, so
-nothing reads this count in the levels it covers.
+By FUN_005a0320's flag-8 guard each boss counts one unique, whatever its
+mods; objgroups.cpp counts 1 for all three.
 
 ## Client: the name colour and the sound set
 
