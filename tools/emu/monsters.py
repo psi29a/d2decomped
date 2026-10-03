@@ -14,7 +14,7 @@ import struct
 import sys
 
 from unicorn import UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP, UC_X86_REG_EAX
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_ESP, UC_X86_REG_EAX
 
 import drlg
 import emu
@@ -53,22 +53,38 @@ def dump(e, seed, lid, difficulty=0):
     """One line per room with monsters, in population order: `mon <x>,<y>: <class>@<x>,<y>[m<mode>]/<leader> ...`,
     level-relative tiles for the room and subtiles for the monsters; <leader> is the index (in the line) of
     the first monster its placement made: a preset unit (FUN_00555910), a group (FUN_0054df80) or a boss
-    and its company (FUN_005a43e0 from FUN_0054ec90). Flavie (266) is left out: an NPC, not a spawn."""
+    and its company (FUN_005a43e0 from FUN_0054ec90). Flavie (266) is left out: an NPC, not a spawn.
+    An act boss (FUN_005b1cf0 from FUN_005b2a00) adds `!<mods>` (the MonUMods it gave, `.`-joined) and `h`
+    for its stat 0x76 (half freeze)."""
     g = new_game(e, seed, difficulty)
     act = act_of(e, g, lid)
     lvl = drlg.find_level(e, e.r32(act + 0x48), lid)
     if not lvl: raise SystemExit(f"monsters: level {lid} not built")
     x0, y0 = e.s32(lvl + 0x1c) * 5, e.s32(lvl + 0x20) * 5
-    made, lead = [], [0]
+    made, lead, boss = [], [0], {}
+    def mods(unit): return bytes(e.read(e.r32(unit + 0x14) + 0x1c, 9)).rstrip(b"\0")
+    def on_boss(mu, addr, size, _):       # FUN_005b1cf0(ECX unit) at 0x5b2edf, back at 0x5b2ee4
+        unit = mu.reg_read(UC_X86_REG_ECX if addr == 0x5b2edf else UC_X86_REG_EDI)
+        if addr == 0x5b2edf: boss[unit] = [mods(unit), ""]
+        elif made and unit in boss:
+            before, freeze = boss.pop(unit)
+            added = mods(unit)[len(before):]
+            if added or freeze: made[-1] = made[-1][:5] + ("!" + ".".join(map(str, added)) + freeze,)
+    def on_stat(mu, addr, size, _):       # FUN_00639db0(unit, stat, value), stdcall
+        sp = mu.reg_read(UC_X86_REG_ESP)
+        unit = e.r32(sp + 4)
+        if e.r32(sp + 8) == 0x76 and unit in boss: boss[unit][1] = "h"
     def on_make(mu, addr, size, _):       # FUN_00555230(ECX type, EDX class; x, y, game, room1, 1, mode, flags)
         sp = mu.reg_read(UC_X86_REG_ESP)
         if mu.reg_read(UC_X86_REG_ECX) == 1 and mu.reg_read(UC_X86_REG_EDX) != 266:
-            made.append((mu.reg_read(UC_X86_REG_EDX), e.s32(sp + 4) - x0, e.s32(sp + 8) - y0, e.s32(sp + 0x14), lead[0]))
+            made.append((mu.reg_read(UC_X86_REG_EDX), e.s32(sp + 4) - x0, e.s32(sp + 8) - y0, e.s32(sp + 0x14), lead[0], ""))
     def on_group(mu, addr, size, _):
         ret = e.r32(mu.reg_read(UC_X86_REG_ESP))
         if addr != 0x5a43e0 or 0x54ec90 <= ret < 0x54ef42: lead[0] = len(made)
     hooks = [e.mu.hook_add(UC_HOOK_CODE, on_make, begin=0x555230, end=0x555230)]
     hooks += [e.mu.hook_add(UC_HOOK_CODE, on_group, begin=a, end=a) for a in (0x555910, 0x54df80, 0x5a43e0)]
+    hooks += [e.mu.hook_add(UC_HOOK_CODE, on_boss, begin=a, end=a) for a in (0x5b2edf, 0x5b2ee4)]
+    hooks.append(e.mu.hook_add(UC_HOOK_CODE, on_stat, begin=0x639db0, end=0x639db0))
     rooms = set()
     r = e.r32(lvl + 0x10)
     while r:
@@ -85,7 +101,7 @@ def dump(e, seed, lid, difficulty=0):
                 e.call(0x52d0f0, ecx=g, edx=room1)
                 if made:
                     out.append(f"mon {e.s32(r + 0x34) - x0 // 5},{e.s32(r + 0x38) - y0 // 5}: "
-                               + " ".join(f"{c}@{x},{y}{'' if m == 1 else f'm{m}'}/{l}" for c, x, y, m, l in made))
+                               + " ".join(f"{c}{b}@{x},{y}{'' if m == 1 else f'm{m}'}/{l}" for c, x, y, m, l, b in made))
             room1 = e.r32(room1 + 0x7c)
     finally:
         for h in hooks: e.mu.hook_del(h)

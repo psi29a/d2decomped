@@ -124,6 +124,11 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
         if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng);
+        else if (auto act_boss = d2d::rules::act_boss(spawn.type, type_info.base)) {   // FUN_005b1cf0: flag 8, no unique stats
+            monster.boss = d2d::rules::Boss::unique;
+            monster.mods = std::move(act_boss->mods);
+            monster.half_freeze = act_boss->half_freeze;
+        }
         monster.leader = spawn.leader;
         monster.seed = unit_seed;
         monster.path = spawn.path;
