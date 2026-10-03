@@ -5,13 +5,17 @@
 // it loads GameData and plays a new character for a second.
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <drops.hpp>
+#include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <inventory.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <world.hpp>
@@ -27,6 +31,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <variant>
 #include <vector>
 

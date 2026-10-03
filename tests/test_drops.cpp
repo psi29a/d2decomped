@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;

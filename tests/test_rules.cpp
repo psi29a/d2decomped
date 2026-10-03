@@ -327,8 +327,8 @@ int main() {
         got.clear();
         d2d::d2s::Item wand;
         wand.ilvl = 30;
-        const ModItem on{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
-        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &on);   // level (30 - 6) / 4 + 1 = 7
+        const ModItem cap_item{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &cap_item);   // level (30 - 6) / 4 + 1 = 7
         const int charges = 20 + 20 * 7 / 8;
         assert(got.size() == 1 && got[0].param == (44 << 6 | 7) && got[0].value >> 8 == charges);
         assert((got[0].value & 0xff) > charges / 8 && (got[0].value & 0xff) <= charges);
@@ -361,7 +361,7 @@ int main() {
     auto wall = [](int x, int y) { return x == 5 && y >= -10 && y <= 10; };   // a wall at x = 5
     const auto round = find_path(0, 0, 10, 0, wall);
     assert(!round.empty() && round.back() == std::pair(10, 0));
-    for (const auto& [x, y] : round) assert(!wall(x, y));
+    for (const auto& [step_x, step_y] : round) assert(!wall(step_x, step_y));
     assert(round.size() > 10);                                             // had to detour
     auto boxed = [](int x, int y) { return std::abs(x - 20) <= 2 && std::abs(y) <= 2 && !(x == 20 && y == 0); };
     const auto closest = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in

@@ -6,7 +6,9 @@
 #include <quests.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <vector>
 
@@ -214,11 +216,11 @@ int main() {
     assert(cain.said(cain_bits, CainQuest::kAkara, 112, true) == CainQuest::Said::decipher && cain.state == 5 && cain.deciphered);
     cain.talk_closed(cain_bits, CainQuest::kAkara);
     assert(cain.log == 3 && cain.talk(cain_bits, CainQuest::kAkara, false)[0].string == 117);
-    std::uint32_t lo = 1, hi = 666;
-    cain.stone_order(lo, hi);
+    std::uint32_t seed_low = 1, seed_high = 666;
+    cain.stone_order(seed_low, seed_high);
     auto order = cain.order;
     std::ranges::sort(order);
-    assert(order == (std::array<int, 5>{ 17, 18, 19, 20, 21 }) && lo != 1);
+    assert(order == (std::array<int, 5>{ 17, 18, 19, 20, 21 }) && seed_low != 1);
     assert(cain.stone(cain_bits, cain.order[0], false, true) == CainQuest::Stone::none);            // no bkd
     assert(cain.stone(cain_bits, cain.order[1], true, true) == CainQuest::Stone::none);             // out of order
     for (int i = 0; i < 4; ++i) assert(cain.stone(cain_bits, cain.order[std::size_t(i)], true, true) == CainQuest::Stone::lit);

@@ -65,7 +65,7 @@ int main() {
             int road = 0;
             for (const auto& tile : outdoor.tiles.floors()[0].cells) road += (tile.prop1 & 0x80) && tile.style == 0 && tile.sequence;
             std::printf("road tiles %d; roads:", road);
-            for (const auto& road_path : outdoor.roads) { std::printf(" ["); for (auto [x, y] : road_path) std::printf(" %d,%d", x - level.rect.x, y - level.rect.y); std::printf(" ]"); }
+            for (const auto& road_path : outdoor.roads) { std::printf(" ["); for (auto [road_x, road_y] : road_path) std::printf(" %d,%d", road_x - level.rect.x, road_y - level.rect.y); std::printf(" ]"); }
             std::puts("");
         }
         int dens = 0;
