@@ -98,12 +98,12 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : store.tabs[std::size_t(store.tab)]) {
-        const auto [x, y, width, height] = grid_rect(scene, layout, item);
+        const auto [box_x, box_y, width, height] = grid_rect(scene, layout, item);
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
-            blit_sprite(framebuffer, frame, scene.item_pal(item, pal), x + (width - int(frame.width)) / 2, y + (height - int(frame.height)) / 2);
+            blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box_x + (width - int(frame.width)) / 2, box_y + (height - int(frame.height)) / 2);
         }
-        if (mouse_x >= x && mouse_x < x + width && mouse_y >= y && mouse_y < y + height) { hover = &item; hover_box = { x, y, width, height }; }
+        if (mouse_x >= box_x && mouse_x < box_x + width && mouse_y >= box_y && mouse_y < box_y + height) { hover = &item; hover_box = { box_x, box_y, width, height }; }
     }
     if (hover) {
         const int clvl = wearer ? wearer->lvl : 1;

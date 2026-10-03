@@ -250,7 +250,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             // A floor whose DT1 material flags have 2 may splash in the rain
             // (FUN_004de410, as the tile's drawn).
             auto splash = [&](const d2d::dt1::Tile& tile) {
-                if (rain && (tile.material_flags & 2)) { const auto [x, y] = iso(cell_x, cell_y); rain->floor(rain->rng, x, y); }
+                if (rain && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
             };
             if (!cell_level->picks.empty()) {                   // the tiles game.exe picked: floors, then shadows
                 for (const int layer : { 1, 2 })

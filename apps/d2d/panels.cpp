@@ -12,6 +12,7 @@
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <quests.hpp>
+#include <rules.hpp>
 
 #include <algorithm>
 #include <array>
@@ -175,7 +176,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         std::string skill_name;
         if (auto found = lookup_string(scene, skill->str_alt)) skill_name = u16_to_latin1(*found);
         else if (auto fallback = lookup_string(scene, std::uint16_t(0x1506))) skill_name = u16_to_latin1(*fallback);
-        for (auto& ch : skill_name) ch = char(std::toupper(static_cast<unsigned char>(ch)));
+        for (auto& letter : skill_name) letter = char(std::toupper(static_cast<unsigned char>(letter)));
         text(font6, rec[0].left, rec[0].right, rec[0].y, skill_name);
         if (line.damage) {
             if (auto found = lookup_string(scene, std::uint16_t(0xfdd))) text(font6, rec[1].left, rec[1].right, rec[1].y, u16_to_latin1(*found));
@@ -187,7 +188,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         if (line.attack_rating != 0) {
             if (auto found = lookup_string(scene, std::uint16_t(line.skill == 0 ? 0xfe1 : 0xfdf))) {
                 auto label = u16_to_latin1(*found);
-                if (const auto at = label.find("%s"); at != label.npos) label.replace(at, 2, skill_name);
+                if (const auto placeholder = label.find("%s"); placeholder != label.npos) label.replace(placeholder, 2, skill_name);
                 const auto newline = label.find('\n');
                 text(font6, rec[3].left, rec[3].right, rec[3].y - 4, label.substr(0, newline));
                 if (newline != label.npos) text(font6, rec[3].left, rec[3].right, rec[3].y + 4, label.substr(newline + 1));
@@ -212,8 +213,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             blit_sprite(framebuffer, frame_ref, pal, panel_x + x, panel_y + y - int(frame_ref.height) + 1);
         };
         dc6(scene.points_box, 0, 3, 364);
-        for (auto [id, y] : { std::pair{ 0xfeb, 355 }, { 0xfec, 363 } })
-            if (auto found = lookup_string(scene, std::uint16_t(id))) text(font6, 11, 0x59 - 1, y, u16_to_latin1(*found));
+        for (auto [id, label_y] : { std::pair{ 0xfeb, 355 }, { 0xfec, 363 } })
+            if (auto found = lookup_string(scene, std::uint16_t(id))) text(font6, 11, 0x59 - 1, label_y, u16_to_latin1(*found));
         text(f16, 0x5c, 0x80 - 1, 360, std::to_string(pts));
         for (int i = 0; i < 4; ++i) {
             const auto& button = kStatButtons[i];
@@ -261,10 +262,10 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const auto found = lookup_string(scene, std::uint16_t(id));
         return found ? u16_to_latin1(*found) : std::string{};
     };
-    auto put = [&](int x, int y, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    auto put = [&](int x, int y, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
         if (x < 0 || y < 0 || x >= width || y >= height) return;
         auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
-        pixel[0] = r; pixel[1] = g; pixel[2] = b;
+        pixel[0] = red; pixel[1] = green; pixel[2] = blue;
     };
     constexpr std::array<std::uint8_t, 3> kWhite{ 255, 255, 255 }, kBlue{ 105, 105, 255 };
     std::vector<std::pair<std::array<int, 2>, TextLine>> hovers;   // centre x, bottom: drawn over the bars
@@ -296,17 +297,17 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     at_bottom(scene.run_button, (hud.running ? 2 : 0) + (hud.run_down && on_run ? 1 : 0), width / 2 - 0x91, height - 10);
     if (on_run) {
         auto special = str(0x1052);
-        if (const auto at = special.find("%s"); at != std::string::npos) special.replace(at, 2, "R");
+        if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, "R");
         hovers.push_back({ { width / 2 - 0x91, height - 0x17 }, { str(0x1053) + special, kWhite } });
     }
     // Stamina: 102 px when full, in the palette entry nearest its colour
     // (FUN_004fb180), at three quarters (draw mode 2).
-    auto nearest = [&](int r, int g, int b) {
+    auto nearest = [&](int red, int green, int blue) {
         int best = 1 << 30;
         std::array<std::uint8_t, 3> out{};
         for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
             const auto colour = pal[std::uint8_t(i)];
-            const int distance = (colour.r - r) * (colour.r - r) + (colour.g - g) * (colour.g - g) + (colour.b - b) * (colour.b - b);
+            const int distance = (colour.r - red) * (colour.r - red) + (colour.g - green) * (colour.g - green) + (colour.b - blue) * (colour.b - blue);
             if (distance < best) { best = distance; out = { colour.r, colour.g, colour.b }; }
         }
         return out;
@@ -320,7 +321,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         for (int x = width / 2 - 0x7f; x < width / 2 - 0x7f + bar; ++x) {
             if (x < 0 || y < 0 || x >= width || y >= height) continue;
             auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
-            for (std::size_t c = 0; c < 3; ++c) pixel[c] = std::uint8_t((rgb[c] * 3 + pixel[c]) / 4);
+            for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((rgb[channel] * 3 + pixel[channel]) / 4);
         }
     if (over(width / 2 - 0x7f, height - 0x1b, width / 2 - 0x19, height - 9)) {
         auto shown = stats.values[kStamina] >> 8;
@@ -329,7 +330,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         if (more) shown = top;
         hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more ? kBlue : kWhite } });
     }
-    for (const auto& [at, line] : hovers) draw_hover_text(framebuffer, scene, { line }, at[0], at[0], at[1], at[1]);
+    for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);
     // The globes' text (FUN_00498120): plain, centred, in the frame's font.
     // ponytail: taken as font16, as for the level buttons.
     auto globe_text = [&](int centre, const std::string& text) {
@@ -421,12 +422,12 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
         if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
-        const auto [x, y, width, height] = grid_rect(scene, layout, item);
+        const auto [box_x, box_y, width, height] = grid_rect(scene, layout, item);
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
-            blit_sprite(framebuffer, frame, scene.item_pal(item, pal), x + (width - int(frame.width)) / 2, y + (height - int(frame.height)) / 2);
+            blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box_x + (width - int(frame.width)) / 2, box_y + (height - int(frame.height)) / 2);
         }
-        if (mouse_x >= x && mouse_x < x + width && mouse_y >= y && mouse_y < y + height) { hover = &item; hover_box = { x, y, width, height }; }
+        if (mouse_x >= box_x && mouse_x < box_x + width && mouse_y >= box_y && mouse_y < box_y + height) { hover = &item; hover_box = { box_x, box_y, width, height }; }
     }
     if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
@@ -472,8 +473,8 @@ bool Automap::add(const Cell& cell) {
     for (const auto& pair : kCelGroups)
         if (pair[0] == cell.cel) group = pair[1];
     // ponytail: matches against every cell at (x, y); the tree only meets those on its search path.
-    const auto at = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
-    const bool taken = group < 0 ? at != placed.end() && std::get<0>(*at) == cell.list && std::get<1>(*at) == cell.y && std::get<2>(*at) == cell.x
+    const auto found = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
+    const bool taken = group < 0 ? found != placed.end() && std::get<0>(*found) == cell.list && std::get<1>(*found) == cell.y && std::get<2>(*found) == cell.x
                                  : placed.count({ cell.list, cell.y, cell.x, group }) != 0;
     if (taken) return false;
     placed.insert({ cell.list, cell.y, cell.x, group });
@@ -809,8 +810,8 @@ QuestLogButton quest_log_button(const QuestLog& quest_log, bool left_open, bool 
     if (!quest_log.button || quest_log.open || (left_open && right_open)) return {};
     const int width = int(kScreenWidth), height = int(kScreenHeight);
     const bool low = left_open && char_open;            // rows 1 / 3, else 2 (FUN_004a2900)
-    const int x0 = left_open ? width / 2 + 0x28 : 0x28;
-    return { x0, x0 + 0x23, height - (low ? 0x8c : 0xc3), height - (low ? 0x69 : 0xa0), height - (low ? 0x8f : 0xc6) };
+    const int button_x = left_open ? width / 2 + 0x28 : 0x28;
+    return { button_x, button_x + 0x23, height - (low ? 0x8c : 0xc3), height - (low ? 0x69 : 0xa0), height - (low ? 0x8f : 0xc6) };
 }
 
 void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const QuestLogButton& button, bool held, int mouse_x, int mouse_y) {
