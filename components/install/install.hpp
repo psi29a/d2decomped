@@ -90,7 +90,7 @@ auto resolve_data_dir(std::string_view cli, std::string_view env, const std::fil
                       const std::filesystem::path& cwd, std::string_view cfg_data) -> DataDir;
 
 // Pieces, public for tests.
-auto file_version(const std::filesystem::path& pe) -> std::optional<std::array<std::uint16_t, 4>>;
+auto file_version(const std::filesystem::path& exe_path) -> std::optional<std::array<std::uint16_t, 4>>;
 auto wine_reg_value(std::string_view reg_text, std::string_view key,
                     std::string_view name) -> std::optional<std::string>;
 auto wine_reg_subkeys(std::string_view reg_text, std::string_view key) -> std::vector<std::string>;

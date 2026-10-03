@@ -4,12 +4,22 @@
 #include "install.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
-#include <iterator>
+#include <functional>
+#include <ios>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #if defined(_WIN32)
 #  include <windows.h>
@@ -24,10 +34,10 @@ namespace {
 constexpr std::string_view kBlizzardKey  = R"(Software\Blizzard Entertainment\Diablo II)";
 constexpr std::string_view kUninstallKey = R"(Software\Microsoft\Windows\CurrentVersion\Uninstall)";
 
-char lower(char c) { return char(std::tolower(static_cast<unsigned char>(c))); }
+char lower(char letter) { return char(std::tolower(static_cast<unsigned char>(letter))); }
 
-bool iequals(std::string_view a, std::string_view b) {
-    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) { return lower(x) == lower(y); });
+bool iequals(std::string_view left, std::string_view right) {
+    return left.size() == right.size() && std::equal(left.begin(), left.end(), right.begin(), [](char x, char y) { return lower(x) == lower(y); });
 }
 
 bool istarts_with(std::string_view text, std::string_view prefix) {
@@ -78,9 +88,9 @@ std::vector<fs::path> entries(const fs::path& dir) {
     return out;
 }
 
-std::uint32_t le32(std::string_view bytes, std::size_t at) {
-    return std::uint32_t(std::uint8_t(bytes[at])) | std::uint32_t(std::uint8_t(bytes[at + 1])) << 8 |
-           std::uint32_t(std::uint8_t(bytes[at + 2])) << 16 | std::uint32_t(std::uint8_t(bytes[at + 3])) << 24;
+std::uint32_t le32(std::string_view bytes, std::size_t offset) {
+    return std::uint32_t(std::uint8_t(bytes[offset])) | std::uint32_t(std::uint8_t(bytes[offset + 1])) << 8 |
+           std::uint32_t(std::uint8_t(bytes[offset + 2])) << 16 | std::uint32_t(std::uint8_t(bytes[offset + 3])) << 24;
 }
 
 void append_utf8(std::string& out, std::uint32_t code) {
@@ -129,9 +139,9 @@ std::optional<std::pair<std::string_view, std::string_view>> quoted(std::string_
     return std::nullopt;
 }
 
-// Calls fn(section, line) for each value line of a .reg text; section unescaped.
+// Calls callback(section, line) for each value line of a .reg text; section unescaped.
 template <class Fn>
-void for_each_reg_line(std::string_view text, Fn&& fn) {
+void for_each_reg_line(std::string_view text, Fn&& callback) {
     std::string section;
     while (!text.empty()) {
         const auto newline = text.find('\n');
@@ -142,10 +152,10 @@ void for_each_reg_line(std::string_view text, Fn&& fn) {
         if (line.front() == '[') {
             const auto close = line.rfind(']');
             section = close == line.npos ? std::string{} : unescape(line.substr(1, close - 1));
-            fn(std::string_view(section), std::string_view{});
+            callback(std::string_view(section), std::string_view{});
             continue;
         }
-        fn(std::string_view(section), line);
+        callback(std::string_view(section), line);
     }
 }
 
@@ -300,17 +310,17 @@ auto find_file(const fs::path& dir, std::string_view name) -> std::optional<fs::
     return std::nullopt;
 }
 
-auto file_version(const fs::path& pe) -> std::optional<std::array<std::uint16_t, 4>> {
+auto file_version(const fs::path& exe_path) -> std::optional<std::array<std::uint16_t, 4>> {
     // ponytail: scans the whole file (Game.exe 1.14d is ~3.5 MB) for the
     // VS_FIXEDFILEINFO signature instead of walking the resource tree;
     // capped at 64 MB.
-    const auto bytes = read_file(pe, 64u << 20);
+    const auto bytes = read_file(exe_path, 64u << 20);
     if (!bytes || bytes->size() < 64 || !bytes->starts_with("MZ")) return std::nullopt;
     const std::string_view data(*bytes);
     for (std::size_t at = 0; at + 16 <= data.size(); at += 4) {
         if (le32(data, at) != 0xFEEF04BD || le32(data, at + 4) != 0x00010000) continue;   // signature, struct version 1.0
-        const auto ms = le32(data, at + 8), ls = le32(data, at + 12);
-        return std::array<std::uint16_t, 4>{ std::uint16_t(ms >> 16), std::uint16_t(ms), std::uint16_t(ls >> 16), std::uint16_t(ls) };
+        const auto version_high = le32(data, at + 8), version_low = le32(data, at + 12);
+        return std::array<std::uint16_t, 4>{ std::uint16_t(version_high >> 16), std::uint16_t(version_high), std::uint16_t(version_low >> 16), std::uint16_t(version_low) };
     }
     return std::nullopt;
 }
@@ -371,27 +381,27 @@ auto read_product_db(std::span<const std::byte> bytes) -> std::vector<ProductIns
     struct Field { std::uint64_t number; std::span<const std::byte> bytes; };
     auto fields = [](std::span<const std::byte> message) {
         std::vector<Field> out;
-        std::size_t at = 0;
+        std::size_t offset = 0;
         auto varint = [&]() -> std::optional<std::uint64_t> {
             std::uint64_t value = 0;
-            for (int shift = 0; shift < 64 && at < message.size(); shift += 7) {
-                const auto byte = std::uint8_t(message[at++]);
+            for (int shift = 0; shift < 64 && offset < message.size(); shift += 7) {
+                const auto byte = std::uint8_t(message[offset++]);
                 value |= std::uint64_t(byte & 0x7F) << shift;
                 if (!(byte & 0x80)) return value;
             }
             return std::nullopt;
         };
-        while (at < message.size()) {
+        while (offset < message.size()) {
             const auto tag = varint();
             if (!tag) break;
             const auto wire = *tag & 7;
             if (wire == 0) { if (!varint()) break; }
-            else if (wire == 1 || wire == 5) { const std::size_t skip = wire == 1 ? 8 : 4; if (message.size() - at < skip) break; at += skip; }
+            else if (wire == 1 || wire == 5) { const std::size_t skip = wire == 1 ? 8 : 4; if (message.size() - offset < skip) break; offset += skip; }
             else if (wire == 2) {
                 const auto length = varint();
-                if (!length || *length > message.size() - at) break;
-                out.push_back({ *tag >> 3, message.subspan(at, std::size_t(*length)) });
-                at += std::size_t(*length);
+                if (!length || *length > message.size() - offset) break;
+                out.push_back({ *tag >> 3, message.subspan(offset, std::size_t(*length)) });
+                offset += std::size_t(*length);
             } else break;
         }
         return out;
@@ -599,7 +609,7 @@ auto detect(const Environment& env) -> std::vector<Install> {
             for (const auto folder : kD2RFolders)
                 if (auto dir = map(std::string(program_files) + std::string(folder))) add(*dir, label + "default folder");
         }
-        if (auto db = map(R"(C:\ProgramData\Battle.net\Agent\product.db)")) probe_product_db(*db, map, label, add);
+        if (auto product_db = map(R"(C:\ProgramData\Battle.net\Agent\product.db)")) probe_product_db(*product_db, map, label, add);
     }
 
     // Unique by canonical dir, first probe's label kept.
@@ -618,7 +628,7 @@ auto detect(const Environment& env) -> std::vector<Install> {
         if (!usable(install)) return 2;
         return install.version == Version::v114d ? 0 : 1;
     };
-    std::stable_sort(unique.begin(), unique.end(), [&](const Install& a, const Install& b) { return rank(a) < rank(b); });
+    std::stable_sort(unique.begin(), unique.end(), [&](const Install& left, const Install& right) { return rank(left) < rank(right); });
     return unique;
 }
 

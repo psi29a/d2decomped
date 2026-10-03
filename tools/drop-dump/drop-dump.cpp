@@ -23,6 +23,7 @@
 // base off room seed {seed, 666}, then its unit and own seeds off that, the
 // quality off its own: "seed w|a iilvl: code:quality -> room seed low after
 // the pick".
+#include <d2s_items.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -39,6 +40,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 int main(int argc, char** argv) {
@@ -59,16 +61,16 @@ int main(int argc, char** argv) {
             for (std::string field; std::getline(fields, field, '\t');) job.push_back(int(std::stoul(field)));
         }
         if (objects) {
-            const auto [seed, unit_low, op, id, lid, diff, locked, sparkle] = std::array<int, 8>{ job[0], job[1], job[2], job[3], job[4], job[5], job[6], job[7] };
+            const auto [seed, unit_low, operate_fn, id, lid, diff, locked, sparkle] = std::array<int, 8>{ job[0], job[1], job[2], job[3], job[4], job[5], job[6], job[7] };
             const auto& area = data->area_level;
             auto alvl = [&](int level) { return area[std::size_t(level)][std::size_t(diff)]; };
             const auto [low, high] = d2d::rules::kChestLevels[0];
-            const auto tc = d2d::rules::chest_tc(0, diff, alvl(lid), alvl(low), alvl(high));
+            const auto treasure_class = d2d::rules::chest_tc(0, diff, alvl(lid), alvl(low), alvl(high));
             d2d::rules::Rng object_seed{ std::uint32_t(seed) }, unit{ std::uint32_t(unit_low) };
             std::vector<d2d::rules::Drop> drops;
-            const auto opened = d2d::rules::open_container(op, id, locked, sparkle, object_seed,
-                                                           [&](int forced) { return d2d::rules::chest_round(rules, tc, unit, drops, forced); });
-            std::printf("%08x %d L%d d%d %s%s op%d:", unsigned(seed), id, lid, diff, locked ? "L" : "", sparkle ? "S" : "", op);
+            const auto opened = d2d::rules::open_container(operate_fn, id, locked, sparkle, object_seed,
+                                                           [&](int forced) { return d2d::rules::chest_round(rules, treasure_class, unit, drops, forced); });
+            std::printf("%08x %d L%d d%d %s%s op%d:", unsigned(seed), id, lid, diff, locked ? "L" : "", sparkle ? "S" : "", operate_fn);
             for (const auto& drop : drops) std::printf(drop.mul ? " %s:%d*%d" : " %s:%d", drop.code.c_str(), drop.quality, drop.mul);
             std::printf(" |");
             for (const auto& code : opened.extra) std::printf(" %s", code.c_str());
@@ -117,12 +119,12 @@ int main(int argc, char** argv) {
                 for (const auto& [key, value] : props)
                     if (value) made += (made.empty() ? "" : ",") + std::to_string(key.first) + ":" + std::to_string(key.second) + "=" + std::to_string(value);
                 std::string sets;                              // a set's bonus lists, " i[...]" each
-                std::size_t at = 0, list = 0;
+                std::size_t offset = 0, list = 0;
                 for (int bit = 0; bit < 5; ++bit) {
                     if (!(item.set_lists >> bit & 1) || list >= item.set_list_sizes.size()) continue;
                     std::map<std::pair<int, int>, int> bonus;
-                    for (std::size_t i = 0; i < item.set_list_sizes[list]; ++i) bonus[{ item.set_props[at + i].stat, item.set_props[at + i].param }] += item.set_props[at + i].value;
-                    at += item.set_list_sizes[list++];
+                    for (std::size_t i = 0; i < item.set_list_sizes[list]; ++i) bonus[{ item.set_props[offset + i].stat, item.set_props[offset + i].param }] += item.set_props[offset + i].value;
+                    offset += item.set_list_sizes[list++];
                     std::string one;
                     for (const auto& [key, value] : bonus)
                         if (value) one += (one.empty() ? "" : ",") + std::to_string(key.first) + ":" + std::to_string(key.second) + "=" + std::to_string(value);
