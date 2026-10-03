@@ -1617,13 +1617,13 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();
         }
-        npc_patrol(*level, npc_states, talking, now_ms, elapsed, crowd);
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd);
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
             if (states.size() > neighbour.level->npcs.size()) states = npc_start(*neighbour.level);   // a new game's
             grow_states(states, *neighbour.level);
-            npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
+            npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx)

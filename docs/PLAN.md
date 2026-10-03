@@ -602,8 +602,11 @@ units` brings game.exe's rooms up in $ORDER), the spawn areas too (the game
 seed through the monsters matches). `diff_drlg.py 1-20 0 game` (Blood Moor, Den, Stony Field,
 Cave 1 in one game, rooms shuffled, every container opened): 20/20; reverse
 and list order, and touching levels (3,2,17,18,5,6,7) 20/20. Still
-approximate (ponytail): the camp's population steps on the game seed, the
-wanderer, the units off a level's rooms, relevel laying the whole level.
+approximate (ponytail): the units off a level's rooms, relevel laying the
+whole level. Since: the camp populates as game.exe (town-start.md), and its
+NPCs walk on game.exe's think (MonAI Npc, town-npcs.md: `diff_drlg.py 1-40 0
+npcs` 40/40); the MonWndr wanderer (FUN_0054ef50) is written up there, its
+draw stepped, the monster not made (1 room in 1.1 million).
 
 **Step 3 — networking** (the deferred item 7 above).
 

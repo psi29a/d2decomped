@@ -138,39 +138,64 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
 
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
-    for (std::size_t i = 0; i < level.npcs.size(); ++i) {
-        const auto& npc = level.npcs[i];
-        out.push_back({ .x = npc.x, .y = npc.y, .wait_until = std::uint32_t(1000 + 700 * i % 3000) });
-    }
+    for (const auto& npc : level.npcs) out.push_back({ .x = npc.x, .y = npc.y });
     return out;
 }
 
-void npc_patrol(const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
+namespace {
+
+// FUN_00648820's 64 directions (0 screen south, clockwise; rules::direction64)
+// as a 16-direction facing: a screen vector that way through direction16.
+int facing16(int dir64) {
+    const float angle = float(dir64) * (2 * 3.14159265f / 64);
+    const float screen_x = -std::sin(angle) / (kIsoW / 2), screen_y = std::cos(angle) / (kIsoH / 2);
+    return direction16((screen_x + screen_y) / 2, (screen_y - screen_x) / 2);
+}
+
+}  // namespace
+
+void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
                 std::uint32_t now_ms, float elapsed, const Crowd& crowd) {
-    for (std::size_t i = 0; i < npcs.size(); ++i) {
-        const auto& path = level.npcs[i].path;
-        if (path.empty()) continue;
+    constexpr std::uint32_t kFrameMs = 40;
+    for (std::size_t i = 0; i < npcs.size() && i < level.npcs.size(); ++i) {
+        const auto& npc = level.npcs[i];
+        if (!npc.npc_ai || npc.path.empty()) continue;
         auto& state = npcs[i];
         if (std::ranges::find(busy, int(i)) != busy.end()) {   // busy: stand still
-            if (state.walking) { state.walking = false; state.mode_ms = now_ms; }
-            state.wait_until = now_ms + 2000;
+            if (state.walking) { state.walking = false; state.path.clear(); state.mode_ms = now_ms; }
+            state.wait_until = now_ms + 8 * kFrameMs;
             continue;
         }
-        if (!state.walking) {
-            if (now_ms >= state.wait_until) { state.walking = true; state.mode_ms = now_ms; }
+        if (state.walking) {                                    // a walk's end (or a block) thinks at once
+            if (!follow_path(level, state, cells_per_sec(npc.velocity) * elapsed, crowd)) {
+                state.walking = false; state.path.clear(); state.mode_ms = now_ms; state.wait_until = now_ms;
+            }
             continue;
         }
-        const auto [target_x, target_y] = path[state.next % path.size()];
-        const float dx = target_x - state.x, dy = target_y - state.y;
-        const float dist = std::hypot(dx, dy),
-                    step = cells_per_sec(level.npcs[i].velocity) * elapsed;
-        if (dist > 0.05f) state.dir = direction16(dx, dy);
-        if (dist <= step) {
-            state.x = target_x; state.y = target_y; state.walking = false; state.mode_ms = now_ms;
-            state.next = (state.next + 1) % path.size();
-            state.wait_until = now_ms + 2000 + std::uint32_t((i * 1237 + state.next * 911) % 3000);
-        } else if (const float next_x = state.x + dx / dist * step, next_y = state.y + dy / dist * step; !crowd.at(next_x, next_y, &state)) {
-            state.x = next_x; state.y = next_y;                                     // else someone's in the way: wait
+        if (!state.mode.empty()) {                              // a special: NU at its end, the think aidel on
+            if (now_ms < state.wait_until) continue;
+            state.mode = {}; state.mode_ms = now_ms; state.wait_until = now_ms + 15 * kFrameMs;
+            continue;
+        }
+        if (now_ms < state.wait_until) continue;
+        std::vector<d2d::rules::NpcPoint> points;
+        for (std::size_t k = 0; k < npc.path.size(); ++k)
+            points.push_back({ k < npc.actions.size() ? npc.actions[k] : 0, int(npc.path[k].first * 5), int(npc.path[k].second * 5) });
+        const auto act = d2d::rules::npc_think(state.brain, npc.seed, points, int(std::floor(state.x * 5)), int(std::floor(state.y * 5)), npc.hc_idx, npc.modes, 1);
+        if (act.face >= 0) state.dir = facing16(act.face);
+        switch (act.kind) {
+        case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
+        case d2d::rules::NpcAct::Kind::walk:
+            state.path = walk_path(level, state.x, state.y, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, crowd, &state);
+            state.walking = !state.path.empty();
+            state.mode_ms = now_ms;
+            if (!state.walking) state.wait_until = now_ms + std::uint32_t(act.fail) * kFrameMs;
+            break;
+        case d2d::rules::NpcAct::Kind::mode:
+            state.mode = act.mode == 8 ? "S1" : act.mode == 9 ? "S2" : act.mode == 10 ? "S3" : "S4";
+            state.mode_ms = now_ms;
+            state.wait_until = now_ms + game_data.npc_timing(npc, state.mode).length_ms();
+            break;
         }
     }
 }
