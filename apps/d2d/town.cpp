@@ -899,6 +899,12 @@ auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
             level_ms = frame_ms;                                  // its song comes in 3 s later
             return;
         }
+        if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
+            speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
+            net.send(cmd::QuestMessage{ object_speech->npc, object_speech->string });
+            menu_after_speech = -1;
+            return;
+        }
         const auto& open_ui = std::get<ev::OpenUI>(event);
         if (open_ui.kind == ev::OpenUI::stash) { stash_open = inv_open = true; char_open = quest_log.open = false; return; }
         if (open_ui.kind == ev::OpenUI::trade) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; return; }
