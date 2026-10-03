@@ -14,8 +14,10 @@ export D2_BUILD=build-release
 seeds=${1:-1-50}; shift; kinds=${*:-monsters objgroups}
 total=$(( $(echo $kinds | wc -w) * 38 )); count=$(echo "$seeds" | awk -F- '{print $2 - $1 + 1}')
 start=$(date +%s)
-for k in $kinds; do for l in $(seq 2 39); do echo "$l $k"; done; done |
-    xargs -P "${JOBS:-$(( $(sysctl -n hw.ncpu 2>/dev/null || nproc) - 2 ))}" -n 2 sh -c 'uv run python diff_drlg.py '"$seeds"' $0 $1 2>&1 | grep "seeds match" | sed "s/^/$1 /"' |
+# A job per level, all kinds in it: game.exe loads once per level; the
+# later levels first (the slow ones), so none starts last.
+seq 39 -1 2 |
+    xargs -P "${JOBS:-$(( $(sysctl -n hw.ncpu 2>/dev/null || nproc) - 2 ))}" -n 1 sh -c 'uv run python diff_drlg.py '"$seeds"' $0 '"$kinds"' 2>&1 | grep "seeds match"' |
     while read -r line; do
         finished=$((${finished:-0} + 1)); now=$(date +%s); spent=$((now - start))
         case $line in *" $count/$count seeds match"*) mark=ok ;; *) mark=FAIL ;; esac
