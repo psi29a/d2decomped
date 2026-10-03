@@ -913,7 +913,10 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 6> kQuestLogRecords =
     { 3719, 184, 9, 3758, 166, 3759, 166, 3761, 166, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
       3760, 166, 3728, 3725, 3727, 3725, 3726, 184 },
 } };
-struct QuestText { int string = 0, count = -1, speech = 0, shown = 2; };
+// `state` is what the picker keeps as the quest's last shown state
+// (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
+// the open log picks that quest, FUN_004a3220).
+struct QuestText { int string = 0, count = -1, speech = 0, shown = 2, state = -1; bool marks = false; };
 struct QuestState {
     std::array<std::uint8_t, 7> log{};     // the log state the server sent, by quest (the view's quest_log)
     std::array<std::uint16_t, 7> game{};   // the game's quest flags (the view's game_quests)
@@ -924,31 +927,61 @@ inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, 
     const auto& rec = kQuestLogRecords[std::size_t(quest - 1)];
     auto flag = [&](int bit) { return d2d::rules::qbit(quest_bits, quest, bit); };
     auto game = [&](int bit) { return (quest_state.game[std::size_t(quest)] >> bit & 1) != 0; };
-    auto entry = [&](int string, int speech, int shown) {
-        return QuestText{ string == 3725 ? 0 : string, -1, speech == 3725 ? 0 : speech, shown };
+    auto entry = [&](int string, int speech, int shown, int state, bool marks) {
+        return QuestText{ string == 3725 ? 0 : string, -1, speech == 3725 ? 0 : speech, shown, state, marks };
     };
     const bool b0 = flag(0), b1 = flag(1), b13 = flag(13);
     int s = quest_state.log[std::size_t(quest)];
     if (b0) {                                               // done: 13 in this game, 11 before
         s = b13 ? 13 : 11;
-        return entry(rec[std::size_t(2 * s + 1)], rec[1], flag(12) ? 1 : 0);
+        return entry(rec[std::size_t(2 * s + 1)], rec[1], flag(12) ? 1 : 0, s, false);
     }
     if (b13 && b1 && rec[2] != 0xffff) {                    // the reward's due
         s = rec[2] + 1;
-        return entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], 3);
+        return entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], 3, s, true);
     }
-    if (b1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3);
+    if (b1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
     if (s == 0)
-        return (game(13) || game(15)) && !b13 && !b1 ? entry(3729, 3725, 3) : QuestText{};
+        return (game(13) || game(15)) && !b13 && !b1 ? entry(3729, 3725, 3, -1, false) : QuestText{};
     if (s > 13) return {};
     if (quest == 1) {                                       // the Den (name 3714): its count
-        QuestText text = entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3);
+        QuestText text = entry(rec[std::size_t(2 * s + 1)], rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3, s, true);
         if (s == 3 || s == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
         return text;
     }
     int line = rec[std::size_t(2 * s + 1)];
     if ((!b13 && !b1 && game(13)) || flag(14) || line == 3727) line = 3729;
-    return entry(line, rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3);
+    return entry(line, rec[std::size_t(2 * s + 2)], s == 13 ? (flag(12) ? 1 : 0) : 3, s, true);
+}
+// The quest log's acts (FUN_004a2220): an act's tab is there once the act
+// before it is over (quests 7, 15, 23, 26 done; the fifth only in the
+// expansion); a tab asked for that isn't falls back to the last that is.
+[[nodiscard]] inline bool quest_act_open(const QuestBits& quest_bits, int act, bool expansion) {
+    static constexpr std::array<int, 5> kActDone = { 0, 7, 15, 23, 26 };
+    if (act <= 0) return act == 0;
+    return act < 5 && (act < 4 || expansion) && qbit(quest_bits, kActDone[std::size_t(act)], 0);
+}
+[[nodiscard]] inline int quest_log_act(const QuestBits& quest_bits, int act) {
+    act = act > 4 ? 0 : act;
+    while (act > 0 && !quest_act_open(quest_bits, act, true)) --act;
+    return act;
+}
+// Which quest the log opens on in a tab (FUN_004a3220): the one the Quest
+// Log button was for (`pending`), else, in the table's order, the first
+// with news (QuestText::marks with a changed state) or its done animation
+// to play; else the one last clicked in this tab (`remembered`), else the
+// first under way (shown 3). -1 none.
+struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
+[[nodiscard]] inline int quest_log_pick(const std::vector<QuestLogPick>& entries, int pending, int remembered) {
+    if (pending >= 0) return pending;
+    int listed = 0, under_way = -1;
+    for (const auto& entry : entries) {
+        if (entry.fresh || entry.shown == 0) return entry.slot;
+        if (entry.shown == 3 && under_way < 0) under_way = entry.slot;
+        ++listed;
+    }
+    if (!listed) return -1;
+    return remembered >= 0 ? remembered : under_way;
 }
 // The quest a message is about, for the Talk submenu's label: its name's
 // string id (0x722678), 0 none.

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <vector>
 
 using namespace d2d::rules;
 
@@ -304,6 +305,27 @@ int main() {
     assert(quest_text(text_bits, 5, log_state).shown == 2);
     qset(text_bits, 2, 1); qset(text_bits, 2, 15);
     assert(quest_text(text_bits, 2, log_state).string == 3743);
+    // The state the picker keeps (0x7bf380) and whether its change is news.
+    text = quest_text(text_bits, 2, log_state);
+    assert(text.state == 10 && !text.marks);                                           // closed, reward due
+    assert(quest_text(text_bits, 4, log_state).state == 12 && quest_text(text_bits, 4, log_state).marks);
+    assert(quest_text(text_bits, 1, log_state).state == 11 && !quest_text(text_bits, 1, log_state).marks);
+    assert(quest_text(QuestBits{}, 1, QuestState{}).state == -1);                      // hidden: kept as it was
+
+    // The log's tabs (FUN_004a2220) and the quest it opens on (FUN_004a3220).
+    QuestBits act_bits{};
+    assert(quest_act_open(act_bits, 0, false) && !quest_act_open(act_bits, 1, true) && quest_log_act(act_bits, 3) == 0);
+    qset(act_bits, 7, 0); qset(act_bits, 15, 0);
+    assert(quest_log_act(act_bits, 3) == 2 && quest_act_open(act_bits, 2, false));
+    qset(act_bits, 23, 0); qset(act_bits, 26, 0);
+    assert(quest_act_open(act_bits, 4, true) && !quest_act_open(act_bits, 4, false) && quest_log_act(act_bits, 4) == 4);
+    const std::vector<QuestLogPick> tab = { { 0, 1, false }, { 1, 3, false }, { 4, 3, true }, { 2, 0, false } };
+    assert(quest_log_pick(tab, -1, -1) == 4);                                          // news first, in the table's order
+    assert(quest_log_pick(tab, 5, -1) == 5);                                           // the Quest Log button's quest
+    assert(quest_log_pick({ { 0, 1, false }, { 2, 0, false } }, -1, 3) == 2);           // a done animation to play
+    assert(quest_log_pick({ { 0, 1, false }, { 1, 3, false }, { 4, 3, false } }, -1, -1) == 1);   // the first under way
+    assert(quest_log_pick({ { 0, 1, false }, { 1, 3, false } }, -1, 0) == 0);           // else the one last clicked
+    assert(quest_log_pick({}, -1, 2) == -1);
 
     // The chain (+0xf0 / +0x10: 1 → 2 → 4 → 3 → 6, 5 → 3), from quest 1 at
     // the first join (FUN_00546270).
