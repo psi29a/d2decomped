@@ -743,12 +743,12 @@ inline int whirlwind_gap(int attack_frames) {
 // releases them (FUN_005d3ba0, by prgdam):
 // 1 (Tiger Strike, FUN_005d3680): calc1 x n enhanced damage;
 // 2 (Cobra Strike, FUN_005d3790): ln12 % steal: life at 1 charge, life and
-//   mana at 2, both doubled at 3;
+//   mana at 2, both doubled at 3 (FUN_004e6ca0(ECX skill, EDX level) =
+//   Param1 + Param2 x (level - 1), at 0x5d3834);
 // 4 (Fists of Fire, Claws of Thunder, Blades of Ice, FUN_005d3970): the
 //   skill's elemental damage (FUN_0056e0c0).
-// ponytail: FUN_004e6ca0 (Cobra's steal) is read as ln12 from its args
-// not being shown; prgdam 4's third-charge freeze (cold length / an
-// untraced divisor) and its calc1 physical-to-element share aren't applied.
+// ponytail: prgdam 4's third-charge freeze (cold length / an untraced
+// divisor) and its calc1 physical-to-element share aren't applied.
 struct ChargeBonus { int ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
 inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int charges) {
     ChargeBonus bonus;
