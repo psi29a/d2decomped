@@ -123,10 +123,26 @@ the object's flag byte:
   levels. The rounds, 397's table, the other containers and the stands:
   drops.md ("Chests", "Stands"), all emulator-checked (`drops.py objects`,
   `drops.py stands`).
-- Then the trap fires (`FUN_00582510`, the table at 0x732cec). Trap 8
-  first checks its monster (below); a flying scimitar in act 1 means no
-  trap at all. Otherwise the chest's trap event (`FUN_005417d0`) and
-  `FUN_00553380` follow, whatever the trap did.
+- Then the trap is armed (`FUN_00582510`). Trap 8 first checks its
+  monster (below); a flying scimitar in act 1 means no trap at all.
+  Otherwise it queues the chest's object event 4 **35 frames on**
+  (`FUN_005417d0(4, frame + 0x23)`) and sends the opener unit event 0xd
+  (`FUN_00553380`, EDX 0xd; the client's `FUN_004cb9c0` has no sound for
+  it). The trap only fires at the event.
+- Object events go through the table at 0x6e19b0 (event 1
+  `FUN_00581490`: mode 1 → 2, the footprint when Mode2's collision
+  differs; event 4 `FUN_005817a0`; event 7 `FUN_00581a10` →
+  `FUN_005449e0`, the quest objects). Event 4 reads the trap (the
+  object's +0x14 → +4, & 0x7f) and the level of its room, and swaps:
+  trap 8 past level 0x4a, trap 3 in act 1 (under level 0x28) but the
+  Tower Cellar 5 (0x19), and traps 1 / 4 in act 1 all become trap 2
+  (0x732cf4, trap-firebolt); then it runs the table at 0x732cec. So act 1
+  has no lightning or nova chest traps, and poison only in cellar 5.
+  d2d: `rules::trap_on_level`, `World::arm_trap` / `spring_traps`.
+- Opening (operate fns 1, 3, 4, 5, 6, 14, 30, the waypoint) sets mode 1
+  and queues event 1 at FrameCnt1 + 1 frames (the tome: + 0): the OP → ON
+  step d2d's tick plays. Only Act 2's jugs (142, 143) change collision
+  between the two modes.
 
 | Trap | Function | Does |
 |---|---|---|
@@ -187,6 +203,39 @@ only readers of objects.txt Damage (+0x19c) are `FUN_005df990` /
 `FUN_005dfa00`, reached from the gas and exploding traps (`FUN_00581680`,
 `FUN_005818b0`, `FUN_00581cd0`) and the exploding barrel (`FUN_00584240`),
 not from fire. So the chest fire does no damage as far as traced.
+
+**Blasts** (`FUN_005dfa00`, fastcall ECX game, EDX the object; stack the
+unit, the type; `RET 8`), from the trap object (op 30 `FUN_00581cd0`:
+type 0 then 1 on its opener, in mode 0 only) and the exploding barrel
+(`FUN_00584330` → `FUN_00584240`: type 0 on every unit of the barrel's
+room within 3 subtiles, players not in mode 0x11 and monsters not in
+mode 0xc; other barrels (class 0xb, mode 0) under 3 go off in turn):
+
+- Nothing in town (`FUN_0061ab00`) or through a wall (`FUN_00622b50`,
+  mask 0x804, each unit's own footprint lifted).
+- Every roll is on the object's unit seed (+0x20). low = life (stat 6,
+  256ths) >> 5, at least 1; high = life >> 3, at least low + 1.
+- Hit: b = (rand(level >> 2) + level) as a byte (level stat 0xc);
+  chance = (b − 5 × (dex >> 1) − level) × 2 − defense (stat 0x1f) + 125,
+  at least 65; a hit when a seed step % 100 < chance. Any character with
+  15 or more dexterity sits at the 65 % floor.
+- Damage (`FUN_005df990`): objects.txt Damage (+0x19c, 100 on every row)
+  % of low + rand(high − low + 256).
+- The record (0x70 bytes): type 0 physical (+8), 1 fire (+0x10, +0x60
+  0x20), 2 lightning (+0x1c, 0x40), 3 cold (+0x24, 0x30); +4 flags 1,
+  and 4 unless the unit has state 0x36. Then `FUN_0057c1e0` (resists),
+  `FUN_0057c6c0` (applied), `FUN_0057cee0`.
+- Resists for an object's blast (`FUN_0057c1e0`; the attacker isn't a
+  monster, so the table loop stops at entry 9, after every resist): the
+  flat reduction first (the context's +0x1c array: 0, stat 34 << 8,
+  stat 35 << 8, the physical rows and the elemental ones), then value ×
+  (100 − res) / 100 (`FUN_00483360`, res at most 100; physical's stat 36,
+  capped 50 for a player; fire 39 with the difficulty penalty), then
+  absorb (`FUN_0057bf10`: fire 142 % / 143 flat). `FUN_0057c060` gives
+  100 % for an object on a player (17 % is player on player).
+- d2d: `rules::object_blast` / `blast_taken`, `World::blast`.
+  `tools/emu/blast.py` runs game.exe's own function (helpers hooked)
+  against the port: 5000 cases, 3525 hits, every damage and seed alike.
 
 **Trap 8** (`FUN_005822f0`):
 

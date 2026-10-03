@@ -312,6 +312,33 @@ inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& 
 inline constexpr std::array<const char*, 3> kBossMissile{ "lightunique", "coldunique", "monstercorpseexplode" };
 inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
                                                           "", "trapfirebolt", "", "" };
+// The trap a chest's event 4 springs (FUN_005817a0, 35 frames after it
+// opened) on level `level_id`: trap 8 past level 74 (act 4 on), trap 3 in
+// act 1 (levels under 40) but the Tower Cellar 5 (25), and traps 1 / 4 in
+// act 1 are trap 2 (trap-firebolt) instead.
+inline int trap_on_level(int trap, int level_id) {
+    if ((trap == 8 && level_id > 0x4a) || (trap == 3 && level_id < 0x28 && level_id != 0x19) || ((trap == 1 || trap == 4) && level_id < 0x28)) return 2;
+    return trap;
+}
+// An object's blast on a unit (FUN_005dfa00 on the object's unit seed):
+// the gas / exploding traps, the trap object (30) and the exploding barrel.
+// From the unit's life (256ths), low = life / 32 (at least 1), high = life
+// / 8 (at least low + 1); the hit: (rand(level / 4) + level as a byte) -
+// 5 x (dexterity / 2) - level, twice, less defense, + 125, at least 65 %,
+// against a step % 100; a hit does objects.txt Damage % (100 on every row)
+// of low + rand(high - low + 256) (FUN_005df990). 0: a miss. Not in town,
+// nor through a wall (FUN_00622b50, mask 0x804): the caller's.
+inline int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& seed) {
+    const int low = std::max(int(life >> 5), 1), high = std::max(int(life >> 3), low + 1);
+    const int roll = std::uint8_t(seed(level >> 2) + level);
+    const int chance = std::max((roll - (dexterity >> 1) * 5 - level) * 2 - defense + 125, 65);
+    if (int(seed.next() % 100) >= chance) return 0;
+    return low + seed(high - low + 256);
+}
+// What a blast's damage comes to (FUN_0057c1e0 -> FUN_0057bf80, the
+// resist table at 0x732980): less the flat reduction (physical stat 34,
+// fire stat 35, x 256), then less the resistance %.
+inline int blast_taken(int damage, int flat, int res) { return std::max(damage - flat * 256, 0) * (100 - std::min(res, 100)) / 100; }
 // The trap's missile level: DifficultyLevels MonsterSkillBonus (+0x10:
 // 0 / 3 / 7) + 1 — a mode's missile (FUN_005a6d50) and a monster's skills
 // (FUN_00573cb0, Sk1lvl 1) alike.
