@@ -56,15 +56,24 @@ int main() {
     assert(evaluate("(lvl < 4) ?lvl:(2+lvl/3)", 0, 3) == 3 && evaluate("(lvl < 4) ?lvl:(2+lvl/3)", 0, 9) == 5);
     assert(evaluate("(lvl < 5) ? lvl : min(12,5+(lvl-5)/3)", 0, 40) == 12);
     assert(evaluate("((lvl < 4) ? 0 : ((lvl-3)*par3))", 0, 10) == 7);
-    assert(evaluate("-par1+2*3", 0, 1) == -44 && evaluate("max(1,-2)", 0, 1) == 1 && evaluate("par1/0", 0, 1) == 0);
+    assert(evaluate("-par1+2*3", 0, 1) == -44 && evaluate("max(1,0-2)", 0, 1) == 1 && compile("max(1,-2)").empty() && evaluate("par1/0", 0, 1) == 0);
     assert(evaluate("stat('passive_fire_mastery'.accr)", 0, 1) == 40 && evaluate("ulvl", 0, 1) == 30);
     assert(evaluate("blvl", 0, 7) == 4 && evaluate("clc1", 0, 1) == 0);
-    // Unreadable text: empty calc, 0, and why.
-    assert(compile("par34").empty() && err.find("par34") != std::string::npos);
-    assert(compile("skill('Nobody'.blvl)").empty() && compile("1+").empty() && compile("min(1").empty());
+    // game.exe's compiler (FUN_006c1ae0) on odd text: names by their first
+    // four characters, unknown ones 0, `?` below the comparisons, `^`, an
+    // open "(" ends the program; too few operands stores no calc.
+    assert(evaluate("zzzz+5", 0, 1) == 5 && evaluate("2^3", 0, 1) == 8 && evaluate("(1)2", 0, 1) == 2);
+    assert(evaluate("lvl<4?1:2", 0, 3) == 0 && evaluate("(lvl<4)?1:2", 0, 3) == 1);
+    assert(evaluate("1+(2", 0, 1) == 2 && evaluate("lvl#2", 0, 7) == 7 && evaluate("Min(lvl,3)", 0, 7) == 3);
+    assert(compile("1+").empty() && !err.empty() && compile("min(lvl,-1)").empty() && compile("lvl)").empty());
     assert(evaluate("\"min(par1,par2)\"", 0, 1) == 5);                      // quoted cells
     assert(evaluate("(par1*2+par2", 0, 1) == 105);                          // Fire Wall's missing ")"
-    assert(compile("(1)2").empty());                                       // but not in the middle
+    // Bone Wall's calc2 "par34" (a Skills.txt typo) reads par3: 8 at every level.
+    Skill bone_wall;
+    bone_wall.id = 3; bone_wall.name = "Bone Wall"; bone_wall.par = { 25, 600, 8, 0, 0, 0, 0, 10 };
+    skill_tables.rows.push_back(bone_wall);
+    for (const int level : { 1, 10, 20 }) assert(evaluate("par34", 3, level) == 8);
+    skill_tables.rows.pop_back();
 
     // ln / dm (FUN_004e6ca0 / FUN_00645b20) and the brackets (FUN_00644b70).
     assert(calc_ln(50, 5, 4) == 65 && calc_ln(50, 5, 0) == 0);

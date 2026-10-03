@@ -620,8 +620,8 @@ deviations.md lists where d2d differs from game.exe on purpose (the
 companion of bugs.md).
 
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
-Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't
-traced); a Debug build loads ~2.5x slower than RelWithDebInfo.
+Blizzard's Skills.txt (game.exe reads it as `par3`, skills.md; closed
+2026-10-02); a Debug build loads ~2.5x slower than RelWithDebInfo.
 
 ## Earlier list (as of 2026-09-26; superseded by "Road to a whole Act 1")
 

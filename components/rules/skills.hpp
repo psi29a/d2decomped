@@ -28,15 +28,18 @@ namespace d2d::rules {
 
 // ---- the calc language
 
-// A compiled calc: postfix instructions for a stack machine. Operand codes
-// are skillcalc.txt rows (FUN_00646460's switch: 0 ln12 .. 72 skpt).
+// A compiled calc: postfix instructions for game.exe's stack machine
+// (FUN_006c0bc0). The ops carry the VM's own byte values. Operand codes are
+// skillcalc.txt rows (FUN_00646460's switch: 0 ln12 .. 72 skpt); a Call's
+// operand1 is the function table's index (0x745774, CalcFunction).
 struct Calc {
-    enum Op : std::uint8_t { Const, Operand, SkillRef, StatRef, Min, Max, Rand,
-                             Add, Sub, Mul, Div, Lt, Gt, Le, Ge, Eq, Ne, Neg, Cond };
-    struct Ins { Op opcode; int operand1 = 0, operand2 = 0; };
+    enum Op : std::uint8_t { Call = 0x01, Operand = 0x04, Const = 0x07,
+                             Lt = 0x0a, Gt, Le, Ge, Eq, Ne, Add = 0x10, Sub, Mul, Div, Pow, Neg, Cond };
+    struct Ins { Op opcode; int operand1 = 0; };
     std::vector<Ins> code;
     [[nodiscard]] bool empty() const { return code.empty(); }
 };
+enum CalcFunction : std::uint8_t { kCalcMin, kCalcMax, kCalcRand, kCalcSkill, kCalcMissile, kCalcStat, kCalcSkillLevel };
 
 // What names mean when compiling: skillcalc.txt's operand names in order,
 // skill names (Skills.txt `skill`) and stat names (ItemStatCost `Stat`).
@@ -45,142 +48,163 @@ struct CalcNames {
     std::unordered_map<std::string, int> skills, stats;
 };
 
-// Compiles one Skills.txt expression: numbers, operand names, + - * /,
-// < > <= >= == !=, `c ? a : b`, parentheses, unary minus, min(a, b),
-// max(a, b), rand(a, b), skill('Name'.operand), stat('name'.accr).
-// Double-quoted cells are unwrapped; a "(" still open at the end is
-// closed. Something it can't read (Bone Wall's calc2 is "par34") gives an empty
-// calc, which evaluates to 0, and `error` says why.
-// ponytail: game.exe's own compiler isn't traced; the grammar is what
-// Skills.txt uses, with C precedence.
+// Compiles one calc cell the way game.exe's FUN_006c1ae0 does (skills.md
+// "The calc-text compiler"): a shunting-yard over FUN_006c11c0's tokens.
+// - Whitespace and '"' are skipped; a character it doesn't know (or `=`,
+//   `!` alone) ends the expression there.
+// - A name is looked up by its first four characters among the operands
+//   (FUN_006119f0), so Bone Wall's calc2 "par34" reads par3; an unknown
+//   name is 0. Directly inside skill() / sklvl() a name (quoted or not)
+//   is first a skill, inside stat() a stat (then `base` 1, `mod` 2, else
+//   0), as constants; `.name` is the same lookup but always a constant,
+//   and an unknown one ends the expression.
+// - Precedence is the in-stack table at 0x6fc874 against the incoming
+//   op's byte: comparisons all one level, then + -, * /, ^ (power), unary
+//   minus, then `?`, which only an operator after its third operand pops:
+//   `lvl < 4 ? 1 : 2` is lvl < (4 ? 1 : 2); `:` does nothing; `,` only
+//   flushes. `-` is unary unless an operand or a function's "(" came
+//   last, where a "," or "?" doesn't count.
+// - At the end, a "(" still open stops the program there (the VM ends on
+//   its mark byte), so "1+(2" is 2; a function left open drops the rest.
+// - Too few operands for an op, a ")" with no "(", or more than 64
+//   pending ops: game.exe stores no calc (0xffffffff); here an empty
+//   calc, which evaluates to 0, and `error` says why.
+// Constant folding (literal-only text runs through the VM once) isn't
+// done: it doesn't change a value. Checked against game.exe's own
+// compiler in tools/emu on every Skills.txt / SkillDesc.txt calc and 4000
+// random strings (skills.md).
+// ponytail: inside miss() names are Missiles.txt rows and misscalc.txt
+// codes, which d2d doesn't pass in (two SkillDesc tooltip lines).
 inline Calc compile_calc(std::string_view src, const CalcNames& names, std::string* error = nullptr) {
     Calc out;
-    // Cells holding a comma come double-quoted from the .txt.
-    if (src.size() >= 2 && src.front() == '"' && src.back() == '"') src = src.substr(1, src.size() - 2);
-    std::size_t offset = 0;
-    bool bad = false;
-    auto fail = [&](std::string why) { if (!bad && error) *error = std::move(why); bad = true; };
-    auto skip_space = [&] { while (offset < src.size() && std::isspace((unsigned char)src[offset])) ++offset; };
-    auto eat = [&](std::string_view token) {
-        skip_space();
-        if (src.substr(offset, token.size()) != token) return false;
-        offset += token.size();
-        return true;
-    };
-    auto ident = [&] {
-        skip_space();
-        std::size_t end = offset;
-        while (end < src.size() && (std::isalnum((unsigned char)src[end]) || src[end] == '_')) ++end;
-        std::string name(src.substr(offset, end - offset));
-        offset = end;
-        return name;
-    };
-    auto quoted = [&] {
-        skip_space();
-        if (offset >= src.size() || src[offset] != '\'') { fail("expected a quoted name"); return std::string{}; }
-        const auto end_quote = src.find('\'', offset + 1);
-        if (end_quote == std::string_view::npos) { fail("unterminated name"); return std::string{}; }
-        std::string name(src.substr(offset + 1, end_quote - offset - 1));
-        offset = end_quote + 1;
-        return name;
-    };
-    auto operand = [&](const std::string& name) {
-        for (std::size_t k = 0; k < names.operands.size(); ++k) if (names.operands[k] == name) return int(k);
+    struct Pending { std::uint8_t kind; int value; };      // kind: 1 a function's "(" (value its tag), 2 a "(", else a Calc::Op
+    std::vector<Pending> pending;
+    int depth = 0;                                         // values on the VM stack so far
+    bool operand_last = false, failed = false;
+    auto fail = [&](std::string why) { if (!failed && error) *error = std::move(why); failed = true; };
+    auto lower = [](std::string_view text) { std::string folded(text); for (auto& letter : folded) letter = char(std::tolower((unsigned char)letter)); return folded; };
+    auto find_name = [&](const std::unordered_map<std::string, int>& table, std::string_view name) {
+        if (const auto found = table.find(std::string(name)); found != table.end()) return found->second;
+        for (const auto& [key, id] : table) if (lower(key) == lower(name)) return id;
         return -1;
     };
-    std::function<void()> ternary;
-    auto emit = [&](Calc::Op opcode, int operand1 = 0, int operand2 = 0) { out.code.push_back({ opcode, operand1, operand2 }); };
-    std::function<void()> unary;
-    auto primary = [&] {
-        skip_space();
-        if (offset >= src.size()) { fail("unexpected end"); return; }
-        // A ( left open at the very end counts as closed (Fire Wall's
-        // EDmgSymPerCalc is missing its last ")"; the game reads it).
-        if (eat("(")) { ternary(); skip_space(); if (!eat(")") && offset < src.size()) fail("expected )"); return; }
-        if (std::isdigit((unsigned char)src[offset])) {
-            int value = 0;
-            while (offset < src.size() && std::isdigit((unsigned char)src[offset])) value = value * 10 + (src[offset++] - '0');
-            emit(Calc::Const, value);
-            return;
+    auto arity = [](const Pending& entry) { return entry.kind == 1 ? (entry.value == kCalcSkillLevel ? 3 : 2) : entry.kind == Calc::Neg ? 1 : entry.kind == Calc::Cond ? 3 : 2; };
+    auto emit_pending = [&](const Pending& entry, bool write = true) {
+        if (depth < arity(entry)) { fail("an operator is missing an operand"); return; }
+        depth += 1 - arity(entry);
+        if (write) out.code.push_back(entry.kind == 1 ? Calc::Ins{ Calc::Call, entry.value } : Calc::Ins{ Calc::Op(entry.kind) });
+    };
+    auto value = [&](Calc::Op opcode, int operand) { out.code.push_back({ opcode, operand }); ++depth; operand_last = true; };
+    // FUN_006c18a0: pop while the top's in-stack precedence (0x6fc874) is
+    // at least the incoming op's byte, then push it (not "," or ":").
+    auto push_op = [&](std::uint8_t incoming) {
+        static constexpr std::array<std::uint8_t, 13> kStackPrecedence{ 15, 15, 15, 15, 15, 15, 17, 17, 19, 19, 20, 21, 22 };
+        while (!failed && !pending.empty() && pending.back().kind >= Calc::Lt && kStackPrecedence[pending.back().kind - Calc::Lt] >= incoming) {
+            emit_pending(pending.back());
+            pending.pop_back();
         }
-        const auto name = ident();
-        if (name.empty()) { fail(std::string("unexpected '") + src[offset] + "'"); ++offset; return; }
-        if (name == "min" || name == "max" || name == "rand") {
-            if (!eat("(")) { fail("expected ( after " + name); return; }
-            ternary();
-            if (!eat(",")) { fail("expected , in " + name); return; }
-            ternary();
-            if (!eat(")")) { fail("expected ) in " + name); return; }
-            emit(name == "min" ? Calc::Min : name == "max" ? Calc::Max : Calc::Rand);
-            return;
+        if (incoming >= Calc::Lt && incoming <= Calc::Cond) {
+            if (pending.size() >= 64) fail("too many pending operators");
+            pending.push_back({ incoming, 0 });
         }
-        if (name == "skill" || name == "stat") {
-            if (!eat("(")) { fail("expected ( after " + name); return; }
-            const auto what = quoted();
-            if (!eat(".")) { fail("expected . in " + name + "()"); return; }
-            const auto field = ident();
-            if (!eat(")")) { fail("expected ) in " + name + "()"); return; }
-            if (name == "skill") {
-                const auto found = names.skills.find(what);
-                const int code = operand(field);
-                if (found == names.skills.end()) { fail("unknown skill '" + what + "'"); return; }
-                if (code < 0) { fail("unknown operand '" + field + "'"); return; }
-                emit(Calc::SkillRef, found->second, code);
+    };
+    // FUN_006119f0: {id, is a constant} or {-1, _} when unknown, by the
+    // function whose "(" is on top of the pending stack.
+    auto lookup = [&](std::string_view name) -> std::pair<int, bool> {
+        const int function = !pending.empty() && pending.back().kind == 1 ? pending.back().value : -1;
+        if (function == kCalcSkill || function == kCalcSkillLevel) {
+            if (const int skill = find_name(names.skills, name); skill >= 0) return { skill, true };
+        } else if (function == kCalcStat) {
+            if (const int stat = find_name(names.stats, name); stat >= 0) return { stat, true };
+            return { lower(name) == "base" ? 1 : lower(name) == "mod" ? 2 : 0, false };
+        }
+        const auto key = name.substr(0, 4);
+        for (std::size_t code = 0; code < names.operands.size(); ++code) if (!key.empty() && names.operands[code] == key) return { int(code), false };
+        return { -1, false };
+    };
+    auto is_name_char = [](char letter) { return std::isalnum((unsigned char)letter) != 0; };
+    std::size_t offset = 0;
+    while (!failed) {
+        while (offset < src.size() && (std::isspace((unsigned char)src[offset]) || src[offset] == '"')) ++offset;
+        if (offset >= src.size()) break;
+        const char letter = src[offset];
+        const char next = offset + 1 < src.size() ? src[offset + 1] : '\0';
+        if (std::isdigit((unsigned char)letter)) {
+            std::uint32_t number = 0;
+            while (offset < src.size() && std::isdigit((unsigned char)src[offset])) number = number * 10 + std::uint32_t(src[offset++] - '0');
+            value(Calc::Const, int(number));
+        } else if (letter == '\'') {
+            const auto end_quote = std::min(src.find('\'', offset + 1), src.size());
+            const auto [id, constant] = lookup(src.substr(offset + 1, end_quote - offset - 1));
+            offset = std::min(end_quote + 1, src.size());
+            value(id < 0 || constant ? Calc::Const : Calc::Operand, std::max(id, 0));
+        } else if (letter == '.') {
+            std::size_t end = offset + 2;
+            while (end < src.size() && is_name_char(src[end])) ++end;
+            const int id = next == '\0' ? -1 : lookup(src.substr(offset + 1, std::min(end, src.size()) - offset - 1)).first;
+            if (id < 0) break;
+            offset = end;
+            value(Calc::Const, id);
+        } else if (std::isalpha((unsigned char)letter)) {
+            std::size_t end = offset;
+            while (end < src.size() && is_name_char(src[end])) ++end;
+            const auto name = src.substr(offset, end - offset);
+            offset = end;
+            std::size_t paren = end;
+            while (paren < src.size() && std::isspace((unsigned char)src[paren])) ++paren;
+            static constexpr std::array<std::string_view, 7> kFunctions{ "min", "max", "rand", "skill", "miss", "stat", "sklvl" };   // LAB_00611930
+            const auto function = std::ranges::find(kFunctions, lower(name));
+            if (paren < src.size() && src[paren] == '(' && function != kFunctions.end()) {
+                if (pending.size() >= 64) fail("too many pending operators");
+                pending.push_back({ 1, int(function - kFunctions.begin()) });
+                offset = paren + 1;
+                operand_last = true;
             } else {
-                const auto found = names.stats.find(what);
-                if (found == names.stats.end()) { fail("unknown stat '" + what + "'"); return; }
-                emit(Calc::StatRef, found->second);
+                const auto [id, constant] = lookup(name);
+                value(id < 0 || constant ? Calc::Const : Calc::Operand, std::max(id, 0));
             }
-            return;
+        } else {
+            ++offset;
+            const bool two = next == '=';
+            switch (letter) {
+                case '(': if (pending.size() >= 64) fail("too many pending operators"); pending.push_back({ 2, 0 }); break;
+                case ')':
+                    while (!failed && !pending.empty() && pending.back().kind != 2 && pending.back().kind != 1) { emit_pending(pending.back()); pending.pop_back(); }
+                    if (pending.empty()) { fail("a ) with no ("); break; }
+                    if (pending.back().kind == 1) emit_pending(pending.back());
+                    pending.pop_back();
+                    break;
+                case ',': push_op(3); break;
+                case '?': push_op(Calc::Cond); break;
+                case ':': break;
+                case '+': push_op(Calc::Add); operand_last = false; break;
+                case '-': push_op(operand_last ? Calc::Sub : Calc::Neg); operand_last = false; break;
+                case '*': push_op(Calc::Mul); operand_last = false; break;
+                case '/': push_op(Calc::Div); operand_last = false; break;
+                case '^': push_op(Calc::Pow); operand_last = false; break;
+                case '<': push_op(two ? Calc::Le : Calc::Lt); offset += two; operand_last = false; break;
+                case '>': push_op(two ? Calc::Ge : Calc::Gt); offset += two; operand_last = false; break;
+                case '=': case '!':
+                    if (!two) { offset = src.size(); break; }
+                    push_op(letter == '=' ? Calc::Eq : Calc::Ne); ++offset; operand_last = false; break;
+                default: offset = src.size(); break;
+            }
         }
-        if (const int code = operand(name); code >= 0) { emit(Calc::Operand, code); return; }
-        fail("unknown name '" + name + "'");
-    };
-    unary = [&] {
-        if (eat("-")) { unary(); emit(Calc::Neg); return; }
-        primary();
-    };
-    auto mul = [&] {
-        unary();
-        for (;;) {
-            if (eat("*")) { unary(); emit(Calc::Mul); }
-            else if (eat("/")) { unary(); emit(Calc::Div); }
-            else return;
-        }
-    };
-    auto add = [&] {
-        mul();
-        for (;;) {
-            if (eat("+")) { mul(); emit(Calc::Add); }
-            else if (eat("-")) { mul(); emit(Calc::Sub); }
-            else return;
-        }
-    };
-    auto cmp = [&] {
-        add();
-        for (;;) {
-            if (eat("<=")) { add(); emit(Calc::Le); }
-            else if (eat(">=")) { add(); emit(Calc::Ge); }
-            else if (eat("==")) { add(); emit(Calc::Eq); }
-            else if (eat("!=")) { add(); emit(Calc::Ne); }
-            else if (eat("<")) { add(); emit(Calc::Lt); }
-            else if (eat(">")) { add(); emit(Calc::Gt); }
-            else return;
-        }
-    };
-    ternary = [&] {
-        cmp();
-        if (eat("?")) {
-            ternary();
-            if (!eat(":")) { fail("expected : after ?"); return; }
-            ternary();
-            emit(Calc::Cond);
-        }
-    };
-    ternary();
-    skip_space();
-    if (offset < src.size()) fail("trailing '" + std::string(src.substr(offset)) + "'");
-    if (bad) out.code.clear();
+    }
+    // The end: pop down to a function left open. A "(" still open is
+    // written as its mark byte, where the VM stops (so "1+(2" is 2), but
+    // counts as a value for the ops under it, which are still checked.
+    bool open_paren = false;
+    while (!failed && !pending.empty() && pending.back().kind != 1) {
+        if (pending.back().kind == 2) { open_paren = true; ++depth; }
+        else emit_pending(pending.back(), !open_paren);
+        pending.pop_back();
+    }
+    if (!failed && out.code.empty()) {
+        if (open_paren) out.code.push_back({ Calc::Const, 0 });   // the VM's empty stack
+        else fail("nothing to compute");
+    }
+    if (failed) out.code.clear();
     return out;
 }
 
@@ -652,25 +676,42 @@ inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const Ca
         switch (instruction.opcode) {
             case Calc::Const: stack.push_back(instruction.operand1); break;
             case Calc::Operand: stack.push_back(calc_operand(skill_tables, *skill_row, env, lvl, instruction.operand1, depth)); break;
-            case Calc::SkillRef: {                     // that skill's operand at the unit's level in it
-                const Skill* other = skill_tables.get(instruction.operand1);
-                const int level = instruction.operand2 == 41 ? (env.base_level ? env.base_level(instruction.operand1) : 0) : env.level ? env.level(instruction.operand1) : 0;
-                stack.push_back(other && instruction.operand2 != 41 ? calc_operand(skill_tables, *other, env, level, instruction.operand2, depth + 1) : level);
+            case Calc::Call: {                         // the function table at 0x745774
+                const int third = instruction.operand1 == kCalcSkillLevel ? pop() : 0;
+                const int right = pop(), left = pop();
+                switch (instruction.operand1) {
+                    case kCalcMin: stack.push_back(std::min(left, right)); break;
+                    case kCalcMax: stack.push_back(std::max(left, right)); break;
+                    case kCalcRand: stack.push_back(env.rng ? env.rng->range(left, right) : left); break;
+                    case kCalcSkill: {                 // skill(id, operand): that skill's operand at the unit's level in it
+                        const Skill* other = skill_tables.get(left);
+                        const int level = right == 41 ? (env.base_level ? env.base_level(left) : 0) : env.level ? env.level(left) : 0;
+                        stack.push_back(other && right != 41 ? calc_operand(skill_tables, *other, env, level, right, depth + 1) : level);
+                        break;
+                    }
+                    case kCalcStat: stack.push_back(env.stat ? env.stat(left) : 0); break;
+                    // ponytail: miss() and sklvl() (0x643740 / 0x646c60) read 0; only
+                    // SkillDesc's tooltip lines use them, and those aren't drawn.
+                    default: static_cast<void>(third); stack.push_back(0); break;
+                }
                 break;
             }
-            case Calc::StatRef: stack.push_back(env.stat ? env.stat(instruction.operand1) : 0); break;
-            case Calc::Neg: stack.push_back(-pop()); break;
+            case Calc::Neg: stack.push_back(int(0u - std::uint32_t(pop()))); break;
             case Calc::Cond: { const int if_false = pop(), if_true = pop(), condition = pop(); stack.push_back(condition ? if_true : if_false); break; }
             default: {
                 const int right = pop(), left = pop();
+                const auto left_bits = std::uint32_t(left), right_bits = std::uint32_t(right);
                 switch (instruction.opcode) {
-                    case Calc::Min: stack.push_back(std::min(left, right)); break;
-                    case Calc::Max: stack.push_back(std::max(left, right)); break;
-                    case Calc::Rand: stack.push_back(env.rng ? env.rng->range(left, right) : left); break;
-                    case Calc::Add: stack.push_back(left + right); break;
-                    case Calc::Sub: stack.push_back(left - right); break;
-                    case Calc::Mul: stack.push_back(left * right); break;
+                    case Calc::Add: stack.push_back(int(left_bits + right_bits)); break;
+                    case Calc::Sub: stack.push_back(int(left_bits - right_bits)); break;
+                    case Calc::Mul: stack.push_back(int(left_bits * right_bits)); break;
                     case Calc::Div: stack.push_back(right ? left / right : 0); break;
+                    case Calc::Pow: {                  // 1 for a power below 1, else repeated multiplies
+                        std::uint32_t power = 1;
+                        for (int step = 0; step < right; ++step) power *= left_bits;
+                        stack.push_back(int(power));
+                        break;
+                    }
                     case Calc::Lt: stack.push_back(left < right); break;
                     case Calc::Gt: stack.push_back(left > right); break;
                     case Calc::Le: stack.push_back(left <= right); break;

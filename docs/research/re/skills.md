@@ -168,7 +168,7 @@ Token class → emitted VM op (matches the VM table at line 100+):
 | 6 | `/` | 0x13 |
 | 7 | `?` (top-level ternary hook) | 0x16 |
 | 8 | (paired with 7 at pop) | 0x17 |
-| 9 | `**` (power) | 0x14 |
+| 9 | `^` (power) | 0x14 |
 | 10..15 | `<= < > >= == !=` | 0x0c 0x0a 0x0b 0x0d 0x0e 0x0f |
 | 16 | `?` (call-site ternary) | routes through `FUN_006c19c0` |
 | 17 | `:` | routes through `FUN_006c1a50` |
@@ -194,7 +194,48 @@ This **resolves the "which of 0x6436e0 / 0x6436f0 is min vs max" question**: tab
 
 Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-byte operand id), larger ones 5 (2-byte) or 6 (4-byte). The operand id is the skillcalc.txt row number (matches d2d's compiler and the runtime table already documented in **The calc language** above).
 
-**Bottom line**: our compiler in `components/rules/skills.hpp` produces bytecode indistinguishable from game.exe's for every calc string that isn't malformed, provided we run the same VM over it as a constant-folding pass after emitting. 565/566 calcs already compile in our tests; the sole miss (Bone Wall's `par34`) is a Skills.txt data typo game.exe also can't parse (it stores 0xffffffff for that record).
+**Traced in full (2026-10-02)**, from FUN_006c11c0 / FUN_006c18a0 /
+FUN_006119f0 and checked black-box: tools/emu can run the compiler itself
+(set `DAT_0096c8b4` = 1 before `FUN_00619300` so the .txt link tables are
+built, then call `FUN_006c1ae0(text, buf, 0x400, 0x611930, 0x6119e0,
+0x6119f0)`). `components/rules/skills.hpp` `compile_calc` is a port, and
+its postfix matches game.exe's on all 1650 calc cells of Skills.txt and
+SkillDesc.txt and 4000 random strings, except the two `miss()` tooltip
+lines (missile names aren't passed in). What it does:
+
+- **Tokens**: whitespace and `"` are skipped anywhere. Digits: a constant
+  (32-bit wrap). A name (alnum run) followed, after spaces, by `(` and
+  one of `min max rand skill miss stat sklvl` (any case) opens that
+  function and eats the `(`. Any other name, a `'quoted name'` and a
+  `.name` go through `FUN_006119f0`, keyed on the function whose `(` is
+  on top of the operator stack: inside `skill(` / `sklvl(` a skill name
+  (any case) gives its id, inside `stat(` an ItemStatCost name gives its
+  id, else `base` 1, `mod` 2, anything else 0 (as an *operand* id);
+  otherwise the first **four** characters, space padded, are looked up
+  in skillcalc.txt (case matters). A plain or quoted name that's a
+  table id is a constant, an operand is an operand, unknown is constant
+  0. A `.name` is always a constant, and an unknown one ends the text.
+  `=` or `!` without `=`, and any other character, end the text.
+- **Bone Wall's `par34`** therefore reads `par3` (`04 0a 00`): calc2 is
+  Param3 = 8 at every level (bugs.md #2).
+- **Precedence** (`FUN_006c18a0`): pop while the in-stack precedence
+  (0x6fc874, by op byte: comparisons 15, `+ -` 17, `* /` 19, `^` 20,
+  unary minus 21, `?` 22) is at least the incoming op's own byte (0x0a..
+  0x16). So comparisons are one left-associative level, `?` is only
+  popped by a later operator: `lvl<4?1:2` is `lvl < (4 ? 1 : 2)`, and
+  `a?b:c+d` is `(a?b:c)+d`. `:` does nothing; `,` pops down to the
+  nearest `(`. `-` is unary unless an operand or a function's `(` came
+  last; `,` `?` `(` `)` leave that flag alone, so `min(lvl,-1)` and
+  `max(-1,2)` fail.
+- **Power** (`^`, VM 0x14): 1 when the exponent is below 1, else repeated
+  multiplies.
+- **The end**: pops down to a function left open (its call is dropped).
+  A `(` left open is written as its mark byte `02`, where the VM stops,
+  so `1+(2` is 2, but it still counts as a value for the ops under it.
+- **Failure** (0xffffffff, no calc): an op with too few values on the
+  stack, `)` with no `(`, nothing at all, 64 pending ops or 1024 bytes.
+- **Folding**: when no operand and no function token was seen, the VM
+  runs once and its result replaces the code. d2d skips it (same value).
 
 ### Melee skills, start to finish
 - **srvstfunc** (e.g. [32] Bash, FUN_005d7ea0):
@@ -944,7 +985,7 @@ and per-class base frames, not a table. What's stored:
 
 0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
 1. ~~**Skill data + selection + calcs**~~ — done: `skills.hpp` + `test_skills`
-   (565 of 566 calcs compile; Bone Wall's `par34` is a data typo),
+   (every calc compiles as game.exe's does; Bone Wall's `par34` reads `par3`),
    `skillbar.hpp` (buttons at game.exe's positions, picker, F1–F8, the
    save's skills), skill levels with item bonuses. Using any skill but
    Attack still swings a plain attack (logged once). Not done here: mana
