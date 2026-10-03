@@ -75,7 +75,7 @@ build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3 > ours.txt
 ```
 uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
 uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at each group object (FUN_00555da0)
-./sweep.sh 1-50 monsters objgroups              # every level 2..39, 8 at a time (JOBS=n)
+./sweep.sh 1-50 monsters objgroups              # every level 2..39, a job per core but two (JOBS=n); progress on stderr
 ```
 
 - `sight.py`: a monster's line of sight (FUN_00622920 → FUN_0064e260)
