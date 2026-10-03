@@ -531,6 +531,11 @@ int main() {
         state = 0; in.off_x = 6; roll = Rng{ 7 };
         const auto trap_off = mon_think("GargoyleTrap", in, roll, no_away);
         assert(trap_off.act == MonAct::idle && trap_off.n == 15 && steps(7, roll) == 0);
+        // Its shot (FUN_005cc050): square on, from a sixth of the way less 1.
+        assert((d2d::rules::gargoyle_shot(10, 10, 12, 30) == std::array{ 9, 12, 2, 20 }));
+        assert((d2d::rules::gargoyle_shot(10, 10, 30, 11) == std::array{ 12, 9, 20, 1 }));
+        assert((d2d::rules::gargoyle_shot(10, 10, 16, 16) == std::array{ 10, 9, 6, 4 }));
+        assert((d2d::rules::gargoyle_shot(10, 10, 4, 0) == std::array{ 9, 8, -4, -10 }));
         // The Countess (FUN_005e5c50): away from home's room she walks back;
         // a target elsewhere gets the firewall from home only; the map AI
         // points in turn, then rand(100); 700 frames on they start over.

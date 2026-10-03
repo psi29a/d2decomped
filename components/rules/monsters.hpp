@@ -784,6 +784,22 @@ inline Think think_circle(Rng& rng, int n) { return { MonAct::circle, n, (rng.ne
 // FUN_005dec80 flags 2 when the walk can't set off.
 inline Think walk_failed(Rng& rng) { return rng(100) < 70 ? think_wander(rng, 4) : Think{ MonAct::idle, 10 }; }
 
+// The Gargoyle Trap's shot (srvdofunc 93, FUN_005cc050), in subtiles from
+// the trap at (x, y): the point square on at its target (on the axis it's
+// nearer the target, its own spot moved up to 4 toward the target's; on
+// the other, the target's), then the missile (FUN_0059fa30 flags 3) from
+// a sixth of the way there less a subtile on both axes, flying along that
+// same offset. {from_x, from_y, offset_x, offset_y}.
+inline std::array<int, 4> gargoyle_shot(int x, int y, int target_x, int target_y) {
+    auto toward = [](int from, int to) {
+        for (int step = 0; step < 4; ++step) from += (from < to) - (from > to);
+        return from;
+    };
+    const bool down = std::abs(target_x - x) < std::abs(target_y - y);
+    const int off_x = (down ? toward(x, target_x) : target_x) - x, off_y = (down ? target_y : toward(y, target_y)) - y;
+    return { x + off_x / 6 - 1, y + off_y / 6 - 1, off_x, off_y };
+}
+
 // `away(n, run)` backs off n subtiles from the target (FUN_005defe0 walking,
 // FUN_005df140 running) and says whether it set off.
 template <class Away>
