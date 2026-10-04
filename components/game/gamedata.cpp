@@ -723,6 +723,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     for (std::size_t mode = 0; mode < 8; ++mode) {
         if (objects.get(row, "HasCollision" + std::to_string(mode)) == "1") npc.collision |= std::uint8_t(1u << mode);
         if (objects.get(row, "Selectable" + std::to_string(mode)) == "1") npc.selectable |= std::uint8_t(1u << mode);
+        if (objects.get(row, "CycleAnim" + std::to_string(mode)) != "1") npc.cycle &= std::uint8_t(~(1u << mode));
     }
     npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());

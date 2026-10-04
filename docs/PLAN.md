@@ -650,6 +650,11 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
   its own (an object mode or animation looping that should stop).
 - A cow wanders round the house, then vanishes (despawned, or drawn out
   of sight?).
+- Fixed: an opened chest replayed its lid forever; objects now hold the
+  last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
+- A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
+  "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
+  roll for quivers, or how game.exe handles no eligible affix.
 - Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
   FUN_00454850 steps once a draw past 50 ms (menu.md).
 
