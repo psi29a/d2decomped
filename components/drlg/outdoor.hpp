@@ -449,7 +449,7 @@ struct Gen {
             }
             vert_index = first.next;
         } while (vert_index != head);
-        // ponytail: FUN_00675670 (blanking outside a non-rectangular
+        // ponytail: later acts: FUN_00675670 (blanking outside a non-rectangular
         // outline) skipped — every level here is a rectangle.
     }
 
@@ -1018,7 +1018,7 @@ inline void room_tiles(Room& room, const OutdoorData& data, const OutdoorLevel& 
 
 // The act 1 wilderness level `L` from its seed. The tiles come out
 // level-relative: 4 wall layers, 2 floors, 1 shadow.
-// ponytail: plain-room tiles take a DT1 variant at draw time (first
+// ponytail: Act 1: plain-room tiles take a DT1 variant at draw time (first
 // match), not game.exe's rarity pick on the room seed (FUN_0066d820).
 inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& level, d2d::rules::Rng seed) {
     using namespace outdoor_detail;

@@ -191,7 +191,7 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
 // (0xd48). The NPC's quest topics (the server's kind-2 messages,
 // FUN_0049f900) go after gossip, each under its quest's name (the table at
 // 0x722678: message -> name).
-// ponytail: the Den of Evil's names only (messages 64..80 -> 3714); no
+// ponytail: Act 1: the Den of Evil's names only (messages 64..80 -> 3714); no
 // Greiz/Cain extras.
 NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y,
                             const std::vector<d2d::rules::QuestMsg>& quest = {});
@@ -212,8 +212,8 @@ int talk_topic(const NpcTalk& talk, bool intro, int cls, d2d::rules::Rng& rng,
 // pre-wrapped. A half-dark 325x122 box at ((W-325)/2, 12-5); FontFormal11
 // lines at x+16, 18 px apart, entering at the bottom (baseline top+112)
 // and rising by (ms/4)*rate/1024 px. Done once the offset passes
-// (lines-1)*18 + 112. ponytail: whole lines clipped to the box instead of
-// FUN_00501df0's partial-line reveal; no voice.
+// (lines-1)*18 + 112. ponytail: Act 1: whole lines clipped to the box instead of
+// FUN_00501df0's partial-line reveal.
 struct Speech {
     int npc = -1;
     std::vector<std::string> lines;

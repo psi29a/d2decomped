@@ -39,7 +39,7 @@ namespace d2d::client {
 // (FUN_004dcaa0, below).
 // The ambience cross-fades at dusk and dawn over 250 sound ticks
 // (FUN_004e42e0: FUN_004b9ef0(0, 0xfa)), and switches at once otherwise.
-// ponytail: channels are head-relative (no 3D positions yet).
+// ponytail: Act 1: channels are head-relative (no 3D positions yet).
 // A song's resume point from its position (FUN_004dcaa0).
 [[nodiscard]] constexpr int next_block(const std::array<int, 3>& blocks, int pos) {
     if (pos >= 0 && pos < blocks[0]) return blocks[0];
@@ -72,7 +72,7 @@ struct Audio {
     // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
     // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
     // if it's a Music Vol one, then everything by master / 100.
-    // ponytail: master is the listener's gain, so it scales cinematics too.
+    // ponytail: Act 1: master is the listener's gain, so it scales cinematics too.
     int master_volume = 100, music_volume = 50;
     [[nodiscard]] float out_gain(const Channel& channel, float gain) const {
         return &channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain;
@@ -165,7 +165,7 @@ struct Audio {
     }
     // A world sound at `gain` (its distance), a random one of its group,
     // `pan` -1 (left) .. 1 (right).
-    // ponytail: world sounds don't pan by where they are yet; only the
+    // ponytail: Act 1: world sounds don't pan by where they are yet; only the
     // level's ambient events do.
     void play_sfx(const GameData& game_data, int index, float gain, int variant, float pan = 0.f) {
         if (!ok || index <= 0 || std::size_t(index) >= game_data.sounds.size() || gain <= 0.01f) return;

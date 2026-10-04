@@ -40,7 +40,7 @@ struct UnitIds {
 // A DS1's units as its loader lists them (FUN_00665950): mapped ids, each
 // put at the front, so the list runs from the file's last object back.
 // Monsters need v5+; ids that map to nothing are dropped.
-// ponytail: the act 2 / act 4 monster remaps and type 4 (NPCs by name)
+// ponytail: later acts: the act 2 / act 4 monster remaps and type 4 (NPCs by name)
 // aren't there — act 1's levels don't hit them.
 inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids) {
     std::vector<Unit> list;

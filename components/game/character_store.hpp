@@ -76,7 +76,7 @@ struct CharacterStore {
 // (stats, life = vit + hpadd, mana = int, stamina; the start skill at 1;
 // its items: rarm / larm in the hands, potions in the belt, the rest in
 // the inventory), level 1, normal difficulty, no hotkeys.
-// ponytail: stacks (javelins) roll their quantity as a drop does.
+// ponytail: Act 1: stacks (javelins) roll their quantity as a drop does.
 struct NewCharacter { d2d::d2s::Header header; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> items; };
 inline NewCharacter new_character(const GameData& game_data, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     using namespace d2d::d2s;

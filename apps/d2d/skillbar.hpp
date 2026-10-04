@@ -11,7 +11,7 @@
 // FUN_004a9300 over the 16 slots, then FUN_004a8df0): colour 4 (gold),
 // cut to 40 px, left edge at x + 0x22, or right-aligned at x + 47 when
 // wider than 13 px, baseline at the icon's bottom - 0x23.
-// ponytail: the font is whatever is current there (untraced), font8 here;
+// ponytail: Act 1: the font is whatever is current there (untraced), font8 here;
 // the names are F1..F8 (the save's slots), not the key config's.
 #pragma once
 

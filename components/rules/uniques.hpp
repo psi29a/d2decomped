@@ -134,8 +134,8 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // mod has an init in 0x73c008, so no unique stats. Blood Raven also gets
 // stat 0x76 (half freeze). Their quests (FUN_005436b0 6 / 2) key off the
 // kill in d2d (World::andariel_died, blood_raven_died).
-// ponytail: Act 1's (Andariel, Blood Raven); later acts' cases (the Maggot
-// Queen's mod 23 has an init) and the uber Andariel aren't here.
+// ponytail: later acts: only Act 1's (Andariel, Blood Raven); later bosses (the
+// Maggot Queen's mod 23 has an init) and the uber Andariel aren't here.
 struct ActBoss {
     std::vector<int> mods;
     bool half_freeze = false;

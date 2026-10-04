@@ -35,7 +35,7 @@ namespace d2d::client {
 
 // The hovered monster's name on its life bar, top centre: a dark red bar
 // as wide as the name plus a margin, filled by its share of life left.
-// ponytail: D2's own bar (game.exe draws it with the MonsterIndicators
+// ponytail: Act 1: D2's own bar (game.exe draws it with the MonsterIndicators
 // font and per-type colours) isn't traced; this is its look by eye.
 void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster);
 
@@ -47,7 +47,7 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // A unit's states' look (Scene::StateInfo) onto it: the colour shift of
 // the one with the highest colorpri, each one's overlays while it lasts,
 // its cast overlay once from when the client first saw it (StateClock).
-// ponytail: an overlay's light (Radius) isn't stamped; LoopWaitTime isn't
+// ponytail: Act 1: an overlay's light (Radius) isn't stamped; LoopWaitTime isn't
 // applied.
 struct StateClock {
     struct Seen { std::uint32_t start = 0, last = 0; };
@@ -121,7 +121,7 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
 // A light's radius moves toward a new one 8 eighths (a subtile) a frame
 // (FUN_004755a0: +0x18 toward +0x1c); a new light starts at its first
 // radius (FUN_00474160; an overlay's InitRadius).
-// ponytail: light quality is taken as high (2: shadows on).
+// ponytail: Act 1: light quality is taken as high (2: shadows on).
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects = {}, int ambient = -1,
                      std::span<const Unit> units = {}, const Unit* player_look = nullptr, std::uint32_t now = 0);
 

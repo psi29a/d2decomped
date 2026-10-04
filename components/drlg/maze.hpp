@@ -57,7 +57,7 @@ inline constexpr std::array<std::array<Special, 4>, 19> kSpecials = { {
     { { { 175, 205, -1, 3 }, { 169, 203, -1, 0 }, { 171, 204, -1, 1 }, { 168, 202, -1, 2 } } } } };
 
 // A LevelType's first maze def (FUN_006709b0, FUN_006735f0, FUN_006738c0).
-// ponytail: act 1's caves (3), crypts (4), Barracks (7), Jail (8), Catacombs (10) only.
+// ponytail: later acts: act 1's caves (3), crypts (4), Barracks (7), Jail (8), Catacombs (10) only.
 inline int maze_base(int type) { return type == 4 ? 0x6c : type == 7 ? 0xa7 : type == 8 ? 0xcd : type == 10 ? 0x101 : 0x34; }
 
 struct Room {
@@ -211,7 +211,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
     // else a roll picks above / below or left / right.
     if (maze.type == 7 || maze.type == 8) {
         int last = first;
-        for (const int side : { 1, 0, 3 }) last = arm(last, side);                   // ponytail: a failed step (never, from one room) would crash game.exe
+        for (const int side : { 1, 0, 3 }) last = arm(last, side);                   // ponytail: Act 1: a failed step (never, from one room) would crash game.exe
         link(last, first, 2);
         set_def(last);
         set_def(first);

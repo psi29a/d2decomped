@@ -278,7 +278,7 @@ struct ObjectRooms {
         const int size_x = obj(id, "SizeX"), size_y = obj(id, "SizeY");
         for (int tries = 8; tries > 0; --tries) {
             const int x = room.x + rgn(room.w - size_x - 1), y = room.y + rgn(room.h - size_y - 1);
-            if (fits_wide(x, y, 5, 5)) return;                                                     // ponytail: the layout's list is empty, nothing placed
+            if (fits_wide(x, y, 5, 5)) return;                                                     // ponytail: Act 1: the layout's list is empty, nothing placed
         }
     }
     // FUN_00551580: the room seed's gate, then the first at_random that lands.
@@ -361,13 +361,13 @@ struct ObjectRooms {
     }
     // FUN_005b2a00's test (FUN_0064d9b0): the type's shape (MonStats2 SizeX:
     // 1 a subtile, 2 a plus, 3 a box, more never fits) against its spawnCol's mask.
-    // ponytail: spawnCol 1 takes FUN_005b2700 (no ring walk) in game.exe; act 1 has none.
+    // ponytail: later acts: spawnCol 1 takes FUN_005b2700 (no ring walk) in game.exe; act 1 has none.
     [[nodiscard]] bool fits(int type, int x, int y) const {
         static constexpr int kMask[4] = { 0x3c01, 0x1c0, 0x3f11, 0 };
         const auto* info = type_at(type);
         const int col = info ? info->spawn_col : 0;
         // FUN_005fd350: a nest's (by BaseId) laying spot clear for a plus too.
-        // ponytail: vilemother1's (298) check is off for population's calls; left out.
+        // ponytail: later acts: vilemother1's (298) check is off for population's calls; left out.
         const int base = info ? info->base : -1;
         if (const auto nest = [&](int dx, int dy, int mask) { return hit_shape(x + dx, y + dy, 2, mask); };
             (base == 206 && nest(0, 3, 0x3c01)) || (base == 228 && nest(0, 2, 0x3c01)) || (base == 334 && nest(-2, -2, 0x1c0)) || (base == 528 && nest(2, 4, 0x3c01)))
@@ -408,7 +408,7 @@ struct ObjectRooms {
         stamp_shape(at_x, at_y, size_of(type) - 1, 0x1000);
         // FUN_005b1cf0: a boss's mods, each FUN_005a4850(mod, 1); FUN_005a0320
         // counts a unique only as it first sets flag 8, so one a boss.
-        // ponytail: Act 1's bosses by BaseId (Andariel, Blood Raven, the Maggot Queen); later acts' aren't.
+        // ponytail: later acts: Act 1's bosses by BaseId (Andariel, Blood Raven, the Maggot Queen); later acts' aren't.
         if (const auto* info = type_at(type)) pop.uniques += info->base == 156 || info->base == 267 || info->base == 284 ? 1 : 0;
         const auto value = game.next();
         d2d::rules::Rng own{ value };
@@ -427,7 +427,7 @@ struct ObjectRooms {
         if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
         own.next();
         // FUN_005d6b60: an oninit MonEquip row rolls its slot and makes its item (2 game steps).
-        // ponytail: act 1's only oninit row is Blood Raven's bow; read MonEquip.txt for more.
+        // ponytail: later acts: act 1's only oninit row is Blood Raven's bow; read MonEquip.txt for more.
         if (type_at(type) && types[std::size_t(type)].id == "bloodraven") { own(1); game.next(); game.next(); }
         const bool npc = type_at(type) && std::size_t(type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(type)];
         if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value });
@@ -545,7 +545,7 @@ struct ObjectRooms {
     // party), counted (FUN_005a0320), champion or unique on its own seed
     // (FUN_005a0760); a unique's 3..6 minions at radius 3 (FUN_005a0c00),
     // a champion's 1..3 more champions at radius 4, each with its party (FUN_0054e1e0).
-    // ponytail: NM / hell's pick is the region's; this is normal's.
+    // ponytail: nightmare / hell: NM / hell's pick is the region's; this is normal's.
     void unique() {
         using d2d::rules::Boss;
         const auto& umon = level.mon.umon;
@@ -579,7 +579,7 @@ struct ObjectRooms {
     // FUN_0054ec40), sparsePopulate on the game seed, a random spot of the
     // area, the leader and its party, then rand(max - min + 1) + min - 1
     // more of its type at radius 3 in the area, each with its party.
-    // ponytail: the extra object for a leader of class 0x210 isn't made; act 1 has none.
+    // ponytail: later acts: the extra object for a leader of class 0x210 isn't made; act 1 has none.
     void group(int row) {
         const auto* type = type_at(row);
         if (!type) return;
@@ -599,7 +599,7 @@ struct ObjectRooms {
     // A preset past objects.txt (FUN_0054f490's table at 0x731d28): 574-579 a
     // shrine (136), 580 / 581 a random chest (FUN_0054f370 a sparkling one,
     // FUN_0054f180), 582 a quest's (FUN_0059d830).
-    // ponytail: 574-579's kind (their range, on the unit's own seed), 580's
+    // ponytail: later acts: 574-579's kind (their range, on the unit's own seed), 580's
     // level-62..64 roll and 582's quest check aren't taken: act 1 has none of them.
     int special(int id) {
         if (id < 580) return 136;
@@ -634,7 +634,7 @@ struct ObjectRooms {
             if (listed != level.mon.mon.end()) row = *listed;
             else if (std::ranges::any_of(level.mon.mon, [](int mon_row) { return mon_row >= 0; })) {
                 // FUN_0063ec70: else up its class while the next's Level is at most MonLvl1Ex + 1.
-                // ponytail: NextInClass as the rows of its base in order.
+                // ponytail: nightmare / hell: NextInClass as the rows of its base in order.
                 const int top = std::size_t(level.id) < game_data.area_level.size() ? game_data.area_level[std::size_t(level.id)][0] + 1 : 0;
                 for (int next = types[std::size_t(row)].base + 1; std::size_t(next) < types.size() && types[std::size_t(next)].base == types[std::size_t(row)].base && types[std::size_t(next)].level[0] <= top; ++next) row = next;
             }
@@ -678,7 +678,7 @@ struct ObjectRooms {
         if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t room_flag) { return !(room_flag & 0x800000); }));
         ++counter;
         if (room_themes) {                                                                              // FUN_00552400
-            // ponytail: a theme's own fn (0x731e6c) never runs for act 1's
+            // ponytail: later acts: a theme's own fn (0x731e6c) never runs for act 1's
             // masks (8, 60: the pick's bit number isn't under the count, or its fn is null);
             // only its object-seed rolls are taken.
             if (target < 0) return true;
@@ -752,7 +752,7 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
     // The level's own warp table (FUN_0066aec0: its +0x90 override, the
     // Blood Moor's one Den of Evil way in of Warp3..6) keeps one of the slots
     // sharing a Vis: the one that placed a warp.
-    // ponytail: read off the warps built, not game.exe's override list.
+    // ponytail: Act 1: read off the warps built, not game.exe's override list.
     std::uint32_t warped = 0;
     for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
     slots &= ~shared | warped;
@@ -773,9 +773,9 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
         }
     // FUN_0066b2b0 (type 0xb): with neither a waypoint room nor a warp room,
     // the start spot is the centre of the room holding the level's middle less 2.
-    // ponytail: no room there (FUN_0066ae70's pick) adds none.
+    // ponytail: Act 1: no room there (FUN_0066ae70's pick) adds none.
     // A Levels Position level (Tristram) takes its type 0xb tile instead (FUN_0066ac40).
-    // ponytail: the first; with more game.exe rolls the level seed for one each check.
+    // ponytail: Act 1: the first; with more game.exe rolls the level seed for one each check.
     if (position && !level.starts.empty()) pop.ways.push_back({ level.starts.front().first * 5, level.starts.front().second * 5 });
     else if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
     int total = 0;
@@ -862,7 +862,7 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     pop.seed = d2d::rules::Rng{ index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed };
     // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
     // rolls a wanderer (FUN_0054eff0: under 3 in 100).
-    // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
+    // ponytail: Act 1: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
     if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
     pop.presets(index, all);
     if (all) {

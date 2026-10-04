@@ -611,7 +611,7 @@ inline int direction16(float dx, float dy) {
 // A composite's direction for a 16-direction facing: 0..7 are the eight
 // compass points, 8..15 the ones between; an 8-direction composite (town
 // NPCs, mercs) takes the neighbouring point for those — clamping them
-// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
+// made NPCs walk backwards. ponytail: Act 1: the neighbour counter-clockwise;
 // game.exe maps its 64 unit directions per direction count, not RE'd.
 inline std::uint8_t cof_direction(int dir16, int dirs) {
     constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
@@ -728,7 +728,7 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 // Where a missile in the room holding (x, y) cells can be: that room's rect,
 // then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
 // +0 / +0x24). Empty when no room holds it.
-// ponytail: every near room counts as up (game.exe skips one that isn't).
+// ponytail: missiles: every near room counts as up (game.exe skips one that isn't).
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y);
 // Every room of the level populated at once, newest first: tools/emu
 // monsters.py's order, for diffing against game.exe (drlg-dump monsters).

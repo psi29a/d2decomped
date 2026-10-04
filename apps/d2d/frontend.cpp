@@ -216,7 +216,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         }
     };
     draw_tall(select_ui.create_btn);
-    // Convert-to-expansion only applies to a classic character (ponytail:
+    // Convert-to-expansion only applies to a classic character (ponytail: Act 1:
     // drawn, never actionable).
     const bool classic_pick = select_ui.selected >= 0 && select_ui.selected < int(scene.saves.size())
                            && !scene.saves[std::size_t(select_ui.selected)].expansion();
@@ -539,7 +539,7 @@ void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scen
         blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 2), scene.pal, x, y + int(panel.height));
         blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 3), scene.pal, x + int(panel.width), y + int(panel.height));
     }
-    // ponytail: heading in font16 centred in its text box; the text
+    // ponytail: Act 1: heading in font16 centred in its text box; the text
     // control's own font/colour (FUN_004fc9b0) isn't pinned down.
     {
         const int width = scene.font.measure(cinematics.heading);

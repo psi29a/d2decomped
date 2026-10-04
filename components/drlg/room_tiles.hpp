@@ -85,7 +85,7 @@ struct BuiltRoom {
     // FUN_00667970's tile infos of type 0xb (orientation 10/11, style 30..33 ->
     // sequence, sequence + 5, 10, 11; level +0x2c): level-relative tiles, the
     // start spot of a Levels Position level.
-    // ponytail: type 0xb only, not 0x6eed88's kin types (unseen in Act 1).
+    // ponytail: later acts: type 0xb only, not 0x6eed88's kin types (unseen in Act 1).
     std::vector<std::pair<int, int>> starts;
 };
 
@@ -340,7 +340,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         };
         // FUN_0066d9e0: an orientation 8 / 9 wall's door, once per tile
         // (`tile` null for a hidden one), inside this room.
-        // ponytail: act 1's rows only; other acts' type 1 and objects 0x5b / 0x5c (a 1-in-3 roll on the room seed) not ported.
+        // ponytail: later acts: act 1's rows only; other acts' type 1 and objects 0x5b / 0x5c (a 1-in-3 roll on the room seed) not ported.
         auto door = [&](PlacedTile* tile, std::uint32_t tile_word, int tile_orient, int x, int y) {
             if (tile && tile->door) return;
             const int is9 = (tile ? tile->orient : tile_orient) == 9;
@@ -538,7 +538,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             if (layer_index == 0) edges(words, 0x84);
             else for (auto& tile_word : words) tile_word |= std::uint32_t(layer_index) << 18;   // FUN_0067c590
             walk(words, &orients, false);
-            // ponytail: the room's own cells, not game.exe's 8x8 cells of the whole DS1.
+            // ponytail: Act 1: the room's own cells, not game.exe's 8x8 cells of the whole DS1.
             for (int y = 0; y < room.height; ++y)
                 for (int x = 0; x < room.width; ++x) {
                     const auto tile_word = words[std::size_t(y * slice_w + x)];
