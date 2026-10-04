@@ -807,9 +807,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const std::size_t had = missiles.size();
                 andariel_missile(game_data, monster, "shafire3", float(off_x) / 5, float(off_y) / 5, now_ms, missiles, skill_level(game_data, monster, monster.skill));
                 if (missiles.size() > had) {
-                    auto& shot = missiles.back();
-                    shot.x = (float(from_x) + 0.5f) / 5; shot.y = (float(from_y) + 0.5f) / 5;
-                    shot.to = { shot.x + float(off_x) / 5, shot.y + float(off_y) / 5 };
+                    auto& launched = missiles.back();
+                    launched.x = (float(from_x) + 0.5f) / 5; launched.y = (float(from_y) + 0.5f) / 5;
+                    launched.to = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
                 }
             } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // ponytail: the young's flags (0x4020000) and the skill's
