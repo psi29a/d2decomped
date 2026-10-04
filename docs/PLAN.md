@@ -645,6 +645,15 @@ by footprint on entered subtiles; `tools/emu/missiles.py` checks against
 game.exe's own (ok); write-up in docs/research/re/missiles.md. ctest 31/31,
 clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill.
 
+**Found in play (2026-10-04, Bret), not yet looked into:**
+- A chest by a Blood Moor house keeps opening and closing its lid on
+  its own (an object mode or animation looping that should stop).
+- A cow wanders round the house, then vanishes (despawned, or drawn out
+  of sight?).
+- The Esc menu's pentagrams spin too fast. They step a frame every 40 ms
+  wall-clock (gamemenu.cpp:297), so running (R) can't be the cause;
+  check FUN_00454850's tick and pentspin's frame count.
+
 **In flight (2026-10-04), stopped by usage limits:** pushed, worktree under
 `.claude/worktrees/`, cut from 1b1c992. To pick it up: rebase on main, then
 build, ctest (31/31), clang-tidy on the changed files (0), and
