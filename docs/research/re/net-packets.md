@@ -408,7 +408,7 @@ socketed items 0x9d / 0x13 with the parent item as owner. Header modes:
 | JM marker | 16 bits | none |
 | Flags | 32 bits | 32 bits: 0x80000 cleared, 0x800000 set; compact 0x200000 when ItemsTxt +0x143; unidentified (0x10 clear): socketed 0x800 cleared |
 | Version, mode | 10, 3 bits | the same (version 0x60) |
-| Position | slot 4, x 4, y 4, page 3 | the same, except modes 3 / 5 (ground): x 16, y 16 |
+| Position | slot 4, x 4, y 4, page 3 | the same, except modes 3 / 5 (ground): x 16, y 16 **in place of all four** (no slot; live 2026-10-04) |
 | Code | 32 (compact: 32; ear: class 3, level 7, 7-bit name) | the same |
 | Uid / seed | 32 | none |
 | Quality fields | all | rare / crafted names only when identified; charm / normal fields gated likewise |
@@ -417,6 +417,10 @@ socketed items 0x9d / 0x13 with the parent item as owner. Header modes:
 | Stat widths | ItemStatCost save bits (+0x19), save add (+0x1c), save param (+0x24) | the same: **save bits, not send bits** |
 | Sockets' items | inline, byte-aligned | separate 0x9d / 0x13 packets |
 | Header-only (flag 0x2000000) | — | stops after the code |
+| Compact (flag 0x200000) | code, 3 bits, realm bit | code, then gold's amount (1 bit: 32 or 12) when gold, a quest item's difficulty bits; **no socket count** (`FUN_0062a970`) |
+
+Checked on 1139 captured 0x9c / 0x9d packets (2026-10-04): every one
+parses to within 8 bits of its end (d2s_items.hpp `parse_net_item`).
 
 Full item order after the code: 3 filled sockets, 7 ilvl, 4 quality, 1
 (+3) gfx, 1 (+11) class affix, the quality fields (low / superior 3;
@@ -605,7 +609,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 
 | Id | Size | Layout | Server | d2d |
 |---|---|---|---|---|
-| 16 pick up | 13 | u32 type (4), u32 id, u32 action **(?)** | `54aad0` → `FUN_00548b00` | `cmd::Pickup` (no action) |
+| 16 pick up | 13 | u32 type (4), u32 id, u32 to cursor (0: into the bags, `FUN_00563560`; else `FUN_0055cf50`) | `54aad0` → `FUN_00548b00` case 4: the item on the ground (mode 3) and **under 5 subtiles away**, else refused (`FUN_00548a50`); the host doesn't walk the player up | `cmd::Pickup`; a joined d2d walks there first |
 | 17 drop the cursor's | 5 | u32 id | `54ab40` → `FUN_00563c00` | `cmd::Drop` |
 | 18 cursor → grid | 17 | u32 id, u32 x, u32 y, u32 buffer (0 inventory, 2 trade, 3 cube, 4 stash; only 4 proven) | `54abb0` → `FUN_00560200` | `cmd::ToGrid`: d2d's panel 1 / 4 / 5 → 0 / 3 / 4 |
 | 19 grid → cursor | 5 | u32 id | `54acd0` | `cmd::ToCursor` |
@@ -766,6 +770,9 @@ host-side checks game.exe's server makes (flood guards, ranges).
 
 ## Open questions
 
+- Answered 2026-10-04: a monster's death is unit command 8 then 9 in
+  0x69 (no 0x0c); a skill that comes mid-swing is dropped (`FUN_0057edd0`),
+  not restarted; the own player's stats at join arrive as 0x1d..0x1f.
 - Player death: which packet puts another player (and the own one, when
   the server kills it) into DT / DD. Not 0x0c (always cmd 0x13).
 - Which builders make 0x69..0x6c; what 0x68's +0xf / +0x10 are.

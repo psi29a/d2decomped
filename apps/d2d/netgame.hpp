@@ -8,6 +8,7 @@
 // casts, items or own moves to the host yet (tier C).
 #pragma once
 
+#include <d2s_items.hpp>
 #include <join.hpp>
 #include <net_log.hpp>
 #include <tcp.hpp>
@@ -37,10 +38,18 @@ struct NetGame {
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
     };
 
+    // An item on the ground (0x9c actions 0 / 2 / 3): act subtiles.
+    struct GroundItem {
+        std::uint32_t id = 0;
+        d2d::d2s::Item item;
+        int x = 0, y = 0, gold = 0;
+    };
+
     // Connects, uploads the save and waits (up to timeout_ms) until the host
     // has put the player in the world (0x04). The log goes to `log_path`.
     static auto join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                     const std::filesystem::path& log_path, int timeout_ms) -> std::expected<std::unique_ptr<NetGame>, std::string>;
+                     const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+        -> std::expected<std::unique_ptr<NetGame>, std::string>;
 
     // What arrived, the ping when due, units walked on by `elapsed_ms`.
     auto pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void;
@@ -75,9 +84,17 @@ struct NetGame {
     float self_x = 0, self_y = 0;     // where the host put us (0x15)
     float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
     std::unordered_map<std::uint64_t, Unit> units;
+    std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id
+    std::uint32_t picking = 0;                 // the ground item we asked for (0x16), until it lands with us
+    std::vector<d2d::d2s::Item> picked;        // what came to us since (0x9c into a grid / the belt): the client takes them
+    // Our stats as the host sets them (0x19..0x1f): id, value, delta (true:
+    // add). The client takes them each frame.
+    struct StatChange { int id = 0; std::int64_t value = 0; bool add = false; };
+    std::vector<StatChange> stat_changes;
 
 private:
     bool socket_gone = false;
+    const d2d::d2s::ItemTables* item_tables = nullptr;
     bool reassigned = false;
     d2d::net::Bytes last_sent;
     std::uint32_t last_sent_ms = 0;

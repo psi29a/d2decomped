@@ -24,7 +24,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x9c, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -42,7 +42,8 @@ NetGame::NetGame(d2d::net::JoinSession joined, d2d::net::TcpConnection socket, c
     : session(std::move(joined)), connection(std::move(socket)), log(log_path, used_ids()) {}
 
 auto NetGame::join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                   const std::filesystem::path& log_path, int timeout_ms) -> std::expected<std::unique_ptr<NetGame>, std::string> {
+                   const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+    -> std::expected<std::unique_ptr<NetGame>, std::string> {
     const auto tables = d2d::net::d2gs::load_exe_tables(game_exe);
     if (!tables) return std::unexpected(tables.error());
     auto session = d2d::net::JoinSession::create(*tables, std::move(save));
@@ -50,6 +51,7 @@ auto NetGame::join(const std::string& host, const std::filesystem::path& game_ex
     auto connection = d2d::net::TcpConnection::connect(host, 4000, 5000);
     if (!connection) return std::unexpected(connection.error());
     std::unique_ptr<NetGame> game(new NetGame(std::move(*session), std::move(*connection), log_path));
+    game->item_tables = item_tables;
     game->log.note("joining " + host + " as " + game->session.name());
     const auto deadline = steady_ms() + std::uint32_t(timeout_ms);
     while (game->session.state() != d2d::net::JoinState::InGame) {
@@ -177,6 +179,27 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             place(unit, read_u16(packet, 7), read_u16(packet, 9));
         }
         break;
+    case 0x9c: {  // an item in the world: +1 action, +4 id, the item from +8
+        if (size < 9 || !item_tables) break;
+        const int action = packet[1];
+        const std::uint32_t id = read_u32(packet, 4);
+        auto parsed = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(8), *item_tables);
+        if (!parsed) { log.note("item " + std::to_string(id) + " (0x9c action " + std::to_string(action) + ") didn't parse"); break; }
+        if (action == 0 || action == 2 || action == 3) {
+            ground[id] = GroundItem{ id, std::move(parsed->item), parsed->x, parsed->y, parsed->gold };
+        } else {
+            ground.erase(id);                                          // picked up, or somewhere else now
+            if (id == picking && (action == 4 || action == 0xe)) { picked.push_back(std::move(parsed->item)); picking = 0; }
+        }
+        break;
+    }
+    case 0x19: if (size >= 2) stat_changes.push_back({ 14, packet[1], true }); break;   // gold +=
+    case 0x1a: if (size >= 2) stat_changes.push_back({ 13, packet[1], true }); break;   // experience +=
+    case 0x1b: if (size >= 3) stat_changes.push_back({ 13, read_u16(packet, 1), true }); break;
+    case 0x1c: if (size >= 5) stat_changes.push_back({ 13, read_u32(packet, 1), false }); break;
+    case 0x1d: if (size >= 3) stat_changes.push_back({ packet[1], packet[2], false }); break;   // stat =
+    case 0x1e: if (size >= 4) stat_changes.push_back({ packet[1], read_u16(packet, 2), false }); break;
+    case 0x1f: if (size >= 6) stat_changes.push_back({ packet[1], read_u32(packet, 2), false }); break;
     case 0x81:   // assign merc: +2 u16 class, +4 u32 owner, +8 u32 merc id
         if (size >= 12 && read_u32(packet, 4) == self_id) merc_id = read_u32(packet, 8);
         break;
@@ -218,8 +241,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0xab:   // heal: type, id, life
         if (size >= 7) unit_at(packet[1], read_u32(packet, 2)).life = packet[6];
         break;
-    case 0x0a:   // remove: type, id
-        if (size >= 6) units.erase(key(packet[1], read_u32(packet, 2)));
+    case 0x0a:   // remove: type, id (4: an item)
+        if (size >= 6) { units.erase(key(packet[1], read_u32(packet, 2))); if (packet[1] == 4) ground.erase(read_u32(packet, 2)); }
         break;
     case 0x5c:   // a player leaves
         if (size >= 5) units.erase(key(0, read_u32(packet, 1)));
@@ -266,7 +289,9 @@ auto NetGame::waypoint(std::uint32_t id, int level) -> void {
 }
 
 auto NetGame::pick_up(std::uint32_t id) -> void {
-    if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::pick_up(id) });
+    if (session.state() != d2d::net::JoinState::InGame) return;
+    picking = id;
+    send({ d2d::net::d2gs::c2s::pick_up(id) });
 }
 
 auto NetGame::nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit* {

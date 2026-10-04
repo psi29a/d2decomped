@@ -150,6 +150,8 @@ struct Town {
     std::unordered_map<std::uint32_t, Monster> net_monsters;   // the host's monsters as d2d draws them, by unit id
     int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
+    int net_pick = -1;                                       // the host item being walked to, to pick up
+    std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked

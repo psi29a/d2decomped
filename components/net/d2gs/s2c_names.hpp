@@ -19,6 +19,9 @@ inline auto s2c_name(std::uint8_t id) -> std::string_view {
         names[0x09] = "assign warp";       names[0x0a] = "remove unit";     names[0x0c] = "hit";
         names[0x0d] = "stop";              names[0x0e] = "object state";    names[0x0f] = "move to x, y";
         names[0x10] = "move to unit";      names[0x15] = "reassign player"; names[0x18] = "life, mana, position";
+        names[0x19] = "gold +=";           names[0x1a] = "experience += (byte)"; names[0x1b] = "experience += (word)";
+        names[0x1c] = "experience =";      names[0x9e] = "unit stat (byte)"; names[0x9f] = "unit stat (word)";
+        names[0xa0] = "unit stat (dword)"; names[0xa1] = "unit stat += (byte)"; names[0xa2] = "unit stat += (word)";
         names[0x1d] = "stat (byte)";       names[0x1e] = "stat (word)";     names[0x1f] = "stat (dword)";
         names[0x20] = "stat of any unit";  names[0x21] = "skill level";     names[0x22] = "item skill";
         names[0x23] = "set skill";         names[0x26] = "chat / overhead"; names[0x27] = "NPC info";

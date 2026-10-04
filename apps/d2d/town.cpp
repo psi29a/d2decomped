@@ -378,6 +378,18 @@ auto Town::send(const Command& command) -> void {
             }
             net_attack = -1;
             net_game->skill_at(use->skill, use->left, subtile_x(use->x), subtile_y(use->y));
+        } else if (const auto* pickup = std::get_if<cmd::Pickup>(&command)) {
+            // A host item: the host takes it only within 5 subtiles and doesn't
+            // walk us up for it (FUN_00548b00 case 4), so we walk there, it
+            // with us (0x01), and ask when close (walk()); it lands in the bags
+            // when the host says so.
+            if (const auto found = net_game->ground.find(std::uint32_t(pickup->item)); found != net_game->ground.end()) {
+                const float to_x = (float(found->second.x) + 0.5f) / 5.f - float(level->world_x), to_y = (float(found->second.y) + 0.5f) / 5.f - float(level->world_y);
+                net.send(cmd::Move{ to_x, to_y, true });
+                net_game->move_to(float(found->second.x), float(found->second.y), view.running);
+                net_pick = int(found->first);
+            }
+            return;
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(interact->npc)];
             if (npc.root == "objects")
@@ -443,6 +455,26 @@ auto Town::net_overlay() -> void {
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             view.monsters.push_back(monster);
         }
+        // The host's ground items, named as d2d names its own (labels kept by id).
+        view.ground.clear();
+        for (const auto& [id, lying] : net_game->ground) {
+            auto& shown = net_ground[id];
+            if (shown.id < 0) {
+                shown.id = int(id);
+                shown.item = lying.item;
+                shown.gold = lying.gold;
+                shown.now_ms = world_ms;
+                if (lying.item.code == "gld") shown.label = std::to_string(lying.gold) + " Gold";
+                else if (const auto lines = item_lines(*scene, lying.item, int(character.stats.get(d2d::d2s::kLevel))); !lines.empty()) {
+                    shown.label = lines[0].text;
+                    shown.rgb = lines[0].rgb;
+                }
+            }
+            shown.x = cell_x(float(lying.x));
+            shown.y = cell_y(float(lying.y));
+            view.ground.push_back(shown);
+        }
+        std::erase_if(net_ground, [&](const auto& entry) { return !net_game->ground.contains(entry.first); });
         // The host monster being attacked: held, the attack goes on (input).
         if (net_attack >= 0 && view.monster(net_attack) >= 0 && view.monsters[std::size_t(view.monster(net_attack))].alive()) {
             view.attack = net_attack;
@@ -996,6 +1028,37 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     world.player.x = to_x;
                     world.player.y = to_y;
                     world.player.walking = false;
+                }
+            }
+            // Our stats as the host sets them: level, experience, gold, points
+            // (life / mana / stamina stay d2d's: another fixed point).
+            for (const auto& change : net_game->stat_changes) {
+                if (change.id < 0 || change.id > 15 || (change.id >= 6 && change.id <= 11)) continue;
+                auto& value = world.character.stats.values[std::size_t(change.id)];
+                value = change.add ? value + change.value : change.value;
+            }
+            net_game->stat_changes.clear();
+            // What the host put in our bags after a pick-up: placed as d2d places a pick-up.
+            for (auto& item : net_game->picked) {
+                const auto& lay = scene->inv_layout[std::size_t(std::max(world.character.character_class, 0))];
+                const int boxes = scene->belts[std::size_t(belt_index(*scene, world.character.items))].boxes;
+                item.id = world.next_item_id++;
+                if (d2d::rules::pick_up(scene->rules, world.character.items, item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes) == d2d::rules::Pickup::kNoRoom)
+                    d2d::log::warn("net: no room here for a picked-up {}", item.code);
+                else
+                    world.cues.cue("item_pickup", 0, world.player.x, world.player.y);
+            }
+            net_game->picked.clear();
+            // A pick-up walked to: asked for once both of us are there.
+            if (net_pick >= 0) {
+                const auto found = net_game->ground.find(std::uint32_t(net_pick));
+                if (found == net_game->ground.end()) {
+                    net_pick = -1;
+                } else if (std::hypot(net_game->host_x - float(found->second.x), net_game->host_y - float(found->second.y)) < 4.f
+                           || (!world.player.walking && std::hypot((world.player.x + float(level->world_x)) * 5.f - float(found->second.x),
+                                                                   (world.player.y + float(level->world_y)) * 5.f - float(found->second.y)) < 4.f)) {
+                    net_game->pick_up(found->first);
+                    net_pick = -1;
                 }
             }
             // A warp d2d's player set off for: the host's warp unit there (0x13).

@@ -54,6 +54,15 @@ bool throws(const std::vector<std::byte>& bytes) {
 }  // namespace
 
 int main() {
+    // A game.exe host's ground item (S->C 0x9c, live 2026-10-04): gold, the
+    // net layout (no JM, x / y 16 bits on the ground, the amount 1 + 12 bits
+    // right after the code: FUN_0062a970 reads no socket count for it).
+    {
+        const std::uint8_t packet[] = { 0x9c, 0x00, 0x18, 0x10, 0xd3, 0x03, 0x00, 0x00, 0x10, 0x00, 0xa0, 0x00,
+                                        0x65, 0x0c, 0x53, 0xc2, 0xc6, 0xe2, 0x8c, 0x8d, 0x0c, 0xc4, 0x0a, 0x00 };
+        const auto net = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(8), d2d::d2s::ItemTables{});
+        assert(net && net->item.code == "gld" && net->x == 4760 && net->y == 5686 && net->gold == 43 && net->item.location == 3);
+    }
     // Hardcore expansion Assassin, level 42, 15-char name (max + NUL pad).
     const auto header = d2d::d2s::parse_header(make_save(96, "Shadowdancerxyz", 0x24, 6, 42));
     assert(header.version == 96);
