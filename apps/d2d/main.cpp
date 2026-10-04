@@ -34,6 +34,7 @@
 #include <d2s_items.hpp>
 #include <devctl.hpp>
 #include <install.hpp>
+#include <join.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
 #include <screenshot.hpp>
@@ -578,18 +579,22 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 character.items.clear();
                 character.stats = {};
                 // Text input into the name buffer (15-char cap = D2's
-                // character-record name limit).
-                if (!text_this_frame.empty()) {
-                    for (char letter : text_this_frame) {
-                        if (character.name.size() < 15) character.name.push_back(letter);
-                    }
+                // character-record name limit): letters, and one of ' - _
+                // not first, as a game.exe host takes a name (FUN_0052c5b0).
+                // unverified (source: the host's check): the create screen's
+                // own filter isn't traced.
+                for (const char letter : text_this_frame) {
+                    const bool alpha = (letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z');
+                    const bool mark = (letter == '\'' || letter == '-' || letter == '_') && !character.name.empty()
+                                   && character.name.find_first_of("'-_") == std::string::npos;
+                    if ((alpha || mark) && character.name.size() < 15) character.name.push_back(letter);
                 }
                 if (backspace_this_frame && !character.name.empty())
                     character.name.pop_back();
 
                 // OK is only enabled once a class is picked and a name is
                 // entered — mirrors D2's OK-button gating.
-                character.ok_btn.do_switch = (character.selected >= 0 && !character.name.empty());
+                character.ok_btn.do_switch = character.selected >= 0 && d2d::net::valid_join_name(character.name);
                 update_button(character.cancel_btn, mouse, screen, quit);
                 update_button(character.ok_btn,     mouse, screen, quit);
                 if (!character.cancel_btn.hovered && !character.ok_btn.hovered)
