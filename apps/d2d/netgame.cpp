@@ -24,7 +24,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x0a, 0x0d, 0x0f, 0x15, 0x18, 0x59, 0x5c, 0x67, 0x68, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -76,6 +76,8 @@ auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
         if (auto sent = connection.send(packet); !sent) log.note("send failed: " + sent.error());
     }
 }
+
+auto NetGame::steady_now() -> std::uint32_t { return steady_ms(); }
 
 auto NetGame::closed() const -> bool {
     const auto state = session.state();
@@ -161,6 +163,38 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         host_y = float(bits_at(skip + 16, 16));
         break;
     }
+    case 0x51:   // assign object: +1 type (2), +2 id, +6 Objects.txt row, +8 x, +0xa y
+        if (size >= 12) {
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            unit.cls = read_u16(packet, 6);
+            place(unit, read_u16(packet, 8), read_u16(packet, 0xa));
+        }
+        break;
+    case 0x09:   // assign warp: +1 type (5), +2 id, +6 LvlWarp row, +7 x, +9 y
+        if (size >= 11) {
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            unit.cls = packet[6];
+            place(unit, read_u16(packet, 7), read_u16(packet, 9));
+        }
+        break;
+    case 0x81:   // assign merc: +2 u16 class, +4 u32 owner, +8 u32 merc id
+        if (size >= 12 && read_u32(packet, 4) == self_id) merc_id = read_u32(packet, 8);
+        break;
+    case 0x0c:   // hit: +1 type, +2 id, +7 hit class, +8 life / 128
+        if (size >= 9) {
+            const int life = packet[8];
+            unit_at(packet[1], read_u32(packet, 2)).life = life > 128 ? life & 0x7f : life;
+        }
+        break;
+    case 0x69: case 0x6b:   // a monster's unit command at x, y (+5; net-packets.md "The unit command")
+    case 0x6a: case 0x6c:   // ... on a unit
+        if (size >= 6) {
+            auto& unit = unit_at(1, read_u32(packet, 1));
+            unit.mode = packet[5];
+            unit.mode_ms = steady_ms();
+            if (unit.mode == 8 || unit.mode == 9) { unit.life = 0; unit.moving = false; }   // dying / dead: no hit says so
+        }
+        break;
     case 0x0d:   // a unit stops at x, y
         if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
         break;
@@ -202,6 +236,48 @@ auto NetGame::move_to(float subtile_x, float subtile_y, bool run) -> void {
 
 auto NetGame::set_running(bool run) -> void {
     if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::set_running(run) });
+}
+
+auto NetGame::select(int skill, bool left) -> void {
+    auto& held = hand_skill[left ? 1 : 0];
+    if (held == skill) return;
+    held = skill;
+    send({ d2d::net::d2gs::c2s::select_skill(skill, left) });
+}
+
+auto NetGame::skill_at(int skill, bool left, float subtile_x, float subtile_y) -> void {
+    if (session.state() != d2d::net::JoinState::InGame || subtile_x < 0 || subtile_y < 0) return;
+    select(skill, left);
+    send({ d2d::net::d2gs::c2s::skill_at(left, std::uint16_t(subtile_x), std::uint16_t(subtile_y)) });
+}
+
+auto NetGame::skill_on(int skill, bool left, int type, std::uint32_t id) -> void {
+    if (session.state() != d2d::net::JoinState::InGame) return;
+    select(skill, left);
+    send({ d2d::net::d2gs::c2s::skill_on(left, std::uint32_t(type), id) });
+}
+
+auto NetGame::interact(int type, std::uint32_t id) -> void {
+    if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::interact(std::uint32_t(type), id) });
+}
+
+auto NetGame::waypoint(std::uint32_t id, int level) -> void {
+    if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::waypoint(id, std::uint16_t(level)) });
+}
+
+auto NetGame::pick_up(std::uint32_t id) -> void {
+    if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::pick_up(id) });
+}
+
+auto NetGame::nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit* {
+    const Unit* best = nullptr;
+    float best_distance = within;
+    for (const auto& [unit_key, unit] : units) {
+        if (unit.type != type || (cls >= 0 && unit.cls != cls)) continue;
+        const float distance = std::hypot(unit.x - subtile_x, unit.y - subtile_y);
+        if (distance <= best_distance) { best = &unit; best_distance = distance; }
+    }
+    return best;
 }
 
 auto NetGame::leave() -> void {

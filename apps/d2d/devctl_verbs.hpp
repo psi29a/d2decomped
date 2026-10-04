@@ -445,7 +445,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("monsters", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
-        for (const auto& monster : town.fight.monsters) {
+        for (const auto& monster : town.net_game ? town.view.monsters : town.fight.monsters) {   // a joined game: the host's
             const float dx = monster.unit.x - town.player.x, dy = monster.unit.y - town.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int screen_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));

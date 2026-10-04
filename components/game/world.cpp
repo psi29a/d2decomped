@@ -238,7 +238,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto opened = d2d::rules::open_container(object.operate_fn, object.object_id, object.locked, object.sparkle, fight.spawning.objects,
                                                            [&](int forced) { return d2d::rules::chest_round(game_data->rules, treasure_class, object.seed, drops, forced); });
             for (const auto& code : opened.extra) drops.push_back({ .code = code });
-            for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
+            if (!fight.remote_monsters)              // a joined game: the host drops the chest's items (S->C 0x9c)
+                for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
             return std::pair{ opened, drops.size() };
         };
         auto to_mode = [&](int mode) {               // FUN_00624690, its sound (0x7295f8) and footprint (FUN_00623830)
@@ -1025,6 +1026,19 @@ auto World::den_count(std::uint32_t now_ms) -> void {
 
 auto World::level_name(const Level& level) -> const char* {
         return !level.name.empty() ? level.name.c_str() : level.id == d2d::rules::level_ids::kRogueEncampment ? "Rogue Encampment" : "?";   // Levels.txt LevelName
+    }
+
+// A joined game's swing at a host monster (apps/d2d netgame): the
+// player turns to (x, y) and plays the skill's swing; no monster here to
+// hit, the host resolves it (Fight's hits guard on attack_mon < 0).
+auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> void {
+        if (fight.pmode >= 0 || fight.dead()) return;
+        fight.attack_mon = -1;
+        fight.attack_skill = skill;
+        interact_npc = pick_item = take_warp = -1;
+        player.walking = false;
+        player.dir = direction16(x - player.x, y - player.y);
+        fight.start_swing(now_ms);
     }
 
 auto World::use_warp() -> void {

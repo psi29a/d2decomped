@@ -272,6 +272,7 @@ struct World {
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A monster's door at its think (Fight::open_door): found, operated in reach.
+    void display_swing(int skill, float x, float y, std::uint32_t now_ms);   // a joined game: swing at a host monster, for show
     bool monster_door(const Monster& monster, std::uint32_t now_ms);
     // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
     // whoever's within 3 subtiles and sets off the unopened ones nearer

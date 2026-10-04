@@ -148,6 +148,8 @@ struct Town {
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
     std::unique_ptr<NetGame> net_game;     // --join: a game on a game.exe host (its other players and monsters)
     std::unordered_map<std::uint32_t, Monster> net_monsters;   // the host's monsters as d2d draws them, by unit id
+    int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
+    int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked

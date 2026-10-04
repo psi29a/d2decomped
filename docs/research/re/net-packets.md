@@ -489,8 +489,10 @@ ids).
 - **0x4e / 0x4f / 0x50 hirelings**: 0x4e (7) +1 u16 name id, +3 u32
   seed (one offer); 0x4f (1) clears the list; 0x50 (15) switch on the
   u16 at +1 **(?)**.
-- **0x81 assign merc** (20; `FUN_00478bb0`): +1 u8, +2 u16, +0xc u32,
-  +0x10 u32 (community: owner and merc ids **(?)**).
+- **0x81 assign merc** (20; `FUN_00478bb0`): +1 u8, +2 u16 MonStats row,
+  +4 u32 owner id, +8 u32 merc id, +0xc u32, +0x10 u32. Live (2026-10-04):
+  `81 07 52 01 0d 00 00 00 41 00 00 00 ...` for Tux (id 0x0d) and his
+  act2hire (0x41, its 0xac class 338).
 - **0x60 town portal state** (7; `FUN_004bdf30`): +1 u8 state, +2 u8
   area, +3 u32 unit id.
 - **0x82 portal owner** (29): +1 u32 owner id, +5 char[16] name, +0x15

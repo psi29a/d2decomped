@@ -81,6 +81,63 @@ inline auto move_to(std::uint16_t x, std::uint16_t y, bool run) -> Bytes {
 // 0x53 / 0x54: run / walk from now on.
 inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(run ? 0x53 : 0x54) }; }
 
+// 0x3c: the skill on a hand (bit 31: the left), and the item it comes
+// from (-1: none). Sent before a skill packet when the hand's skill changed.
+inline auto select_skill(int skill, bool left, std::uint32_t item_id = 0xffffffff) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x3c);
+    put_u32(out, static_cast<std::uint32_t>(skill) | (left ? 0x80000000u : 0u));
+    put_u32(out, item_id);
+    return out;
+}
+
+// 0x05 / 0x0c: the left / right skill at act subtile (x, y).
+inline auto skill_at(bool left, std::uint16_t x, std::uint16_t y) -> Bytes {
+    Bytes out;
+    put_u8(out, left ? 0x05 : 0x0c);
+    put_u16(out, x);
+    put_u16(out, y);
+    return out;
+}
+
+// 0x06 / 0x0d: the left / right skill on a unit (type, id), walking up to it.
+inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, left ? 0x06 : 0x0d);
+    put_u32(out, type);
+    put_u32(out, id);
+    return out;
+}
+
+// 0x13: interact with a unit (type, id): talk, operate, take a warp.
+inline auto interact(std::uint32_t type, std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x13);
+    put_u32(out, type);
+    put_u32(out, id);
+    return out;
+}
+
+// 0x49: travel by the waypoint object `id` to Levels.txt `level`.
+inline auto waypoint(std::uint32_t id, std::uint16_t level) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x49);
+    put_u32(out, id);
+    put_u16(out, level);
+    put_u16(out, 0);
+    return out;
+}
+
+// 0x16: pick up the ground item `id` (type 4); the third dword: 0.
+inline auto pick_up(std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x16);
+    put_u32(out, 4);
+    put_u32(out, id);
+    put_u32(out, 0);
+    return out;
+}
+
 // 0x69: leave the game; the host answers with the save (B3), B0, 05, 06.
 inline auto leave() -> Bytes { return { 0x69 }; }
 

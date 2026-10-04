@@ -339,14 +339,57 @@ auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { 
 // client sends it: walks and runs (0x01 / 0x03) to the same act subtile
 // d2d's player heads for, the run toggle (0x53 / 0x54). The World still
 // walks the player here; the host walks it there on the same map.
-// ponytail: skills, interaction, items, warps stay local (M9).
+// Skills go by the host's unit ids (d2d's monster ids are those in a
+// joined game); a melee swing walks up here and plays for show, the host
+// walks up there and hits. Objects and waypoints by the host unit nearest
+// d2d's.
+// ponytail: NPC talk and trade stay local (the host's gold and items don't
+// follow); belt, item moves, stat and skill points aren't sent (M9).
 auto Town::send(const Command& command) -> void {
-        net.send(command);
-        if (!net_game || !level) return;
-        if (const auto* move = std::get_if<cmd::Move>(&command))
-            net_game->move_to((move->x + float(level->world_x)) * 5.f, (move->y + float(level->world_y)) * 5.f, view.running);
-        else if (const auto* run = std::get_if<cmd::Run>(&command))
+        if (!net_game || !level) { net.send(command); return; }
+        auto subtile_x = [&](float cell_x) { return (cell_x + float(level->world_x)) * 5.f; };
+        auto subtile_y = [&](float cell_y) { return (cell_y + float(level->world_y)) * 5.f; };
+        if (const auto* move = std::get_if<cmd::Move>(&command)) {
+            net_game->move_to(subtile_x(move->x), subtile_y(move->y), view.running);
+        } else if (const auto* run = std::get_if<cmd::Run>(&command)) {
             net_game->set_running(run->running);
+        } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
+            const auto* skill = scene->skills.get(use->skill);
+            const bool melee = skill && !self_cast(*skill) && !world.fight.missile_skill(*skill) && !Fight::spot_skill(*skill) && !world.fight.summon_skill(*skill);
+            const auto target = use->unit >= 0 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();
+            if (target != net_monsters.end()) {
+                // The host drops a skill that comes mid-swing (FUN_0057edd0:
+                // modes A1 / A2 / SC / TH take one only once FUN_0057ed70 says
+                // the swing can end), so repeats are harmless; the same
+                // target again once the swing here is over, as game.exe's
+                // client, which runs its own copy of the mode.
+                const bool again = use->unit == net_attack && use->skill == net_attack_skill;
+                if (!again || world.fight.pmode < 0) net_game->skill_on(use->skill, use->left, 1, std::uint32_t(use->unit));
+                net_attack = use->unit;
+                net_attack_skill = use->skill;
+                const auto& monster = target->second;
+                if (melee) {
+                    if (std::hypot(monster.unit.x - world.player.x, monster.unit.y - world.player.y) > 1.6f) net.send(cmd::Move{ monster.unit.x, monster.unit.y, use->left });
+                    else world.display_swing(use->skill, monster.unit.x, monster.unit.y, world_ms);
+                    return;
+                }
+                net.send(cmd::UseSkill{ use->skill, monster.unit.x, monster.unit.y, -1, use->left });   // the missile flies at it here, for show
+                return;
+            }
+            net_attack = -1;
+            net_game->skill_at(use->skill, use->left, subtile_x(use->x), subtile_y(use->y));
+        } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
+            const auto& npc = level->npcs[std::size_t(interact->npc)];
+            if (npc.root == "objects")
+                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) net_game->interact(2, object->id);
+        } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {
+            const auto& npc = level->npcs[std::size_t(travel->npc)];
+            if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) {
+                net_game->interact(2, object->id);
+                net_game->waypoint(object->id, travel->level);
+            }
+        }
+        net.send(command);
     }
 
 // A joined game: the host's monsters stand in for the World's (it makes
@@ -370,7 +413,8 @@ auto Town::net_overlay() -> void {
                 view.others.push_back(std::move(other));
                 continue;
             }
-            if (unit.cls < 0 || std::size_t(unit.cls) >= scene->monsters.types.size()) continue;
+            if (unit.id == net_game->merc_id && unit.id != 0) continue;   // ours: the World's merc stands in
+            if (unit.type != 1 || unit.cls < 0 || std::size_t(unit.cls) >= scene->monsters.types.size()) continue;   // objects and warps: d2d's own
             if (std::size_t(unit.cls) < scene->mon_is_npc.size() && scene->mon_is_npc[std::size_t(unit.cls)]) continue;
             auto found = net_monsters.find(unit.id);
             if (found == net_monsters.end())
@@ -381,9 +425,30 @@ auto Town::net_overlay() -> void {
             monster.unit.x = cell_x(unit.x);
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
-            monster.mode = unit.life == 0 ? "DD" : unit.moving ? "WL" : "NU";
+            // The host's unit command as a mode (DAT_006da4d8, net-packets.md
+            // "The unit command"): dying plays DT once, then lies DD; an act
+            // plays its mode, then stands or walks again.
+            // ponytail: an act lasts 600 ms, not its animation's length.
+            static constexpr std::array<std::string_view, 0x1e> kCommandMode = {
+                "WL", "WL", "", "", "SC", "SC", "GH", "NU", "DT", "DD", "A1", "A1", "S1", "S1", "S2", "S2",
+                "A2", "A2", "BL", "", "KB", "SQ", "SQ", "RN", "RN", "S1", "S3", "S3", "S4", "S4" };
+            const auto since = net_game->steady_now() - unit.mode_ms;
+            const std::string_view commanded = unit.mode >= 0 && std::size_t(unit.mode) < kCommandMode.size() ? kCommandMode[std::size_t(unit.mode)] : "";
+            if (unit.mode == 8 || unit.mode == 9) monster.mode = unit.mode == 8 && since < 1500 ? "DT" : "DD";
+            else if (unit.life == 0) monster.mode = "DD";
+            else if (!commanded.empty() && commanded != "WL" && commanded != "NU" && since < 600) monster.mode = commanded;
+            else monster.mode = unit.moving ? "WL" : "NU";
+            if (monster.mode != monster.last_mode) monster.unit.mode_ms = world_ms;   // the animation starts over
+            monster.last_mode = monster.mode;
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             view.monsters.push_back(monster);
+        }
+        // The host monster being attacked: held, the attack goes on (input).
+        if (net_attack >= 0 && view.monster(net_attack) >= 0 && view.monsters[std::size_t(view.monster(net_attack))].alive()) {
+            view.attack = net_attack;
+            view.attack_skill = net_attack_skill;
+        } else {
+            net_attack = -1;
         }
     }
 
@@ -923,11 +988,22 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         if (net_game) {
             net_game->pump(frame_ms, frame_ms - last_ms);
             // The host moved us (a correction, later warps and waypoints): there we are.
+            // Only a spot on d2d's level: a warp's or waypoint's lands as d2d
+            // takes it too (the same exit spot, FUN_005550b0).
             if (net_game->take_reassign() && level) {
-                world.player.x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x);
-                world.player.y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
-                world.player.walking = false;
+                const float to_x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x), to_y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
+                if (to_x >= 0 && to_y >= 0 && to_x < float(level->ds1.width()) && to_y < float(level->ds1.height())) {
+                    world.player.x = to_x;
+                    world.player.y = to_y;
+                    world.player.walking = false;
+                }
             }
+            // A warp d2d's player set off for: the host's warp unit there (0x13).
+            if (world.take_warp >= 0 && world.take_warp != net_warp_sent && std::size_t(world.take_warp) < level->warps.size()) {
+                const auto& warp = level->warps[std::size_t(world.take_warp)];
+                if (const auto* unit = net_game->nearest(5, -1, (warp.unit_x + float(level->world_x)) * 5.f, (warp.unit_y + float(level->world_y)) * 5.f, 15.f)) net_game->interact(5, unit->id);
+            }
+            net_warp_sent = world.take_warp;
         }
         // The skill buttons: a change goes to the World (0x3c), which runs a
         // right-button aura (a Paladin's).
