@@ -892,11 +892,18 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace, 10)) / 100;
     if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door)) return false;
+    // AI Idle (the Blood Moor farm's cow): it stands; the chase below would
+    // walk it after the player into an attack mode it has no graphics for.
+    // unverified (source: the AI's name): game.exe's Idle think isn't traced.
+    if (type_info.ai_name == "Idle") {
+        if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+        return false;
+    }
     // An AI not traced finds its foe as the traced ones do (search_target),
     // at its thinks: when next_act is due and no chase is under way (a chase
     // runs as think()'s does, move_frame). With none it thinks again aidel
     // on (FUN_005a73e0).
-    // ponytail: later acts only (every Act 1 MonStats AI is traced): the
+    // ponytail: later acts only (every Act 1 fighting AI is traced): the
     // foe it found is the frame's foe from the next frame on.
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {

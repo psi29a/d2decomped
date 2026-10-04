@@ -646,11 +646,9 @@ game.exe's own (ok); write-up in docs/research/re/missiles.md. ctest 31/31,
 clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill.
 
 **Found in play (2026-10-04, Bret), not yet looked into:**
-- A cow (MonStats `cow`, hcIdx 179: AI Idle, no HP columns, not
-  killable, no DT mode) by a thatched house with a Bed vanishes, on
-  screen, as Bob walks up. Headless as Bob it never appears in `monsters`
-  or `npcs`; the house it stood by wasn't found. Next time: devctl
-  `state` + `monsters` + `npcs` while it's on screen.
+- Fixed: the farm's cow (AI Idle, untraced) took the untraced-AI chase,
+  followed the player and went invisible in an attack mode it has no
+  graphics for; Idle now stands (unverified, unverified.md).
 - Fixed: an opened chest replayed its lid forever; objects now hold the
   last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
 - A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
