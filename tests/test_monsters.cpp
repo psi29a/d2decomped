@@ -2,6 +2,7 @@
 // Monster spawning and stats over hand-made tables: the region takes
 // every listed type once, rooms fill by density, Fallen come as a leader
 // with a party, nothing lands on a blocked subtile or by the entrance.
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
@@ -20,7 +21,71 @@
 
 using namespace d2d::rules;
 
+// Missile flights game.exe flew (tools/emu/missiles.py --dump: a Blood
+// Moor game, FUN_0059fa30 then srvdofunc 1 a frame at a time), each to its
+// range or the foe it struck, against rules::MissileFlight: the frame it
+// ended, how, where, and an FNV-1a of every frame's 16.16 position.
+static void missile_flights() {
+    struct Case { int from_x, from_y, to_x, to_y, vel, vel_lev, max_vel, accel, level, range, activate, bolt, foe_x, foe_y, foe_size, frames, struck;
+                  std::uint32_t end_x, end_y, hash; };
+    static constexpr Case kCases[] = {
+    { 4921, 4749, 4918, 4748, 8, 0, 8, 0, 4, 40, 0, -1, 4921, 4747, 2, 40, 0, 0x132b4300u, 0x1288ca60u, 0x6b670dc1u },   // shafire1 lvl 4
+    { 4650, 4684, 4648, 4681, 24, 0, 24, 0, 29, 40, 0, -1, 4647, 4681, 2, 3, 1, 0x1228a37eu, 0x1249af70u, 0x82eceda0u },   // spike5 lvl 29
+    { 4932, 4584, 4935, 4579, 12, 0, 12, 0, 2, 77, 0, 2, 4935, 4584, 2, 77, 0, 0x13528000u, 0x11ce8000u, 0x9f6a00d7u },   // chargedbolt lvl 2
+    { 4710, 4660, 4705, 4651, 24, 0, 24, 0, 31, 40, 0, -1, 0, 0, 0, 40, 0, 0x1250c7b0u, 0x120d1790u, 0xae0a0f58u },   // spike5 lvl 31
+    { 4912, 4662, 4905, 4670, 24, 1, 56, -1, 17, 40, 0, -1, 4908, 4665, 2, 40, 0, 0x131072b4u, 0x125b2d7cu, 0x365c26b8u },   // random lvl 17
+    { 5005, 4739, 5008, 4736, 20, 0, 20, 0, 20, 50, 0, -1, 0, 0, 0, 50, 0, 0x13aea460u, 0x12625ba0u, 0x6d57586cu },   // firebolt lvl 20
+    { 4942, 4557, 4949, 4555, 24, 0, 24, 0, 20, 40, 0, -1, 4949, 4555, 2, 6, 1, 0x1354fe30u, 0x11cba8c4u, 0x7b68752bu },   // arrow lvl 20
+    { 5000, 4662, 4993, 4669, 12, 0, 12, 0, 18, 50, 0, -1, 4994, 4666, 2, 50, 0, 0x13749d60u, 0x124a62a0u, 0x604653fcu },   // icebolt lvl 18
+    { 4738, 4729, 4740, 4730, 20, 0, 20, 0, 2, 50, 0, -1, 4737, 4730, 2, 50, 0, 0x12ac7d06u, 0x128e5408u, 0xbf4734a3u },   // andypoisonbolt lvl 2
+    { 4995, 4737, 4993, 4737, 8, 0, 8, 0, 31, 40, 0, -1, 4993, 4738, 2, 5, 1, 0x1381a000u, 0x12818000u, 0xc6db7fdfu },   // shafire1 lvl 31
+    { 4918, 4727, 4917, 4734, 24, 0, 24, 0, 9, 40, 0, -1, 0, 0, 0, 40, 0, 0x133031a0u, 0x12a40cb0u, 0x3bbd5c24u },   // arrow lvl 9
+    { 4607, 4734, 4611, 4728, 10, 8, 10, 0, 9, 40, 0, -1, 4608, 4731, 2, 3, 1, 0x1200f93au, 0x127c458eu, 0x69e2ddbfu },   // spike1 lvl 9
+    { 4700, 4726, 4701, 4727, 10, 10, 28, 0, 2, 40, 0, -1, 4702, 4727, 2, 2, 1, 0x125d4ba0u, 0x12774ba0u, 0x0c4b47e9u },   // random lvl 2
+    { 4694, 4765, 4683, 4746, 12, 0, 12, 0, 24, 50, 0, -1, 4687, 4750, 3, 28, 1, 0x124ea6e4u, 0x128fd87cu, 0xd36e354fu },   // icebolt lvl 24
+    { 4683, 4683, 4684, 4684, 12, 0, 12, 0, 27, 77, 0, 3, 4682, 4685, 2, 4, 1, 0x124b8000u, 0x124d3000u, 0xd4efaa33u },   // chargedbolt lvl 27
+    { 4994, 4574, 4991, 4575, 10, 8, 10, 0, 21, 40, 0, -1, 0, 0, 0, 40, 0, 0x134b53a0u, 0x11f0bfb8u, 0x90f60bd2u },   // spike1 lvl 21
+    { 4747, 4563, 4750, 4561, 20, 0, 20, 0, 1, 50, 0, -1, 4749, 4563, 2, 2, 1, 0x128d1050u, 0x11d27746u, 0x3e89ec31u },   // andypoisonbolt lvl 1
+    { 4979, 4631, 4976, 4634, 20, 0, 20, 0, 11, 50, 0, -1, 4977, 4633, 2, 3, 1, 0x137182f0u, 0x12197d10u, 0xd13fc487u },   // firebolt lvl 11
+    };
+    for (const auto& test_case : kCases) {
+        auto flight = MissileFlight::launch(test_case.from_x, test_case.from_y, test_case.to_x, test_case.to_y,
+                                            missile_velocity(test_case.vel, test_case.vel_lev, test_case.level), test_case.max_vel << 8, test_case.accel);
+        const bool at_itself = test_case.to_x == test_case.from_x && test_case.to_y == test_case.from_y;
+        const int to_x = test_case.to_x + (at_itself ? 1 : 0), to_y = test_case.to_y + (at_itself ? 1 : 0);
+        if (test_case.bolt >= 0) flight.points = wiggle_points(test_case.from_x, test_case.from_y, to_x, to_y, test_case.range, Rng{ std::uint32_t(to_x + test_case.bolt) });
+        std::uint32_t hash = 0x811C9DC5u;
+        int frames = 0, struck = 0;
+        for (int left = test_case.range;;) {
+            const bool flying = flight.step([](int, int) { return false; });
+            ++frames;
+            for (const std::uint32_t value : { flight.x, flight.y })
+                for (int shift = 0; shift < 32; shift += 8) hash = (hash ^ ((value >> shift) & 0xffu)) * 0x01000193u;
+            if (!flying || --left < 1) break;
+            if (left > test_case.range - test_case.activate || test_case.foe_size == 0) continue;
+            if (std::ranges::any_of(flight.crossed, [&](const auto& spot) { return missile_touches(spot.first, spot.second, test_case.foe_x, test_case.foe_y, test_case.foe_size); })) {
+                struck = 1;
+                break;
+            }
+        }
+        if (frames != test_case.frames || struck != test_case.struck || flight.x != test_case.end_x || flight.y != test_case.end_y || hash != test_case.hash) {
+            std::printf("missile %d,%d -> %d,%d: %d frames struck %d at %#x,%#x hash %#x, game.exe %d %d %#x,%#x %#x\n", test_case.from_x, test_case.from_y,
+                        test_case.to_x, test_case.to_y, frames, struck, flight.x, flight.y, hash, test_case.frames, test_case.struck, test_case.end_x, test_case.end_y, test_case.hash);
+            std::abort();
+        }
+    }
+    // A wall: the step that reaches it ends the flight at the centre of the
+    // last free point (FUN_00650150), not of the step's end.
+    auto flight = MissileFlight::launch(100, 100, 120, 100, missile_velocity(24, 0, 1), 24 << 8, 0);
+    assert(flight.velocity == 4608 && flight.aim_x == 4096 && flight.aim_y == 0);
+    int frames = 1;
+    while (flight.step([](int x, int) { return x >= 104; })) ++frames;
+    assert(frames == 4 && flight.x == (103u << 16) + 0x8000 && flight.y == (100u << 16) + 0x8000);
+    assert(missile_velocity(10, 8, 4) == (14 << 8) * 75 / 100 && missile_range(40, 5, 3) == 55);
+}
+
 int main() {
+    missile_flights();
     Monsters monsters;
     MonType zombie;
     zombie.id = "zombie1"; zombie.spawnable = true; zombie.base = 5;

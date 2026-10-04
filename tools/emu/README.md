@@ -125,6 +125,12 @@ ponytail: `__cinit` (C++ static constructors) isn't run, because its C
 initialisers want locale setup. Add it when a global constructor turns out
 to matter.
 
+- `missiles.py`: missile flights (FUN_0059fa30, then srvdofunc 1 a frame at
+  a time) in a Blood Moor game, against a line-for-line copy of
+  `rules::MissileFlight`: every frame's 16.16 position and how it ended
+  (range, wall / rooms, the foe struck). `uv run python missiles.py 1500 7`
+  should print `ok`; `--break` should not; `--dump` prints the
+  test_monsters.cpp cases. See `docs/research/re/missiles.md`.
 - `npcs.py`: the camp's NPCs thinking (MonAI Npc, FUN_005e7130) with its
   effects hooked, against `drlg-dump ... npcs` (`rules::npc_think`):
   `THINKS=150 uv run python diff_drlg.py 1-40 0 npcs`. See
