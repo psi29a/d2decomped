@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -50,7 +51,7 @@ struct BossInfo {
 // Named MonUMod ids.
 namespace umod {
 inline constexpr int rndname = 1, hpmultiply = 2, light = 3, leveladd = 4, strong = 5, fast = 6, curse = 7, resist = 8,
-                     fire = 9, champion = 16, lightning = 17, cold = 18, manahit = 25, teleport = 26, spectralhit = 27,
+                     fire = 9, bloodraven = 12, champion = 16, lightning = 17, cold = 18, questcomplete = 22, manahit = 25, teleport = 26, spectralhit = 27,
                      stoneskin = 28, multishot = 29, aura = 30, ghostly = 36, fanatic = 37, possessed = 38, berserk = 39;
 }
 
@@ -125,6 +126,26 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
         mods.push_back(id);
     }
     return mods;
+}
+
+// An act boss as it's made (FUN_005b1cf0 from FUN_005b2a00, by MonStats
+// BaseId): its mods, each FUN_005a4850(mod, 1), whose FUN_005a0320 sets
+// flag 8 (the gold name, the Demon / Undead label, TreasureClass3). Neither
+// mod has an init in 0x73c008, so no unique stats. Blood Raven also gets
+// stat 0x76 (half freeze). Their quests (FUN_005436b0 6 / 2) key off the
+// kill in d2d (World::andariel_died, blood_raven_died). The Smith (0x192)
+// gets mod 22 alone, no quest call.
+// ponytail: Act 1's (Andariel, Blood Raven, the Smith); later acts' cases (the
+// Maggot Queen's mod 23 has an init) and the uber Andariel aren't here.
+struct ActBoss {
+    std::vector<int> mods;
+    bool half_freeze = false;
+};
+inline std::optional<ActBoss> act_boss(int monstats_row, int base) {
+    if (base == 0x9c && monstats_row != 0x2c3) return ActBoss{ { umod::questcomplete }, false };
+    if (base == 0x10b) return ActBoss{ { umod::bloodraven, umod::questcomplete }, true };
+    if (base == 0x192) return ActBoss{ { umod::questcomplete }, false };
+    return std::nullopt;
 }
 
 // The label under a boss's name (client FUN_004adea0, from FUN_00452580):

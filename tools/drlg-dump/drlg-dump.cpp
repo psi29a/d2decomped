@@ -4,7 +4,8 @@
 // drlg-dump <mpq dir> <first>-<last> <level> <out dir> writes <seed>.txt each.
 // A trailing `tiles` adds every room's tiles (as drlg.py <seed> <level> tiles);
 // `monsters` prints each room's population (as monsters.py <seed> <level>;
-// $DIFFICULTY 0..2).
+// $DIFFICULTY 0..2); an act boss adds `!<mods>` and `h` for half freeze
+// (rules::act_boss).
 // drlg-dump <mpq dir> <seed> <level> [<out dir>] objgroups: each room's random
 // object groups, as tools/emu/objgroups.py prints game.exe's (a range: to <out dir>).
 // drlg-dump <mpq dir> <seed> <level> [<out dir>] collision: each room's grid
@@ -28,6 +29,7 @@
 #include <tile_pick.hpp>
 #include <town_npcs.hpp>
 #include <txt.hpp>
+#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -38,6 +40,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -184,8 +187,17 @@ static std::string dump_monsters(d2d::game::GameData& game_data, std::uint32_t s
         const std::size_t end = k + 1 < order.size() ? order[k + 1].second : spawns.size();
         if (first == end) continue;
         out << "mon " << level->rooms[room].x << ',' << level->rooms[room].y << ':';
-        for (std::size_t i = first; i < end; ++i)
-            out << ' ' << spawns[i].type << '@' << spawns[i].x << ',' << spawns[i].y << (spawns[i].dead ? "m12" : "") << '/' << (spawns[i].leader >= 0 ? std::size_t(spawns[i].leader) - first : i - first);
+        for (std::size_t i = first; i < end; ++i) {
+            out << ' ' << spawns[i].type;
+            const auto& types = game_data.monsters.types;
+            if (const auto act_boss = spawns[i].type >= 0 && std::size_t(spawns[i].type) < types.size()
+                                          ? d2d::rules::act_boss(spawns[i].type, types[std::size_t(spawns[i].type)].base) : std::nullopt) {
+                out << '!';
+                for (std::size_t mod = 0; mod < act_boss->mods.size(); ++mod) out << (mod ? "." : "") << act_boss->mods[mod];
+                out << (act_boss->half_freeze ? "h" : "");
+            }
+            out << '@' << spawns[i].x << ',' << spawns[i].y << (spawns[i].dead ? "m12" : "") << '/' << (spawns[i].leader >= 0 ? std::size_t(spawns[i].leader) - first : i - first);
+        }
         out << '\n';
     }
     return out.str();

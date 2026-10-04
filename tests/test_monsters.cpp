@@ -222,6 +222,14 @@ int main() {
         // blue, Duriel gold whatever he is; Andariel white.
         assert(bar_name_colour(Boss::superunique, "corruptrogue3") == kNameGold && bar_name_colour(Boss::champion, "zombie1") == kNameBlue);
         assert(bar_name_colour(Boss::none, "duriel") == kNameGold && bar_name_colour(Boss::none, "andariel") == kNameWhite && bar_name_colour(Boss::minion, "fallen1") == kNameWhite);
+        // Act bosses (FUN_005b1cf0, by BaseId): Andariel mod 22, Blood Raven
+        // 12, 22 and half freeze, the Smith 22, all flag 8 (gold, as a unique);
+        // the uber Andariel (0x2c3) and a plain monster aren't.
+        const auto andariel = act_boss(0x9c, 0x9c), blood_raven = act_boss(0x10b, 0x10b);
+        assert(andariel && andariel->mods == std::vector<int>{ 22 } && !andariel->half_freeze);
+        assert(blood_raven && (blood_raven->mods == std::vector<int>{ 12, 22 }) && blood_raven->half_freeze);
+        assert(act_boss(0x192, 0x192) && act_boss(0x192, 0x192)->mods == std::vector<int>{ 22 });
+        assert(!act_boss(0x2c3, 0x9c) && !act_boss(5, 5) && bar_name_colour(Boss::unique, "andariel") == kNameGold);
         // A monster's sound set (FUN_004ca410): the Countess's own; a boss
         // or minion zombie's UMonSound; a plain one's MonSound.
         MonType zombie_sounds;
@@ -664,6 +672,30 @@ int main() {
         assert(act.kind == NpcAct::Kind::walk && brain.linger_count == 0);
         act = d2d::rules::npc_think(brain, seed, path, 30, 30, 0x9a, 1u << 8, 1);   // there: S1 at the anvil
         assert(act.kind == NpcAct::Kind::mode && act.mode == 8 && act.face == 0x38 && brain.special_mode == 0);
+        // The visitor (FUN_005e68f0): a player with a "!" 8 off is walked up
+        // to, 3 subtiles a think (FUN_005de4e0's split); 2 off it's greeted,
+        // then again 60 thinks on; past 16 from home the NPC goes home first.
+        assert(d2d::rules::npc_reach(10, 10, 20, 13, 2) == 8);
+        assert(d2d::rules::npc_step_toward(10, 10, 20, 13, 8, 3, 2) == std::pair(13, 11));
+        d2d::rules::NpcBrain host;
+        host.homed = true; host.home_x = 10; host.home_y = 10;
+        const auto before = seed.low;
+        act = d2d::rules::npc_think(host, seed, path, 10, 10, 0x9a, 0, 1, { .present = true, .x = 20, .y = 13, .distance = 8 });
+        assert(act.kind == NpcAct::Kind::walk && act.x == 13 && act.y == 11 && seed.low == before);
+        act = d2d::rules::npc_think(host, seed, path, 18, 13, 0x9a, 0, 1, { .present = true, .x = 20, .y = 13, .distance = 2 });
+        assert(act.kind == NpcAct::Kind::stand && act.frames == 20 && act.greet && host.greeted == 60);
+        act = d2d::rules::npc_think(host, seed, path, 18, 13, 0x9a, 0, 1, { .present = true, .x = 20, .y = 13, .distance = 2 });
+        assert(!act.greet && host.greeted == 59);
+        act = d2d::rules::npc_think(host, seed, path, 30, 10, 0x9a, 0, 1, { .present = true, .x = 40, .y = 10, .distance = 8 });
+        assert(act.kind == NpcAct::Kind::stand && act.frames == 10 && host.linger_x == 10 && host.linger_count == 12);
+        // Talked to (+0x14 = 40): 4 thinks 15 frames on, then 8, counting down.
+        d2d::rules::NpcBrain talked;
+        talked.homed = true; talked.held = 40;
+        for (int think = 0; think < 5; ++think) {
+            act = d2d::rules::npc_think(talked, seed, path, 10, 10, 0x9a, 0, 1, { .talking = true });
+            assert(act.kind == NpcAct::Kind::stand && act.frames == (think < 4 ? 15 : 8));
+        }
+        assert(talked.held == 35 && seed.low == before);
     }
     std::puts("ok");
 }

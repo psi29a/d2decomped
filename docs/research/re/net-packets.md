@@ -435,8 +435,12 @@ ids).
   bits stat, value (the same width rule), param (1 bit ? 16 : 8). Stat
   0xcc (charged skill) → `FUN_004c1e40`; quantity (0x46) > 0 clears
   item flags 4, 0x4000.
-- **0x3f stackable used** (8; `4c4620`): +1 u8 code (list `DAT_00727a40`
-  **(?)**; 0xff clears flag 4), +2 u32 item id, +6 u16 (0xffff special).
+- **0x3f stackable used** (8; `4c4620`; built by `53d220`): +1 u8 cursor
+  code (FUN_0062bb20: Books.txt SpellIcon for a scroll / tome, else
+  ItemsTxt +0x134 spellicon; codes 0 and 2, list `DAT_00727a40`, close a
+  panel first), +2 u32 item id, +6 u16 skill (the book's; 0xffff with code
+  0xff clears flag 4 and the cursor). Otherwise FUN_00468010(item, code):
+  cursor state 6, `buysell.dc6` frame = code; identify is 0.
 - **0x40 item flags** (13; `4c2020`): +1 u32 item id, +5 u32 mask, +9
   u32 on / off (`FUN_006280d0`).
 - **0x42 clear cursor** (6; `4c2050`): +1 type, +2 u32 id; the own

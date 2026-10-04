@@ -1705,7 +1705,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();
         }
-        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd);
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &player);
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];

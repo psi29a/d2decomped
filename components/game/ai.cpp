@@ -124,6 +124,11 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
         if (boss) make_boss(game_data, monster, spawn.boss, spawn.mods, spawn.super, spawn.name_seed, difficulty, rng);
+        else if (auto act_boss = d2d::rules::act_boss(spawn.type, type_info.base)) {   // FUN_005b1cf0: flag 8, no unique stats
+            monster.boss = d2d::rules::Boss::unique;
+            monster.mods = std::move(act_boss->mods);
+            monster.half_freeze = act_boss->half_freeze;
+        }
         monster.leader = spawn.leader;
         monster.seed = unit_seed;
         monster.path = spawn.path;
@@ -159,17 +164,21 @@ int facing16(int dir64) {
 }  // namespace
 
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd) {
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd, const UnitState* player) {
     constexpr std::uint32_t kFrameMs = 40;
     for (std::size_t i = 0; i < npcs.size() && i < level.npcs.size(); ++i) {
         const auto& npc = level.npcs[i];
         if (!npc.npc_ai || npc.path.empty()) continue;
         auto& state = npcs[i];
-        if (std::ranges::find(busy, int(i)) != busy.end()) {   // busy: stand still
+        // A talk starting (FUN_00548b00): its path stopped, AI control +0x14
+        // = 40, the think next frame.
+        const bool listed = std::ranges::find(busy, int(i)) != busy.end();
+        if (listed && !state.brain.listed) {
             if (state.walking) { state.walking = false; state.path.clear(); state.mode_ms = now_ms; }
-            state.wait_until = now_ms + 8 * kFrameMs;
-            continue;
+            state.brain.held = 40;
+            state.wait_until = now_ms + kFrameMs;
         }
+        state.brain.listed = listed;
         if (state.walking) {                                    // a walk's end (or a block) thinks at once
             if (!follow_path(level, state, cells_per_sec(npc.velocity) * elapsed, crowd)) {
                 state.walking = false; state.path.clear(); state.mode_ms = now_ms; state.wait_until = now_ms;
@@ -185,7 +194,17 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         std::vector<d2d::rules::NpcPoint> points;
         for (std::size_t k = 0; k < npc.path.size(); ++k)
             points.push_back({ k < npc.actions.size() ? npc.actions[k] : 0, int(npc.path[k].first * 5), int(npc.path[k].second * 5) });
-        const auto act = d2d::rules::npc_think(state.brain, npc.seed, points, int(std::floor(state.x * 5)), int(std::floor(state.y * 5)), npc.hc_idx, npc.modes, 1);
+        const int x = int(std::floor(state.x * 5)), y = int(std::floor(state.y * 5));
+        d2d::rules::NpcVisitor visitor{ .talking = listed };
+        if (player && state.alert) {                            // FUN_005dde80: within 16, with a "!" for them
+            visitor.x = int(std::floor(player->x * 5)); visitor.y = int(std::floor(player->y * 5));
+            visitor.distance = d2d::rules::npc_reach(x, y, visitor.x, visitor.y, 2);
+            visitor.present = visitor.distance < 16;
+            visitor.talking = listed || (visitor.present && busy[0] >= 0);
+        }
+        // ponytail: act.greet (unit sound 0x12, the client's greeting through
+        // FUN_004e0590) plays nothing yet.
+        const auto act = d2d::rules::npc_think(state.brain, npc.seed, points, x, y, npc.hc_idx, npc.modes, 1, visitor);
         if (act.face >= 0) state.dir = facing16(act.face);
         switch (act.kind) {
         case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
