@@ -121,6 +121,8 @@ int main() {
     auto frame = [&](Bytes payload) { return *d2gs::encode_frame(*huffman, payload); };
     {
         assert(!JoinSession::create(tables, save_of(0x2000)));   // past what the host takes
+        assert(valid_join_name("Tester") && valid_join_name("Mule_abcd") && valid_join_name("O'Neil"));
+        assert(!valid_join_name("Bob Bitchen") && !valid_join_name("_Mule") && !valid_join_name("a-b-c") && !valid_join_name("X"));
         auto session = JoinSession::create(tables, save_of(600));
         assert(session && session->name() == "Tester");
         auto step = session->receive(Bytes{ 0xaf, 0x01 }, 0);                       // raw hello

@@ -17,6 +17,7 @@
 #include <expected>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace d2d::net {
@@ -26,6 +27,11 @@ using d2gs::Bytes;
 enum class JoinState { Connecting, Uploading, Loading, InGame, Leaving, Closed, Refused, Desync };
 
 auto join_state_name(JoinState state) -> const char*;
+
+// A name a host takes (FUN_0052c690 / FUN_0052c5b0): 2..15 letters, with at
+// most one of ' - _, not first or last. game.exe drops any other join
+// without a word (no B4).
+auto valid_join_name(std::string_view name) -> bool;
 
 // What one receive() turned up: the S->C packets, in order, and the C->S
 // packets to send now.

@@ -27,13 +27,26 @@ auto join_state_name(JoinState state) -> const char* {
     return "?";
 }
 
+auto valid_join_name(std::string_view name) -> bool {
+    if (name.size() < 2 || name.size() > 15) return false;
+    int marks = 0;
+    for (std::size_t i = 0; i < name.size(); ++i) {
+        const char letter = name[i];
+        if ((letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z')) continue;
+        if ((letter != '\'' && letter != '-' && letter != '_') || i == 0 || i + 1 == name.size() || ++marks > 1) return false;
+    }
+    return true;
+}
+
 auto JoinSession::create(const d2gs::ExeTables& tables, std::vector<std::uint8_t> save) -> std::expected<JoinSession, std::string> {
     if (save.size() < 0x2c || d2gs::read_u32(save, 0) != 0xaa55aa55) return std::unexpected("not a .d2s save");
     if (save.size() > kMaxSave) return std::unexpected("save over 0x1fff bytes: the host can't take it");
     auto huffman = d2gs::Huffman::build(tables.lengths);
     if (!huffman) return std::unexpected(huffman.error());
+    const auto name = d2gs::read_name(save, 0x14, 16);
+    if (!valid_join_name(name)) return std::unexpected("the name \"" + std::string(name) + "\" can't join a game.exe host: letters and at most one ' - _ (not first or last)");
     JoinSession session(*huffman, tables.s2c_sizes);
-    session.name_ = std::string(d2gs::read_name(save, 0x14, 16));
+    session.name_ = std::string(name);
     session.character_class_ = save[0x28];
     session.save_ = std::move(save);
     return session;
