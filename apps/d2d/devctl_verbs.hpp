@@ -111,9 +111,14 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "grid" && verb_args.size() >= 4) town.send(cmd::ToGrid{ d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
         else if (verb == "said" && verb_args.size() >= 4) town.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.send(cmd::Chat{ int_arg(2) });
+        else if (verb == "trade" && verb_args.size() >= 3) town.send(cmd::OpenTrade{ int_arg(2), int_arg(3, 0) != 0 });
+        else if (verb == "buy" && verb_args.size() >= 3) town.send(cmd::Buy{ int_arg(2) });
+        else if (verb == "sell" && verb_args.size() >= 3) town.send(cmd::Sell{ int_arg(2) });
+        else if (verb == "close") town.send(cmd::CloseTrade{});
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
-                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>\n");
+                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>"
+                                " | trade <npc> [gamble] | buy <stock> | sell <item> | close\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {

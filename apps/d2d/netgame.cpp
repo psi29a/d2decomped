@@ -197,9 +197,17 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (action == 0 || action == 2 || action == 3) {
             own_items.erase(id);
             ground[id] = GroundItem{ id, std::move(parsed->item), parsed->x, parsed->y, parsed->gold };
-        } else if (action != 0xb && action != 0xc) {                  // not a store's stock: ours, somewhere
+        } else if (action == 0xb) {
+            store_items[id] = std::move(parsed->item);                 // into the open store's stock
+        } else if (action == 0xc) {
+            store_items.erase(id);
+        } else {                                                       // ours, somewhere
             ground.erase(id);
-            if (id == picking && (action == 4 || action == 0xe)) { picked.push_back(parsed->item); picking = 0; }
+            if ((action == 4 || action == 0xe) && (id == picking || (buying && !own_items.contains(id)))) {
+                picked.push_back(parsed->item);
+                picking = 0;
+                buying = false;
+            }
             own_items[id] = std::move(parsed->item);
         }
         break;

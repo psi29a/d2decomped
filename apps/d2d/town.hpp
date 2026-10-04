@@ -153,6 +153,11 @@ struct Town {
     int net_pick = -1;                                       // the host item being walked to, to pick up
     std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
     bool net_items_checked = false;                          // the once-a-game item match logged
+    std::size_t net_store_shown = 0;                         // the host stock count the store last showed
+    std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
+    int net_trade_pending = -1;                              // the host NPC being walked to for a trade
+    bool net_trade_gamble = false;
+    std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()
     std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
@@ -216,6 +221,7 @@ struct Town {
     void publish();
     void send(const Command& command);    // to the World, and to a joined host
     void net_items(const Command& command);   // a joined game: our item moves and uses to the host
+    const NetGame::Unit* net_npc(int index) const;   // the host's NPC for d2d's NPC index
 
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.

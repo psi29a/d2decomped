@@ -190,6 +190,32 @@ inline auto cursor_to_belt(std::uint32_t id, std::uint32_t box) -> Bytes {
     return out;
 }
 
+// NPCs (net-packets.md "NPC trade"). 0x2f / 0x30: start / end the chat
+// with a unit (type, id).
+inline auto npc_chat(bool start, std::uint32_t type, std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, start ? 0x2f : 0x30); put_u32(out, type); put_u32(out, id);
+    return out;
+}
+// 0x38: an NPC action (0 trade, 1 gamble) with NPC `id`.
+inline auto npc_action(std::uint32_t action, std::uint32_t id, std::uint32_t extra = 0) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x38); put_u32(out, action); put_u32(out, id); put_u32(out, extra);
+    return out;
+}
+// 0x32: buy the stock item `item` from NPC `npc` (flags: tab << 16), at `cost`.
+inline auto buy(std::uint32_t npc, std::uint32_t item, std::uint32_t flags, std::uint32_t cost) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x32); put_u32(out, npc); put_u32(out, item); put_u32(out, flags); put_u32(out, cost);
+    return out;
+}
+// 0x33: sell our item `item` to NPC `npc` at `cost` (+9 u16 mode, +0xd cost).
+inline auto sell(std::uint32_t npc, std::uint32_t item, std::uint16_t mode, std::uint32_t cost) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x33); put_u32(out, npc); put_u32(out, item); put_u16(out, mode); put_u16(out, 0); put_u32(out, cost);
+    return out;
+}
+
 // 0x69: leave the game; the host answers with the save (B3), B0, 05, 06.
 inline auto leave() -> Bytes { return { 0x69 }; }
 

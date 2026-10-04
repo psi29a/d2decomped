@@ -391,14 +391,65 @@ auto Town::send(const Command& command) -> void {
                 net_pick = int(found->first);
             }
             return;
+        } else if (const auto* trade = std::get_if<cmd::OpenTrade>(&command); trade && trade->npc >= 0 && std::size_t(trade->npc) < level->npcs.size()) {
+            // The host's NPC nearest d2d's (a vendor walks): talk, then trade (0x38).
+            const auto& npc = level->npcs[std::size_t(trade->npc)];
+            if (const auto* vendor = net_npc(trade->npc)) {
+                // The host talks within 6 subtiles only: walk its player 3 from
+                // the NPC on our side, then ask (walk()).
+                const float from_x = net_game->host_x - vendor->x, from_y = net_game->host_y - vendor->y, apart = std::max(std::hypot(from_x, from_y), 1.f);
+                net_game->move_to(vendor->x + from_x / apart * 3.f, vendor->y + from_y / apart * 3.f, view.running);
+                net_game->store_items.clear();
+                net_store_shown = 0;
+                net_trade_pending = int(vendor->id);
+                net_trade_gamble = trade->gamble;
+                net_trade_ms = frame_now;
+            } else {
+                net_game->log.note("no host NPC near " + npc.name + " to trade with");
+            }
+        } else if ((std::holds_alternative<cmd::Buy>(command) || std::holds_alternative<cmd::Sell>(command) || std::holds_alternative<cmd::Repair>(command))
+                   && !net_game->trade_npc) {
+            net_game->log.note("a trade with no host NPC: not made (d2d's own store would make it here only)");
+            return;
+        } else if (const auto* buy = std::get_if<cmd::Buy>(&command); buy && net_game->trade_npc) {
+            const auto& tab = world.store.tabs[std::size_t(std::clamp(world.store.tab, 0, 3))];
+            if (buy->stock >= 0 && std::size_t(buy->stock) < tab.size()) {
+                const auto& item = tab[std::size_t(buy->stock)];
+                const int cost = d2d::rules::item_price(scene->rules, item, world.store.npc_id, false, world.store.header);
+                net_game->buying = true;
+                net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), std::uint32_t(world.store.tab) << 16, std::uint32_t(cost)) });
+            }
+            return;                                         // the host's item comes to us; its gold change too
+        } else if (const auto* sell = std::get_if<cmd::Sell>(&command); sell && net_game->trade_npc) {
+            auto found = std::ranges::find(world.character.items, sell->item, &d2d::d2s::Item::id);
+            const d2d::d2s::Item* item = found != world.character.items.end() ? &*found : world.held && world.held->id == sell->item ? &*world.held : nullptr;
+            if (const std::uint32_t id = item ? net_game->host_item(*item) : 0) {
+                const int cost = d2d::rules::item_price(scene->rules, *item, world.store.npc_id, true, world.store.header);
+                net_game->send_items({ d2d::net::d2gs::c2s::sell(net_game->trade_npc, id, 0, std::uint32_t(cost)) });
+                if (found != world.character.items.end()) world.character.items.erase(found);
+                else world.held.reset();
+                net_cursor = 0;
+            }
+            return;                                         // gold from the host
+        } else if (std::holds_alternative<cmd::CloseTrade>(command) && net_game->trade_npc) {
+            net_game->send_items({ d2d::net::d2gs::c2s::npc_chat(false, 1, net_game->trade_npc) });
+            net_game->trade_npc = 0;
+            net_game->store_items.clear();
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
                    || std::holds_alternative<cmd::Drop>(command)) {
             net_items(command);
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(interact->npc)];
-            if (npc.root == "objects")
+            // The host walks us there only for a skill: d2d walks us up and
+            // the host's player follows (walk()); it talks only within 6
+            // subtiles (FUN_00548b00 case 1), so the trade's 0x13 comes again
+            // once the menu's up (OpenTrade).
+            if (npc.root == "objects") {
                 if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) net_game->interact(2, object->id);
+            } else if (const auto* host_npc = net_npc(interact->npc)) {
+                net_game->interact(1, host_npc->id);          // the host walks us up too (talk at 6)
+            }
         } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(travel->npc)];
             if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) {
@@ -407,6 +458,22 @@ auto Town::send(const Command& command) -> void {
             }
         }
         net.send(command);
+    }
+
+// The host's NPC for d2d's NPC `index`: a unit of the same MonStats Id
+// (Akara for Akara), the nearest if several (rogues); nullptr while the
+// host hasn't sent it (out of range).
+auto Town::net_npc(int index) const -> const NetGame::Unit* {
+        if (!net_game || !level || index < 0 || std::size_t(index) >= level->npcs.size()) return nullptr;
+        const auto& npc = level->npcs[std::size_t(index)];
+        const float at_x = (npc.x + float(level->world_x)) * 5.f, at_y = (npc.y + float(level->world_y)) * 5.f;
+        const NetGame::Unit* found = nullptr;
+        float best = 1e9f;
+        for (const auto& [unit_key, unit] : net_game->units) {
+            if (unit.type != 1 || unit.cls < 0 || std::size_t(unit.cls) >= scene->monsters.types.size() || scene->monsters.types[std::size_t(unit.cls)].id != npc.id) continue;
+            if (const float distance = std::hypot(unit.x - at_x, unit.y - at_y); distance < best) { best = distance; found = &unit; }
+        }
+        return found;
     }
 
 // Our item moves and uses to the host, by its ids for d2d's items (the
@@ -1080,6 +1147,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
+        frame_now = frame_ms;
         if (net_game) {
             net_game->pump(frame_ms, frame_ms - last_ms);
             // The host moved us (a correction, later warps and waypoints): there we are.
@@ -1103,17 +1171,24 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 if (std::getenv("D2D_NET_STATS")) d2d::log::info("net stat {} = {}", change.id, value);
             }
             net_game->stat_changes.clear();
-            // What the host put in our bags after a pick-up: placed as d2d places a pick-up.
+            // What the host put in our bags (a pick-up, a buy): where the host put
+            // it, so it keeps matching the host's item.
             for (auto& item : net_game->picked) {
-                const auto& lay = scene->inv_layout[std::size_t(std::max(world.character.character_class, 0))];
-                const int boxes = scene->belts[std::size_t(belt_index(*scene, world.character.items))].boxes;
                 item.id = world.next_item_id++;
-                if (d2d::rules::pick_up(scene->rules, world.character.items, item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes) == d2d::rules::Pickup::kNoRoom)
-                    d2d::log::warn("net: no room here for a picked-up {}", item.code);
-                else
-                    world.cues.cue("item_pickup", 0, world.player.x, world.player.y);
+                world.character.items.push_back(std::move(item));
+                world.cues.cue("item_pickup", 0, world.player.x, world.player.y);
             }
             net_game->picked.clear();
+            // The open store shows the host's stock (its ids, for 0x32), by tab.
+            if (world.store.npc >= 0 && net_game->trade_npc && net_game->store_items.size() != net_store_shown) {
+                net_store_shown = net_game->store_items.size();
+                for (auto& tab : world.store.tabs) tab.clear();
+                for (const auto& [id, stocked] : net_game->store_items) {
+                    auto item = stocked;
+                    item.id = int(id);
+                    world.store.tabs[std::size_t(std::clamp(item.panel, 0, 3))].push_back(std::move(item));
+                }
+            }
             // Once, a while in: how many of our items the host's match (the net
             // log says which don't).
             if (!net_items_checked && net_game->steady_now() > 3000 && !net_game->own_items.empty()) {
@@ -1125,6 +1200,32 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                                             + std::to_string(item.column) + "," + std::to_string(item.row) + ", slot " + std::to_string(item.slot) + ") has no host item");
                 }
                 d2d::log::info("net: {} of our {} items match the host's ({} it has)", matched, world.character.items.size(), net_game->own_items.size());
+            }
+            // d2d's walks of its own (up to an NPC, an object, an item, a melee
+            // target): the host's player follows where ours is, every 300 ms
+            // (a target the host can't stand on, an NPC's spot, it'd refuse).
+            if (world.player.walking && frame_ms - net_follow_ms >= 300) {
+                net_follow_ms = frame_ms;
+                net_game->move_to((world.player.x + float(level->world_x)) * 5.f, (world.player.y + float(level->world_y)) * 5.f, view.running);
+            }
+            // A trade walked to: asked for once the host has us within 6.
+            if (net_trade_pending >= 0) {
+                const auto vendor = net_game->units.find(std::uint64_t(1) << 32 | std::uint32_t(net_trade_pending));
+                if (vendor == net_game->units.end() || frame_ms - net_trade_ms > 8000) {
+                    net_game->log.note("the trade's NPC couldn't be reached on the host");
+                    net_trade_pending = -1;
+                } else if (const float apart = std::hypot(net_game->host_x - vendor->second.x, net_game->host_y - vendor->second.y); apart > 6.f) {
+                    if (frame_ms - net_follow_ms >= 500) {                      // she walks: after her, 2 out
+                        net_follow_ms = frame_ms;
+                        net_game->move_to(vendor->second.x + (net_game->host_x - vendor->second.x) / apart * 2.f,
+                                          vendor->second.y + (net_game->host_y - vendor->second.y) / apart * 2.f, view.running);
+                    }
+                } else {
+                    namespace c2s = d2d::net::d2gs::c2s;
+                    net_game->trade_npc = std::uint32_t(net_trade_pending);
+                    net_game->send_items({ c2s::interact(1, net_game->trade_npc), c2s::npc_chat(true, 1, net_game->trade_npc), c2s::npc_action(net_trade_gamble ? 1 : 0, net_game->trade_npc) });
+                    net_trade_pending = -1;
+                }
             }
             // A pick-up walked to: asked for once both of us are there.
             if (net_pick >= 0) {

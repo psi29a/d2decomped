@@ -90,7 +90,10 @@ struct NetGame {
     std::unordered_map<std::uint64_t, Unit> units;
     std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id
     std::unordered_map<std::uint32_t, d2d::d2s::Item> own_items;   // ours as the host has them (grids, body, belt, cursor), by its ids
+    std::unordered_map<std::uint32_t, d2d::d2s::Item> store_items;   // the open store's stock (0x9c 0xb), by its ids
+    std::uint32_t trade_npc = 0;               // the NPC we trade with (its unit id), 0 none
     std::uint32_t picking = 0;                 // the ground item we asked for (0x16), until it lands with us
+    bool buying = false;                       // a buy went out: the next new item in our bags is it
     std::vector<d2d::d2s::Item> picked;        // what came to us since (0x9c into a grid / the belt): the client takes them
     // Our stats as the host sets them (0x19..0x1f): id, value, delta (true:
     // add). The client takes them each frame.
