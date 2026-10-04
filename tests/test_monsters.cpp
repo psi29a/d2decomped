@@ -159,10 +159,10 @@ int main() {
         assert(bar_name_colour(Boss::none, "duriel") == kNameGold && bar_name_colour(Boss::none, "andariel") == kNameWhite && bar_name_colour(Boss::minion, "fallen1") == kNameWhite);
         // A monster's sound set (FUN_004ca410): the Countess's own; a boss
         // or minion zombie's UMonSound; a plain one's MonSound.
-        MonType zombie;
-        zombie.sound = "zombie"; zombie.usound = "zombieunique";
-        assert(boss_sound(zombie, Boss::superunique, "countess") == "countess" && boss_sound(zombie, Boss::superunique, "") == "zombieunique");
-        assert(boss_sound(zombie, Boss::minion, "") == "zombieunique" && boss_sound(zombie, Boss::none, "") == "zombie");
+        MonType zombie_sounds;
+        zombie_sounds.sound = "zombie"; zombie_sounds.usound = "zombieunique";
+        assert(boss_sound(zombie_sounds, Boss::superunique, "countess") == "countess" && boss_sound(zombie_sounds, Boss::superunique, "") == "zombieunique");
+        assert(boss_sound(zombie_sounds, Boss::minion, "") == "zombieunique" && boss_sound(zombie_sounds, Boss::none, "") == "zombie");
     }
     // A monster's look (FUN_005739d0, checked against game.exe on 2000
     // unit seeds): rand(sets) on its unit seed; without sets, a roll per
