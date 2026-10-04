@@ -375,6 +375,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)"));
         scene.tall_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)"));
         scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
+        scene.cursor_buysell = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\buysell.dc6)"));
         scene.class_anims = [&] {
                 // Anim files per class, in order {nu1, nu2, fw, nu3, bw}.
                 // Class prefix pairs from FUN_004326f0's loader.

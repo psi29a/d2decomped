@@ -652,8 +652,8 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
 - Fixed: an opened chest replayed its lid forever; objects now hold the
   last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
 - Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
-  item identifies it (cmd::IdentifyWith, FUN_00561ed0); the identify
-  cursor isn't drawn yet (traced so far: "Identify cursor" below).
+  item identifies it (cmd::IdentifyWith, FUN_00561ed0), with the
+  identify cursor drawn ("Identify cursor" below).
 - A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
   "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
   roll for quivers, or how game.exe handles no eligible affix.
@@ -670,17 +670,18 @@ drlg and apps. The smoke test's monster wait is longer (rooms by the camp
 come up empty since the traced room life). ctest 31/31, clang-tidy 0,
 -Wshadow 0, sweep 228/228 at 10/10.
 
-**Identify cursor: traced, not built.** game.exe's cursors are
-`Gaunt, grasp, ohand, orotate, ppress, protate, buysell` (0x712028, 28-byte
-rows; state DAT_007a6adc). `buysell.dc6` has 10 frames, and frame 8 is a
-magnifier. Store buttons pick its frame (FUN_00468040). S→C 0x3f
-(FUN_004c4620) calls FUN_00468010(item, code), which draws buysell frame =
-code (FUN_00468460). But identify (Misc pSpell 1, item-skill table
-0x741790: pre-use FUN_005be130) sends code = ItemsTxt +0x134 spellicon,
-which is 0xff for isc / ibk, with word 0xffff. The client takes that as
-"clear" and goes back to the hand. Still to find: whether the client sets
-the identify cursor itself on the right-click (the C→S 0x20 path), and
-from which frame.
+**Identify cursor (2026-10-04).** game.exe's cursors are `Gaunt, grasp,
+ohand, orotate, ppress, protate, buysell` (rows at 0x712010, 28 bytes, name
+last; state DAT_007a6adc / DAT_007a6af0). Right-clicking a scroll or tome
+runs its item-skill pre-use (pSpell 1, table 0x741790: FUN_005be130).
+That sends S→C 0x3f with code = FUN_0062bb20 (a scroll / tome: Books.txt
+SpellIcon, Identify 0, TP -1 so no packet; any other item: ItemsTxt +0x134
+spellicon) and the book's skill. The client's FUN_00468010(item, code)
+sets state 6, which is identify mode: an item click then sends C→S 0x27
+(FUN_0048ffe0). FUN_00468460 draws buysell frame = code, bottom 0x21 below
+the hotspot. d2d draws that (main.cpp). Open: frame 0 is a curled arrow and
+frame 8 a magnifier; Bret saw "a magnifying glass like thing" live, to be
+compared.
 
 **Step 3 — networking** (the deferred item 7 above).
 

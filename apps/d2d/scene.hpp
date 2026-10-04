@@ -59,6 +59,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
     d2d::dc6::Sprite      cursor;             // CURSOR\ohand.dc6 — D2's gauntlet, 8 frames
+    d2d::dc6::Sprite      cursor_buysell;     // CURSOR\buysell.dc6 — the item-use cursors (frame 0 identify)
     // Character composites (in-game player, char-select portraits). The
     // COF names the body-part layers and their per-frame draw order; each
     // layer is its own DCC, indexed by COF composite type (0 HD, 1 TR,

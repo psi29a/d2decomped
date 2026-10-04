@@ -591,6 +591,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // D2 plays the grab frames in between.
             if (screen == Screen::InGame && town.held) {
                 draw_held(framebuffer, *scene, *town.held, mouse.x, mouse.y);
+            } else if (screen == Screen::InGame && town.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
+                // An identify pick: cursor state 6, buysell's frame = Books.txt
+                // SpellIcon (0; S->C 0x3f, FUN_00468010), bottom 0x21 below the
+                // hotspot (FUN_00468460).
+                const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
+                const auto& frame = scene->cursor_buysell.frame(0, 0);
+                blit_sprite(framebuffer, frame, pal, mouse.x + frame.offset_x,
+                            mouse.y + 0x21 + frame.offset_y - int(frame.height) + 1);
             } else if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal)

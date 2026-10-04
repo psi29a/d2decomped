@@ -434,7 +434,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // sells the item.
         bool item_click = false;
         // With an identify scroll picked, a click names the item for it and ends the pick.
-        // ponytail: the cursor stays the hand (game.exe shows the identify cursor).
         if (identify_with >= 0 && mouse.press_this_frame) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
