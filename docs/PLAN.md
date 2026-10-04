@@ -637,6 +637,35 @@ velocity x 75/100, FUN_0059fa30; the stepper isn't traced). The sweep
 per level, with live progress. Full sweep after the merges (1-20, six kinds,
 levels 2–39): 228/228; ctest 31/31.
 
+**In flight (2026-10-04): two branches, stopped by usage limits.** Both
+are local branches (not pushed) with worktrees under `.claude/worktrees/`,
+cut from act1-levelup at 1b1c992. Neither has passed its full checks, so
+neither is on act1-levelup. To pick one up: check out the branch (or work
+in its worktree), rebase on act1-levelup, then build, ctest (31/31),
+clang-tidy on the changed files (0), and `tools/emu/sweep.sh 1-10 monsters
+objgroups drops collision tiles units` (228/228 at 10/10).
+- `wip-missiles` (worktree agent-a4f0d3d9ee490ebbe; 17 files, +948):
+  missiles fly as game.exe. aff8f6f `rules/missiles.hpp` (FUN_0059fa30's
+  x75/100 velocity, the 16.16 step, halved walk, rooms, Charged Bolt's
+  wiggle FUN_005c9290), `tools/emu/missiles.py` runs game.exe's own
+  missiles (1500/1500 match), test_monsters replays 18 flights; b3c8232
+  every missile (player, merc, pets, monsters, traps) flies on
+  `rules::MissileFlight`, hits by footprint on entered subtiles. Write-up
+  in docs/research/re/missiles.md. Left: the sweep, a live headless fight
+  (missiles reach targets, kills happen), clang-tidy, the report.
+- `wip-bosses-npcs-sort` (worktree agent-a549b3cc6731cf374):
+  3d1cfd4 act bosses spawn as FUN_005b1cf0 (Andariel mod 22, Blood Raven
+  12 + 22 and half freeze, flag 8: gold bar name, Demon label,
+  TreasureClass3; levels 17 and 37 match on monsters); 89d3170 town NPCs
+  walk up to a player with a "!" within 16, greet 2 off, home past 16, and
+  stand while talked to (FUN_005e68f0, bugs.md 16). 3482e02 is a WIP
+  commit: part 3, sorting the `ponytail:` comments of gamedata*,
+  objgroups, character*, inventory, item_text, replication, protocol,
+  components/drlg and apps/d2d into Act 1 / networking / later acts /
+  missiles, with comment edits only (33 files); never built or tested.
+  Left: finish the sort (report the counts and the Act 1 list ranked by
+  what a player notices), build, ctest, the sweep, clang-tidy.
+
 **Step 3 — networking** (the deferred item 7 above).
 
 Blood Moor polish (2026-09-27): ambient events and song resume done
