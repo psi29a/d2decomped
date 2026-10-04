@@ -665,8 +665,7 @@ spawn as FUN_005b1cf0 (Andariel mod 22; Blood Raven 12 + 22 and half
 freeze; the Smith 22, which the sweep caught; flag 8: gold bar name, Demon
 label, TreasureClass3). Town NPCs walk up to a player they have a "!" for
 within 16, greet 2 off, go home past 16, and stand while talked to
-(FUN_005e68f0, bugs.md 16). Ponytail scopes sorted in gamedata, objgroups,
-drlg and apps. The smoke test's monster wait is longer (rooms by the camp
+(FUN_005e68f0, bugs.md 16). The smoke test's monster wait is longer (rooms by the camp
 come up empty since the traced room life). ctest 31/31, clang-tidy 0,
 -Wshadow 0, sweep 228/228 at 10/10.
 

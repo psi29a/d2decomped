@@ -4,7 +4,7 @@
 // its key there (the level's id, a missile's name, the merc's hireling
 // type, a fire's index) — GameData is the same on every machine.
 // Decoded animation modes are interned, so the views stay valid.
-// ponytail: networking: whole views every tick (no deltas); a unit's look as strings.
+// ponytail: whole views every tick (no deltas); a unit's look as strings.
 #pragma once
 
 #include "ai.hpp"

@@ -99,7 +99,7 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
     // 32 -> 10, 33 -> 11 (town-portal arrival)); a join asks for index 0,
     // which matches any of group 0 (indices 0..4) at random
     // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
-    // free spot. ponytail: later acts: first match instead of a random one — each
+    // free spot. ponytail: first match instead of a random one — each
     // Act 1 town DS1 has exactly one.
     for (const auto& layer : map.walls())
         for (std::size_t i = 0; i < layer.cells.size() && game_data.town.start.first < 0; ++i) {
@@ -521,7 +521,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 // (Act 1 rows) Place -> MonStats row (by Id) -> its MonStatsEx's MonStats2
 // row (monster_npc).
 // Positions are in subtiles; a unit stands at its subtile's centre.
-// ponytail: later acts: act 1 only, NU idle only; "place_*" spawn markers skipped.
+// ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
 void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");
@@ -571,7 +571,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     // Type-2 objects: id -> objects.txt Id through game.exe's own preset
     // table (obj_preset.hpp), then that row's Token and layer flags. Start
     // mode: ON for things with a light in ON (torches, fires, the camp
-    // waypoint), else NU. ponytail: Act 1: D2 sets it per object in its InitFn.
+    // waypoint), else NU. ponytail: D2 sets it per object in its InitFn.
     const auto objects = txt("objects");
     // Shrines.txt, and each level's area level (chests' treasure class).
     const auto shr = txt("Shrines"), lvs = txt("Levels");
@@ -619,7 +619,7 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     // items"), in camp once Act 1 quest 4 is done. On the rescue itself
     // a1q4.cpp (FUN_00596de0 -> FUN_00592960) spawns him where the player
     // came back through the portal.
-    // ponytail: Act 1: where a game with the quest already done places him isn't
+    // ponytail: where a game with the quest already done places him isn't
     // located; he stands 3 subtiles off the town start, like the
     // Tristram spawn's offset (FUN_00593290).
     for (std::size_t row_index = 0; row_index < monstats.size() && game_data.town.start.first >= 0; ++row_index) {
@@ -760,7 +760,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (table != &misc) continue;
             desc.spell_desc = number("spelldesc");
             desc.spell_str = std::string(table->get(row, "spelldescstr"));
-            desc.spell_calc = number("spelldesccalc");          // ponytail: Act 1: every 1.14d calc is a plain number
+            desc.spell_calc = number("spelldesccalc");          // ponytail: every 1.14d calc is a plain number
             for (const auto& [name, id] : kSpellStat) if (table->get(row, "stat1") == name) desc.spell_stat = id;
         }
     {
@@ -886,7 +886,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     {
         // Socket bonuses: gems.txt mods -> Properties.txt funcs -> stats.
         // Property funcs used by gems: 1/3 value, 15/16 min/max, 17 param,
-        // 5/6/7 min/max/% damage. ponytail: Act 1: other funcs dropped.
+        // 5/6/7 min/max/% damage. ponytail: other funcs dropped.
         std::unordered_map<std::string, int> stat_id;
         if (auto bytes = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
             const d2d::txt::Table table(*bytes);

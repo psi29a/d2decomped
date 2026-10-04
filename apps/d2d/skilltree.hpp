@@ -50,7 +50,7 @@ const std::vector<TreeLabel> kTreeTabs[7] = {
 // at baseline 140), and each skill of the tab: icon frame IconCel (+1
 // while pressed), greyed when it can't take a point (draw colour 5), its
 // level at (x + 48, bottom + 12) when learned (4 left for two digits).
-// ponytail: Act 1: grey is a 50% darken; no hover brightening or skill
+// ponytail: grey is a 50% darken; no hover brightening or skill
 // description popup, just the name; the game draws 10+ in FontFormal10.
 void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int cls, int tab,
                      const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, int pressed, int mouse_x, int mouse_y);

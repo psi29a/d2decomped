@@ -83,7 +83,7 @@ static int         g_start_cam_y = -1;
 // A game's map seed (FUN_0052c280): a fixed one if given, else the save's
 // own when it was last played on this difficulty (single player,
 // FUN_0056a090), else a new one — the random one this run started with.
-// ponytail: Act 1: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
+// ponytail: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
 // means none here.
 static bool          g_seed_fixed = false;  // --seed
 static std::uint32_t g_map_seed = 0;
@@ -587,7 +587,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // game (the OS pointer is hidden). DC6 frames anchor bottom-
             // left, which puts the fingertip on the hotspot. Palette of
             // the screen underneath.
-            // ponytail: Act 1: frame 0 idle, the closed hand (7) while pressed;
+            // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
             if (screen == Screen::InGame && town.held) {
                 draw_held(framebuffer, *scene, *town.held, mouse.x, mouse.y);

@@ -20,7 +20,7 @@ std::vector<std::string_view> game_menu_images();
 // The menus (FUN_0047e3d0 draws, the input table at 0x6d6034 drives):
 // 0 main, 1 options, 2 sound, 3 video, 4 automap. Opening one selects its
 // last item (FUN_0047e090).
-// ponytail: Act 1: single player doesn't pause under it; video and automap
+// ponytail: single player doesn't pause under it; video and automap
 // options are kept, not applied; 3D sound, EAX, 3D bias and perspective
 // are off as on a machine without a 3D provider or Glide.
 struct GameMenu {
@@ -55,7 +55,7 @@ private:
 
 // The mini-panel and the HUD's menu button (FUN_0047f710 / FUN_004977c0).
 // Its buttons' actions, as FUN_0047ec50 numbers them.
-// ponytail: Act 1: no tooltips (FUN_0047f490); messages (5) does nothing.
+// ponytail: no tooltips (FUN_0047f490); messages (5) does nothing.
 struct MiniPanel {
     enum Button { kCharacter = 0, kInventory = 1, kSkills = 2, kAutomap = 4, kMessages = 5, kQuests = 6, kMenu = 7 };
     bool open = true;                      // FUN_004567f0 opens it with the game

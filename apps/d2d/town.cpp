@@ -145,7 +145,7 @@ void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     // 48 px apart: string 0x13e8 "Your deeds of valor..." (hardcore) or
     // 0x13e6 "Death takes its toll of %d Gold" (when goldlost > 0), and in
     // Nightmare / Hell (softcore) 0x13e7 "You have lost experience".
-    // ponytail: Act 1: FUN_00502680's anchor taken as the cel's bottom, centred.
+    // ponytail: FUN_00502680's anchor taken as the cel's bottom, centred.
     if (view.pmode == kModeDD) {
         const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
         int y = int(kScreenHeight) / 2 - 0x5e;
@@ -281,7 +281,7 @@ auto Town::publish() -> void {
         character.panel.attack = view.attack_lines;
         // A quest's log state sent (S->C 0x5d, FUN_004a2cb0): the Quest Log
         // button, or the open log picks it.
-        // ponytail: Act 1: a change in the View's log state stands in for each send
+        // ponytail: a change in the View's log state stands in for each send
         // (FUN_00544190); none at the game's first View (the join sends none).
         for (std::size_t quest = 1; quest < view.quest_log.size(); ++quest)
             if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest]) quest_log_notify(quest_log, int(quest));
@@ -309,7 +309,7 @@ auto Town::enter() -> void {
         automap.revealed.clear();
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
-        mini = {};                                // open (FUN_004567f0; ponytail: Act 1: not the "Mini Panel" registry value)
+        mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
         game_menu.open = false;
         world.enter(character);
         skillbar.new_game();
@@ -384,7 +384,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         // The game menu takes every click while it's up; Exit saves and goes
         // to the roster. Its volumes go to d2d.cfg.
-        // ponytail: Act 1: Configure Controls (UI 0xb) isn't drawn; it closes the menu.
+        // ponytail: Configure Controls (UI 0xb) isn't drawn; it closes the menu.
         bool hud_click = false;
         if (game_menu.open) {
             const auto action = game_menu.input(*scene, audio, mouse, keys_this_frame, frame_ms);
@@ -470,7 +470,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // hold with a click (Sounds.txt 4); let go on the same icon picks it,
         // over close shuts the log, over questlast plays the picked quest's
         // message again (FUN_004a27d0).
-        // ponytail: Act 1: the description isn't hidden while that message plays (0x7bf2b3).
+        // ponytail: the description isn't hidden while that message plays (0x7bf2b3).
         if (quest_log.open) {
             const int button = quest_button_at(mouse.x, mouse.y);
             const int slot = quest_slot_at(mouse.x, mouse.y);
@@ -608,7 +608,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // Every Event Delay ticks, give or take a third, one of the event
         // sounds from the left or right (x +-450..750, y +-100 in game.exe's
         // units; the first within one gap of arriving).
-        // ponytail: Act 1: x becomes pan x / 750, y is dropped.
+        // ponytail: x becomes pan x / 750, y is dropped.
         {
             const std::uint32_t tick = frame_ms / 40;
             const int event_sound = day ? level->day_event : level->night_event, delay = level->event_delay;
@@ -670,7 +670,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kGoEast) {
                 net.send(cmd::GoEast{ who });
             } else if (action == NpcMenuState::kImbue) {
-                // ponytail: Act 1: no item panel (0x4b35b0 -> 0x4c0620); it takes
+                // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
                 // the item in hand.
                 net.send(cmd::Imbue{ who });
             } else if (action == NpcMenuState::kQuest) {
@@ -800,7 +800,7 @@ auto Town::quest_bits() const -> const d2d::rules::QuestBits& {
         return character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
     }
 
-// ponytail: later acts: the player's act is Act 1's (0): d2d has no level past it.
+// ponytail: the player's act is Act 1's (0): d2d has no level past it.
 auto Town::toggle_quest_log() -> void {
         if (quest_log.open) { quest_log.open = false; return; }
         quest_log_open(quest_log, quest_bits(), quest_state(), 0);
@@ -997,7 +997,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
         // ticks; a jump (a warp, devctl) snaps.
-        // ponytail: Act 1: the other units move at the tick rate, as game.exe draws them.
+        // ponytail: the other units move at the tick rate, as game.exe draws them.
         const float blend = std::clamp(float(frame_ms - world_ms) / float(kTickMs), 0.f, 1.f);
         const bool jump = std::hypot(unit.x - prev_x, unit.y - prev_y) > 2.f;
         cam_x = jump ? unit.x : prev_x + (unit.x - prev_x) * blend;

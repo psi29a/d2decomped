@@ -65,7 +65,7 @@ constexpr Row kSound[] = {                         // 0x714224, rows at 0x715cc8
 };
 constexpr Row kVideo[] = {                         // LoD 0x71875c (classic 0x718748: no Resolution)
     { -1, false, "VideoOptions", 0, 0, false, {} },
-    { 1, true, "Resolution", 2, 1, false, { "640x480", "800x600" } },   // ponytail: Act 1: d2d runs at 800x600
+    { 1, true, "Resolution", 2, 1, false, { "640x480", "800x600" } },   // ponytail: d2d runs at 800x600
     { 1, false, "LightQuality", 3, 2, false, { "Low", "Medium", "High" } },
     { 1, false, "BlendShadow", 2, 1, false, { "SmallOff", "SmallOn" } },
     { 1, false, "Perspective", 2, 1, false, { "SmallOff", "SmallOn" } },

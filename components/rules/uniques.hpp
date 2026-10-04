@@ -135,7 +135,7 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // stat 0x76 (half freeze). Their quests (FUN_005436b0 6 / 2) key off the
 // kill in d2d (World::andariel_died, blood_raven_died). The Smith (0x192)
 // gets mod 22 alone, no quest call.
-// ponytail: later acts: only Act 1's (Andariel, Blood Raven, the Smith); later bosses (the
+// ponytail: Act 1's (Andariel, Blood Raven, the Smith); later acts' cases (the
 // Maggot Queen's mod 23 has an init) and the uber Andariel aren't here.
 struct ActBoss {
     std::vector<int> mods;

@@ -44,7 +44,7 @@ inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, c
 
 // A worn set item's bonus lists that are on: list i (aprop(i+1)a / b,
 // FUN_0065fec0 kind 4) with i + 2 pieces of its set worn.
-// ponytail: Act 1: add func 1 lists (by which other piece is worn) count pieces
+// ponytail: add func 1 lists (by which other piece is worn) count pieces
 // too; Sets.txt's partial / full set bonuses aren't added.
 inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
                                                 const d2d::d2s::Item& item) {
@@ -91,7 +91,7 @@ inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, con
 // The char panel's computed values (stat 30 next level, 31 defence,
 // resistances 39/43/41/45), as FUN_004a7d00 shows them. From the save's
 // base stats and gear.
-// ponytail: Act 1: equipped slots 1..10 (the primary weapon set), socket
+// ponytail: equipped slots 1..10 (the primary weapon set), socket
 // bonuses, set bonus lists (set_bonus_props) and charms, the passives
 // with no weapon type (Iron Skin's defense %, Natural Resistance); no auras.
 struct PanelStats {

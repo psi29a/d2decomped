@@ -165,7 +165,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (rain) draw_rain(framebuffer, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // What a unit says (a shrine's message), centred over it.
-        // ponytail: Act 1: game.exe's overhead chat draw (Chat.cpp) isn't traced:
+        // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:
         // font, colour and height (here 100 px over its feet) are guesses.
         for (const auto& unit : units) {
             if (!unit.says) continue;
@@ -178,7 +178,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // Alt ("Show Items"): each ground item's name in a dark box over it,
         // nudged up clear of the ones already placed; the label under the
         // mouse is the item it points at (a click picks it up).
-        // ponytail: Act 1: game.exe's label layout isn't traced (box padding, the
+        // ponytail: game.exe's label layout isn't traced (box padding, the
         // stacking order, the hovered label's own colour).
         if (show_items) {
             const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;

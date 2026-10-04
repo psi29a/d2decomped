@@ -113,7 +113,7 @@ inline NpcAct npc_think(NpcBrain& brain, Rng& seed, std::span<const NpcPoint> pa
         // Talked to: while +0x14 is over 36, a walk to the scratch words
         // (+0x18, +0x1c) taken as a spot no path reaches (bugs.md 16), so
         // the think comes aidel (15) on; then stand 8 as it counts down.
-        // ponytail: Act 1: with +0x14 run out game.exe schedules no think (what
+        // ponytail: with +0x14 run out game.exe schedules no think (what
         // wakes it after the talk isn't traced); d2d thinks 8 frames on.
         const auto act = stand(brain.held > 36 ? 15 : 8);
         if (brain.held < 0) brain.held = 0;

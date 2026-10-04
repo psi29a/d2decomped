@@ -31,7 +31,7 @@ namespace d2d::client {
 // centred in their body slot's box. Palette: the act's, like the world.
 // The item under (mx, my) gets its hover text.
 // Items draw through their inventory colormap (Scene::item_pal).
-// ponytail: later acts: no cube.
+// ponytail: no cube.
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr);
@@ -103,7 +103,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   H-23 (FUN_00497300). Globes (FUN_00498120): "Life: %d / %d" /
 //   "Mana: %d / %d" plain, centred on 65 / W-80, bottom H-95.
 // The maxima include what's worn (Fight::item_max).
-// ponytail: Act 1: no skill icons; no potion preview fill (states 100 / 0x6a), no
+// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no
 // smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
 // (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
@@ -137,7 +137,7 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
-// ponytail: Act 1: no gold line, no "close" button; classic stash untested.
+// ponytail: no gold line, no "close" button; classic stash untested.
 // Rect {x, y, w, h} of a stored item in a grid layout.
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item);
 
@@ -151,7 +151,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // HUD strip; with the popup open (0x499136) each further row gets a
 // ctrlpnl_popbelt frame 0, bottom-anchored at x W/2+21, bottom H-41-32i,
 // and its items. Hovering an item shows its hover text.
-// ponytail: Act 1: no slot hotkey numbers.
+// ponytail: no slot hotkey numbers.
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup);
 
@@ -161,7 +161,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // (orientation > 15) 24 further down. Drawn (FUN_00459700/FUN_00459440)
 // at cell - scroll, scroll = player's world pixels / 10 - screen / 2 +
 // (40, 15), with DC6's bottom-left anchoring.
-// ponytail: Act 1: reveals tiles within 12 of the player (D2 reveals by room),
+// ponytail: reveals tiles within 12 of the player (D2 reveals by room),
 // cel picked by a tile hash rather than the game's RNG, no fade near the
 // centre, no player/NPC marks; no unit icons or town miniatures of its own
 // (a game.exe file's are kept, the miniatures not drawn).

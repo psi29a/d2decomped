@@ -55,7 +55,7 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
 // default): through the palette's alpha table 0 (PL2 +0x3500), a quarter
 // of the tile over three quarters of the ground, unlit (driver +0xa4,
 // callback FUN_004f82d0 at alpha 0xc0).
-// ponytail: Act 1: the mix in RGB, not the table's nearest palette colour.
+// ponytail: the mix in RGB, not the table's nearest palette colour.
 void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
                      const d2d::palette::Palette& pal, int screen_x, int screen_y);
 
@@ -175,7 +175,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
 // Trans 1 / 2 are draw modes 3 / 4, which the software renderer blends
 // through the palette's PL2 tables (FUN_00511d70; D2WinPalette.cpp copies
 // them from PL2 +0x33500 additive and +0x43500 multiply).
-// ponytail: Act 1: the same sums in RGB, not the tables' nearest palette colours.
+// ponytail: the same sums in RGB, not the tables' nearest palette colours.
 void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                     const d2d::dcc::Frame& frame,
                     const d2d::palette::Palette& pal,
@@ -185,7 +185,7 @@ void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
 // every loaded layer, in the COF's per-(direction, frame) draw order.
 // Frame time from the COF speed byte: D2 advances speed/256 frames per
 // 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 -> 128 ms).
-// ponytail: Act 1: COF speed as the rate; AnimData.d2 is authoritative — read it
+// ponytail: COF speed as the rate; AnimData.d2 is authoritative — read it
 // when an animation visibly runs at the wrong pace. No shadow, no
 // transparent-layer draw effects yet (no TN layer sets `transparent`).
 // Each layer's frame of a composite at `elapsed_ms`, in the COF's
@@ -229,7 +229,7 @@ void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerA
 // ground through alpha table 0 as T[ground][0]: a quarter of the ground's
 // colour (Blended Shadows on; off it's black). `mask` / `id`: a pixel
 // darkens once however many layers cover it.
-// ponytail: Act 1: the darkening in RGB, not the table's palette colour.
+// ponytail: the darkening in RGB, not the table's palette colour.
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id);
 

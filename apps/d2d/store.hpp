@@ -19,7 +19,7 @@ namespace d2d::client {
 // in gold, one line per offer — its name, " - ", then "Lvl" (0xd28),
 // "Life" (0xd26), "Def" (0xd27), "Cost" (0xd29), each ": %u" — and
 // "cancel" (0xd48).
-// ponytail: Act 1: one centred text line per offer in the NPC-menu style; the
+// ponytail: one centred text line per offer in the NPC-menu style; the
 // game's scrolling list widget (FUN_004bf8f0, 490x280 at (W-490)/2,
 // H/2-160, rows 35 high) and the second line of hire description aren't
 // drawn.
@@ -50,7 +50,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
 // y 468 after the goldcoinbtn (frame 0, bottom-left 484,469); with a
 // store open, "Stash" (0xcf3) at x 101, y 434 and the stash gold (15)
 // right-aligned to x 278.
-// ponytail: Act 1: the coin button doesn't click (no gold drop/withdraw yet).
+// ponytail: the coin button doesn't click (no gold drop/withdraw yet).
 void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, bool store);
 
 }  // namespace d2d::client

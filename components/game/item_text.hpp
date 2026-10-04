@@ -68,7 +68,7 @@ inline std::string d2_format(std::string_view format, std::initializer_list<std:
 // attributes) collapse into one line when every member is present with
 // the same value; min/max damage pairs become "Adds X-Y ..." and 17/18
 // "+X% Enhanced Damage", as the game hard-codes them.
-// ponytail: later acts: no descfunc 17/18 (time-of-day), 22/23 (monster types);
+// ponytail: no descfunc 17/18 (time-of-day), 22/23 (monster types);
 // charges/skill lines use the skill's string key.
 inline std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl) {
     auto str = [&](std::string_view key) {
@@ -231,7 +231,7 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // at a quarter. Then npc.txt: * buy/sell mult / 1024 and each questflag's
 // mult when that quest is done; * quantity; selling caps at "max buy"
 // for the difficulty.
-// ponytail: Act 1: no charges/books/ammo branches, automagic affix, durability
+// ponytail: no charges/books/ammo branches, automagic affix, durability
 // or the reduced-prices stat.
 
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
@@ -247,7 +247,7 @@ inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 
 // unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
 // most 98), at least the base's and each socketed item's, plus
 // item_levelreq (stat 92); never below 0.
-// ponytail: Act 1: no classlevelreq, automagic affix or the charged / oskill
+// ponytail: no classlevelreq, automagic affix or the charged / oskill
 // skills' levels (stats 97, 107).
 inline int required_level(const GameData& game_data, const d2d::d2s::Item& item) {
     auto level_at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
@@ -284,7 +284,7 @@ inline int required_level(const GameData& game_data, const d2d::d2s::Item& item)
 // player (class, strength, dexterity, level); without one there are no
 // red requirements, class bonuses, speed or spelldesc lines, as game.exe
 // without a player unit. docs/research/re/item-names.md.
-// ponytail: Act 1: no set bonus lists, Holy Shield's block / smite, time-of-day
+// ponytail: no set bonus lists, Holy Shield's block / smite, time-of-day
 // damage (272/273), the gold quest-item line (FUN_00486670) or
 // throwing-potion damage.
 inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
