@@ -104,7 +104,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // their total is over the character's own, red when under (life, mana,
     // stamina themselves stay white); a resistance gold at its cap, red
     // below 0.
-    // ponytail: the states' part (Battle Orders' life, a curse's resistances
+    // ponytail: Act 1: the states' part (Battle Orders' life, a curse's resistances
     // blue / red, defense) isn't coloured: the panel sees items and passives.
     auto pick = [&](const d2d::font::Font& font) -> const d2d::font::Font& {
         return font.line_height() > 0 ? font : scene.font;
@@ -165,7 +165,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // (0xfdf; 0xfe1 "%s\nRating" for Attack) at y-4 / y+4 and the value in
     // font16, font8 from 1000 (FUN_004e9940). The numbers come from the
     // server (rules::attack_line).
-    // ponytail: dual wield's two-value line (FUN_004e9870), the hover
+    // ponytail: Act 1: dual wield's two-value line (FUN_004e9870), the hover
     // tooltips (FUN_004a7340..), the "K" formats past 9999 and other
     // languages' y-1 aren't drawn.
     for (std::size_t block = 0; block < 2; ++block) {
@@ -332,7 +332,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     }
     for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);
     // The globes' text (FUN_00498120): plain, centred, in the frame's font.
-    // ponytail: taken as font16, as for the level buttons.
+    // ponytail: Act 1: taken as font16, as for the level buttons.
     auto globe_text = [&](int centre, const std::string& text) {
         const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
@@ -355,7 +355,7 @@ bool over_run_button(int mouse_x, int mouse_y) {
 // when none are left; drawn only while not hidden (FUN_004a6a00 /
 // FUN_004a6d50), so on screen that's points and panel shut. The panel
 // state (FUN_0045ae90): 1 right open, 2 left, 3 both.
-// ponytail: UI 0x16's cases (with the inventory / tree) aren't kept.
+// ponytail: Act 1: UI 0x16's cases (with the inventory / tree) aren't kept.
 LevelButtons level_buttons(const d2d::d2s::Stats& stats, bool left_open, bool right_open, bool char_open, bool tree_open, bool store_open) {
     const int width = int(kScreenWidth);
     LevelButtons out;
@@ -384,7 +384,7 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
         blit_sprite(framebuffer, frame_ref, pal, x, bottom - int(frame_ref.height));
     };
     // The label in the font the frame left set.
-    // ponytail: taken as font16; FUN_004a6b30 sets none of its own.
+    // ponytail: Act 1: taken as font16; FUN_004a6b30 sets none of its own.
     auto button = [&](int x, int label_id, bool pressed) {
         if (x < 0 || scene.level_socket.frames_per_direction() == 0) return;
         if (const auto found = lookup_string(scene, std::uint16_t(label_id))) {
@@ -472,7 +472,7 @@ bool Automap::add(const Cell& cell) {
     int group = -1;
     for (const auto& pair : kCelGroups)
         if (pair[0] == cell.cel) group = pair[1];
-    // ponytail: matches against every cell at (x, y); the tree only meets those on its search path.
+    // ponytail: Act 1: matches against every cell at (x, y); the tree only meets those on its search path.
     const auto found = placed.lower_bound({ cell.list, cell.y, cell.x, -1 });
     const bool taken = group < 0 ? found != placed.end() && std::get<0>(*found) == cell.list && std::get<1>(*found) == cell.y && std::get<2>(*found) == cell.x
                                  : placed.count({ cell.list, cell.y, cell.x, group }) != 0;
@@ -822,7 +822,7 @@ void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& 
         const auto& frame_ref = sprite.frame(0, std::uint32_t(frame));
         blit_sprite(framebuffer, frame_ref, pal, x, bottom_y - int(frame_ref.height));
     };
-    // ponytail: the label in font16, as the level buttons' (the frame's font).
+    // ponytail: Act 1: the label in font16, as the level buttons' (the frame's font).
     const auto label = string_id(scene, 0xf58);
     const int socket_w = int(scene.level_socket.frame(0, 0).width);
     scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, button.x0 + 1 + socket_w / 2 - scene.font.measure(label) / 2,

@@ -193,7 +193,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // (orientations 1 4 5 7 8 10 12) or in y (2 3 6 7 9 11 12) fades to
     // alpha 0x80 over 500 ms, and back to 0xff once it isn't. Roofs (15)
     // and lower walls (16..19) never fade.
-    // ponytail: the blend is linear in RGB, not the driver's alpha table;
+    // ponytail: Act 1: the blend is linear in RGB, not the driver's alpha table;
     // game.exe's room-based mode (DAT_0072a968) isn't built.
     struct Fade { int from = 255, target = 255; std::uint32_t changed_at = 0; };
     static std::unordered_map<std::uint64_t, Fade> fades;
@@ -319,7 +319,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // covers them. Units on the same diagonal go in screen-y order.
     // game.exe buckets tiles by cell too (FUN_004dd7c0: FUN_00643340 gives
     // the tile's cell of the screen grid, each cell a slot of lists).
-    // ponytail: how it interleaves units with a cell's walls isn't traced.
+    // ponytail: Act 1: how it interleaves units with a cell's walls isn't traced.
     std::vector<const Unit*> order;
     for (const auto& unit : units) if (unit.anim || unit.sprite || unit.missile) order.push_back(&unit);
     auto diag_of = [&](const Unit* unit) {
@@ -336,7 +336,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             // (FUN_00467a10 -> FUN_00471ec0) and a Ghostly champion
             // (umod 36, FUN_005a1080). Its light doubles, clamped
             // 0x40..0xff.
-            // ponytail: objects also switch to mode 7 under the cursor,
+            // ponytail: Act 1: objects also switch to mode 7 under the cursor,
             // untraced.
             const bool bright = unit.highlight || unit.ghostly;
             const auto& lpal = !light ? upal0
@@ -391,7 +391,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             // Its overlay (npcalert: Xoffset -5, Yoffset -7, the NPCs'
             // OverlayHeight row 0; Trans 3, draw mode 3 additive), 16
             // frames at AnimRate 9.
-            // ponytail: AnimRate read as frames a second; LoopWaitTime
+            // ponytail: Act 1: AnimRate read as frames a second; LoopWaitTime
             // (7000) not applied.
             if (unit.overlay && unit.overlay->directions() && unit.overlay->frames_per_direction())
                 blit_dcc_frame(framebuffer, unit.overlay->frame(0, std::uint8_t(elapsed_ms / 111 % unit.overlay->frames_per_direction())), upal0, anchor_x - 5, anchor_y - 7, 1);

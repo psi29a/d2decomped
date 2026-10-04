@@ -252,7 +252,7 @@ void sort_near(std::vector<NearRoom>& list) {
 // then each close room of a level next to it (FUN_0066be80), and for a
 // warp to another level that level's room with the warp back
 // (FUN_0066be10), each appended and the list sorted again (FUN_0066bda0).
-// ponytail: game.exe links only rooms flagged (+0x28 bits 0x10..0x800) for
+// ponytail: Act 1: game.exe links only rooms flagged (+0x28 bits 0x10..0x800) for
 // the level next door; closeness stands in for the flag.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
@@ -294,7 +294,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // monsters, each the room's preset list, the DS1's order reversed)
     // each made (FUN_00555230 → FUN_00552df0) on a step of the game seed,
     // their unit seed. Proven: tools/emu diff_drlg.py game, $LEVELS from 1.
-    // ponytail: the camp's room1 seeds aren't kept; nothing in the camp rolls on them.
+    // ponytail: Act 1: the camp's room1 seeds aren't kept; nothing in the camp rolls on them.
     if (level.rooms.empty()) {
         if (state.up.empty()) state.up.assign(room_count(level), false);
         if (made_index >= state.up.size() || state.up[made_index]) return;
@@ -305,7 +305,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
                     it->seed = d2d::rules::Rng{ spawning.game.next() };
                     // Its init's two draws: the look (FUN_005739d0) and the life
                     // (FUN_00573cb0); what the Npc AI thinks on (town_npcs.hpp).
-                    // ponytail: the rogues' init draws (up to 11) aren't stepped; nothing rolls on them.
+                    // ponytail: Act 1: the rogues' init draws (up to 11) aren't stepped; nothing rolls on them.
                     if (it->npc_ai) { it->seed.next(); it->seed.next(); }
                 }
         return;
@@ -404,7 +404,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // code by the switch (Fallen and shamans, champion packs, unique packs,
     // Blood Raven, Flavie, the tight spot boss, the dead ones; the rest,
     // group25..100 among them, spawn nothing).
-    // ponytail: the level-list walk up a family's chain (FUN_0063ec70's
+    // ponytail: Act 1: the level-list walk up a family's chain (FUN_0063ec70's
     // second half) and the champion / unique pick from Levels.txt umon1..
     // in normal aren't there (the region's list stands in); a boss's company
     // rolls the room seed, not the monster's own.
@@ -463,7 +463,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
             else if (code == 0x08) at_spot(bin(0x11c), unit.x, unit.y, 0);      // place_tightspotboss (flag 8)
             else if (code == 0x04) npc_at(unit.x, unit.y, 0);                  // place_rogue_warner: Flavie
             else if (code >= 0x1d && code <= 0x20) {                         // deadminion / deadimp / deadbarb / reanimateddead: mode 12, unit +0xc4 |= 0x2000000
-                // ponytail: reanimateddead's (0x1b6) rand(50) on its own seed and its FUN_005417d0 event aren't there.
+                // ponytail: later acts: reanimateddead's (0x1b6) rand(50) on its own seed and its FUN_005417d0 event aren't there.
                 static constexpr int kDeadBase[4] = { 0x1c5, 0x1ec, 0x20a, 0x1b6 };   // 0x54e9a0..0x54e9c2
                 at_spot(own(code == 0x1e && level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : kDeadBase[code - 0x1d]), unit.x, unit.y, 4, true);
             }
@@ -489,7 +489,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
         // MinGrp..MaxGrp (each + difficulty when both are set) of minion1
         // (else its own type) at radius 3 (FUN_005a0c00 / FUN_005b23c0).
         // Its specials (the Countess's stat 0x76, AI 0xd) in make_boss.
-        // ponytail: its unique stat bonuses and TC come in the fight / loot;
+        // ponytail: Act 1: its unique stat bonuses and TC come in the fight / loot;
         // quest binding (FUN_005436b0: the Countess's 5, the Cow King's 4)
         // as the kill's superunique row (world.cpp); its mods roll the room
         // seed, not the monster's own.
@@ -568,7 +568,7 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     // play gets its room1 (FUN_0061b2d0), made at the head of the act's
     // room list; the next tick populates the list's new rooms from the
     // head (FUN_0052d160), newest first.
-    // ponytail: a room stays up for good. game.exe frees one ~5 s after no
+    // ponytail: Act 1: a room stays up for good. game.exe frees one ~5 s after no
     // player holds it within depth 1 (FUN_0052d240) and remakes it on return:
     // new room1 seed, edge tiles re-laid, units from storage (drlg.md "A
     // room's life on the server").
@@ -612,9 +612,7 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
 // object's when it collides in its start mode (HasCollision0..7), noting
 // the subtiles a tile blocks as well (Npc::walls) for set_footprint.
 // (Quest-gated units like Cain stay out of it: they're not always there.)
-// ponytail: static — fine while NPCs only idle; moving units need a
-// separate occupancy layer.
-// ponytail: one walk bit (0x01) for every footprint; game.exe's object
+// ponytail: Act 1: one walk bit (0x01) for every footprint; game.exe's object
 // flags (FUN_006209d0: 0x400, a door 0x800 | 0x06) aren't split out.
 void stamp_footprints(Level& level) {
     for (auto& npc : level.npcs) stamp_footprint(level, npc);
@@ -657,7 +655,7 @@ int mode_index(std::string_view mode) {
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock, then (FUN_0054f5d0) a PreOperate object starts
 // opened (ON) one time in 14. `rgn`: the game's object seed (FUN_00546fa0).
-// ponytail: the unit flag 0x80 FUN_0054f5d0 checks before the PreOperate
+// ponytail: Act 1: the unit flag 0x80 FUN_0054f5d0 checks before the PreOperate
 // roll is taken as clear; what sets it isn't traced.
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn) {
@@ -686,7 +684,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     }
     // The gold placeholder (InitFn 28, FUN_0054f8c0): ON, then 1..9 piles
     // at rand(4), rand(4) subtiles off it, where free in its room.
-    // ponytail: only its seed steps; the piles (FUN_00559300) aren't dropped and it stays NU (a dummy: nothing draws it).
+    // ponytail: Act 1: only its seed steps; the piles (FUN_00559300) aren't dropped and it stays NU (a dummy: nothing draws it).
     if (objects.get(row, "InitFn") == "28")
         for (int piles = rgn(9) + 1; piles > 0; --piles) { rgn.next(); rgn.next(); }
     npc.preoperated = objects.get(row, "PreOperate") == "1" && rgn(14) == 0;
@@ -727,7 +725,7 @@ void finish_level(Level& level) {
     // to define a tuple wins — matches how D2's renderer resolves tile
     // priority against its Stack-ordered tileset list. Covers floors,
     // walls, trees, roofs, shadows in one map.
-    // ponytail: first match, not game.exe's rarity pick — generated levels
+    // ponytail: Act 1: first match, not game.exe's rarity pick — generated levels
     // carry the real picks (Level::picks) and use those instead.
     for (const auto& dt1 : level.dt1s)
         for (const auto& tile : dt1.tiles()) level.tile_lookup.try_emplace(tile_key(tile.style, tile.sequence, tile.type), &tile);
@@ -809,7 +807,7 @@ namespace {
 // shares the camp's edge tiles (FUN_0066e940) and rolls fewer picks on its
 // seed. Laid on the camp's preset (LvlPrest def 1, its file by the Blood
 // Moor's side) in the order they came up, in `level`'s tiles, list order.
-// ponytail: no DT1s or tile seeds, so no picks: which tiles the level
+// ponytail: Act 1: no DT1s or tile seeds, so no picks: which tiles the level
 // finds is all its seeds and picks take; a cell it finds draws a stand-in
 // (lay_tiles). The camp's tiles don't take the level's shares back.
 std::vector<d2d::drlg::BuiltRoom> camp_rooms(const GameData& game_data, const Spawning& spawning, const Level& level) {
@@ -917,7 +915,7 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
 // (tools/emu diff_drlg.py <level> units, rooms in $ORDER), its spawn areas
 // too (diff_drlg.py game: the game seed through the monsters); the object
 // groups follow as the rooms populate (room_objects, on these seeds).
-// ponytail: the whole level is laid again (Debug ~15 ms for the Stony
+// ponytail: Act 1: the whole level is laid again (Debug ~15 ms for the Stony
 // Field) each time rooms come up, where game.exe lays only the new ones;
 // the result is the same (rooms laid later never change earlier ones),
 // only slower. Lay one at a time (level_room_tiles' state kept) if that hitches.
@@ -1054,7 +1052,7 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
     d2d::drlg::MazeDef maze;
     for (std::size_t maze_row = 0; maze_row < assets.lvl_maze.size(); ++maze_row)
         if (d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Level"), -1) == level.id) {
-            maze.rooms.fill(d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Rooms")));   // ponytail: the .txt's one column for every difficulty
+            maze.rooms.fill(d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Rooms")));   // ponytail: nightmare / hell: the .txt's one column for every difficulty
             maze.width = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "SizeX"));
             maze.height = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "SizeY"));
             maze.merge = d2d::drlg::to_int(assets.lvl_maze.get(maze_row, "Merge"));

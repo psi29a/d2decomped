@@ -59,7 +59,7 @@ struct ToBelt { int box = 0; };
 // 0x33 sell an item (by unit id; the one in hand too); 0x35 repair one
 // (-1: everything); 0x34 Cain identifies everything; 0x36 hire offer
 // `offer`; closing the window.
-// ponytail: stock and offers by index, not unit id.
+// ponytail: networking: stock and offers by index, not unit id.
 struct OpenTrade { int npc = -1; bool gamble = false; };
 struct OpenHire { int npc = -1; };
 struct Buy { int stock = -1; };
@@ -96,7 +96,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
 // little-endian. Positions go as float32 cells.
-// ponytail: little-endian hosts; the byte-exact D2GS layouts are a later
+// ponytail: networking: little-endian hosts; the byte-exact D2GS layouts are a later
 // codec's (docs/research/re/network.md).
 namespace wire {
 struct Out {

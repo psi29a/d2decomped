@@ -6,7 +6,7 @@
 // The file streams from the MPQ through a custom AVIOContext; frames come
 // out as RGBA scaled to the requested size, audio as interleaved S16
 // stereo at the source rate for the caller to queue (OpenAL in d2d).
-// ponytail: wall-clock pacing, no A/V drift correction; fine for Bink's
+// ponytail: Act 1: wall-clock pacing, no A/V drift correction; fine for Bink's
 // fixed 24 fps and in-file interleaving.
 #pragma once
 

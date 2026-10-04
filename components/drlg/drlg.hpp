@@ -71,7 +71,7 @@ inline bool apart(const Placed& first, const Placed& second, int gap = 0) {
 // link, starting at a rolled one; a record that has tried them all hands
 // back to the one before, which moves on. `seed` is a copy of the act's:
 // the chains don't advance it.
-// ponytail: chain 2's Fixed record (Tamoe Highland, FUN_006768c0) always
+// ponytail: Act 1: chain 2's Fixed record (Tamoe Highland, FUN_006768c0) always
 // goes below its link and nothing checks chain 2's overlaps with chain
 // 1 — game.exe's check for that chain (FUN_00676eb0) shifts by 200 tiles
 // first, not ported.
