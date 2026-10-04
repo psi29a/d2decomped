@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Logging, after ../opendf's DF::Log: each line goes to stdout (warnings
-// and errors to stderr) and, stamped with the time since launch, to
+// Logging, after ../opendf's DF::Log: each line, stamped with the UTC time
+// (ISO 8601, ms), goes to stdout (warnings and errors to stderr) and to
 // <user dir>/d2d.log. Init sections read like ../thirdeye's
 // ("Initializing X...", details indented under it).
 #pragma once
@@ -35,10 +35,10 @@ inline void open(const std::filesystem::path& path) {
 
 inline void write(std::FILE* out, const char* level, const std::string& msg) {
     std::lock_guard lock(g_mutex);
-    std::fprintf(out, "%s%s\n", level, msg.c_str());
+    const auto line = std::format("{:%FT%TZ} {}{}\n", std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()), level, msg);
+    std::fputs(line.c_str(), out);
     std::fflush(out);
-    const auto now_ms = ms();
-    if (g_file) g_file << std::format("{:>4}.{:03} {}{}\n", now_ms / 1000, now_ms % 1000, level, msg) << std::flush;
+    if (g_file) g_file << line << std::flush;
 }
 
 template <class... A> void info(std::format_string<A...> format, A&&... args) {
