@@ -650,9 +650,8 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
   its own (an object mode or animation looping that should stop).
 - A cow wanders round the house, then vanishes (despawned, or drawn out
   of sight?).
-- The Esc menu's pentagrams spin too fast. They step a frame every 40 ms
-  wall-clock (gamemenu.cpp:297), so running (R) can't be the cause;
-  check FUN_00454850's tick and pentspin's frame count.
+- Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
+  FUN_00454850 steps once a draw past 50 ms (menu.md).
 
 **In flight (2026-10-04), stopped by usage limits:** pushed, worktree under
 `.claude/worktrees/`, cut from 1b1c992. To pick it up: rebase on main, then
