@@ -653,30 +653,34 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
   last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
 - Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
   item identifies it (cmd::IdentifyWith, FUN_00561ed0); the identify
-  cursor isn't drawn yet.
+  cursor isn't drawn yet (traced so far: "Identify cursor" below).
 - A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
   "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
   roll for quivers, or how game.exe handles no eligible affix.
 - Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
   FUN_00454850 steps once a draw past 50 ms (menu.md).
 
-**In flight (2026-10-04), stopped by usage limits:** pushed, worktree under
-`.claude/worktrees/`, cut from 1b1c992. To pick it up: rebase on main, then
-build, ctest (31/31), clang-tidy on the changed files (0), and
-`tools/emu/sweep.sh 1-10 monsters objgroups drops collision tiles units`
-(228/228 at 10/10).
-- `wip-bosses-npcs-sort` (worktree agent-a549b3cc6731cf374):
-  3d1cfd4 act bosses spawn as FUN_005b1cf0 (Andariel mod 22, Blood Raven
-  12 + 22 and half freeze, flag 8: gold bar name, Demon label,
-  TreasureClass3; levels 17 and 37 match on monsters); 89d3170 town NPCs
-  walk up to a player with a "!" within 16, greet 2 off, home past 16, and
-  stand while talked to (FUN_005e68f0, bugs.md 16). 3482e02 is a WIP
-  commit: part 3, sorting the `ponytail:` comments of gamedata*,
-  objgroups, character*, inventory, item_text, replication, protocol,
-  components/drlg and apps/d2d into Act 1 / networking / later acts /
-  missiles, with comment edits only (33 files); never built or tested.
-  Left: finish the sort (report the counts and the Act 1 list ranked by
-  what a player notices), build, ctest, the sweep, clang-tidy.
+**Bosses and NPCs (2026-10-04), branch act1-bosses-npcs:** act bosses
+spawn as FUN_005b1cf0 (Andariel mod 22; Blood Raven 12 + 22 and half
+freeze; the Smith 22, which the sweep caught; flag 8: gold bar name, Demon
+label, TreasureClass3). Town NPCs walk up to a player they have a "!" for
+within 16, greet 2 off, go home past 16, and stand while talked to
+(FUN_005e68f0, bugs.md 16). Ponytail scopes sorted in gamedata, objgroups,
+drlg and apps. The smoke test's monster wait is longer (rooms by the camp
+come up empty since the traced room life). ctest 31/31, clang-tidy 0,
+-Wshadow 0, sweep 228/228 at 10/10.
+
+**Identify cursor: traced, not built.** game.exe's cursors are
+`Gaunt, grasp, ohand, orotate, ppress, protate, buysell` (0x712028, 28-byte
+rows; state DAT_007a6adc). `buysell.dc6` has 10 frames, and frame 8 is a
+magnifier. Store buttons pick its frame (FUN_00468040). S→C 0x3f
+(FUN_004c4620) calls FUN_00468010(item, code), which draws buysell frame =
+code (FUN_00468460). But identify (Misc pSpell 1, item-skill table
+0x741790: pre-use FUN_005be130) sends code = ItemsTxt +0x134 spellicon,
+which is 0xff for isc / ibk, with word 0xffff. The client takes that as
+"clear" and goes back to the hand. Still to find: whether the client sets
+the identify cursor itself on the right-click (the C→S 0x20 path), and
+from which frame.
 
 **Step 3 — networking** (the deferred item 7 above).
 
