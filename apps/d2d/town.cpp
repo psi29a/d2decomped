@@ -119,6 +119,14 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ view.merc->unit.x, view.merc->unit.y, &scene.npc_anim(*view.merc->npc, view.merc->mode), view.merc->unit.dir,
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
     for (const auto& pet : view.pets) out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
+    // A joined game's other players, in their class's bare look (the items
+    // they wear, 0x9d, aren't read yet). ponytail: their look and modes past walk.
+    const bool in_town = view.level && view.level->id == 1;
+    for (const auto& other : view.others) {
+        if (!in_view(other.unit.x, other.unit.y)) continue;
+        const int mode = other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
+        out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, GameData::Appearance{}), other.unit.dir, &other.name, other.unit.mode_ms, -4 });
+    }
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
         unit.missile = shot_state.info;
@@ -273,6 +281,7 @@ auto Town::publish() -> void {
             return;
         }
         level = view.level;
+        if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
         if (!view.has_character) return;
         character.header = view.header; character.stats = view.stats; character.items = view.items;
@@ -325,6 +334,44 @@ auto Town::save() -> std::string {
     }
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
+
+// A joined game: the host's monsters stand in for the World's (it makes
+// none: Fight::remote_monsters) and its other players are drawn; act
+// subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
+// walk the camp (ponytail: matched by class and position later, M6).
+auto Town::net_overlay() -> void {
+        if (!level || !scene) return;
+        auto cell_x = [&](float subtile_x) { return (subtile_x + 0.5f) / 5.f - float(level->world_x); };
+        auto cell_y = [&](float subtile_y) { return (subtile_y + 0.5f) / 5.f - float(level->world_y); };
+        view.monsters.clear();
+        view.others.clear();
+        for (const auto& [unit_key, unit] : net_game->units) {
+            if (unit.type == 0) {
+                if (unit.id == net_game->self_id) continue;
+                View::OtherPlayer other{ .cls = unit.cls, .name = unit.name };
+                other.unit.x = cell_x(unit.x);
+                other.unit.y = cell_y(unit.y);
+                other.unit.walking = unit.moving;
+                if (unit.moving) other.unit.dir = direction16(unit.goal_x - unit.x, unit.goal_y - unit.y);
+                view.others.push_back(std::move(other));
+                continue;
+            }
+            if (unit.cls < 0 || std::size_t(unit.cls) >= scene->monsters.types.size()) continue;
+            if (std::size_t(unit.cls) < scene->mon_is_npc.size() && scene->mon_is_npc[std::size_t(unit.cls)]) continue;
+            auto found = net_monsters.find(unit.id);
+            if (found == net_monsters.end())
+                found = net_monsters.emplace(unit.id, make_monster(*scene, unit.cls, cell_x(unit.x), cell_y(unit.y), rng, net_game->difficulty)).first;
+            auto& monster = found->second;
+            monster.id = int(unit.id);
+            if (unit.moving) monster.unit.dir = direction16(unit.goal_x - unit.x, unit.goal_y - unit.y);
+            monster.unit.x = cell_x(unit.x);
+            monster.unit.y = cell_y(unit.y);
+            monster.unit.walking = unit.moving;
+            monster.mode = unit.life == 0 ? "DD" : unit.moving ? "WL" : "NU";
+            monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
+            view.monsters.push_back(monster);
+        }
+    }
 
 auto Town::new_game() -> void {
         world.new_game();
@@ -859,6 +906,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
+        if (net_game) net_game->pump(frame_ms, frame_ms - last_ms);
         // The skill buttons: a change goes to the World (0x3c), which runs a
         // right-button aura (a Paladin's).
         if (std::uint32_t(skillbar.left) != character.header.left_skill) net.send(cmd::SelectSkill{ skillbar.left, true });

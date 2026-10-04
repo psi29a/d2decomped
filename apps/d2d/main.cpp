@@ -51,6 +51,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <ios>
@@ -85,6 +86,8 @@ static int         g_start_cam_y = -1;
 // FUN_0056a090), else a new one — the random one this run started with.
 // ponytail: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
 // means none here.
+static std::string   g_join_host;           // --join: a game.exe TCP/IP host to join
+static fs::path      g_game_exe;            // --game-exe: its tables (the codec's, read at runtime)
 static bool          g_seed_fixed = false;  // --seed
 static std::uint32_t g_map_seed = 0;
 static std::uint32_t game_seed(const d2d::d2s::Header& header) {
@@ -520,14 +523,49 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     character.panel = panel_stats(*scene, header, character.items, character.stats);
                     character.expansion = header.expansion();
                     character.header = header;
-                    set_map_seed(*scene, game_seed(character.header));
-                    town.enter();                                // the World takes the character
+                    if (g_join_host.empty()) {
+                        set_map_seed(*scene, game_seed(character.header));
+                        town.enter();                            // the World takes the character
+                    } else {
+                        // --join: the host's game, at its map seed. Nothing is saved
+                        // from it (the host keeps the character; ponytail: its B3
+                        // save-back isn't written either). A failed join stays here.
+                        std::ifstream save_file(save_dir / (header.name + ".d2s"), std::ios::binary);
+                        std::vector<std::uint8_t> save{ std::istreambuf_iterator<char>(save_file), {} };
+                        const auto log_path = g_user_dir / std::format("net-{:%Y%m%dT%H%M%SZ}.log", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
+                        d2d::log::info("Joining {} as {} (net log {})", g_join_host, header.name, log_path.string());
+                        auto joined = NetGame::join(g_join_host, g_game_exe, std::move(save), log_path, 10000);
+                        if (!joined) {
+                            d2d::log::error("join failed: {}", joined.error());
+                            screen = Screen::CharSelect;
+                        } else {
+                            auto& net = **joined;
+                            d2d::log::info("  in {}'s game: act {}, map seed {:#x}, difficulty {}", g_join_host, net.act + 1, net.map_seed, net.difficulty);
+                            set_map_seed(*scene, net.map_seed);
+                            town.world.characters = nullptr;
+                            town.world.fight.remote_monsters = true;
+                            town.net_game = std::move(*joined);
+                            town.enter();
+                            if (const auto* here = town.world.level; here && net.self_x > 0) {
+                                town.world.player.x = (net.self_x + 0.5f) / 5.f - float(here->world_x);
+                                town.world.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
+                                town.publish();
+                            }
+                        }
+                    }
                 }
                 render_charselect(framebuffer, *scene, csu, now_ms);
                 break;
             }
             case Screen::InGame: {
                 town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
+                if (screen == Screen::CharSelect && town.net_game) {   // a joined game: leave the host, saving on again
+                    town.net_game->leave();
+                    town.net_game.reset();
+                    town.net_monsters.clear();
+                    town.world.fight.remote_monsters = false;
+                    town.world.characters = g_no_save ? nullptr : &characters;
+                }
                 if (screen == Screen::CharSelect && scene) {         // left the game (saved): the roster again,
                     load_saves(*scene, save_dir);                      // the character just played first
                     csu.selected = scene->saves.empty() ? -1 : 0;
@@ -774,6 +812,9 @@ int main(int argc, char** argv) {
     std::string toggles;
     app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
+    std::string join_host, game_exe;
+    app.add_option("--join", join_host, "Join a game.exe TCP/IP game at this address (your own network only)");
+    app.add_option("--game-exe", game_exe, "Your 1.14d game.exe, for --join (else $D2_GAME_EXE, game.exe or bin/game.exe beside the MPQs)");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
                    "InGame camera x (grid cell)");
@@ -858,6 +899,10 @@ int main(int argc, char** argv) {
         }
     }
     g_user_dir       = user_dir;
+    g_join_host      = join_host;
+    if (!game_exe.empty()) g_game_exe = game_exe;
+    else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;
+    else g_game_exe = fs::exists(data_dir / "game.exe") ? data_dir / "game.exe" : data_dir / "bin" / "game.exe";
     g_start_class    = start_class;
     g_start_name     = start_name;
     g_start_hardcore = start_hardcore;

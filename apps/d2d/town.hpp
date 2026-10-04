@@ -7,6 +7,7 @@
 #include "audio.hpp"
 #include "common.hpp"
 #include "gamemenu.hpp"
+#include "netgame.hpp"
 #include "panels.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -144,6 +146,8 @@ struct Town {
     LocalTransport net;                    // the commands to the World, as their wire form (single player)
     View view;                             // what the World told the client after its last tick
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
+    std::unique_ptr<NetGame> net_game;     // --join: a game on a game.exe host (its other players and monsters)
+    std::unordered_map<std::uint32_t, Monster> net_monsters;   // the host's monsters as d2d draws them, by unit id
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
@@ -218,6 +222,7 @@ struct Town {
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
+    void net_overlay();                   // the joined host's units into `view`
     void new_game();
 
     // The game menu (FUN_0047e090 / FUN_0047e200): opening closes the
