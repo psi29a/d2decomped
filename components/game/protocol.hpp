@@ -66,6 +66,7 @@ struct Buy { int stock = -1; };
 struct Sell { int item = -1; };
 struct Repair { int item = -1; };
 struct Identify {};
+struct IdentifyWith { int scroll = -1; int item = -1; };   // a Scroll / Tome of Identify on an item (C→S 0x27, FUN_0054b280)
 struct Hire { int offer = -1; };
 struct CloseTrade {};
 // Akara's Reset Stat/Skill Points, confirmed ("ok" sends game.exe's 0x38
@@ -90,7 +91,7 @@ struct Waypoint { int npc = -1, level = 0; };
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
-                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::Hire, cmd::CloseTrade, cmd::Respec,
+                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::CloseTrade, cmd::Respec,
                              cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::GoEast, cmd::Imbue>;
 
 // The wire form of a command (what a transport carries): its id byte —
@@ -161,6 +162,7 @@ inline constexpr std::uint8_t kQuestMessage = 0x31;
 inline constexpr std::uint8_t kBuy = 0x32;
 inline constexpr std::uint8_t kSell = 0x33;
 inline constexpr std::uint8_t kIdentify = 0x34;
+inline constexpr std::uint8_t kIdentifyWith = 0x27;
 inline constexpr std::uint8_t kRepair = 0x35;
 inline constexpr std::uint8_t kHire = 0x36;
 inline constexpr std::uint8_t kNpcDeal = 0x38;
@@ -205,6 +207,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(opcode::kSell).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(opcode::kRepair).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(opcode::kIdentify);
+        else if constexpr (std::is_same_v<T, cmd::IdentifyWith>) out.u8(opcode::kIdentifyWith).i32(message.scroll).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(opcode::kHire).i32(message.offer);
         else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(opcode::kCloseTrade);
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? opcode::kRunOn : opcode::kRunOff);
@@ -253,6 +256,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kSell: command = cmd::Sell{ i32() }; break;
         case opcode::kRepair: command = cmd::Repair{ i32() }; break;
         case opcode::kIdentify: command = cmd::Identify{}; break;
+        case opcode::kIdentifyWith: { const int scroll = i32(); command = cmd::IdentifyWith{ scroll, i32() }; break; }
         case opcode::kHire: command = cmd::Hire{ i32() }; break;
         case opcode::kCloseTrade: command = cmd::CloseTrade{}; break;
         case opcode::kRunOn: case opcode::kRunOff: command = cmd::Run{ bytes[0] == 0x53 }; break;

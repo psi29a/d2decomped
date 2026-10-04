@@ -651,9 +651,9 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
   graphics for; Idle now stands (unverified, unverified.md).
 - Fixed: an opened chest replayed its lid forever; objects now hold the
   last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
-- Missing: right-clicking a Scroll / Tome of Identify does nothing. Only
-  Cain identifies (town.cpp kIdentify). Needs the scroll's use (misc.txt
-  useable, its Identify skill), the cursor mode, then a click on an item.
+- Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
+  item identifies it (cmd::IdentifyWith, FUN_00561ed0); the identify
+  cursor isn't drawn yet.
 - A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
   "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
   roll for quivers, or how game.exe handles no eligible affix.

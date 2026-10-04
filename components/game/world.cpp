@@ -1243,6 +1243,20 @@ auto World::deal(const Command& command) -> bool {
             d2d::rules::identify_all(character.items);
             return true;
         }
+        // A Scroll of Identify (isc, used up) or a Tome (ibk, a charge, stat
+        // 0x46) on an unidentified item (FUN_00561ed0).
+        // ponytail: no sound or message for an empty tome.
+        if (const auto* with = std::get_if<cmd::IdentifyWith>(&command)) {
+            auto& items = character.items;
+            const auto scroll = std::ranges::find(items, with->scroll, &d2d::d2s::Item::id);
+            const auto item = std::ranges::find(items, with->item, &d2d::d2s::Item::id);
+            if (scroll == items.end() || item == items.end() || scroll == item || item->identified) return true;
+            if (scroll->code == "ibk" && scroll->quantity > 0) --scroll->quantity;
+            else if (scroll->code != "isc") return true;
+            item->identified = true;
+            if (scroll->code == "isc") items.erase(scroll);
+            return true;
+        }
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
             if (hire->offer >= 0 && std::size_t(hire->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(hire->offer)], character.header, character.stats))
                 spawn_merc();

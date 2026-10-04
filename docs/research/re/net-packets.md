@@ -611,7 +611,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 | 23 cursor → belt | 9 | u32 id, u32 belt slot | `54b3e0` | `cmd::ToBelt` |
 | 24 belt → cursor | 5 | u32 id | `54b450` | `cmd::ToCursor` |
 | 26 use belt | 13 | u32 item id, u32 flag, u32 (unused) | `54b560` → `FUN_00562390` | `cmd::UseBelt{slot}`: **column, not id** |
-| 27 identify with a scroll | 9 | u32 scroll id, u32 item id | `54b280` | none |
+| 27 identify with a scroll | 9 | u32 scroll id, u32 item id | `54b280` | `cmd::IdentifyWith` |
 | 21 / 25 / 28 / 29 / 2a / 4c / 63 | | stack, belt swap, socket, scroll to book, to cube, transmute, auto-belt | | none |
 | 50 drop gold | 9 | u32 player id, u32 amount | `54c800` | none |
 
