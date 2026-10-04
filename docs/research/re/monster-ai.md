@@ -104,7 +104,7 @@ FUN_00553540 gives the trap's target. On the axis the trap is nearer the target,
 
 ## Missile velocity — FUN_0059fa30
 
-Every missile made here (Andariel's, the Shaman's, a MissA shot, the player's skills through FUN_0056ecb0 / FUN_0056ee90, flags 0x21 / 0x420, no flag 4) gets path velocity ((Vel + VelLev × lvl / 8) << 8) × 75 / 100 (FUN_00648690: path +0x7c, the walk's field). d2d moves every missile at `cells_per_sec(Vel)`, 4/3 too fast. That's left as one change for all missiles (ai.cpp, fight.cpp, world.cpp), after the missile stepper is traced.
+Every missile made here (Andariel's, the Shaman's, a MissA shot, the player's skills through FUN_0056ecb0 / FUN_0056ee90, flags 0x21 / 0x420, no flag 4) gets path velocity ((Vel + VelLev × lvl / 8) << 8) × 75 / 100 (FUN_00648690: path +0x7c, the walk's field). The flight is traced in missiles.md and built as `rules::MissileFlight` / `game::missile_fly` for every missile.
 
 ## Boss mods in the hit
 

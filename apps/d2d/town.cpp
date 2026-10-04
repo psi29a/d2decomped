@@ -433,7 +433,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // menu or speech up). Held over the store's stock, a click
         // sells the item.
         bool item_click = false;
-        if (mouse.press_this_frame && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
+        // With an identify scroll picked, a click names the item for it and ends the pick.
+        // ponytail: the cursor stays the hand (game.exe shows the identify cursor).
+        if (identify_with >= 0 && mouse.press_this_frame) {
+            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+            if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) net.send(cmd::IdentifyWith{ identify_with, to_cursor->item });
+            identify_with = -1;
+            item_click = true;
+        }
+        if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
                 net.send(cmd::Sell{ held->id });
@@ -451,7 +460,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.rpress_this_frame && !held && store.npc < 0 && npc_menu.npc < 0 && speech.npc < 0) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
-            if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) net.send(cmd::UseItem{ to_cursor->item });
+            const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
+            const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
+            if (identify_with >= 0) identify_with = -1;                       // a right-click drops the pick
+            else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) identify_with = used->id;
+            else if (to_cursor) net.send(cmd::UseItem{ to_cursor->item });
         }
         // Quest log (FUN_004a3e40 press, FUN_004a42a0 release): a tab switches
         // on the press; an icon with something to say, close and questlast

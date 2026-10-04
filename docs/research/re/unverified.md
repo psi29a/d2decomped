@@ -17,6 +17,8 @@ trust. `git grep -n "unverified (source"` lists them.
 | COF transparent layers: which alpha draw effects 0..2 are | apps/d2d/world_view.hpp `draw_mode` | OpenDiablo2's naming | none | the composite draw's blend switch (after `FUN_00470ec0`) |
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
+| Objects.txt CycleAnim0..7: 0 = play once, hold the last frame | apps/d2d/ingame.cpp `holds` | objects.txt's column names | an opened chest stops open | the object animation update |
+| MonStats AI Idle (the cow): stands, never chases | components/game/ai.cpp after `think` | the AI's name | the cow no longer follows the player and vanishes | the AI table's Idle entry |
 | DT1 block y-shift, `max(0, -min(block.y))` | components/dt1/dt1.hpp | OpenDiablo2's renderer | tiles draw seamlessly | the DT1 loader / tile blitter |
 | Iso projection: a cell is 160x80, x → (+80, +40), y → (-80, +40) | components/game/game.hpp `kIsoW`/`kIsoH` | OpenDiablo2's mapengine | floor tiles are 160x80 diamonds and meet | the world→screen transform |
 | pal.dat is BGR triples | components/palette/palette.hpp | OpenDiablo2's d2dat.Load | colours match the game's screens | the palette loader |

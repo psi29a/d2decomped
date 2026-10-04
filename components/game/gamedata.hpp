@@ -72,6 +72,7 @@ struct Npc {
     bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)
     std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
+    std::uint8_t cycle = 0xff;           // its CycleAnim0..7: loops in that mode, else holds the last frame
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
@@ -513,6 +514,7 @@ struct GameData {
     // its first hit; else flies through), Pierce (may fly on, stat 328 %),
     // pSrvHitFunc (+0x0e, table 0x73c840) and its sHitPar1 (+0x4c).
     struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
+                         int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          bool to_hit = false, collide_kill = true, pierce = false;
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
@@ -723,6 +725,11 @@ Spawning start_spawning(const GameData& game_data, int difficulty);
 // level whose spawns grew, with its first new spawn's index.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
+// Where a missile in the room holding (x, y) cells can be: that room's rect,
+// then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
+// +0 / +0x24). Empty when no room holds it.
+// ponytail: every near room counts as up (game.exe skips one that isn't).
+std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y);
 // Every room of the level populated at once, newest first: tools/emu
 // monsters.py's order, for diffing against game.exe (drlg-dump monsters).
 // The rooms come up `came_up` (Level::rooms indices) first, the rest in list

@@ -530,6 +530,19 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
 
 }  // namespace
 
+std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y) {
+    const int room = room_holding(room_rects(level), level, x, y);
+    if (room < 0) return {};
+    const auto list = near_list(game_data, level, room);
+    std::vector<std::array<int, 4>> rects{ { 0, 0, 0, 0 } };
+    for (const auto& near_room : list) {
+        const std::array<int, 4> rect{ near_room.rect.x * 5, near_room.rect.y * 5, near_room.rect.width * 5, near_room.rect.height * 5 };
+        if (near_room.level == &level && near_room.room == room) rects[0] = rect;
+        rects.push_back(rect);
+    }
+    return rects;
+}
+
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived) {
     std::vector<std::pair<const Level*, std::size_t>> grown;
@@ -710,6 +723,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     for (std::size_t mode = 0; mode < 8; ++mode) {
         if (objects.get(row, "HasCollision" + std::to_string(mode)) == "1") npc.collision |= std::uint8_t(1u << mode);
         if (objects.get(row, "Selectable" + std::to_string(mode)) == "1") npc.selectable |= std::uint8_t(1u << mode);
+        if (objects.get(row, "CycleAnim" + std::to_string(mode)) != "1") npc.cycle &= std::uint8_t(~(1u << mode));
     }
     npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());

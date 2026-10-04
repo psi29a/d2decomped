@@ -637,22 +637,34 @@ velocity x 75/100, FUN_0059fa30; the stepper isn't traced). The sweep
 per level, with live progress. Full sweep after the merges (1-20, six kinds,
 levels 2–39): 228/228; ctest 31/31.
 
-**In flight (2026-10-04): two branches, stopped by usage limits.** Both
-are local branches (not pushed) with worktrees under `.claude/worktrees/`,
-cut from act1-levelup at 1b1c992. Neither has passed its full checks, so
-neither is on act1-levelup. To pick one up: check out the branch (or work
-in its worktree), rebase on act1-levelup, then build, ctest (31/31),
-clang-tidy on the changed files (0), and `tools/emu/sweep.sh 1-10 monsters
-objgroups drops collision tiles units` (228/228 at 10/10).
-- `wip-missiles` (worktree agent-a4f0d3d9ee490ebbe; 17 files, +948):
-  missiles fly as game.exe. aff8f6f `rules/missiles.hpp` (FUN_0059fa30's
-  x75/100 velocity, the 16.16 step, halved walk, rooms, Charged Bolt's
-  wiggle FUN_005c9290), `tools/emu/missiles.py` runs game.exe's own
-  missiles (1500/1500 match), test_monsters replays 18 flights; b3c8232
-  every missile (player, merc, pets, monsters, traps) flies on
-  `rules::MissileFlight`, hits by footprint on entered subtiles. Write-up
-  in docs/research/re/missiles.md. Left: the sweep, a live headless fight
-  (missiles reach targets, kills happen), clang-tidy, the report.
+**Missiles (2026-10-04), branch act1-missiles:** missiles fly as game.exe.
+`rules/missiles.hpp` (FUN_0059fa30's x75/100 velocity, the 16.16 step,
+halved walk, rooms, Charged Bolt's wiggle FUN_005c9290); every missile
+(player, merc, pets, monsters, traps) flies on `rules::MissileFlight`, hits
+by footprint on entered subtiles; `tools/emu/missiles.py` checks against
+game.exe's own (ok); write-up in docs/research/re/missiles.md. ctest 31/31,
+clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill.
+
+**Found in play (2026-10-04, Bret), not yet looked into:**
+- Fixed: the farm's cow (AI Idle, untraced) took the untraced-AI chase,
+  followed the player and went invisible in an attack mode it has no
+  graphics for; Idle now stands (unverified, unverified.md).
+- Fixed: an opened chest replayed its lid forever; objects now hold the
+  last frame in a mode whose CycleAnim is 0 (unverified, unverified.md).
+- Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
+  item identifies it (cmd::IdentifyWith, FUN_00561ed0); the identify
+  cursor isn't drawn yet.
+- A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
+  "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
+  roll for quivers, or how game.exe handles no eligible affix.
+- Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
+  FUN_00454850 steps once a draw past 50 ms (menu.md).
+
+**In flight (2026-10-04), stopped by usage limits:** pushed, worktree under
+`.claude/worktrees/`, cut from 1b1c992. To pick it up: rebase on main, then
+build, ctest (31/31), clang-tidy on the changed files (0), and
+`tools/emu/sweep.sh 1-10 monsters objgroups drops collision tiles units`
+(228/228 at 10/10).
 - `wip-bosses-npcs-sort` (worktree agent-a549b3cc6731cf374):
   3d1cfd4 act bosses spawn as FUN_005b1cf0 (Andariel mod 22, Blood Raven
   12 + 22 and half freeze, flag 8: gold bar name, Demon label,

@@ -12,6 +12,7 @@
 #include <item_text.hpp>
 #include <light.hpp>
 #include <maze.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <npc_menu.hpp>
 #include <npc_talk.hpp>
@@ -285,6 +286,9 @@ const ExeTable kTables[] = {
     } },
     { "rules::kTry", 0x6f1518, [](const Exe& exe, std::uint32_t address) {
         for (std::uint32_t i = 0; i < 75; ++i) eq(i, rules::kTry[i / 3][i % 3], exe.i32(address + 4 * i));
+    } },
+    { "rules::kMissileAim", 0x6eb7e0, [](const Exe& exe, std::uint32_t address) {   // 12-byte rows, the first two words
+        for (std::uint32_t i = 0; i < 256; ++i) eq(i, rules::kMissileAim[i / 2][i % 2], exe.i32(address + 12 * (i / 2) + 4 * (i % 2)));
     } },
     { "rules::kRing", 0x6e3188, [](const Exe& exe, std::uint32_t address) {
         for (std::uint32_t i = 0; i < 8; ++i) eq(i, rules::kRing[i], exe.u8(address + i));

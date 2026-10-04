@@ -68,7 +68,8 @@ them times master/100.
   - The skull `OptSkull` (`0x7bc958`) at (knob, sy - (centred ? 0 : 1) - 1).
 - Pentspin (`CURSOR\pentspin`) by the selected row, y = sel_y + hdr3.
   Left: x = W/2 - widest - 0xf9, frame f ? 8-f : 0. Right: x = W/2+0xf9,
-  frame f. f steps every 40 ms (`FUN_00454850`).
+  frame f. f steps once a draw when more than 50 ms have passed
+  since the last step (`FUN_00454850`, GetTickCount; no catch-up).
 - `FUN_00502680` draws a multi-frame image 0x100 apart. Align 1:
   x += -1 - (totalW >> 1); align 2: x -= totalW.
 

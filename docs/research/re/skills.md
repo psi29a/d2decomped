@@ -548,7 +548,7 @@ lines (missile names aren't passed in). What it does:
   `rules::missile_blow` (combat.hpp). Magic Arrow, Fire Bolt, Ice Bolt,
   Ice Blast, Lightning, Bone Spear, Fire Ball: cast on a monster (left or
   right) or on open ground (right); SC with FCR as a rate bonus, A1 for the
-  bow skills; missiles stop on the 0x04 subtile bit (the missile barrier)
+  bow skills; missiles fly as game.exe (missiles.md: mask 0x184, 0x04 stops)
   rather than walk collision; CollideKill 0 flies through (Lightning, Bone
   Spear), Pierce rows fly on at stat 328 %; ToHit rows and weapon-share
   skills roll the attack rating. Pierce stats (333..336, Cold Mastery)
@@ -574,7 +574,7 @@ lines (missile names aren't passed in). What it does:
   Shot's) carries the weapon's damage at its SrcDamage (96).
   Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
   their struck list, so a monster takes one hit from it. Not yet: the
-  0x10000 flag's meaning, Charged Bolt's steering (a ±40° spread), the
+  0x10000 flag's meaning (Charged Bolt's wander: missiles.md), the
   direction tables (even angles), the ammo, the other do functions
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).

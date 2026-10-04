@@ -109,6 +109,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             units.back().overlay_class = 1;                 // FUN_006223a0: a player's Height2
             if (player_look) { units.back().shift = player_look->shift; units.back().overs = player_look->overs; }
         }
+        // An object in a mode its CycleAnim doesn't loop (a chest's OP) stops on the last frame.
+        // unverified (source: objects.txt's CycleAnim0..7 columns): not yet traced to the object anim code.
+        auto holds = [](const Npc& npc, const UnitState* state) {
+            const auto mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
+            const int index = game::mode_index(mode);
+            return npc.root == "objects" && index >= 0 && !(npc.cycle >> index & 1);
+        };
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < level.npcs.size(); ++i) {
             const auto& npc = level.npcs[i];
@@ -124,6 +131,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (state && state->alert) units.back().overlay = &scene.npc_alert;
             if (state) units.back().says = state->says;
             units.back().shadow = npc.root != "objects";
+            units.back().hold = holds(npc, state);
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
         // gate, Flavie, patrolling rogues), where they are now: D2 draws the
@@ -142,6 +150,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 const auto mode = state && state->walking ? std::string_view("WL") : state && !state->mode.empty() ? state->mode : std::string_view(npc.mode);
                 units.push_back({ x, y, &scene.npc_anim(npc, mode), state ? state->dir : 0, &no_name, state ? state->mode_ms : 0, -3 });
                 units.back().shadow = npc.root != "objects";
+                units.back().hold = holds(npc, state);
             }
         if (merc && merc_state)                    // npc -2: not an NPC-menu unit
             units.push_back({ merc_state->x, merc_state->y,

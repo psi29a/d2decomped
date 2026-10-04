@@ -123,6 +123,7 @@ struct Unit {
     // at AnimSpeed/16 a tick from mode_ms.
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
+    bool hold = false;                   // plays once and stays on its last frame (an opened chest)
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
     // Its states' look (Scene::StateInfo): the colour shift (256, before
     // the light) and overlays, each from when it started; `once` plays a

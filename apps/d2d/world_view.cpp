@@ -383,7 +383,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                       anchor_x + flippy->offset_x + int(flippy->width), anchor_y + flippy->offset_y + 1 };
                 if (items) items->push_back({ &unit, bounds });
             } else {
-                const auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
+                auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
+                if (unit.hold) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
                 draw_composite(framebuffer, *unit.anim, upal, unit.dir, elapsed, anchor_x, anchor_y);
                 if (hovered && unit.name && !unit.name->empty()) bounds = composite_bounds(*unit.anim, unit.dir, elapsed, anchor_x, anchor_y);
             }

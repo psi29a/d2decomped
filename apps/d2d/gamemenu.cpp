@@ -293,8 +293,8 @@ GameMenu::Action GameMenu::input(const Scene& scene, Audio& audio, const Mouse& 
         if (held) slide(scene, audio, mouse.x, mouse.y);
         else if (const int over = hit(mouse.y); over != -1) sel = over;
     }
-    if (now_ms - pent_ms > 1000) pent_ms = now_ms;
-    for (; now_ms - pent_ms >= 40; pent_ms += 40) pent = (pent + 1) & 7;   // FUN_00454850's ticks
+    // FUN_00454850: one step a frame once more than 50 ms have passed, the clock restarting then (no catch-up).
+    if (now_ms - pent_ms > 50) { pent_ms = now_ms; pent = (pent + 1) & 7; }
     return action;
 }
 
