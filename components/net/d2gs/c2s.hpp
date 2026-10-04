@@ -68,6 +68,19 @@ inline auto ping(std::uint32_t tick) -> Bytes {
     return out;
 }
 
+// 0x01 / 0x03: walk / run to act subtile (x, y) (FUN_005497e0 / 0x5498d0
+// on the host; one the bounds check refuses is answered after 25 frames).
+inline auto move_to(std::uint16_t x, std::uint16_t y, bool run) -> Bytes {
+    Bytes out;
+    put_u8(out, run ? 0x03 : 0x01);
+    put_u16(out, x);
+    put_u16(out, y);
+    return out;
+}
+
+// 0x53 / 0x54: run / walk from now on.
+inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(run ? 0x53 : 0x54) }; }
+
 // 0x69: leave the game; the host answers with the save (B3), B0, 05, 06.
 inline auto leave() -> Bytes { return { 0x69 }; }
 

@@ -208,6 +208,7 @@ struct Town {
     // character in it becomes the client's (the panels draw it); the store
     // keeps the client's tab and buttons.
     void publish();
+    void send(const Command& command);    // to the World, and to a joined host
 
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.

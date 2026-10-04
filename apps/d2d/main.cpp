@@ -552,6 +552,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                 town.world.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
                                 town.publish();
                             }
+                            town.net_game->set_running(town.view.running);   // the host starts us walking
                         }
                     }
                 }

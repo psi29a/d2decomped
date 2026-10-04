@@ -3,6 +3,7 @@
 
 #include "game_api.hpp"
 
+#include <d2gs/c2s.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/wire.hpp>
 #include <log.hpp>
@@ -23,7 +24,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x0a, 0x0d, 0x0f, 0x15, 0x59, 0x5c, 0x67, 0x68, 0x6d, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x0a, 0x0d, 0x0f, 0x15, 0x18, 0x59, 0x5c, 0x67, 0x68, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -65,6 +66,12 @@ auto NetGame::join(const std::string& host, const std::filesystem::path& game_ex
 
 auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
     for (const auto& packet : packets) {
+        // FUN_00478350: a packet the same as the last one sent within 200 ms
+        // is dropped (a held button doesn't flood).
+        const auto now = steady_ms();
+        if (packet == last_sent && now - last_sent_ms < 200) continue;
+        last_sent = packet;
+        last_sent_ms = now;
         log.to_host(packet);
         if (auto sent = connection.send(packet); !sent) log.note("send failed: " + sent.error());
     }
@@ -130,7 +137,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 10) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
-            if (unit.type == 0 && unit.id == self_id) { self_x = unit.x; self_y = unit.y; }
+            if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; }
         }
         break;
     case 0x0f:   // a unit to x, y: +1 type, +2 id, +7 target, +0xc where it is
@@ -140,6 +147,20 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             walk(unit, read_u16(packet, 7), read_u16(packet, 9));
         }
         break;
+    case 0x95:   // our life, mana, stamina and place: bits 8 id, 15, 15, 15, 16 x, 16 y
+    case 0x96:   // ... walk verify: 8 id, 15 stamina, 16 x, 16 y
+    case 0x18: { // ... 8 id, 15, 15, 15, 7, 7, 16 x, 16 y
+        const std::size_t skip = packet[0] == 0x96 ? 23 : packet[0] == 0x95 ? 53 : 67;
+        if (size * 8 < skip + 32) break;
+        auto bits_at = [&](std::size_t first, int count) {
+            std::uint32_t value = 0;
+            for (int bit = 0; bit < count; ++bit) value |= std::uint32_t(packet[(first + std::size_t(bit)) / 8] >> ((first + std::size_t(bit)) % 8) & 1) << bit;
+            return value;
+        };
+        host_x = float(bits_at(skip, 16));
+        host_y = float(bits_at(skip + 16, 16));
+        break;
+    }
     case 0x0d:   // a unit stops at x, y
         if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
         break;
@@ -172,6 +193,15 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     default:
         break;
     }
+}
+
+auto NetGame::move_to(float subtile_x, float subtile_y, bool run) -> void {
+    if (session.state() != d2d::net::JoinState::InGame || subtile_x < 0 || subtile_y < 0) return;
+    send({ d2d::net::d2gs::c2s::move_to(std::uint16_t(subtile_x), std::uint16_t(subtile_y), run) });
+}
+
+auto NetGame::set_running(bool run) -> void {
+    if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::set_running(run) });
 }
 
 auto NetGame::leave() -> void {

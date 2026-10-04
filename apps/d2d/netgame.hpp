@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 struct NetGame {
@@ -40,6 +41,11 @@ struct NetGame {
 
     // What arrived, the ping when due, units walked on by `elapsed_ms`.
     auto pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void;
+    // Our moves, as game.exe's client sends them (0x01 / 0x03, 0x53 / 0x54).
+    auto move_to(float subtile_x, float subtile_y, bool run) -> void;
+    auto set_running(bool run) -> void;
+    // The host moved us (0x15: a warp, a waypoint, a correction): once.
+    auto take_reassign() -> bool { return std::exchange(reassigned, false); }
     // 0x69, then up to a second for the host to close.
     auto leave() -> void;
     auto closed() const -> bool;
@@ -51,11 +57,15 @@ struct NetGame {
     int act = 0, area = 0;            // 0x03
     int difficulty = 0;               // 0x01
     std::uint32_t self_id = 0;        // our 0x59 / 0x15
-    float self_x = 0, self_y = 0;     // where the host put us
+    float self_x = 0, self_y = 0;     // where the host put us (0x15)
+    float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
     std::unordered_map<std::uint64_t, Unit> units;
 
 private:
     bool socket_gone = false;
+    bool reassigned = false;
+    d2d::net::Bytes last_sent;
+    std::uint32_t last_sent_ms = 0;
     NetGame(d2d::net::JoinSession joined, d2d::net::TcpConnection socket, const std::filesystem::path& log_path);
     auto handle(const d2d::net::Bytes& packet) -> void;
     auto send(const std::vector<d2d::net::Bytes>& packets) -> void;

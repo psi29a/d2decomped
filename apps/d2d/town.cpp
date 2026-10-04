@@ -335,6 +335,20 @@ auto Town::save() -> std::string {
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
+// A command to the World, and in a joined game to the host as game.exe's
+// client sends it: walks and runs (0x01 / 0x03) to the same act subtile
+// d2d's player heads for, the run toggle (0x53 / 0x54). The World still
+// walks the player here; the host walks it there on the same map.
+// ponytail: skills, interaction, items, warps stay local (M9).
+auto Town::send(const Command& command) -> void {
+        net.send(command);
+        if (!net_game || !level) return;
+        if (const auto* move = std::get_if<cmd::Move>(&command))
+            net_game->move_to((move->x + float(level->world_x)) * 5.f, (move->y + float(level->world_y)) * 5.f, view.running);
+        else if (const auto* run = std::get_if<cmd::Run>(&command))
+            net_game->set_running(run->running);
+    }
+
 // A joined game: the host's monsters stand in for the World's (it makes
 // none: Fight::remote_monsters) and its other players are drawn; act
 // subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
@@ -406,7 +420,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
             if (key == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (key == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
-            if (key == SDLK_R) net.send(cmd::Run{ !view.running });   // D2's run/walk toggle
+            if (key == SDLK_R) send(cmd::Run{ !view.running });       // D2's run/walk toggle
             skillbar.key(key, mouse.x, mouse.y);                // F1-F8
             if (key == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (key == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
@@ -823,7 +837,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         const bool run_click = mouse.press_this_frame && on_run;
         if (run_click) { run_down = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         if (mouse.release_this_frame) {
-            if (run_down && on_run) net.send(cmd::Run{ !view.running });
+            if (run_down && on_run) send(cmd::Run{ !view.running });
             run_down = false;
         }
         // Holding an item, a click on the world drops it (C→S 0x17).
@@ -906,7 +920,15 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
-        if (net_game) net_game->pump(frame_ms, frame_ms - last_ms);
+        if (net_game) {
+            net_game->pump(frame_ms, frame_ms - last_ms);
+            // The host moved us (a correction, later warps and waypoints): there we are.
+            if (net_game->take_reassign() && level) {
+                world.player.x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x);
+                world.player.y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
+                world.player.walking = false;
+            }
+        }
         // The skill buttons: a change goes to the World (0x3c), which runs a
         // right-button aura (a Paladin's).
         if (std::uint32_t(skillbar.left) != character.header.left_skill) net.send(cmd::SelectSkill{ skillbar.left, true });
@@ -920,7 +942,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             net.send(cmd::Chat{ talk });
             talking_sent = talk;
         }
-        for (const auto& command : input(mouse, over_ui)) net.send(command);
+        for (const auto& command : input(mouse, over_ui)) send(command);
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || frame_ms - world_ms > 1000) world_ms = frame_ms - std::min<std::uint32_t>(frame_ms - last_ms, kTickMs);
