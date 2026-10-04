@@ -274,6 +274,7 @@ int main() {
     gamble_tables.item_base["cap"] = { .minac = 3, .maxac = 5, .cost = 100, .level = 1, .durability = 12, .gamble_cost = 3016,
                            .normcode = "cap", .ubercode = "xap", .ultracode = "uap" };
     gamble_tables.item_base["xap"] = { .cost = 500, .level = 22 };
+    gamble_tables.item_info["xap"] = { .width = 2, .height = 2, .type = "helm", .kind = 1 };   // the exceptional cap takes the helm affixes too
     gamble_tables.item_base["uap"] = { .cost = 900, .level = 52 };
     gamble_tables.item_base["rin"] = { .gamble_cost = 50000 };
     gamble_tables.properties["str"] = { { .func = 1, .stat = 0 } };
@@ -302,6 +303,10 @@ int main() {
         assert((magic_cap.prefix == 0 || magic_cap.prefix == 1 || magic_cap.prefix == 2) && (magic_cap.suffix == 0 || magic_cap.suffix == 1));
         assert(magic_cap.prefix || magic_cap.suffix);
     }
+    // No affix fits: never a magic item without one; it goes superior (FUN_00557320).
+    Tables bare_tables = gamble_tables;
+    bare_tables.prefixes = { {} }; bare_tables.suffixes = { {} };
+    assert(generate_item(bare_tables, "cap", 10, 4, roll).quality == 3);
     const auto rare = generate_item(gamble_tables, "cap", 10, 6, roll);
     int pre = 0, suf = 0;
     for (int j = 0; j < 6; ++j) (j % 2 ? suf : pre) += rare.affixes[std::size_t(j)] != 0;

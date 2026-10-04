@@ -1160,6 +1160,9 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
+    // No affix fits (FUN_005565e0 returns 0): game.exe remakes it superior
+    // (FUN_00557320), and normal when that doesn't take (FUN_005572a0).
+    if (!item.prefix && !item.suffix) return generate_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty);
     return item;                                           // ponytail: magic / rare affixes aren't game.exe's, so no tail (ethereal, class affix)
 }
 
