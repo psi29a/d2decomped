@@ -133,8 +133,9 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // flag 8 (the gold name, the Demon / Undead label, TreasureClass3). Neither
 // mod has an init in 0x73c008, so no unique stats. Blood Raven also gets
 // stat 0x76 (half freeze). Their quests (FUN_005436b0 6 / 2) key off the
-// kill in d2d (World::andariel_died, blood_raven_died).
-// ponytail: later acts: only Act 1's (Andariel, Blood Raven); later bosses (the
+// kill in d2d (World::andariel_died, blood_raven_died). The Smith (0x192)
+// gets mod 22 alone, no quest call.
+// ponytail: later acts: only Act 1's (Andariel, Blood Raven, the Smith); later bosses (the
 // Maggot Queen's mod 23 has an init) and the uber Andariel aren't here.
 struct ActBoss {
     std::vector<int> mods;
@@ -143,6 +144,7 @@ struct ActBoss {
 inline std::optional<ActBoss> act_boss(int monstats_row, int base) {
     if (base == 0x9c && monstats_row != 0x2c3) return ActBoss{ { umod::questcomplete }, false };
     if (base == 0x10b) return ActBoss{ { umod::bloodraven, umod::questcomplete }, true };
+    if (base == 0x192) return ActBoss{ { umod::questcomplete }, false };
     return std::nullopt;
 }
 
