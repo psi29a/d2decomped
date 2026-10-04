@@ -345,13 +345,13 @@ try:
     cmd(f"cmd move {x0 + 8:.1f} {y0:.1f}"); frames(90)
     assert float(cmd("debug level").split()[2]) > x0 + 1, "cmd move didn't walk"
     # The Blood Moor's monsters so far (its rooms populate as they come
-    # into play round the player), alive and at full life. A loaded host
-    # may list them a few frames after.
+    # into play round the player), alive and at full life. The first ones
+    # come up as the walk ends (~120 frames on), a loaded host later still.
     for _ in range(10):
         mons = [m.split("\t") for m in cmd("monsters").splitlines()[:-1]]
         if mons:
             break
-        frames(6)
+        frames(30)
     assert mons and {m[0] for m in mons} <= {"zombie1", "fallen1", "quillrat1"}, mons[:3]
     assert all(m[5].split("/")[0] == m[5].split("/")[1] for m in mons)
     # Attack a monster until it's hurt.
