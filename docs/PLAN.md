@@ -643,8 +643,7 @@ halved walk, rooms, Charged Bolt's wiggle FUN_005c9290); every missile
 (player, merc, pets, monsters, traps) flies on `rules::MissileFlight`, hits
 by footprint on entered subtiles; `tools/emu/missiles.py` checks against
 game.exe's own (ok); write-up in docs/research/re/missiles.md. ctest 31/31,
-clang-tidy 0, sweep 228/228 at 20/20. Left: a live fight (missiles reach
-targets, kills happen).
+clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill.
 
 **In flight (2026-10-04), stopped by usage limits:** pushed, worktree under
 `.claude/worktrees/`, cut from 1b1c992. To pick it up: rebase on main, then
