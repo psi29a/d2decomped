@@ -720,6 +720,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         pace_frame(frame_start_ms);
     }
     if (screen == Screen::InGame) town.save();   // quitting from the game saves it
+    if (town.net_game) town.net_game->leave();   // a joined game: leave the host (0x69), don't just drop it
     // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
     // and touch stale pointers.
     watchdog_stop.store(true, std::memory_order_relaxed);
