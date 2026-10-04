@@ -679,9 +679,9 @@ SpellIcon, Identify 0, TP -1 so no packet; any other item: ItemsTxt +0x134
 spellicon) and the book's skill. The client's FUN_00468010(item, code)
 sets state 6, which is identify mode: an item click then sends C→S 0x27
 (FUN_0048ffe0). FUN_00468460 draws buysell frame = code, bottom 0x21 below
-the hotspot. d2d draws that (main.cpp). Open: frame 0 is a curled arrow and
-frame 8 a magnifier; Bret saw "a magnifying glass like thing" live, to be
-compared.
+the hotspot. d2d draws that (main.cpp). Checked live (Bret, 1.14d): the
+hooked arrow, frame 0. Frame 8, a magnifier, is used by nothing in
+Books.txt or Misc.txt.
 
 **Step 3 — networking** (the deferred item 7 above).
 
