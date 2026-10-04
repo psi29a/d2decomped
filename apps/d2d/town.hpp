@@ -151,6 +151,8 @@ struct Town {
     int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int net_pick = -1;                                       // the host item being walked to, to pick up
+    std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
+    bool net_items_checked = false;                          // the once-a-game item match logged
     std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
@@ -213,6 +215,7 @@ struct Town {
     // keeps the client's tab and buttons.
     void publish();
     void send(const Command& command);    // to the World, and to a joined host
+    void net_items(const Command& command);   // a joined game: our item moves and uses to the host
 
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.

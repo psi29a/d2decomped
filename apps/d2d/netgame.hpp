@@ -63,6 +63,10 @@ struct NetGame {
     auto interact(int type, std::uint32_t id) -> void;
     auto waypoint(std::uint32_t id, int level) -> void;
     auto pick_up(std::uint32_t id) -> void;
+    // The host's id for one of our items as d2d has it: same code, same
+    // place (grid cell and panel, body slot, belt box, cursor); 0: none.
+    auto host_item(const d2d::d2s::Item& local) const -> std::uint32_t;
+    auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void { if (session.state() == d2d::net::JoinState::InGame) send(packets); }
     // The host's unit of `type` (2 object, 5 warp) nearest act subtile
     // (x, y), of `cls` when >= 0; nullptr when none within `within`.
     auto nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit*;
@@ -85,6 +89,7 @@ struct NetGame {
     float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
     std::unordered_map<std::uint64_t, Unit> units;
     std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id
+    std::unordered_map<std::uint32_t, d2d::d2s::Item> own_items;   // ours as the host has them (grids, body, belt, cursor), by its ids
     std::uint32_t picking = 0;                 // the ground item we asked for (0x16), until it lands with us
     std::vector<d2d::d2s::Item> picked;        // what came to us since (0x9c into a grid / the belt): the client takes them
     // Our stats as the host sets them (0x19..0x1f): id, value, delta (true:

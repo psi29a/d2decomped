@@ -24,7 +24,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x9c, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -163,6 +163,15 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         };
         host_x = float(bits_at(skip, 16));
         host_y = float(bits_at(skip + 16, 16));
+        // Life, mana, stamina: whole points, stats 6 / 8 / 10 take them << 8
+        // (FUN_0045d4b0); 0x96 has stamina alone.
+        if (packet[0] == 0x96) {
+            stat_changes.push_back({ 10, std::int64_t(bits_at(8, 15)) << 8, false });
+        } else {
+            stat_changes.push_back({ 6, std::int64_t(bits_at(8, 15)) << 8, false });
+            stat_changes.push_back({ 8, std::int64_t(bits_at(23, 15)) << 8, false });
+            stat_changes.push_back({ 10, std::int64_t(bits_at(38, 15)) << 8, false });
+        }
         break;
     }
     case 0x51:   // assign object: +1 type (2), +2 id, +6 Objects.txt row, +8 x, +0xa y
@@ -186,13 +195,25 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         auto parsed = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(8), *item_tables);
         if (!parsed) { log.note("item " + std::to_string(id) + " (0x9c action " + std::to_string(action) + ") didn't parse"); break; }
         if (action == 0 || action == 2 || action == 3) {
+            own_items.erase(id);
             ground[id] = GroundItem{ id, std::move(parsed->item), parsed->x, parsed->y, parsed->gold };
-        } else {
-            ground.erase(id);                                          // picked up, or somewhere else now
-            if (id == picking && (action == 4 || action == 0xe)) { picked.push_back(std::move(parsed->item)); picking = 0; }
+        } else if (action != 0xb && action != 0xc) {                  // not a store's stock: ours, somewhere
+            ground.erase(id);
+            if (id == picking && (action == 4 || action == 0xe)) { picked.push_back(parsed->item); picking = 0; }
+            own_items[id] = std::move(parsed->item);
         }
         break;
     }
+    case 0x9d: {  // an item owned by a unit: +8 owner type, +9 owner id, the item from +13
+        if (size < 14 || !item_tables || packet[8] != 0 || read_u32(packet, 9) != self_id) break;
+        const std::uint32_t id = read_u32(packet, 4);
+        if (auto parsed = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(13), *item_tables)) own_items[id] = std::move(parsed->item);
+        else log.note("item " + std::to_string(id) + " (0x9d action " + std::to_string(packet[1]) + ") didn't parse");
+        break;
+    }
+    case 0x42:   // our cursor's item is gone
+        std::erase_if(own_items, [](const auto& entry) { return entry.second.location == d2d::d2s::item_location::kCursor; });
+        break;
     case 0x19: if (size >= 2) stat_changes.push_back({ 14, packet[1], true }); break;   // gold +=
     case 0x1a: if (size >= 2) stat_changes.push_back({ 13, packet[1], true }); break;   // experience +=
     case 0x1b: if (size >= 3) stat_changes.push_back({ 13, read_u16(packet, 1), true }); break;
@@ -242,7 +263,10 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 7) unit_at(packet[1], read_u32(packet, 2)).life = packet[6];
         break;
     case 0x0a:   // remove: type, id (4: an item)
-        if (size >= 6) { units.erase(key(packet[1], read_u32(packet, 2))); if (packet[1] == 4) ground.erase(read_u32(packet, 2)); }
+        if (size >= 6) {
+            units.erase(key(packet[1], read_u32(packet, 2)));
+            if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); }
+        }
         break;
     case 0x5c:   // a player leaves
         if (size >= 5) units.erase(key(0, read_u32(packet, 1)));
@@ -292,6 +316,19 @@ auto NetGame::pick_up(std::uint32_t id) -> void {
     if (session.state() != d2d::net::JoinState::InGame) return;
     picking = id;
     send({ d2d::net::d2gs::c2s::pick_up(id) });
+}
+
+auto NetGame::host_item(const d2d::d2s::Item& local) const -> std::uint32_t {
+    using namespace d2d::d2s::item_location;
+    for (const auto& [id, item] : own_items) {
+        if (item.code != local.code || item.location != local.location) continue;
+        const bool same = local.location == kStored ? item.panel == local.panel && item.column == local.column && item.row == local.row
+                        : local.location == kEquipped ? item.slot == local.slot
+                        : local.location == kBelt ? item.column == local.column
+                        : true;                                    // the cursor holds one
+        if (same) return id;
+    }
+    return 0;
 }
 
 auto NetGame::nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit* {

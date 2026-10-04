@@ -16,6 +16,7 @@
 #include "ui.hpp"
 #include "world_view.hpp"
 
+#include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
@@ -390,6 +391,10 @@ auto Town::send(const Command& command) -> void {
                 net_pick = int(found->first);
             }
             return;
+        } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
+                   || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
+                   || std::holds_alternative<cmd::Drop>(command)) {
+            net_items(command);
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(interact->npc)];
             if (npc.root == "objects")
@@ -402,6 +407,64 @@ auto Town::send(const Command& command) -> void {
             }
         }
         net.send(command);
+    }
+
+// Our item moves and uses to the host, by its ids for d2d's items (the
+// same code in the same place: NetGame::host_item); d2d still makes the
+// move here. An item the host doesn't know is skipped and logged.
+auto Town::net_items(const Command& command) -> void {
+        using namespace d2d::d2s;
+        namespace c2s = d2d::net::d2gs::c2s;
+        auto local = [&](int id) -> const Item* {
+            const auto found = std::ranges::find(world.character.items, id, &Item::id);
+            return found == world.character.items.end() ? nullptr : &*found;
+        };
+        auto host = [&](const Item* item) -> std::uint32_t {
+            const std::uint32_t id = item ? net_game->host_item(*item) : 0;
+            if (item && !id) net_game->log.note("no host id for our " + item->code + " (not sent)");
+            return id;
+        };
+        const std::uint32_t held = world.held ? (net_cursor ? net_cursor : net_game->host_item(*world.held)) : 0;
+        if (const auto* use = std::get_if<cmd::UseItem>(&command)) {
+            const auto* item = local(use->item);
+            if (const auto id = host(item); id && item->location == item_location::kBelt) net_game->send_items({ c2s::use_belt(id) });
+            else if (id) net_game->send_items({ c2s::use_item(id, std::uint16_t((world.player.x + float(level->world_x)) * 5.f), std::uint16_t((world.player.y + float(level->world_y)) * 5.f)) });
+        } else if (const auto* belt_use = std::get_if<cmd::UseBelt>(&command)) {
+            const auto found = std::ranges::find_if(world.character.items, [&](const Item& item) { return item.location == item_location::kBelt && item.column == belt_use->slot; });
+            if (found != world.character.items.end()) if (const auto id = host(&*found)) net_game->send_items({ c2s::use_belt(id) });
+        } else if (const auto* to_cursor = std::get_if<cmd::ToCursor>(&command)) {
+            const auto* item = local(to_cursor->item);
+            if (const auto id = host(item)) {
+                if (item->location == item_location::kEquipped) net_game->send_items({ c2s::body_to_cursor(std::uint16_t(item->slot)) });
+                else net_game->send_items({ c2s::item_id_packet(item->location == item_location::kBelt ? 0x24 : 0x19, id) });
+                net_cursor = id;
+            }
+        } else if (const auto* to_grid = std::get_if<cmd::ToGrid>(&command); to_grid && held) {
+            // What's under the held item's footprint there: a swap (0x1f).
+            const auto info = scene->rules.item_info.find(world.held->code);
+            const int width = info != scene->rules.item_info.end() ? info->second.width : 1, height = info != scene->rules.item_info.end() ? info->second.height : 1;
+            const Item* under = nullptr;
+            for (const auto& item : world.character.items) {
+                if (item.location != item_location::kStored || item.panel != to_grid->panel) continue;
+                const auto item_size = scene->rules.item_info.find(item.code);
+                const int item_w = item_size != scene->rules.item_info.end() ? item_size->second.width : 1, item_h = item_size != scene->rules.item_info.end() ? item_size->second.height : 1;
+                if (item.column < to_grid->col + width && to_grid->col < item.column + item_w && item.row < to_grid->row + height && to_grid->row < item.row + item_h) { under = &item; break; }
+            }
+            const std::uint32_t buffer = to_grid->panel == item_panel::kStash ? 4 : to_grid->panel == item_panel::kCube ? 3 : 0;
+            if (under) { if (const auto target = host(under)) net_game->send_items({ c2s::swap_grid(held, target, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row)) }); net_cursor = net_game->host_item(*under); }
+            else { net_game->send_items({ c2s::cursor_to_grid(held, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row), buffer) }); net_cursor = 0; }
+        } else if (const auto* to_body = std::get_if<cmd::ToBody>(&command); to_body && held) {
+            const auto worn = std::ranges::find_if(world.character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == to_body->slot; });
+            const bool swap = worn != world.character.items.end();
+            net_game->send_items({ c2s::equip(held, std::uint32_t(to_body->slot), swap) });
+            net_cursor = swap ? net_game->host_item(*worn) : 0;
+        } else if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command); to_belt && held) {
+            net_game->send_items({ c2s::cursor_to_belt(held, std::uint32_t(to_belt->box)) });
+            net_cursor = 0;
+        } else if (std::holds_alternative<cmd::Drop>(command) && held) {
+            net_game->send_items({ c2s::item_id_packet(0x17, held) });
+            net_cursor = 0;
+        }
     }
 
 // A joined game: the host's monsters stand in for the World's (it makes
@@ -1030,12 +1093,14 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     world.player.walking = false;
                 }
             }
-            // Our stats as the host sets them: level, experience, gold, points
-            // (life / mana / stamina stay d2d's: another fixed point).
+            // Our stats as the host sets them: attributes, points, life / mana /
+            // stamina and their maxima (8.8 fixed point, as in a save), level,
+            // experience, gold. The host's word wins over d2d's own regen.
             for (const auto& change : net_game->stat_changes) {
-                if (change.id < 0 || change.id > 15 || (change.id >= 6 && change.id <= 11)) continue;
+                if (change.id < 0 || change.id > 15) continue;
                 auto& value = world.character.stats.values[std::size_t(change.id)];
                 value = change.add ? value + change.value : change.value;
+                if (std::getenv("D2D_NET_STATS")) d2d::log::info("net stat {} = {}", change.id, value);
             }
             net_game->stat_changes.clear();
             // What the host put in our bags after a pick-up: placed as d2d places a pick-up.
@@ -1049,6 +1114,18 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     world.cues.cue("item_pickup", 0, world.player.x, world.player.y);
             }
             net_game->picked.clear();
+            // Once, a while in: how many of our items the host's match (the net
+            // log says which don't).
+            if (!net_items_checked && net_game->steady_now() > 3000 && !net_game->own_items.empty()) {
+                net_items_checked = true;
+                int matched = 0;
+                for (const auto& item : world.character.items) {
+                    if (net_game->host_item(item)) ++matched;
+                    else net_game->log.note("our " + item.code + " (location " + std::to_string(item.location) + ", panel " + std::to_string(item.panel) + " at "
+                                            + std::to_string(item.column) + "," + std::to_string(item.row) + ", slot " + std::to_string(item.slot) + ") has no host item");
+                }
+                d2d::log::info("net: {} of our {} items match the host's ({} it has)", matched, world.character.items.size(), net_game->own_items.size());
+            }
             // A pick-up walked to: asked for once both of us are there.
             if (net_pick >= 0) {
                 const auto found = net_game->ground.find(std::uint32_t(net_pick));

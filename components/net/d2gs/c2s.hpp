@@ -138,6 +138,58 @@ inline auto pick_up(std::uint32_t id) -> Bytes {
     return out;
 }
 
+// Our items, by the host's ids (net-packets.md "Client -> server: Items").
+// 0x20: use (drink, read) an item in a grid, from where we stand.
+inline auto use_item(std::uint32_t id, std::uint16_t x, std::uint16_t y) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x20); put_u32(out, id); put_u32(out, x); put_u32(out, y);
+    return out;
+}
+// 0x26: use an item in the belt.
+inline auto use_belt(std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x26); put_u32(out, id); put_u32(out, 0); put_u32(out, 0);
+    return out;
+}
+// One u32 id after the packet id: 0x17 drop the cursor's, 0x19 grid ->
+// cursor, 0x24 belt -> cursor.
+inline auto item_id_packet(std::uint8_t packet_id, std::uint32_t id) -> Bytes {
+    Bytes out;
+    put_u8(out, packet_id); put_u32(out, id);
+    return out;
+}
+// 0x18: the cursor's item into a grid at (x, y); buffer 0 inventory, 3
+// cube, 4 stash.
+inline auto cursor_to_grid(std::uint32_t id, std::uint32_t x, std::uint32_t y, std::uint32_t buffer) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x18); put_u32(out, id); put_u32(out, x); put_u32(out, y); put_u32(out, buffer);
+    return out;
+}
+// 0x1f: swap the cursor's item with the grid item `target` at (x, y).
+inline auto swap_grid(std::uint32_t id, std::uint32_t target, std::uint32_t x, std::uint32_t y) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x1f); put_u32(out, id); put_u32(out, target); put_u32(out, x); put_u32(out, y);
+    return out;
+}
+// 0x1a / 0x1d: equip the cursor's item in body slot 1..10 / swap it there.
+inline auto equip(std::uint32_t id, std::uint32_t slot, bool swap) -> Bytes {
+    Bytes out;
+    put_u8(out, swap ? 0x1d : 0x1a); put_u32(out, id); put_u32(out, slot);
+    return out;
+}
+// 0x1c: the item in body slot -> cursor (by slot, not id).
+inline auto body_to_cursor(std::uint16_t slot) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x1c); put_u16(out, slot);
+    return out;
+}
+// 0x23: the cursor's item into belt box `box`.
+inline auto cursor_to_belt(std::uint32_t id, std::uint32_t box) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x23); put_u32(out, id); put_u32(out, box);
+    return out;
+}
+
 // 0x69: leave the game; the host answers with the save (B3), B0, 05, 06.
 inline auto leave() -> Bytes { return { 0x69 }; }
 
