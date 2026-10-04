@@ -288,10 +288,6 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
 // (rules::monster_skill_level): physical in 256ths (SrcDamage 0: none of hers), its
 // poison per frame over ELen as the total, another element in 256ths.
 // ToHit 0: it always hits. A Fallen Shaman's fire bolts too.
-// ponytail: velocity as cells_per_sec(Vel) like every missile here, not
-// FUN_0059fa30's (Vel + VelLev x lvl / 8) x 75 / 100, which every missile
-// takes (monster-ai.md): one change for all of them, ai.cpp, fight.cpp
-// and world.cpp, once the missile stepper is traced.
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl) {
     const auto found = game_data.missiles.find(name);
@@ -306,9 +302,10 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     const int frames = poison.etype == 3 ? poison.elen : 1;
     if (poison.etype >= 0)
         stats.elements[0] = { poison.etype, 100, int(std::int64_t(poison.elo) * frames >> 8), int(std::int64_t(poison.ehi) * frames >> 8), poison.elen, "A2" };
-    const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(std::hypot(dx, dy), 0.01f);
+    const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
+    missiles.back().level = lvl; missiles.back().to = { monster.unit.x + dx, monster.unit.y + dy };
 }
 
 // A Skills.txt row by name, -1 none.
@@ -701,7 +698,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
     const auto& fire_info = fire->second;
     const float x = (float(monster.skill_x) + 0.5f) / 5, y = (float(monster.skill_y) + 0.5f) / 5;
     const float across_x = -(monster.unit.y - y), across_y = monster.unit.x - x, length = std::max(std::hypot(across_x, across_y), 0.01f);
-    const float speed = cells_per_sec(float(maker->second.vel));
+    const float speed = missile_speed(maker->second, lvl);
     Missile burner{ &fire_info, x, y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(fire_info.range + fire_info.lev_range * lvl, 1)) * 40, monster.stats };
     burner.level = lvl;
     burner.row = d2d::rules::row_damage(fire_info.etype, fire_info.emin, fire_info.emax, fire_info.emin_lev, fire_info.emax_lev, fire_info.hitshift, fire_info.elen,
@@ -779,9 +776,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             // srvmissilea raven1, Blood Raven's MissA1 too.
             if ((monster.skill < 0 || skill("Quick Strike")) && fired != game_data.missiles.end()) {   // fire: at the foe, from here
                 const auto& missile_info = fired->second;
-                const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(dist, 0.01f);
+                // MissA's level: MonsterSkillBonus + 1 (FUN_005a7670, objects.md "Trap-Missile").
+                const int lvl = d2d::rules::monster_skill_level(1, monster.difficulty);
+                const float speed = missile_speed(missile_info, lvl), distance = std::max(dist, 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
+                x.level = lvl; x.to = { unit.x + dx, unit.y + dy };
                 const bool first = monster.mode == "A1";                       // an A1 shot carries A1's damage
                 x.src.a2_min = (first ? monster.stats.a1_min : monster.stats.a2_min) * missile_info.src_damage / 128 + missile_info.min;
                 x.src.a2_max = (first ? monster.stats.a1_max : monster.stats.a2_max) * missile_info.src_damage / 128 + missile_info.max;
@@ -797,6 +797,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const float side_distance = std::max(std::hypot(side_x, side_y), 0.01f);
                         Missile y = x;
                         y.velocity_x = side_x / side_distance * speed; y.velocity_y = side_y / side_distance * speed; y.dir = direction32(side_x, side_y);
+                        y.to = { unit.x + side_x, unit.y + side_y };
                         missiles.push_back(y);
                     }
             } else if (skill("ShamanFire")) {                                 // srvdofunc 85: srvmissilea shafire1, + TransLvl
@@ -805,7 +806,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto [from_x, from_y, off_x, off_y] = d2d::rules::gargoyle_shot(subtile(unit.x), subtile(unit.y), subtile(foe.x), subtile(foe.y));
                 const std::size_t had = missiles.size();
                 andariel_missile(game_data, monster, "shafire3", float(off_x) / 5, float(off_y) / 5, now_ms, missiles, skill_level(game_data, monster, monster.skill));
-                if (missiles.size() > had) { missiles.back().x = (float(from_x) + 0.5f) / 5; missiles.back().y = (float(from_y) + 0.5f) / 5; }
+                if (missiles.size() > had) {
+                    auto& shot = missiles.back();
+                    shot.x = (float(from_x) + 0.5f) / 5; shot.y = (float(from_y) + 0.5f) / 5;
+                    shot.to = { shot.x + float(off_x) / 5, shot.y + float(off_y) / 5 };
+                }
             } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // ponytail: the young's flags (0x4020000) and the skill's
                 // state on them (Skills +0xe6) unread; a normal monster.

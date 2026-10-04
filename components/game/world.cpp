@@ -550,7 +550,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
         auto pts = [&](int points) { const std::int64_t value = points; return int(damage.etype == 3 ? value * std::max(damage.elen, 1) >> 8 : value >> 8); };
         if (damage.etype >= 0) stats.elements[0] = { damage.etype, 100, pts(damage.elo), pts(damage.ehi), damage.elen, "A2" };
         auto shoot = [&](float dx, float dy, float vel, const std::shared_ptr<std::vector<int>>& struck) {
-            const float speed = cells_per_sec(vel), distance = std::max(std::hypot(dx, dy), 0.01f);
+            const float speed = missile_speed(int(vel * 256) * 75 / 100), distance = std::max(std::hypot(dx, dy), 0.01f);   // FUN_0059fa30's x 75 / 100
             Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
             missile.struck = struck;
             fight.missiles.push_back(std::move(missile));
@@ -568,6 +568,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             }
         } else {
             shoot(player.x - x, player.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());
+            fight.missiles.back().to = { player.x, player.y };
         }
         d2d::log::info("trap {}: {} at level {}", trap, name, lvl);
     }

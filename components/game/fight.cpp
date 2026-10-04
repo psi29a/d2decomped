@@ -9,6 +9,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
@@ -1107,7 +1108,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             };
             if (func == ServerDoFunction::kReleaseNova) {
                 const auto shared = std::make_shared<std::vector<int>>();
-                const float speed = cells_per_sec(float(missile_info->vel));
+                const float speed = missile_speed(*missile_info, lvl);
                 const int range = missile_info->range + missile_info->lev_range * lvl + d2d::rules::eval_calc(game_data->skills, skill.calc[0], env, skill.id, lvl);
                 for (int k = 0; k < 64; ++k) {
                     const float angle = float(k) * 2 * 3.14159265f / 64;
@@ -1212,9 +1213,9 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
         stats.level = monster.stats.level;
         stats.to_hit = 1 << 20;                                     // ToHit 0: always hits
         if (damage.etype >= 0) stats.elements[0] = { damage.etype, 100, damage.elo >> 8, std::max(damage.ehi >> 8, 1), damage.elen, "A2" };
-        const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(std::hypot(dx, dy), 0.01f);
+        const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile x{ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
-        x.struck = ring;
+        x.struck = ring; x.level = lvl;
         pending.push_back(std::move(x));
     }
 
@@ -1285,8 +1286,9 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 if (archer && game_data->missiles.contains("arrow")) {
                     const auto& missile_info = game_data->missiles.at("arrow");
-                    const float speed = cells_per_sec(float(missile_info.vel));
+                    const float speed = missile_speed(missile_info, merc_st.level);
                     Missile missile{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(missile_info.range) * 40, {} };
+                    missile.to = { target.unit.x, target.unit.y };
                     missile.min = merc_st.dmg_min; missile.max = merc_st.dmg_max; missile.attack_rating = merc_st.attack_rating; missile.level = merc_st.level; missile.friendly = true;
                     missiles.push_back(missile);
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
@@ -1506,7 +1508,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
 
 auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms) -> Missile& {
-        const float speed = cells_per_sec(float(missile_info.vel)), distance = std::max(std::hypot(dx, dy), 0.01f);
+        const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
         missile.friendly = true; missile.skill = skill.id; missile.level = lvl;
         pending.push_back(missile);
@@ -1528,6 +1530,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         auto send = [&](float ddx, float ddy, int reach) -> Missile& {
             auto& missile = launch(missile_info, skill, lvl, player.x, player.y, ddx, ddy, reach, now_ms);
             missile.target_x = cast_x; missile.target_y = cast_y;                    // where it was sent (Molten Boulder's roll)
+            missile.to = { player.x + ddx, player.y + ddy };                         // its flight's aim (FUN_0059fa30)
             return missile;
         };
         if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
@@ -1540,16 +1543,14 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 send(dx + spread * side_x / 5, dy + spread * side_y / 5, range);
             }
         } else if (skill.srvdofunc == ServerDoFunction::kScatteredBolts) {
-            for (int k = 0; k < std::max(calc1, 1); ++k) {
-                const float angle = (float(rng(81)) - 40) * 3.14159265f / 180;
-                send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
-            }
+            for (int k = 0; k < std::max(calc1, 1); ++k) send(dx, dy, range).bolt = k;   // each wandering (FUN_005c9290)
         } else if (skill.srvdofunc == ServerDoFunction::kNova || skill.srvdofunc == ServerDoFunction::kWarCry) {
             // A war cry (do 68, FUN_005d83e0): the nova of its missile (range
             // its row's), then its state on the caster (FUN_005d8290).
             for (int k = 0; k < 64; ++k) {
                 const float angle = float(k) * 2 * 3.14159265f / 64;
-                send(std::cos(angle), std::sin(angle), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1).struck = shared;
+                auto& shot = send(std::cos(angle), std::sin(angle), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
+                shot.struck = shared; shot.to.reset();                              // a way, not a point
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) start_state(skill, lvl, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kGuidedMissile) {
@@ -1617,7 +1618,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
     }
 
 auto Fight::land_range(const GameData::MissileInfo& missile_info, float dx, float dy) -> int {
-        const float per_frame = cells_per_sec(float(std::max(missile_info.vel, 1))) * 0.04f;
+        const float per_frame = missile_speed(std::max(d2d::rules::missile_velocity(missile_info.vel, missile_info.vel_lev, 1), 1)) * 0.04f;
         return std::max(int(std::hypot(dx, dy) / per_frame), 1);
     }
 
@@ -1742,7 +1743,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // ponytail: the client path's shape isn't traced: a turn each 1.6
             // s, out at a fifth of its speed.
             if (skill->srvdofunc == ServerDoFunction::kBlessedHammer && missile_info.srv_do <= 1) {
-                const float seconds = float(now_ms - missile.born) / 1000, radius = seconds * cells_per_sec(float(missile_info.vel)) * 0.2f;
+                const float seconds = float(now_ms - missile.born) / 1000, radius = seconds * missile_speed(missile_info, missile.level) * 0.2f;
                 const float ang = float(missile.turn) / 1000 + seconds * 2 * 3.14159265f / 1.6f;
                 missile.x = missile.target_x + radius * std::cos(ang); missile.y = missile.target_y + radius * std::sin(ang);
                 missile.velocity_x = missile.velocity_y = 0;
@@ -2246,7 +2247,7 @@ auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
         const auto& missile_info = *skill_missile(*skill, true);
         const auto owner = game_data->skills.by_name.find(missile_info.skill);
         const float dx = monsters[std::size_t(best)].unit.x - monster.unit.x, dy = monsters[std::size_t(best)].unit.y - monster.unit.y, dist = std::max(std::hypot(dx, dy), 0.01f);
-        const float speed = cells_per_sec(float(missile_info.vel));
+        const float speed = missile_speed(missile_info, pet.shot_level);
         // Inferno Sentry's (do 95, FUN_005cc4e0) is a stream of flames:
         // here eight at once, their reach staggered.
         const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1)
@@ -2350,7 +2351,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     if (const auto* missile_info = pet.ranged >= 0 ? pet_missile(*game_data->skills.get(pet.ranged), pet.variant) : nullptr; missile_info && monsters[monster_index].alive()) {
                         Missile x{ missile_info, unit.x, unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(missile_info->range, 1)) * 40, {} };
                         const float dx = monsters[monster_index].unit.x - unit.x, dy = monsters[monster_index].unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
-                        x.velocity_x = dx / distance * cells_per_sec(float(missile_info->vel)); x.velocity_y = dy / distance * cells_per_sec(float(missile_info->vel)); x.dir = direction32(dx, dy);
+                        x.velocity_x = dx / distance * missile_speed(*missile_info, pet.ranged_level); x.velocity_y = dy / distance * missile_speed(*missile_info, pet.ranged_level);
+                        x.dir = direction32(dx, dy); x.to = { monsters[monster_index].unit.x, monsters[monster_index].unit.y };
                         x.friendly = true; x.level = pet.ranged_level; x.skill = pet.ranged;
                         if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;   // 'hydra' carries the Hydra skill's damage
                         pending.push_back(x);
@@ -2556,10 +2558,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             pets_turn(now_ms, elapsed, crowd);
             missile_tick(now_ms);
             // The merc's arrows strike the first live monster they reach.
-            missiles_update(*level, missiles, foes, rng, now_ms, elapsed, [&](Missile& missile) {
+            const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y); };
+            missiles_update(*level, missiles, foes, rng, now_ms, reach, [&](Missile& missile) {
+                const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
-                    if (!monster.alive() || std::hypot(monster.unit.x - missile.x, monster.unit.y - missile.y) > 0.5f) continue;
+                    if (!monster.alive()) continue;
+                    if (moving ? !missile_struck(*level, missile, monster.unit.x, monster.unit.y, game_data->monsters.types[std::size_t(monster.type)].size)
+                               : std::hypot(monster.unit.x - missile.x, monster.unit.y - missile.y) > 0.5f) continue;
                     if (missile.row) {                             // a shrine's potion: everyone in its burst
                         for (std::size_t j = 0; j < monsters.size(); ++j)
                             if (monsters[j].alive() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(std::max(missile.burst, 1)))
@@ -2704,7 +2710,7 @@ auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t 
         const auto& missile_info = found->second;
         const auto damage = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev, missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
         for (const auto& [dx, dy] : { std::pair{ -6, 6 }, { -6, -6 }, { 0, 6 }, { 0, -6 }, { 6, 6 }, { 6, -6 } }) {
-            const float dir_x = float(dx) / 5, dir_y = float(dy) / 5, speed = cells_per_sec(float(missile_info.vel)), distance = std::hypot(dir_x, dir_y);
+            const float dir_x = float(dx) / 5, dir_y = float(dy) / 5, speed = missile_speed(missile_info, lvl), distance = std::hypot(dir_x, dir_y);
             Missile missile{ &missile_info, x, y, dir_x / distance * speed, dir_y / distance * speed, direction32(dir_x, dir_y), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             missile.friendly = true; missile.row = damage; missile.burst = missile_info.hit_par1;
             pending.push_back(missile);

@@ -6,6 +6,7 @@
 #include "gamedata.hpp"
 
 #include <combat.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <town_npcs.hpp>
@@ -24,6 +25,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -269,7 +271,85 @@ struct Missile {
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     std::vector<std::pair<int, std::uint32_t>> hit_at;   // NextHit: when it last struck each monster
     const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
+    // Its flight in act subtiles, 16.16 (rules::MissileFlight), from its
+    // first step: toward `to` (cells, FUN_0059fa30's target point) when
+    // set, else along its velocity, at the velocity's path speed
+    // (missile_speed). Charged Bolt's: `bolt` its index (FUN_005c9290).
+    // `rooms`: its room, then the near list's (missile_rooms); `follow`:
+    // sent outside that room, so the room moves with it.
+    std::optional<std::pair<float, float>> to;
+    int bolt = -1;
+    d2d::rules::MissileFlight flight;
+    bool launched = false, follow = true;
+    float flown_x = 0, flown_y = 0, aimed_x = 0, aimed_y = 0;
+    std::vector<std::array<int, 4>> rooms;
 };
+
+// A missile's speed, cells/s, for its velocity: FUN_0059fa30's path
+// velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
+// 4096 subtiles a frame. The flight takes the path velocity back from it.
+inline float missile_speed(int path_velocity) { return float(path_velocity) * 5 / 4096; }
+inline float missile_speed(const GameData::MissileInfo& info, int level) {
+    return missile_speed(d2d::rules::missile_velocity(info.vel, info.vel_lev, level));
+}
+
+// One frame of a moving missile's flight (FUN_005ae1f0's move): launched
+// on its first, turned when its velocity's way changed, started over from
+// where it was put when moved by hand. Its subtiles are the act's;
+// `blocked` tests the 0x04 bit, and a subtile off its rooms reads 0x27
+// (blocked). False: the flight is over (a wall, or off its rooms).
+// ponytail: one aimed along its velocity, not at a point, takes the float
+// ratio for FUN_0064fc60's and counts as sent outside its room.
+template <class Reach>
+bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
+    const int origin_x = level.world_x * 5, origin_y = level.world_y * 5;
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    const bool moved_by_hand = missile.launched && (missile.x != missile.flown_x || missile.y != missile.flown_y);
+    if (!missile.launched || moved_by_hand) {
+        const int from_x = origin_x + subtile(missile.x), from_y = origin_y + subtile(missile.y);
+        const int path_velocity = int(std::lround(std::hypot(missile.velocity_x, missile.velocity_y) * 4096 / 5));
+        const int max_velocity = missile.info ? missile.info->max_vel << 8 : path_velocity, accel = missile.info ? missile.info->accel : 0;
+        const bool aimed = missile.to && !moved_by_hand;
+        const int to_x = aimed ? origin_x + subtile(missile.to->first) : from_x, to_y = aimed ? origin_y + subtile(missile.to->second) : from_y;
+        missile.flight = d2d::rules::MissileFlight::launch(from_x, from_y, to_x, to_y, path_velocity, max_velocity, accel);
+        if (!aimed) std::tie(missile.flight.aim_x, missile.flight.aim_y) = d2d::rules::missile_aim_along(missile.velocity_x, missile.velocity_y);
+        if (missile.bolt >= 0 && aimed) {                    // FUN_005c9290: 77 frames at most, its wiggle
+            const int bolt_to_x = to_x == from_x && to_y == from_y ? to_x + 1 : to_x, bolt_to_y = to_x == from_x && to_y == from_y ? to_y + 1 : to_y;
+            missile.dies = std::min(missile.dies, missile.born + 77 * 40);
+            missile.flight.points = d2d::rules::wiggle_points(from_x, from_y, bolt_to_x, bolt_to_y, int(missile.dies - missile.born) / 40,
+                                                              d2d::rules::Rng{ std::uint32_t(bolt_to_x + missile.bolt) });
+        }
+        missile.rooms = reach(missile.x, missile.y);
+        const auto& room = missile.rooms.empty() ? std::array<int, 4>{} : missile.rooms.front();
+        missile.follow = !aimed || to_x < room[0] || to_y < room[1] || to_x >= room[0] + room[2] || to_y >= room[1] + room[3];   // FUN_006492f0: path flag 1
+        missile.launched = true;
+        missile.aimed_x = missile.velocity_x; missile.aimed_y = missile.velocity_y;
+    } else if (missile.velocity_x != missile.aimed_x || missile.velocity_y != missile.aimed_y) {
+        std::tie(missile.flight.aim_x, missile.flight.aim_y) = d2d::rules::missile_aim_along(missile.velocity_x, missile.velocity_y);
+        missile.flight.velocity = int(std::lround(std::hypot(missile.velocity_x, missile.velocity_y) * 4096 / 5));
+        missile.aimed_x = missile.velocity_x; missile.aimed_y = missile.velocity_y;
+    }
+    const auto inside = [](const std::array<int, 4>& rect, int x, int y) { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3]; };
+    const auto reached = [&](int x, int y) { return missile.rooms.empty() || std::ranges::any_of(missile.rooms, [&](const auto& rect) { return inside(rect, x, y); }); };
+    bool flying = missile.flight.step([&](int x, int y) {
+        return !reached(x, y) || level.blocked((float(x - origin_x) + 0.5f) / 5, (float(y - origin_y) + 0.5f) / 5, 0x04);
+    });
+    missile.x = missile.flown_x = float((double(missile.flight.x) / 65536 - origin_x) / 5);
+    missile.y = missile.flown_y = float((double(missile.flight.y) / 65536 - origin_y) / 5);
+    const int at_x = missile.flight.subtile_x(), at_y = missile.flight.subtile_y();
+    if (flying && missile.follow && !missile.rooms.empty() && !inside(missile.rooms.front(), at_x, at_y)) {   // FUN_0064fad0
+        if (reached(at_x, at_y)) missile.rooms = reach(missile.x, missile.y);
+        else flying = missile.flight.stop();
+    }
+    return flying;
+}
+
+// A foe of `size` at (x, y) cells is in a subtile a missile entered this
+// frame (FUN_005ae1f0 -> FUN_00641cb0).
+inline bool missile_struck(const Level& level, const Missile& missile, float x, float y, int size) {
+    const int foe_x = level.world_x * 5 + int(std::floor(x * 5)), foe_y = level.world_y * 5 + int(std::floor(y * 5));
+    return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size); });
+}
 
 // Direction 0..31 in D2's DCC order for a world step, like direction16:
 // screen sector clockwise from straight down through D2's ordering.
@@ -281,23 +361,26 @@ inline int direction32(float dx, float dy) {
     return kFromSector[std::size_t((sector % 32 + 32) % 32)];
 }
 
-// Missiles fly; one reaching the foe rolls its to-hit and is spent
-// either way (CollideKill), as is one hitting the missile barrier (0x04)
-// or out of range.
-// ponytail: the barrier bit is read off the Blood Moor's DT1 flags (0x05
-// cliffs vs 0x01 camp clutter); the missile collision code isn't traced.
+// Missiles fly (missile_fly; FUN_005ae1f0): a frame's move, then its
+// range, then, from its Activate'th frame, a foe whose footprint holds a
+// subtile it entered (rolling its to-hit) spends it either way
+// (CollideKill), as does the missile barrier (0x04) or its rooms' end.
+// `reach`: missile_rooms for (x, y) cells.
 // ponytail: flat on the ground (no missile height); SrcDamage taken as
-// 128ths of the attack's damage.
+// 128ths of the attack's damage; a standing missile (no velocity) strikes
+// what's within 0.4 cells (srvdofunc 1 never strikes standing).
 // A friendly one asks `hits_monster` (true: it struck one, spent).
-template <class HitsMonster>
+template <class Reach, class HitsMonster>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t now_ms, float elapsed, HitsMonster&& hits_monster) {
+                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
     std::erase_if(ms_, [&](Missile& missile) {
-        missile.x += missile.velocity_x * elapsed; missile.y += missile.velocity_y * elapsed;
-        if (now_ms >= missile.dies || level.blocked(missile.x, missile.y, 0x04)) return true;
-        if (missile.visual_only) return false;
+        missile.flight.crossed.clear();
+        const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
+        if (moving && !missile_fly(level, missile, reach)) return true;
+        if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
+        if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
         if (missile.friendly) return hits_monster(missile);
         // A monster's fire wall: the maker (do 6) lays SubMissile1 where it
         // is each frame; the fire (do 5) burns a foe within half a cell each
@@ -329,7 +412,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return false;
         }
         for (auto& foe : foes) {
-            if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.4f) continue;
+            if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.4f)) continue;
             const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
             if (std::ranges::contains(*missile.struck, key)) continue;
             missile.struck->push_back(key);
