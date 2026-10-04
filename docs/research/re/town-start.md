@@ -65,7 +65,9 @@ column and row an edge). Each room populates as it comes up
   2), then the monsters (type 1), each pass in the room's preset list
   order, the DS1's reversed; a unit flagged +0x1c & 1 is left out.
 - Each unit made (FUN_00555230 → FUN_00552df0) takes one step of the
-  game seed (game +0xd0), its unit seed `{low, 666}`.
+  game seed (game +0xd0), its unit seed `{low, 666}`. A monster's init
+  then draws twice on that (the look, the life; a guard rogue up to 11):
+  the town NPCs' thinks start two steps on (town-npcs.md).
 - A critter is never made: FUN_0054e490 returns at once when
   FUN_004638a0(row, 0xd), MonStats2's flag 13 (`critter`), is set. The
   camp's chickens (MonPreset act 1 id 3) cost nothing; its cows do.

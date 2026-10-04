@@ -250,16 +250,16 @@ inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 
 // ponytail: no classlevelreq, automagic affix or the charged / oskill
 // skills' levels (stats 97, 107).
 inline int required_level(const GameData& game_data, const d2d::d2s::Item& item) {
-    auto at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
+    auto level_at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
     int level = 0;
     switch (item.quality) {
-        case 4: level = std::max(at(game_data.prefix_req, item.prefix), at(game_data.suffix_req, item.suffix)); break;
-        case 5: level = at(game_data.set_req, item.set_id); break;
-        case 7: level = at(game_data.unique_req, item.unique_id); break;
+        case 4: level = std::max(level_at(game_data.prefix_req, item.prefix), level_at(game_data.suffix_req, item.suffix)); break;
+        case 5: level = level_at(game_data.set_req, item.set_id); break;
+        case 7: level = level_at(game_data.unique_req, item.unique_id); break;
         case 6: case 8: {
             int count = 0;
             for (std::size_t i = 0; i < 6; ++i)
-                if (item.affixes[i] > 0) { level = std::max(level, at(i % 2 == 0 ? game_data.prefix_req : game_data.suffix_req, item.affixes[i])); ++count; }
+                if (item.affixes[i] > 0) { level = std::max(level, level_at(i % 2 == 0 ? game_data.prefix_req : game_data.suffix_req, item.affixes[i])); ++count; }
             if (item.quality == 8) level = std::min(level + 10 + 3 * count, 98);
             break;
         }
@@ -357,17 +357,17 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
         return text_line;
     };
     const auto& type = info->second.type;
-    const auto is = [&](std::string_view want) { return d2d::rules::type_is(game_data.rules, type, want); };
+    const auto is_type = [&](std::string_view want) { return d2d::rules::type_is(game_data.rules, type, want); };
     const auto base_row = game_data.rules.item_base.find(item.code);
     const d2d::rules::ItemBase no_base{};
     const auto& item_base = base_row != game_data.rules.item_base.end() ? base_row->second : no_base;
     const auto desc_row = game_data.item_desc.find(item.code);
     const GameData::ItemDesc no_desc{};
     const auto& desc = desc_row != game_data.item_desc.end() ? desc_row->second : no_desc;
-    const bool weapon = is("weap"), armor = is("armo"), throwable = game_data.rules.types.contains(type) && game_data.rules.types.at(type).throwable;
+    const bool weapon = is_type("weap"), armor = is_type("armo"), throwable = game_data.rules.types.contains(type) && game_data.rules.types.at(type).throwable;
     const int cls = wearer && wearer->cls >= 0 && wearer->cls < 7 ? wearer->cls : -1;
     if (wearer) clvl = wearer->lvl;
-    const std::string space = " ", to = space + string_id(game_data, 3464) + space;            // "to"
+    const std::string space = " ", to_text = space + string_id(game_data, 3464) + space;            // "to"
 
     // Defense: armorclass with its +% (16, on the base) and flat adds.
     if (armor && item.defense >= 0) {
@@ -376,7 +376,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     }
     // Chance to block (shields): the item's toblock (the block column +
     // 20s) plus the class's BlockFactor, at most 75; blue over the column.
-    if (is("shld")) {
+    if (is_type("shld")) {
         std::int64_t block = item_base.block + stat(d2d::d2s::kToBlock);
         if (cls >= 0) block += game_data.class_gains[std::size_t(cls)].block;
         block = std::min<std::int64_t>(block, 75);
@@ -384,8 +384,8 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     }
     // Smite (a Paladin's shield) / kick damage (an Assassin's boots): the armor.txt mindam / maxdam.
     const std::string class_code = d2d::rules::type_class(game_data.rules, type);
-    if ((is("shld") && cls == d2d::d2s::kPaladin && (class_code.empty() || class_code == "pal")) || (is("boot") && cls == d2d::d2s::kAssassin))
-        out.push_back({ string_id(game_data, is("shld") ? 3468 : 21782) + space + std::to_string(item_base.mindam) + to + std::to_string(item_base.maxdam), kTxtWhite });
+    if ((is_type("shld") && cls == d2d::d2s::kPaladin && (class_code.empty() || class_code == "pal")) || (is_type("boot") && cls == d2d::d2s::kAssassin))
+        out.push_back({ string_id(game_data, is_type("shld") ? 3468 : 21782) + space + std::to_string(item_base.mindam) + to_text + std::to_string(item_base.maxdam), kTxtWhite });
     // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
     // the record (FUN_0062d300 sets them: low quality 3/4, ethereal 3/2),
     // the +% (18 min, 17 max) on that base, then the flat adds.
@@ -405,7 +405,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
             std::int64_t high = high_base * (100 + stat(d2d::d2s::kMaxDamagePercent) + stat(d2d::d2s::kMaxDamagePercentPerLevel) * clvl / 8) / 100 + stat(kStat[kind][1]) + stat(d2d::d2s::kMaxDamagePerLevel) * clvl / 8;
             high = std::max(high, max_over_min ? low + 1 : low);
             const bool blue = low_base < low || high_base < high || blue_mods;
-            return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to + std::to_string(high), blue);
+            return line(string_id(game_data, std::uint16_t(label)) + space, std::to_string(low) + to_text + std::to_string(high), blue);
         };
         if (throwable && desc.dam[5]) out.push_back(damage(2, false, 3467, has(17) || has(18) || has(159) || has(160)));
         if (cls == d2d::d2s::kBarbarian && info->second.one_or_two) {
@@ -433,12 +433,12 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
         }
         if (!text.empty()) out.push_back({ text, kTxtWhite });
     }
-    if (is("char")) out.push_back({ string_id(game_data, 20438), kTxtWhite });            // "Keep in Inventory to Gain Bonus"
+    if (is_type("char")) out.push_back({ string_id(game_data, 20438), kTxtWhite });            // "Keep in Inventory to Gain Bonus"
     // Socket fillers (FUN_004e6850): a gem's or rune's gems.txt bonus per
     // kind, each kind's label before its top line (FUN_004e6410).
-    if (is("sock")) {
+    if (is_type("sock")) {
         out.push_back({ string_id(game_data, 11080), kTxtWhite });                            // "Can be Inserted into Socketed Items"
-        if (const auto gem = game_data.gem_props.find(item.code); gem != game_data.gem_props.end() && (is("gem") || is("rune"))) {
+        if (const auto gem = game_data.gem_props.find(item.code); gem != game_data.gem_props.end() && (is_type("gem") || is_type("rune"))) {
             out.push_back({ std::string{}, kTxtWhite });
             static constexpr std::pair<int, std::size_t> kKinds[4] = { { 11075, 0 }, { 11076, 1 }, { 11073, 1 }, { 11074, 2 } };
             for (const auto& [label, kind] : kKinds) {
@@ -471,18 +471,18 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // animation speed x (100 + IAS (93) - WSM) / 100, banded; class name first.
     if (weapon && cls >= 0) {
         std::string upper = desc.wclass;
-        for (auto& c : upper) c = char(std::toupper(static_cast<unsigned char>(c)));
+        for (auto& letter : upper) letter = char(std::toupper(static_cast<unsigned char>(letter)));
         const auto anim = game_data.anim_data.find(std::string(kCharCode[cls]) + "A1" + upper);
         const std::int64_t rate = anim != game_data.anim_data.end() ? (100 + stat(d2d::d2s::kFasterAttackRate) - item_base.speed) * std::int64_t(anim->second.speed) / 100 : 0;
         const std::int64_t frames = rate > 0 ? (std::int64_t(anim->second.frames) << 8) / rate : 45;
         const int band = frames >= 28 ? 5 : frames < 10 ? 1
-                       : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is("bow") || is("xbow") ? 1 : 0])];
+                       : kSpeedBand[std::size_t(frames * 5 - 50 + kSpeedColumn[cls][is_type("bow") || is_type("xbow") ? 1 : 0])];
         static constexpr std::pair<std::string_view, int> kClassName[] = { { "staf", 4085 }, { "axe", 4078 }, { "swor", 4079 }, { "knif", 4080 },
             { "tpot", 4081 }, { "jave", 4082 }, { "spea", 4083 }, { "bow", 4084 }, { "pole", 4086 }, { "xbow", 4087 }, { "h2h", 21258 },
             { "h2h2", 21258 }, { "orb", 4085 }, { "wand", 4085 }, { "blun", 4077 } };
         std::string head;
         for (const auto& [want, id] : kClassName)
-            if (is(want)) { head = string_id(game_data, std::uint16_t(id)) + space + string_id(game_data, 3996) + space; break; }
+            if (is_type(want)) { head = string_id(game_data, std::uint16_t(id)) + space + string_id(game_data, 3996) + space; break; }
         out.push_back(line(head, string_id(game_data, std::uint16_t(4088 + band)), has(93)));
     }
     if (unid) out.push_back({ string_id(game_data, 3455), kTxtRed });                         // "Unidentified"

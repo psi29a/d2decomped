@@ -5,10 +5,17 @@
 // it loads GameData and plays a new character for a second.
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <drops.hpp>
+#include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <inventory.hpp>
 #include <item_text.hpp>
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
+#include <protocol.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <world.hpp>
@@ -22,7 +29,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <tuple>
+#include <utility>
+#include <variant>
 #include <vector>
 
 using namespace d2d::game;
@@ -260,5 +270,37 @@ int main() {
     world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
     assert(world.fight.boost.shrine == 0 && world.fight.player_combat.res[0] == fire);
     std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
+
+    // A chest's trap fires at its event 4, 35 frames after it opened
+    // (FUN_00582510 -> FUN_005817a0); in act 1 a lightning trap (1) is a
+    // firebolt (2).
+    const auto missiles_named = [&](std::string_view name) {
+        return std::ranges::count_if(world.fight.missiles, [&](const auto& missile) { return missile.info && missile.info->name == name; });
+    };
+    world.fight.missiles.clear();
+    world.arm_trap(1, world.player.x + 1, world.player.y, 1, 4600 * kTickMs);
+    world.tick({}, (4600 + 34) * kTickMs, (4600 + 33) * kTickMs);
+    assert(world.fight.missiles.empty() && world.traps.size() == 1);
+    world.tick({}, (4600 + 35) * kTickMs, (4600 + 34) * kTickMs);
+    assert(world.traps.empty() && missiles_named("trapfirebolt") == 1 && missiles_named("chainlightning") == 0);
+    std::printf("OK: a chest's trap springs 35 frames on, lightning a firebolt in act 1\n");
+
+    // The Moldy Tome (FUN_00594e70): its message 127 for the player
+    // (S->C 0x27); heard back (cmd::QuestMessage), the Forgotten Tower starts.
+    const auto* tower_level = data->level(d2d::rules::level_ids::kStonyField);
+    d2d::game::populate_level(*data, world.fight.spawning, *tower_level);
+    const auto tome = std::ranges::find(tower_level->npcs, d2d::rules::operate_fn::kMoldyTome, &Npc::operate_fn);
+    assert(tome != tower_level->npcs.end());
+    const int tome_index = int(tome - tower_level->npcs.begin());
+    world.level = tower_level;
+    world.swap_npcs(moor);
+    world.events.clear();
+    world.operate(tome_index, 4700 * kTickMs);
+    assert(world.tower.state == 0 && world.events.size() == 1);
+    const auto* told = std::get_if<d2d::game::ev::Speech>(&world.events[0]);
+    assert(told && told->npc == tome_index && told->string == d2d::rules::TowerQuest::kTome);
+    world.apply(d2d::game::cmd::QuestMessage{ tome_index, d2d::rules::TowerQuest::kTome }, 4701 * kTickMs);
+    assert(world.tower.state == 2);
+    std::printf("OK: the Moldy Tome's message 127, heard, starts the Forgotten Tower\n");
     return 0;
 }

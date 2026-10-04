@@ -17,6 +17,7 @@
 #include "world_view.hpp"
 
 #include <d2s_items.hpp>
+#include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
 #include <quests.hpp>
@@ -56,7 +57,11 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
             pixel[0] = filled_here ? 0x88 : 0x20; pixel[1] = filled_here ? 0x08 : 0x10; pixel[2] = filled_here ? 0x08 : 0x10;
         }
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(name) / 2, top + 2, name);
+    // Its name's colour (FUN_00454ad0): gold for uniques, blue for champions.
+    const int colour = d2d::rules::bar_name_colour(monster.boss, scene.monsters.types[std::size_t(monster.type)].id);
+    const std::array<std::uint8_t, 3> tint = colour == d2d::rules::kNameGold ? std::array<std::uint8_t, 3>{ 199, 179, 119 }
+                                             : colour == d2d::rules::kNameBlue ? std::array<std::uint8_t, 3>{ 105, 105, 255 } : std::array<std::uint8_t, 3>{ 255, 255, 255 };
+    scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(name) / 2, top + 2, name, tint[0], tint[1], tint[2]);
     // The label under it (uniques and minions, d2d::rules::kUModLabel):
     // Demon / Undead, then its mods; a minion's "Minion". Champions have
     // none: their name says it.
@@ -274,6 +279,14 @@ auto Town::publish() -> void {
         character.expansion = view.header.expansion();
         character.panel = panel_stats(*scene, character.header, character.items, character.stats);
         character.panel.attack = view.attack_lines;
+        // A quest's log state sent (S->C 0x5d, FUN_004a2cb0): the Quest Log
+        // button, or the open log picks it.
+        // ponytail: a change in the View's log state stands in for each send
+        // (FUN_00544190); none at the game's first View (the join sends none).
+        for (std::size_t quest = 1; quest < view.quest_log.size(); ++quest)
+            if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest]) quest_log_notify(quest_log, int(quest));
+        quest_log.sent = view.quest_log;
+        quest_log.sent_known = true;
         held = view.held;
         if (view.store) {
             const auto keep = store;
@@ -351,7 +364,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (key == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
             if (key == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (key == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
-            if (key == SDLK_Q) { quest_log.open = !quest_log.open; if (quest_log.open) char_open = stash_open = cube_open = false; }
+            if (key == SDLK_Q) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead) { net.send(cmd::Resurrect{}); continue; }
             if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1) });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
@@ -391,7 +404,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
             if (action == MiniPanel::kAutomap) automap.open = !automap.open;
-            if (action == MiniPanel::kQuests) { quest_log.open = !quest_log.open; if (quest_log.open) char_open = stash_open = cube_open = false; }
+            if (action == MiniPanel::kQuests) toggle_quest_log();
             if (action == MiniPanel::kMenu) open_game_menu();
         }
         if (hud_click) {
@@ -440,25 +453,50 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) net.send(cmd::UseItem{ to_cursor->item });
         }
-        // Quest log: a tab picks the act, an icon the quest.
-        // Its buttons: close; questlast plays the selected quest's message again.
+        // Quest log (FUN_004a3e40 press, FUN_004a42a0 release): a tab switches
+        // on the press; an icon with something to say, close and questlast
+        // hold with a click (Sounds.txt 4); let go on the same icon picks it,
+        // over close shuts the log, over questlast plays the picked quest's
+        // message again (FUN_004a27d0).
+        // ponytail: the description isn't hidden while that message plays (0x7bf2b3).
         if (quest_log.open) {
             const int button = quest_button_at(mouse.x, mouse.y);
-            if (mouse.press_this_frame) { quest_log.close_down = button == 1; quest_log.last_down = button == 2; }
+            const int slot = quest_slot_at(mouse.x, mouse.y);
+            if (mouse.press_this_frame) {
+                if (const int act = quest_tab_at(mouse.x, mouse.y, character.expansion); act >= 0) quest_log_tab(quest_log, quest_bits(), quest_state(), act, character.expansion);
+                else if (slot >= 0) {
+                    for (const auto& entry : kQuestLog)
+                        if (entry.act == quest_log.act && entry.slot == slot && quest_text(quest_bits(), entry.quest, quest_state()).shown != 2) {
+                            quest_log.pressed = slot;
+                            audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
+                        }
+                } else if (button) {
+                    (button == 1 ? quest_log.close_down : quest_log.last_down) = true;
+                    audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
+                }
+            }
             if (mouse.release_this_frame) {
-                if (quest_log.close_down && button == 1) quest_log.open = false;
-                if (quest_log.last_down && button == 2)
+                if (quest_log.close_down) { if (button == 1) quest_log.open = false; }
+                else if (quest_log.pressed >= 0) {
+                    if (slot == quest_log.pressed) quest_log.remembered[std::size_t(quest_log.act)] = quest_log.slot = slot;
+                } else if (quest_log.last_down && button == 2 && quest_log.slot >= 0) {
                     for (const auto& entry : kQuestLog)
                         if (entry.act == quest_log.act && entry.slot == quest_log.slot)
-                            if (const auto text = quest_text(character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))], entry.quest,
-                                                          { view.quest_log, view.game_quests, view.den_left }); text.speech)
-                                replay_speech = text.speech;
+                            if (const auto text = quest_text(quest_bits(), entry.quest, quest_state()); text.speech) replay_speech = text.speech;
+                }
+                quest_log.pressed = -1;
                 quest_log.close_down = quest_log.last_down = false;
             }
         }
-        if (quest_log.open && mouse.press_this_frame) {
-            if (const int act = quest_tab_at(mouse.x, mouse.y); act >= 0) { quest_log.act = act; quest_log.slot = -1; }
-            if (const int slot = quest_slot_at(*scene, mouse.x, mouse.y); slot >= 0) quest_log.slot = slot;
+        // The Quest Log button (UI 0x11): pressed with a click (FUN_004a2a20),
+        // let go over it it goes and the log opens on its quest (FUN_004a4110).
+        if (const auto quest_button = quest_log_button_now(); quest_button.x0 >= 0) {
+            const bool over = over_quest_log_button(quest_button, mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { quest_log.button_down = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
+            if (mouse.release_this_frame) {
+                if (quest_log.button_down && over) { quest_log.button = false; toggle_quest_log(); }
+                quest_log.button_down = false;
+            }
         }
         // Skill tree: tabs switch on press; a skill icon pressed and
         // released spends a point (FUN_004ab7e0 / FUN_004abc30).
@@ -746,6 +784,22 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         draw(framebuffer, mouse, frame_ms);
     }
 
+auto Town::quest_bits() const -> const d2d::rules::QuestBits& {
+        return character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
+    }
+
+// ponytail: the player's act is Act 1's (0): d2d has no level past it.
+auto Town::toggle_quest_log() -> void {
+        if (quest_log.open) { quest_log.open = false; return; }
+        quest_log_open(quest_log, quest_bits(), quest_state(), 0);
+        char_open = stash_open = cube_open = false;
+    }
+
+auto Town::quest_log_button_now() const -> QuestLogButton {
+        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        return quest_log_button(quest_log, left_open, inv_open || tree_open, char_open);
+    }
+
 auto Town::level_buttons_now() const -> LevelButtons {
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
@@ -844,6 +898,12 @@ auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
             prev_y += float(level_changed->from->world_y - level->world_y);
             npc_menu = {}; store = {}; speech = {}; waypoint = {}; menu_after_speech = -1;
             level_ms = frame_ms;                                  // its song comes in 3 s later
+            return;
+        }
+        if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
+            speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
+            net.send(cmd::QuestMessage{ object_speech->npc, object_speech->string });
+            menu_after_speech = -1;
             return;
         }
         const auto& open_ui = std::get<ev::OpenUI>(event);
@@ -959,9 +1019,12 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       Hud{ view.poisoned, view.running, run_down });
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
-        if (quest_log.open
-            && draw_quest_log(framebuffer, *scene, quest_log, character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))],
-                              { view.quest_log, view.game_quests, view.den_left }, frame_ms))
+        if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
+            quest_log.open = true;
+            quest_log_close(quest_log, quest_bits(), quest_state());
+        }
+        quest_log_was_open = quest_log.open;
+        if (quest_log.open && draw_quest_log(framebuffer, *scene, quest_log, quest_bits(), quest_state(), frame_ms, character.expansion, mouse.x, mouse.y))
             questdone_sound = true;                    // cursor_questdone
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats,
@@ -969,6 +1032,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
+        draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);

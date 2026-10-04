@@ -134,6 +134,11 @@ int main() {
     assert(conv({ .conv_type = 4, .conv_pct = 25 }).damage == 90 + 30 / 2);          // 120: 90 physical, 30 magic at 50 %
     assert(conv({ .flat = 5, .conv_type = 4, .conv_pct = 100 }).damage == 5 + 60);    // all magic, the flat add physical
     assert(conv({ .stun_ticks = 300 }).stun_ticks == 250);
+    // FUN_0057b7d0: poison takes an eighth a tick over at least 50 ticks
+    // (120 x 256 / 8 x 50 / 256 = 750); cold chills at least 50.
+    const auto poisoned = conv({ .conv_type = 3, .conv_pct = 100 });
+    assert(poisoned.damage == 0 && poisoned.poison == 750 && poisoned.poison_ticks == 50);
+    assert(conv({ .conv_type = 2, .conv_pct = 100 }).chill_ticks == 50);
     // Smite: the shield's damage with its %, sure to hit (defense 10^6),
     // no crit, no gear elements or leech; the stun.
     Fighter smiter = critter;

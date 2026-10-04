@@ -249,62 +249,105 @@ inline constexpr std::array<QuestEntry, 27> kQuestLog = { {
     { 3, 0, 18, 25, 937 }, { 3, 2, 20, 26, 938 }, { 3, 1, 19, 27, 939 },
     { 4, 0, 21, 35, 22618 }, { 4, 1, 22, 36, 22622 }, { 4, 2, 23, 37, 22627 }, { 4, 3, 24, 38, 22633 }, { 4, 4, 25, 39, 22637 }, { 4, 5, 26, 40, 22641 },
 } };
-// Slots' icons, bottom-left (0x723ea8); the act tabs' x (the expansion's);
-// the name's baseline and the description's first, 20 apart, 270 wide
-// (0x724210..0x724218).
-inline constexpr std::array<std::pair<int, int>, 6> kQuestSlot = { { { 26, 121 }, { 123, 121 }, { 220, 121 }, { 26, 218 }, { 123, 218 }, { 220, 218 } } };
-inline constexpr std::array<int, 6> kQuestTabX = { 5, 0x43, 0x81, 0xbf, 0xfd, 0x13b };
-// The log's state per quest (client side): which is open, and each finished
-// quest's done animation (frames 1..24, 100 ms each, cursor_questdone at
-// the first) — shown once a game: its end sets the client's copy of the
-// quest's bit 12 (0x4a3943), which the server never saves.
+// The slots (0x723ea8, 16 bytes each): the icon's bottom-left, then its
+// hit box's top-left (0x38 x 0x34, FUN_004a2630). The act tabs' x: the
+// expansion's five (0x40 apart to click), the classic game's four (0x50);
+// their bottoms at 33 / 32. The name's baseline and the description's
+// first, 20 apart, 270 wide, from x 16 (0x724210..0x724218), in
+// FontFormal11 (font 8).
+struct QuestSlot { int x, y, hit_x, hit_y; };
+inline constexpr std::array<QuestSlot, 6> kQuestSlot = { { { 26, 121, 32, 65 }, { 123, 121, 128, 65 }, { 220, 121, 224, 65 },
+                                                            { 26, 218, 32, 163 }, { 123, 218, 128, 163 }, { 220, 218, 224, 163 } } };
+inline constexpr std::array<int, 5> kQuestTabX = { 5, 0x43, 0x81, 0xbf, 0xfd };
+inline constexpr std::array<int, 4> kQuestTabXClassic = { 5, 0x52, 0x9f, 0xec };
+// The log's client state (QuestLog.cpp's globals).
 struct QuestLog {
-    bool open = false; int act = 0, slot = -1;
+    bool open = false;                       // UI 0xf
+    int act = 0, slot = -1;                  // the tab (0x7c0255) and the quest picked (0x7bf2b9)
+    int pressed = -1;                        // the icon held down (0x7bf2b5)
+    std::array<int, 5> remembered{ -1, -1, -1, -1, -1 };   // the last picked, by tab (0x7bf2bd)
+    std::array<int, 5> pending{ -1, -1, -1, -1, -1 };      // the Quest Log button's quest, by tab (0x7bf280)
+    std::array<int, 41> last_state{};        // each quest's state last read (0x7bf380): a change is news
+    // Each finished quest's done animation (frames 1..24, 100 ms each,
+    // cursor_questdone at the first), once a game: its end, or the log
+    // shutting on it, sets the client's copy of the quest's bit 12
+    // (0x4a3943, FUN_004a2760), which the server never saves.
     std::array<int, 41> frame{};
     std::array<std::uint32_t, 41> frame_ms{};
     std::array<bool, 41> seen{};
-    bool close_down = false, last_down = false;
+    bool close_down = false, last_down = false;   // 0x7bf2b2, 0x7bf2b4
+    // The Quest Log button (UI 0x11) that a quest's news brings up while the
+    // log is shut (FUN_004a2cb0): on, held (0x7bf2b0), and its quest waiting
+    // for the log to open (0x7bf298 1).
+    bool button = false, button_down = false, notified = false;
+    std::array<std::uint8_t, 7> sent{};      // the log states last told, to spot a new one (S->C 0x5d)
+    bool sent_known = false;
 };
 
 // What the log says about a quest (d2d::rules::quest_text, FUN_004a1950).
 using d2d::rules::QuestState;
 using d2d::rules::QuestText;
 using d2d::rules::quest_text;
-// An icon's frame by `shown` (FUN_004a34f0): 2 → 26 (not started), 3 → 0
-// (25 while selected), 1 → 24 (done); 0 is the done animation, frames 1..24
-// (100 ms each, cursor_questdone at the first), then 24.
-// ponytail: the questdone plate a selected finished quest draws instead
-// isn't here.
-inline int quest_icon_frame(int shown, bool selected) {
-    return shown == 2 ? 26 : shown == 3 ? (selected ? 25 : 0) : 24;
-}
+// FUN_004a1950 as the log runs it: the text, and the quest's state kept
+// (0x7bf380); `fresh` (+0x263) when that state is new.
+QuestText quest_log_read(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state, bool& fresh);
+// Opening (FUN_004a3fe0: FUN_004a2300, then FUN_004a3220(act, 0)): the tab
+// of the player's act, as far as it's open; the animations start over.
+void quest_log_open(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, int player_act);
+// Shutting (FUN_004a28d0 → FUN_004a2760): the tab's done animations count
+// as seen.
+void quest_log_close(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state);
+// A tab clicked (FUN_004a3e40): another act, falling back to an open one.
+void quest_log_tab(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, int act, bool expansion);
+// A quest's log state was sent (S->C 0x5d with no flags, FUN_004a2cb0): the
+// log shut brings up the Quest Log button for it, the log open picks it if
+// it's in the tab.
+void quest_log_notify(QuestLog& quest_log, int quest);
 // Its buttons on the bottom line (FUN_004a34f0): close (the store buttons'
 // frames 10 / 11) at x 0x116 and questlast (replay the quest's message) at
-// 0xe2, their bottoms 58 above the screen's; hit boxes 0x24 x 0x22 and
-// 0x1e x 0x21. 0: none, 1 close, 2 questlast.
+// 0xe2, their bottoms 58 above the panel's; hit 0x116..0x139 by
+// 0x188..0x1a9 (FUN_004a2690) and 0xe6..0x103 by 0x187..0x1a7
+// (FUN_004a2610). 0: none, 1 close, 2 questlast. Hover texts "Close"
+// (4144) centred at 0x128 and "Speech" (3720) at 0xf1, bottom 0x5f above
+// the panel's.
 inline int quest_button_at(int mouse_x, int mouse_y) {
     const int panel_x = mouse_x - kCharPanelX, panel_y = mouse_y - kCharPanelY;
-    if (panel_x >= 0x116 && panel_x < 0x116 + 0x24 && panel_y >= 422 - 0x22 && panel_y < 422) return 1;
-    if (panel_x >= 0xe6 && panel_x < 0xe6 + 0x1e && panel_y >= 422 - 0x21 && panel_y < 422) return 2;
+    if (panel_x >= 0x116 && panel_x < 0x116 + 0x24 && panel_y >= 0x188 && panel_y < 0x188 + 0x22) return 1;
+    if (panel_x >= 0xe6 && panel_x < 0xe6 + 0x1e && panel_y >= 0x187 && panel_y < 0x187 + 0x21) return 2;
     return 0;
 }
-inline int quest_tab_at(int mouse_x, int mouse_y) {
-    if (mouse_y < kCharPanelY || mouse_y >= kCharPanelY + 33) return -1;
-    for (int act = 4; act >= 0; --act) if (mouse_x >= kCharPanelX + kQuestTabX[std::size_t(act)] && mouse_x < kCharPanelX + kQuestTabX[std::size_t(act) + 1]) return act;
-    return -1;
+// The tab under the cursor (FUN_004a26f0): the top 0x1c rows, 0x40 a tab
+// (0x50 in the classic game).
+inline int quest_tab_at(int mouse_x, int mouse_y, bool expansion) {
+    const int panel_x = mouse_x - kCharPanelX, panel_y = mouse_y - kCharPanelY;
+    if (panel_y < 0 || panel_y >= 0x1c || panel_x < 0 || panel_x >= 0x140) return -1;
+    return panel_x / (expansion ? 0x40 : 0x50);
 }
-inline int quest_slot_at(const Scene& scene, int mouse_x, int mouse_y) {
-    for (int k = 0; k < 6; ++k) {
-        const auto [x, y] = kQuestSlot[std::size_t(k)];
-        const int width = scene.quest_icons[0].frames_per_direction() ? int(scene.quest_icons[0].frame(0, 0).width) : 64;
-        const int height = scene.quest_icons[0].frames_per_direction() ? int(scene.quest_icons[0].frame(0, 0).height) : 64;
-        if (mouse_x >= kCharPanelX + x && mouse_x < kCharPanelX + x + width && mouse_y >= kCharPanelY + y - height && mouse_y < kCharPanelY + y) return k;
+inline int quest_slot_at(int mouse_x, int mouse_y) {
+    const int panel_x = mouse_x - kCharPanelX, panel_y = mouse_y - kCharPanelY;
+    for (int slot = 0; slot < 6; ++slot) {
+        const auto& box = kQuestSlot[std::size_t(slot)];
+        if (panel_x >= box.hit_x && panel_x < box.hit_x + 0x38 && panel_y >= box.hit_y && panel_y < box.hit_y + 0x34) return slot;
     }
     return -1;
 }
 // Returns true when a done animation starts (the caller plays
 // cursor_questdone, Sounds.txt 14).
 bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits,
-                    const QuestState& quest_state, std::uint32_t now_ms);
+                    const QuestState& quest_state, std::uint32_t now_ms, bool expansion, int mouse_x, int mouse_y);
+// The Quest Log button (UI 0x11, FUN_004a2a80): levelsocket and the level
+// button as New Stats', its label "Quest Log" (3928) centred over it. Its
+// rows (0x7241c0, 20 bytes: x0, x1, y0, y1, the label's bottom; FUN_004a2900
+// picks): x 40, or W/2+40 with only the left panel open; y H-195..H-160
+// (label H-198), lower at H-140..H-105 (label H-143) with the character
+// panel open. Not drawn with both panels open or the log up. Hit strictly
+// inside (FUN_004a2970); pressed (cursor_button_click) and let go over it
+// (FUN_004a4110) it goes and the log opens on its quest.
+struct QuestLogButton { int x0 = -1, x1 = 0, y0 = 0, y1 = 0, label = 0; };
+QuestLogButton quest_log_button(const QuestLog& quest_log, bool left_open, bool right_open, bool char_open);
+inline bool over_quest_log_button(const QuestLogButton& button, int mouse_x, int mouse_y) {
+    return button.x0 >= 0 && mouse_x > button.x0 && mouse_x < button.x1 && mouse_y > button.y0 && mouse_y < button.y1;
+}
+void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const QuestLogButton& button, bool held, int mouse_x, int mouse_y);
 
 }  // namespace d2d::client

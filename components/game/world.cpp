@@ -14,7 +14,10 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -57,7 +60,8 @@ static int waypoint_index(const GameData& game_data, int level_id) {
 // (from_x, from_y) or in one of that room's near list (FUN_00619790).
 // ponytail: rooms as gamedata.cpp's room_rects has them (a preset level's
 // as 8x8 tiles), the near list as its closeness (FUN_0066bc20: under 6
-// tiles apart on both axes); the level's own rooms only.
+// tiles apart on both axes); the level's own rooms only. Rooms are agent
+// D's (units off a level's rooms).
 static bool room_near_holds(const Level& level, int from_x, int from_y, int x, int y) {
     struct Rect { int x, y, width, height; };
     std::vector<Rect> rects;
@@ -112,7 +116,8 @@ auto World::view() const -> View {
         for (const auto& pet : fight.pets) if (pet.where == level) view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode });
         if (level == fight.mon_level) {
             // What's near the player (D2 sends the units of the rooms round
-            // each player). ponytail: a radius of 28 cells, not rooms.
+            // each player). ponytail: a radius of 28 cells, not rooms; waits for
+            // networking (what a client is sent).
             for (const auto& monster : fight.monsters)
                 if (std::abs(monster.unit.x - player.x) < 28 && std::abs(monster.unit.y - player.y) < 28) {
                     view.monsters.push_back(monster);
@@ -148,15 +153,16 @@ auto World::view() const -> View {
         view.den_cleared = den.state >= 4;
         {   // FUN_00544190: a record's +0xe8 if it has one (Tools), else FUN_00543f90
             // ponytail: worked out as the view's built, not sent as it changes;
-            // the send's skip for done quests (bits 0 / 15 without 13 / 14) reads as 0.
+            // the send's skip for done quests (bits 0 / 15 without 13 / 14) reads as 0;
+            // waits for networking (deltas).
             const auto& quest_bits = character.header.quests[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))];
             const int clvl = int(character.stats.get(d2d::d2s::kLevel));
             view.quest_log = { 0, std::uint8_t(den.log_state(quest_bits)), std::uint8_t(burial.log_state(quest_bits)),
                                std::uint8_t(tools.log_state(quest_bits, holding_malus(), clvl)), std::uint8_t(cain.log_state(quest_bits)),
                                std::uint8_t(tower.log_state(quest_bits)), std::uint8_t(andy.log_state(quest_bits)) };
             for (int quest = 1; quest < 7; ++quest) {
-                const bool b0 = d2d::rules::qbit(quest_bits, quest, 0) || d2d::rules::qbit(quest_bits, quest, 15);
-                if (b0 && !d2d::rules::qbit(quest_bits, quest, 13) && !d2d::rules::qbit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
+                const bool bit0 = d2d::rules::qbit(quest_bits, quest, 0) || d2d::rules::qbit(quest_bits, quest, 15);
+                if (bit0 && !d2d::rules::qbit(quest_bits, quest, 13) && !d2d::rules::qbit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
             }
             const bool done[7] = { false, den.state >= 4, burial.state >= 4, tools.game_returned, cain.rescued_flag, tower.dead, andy.log == 0xd };
             for (std::size_t quest = 1; quest < 7; ++quest)
@@ -194,6 +200,24 @@ auto World::save() -> std::string {
         return err;
     }
 
+// A blast's damage taken (FUN_0057c6c0): life under one point after it is 0.
+static void take_blast(std::int64_t& life, int taken) {
+    if (taken <= 0) return;
+    life -= taken;
+    if (life < 256) life = 0;
+}
+
+// FUN_00622b50 (mask 0x804): rules::sight_blocked from the unit to the
+// object over the walk grid's missile barrier (0x04).
+// ponytail: other objects' footprints (0x800) aren't a bit of the walk grid.
+auto World::blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense) -> int {
+    if (level == &game_data->town) return 0;
+    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
+    if (d2d::rules::sight_blocked(subtile(x), subtile(y), size, subtile(object.x), subtile(object.y), object.size_x, wall)) return 0;
+    return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
+}
+
 auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {   // force (devctl): the shrine row / trap to play
         using namespace d2d::d2s;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -221,16 +245,18 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             set_footprint(*level, object, object.collision >> mode & 1);
             if (const auto sound = d2d::rules::object_sound(object.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         };
-        // A trap object (30: "a trap", the exploding chest; FUN_00581cd0): a
-        // physical then a fire blast on its opener (FUN_005dfa00 types 0, 1:
-        // life / 32 .. life / 8 each), then mode 1.
-        // ponytail: as explode's, the hit roll is taken as a hit; the fire
-        // half isn't resisted; the event (FUN_005417d0) isn't here.
+        // A trap object (30: "a trap", the exploding chest; FUN_00581cd0), in
+        // mode 0: a physical then a fire blast on its opener (FUN_005dfa00
+        // types 0, 1: blast), then mode 1; its event 1 (FUN_005417d0,
+        // FrameCnt1 + 1 frames on) takes it to mode 2, the tick's OP -> ON.
         if (object.operate_fn == d2d::rules::operate_fn::kTrapObject) {
+            if (operated.contains({ level, npc_index })) return;
+            const auto& fighter = fight.player_combat;
             auto& life = character.stats.values[d2d::d2s::kLife];
-            for (int blast = 0; blast < 2 && life > 0; ++blast) {
-                const auto low = std::max<std::int64_t>(life >> 5, 1);
-                life -= low + rng(int(std::max<std::int64_t>(life >> 3, low + 1) - low + 1));
+            for (int kind = 0; kind < 2; ++kind) {
+                const int damage = blast(object, player.x, player.y, 2, life, int(character.stats.get(kLevel)),
+                                         int(character.stats.get(kDex) + fight.psum[kDex]), fighter.defense);
+                take_blast(life, kind ? d2d::rules::blast_taken(damage, fighter.mdr, fighter.res[0]) : d2d::rules::blast_taken(damage, fighter.dr_flat, fighter.dr_pct));
             }
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
@@ -252,34 +278,37 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // Containers (open_container): a casket (1) opens only when its round
         // drops. Caskets and barrels raise one of the level's undead
         // (FUN_005474c0 / FUN_00582280); all but the barrel spring their trap
-        // (InitFn 2's; FUN_00582510).
-        // ponytail: the barrel's opening step for a player (FUN_006439b0 /
-        // FUN_00580a70) and the events (FUN_005417d0) aren't here.
-        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kCasket || op == d2d::rules::operate_fn::kUrn || op == d2d::rules::operate_fn::kBarrel || op == d2d::rules::operate_fn::kCorpse) {
+        // (InitFn 2's; FUN_00582510: arm_trap). Opened, mode 1; event 1
+        // (FUN_005417d0, FrameCnt1 + 1 frames on) takes it to mode 2: the
+        // tick's OP -> ON.
+        // ponytail: the barrel's opening step for a player (a swing at it:
+        // FUN_006439b0 / FUN_00580a70) isn't here; it waits on the player's
+        // modes in fight.cpp (agent G's).
+        if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kCasket || operate_id == d2d::rules::operate_fn::kUrn || operate_id == d2d::rules::operate_fn::kBarrel || operate_id == d2d::rules::operate_fn::kCorpse) {
             const auto [opened, drops] = open();
             if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
             if (opened.undead) spring_trap(8, object.x, object.y, here, now_ms, 1);
-            if (const int trap = force >= 0 ? force : object.trap; trap && op != d2d::rules::operate_fn::kBarrel) spring_trap(trap, object.x, object.y, here, now_ms);
-            d2d::log::info("opened object {} (op {})", npc_index, op);
+            if (const int trap = force >= 0 ? force : object.trap; trap && operate_id != d2d::rules::operate_fn::kBarrel) arm_trap(trap, object.x, object.y, here, now_ms);
+            d2d::log::info("opened object {} (op {})", npc_index, operate_id);
             return;
         }
         // An armor stand's armor (19) or a weapon rack's weapon (20)
         // (stand_item) off its room's seed at the area level less one, made
         // off that seed too (FUN_00558d90), its quality rolled (Drop quality
         // 0: stand_quality); a bookshelf (26) its book (open_container).
-        if (const int op = object.operate_fn; op == d2d::rules::operate_fn::kArmorStand || op == d2d::rules::operate_fn::kWeaponRack || op == d2d::rules::operate_fn::kBookshelf) {
+        if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kArmorStand || operate_id == d2d::rules::operate_fn::kWeaponRack || operate_id == d2d::rules::operate_fn::kBookshelf) {
             operated[{ level, npc_index }] = now_ms;
             to_mode(2);
             const int ilvl = here > 1 ? here - 1 : here;
-            if (op == d2d::rules::operate_fn::kBookshelf) open();
+            if (operate_id == d2d::rules::operate_fn::kBookshelf) open();
             else if (auto& room_seeds = fight.spawning.levels[level].room_seeds; std::size_t(object.room) < room_seeds.size()) {
                 auto& room_seed = room_seeds[std::size_t(object.room)];
-                if (const auto code = d2d::rules::stand_item(game_data->rules, op == d2d::rules::operate_fn::kWeaponRack, ilvl, room_seed); !code.empty())
+                if (const auto code = d2d::rules::stand_item(game_data->rules, operate_id == d2d::rules::operate_fn::kWeaponRack, ilvl, room_seed); !code.empty())
                     loot.put({ .code = code, .quality = 0 }, object.x, object.y, ilvl, room_seed, now_ms);
             }
-            d2d::log::info("opened object {} (op {})", npc_index, op);
+            d2d::log::info("opened object {} (op {})", npc_index, operate_id);
             return;
         }
         if (object.operate_fn == d2d::rules::operate_fn::kChest && object.locked) {           // a key from the inventory (FUN_0055f140: item type key)
@@ -289,13 +318,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             else character.items.erase(key);
         }
         // The Moldy Tome (OperateFn 6, FUN_00594e70): opens once (mode 0 → 1),
-        // read every time.
-        // ponytail: its text (message 127 to the player, FUN_005456a0) isn't
-        // shown; the read goes straight to the quest's heard callback.
+        // read every time while the quest's on: message 127 to the player
+        // (FUN_005456a0: S->C 0x27, mode 2, the tome's unit id, +10 the
+        // message), which the client plays in the speech box (FUN_004a1600
+        // → FUN_004a1320) and answers as heard (cmd::QuestMessage).
         if (object.operate_fn == d2d::rules::operate_fn::kMoldyTome) {
             operated.try_emplace({ level, npc_index }, now_ms);
-            tower.read_tome(quests());
-            d2d::log::info("The Forgotten Tower: read the Moldy Tome");
+            if (!closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)]) events.push_back(ev::Speech{ npc_index, d2d::rules::TowerQuest::kTome });
             return;
         }
         if (object.operate_fn == d2d::rules::operate_fn::kCairnStone || object.operate_fn == d2d::rules::operate_fn::kGibbet || object.operate_fn == d2d::rules::operate_fn::kInifussTree) { cain_operate(npc_index, now_ms); return; }
@@ -303,7 +332,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (object.operate_fn == d2d::rules::operate_fn::kChest) {
             const auto drops = open().second;
             d2d::log::info("opened a chest: {} drops{}", drops, object.trap ? std::format(", trap {}", object.trap) : "");
-            if (const int trap = force >= 0 ? force : object.trap) spring_trap(trap, object.x, object.y, here, now_ms);
+            if (const int trap = force >= 0 ? force : object.trap) arm_trap(trap, object.x, object.y, here, now_ms);
             return;
         }
         const int row = force >= 0 ? force : object.shrine;
@@ -366,7 +395,8 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         if (door.operate_fn == d2d::rules::operate_fn::kSecretDoor) {                   // secret door (FUN_00583ff0): slides open (OP), once
             if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
-            // ponytail: the level's nearest warp for the room's warp unit.
+            // ponytail: the level's nearest warp for the room's warp unit (trap
+            // doors are past act 1).
             if (state.mode == 0) mode = 2;
             else if (state.mode == 2 && !level->warps.empty())
                 take_warp = int(std::ranges::min_element(level->warps, {}, [&](const Level::Warp& warp) { return std::hypot(warp.x - door.x, warp.y - door.y); }) - level->warps.begin());
@@ -394,25 +424,26 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
 // (OperateFn 8) when in reach (FUN_00623660, rules::object_reach). Found,
 // the monster stands 5 either way.
 // ponytail: the level's objects in list order, not the near rooms' unit
-// lists (a tie between two doors may go the other way).
+// lists (a tie between two doors may go the other way); room unit lists
+// are agent D's.
 auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
         if (fight.mon_level != level) return false;
         const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
         std::vector<std::pair<int, int>> spots;
-        std::vector<int> at;
+        std::vector<int> door_indices;
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
             const auto& door = level->npcs[i];
             const auto state = doors.find({ level, int(i) });
             if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
             spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
-            at.push_back(int(i));
+            door_indices.push_back(int(i));
         }
         const int pick = d2d::rules::door_pick(spots);
-        if (pick < 0 || !level->npcs[std::size_t(at[std::size_t(pick)])].monster_ok) return false;
-        const auto& door = level->npcs[std::size_t(at[std::size_t(pick)])];
+        if (pick < 0 || !level->npcs[std::size_t(door_indices[std::size_t(pick)])].monster_ok) return false;
+        const auto& door = level->npcs[std::size_t(door_indices[std::size_t(pick)])];
         const auto [dx, dy] = spots[std::size_t(pick)];
         if (d2d::rules::object_reach(-dx, -dy, game_data->monsters.types[std::size_t(monster.type)].size, door.size_x, door.size_y))
-            operate_door(at[std::size_t(pick)], now_ms);
+            operate_door(door_indices[std::size_t(pick)], now_ms);
         return true;
     }
 
@@ -421,23 +452,52 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         const auto& barrel = level->npcs[std::size_t(npc_index)];
         operated[{ level, npc_index }] = now_ms;
         if (const auto sound = d2d::rules::object_sound(barrel.object_id, 1); !sound.empty()) cues.cue(sound, now_ms, barrel.x, barrel.y);
-        // FUN_005dfa00: life / 32 .. life / 8 of what it has (Damage 100 %).
-        // ponytail: its hit roll (at least 65 %) is taken as a hit; a
-        // monster's life in whole points, not the game's 256ths.
+        // FUN_00584240: a physical blast (FUN_005dfa00 type 0) on each live
+        // unit within 3 subtiles.
+        // ponytail: the level's units in the order player, merc, monsters,
+        // not its room's unit list (the seed's draws go by that order); a
+        // monster's and the merc's life in whole points, not the game's
+        // 256ths; the merc's dexterity isn't kept (MercStats), so its roll
+        // takes 255, the 65 % floor every hireling's own dexterity puts it at.
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
-        auto blast = [&](std::int64_t life) { const auto low = std::max<std::int64_t>(life >> 5, 1); return low + rng(int(std::max(life >> 3, low + 1) - low + 1)); };
-        auto& stat_values = character.stats.values;
-        if (nearby(player.x, player.y, 3) && stat_values[kLife] > 0) stat_values[kLife] -= blast(stat_values[kLife]);
-        if (merc && nearby(merc->x, merc->y, 3) && fight.merc_life > 0) fight.merc_life -= int(blast(fight.merc_life));
+        const auto& fighter = fight.player_combat;
+        if (nearby(player.x, player.y, 3) && character.stats.values[kLife] > 0)
+            take_blast(character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, player.x, player.y, 2, character.stats.values[kLife], int(character.stats.get(kLevel)),
+                                                                                    int(character.stats.get(kDex) + fight.psum[kDex]), fighter.defense),
+                                                                              fighter.dr_flat, fighter.dr_pct));
+        if (merc && nearby(merc->x, merc->y, 3) && fight.merc_life > 0) {
+            const auto merc_fighter = fight.merc_fighter();
+            fight.merc_life -= d2d::rules::blast_taken(blast(barrel, merc->x, merc->y, 2, std::int64_t(fight.merc_life) << 8, fight.merc_st.level, 255, merc_fighter.defense),
+                                                       merc_fighter.dr_flat, merc_fighter.dr_pct) >> 8;
+        }
         if (fight.mon_level == level)
-            for (std::size_t k = 0; k < fight.monsters.size(); ++k)
-                if (auto& monster = fight.monsters[k]; monster.alive() && nearby(monster.unit.x, monster.unit.y, 3) && hurt(*game_data, monster, int(blast(monster.hit_points)), now_ms))
-                    fight.killed(k, now_ms);
+            for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
+                auto& monster = fight.monsters[k];
+                if (!monster.alive() || !nearby(monster.unit.x, monster.unit.y, 3)) continue;
+                const auto target = monster.target(*game_data);
+                const int damage = d2d::rules::blast_taken(blast(barrel, monster.unit.x, monster.unit.y, game_data->monsters.types[std::size_t(monster.type)].size,
+                                                                 std::int64_t(monster.hit_points) << 8, monster.stats.level, 0, monster.stats.armor_class), 0, target.res[0]);
+                if (hurt(*game_data, monster, damage >> 8, now_ms)) fight.killed(k, now_ms);
+            }
         for (std::size_t k = 0; k < level->npcs.size(); ++k)          // the next barrels along (class 11, still NU)
             if (const auto& other = level->npcs[k]; other.object_id == d2d::rules::object_ids::kExplodingBarrel && !other.preoperated && !operated.contains({ level, int(k) }) && std::hypot(other.x - barrel.x, other.y - barrel.y) * 5 < 3)
                 explode(int(k), now_ms);
         set_footprint(*level, barrel, barrel.collision >> 1 & 1);
         d2d::log::info("barrel {} exploded", npc_index);
+    }
+
+auto World::arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms) -> void {
+        if (trap == 8 && d2d::rules::trap_undead(level->region[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))], 0) < 0) return;   // FUN_00582250
+        traps.push_back({ level, trap, x, y, alvl, now_ms + 35 * kTickMs });
+    }
+
+auto World::spring_traps(std::uint32_t now_ms) -> void {
+        for (auto armed = traps.begin(); armed != traps.end();) {
+            if (now_ms < armed->due) { ++armed; continue; }
+            const Trap due = *armed;
+            armed = traps.erase(armed);
+            if (due.level == level) spring_trap(d2d::rules::trap_on_level(due.trap, level->id), due.x, due.y, due.alvl, now_ms);
+        }
     }
 
 auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead) -> void {
@@ -461,7 +521,8 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
                 auto monster = make_monster(*game_data, type, free_x, free_y, rng, diff);
                 // Its unit seed: a step of the game seed (FUN_00552df0), what its drops roll off.
-                // ponytail: its look doesn't draw on it first, as spawn_monsters' does.
+                // ponytail: its look doesn't draw on it first, as spawn_monsters' does
+                // (monster spawning: agent D's).
                 monster.seed = d2d::rules::Rng{ fight.spawning.game.next() };
                 monster.aware = true;
                 fight.add_monster(std::move(monster));
@@ -522,8 +583,8 @@ auto World::enter(const Character& entering) -> void {
         corpses.clear();
         if (!entering.corpse.empty() && game_data) {
             const auto& town = game_data->town;
-            const auto [x, y] = town.nearest_free(town.start.first + 1.f, town.start.second + 1.f);
-            corpses.push_back({ &town, x, y, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
+            const auto [spot_x, spot_y] = town.nearest_free(town.start.first + 1.f, town.start.second + 1.f);
+            corpses.push_back({ &town, spot_x, spot_y, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
         }
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
@@ -593,6 +654,7 @@ auto World::new_game() -> void {
         other_npcs.clear();
         doors.clear();
         fires.clear();
+        traps.clear();
         treasure.clear();
         cain_walk = {};
         cain_portal = {};
@@ -639,8 +701,8 @@ auto World::swap_npcs(const Level* from) -> void {
                 if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
                 operated.try_emplace({ level, int(i) }, 0u);
                 if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
-                    const auto [x, y] = level->nearest_free(stone.x + 4, stone.y + 4);
-                    portal[2] = { level, x, y, now };
+                    const auto [spot_x, spot_y] = level->nearest_free(stone.x + 4, stone.y + 4);
+                    portal[2] = { level, spot_x, spot_y, now };
                 }
             }
     }
@@ -731,7 +793,8 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // Andariel's death hook (FUN_005965a0): the quest's bits; the player's
 // kill for it opens Act 2 (the save's progression, FUN_00538680) and
 // drops two chipped gems and a standard one (0x7361dc / 0x736444).
-// ponytail: loot's rng, not the game's quest rng (game+0x10f4).
+// ponytail: loot's rng, not the game's quest rng (game+0x10f4); quests:
+// agent A's.
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
         const int diff = character.header.active_difficulty();
@@ -743,7 +806,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 // Blood Raven's death hook (FUN_00590ec0).
 // ponytail: "near" is the player in the Burial Grounds, not the killer's
-// room or its neighbours (FUN_00590c40).
+// room or its neighbours (FUN_00590c40); quests: agent A's.
 auto World::blood_raven_died(std::uint32_t now_ms) -> void {
         if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial)) return;
         static constexpr const char* kClass[7] = { "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
@@ -755,7 +818,8 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
 // merc, free — none if there's a merc already (LoD: even a dead one).
 // The offer leaves the list (packet 0x50 subtype 2).
 // ponytail: an unopened list is rolled here (game.exe: the client asks
-// for it as her menu opens); an emptied one isn't regenerated (FUN_00577010).
+// for it as her menu opens: waits for networking); an emptied one isn't
+// regenerated (FUN_00577010).
 auto World::kashya_merc() -> void {
         const auto& header = character.header;
         if (header.merc_seed && (character.expansion || !header.merc_dead)) return;
@@ -779,8 +843,10 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
         // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
         // a towerchestspawner (missile 332) at each chest of cellar 5 (object
         // 371, InitFn 47 lists up to 8).
-        // ponytail: the invisible owner (monster 326 at her death spot) isn't
-        // made; the chests are the level's, not the ones whose rooms came up.
+        // The invisible owner (monster 326 at her death spot, FUN_005b2f20)
+        // only owns the spawners, which d2d plays without one.
+        // ponytail: the chests are the level's, not the ones whose rooms came
+        // up (room units: agent D's).
         if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
             tower.treasure = true;
             for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
@@ -825,8 +891,8 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
                 const float off_x = float(rng(2 * radius + 1) - radius) / 5, off_y = float(rng(2 * radius + 1) - radius) / 5;
-                const auto [x, y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
-                loot.put({ .code = "gld" }, x, y, here, fight.spawning.game, now_ms);
+                const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
+                loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
             }
             --spawner.left;
         }
@@ -843,7 +909,7 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (FUN_005944f0: camp Cain due).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
 // tick; the portal stays for the game (FUN_005944f0 doesn't remove it;
-// InitFn 61 isn't traced).
+// InitFn 61 isn't traced); the Search for Cain: agent A's.
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -898,7 +964,8 @@ auto World::carries(std::string_view code) const -> bool { return std::ranges::c
 // ponytail: the world's rng stands in for the game's quest rng
 // (game+0x10f4); CairnStones' missile and the portal's red look aren't
 // drawn. Cain walks out (cain_step); with no room for him the portal
-// FUN_0056d130 opens at x + 6, y + 6 is the player's own pair.
+// FUN_0056d130 opens at x + 6, y + 6 is the player's own pair. Quests:
+// agent A's.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -932,10 +999,10 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (lit == Cain::Stone::lit) return;
         character.items.erase(std::ranges::find(character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
         const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
-        const auto [x, y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
-        portal[2] = { level, x, y, now_ms };
-        cues.cue("object_townportal", now_ms, x, y);
-        d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", x, y);
+        const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
+        portal[2] = { level, spot_x, spot_y, now_ms };
+        cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", spot_x, spot_y);
     }
 
 auto World::den_count(std::uint32_t now_ms) -> void {
@@ -978,7 +1045,8 @@ auto World::use_warp() -> void {
         // here, k its own rank among its row's slots there; none placed: the
         // lowest slot back that is.
         // ponytail: several tiles of one slot take the first built (game.exe:
-        // the first room of its list, then the first unit of its room).
+        // the first room of its list, then the first unit of its room): room
+        // unit lists are agent D's.
         auto back = std::ranges::find_if(destination->warps, [&](const Level::Warp& other) { return other.destination == level->id && other.pair == warp.pair; });
         if (back == destination->warps.end())
             for (auto it = destination->warps.begin(); it != destination->warps.end(); ++it)
@@ -1065,8 +1133,8 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             std::vector<const Item*> inv;
             for (const auto& x : character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
-            if (const auto [x, y] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); x >= 0
-                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, x, y)) { item_it = corpse.items.erase(item_it); continue; }
+            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); column >= 0
+                && d2d::rules::put_in_grid(game_data->rules, character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
         if (corpse.items.empty()) corpses.erase(corpses.begin() + std::ptrdiff_t(corpse_index));
@@ -1088,12 +1156,12 @@ auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(player.x,
 auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> void {
         const auto& town = game_data->town;
         if (level == &town || town.portal_spot.first < 0) return;
-        const auto [x, y] = level->nearest_free(portal_x, portal_y);
+        const auto [spot_x, spot_y] = level->nearest_free(portal_x, portal_y);
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
-        portal[0] = { level, x, y, now_ms };
+        portal[0] = { level, spot_x, spot_y, now_ms };
         portal[1] = { &town, town_x, town_y, now_ms };
-        cues.cue("object_townportal", now_ms, x, y);
-        d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), x, y, town_x, town_y);
+        cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> camp ({:.1f}, {:.1f})", level_name(*level), spot_x, spot_y, town_x, town_y);
     }
 
 auto World::use_portal(std::uint32_t now_ms) -> void {
@@ -1109,7 +1177,7 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             const Level* tristram = game_data->level(d2d::rules::CainQuest::kTristram);
             if (!tristram || tristram->ds1.width() == 0) { d2d::log::info("not implemented: level 38 (the Cairn Stones' portal)"); return; }
             const auto back = std::ranges::find(tristram->npcs, 60, &Npc::object_id);
-            // ponytail: no object 60 among Tristram's presets (the server makes it); its twin stands at the map's centre.
+            // ponytail: no object 60 among Tristram's presets (the server makes it); its twin stands at the map's centre (agent A's).
             const float back_x = back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back_y = back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y;
             if (portal[3].level != tristram) portal[3] = { tristram, back_x, back_y, now_ms };
             arrive(tristram, portal[3].x, portal[3].y + 0.6f, "the Cairn Stones' portal");
@@ -1215,7 +1283,7 @@ auto World::deal(const Command& command) -> bool {
         // Charsi's imbue (FUN_00579d60, kind 0 at hcIdx 0x9a): while it's
         // due (quest 3 bit 1), the item in hand made anew, rare; the
         // reward's used (FUN_00591790).
-        // ponytail: no S->C 0x58 result; the new item stays in hand.
+        // ponytail: no S->C 0x58 result (waits for networking); the new item stays in hand.
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::monster_ids::kCharsi
                 || !d2d::rules::qbit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !held || !d2d::rules::imbuable(game_data->rules, *held)) return true;
@@ -1261,6 +1329,10 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* message = std::get_if<cmd::QuestMessage>(&command)) {   // only what that NPC has to say
             if (std::size_t(message->npc) >= level->npcs.size()) return true;
+            if (level->npcs[std::size_t(message->npc)].operate_fn == d2d::rules::operate_fn::kMoldyTome) {   // the tome's 127 (FUN_00594960: no NPC check)
+                if (message->string == d2d::rules::TowerQuest::kTome && !closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)]) { tower.read_tome(quests()); d2d::log::info("The Forgotten Tower: read the Moldy Tome"); }
+                return true;
+            }
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;
             if (!std::ranges::contains(quest_talk(hc_idx), message->string, &d2d::rules::QuestMsg::string)) return true;
             if (tower.said(quests(), hc_idx, message->string)) { d2d::log::info("The Forgotten Tower: done"); chain(5); }   // FUN_00594960
@@ -1280,7 +1352,7 @@ auto World::deal(const Command& command) -> bool {
             const bool cain_flagged = cain.rescued_flag;
             const auto cain_said = cain.said(quests(), hc_idx, message->string, scroll != character.items.end());
             if (cain_said == Said::ring && !cain_flagged && d2d::rules::qbit(quests(), 4, 13)) chain(4);   // FUN_00592250: the game's (4, 13) goes on
-            if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item
+            if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item (agent A's)
                 scroll->code = "bkd";
                 d2d::log::info("Search for Cain: Akara deciphered the scroll");
             }
@@ -1289,6 +1361,7 @@ auto World::deal(const Command& command) -> bool {
                 const int diff = std::clamp(character.header.active_difficulty(), 0, 2);
                 loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, player.x, player.y, kIlvl[diff], fight.spawning.game, now);
                 loot.take(loot.ground.size() - 1);
+                cues.cue("item_ring", now, player.x, player.y);   // FUN_005458e0(4): S->C 0x5d flags 2, the client's item_ring (FUN_004a2cb0)
                 d2d::log::info("Search for Cain: done, Akara's ring");
             }
             const int den_was = den.state, burial_was = burial.state;
@@ -1496,6 +1569,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             fight.boost = {};
         }
         fight.update_fighters(now_ms);
+        spring_traps(now_ms);
         // Used shrines and chests: OP while it plays, then ON; a shrine back
         // to NU after its reset time (Shrines.txt Reset x 1200 + 1 frames;
         // 0 never).
@@ -1616,13 +1690,13 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
             if (!player.walking) player.path.clear();
         }
-        npc_patrol(*level, npc_states, talking, now_ms, elapsed, crowd);
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd);
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
             if (states.size() > neighbour.level->npcs.size()) states = npc_start(*neighbour.level);   // a new game's
             grow_states(states, *neighbour.level);
-            npc_patrol(*neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
+            npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = den.alert(quests(), level->npcs[i].hc_idx) || andy.alert(quests(), level->npcs[i].hc_idx)

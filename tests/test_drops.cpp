@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -157,6 +158,33 @@ int main() {
     assert(trap_undead({ 19, 7, 2 }, 0) == 5);                           // fallen1, zombie3 first
     assert(trap_undead({ 19, 172 }, 0) == 170 && trap_undead({ 98 }, 1) == 96 && trap_undead({ 7 }, 1) == 234);
     assert(trap_undead({ 19 }, 0) == -1 && trap_undead({}, 2) == 234);
+    // The trap event's swaps (FUN_005817a0): act 1 has no lightning / nova
+    // trap, poison only in the Tower Cellar 5; undead to firebolt from act 4.
+    assert(trap_on_level(1, 2) == 2 && trap_on_level(4, 39) == 2 && trap_on_level(4, 40) == 4 && trap_on_level(3, 8) == 2);
+    assert(trap_on_level(3, 25) == 3 && trap_on_level(8, 74) == 8 && trap_on_level(8, 75) == 2 && trap_on_level(5, 2) == 5);
+    // An object's blast (FUN_005dfa00; tools/emu/blast.py has game.exe's
+    // word on these): life (256ths), level, dexterity, defense, the object's
+    // seed, the damage (0 a miss).
+    {
+        struct Case { std::int64_t life; int level, dex, defense; std::uint32_t low, high; int damage; };
+        static constexpr Case kBlasts[] = {
+            { 9, 33, 7, 120, 0x18072e8cu, 0x7ce42c82u, 0 },
+            { 468611, 56, 16, 1090, 0x9755d4c1u, 0xf1fd42a2u, 18408 },
+            { 472863, 4, 28, 138, 0xf8130c42u, 0x6c0fd4f5u, 35715 },
+            { 61, 54, 0, 161, 0xbe3edc0au, 0x552b82f6u, 14 },
+            { 378521, 65, 12, 2045, 0x96c8da19u, 0xda711448u, 29909 },
+            { 3, 96, 227, 1503, 0x1622bd79u, 0x705fca16u, 46 },
+            { 322593, 83, 101, 0, 0x678a5aa3u, 0x83868a29u, 36687 },
+            { 499623, 59, 295, 186, 0x84c81999u, 0xc7038069u, 0 },
+            { 107989, 8, 201, 818, 0x7c240d49u, 0xd037cdffu, 9586 },
+        };
+        for (const auto& blast : kBlasts) {
+            Rng seed{ blast.low };
+            seed.high = blast.high;
+            assert(object_blast(blast.life, blast.level, blast.dex, blast.defense, seed) == blast.damage);
+        }
+        assert(blast_taken(10000, 10, 50) == 3720 && blast_taken(1000, 10, 0) == 0 && blast_taken(1000, 0, -50) == 1500 && blast_taken(1000, 0, 100) == 0);
+    }
     // The gem shrine: a gem goes up; with none, a chipped one.
     tables.item_base["gcv"].better_gem = "gfv";
     tables.item_base["gpv"].better_gem = "non";

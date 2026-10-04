@@ -11,8 +11,10 @@
 #include <drops.hpp>
 #include <dt1.hpp>
 #include <install.hpp>
+#include <monster_ids.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
+#include <object_ids.hpp>
 #include <outdoor_data.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -183,7 +185,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.party_min = num(text("PartyMin")); type_info.party_max = num(text("PartyMax"));
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
-        type_info.tc_fixed = text("noRatio") == "1" || text("boss") == "1";
+        type_info.no_ratio = text("noRatio") == "1";
+        type_info.boss_column = text("boss") == "1";
+        type_info.tc_fixed = type_info.no_ratio || type_info.boss_column;
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
@@ -203,6 +207,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.el_type[std::size_t(element)] = element_type == kEl.end() ? -1 : int(element_type - kEl.begin());
         }
         type_info.sound = text("MonSound");
+        type_info.usound = text("UMonSound");
         type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1";
         type_info.montype = text("MonType");
         for (int difficulty = 0; difficulty < 3; ++difficulty) {
@@ -325,7 +330,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.cel_file = missiles_table.get(row_index, "CelFile");
         game_data.missiles.emplace(name, std::move(missile_info));
     }
-    // SuperUniques.txt: name (string key), Class, minions.
+    // SuperUniques.txt: name (string key), Class, minions. Replaceable and
+    // EClass are never read by game.exe (docs/research/re/superuniques.md).
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) if (monstats.get(row_index, "Id") != "Expansion") ms_bin.push_back(row_index);
     if (const auto superuniques_table = txt("SuperUniques"); superuniques_table.size() > 0)
@@ -339,7 +345,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                            num(superuniques_table.get(row_index, "MaxGrp")), mods,
                                            { std::string(superuniques_table.get(row_index, "TC")), std::string(superuniques_table.get(row_index, "TC(N)")), std::string(superuniques_table.get(row_index, "TC(H)")) },
                                            { num(superuniques_table.get(row_index, "Utrans")), num(superuniques_table.get(row_index, "Utrans(N)")), num(superuniques_table.get(row_index, "Utrans(H)")) },
-                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0 });
+                                           num(superuniques_table.get(row_index, "AutoPos")) != 0, num(superuniques_table.get(row_index, "Stacks")) != 0,
+                                           std::string(superuniques_table.get(row_index, "MonSound")) });
         }
 
     // Random unique names: UniquePrefix / Suffix / Appellation (Name: a
@@ -532,13 +539,15 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto found = ms_row.find(place);
         if (found == ms_row.end()) continue;            // place_* markers etc.
         // FUN_0054e490: a critter (MonStats2 flag 0xd: the camp's chickens) is never made.
-        if (const auto ex = ms2_row.find(std::string(monstats.get(found->second, "MonStatsEx"))); ex != ms2_row.end() && ms2.get(ex->second, "critter") == "1") continue;
+        if (const auto ex_row = ms2_row.find(std::string(monstats.get(found->second, "MonStatsEx"))); ex_row != ms2_row.end() && ms2.get(ex_row->second, "critter") == "1") continue;
         auto npc = monster(found->second);
         if (npc.code.empty()) continue;
         npc.x = (float(object.x) + 0.5f) / 5;
         npc.y = (float(object.y) + 0.5f) / 5;
-        for (const auto& point : object.path)
+        for (const auto& point : object.path) {
             npc.path.emplace_back((float(point.x) + 0.5f) / 5, (float(point.y) + 0.5f) / 5);
+            npc.actions.push_back(point.action);
+        }
         game_data.town.npcs.push_back(std::move(npc));
     }
 
@@ -700,6 +709,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t row = 0; row < 3; ++row) {
             game_data.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));
             game_data.cold_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "MonsterColdDivisor")).c_str());
+            game_data.curse_divisor[row] = std::atoi(std::string(difficulty_table.get(row, "AiCurseDivisor")).c_str());
         }
 
     // Items. ItemStatCost.txt only exists in the 1.14d patch data.
@@ -1056,11 +1066,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
         game_data.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         game_data.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
-        for (const auto& [to, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
+        for (const auto& [target, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
                                                           { &game_data.suffix_req, "MagicSuffix", "levelreq", true },
                                                           { &game_data.unique_req, "UniqueItems", "lvl req", false },
                                                           { &game_data.set_req, "SetItems", "lvl req", false } })
-            for (const auto& level : pairs(file_name, column, column, all)) to->push_back(level.first);
+            for (const auto& level : pairs(file_name, column, column, all)) target->push_back(level.first);
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
         auto affixes = [&](const char* file_name) {
@@ -1260,7 +1270,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto per = [&](const char* column) { return std::atoi(std::string(charstats.get(class_index, column)).c_str()); };
         game_data.class_gains[class_index] = { per("LifePerVitality"), per("StaminaPerVitality"), per("ManaPerMagic"),
                                  per("LifePerLevel"), per("StaminaPerLevel"), per("ManaPerLevel"),
-                                 per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor") };
+                                 per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor"), per("ManaRegen") };
         auto& start = game_data.class_start[class_index];
         start = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(class_index, "StartSkill")) };
         for (int i = 1; i <= 10; ++i)

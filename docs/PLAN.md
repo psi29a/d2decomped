@@ -565,8 +565,7 @@ dungeon objects (containers, stands, wells, bookshelves, exploding
 barrels); 17 Act 1 MonAI thinks including Blood Raven; walk-through level
 links (Levels.txt Vis with Warp -1: Outer Cloister ↔ Barracks, Inner
 Cloister ↔ Cathedral); lone warp units (the Forgotten Tower's stairs).
-Open: the quest log text past the Den and the in-game quest chain,
-bit-exact object groups, dungeon monster population, drops, the Countess's
+Open: bit-exact object groups, dungeon monster population, drops, the Countess's
 AI and superunique specials.
 
 **Checkpoint 2026-09-30, placement.** Random object groups and monster
@@ -578,6 +577,10 @@ patches (FUN_0064c860), in the order the player brings rooms up (relevel;
 ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
 scatter, the Tristram portal position, the HC smoke's
 extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
+Quest log (2026-10-03): all six Act 1 records, and the panel as game.exe
+draws it (tabs by act reached, held icons and the questdone plate, the
+pick on opening, hover texts, FontFormal11) and the Quest Log button a
+quest's news brings up (UI 0x11, S->C 0x5d); quests.md.
 
 **Checkpoint 2026-10-01.** Full sweep (`sweep.sh 1-20 monsters objgroups
 drops collision tiles`): 190/190, every level 2–39. Object drops roll off
@@ -585,8 +588,8 @@ their own seeds and land as FUN_00555da0 finds room (drops.md); collision
 follows the order rooms come up (relevel); monsters notice as FUN_005dd7f0
 (monster-ai.md: outdoor no sight, indoor sight then spawn-area alert);
 Cain's portal at game.exe's spot. Still approximate (ponytail): object
-seed per level, not game-wide; units/objects/room seeds keep list order on
-relevel; search_target treats all foes alike.
+seed per level, not game-wide (both closed by the next checkpoint). (search_target was already FUN_005dd7f0's; what a monster then hits
+now follows its target: monster-ai.md "The attack's target".)
 
 **Checkpoint 2026-10-01, one object seed.** The object seed (game +0x10f0)
 is one per game (`Spawning::objects`): every room's presets and groups and
@@ -598,8 +601,70 @@ units` brings game.exe's rooms up in $ORDER), the spawn areas too (the game
 seed through the monsters matches). `diff_drlg.py 1-20 0 game` (Blood Moor, Den, Stony Field,
 Cave 1 in one game, rooms shuffled, every container opened): 20/20; reverse
 and list order, and touching levels (3,2,17,18,5,6,7) 20/20. Still
-approximate (ponytail): the camp's population steps on the game seed, the
-wanderer, the units off a level's rooms, relevel laying the whole level.
+approximate (ponytail): relevel laying the whole level (same result, only
+slower), and rooms never freed. Units off every room turned out never to be
+made by game.exe either (2026-10-03, drlg.md "A room's life on the server":
+the near-list walk, the 5 s freeing, the storage and restore). Since: the camp populates as game.exe (town-start.md), and its
+NPCs walk on game.exe's think (MonAI Npc, town-npcs.md: `diff_drlg.py 1-40 0
+npcs` 40/40); the MonWndr wanderer (FUN_0054ef50) is written up there, its
+draw stepped, the monster not made (1 room in 1.1 million).
+
+**Checkpoint 2026-10-03, research pass.** Nine topics researched in
+game.exe and built where Act 1 needs them:
+- The quest log panel and its Quest Log button (quests.md); the chain,
+  "!" alerts and done flash were already in.
+- Monster hits follow the think's target; no idle wander; Cursed's seed
+  and radius; Gargoyle Trap shots (monster-ai.md).
+- The calc compiler ported (FUN_006c1ae0, all 1,650 calcs match):
+  Bone Wall's `par34` reads as `par3` (skills.md, bugs.md #2).
+- Superuniques: boss sound sets, life-bar name colours
+  (superuniques.md). Open: Andariel and Blood Raven spawn without the
+  unique flag (gold name, Blood Raven's half freeze).
+- Monster stats as FUN_00573cb0 (noRatio rows; monstats.py 2202/2202);
+  poison and cold conversion (monsters.md, combat.md).
+- Town NPCs walk on game.exe's think (town-npcs.md).
+- A room's life on the server traced; act bosses count one unique
+  (drlg.md, bugs.md #15).
+- Chest traps fire 35 frames on, Act 1's swap to firebolt; object
+  blasts rolled and resisted; the Moldy Tome speaks (objects.md).
+- Stun guards, exact mana regen, the need-mana voice, Find Potion by
+  act (combat.md, skills.md).
+Shortcut comments were sorted per file into Act 1 work / networking /
+later acts / another area; most Act 1 ones left are small and invisible.
+Open and noticed: missiles fly 4/3 too fast (every game.exe missile is
+velocity x 75/100, FUN_0059fa30; the stepper isn't traced). The sweep
+(`tools/emu/sweep.sh`) now runs a Release drlg-dump, one emulator boot
+per level, with live progress. Full sweep after the merges (1-20, six kinds,
+levels 2–39): 228/228; ctest 31/31.
+
+**In flight (2026-10-04): two branches, stopped by usage limits.** Both
+are local branches (not pushed) with worktrees under `.claude/worktrees/`,
+cut from act1-levelup at 1b1c992. Neither has passed its full checks, so
+neither is on act1-levelup. To pick one up: check out the branch (or work
+in its worktree), rebase on act1-levelup, then build, ctest (31/31),
+clang-tidy on the changed files (0), and `tools/emu/sweep.sh 1-10 monsters
+objgroups drops collision tiles units` (228/228 at 10/10).
+- `wip-missiles` (worktree agent-a4f0d3d9ee490ebbe; 17 files, +948):
+  missiles fly as game.exe. aff8f6f `rules/missiles.hpp` (FUN_0059fa30's
+  x75/100 velocity, the 16.16 step, halved walk, rooms, Charged Bolt's
+  wiggle FUN_005c9290), `tools/emu/missiles.py` runs game.exe's own
+  missiles (1500/1500 match), test_monsters replays 18 flights; b3c8232
+  every missile (player, merc, pets, monsters, traps) flies on
+  `rules::MissileFlight`, hits by footprint on entered subtiles. Write-up
+  in docs/research/re/missiles.md. Left: the sweep, a live headless fight
+  (missiles reach targets, kills happen), clang-tidy, the report.
+- `wip-bosses-npcs-sort` (worktree agent-a549b3cc6731cf374):
+  3d1cfd4 act bosses spawn as FUN_005b1cf0 (Andariel mod 22, Blood Raven
+  12 + 22 and half freeze, flag 8: gold bar name, Demon label,
+  TreasureClass3; levels 17 and 37 match on monsters); 89d3170 town NPCs
+  walk up to a player with a "!" within 16, greet 2 off, home past 16, and
+  stand while talked to (FUN_005e68f0, bugs.md 16). 3482e02 is a WIP
+  commit: part 3, sorting the `ponytail:` comments of gamedata*,
+  objgroups, character*, inventory, item_text, replication, protocol,
+  components/drlg and apps/d2d into Act 1 / networking / later acts /
+  missiles, with comment edits only (33 files); never built or tested.
+  Left: finish the sort (report the counts and the Act 1 list ranked by
+  what a player notices), build, ctest, the sweep, clang-tidy.
 
 **Step 3 — networking** (the deferred item 7 above).
 
@@ -616,8 +681,8 @@ deviations.md lists where d2d differs from game.exe on purpose (the
 companion of bugs.md).
 
 Loose ends noted 2026-09-27: `par34` in Bone Wall's calc2 is a typo in
-Blizzard's Skills.txt (what game.exe's calc parser makes of it isn't
-traced); a Debug build loads ~2.5x slower than RelWithDebInfo.
+Blizzard's Skills.txt (game.exe reads it as `par3`, skills.md; closed
+2026-10-02); a Debug build loads ~2.5x slower than RelWithDebInfo.
 
 ## Earlier list (as of 2026-09-26; superseded by "Road to a whole Act 1")
 

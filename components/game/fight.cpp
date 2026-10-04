@@ -13,6 +13,7 @@
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <skills.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -139,7 +140,10 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         std::erase_if(regen, [&](const Regen& regen_entry) { return now_ms >= regen_entry.until; });
         const double elapsed = double(now_ms - last_ms);
         life += player_combat.life_regen * 256.0 / 256.0 * elapsed / 40.0;
-        mana += double(character.stats.values[kMaxMana]) / 120000.0 * (100 + player_combat.mana_regen) / 100.0 * elapsed;
+        // The steady mana comes a whole frame at a time (FUN_005806f0).
+        const auto& gains = game_data->class_gains[std::size_t(std::max(character.character_class, 0))];
+        mana += double(d2d::rules::mana_per_frame(character.stats.values[kMaxMana], gains.mana_regen, player_combat.mana_regen, int(psum[kManaRecovery])))
+              * double(now_ms / 40 - last_ms / 40);
         regen_acc_life += life; regen_acc_mana += mana;
         const auto life_gain = std::int64_t(regen_acc_life), mana_gain = std::int64_t(regen_acc_mana);
         regen_acc_life -= double(life_gain); regen_acc_mana -= double(mana_gain);
@@ -152,7 +156,8 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
 auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         if (monster.mode == monster.last_mode) return;
         monster.last_mode = monster.mode;
-        const auto found = game_data->mon_sounds.find(game_data->monsters.types[std::size_t(monster.type)].sound);
+        const auto& superunique = monster.super >= 0 && std::size_t(monster.super) < game_data->superuniques.size() ? game_data->superuniques[std::size_t(monster.super)].sound : std::string();
+        const auto found = game_data->mon_sounds.find(d2d::rules::boss_sound(game_data->monsters.types[std::size_t(monster.type)], monster.boss, superunique));
         if (found == game_data->mon_sounds.end()) return;
         const auto& sounds = found->second;
         if (monster.mode == "A1" || monster.mode == "A2") {
@@ -339,6 +344,14 @@ auto Fight::calc_env() -> d2d::rules::CalcEnv {
                  int(character.stats.get(d2d::d2s::kLevel)), &rng };
     }
 
+auto Fight::need_mana(std::uint32_t now_ms) -> void {
+        static constexpr std::array<const char*, 7> kNeedMana{ "amazon_needmana_1", "sorceress_needmana_1", "necromancer_needmana_1",
+            "paladin_needmana_1", "barbarian_needmana_1", "druid_needmana_1", "assassin_needmana_1" };
+        if (now_ms < need_mana_until) return;
+        need_mana_until = now_ms + 75 * 40;
+        cues.cue(kNeedMana[std::size_t(std::clamp(character.character_class, 0, 6))], now_ms, player.x, player.y);
+    }
+
 auto Fight::start_swing(std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         swing_skill = 0;
@@ -365,6 +378,7 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
                     }
                 } else if (!skill->attack_no_mana) {
                     attack_mon = -1;                         // can't pay, won't swing
+                    if (lvl > 0) need_mana(now_ms);
                     return false;
                 }
             }
@@ -530,11 +544,17 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             target.chill_until = std::max(target.chill_until, now_ms + std::uint32_t(ticks) * 40);
         }
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
-        // new stun resetting the length.
-        // ponytail: its guards aren't applied: special monsters' 90 % to
-        // shrug it off (FUN_005a0180), the MonStats flag immunity and the
-        // act bosses' 13-frame cap; the item stun length (stat 66) isn't added.
-        if (blow.stun_ticks > 0) target.stun_until = now_ms + std::uint32_t(blow.stun_ticks) * 40;
+        // new stun resetting the length. A special monster (champion, unique,
+        // superunique: monster data +0x16 & 8, FUN_005a0180) shrugs it off
+        // 90 % of the time (the attacker's seed); MonStats boss (+0xc & 0x40,
+        // FUN_0063e9f0) or Velocity 0 (+0x32) can't be stunned; 250 frames at
+        // most (the hirelings' 13, FUN_0063ee90, is for mercs struck).
+        // ponytail: the item stun length (stat 66) isn't added.
+        if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
+            blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
+            const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
+            if (!special || rng(100) >= 90) target.stun_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
+        }
         if (blow.bleed) {
             target.bleed_rate = d2d::rules::open_wounds_per_sec(int(character.stats.get(kLevel))) / 1000.0;
             target.bleed_until = now_ms + 8000;
@@ -780,10 +800,18 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // aurarange of it (FUN_0056e780, FUN_0056d2c0: the caster's
             // target; callback 0x5c3b30) gets that monster as its kind 2
             // target until the same end.
-            // ponytail: the duration as the other curses' (auralen, not
-            // FUN_005c37a0's divided calc); FUN_0056e2f0's AI test unread.
+            // The length is auralen; Confuse, Attract (FUN_005c3bcc) and the
+            // curses whose state is dimvision (23) or terror (56)
+            // (FUN_005c3400) divide it by DifficultyLevels AiCurseDivisor
+            // (FUN_005c37a0, +0x1c).
+            // ponytail: FUN_0056e2f0's AI test unread.
             case ServerDoFunction::kCurse: case ServerDoFunction::kConfuse: case ServerDoFunction::kStateAroundCaster: case ServerDoFunction::kAttract: case ServerDoFunction::kTaunt: {
-                const std::uint32_t until = now_ms + std::uint32_t(std::max(calc(skill, skill.auralen, lvl), 25)) * 40;
+                int length = calc(skill, skill.auralen, lvl);
+                if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))];
+                    divisor != 0 && (skill.srvdofunc == ServerDoFunction::kConfuse || skill.srvdofunc == ServerDoFunction::kAttract
+                                     || (skill.srvdofunc == ServerDoFunction::kCurse && (skill.auratarget == "dimvision" || skill.auratarget == "terror"))))
+                    length /= divisor;
+                const std::uint32_t until = now_ms + std::uint32_t(std::max(length, 25)) * 40;
                 const bool curse = skill.srvdofunc == ServerDoFunction::kCurse || skill.srvdofunc == ServerDoFunction::kConfuse || skill.srvdofunc == ServerDoFunction::kAttract;
                 const auto set = [&](Monster& monster, int kind, int id) {
                     if (game_data->monsters.types[std::size_t(monster.type)].switch_ai) monster.set_kind = kind, monster.set_id = id, monster.set_until = until;
@@ -800,7 +828,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                     if (lured && skill.srvdofunc == ServerDoFunction::kAttract) {
                         auto& lure = monsters[std::size_t(attack_mon)];
                         lure.align = 1;
-                        within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t j) { if (!monsters[j].align) set(monsters[j], 2, lure.id); });
+                        within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t index) { if (!monsters[index].align) set(monsters[index], 2, lure.id); });
                     }
                 } else {
                     within(skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.x : cast_x, skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
@@ -822,9 +850,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
             // a corpse not yet searched (state 0x76), at calc1 %: a potion
             // (FUN_005d8100), or the monster's treasure again (FUN_005a8000,
-            // a tier by Param1..4).
-            // ponytail: the potion by the character's level (FUN_005d8100's
-            // table isn't traced); Find Item rolls the monster's own class.
+            // a tier by Param1..4); the potion by the act and difficulty
+            // (rules::find_potion).
+            // ponytail: Find Item rolls the monster's own class.
             case ServerDoFunction::kFindPotion: case ServerDoFunction::kFindItem: {
                 const int corpse_index = corpse_near(cast_x, cast_y);
                 if (corpse_index < 0) break;
@@ -832,8 +860,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                 corpse.corpse_used = true;
                 if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
                 if (skill.srvdofunc == ServerDoFunction::kFindItem) { loot.drop(corpse, spawning.game, now_ms); break; }
-                const int tier = std::clamp(1 + int(character.stats.get(d2d::d2s::kLevel)) / 12, 1, 5);
-                const std::string code = rng(20) == 0 ? "rvs" : (rng(2) ? "hp" : "mp") + std::to_string(tier);
+                const std::string code = d2d::rules::find_potion(level ? level->id : 1, game_difficulty, int(rng(100)), skill.par[2], skill.par[3]);
                 loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
                 break;
             }
@@ -951,7 +978,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         // Shield (do 54, FUN_005d7e10 -> FUN_005d7ce0) strikes one monster
         // within aurarange every 10 frames.
         // ponytail: the timer's period (FUN_004efc80) and the events aren't
-        // traced: the paces are by eye.
+        // traced: the paces are by eye (level 24 / 30 skills: past Act 1).
         if (const auto* armageddon = state_of("armageddon"); armageddon && (now_ms / 40) % 5 == 0 && now_ms / 40 != storm_frame) {
             const auto* skill = game_data->skills.get(armageddon->skill);
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
@@ -1466,6 +1493,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         if (!skill_row || dead() || pmode >= 0 || (!missile_skill(*skill_row) && !spot_skill(*skill_row))) return false;
         const int lvl = skill_level ? skill_level(skill) : 0;
         const int cost = d2d::rules::mana_cost(*skill_row, lvl);
+        if (lvl > 0 && character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || character.stats.values[kMana] < cost) { attack_mon = -1; return false; }
         character.stats.values[kMana] -= cost;
         swing_skill = skill;
@@ -1676,7 +1704,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             }
             // 14 (Grim Ward's totem): every Param1 frames the monsters within
             // aurarange of it run for auralen frames.
-            // ponytail: missile do 14 isn't traced; Param1 / aurarange read so.
+            // ponytail: missile do 14 isn't traced; Param1 / aurarange read so
+            // (Grim Ward, level 24: past Act 1).
             if (missile_info.srv_do == 14 && age % std::max(missile_info.param1, 1) == 0)
                 for (auto& monster : monsters)
                     if (monster.alive() && std::hypot(monster.unit.x - missile.x, monster.unit.y - missile.y) * 5 <= float(std::max(calc(*skill, skill->aurarange, missile.level), 1)))
@@ -1701,7 +1730,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 area(missile, missile.x, missile.y, missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), now_ms);
             // 28 (FUN_005afb80, Volcano): every Param1 (else calc4) frames
             // SubMissile1 thrown at a point within Param2 (else aurarange).
-            // ponytail: its Param3 / Param4 frame window isn't applied.
+            // ponytail: its Param3 / Param4 frame window isn't applied (Volcano,
+            // level 24: past Act 1).
             if (missile_info.srv_do == 28 && sub != game_data->missiles.end()
                 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0) {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
@@ -1829,8 +1859,10 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
-        if (blow.hit && freeze > 0) { blow.chill_ticks = std::max(blow.chill_ticks, freeze); blow.stun_ticks = std::max(blow.stun_ticks, freeze); }
+        if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
         land(monster_index, blow, true, now_ms);
+        // A freeze stands it as a stun does, without the stun's guards.
+        if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
     }
 
 auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze ) -> void {
@@ -1927,7 +1959,8 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         }
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
         // calc2 life and mana back.
-        // ponytail: its callback isn't traced; one corpse a pulse.
+        // ponytail: its callback isn't traced; one corpse a pulse (Redemption,
+        // level 30: past Act 1).
         if (skill->srvdofunc == ServerDoFunction::kRedemption) {
             using namespace d2d::d2s;
             const int radius = calc(*skill, skill->aurarange, lvl);
@@ -2014,6 +2047,7 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
         if (skill_row->target_corpse && corpse_near(target_x, target_y) < 0) return false;
         const int lvl = skill_level ? skill_level(skill) : 0;
         const int cost = d2d::rules::mana_cost(*skill_row, lvl);
+        if (lvl > 0 && character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || character.stats.values[kMana] < cost) return false;
         character.stats.values[kMana] -= cost;
         swing_skill = skill;
@@ -2066,11 +2100,10 @@ auto Fight::summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
         // (srvmissilea, missile do 13) lay calc2 / 2 more each way across
         // the caster's line. Bone Prison (62, FUN_005c5d00): twelve round the
         // point at 0x6e304c / 0x6e307c.
-        // ponytail: the makers are laid at once, a subtile apart; calc2's
-        // text is 'par34' (Param3 taken).
+        // ponytail: the makers are laid at once, a subtile apart.
         if (skill.srvdofunc == ServerDoFunction::kBoneWall) {
             const float perp_x = y - player.y, perp_y = player.x - x, distance = std::max(std::hypot(perp_x, perp_y), 0.01f);
-            const int count = std::max(skill.par[2], 2) / 2;
+            const int count = std::max(calc(skill, skill.calc[1], lvl), 2) / 2;
             for (int k = -count; k <= count; ++k) summon_one(skill, type, lvl, env, x + perp_x / distance * float(k) * 0.4f, y + perp_y / distance * float(k) * 0.4f, now_ms);
             return;
         }
@@ -2240,6 +2273,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
         foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat;
+        foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         return foe;
     }
 
@@ -2399,6 +2433,7 @@ auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         if (!skill_row || dead() || pmode >= 0 || !self_cast(*skill_row)) return false;
         const int lvl = skill_level ? skill_level(skill) : 0;
         const int cost = d2d::rules::mana_cost(*skill_row, lvl);
+        if (lvl > 0 && character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || character.stats.values[kMana] < cost) return false;
         character.stats.values[kMana] -= cost;
         swing_skill = skill;
@@ -2472,6 +2507,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                                         merc && merc->walking, merc_fighter() } };
             foes[0].life_pct = int(std::int64_t(character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(character.stats.get(d2d::d2s::kMaxLife), 1));
             foes[1].pet = true;                                  // the merc: its MonStats class's size
+            foes[1].life_pct = int(std::int64_t(merc_life) * 100 / std::max(merc_st.life, 1));
             if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
                 foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
@@ -2505,8 +2541,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
             for (std::size_t i = sides; i < foes.size(); ++i)
-                if (const auto k = i - sides; hurt(*game_data, monsters[k], foes[i].damage, now_ms))
-                    killed(k, now_ms, cursed(monsters[k]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* by) -> const Monster& { return *by; }));
+                if (const auto monster_index = i - sides; hurt(*game_data, monsters[monster_index], foes[i].damage, now_ms))
+                    killed(monster_index, now_ms, cursed(monsters[monster_index]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* attacker) -> const Monster& { return *attacker; }));
             foes.resize(sides);
             for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);

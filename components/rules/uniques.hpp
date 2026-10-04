@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -137,6 +138,30 @@ inline constexpr std::array<std::uint16_t, 31> kUModLabel{
     0, 0, 0, 0, 0, 0xc85, 0xc86, 0xc87, 0xc88, 0xc89, 0, 0, 0, 0, 0, 0,
     0, 0xc8b, 0xc8a, 0, 0, 0, 0, 0, 0xc91, 0xc8c, 0xc8e, 0xc8d, 0xc8f, 0xc90, 0xc92 };
 inline constexpr std::uint16_t kMinionLabel = 0xc95, kMinionSpace = 0xf9b, kDemonLabel = 0x275e, kUndeadLabel = 0x275d;
+
+// The colour of a boss's name over its life bar (client FUN_00454ad0, the
+// font colour FUN_005022f0 takes): 4 gold for flag 8 (uniques, superuniques;
+// a champion has it too), 3 blue for a champion (flag 4) over that, else 0
+// white. MonStats rows 0xd3, 0xe5, 0xf2, 0xf3, 0x14d, 0x220, 0x23a and
+// 0x2c0..0x2c5 (by MonStats Id below) are always gold; Andariel isn't one.
+inline constexpr int kNameWhite = 0, kNameBlue = 3, kNameGold = 4;
+inline int bar_name_colour(Boss kind, std::string_view monstats_id) {
+    static constexpr std::array<std::string_view, 13> kGoldRows{ "diablo", "diabloclone", "mephisto", "duriel", "baalcrab", "baalclone", "radament",
+                                                                 "uberduriel", "uberandariel", "uberizual", "uberdiablo", "uberbaal", "ubermephisto" };
+    if (std::ranges::contains(kGoldRows, monstats_id)) return kNameGold;
+    return kind == Boss::champion ? kNameBlue : kind == Boss::unique || kind == Boss::superunique ? kNameGold : kNameWhite;
+}
+
+// The MonSounds row a monster plays (client FUN_004ca410, UnitSnd.cpp): a
+// superunique's own SuperUniques MonSound (record +0x18) when set (the
+// Countess's, the Smith's); else, for flag 8 or 0x10 (champions, uniques,
+// superuniques, minions), MonStats UMonSound (+0x16) when set (zombies:
+// zombieunique); else MonStats MonSound (+0x14).
+inline const std::string& boss_sound(const MonType& type, Boss kind, const std::string& superunique_sound) {
+    if (kind == Boss::superunique && !superunique_sound.empty()) return superunique_sound;
+    if (kind != Boss::none && !type.usound.empty()) return type.usound;
+    return type.sound;
+}
 
 // A champion's name (client FUN_004ac870, run through the mod table at
 // 0x724d78 for the fixed mods 1..4, then the monster's own; the last one

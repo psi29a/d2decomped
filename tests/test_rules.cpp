@@ -327,8 +327,8 @@ int main() {
         got.clear();
         d2d::d2s::Item wand;
         wand.ilvl = 30;
-        const ModItem on{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
-        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &on);   // level (30 - 6) / 4 + 1 = 7
+        const ModItem cap_item{ &wand, &gamble_tables.item_base["cap"], 1, false, false };
+        apply_mod(gamble_tables, { "charged", "Frost Nova", -20, 0 }, got, still, &cap_item);   // level (30 - 6) / 4 + 1 = 7
         const int charges = 20 + 20 * 7 / 8;
         assert(got.size() == 1 && got[0].param == (44 << 6 | 7) && got[0].value >> 8 == charges);
         assert((got[0].value & 0xff) > charges / 8 && (got[0].value & 0xff) <= charges);
@@ -361,7 +361,7 @@ int main() {
     auto wall = [](int x, int y) { return x == 5 && y >= -10 && y <= 10; };   // a wall at x = 5
     const auto round = find_path(0, 0, 10, 0, wall);
     assert(!round.empty() && round.back() == std::pair(10, 0));
-    for (const auto& [x, y] : round) assert(!wall(x, y));
+    for (const auto& [step_x, step_y] : round) assert(!wall(step_x, step_y));
     assert(round.size() > 10);                                             // had to detour
     auto boxed = [](int x, int y) { return std::abs(x - 20) <= 2 && std::abs(y) <= 2 && !(x == 20 && y == 0); };
     const auto closest = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in
@@ -423,6 +423,14 @@ int main() {
     // The state over what's left: hp1 alone 7680 / 192 a frame; another
     // with 96 frames left: (40 x 96 + 7680) / (96 + 192).
     assert(potion_rate(0, 0, 7680, 192) == 40 && potion_rate(40, 96, 7680, 192) == 40 && potion_rate(40, 96, 15360, 160) == 75);
+    // Mana a frame (FUN_005806f0): 20 mana over 120 s is 5120 / 3000, a
+    // whole 1 (not 1.7); +50 % of 1 truncates to 1; 200 mana 17, +50 % 25.
+    assert(mana_per_frame(20 << 8, 120, 0, 0) == 1 && mana_per_frame(20 << 8, 120, 50, 0) == 1);
+    assert(mana_per_frame(200 << 8, 120, 0, 0) == 17 && mana_per_frame(200 << 8, 120, 50, 0) == 25 && mana_per_frame(200 << 8, 0, 0, 3) == 9);
+    // Find Potion (FUN_005d8100): Act 1 Normal hp2 / mp2 (roll < 30) / rvs
+    // (30..39); the Cold Plains still act 1; Lut Gholein (40) act 2; Hell's last row.
+    assert(find_potion(2, 0, 50, 30, 10) == "hp2" && find_potion(2, 0, 29, 30, 10) == "mp2" && find_potion(3, 0, 35, 30, 10) == "rvs");
+    assert(find_potion(40, 0, 50, 30, 10) == "hp3" && find_potion(109, 2, 0, 30, 10) == "mp5" && find_potion(1, 1, 99, 30, 10) == "hp4");
 
     // Picking up: hp potions to their column, then a free one (autobelt);
     // scrolls to their tome, else the inventory; keys onto their stack.

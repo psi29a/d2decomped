@@ -8,14 +8,19 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <map>
+#include <optional>
 #include <span>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -36,9 +41,9 @@ std::string le32(std::uint32_t value) {
 }
 
 // "MZ", padding, then a VS_FIXEDFILEINFO head: signature, struct version, file version MS/LS.
-void pe(const fs::path& path, std::uint16_t a, std::uint16_t b, std::uint16_t c, std::uint16_t d) {
+void pe(const fs::path& path, std::uint16_t major, std::uint16_t minor, std::uint16_t patch, std::uint16_t build) {
     write(path, "MZ" + std::string(0x102, '\0') + le32(0xFEEF04BD) + le32(0x00010000) +
-                    le32(std::uint32_t(a) << 16 | b) + le32(std::uint32_t(c) << 16 | d) + std::string(64, '\0'));
+                    le32(std::uint32_t(major) << 16 | minor) + le32(std::uint32_t(patch) << 16 | build) + std::string(64, '\0'));
 }
 
 std::string varint(std::uint64_t value) {
@@ -136,15 +141,15 @@ int run() {
           product("osi", "C:/Program Files (x86)/Diablo II Resurrected") + product("zz", "C:/Games/D2 114b"));
 
     // --- native Windows-shaped machine behind a lambda registry ---------------
-    const auto pf86 = root / "pf86", pf = root / "pf", lad = root / "lad", apps = root / "apps", pd = root / "pd";
+    const auto pf86 = root / "pf86", program_files = root / "pf", lad = root / "lad", apps = root / "apps", program_data = root / "pd";
     const auto hklm_dir = root / "hklm" / "Diablo II", icon_dir = root / "icon" / "Diablo II";
     classic(pf86 / "Diablo II", true, { 1, 14, 1, 68 });
     pe(lad / "VirtualStore" / (pf86 / "Diablo II").relative_path() / "Game.exe", 1, 14, 3, 71);   // the patched one won
     classic(hklm_dir, true, { 1, 14, 3, 71 });
     classic(icon_dir, true, { 1, 13, 3, 60 });
     classic(apps / "Diablo II" / "Diablo II.app" / "Contents" / "Resources", true, { 0, 0, 0, 0 });
-    write(pf / "Diablo II Resurrected" / "D2R.exe", "MZ");
-    write(pd / "Battle.net" / "Agent" / "product.db", product("osi", (pf / "Diablo II Resurrected").string()));
+    write(program_files / "Diablo II Resurrected" / "D2R.exe", "MZ");
+    write(program_data / "Battle.net" / "Agent" / "product.db", product("osi", (program_files / "Diablo II Resurrected").string()));
 
     // --- d2d's data-dir order --------------------------------------------------
     const auto exe_dir = root / "exe", cwd = root / "cwd", cfg_dir = root / "cfg";
@@ -178,15 +183,15 @@ int run() {
     assert(!find_file(root / "nowhere", "d2data.mpq"));
 
     // --- classify -------------------------------------------------------------
-    auto d = classify(lod114d, "t");
-    assert(d && d->kind == Kind::classic && d->version == Version::v114d && d->expansion && usable(*d));
-    assert(d->file_version == "1.14.3.71" && !d->patch_mpq.empty() && problem(*d).empty());
-    assert(title(*d) == "Diablo II: Lord of Destruction 1.14d" && d->source == "t");
-    assert(std::find(d->missing.begin(), d->missing.end(), "d2char.mpq") == d->missing.end());
-    assert(std::find(d->missing.begin(), d->missing.end(), "d2sfx.mpq") != d->missing.end());
-    auto b = classify(lod114b, "t");
-    assert(b && b->version == Version::v114_other && usable(*b) && problem(*b).find("LODPatch_114d.exe") != std::string::npos);
-    assert(title(*b) == "Diablo II: Lord of Destruction 1.14.1.68");
+    auto install_d = classify(lod114d, "t");
+    assert(install_d && install_d->kind == Kind::classic && install_d->version == Version::v114d && install_d->expansion && usable(*install_d));
+    assert(install_d->file_version == "1.14.3.71" && !install_d->patch_mpq.empty() && problem(*install_d).empty());
+    assert(title(*install_d) == "Diablo II: Lord of Destruction 1.14d" && install_d->source == "t");
+    assert(std::find(install_d->missing.begin(), install_d->missing.end(), "d2char.mpq") == install_d->missing.end());
+    assert(std::find(install_d->missing.begin(), install_d->missing.end(), "d2sfx.mpq") != install_d->missing.end());
+    auto install_b = classify(lod114b, "t");
+    assert(install_b && install_b->version == Version::v114_other && usable(*install_b) && problem(*install_b).find("LODPatch_114d.exe") != std::string::npos);
+    assert(title(*install_b) == "Diablo II: Lord of Destruction 1.14.1.68");
     auto old = classify(lod113, "t");
     assert(old && old->version == Version::legacy && old->expansion && old->game_exe.empty());
     assert(classify(lod109, "t")->version == Version::legacy);
@@ -197,8 +202,8 @@ int run() {
     assert(problem(*classify(bare, "t")).find("LODPatch_114d.exe") != std::string::npos);
     auto devbin = classify(root / "devbin", "t");
     assert(devbin->version == Version::v114d && problem(*devbin).find("no patch_d2.mpq") != std::string::npos);
-    auto r = classify(d2r, "t");
-    assert(r && r->kind == Kind::resurrected && !usable(*r) && problem(*r).find("Resurrected") != std::string::npos);
+    auto install_r = classify(d2r, "t");
+    assert(install_r && install_r->kind == Kind::resurrected && !usable(*install_r) && problem(*install_r).find("Resurrected") != std::string::npos);
     assert(classify(d2r_casc, "t")->kind == Kind::resurrected);
     assert(!classify(stale, "t"));
     assert(!classify(fake, "t"));                      // d2data.mpq without the MPQ magic
@@ -232,11 +237,11 @@ int run() {
     assert(!wine_to_host(prefix, "relative\\path") && !wine_to_host(prefix, ""));
 
     // --- product.db -----------------------------------------------------------
-    const std::string db = varint(5 << 3 | 0) + varint(300) + varint(6 << 3 | 5) + "abcd" +   // skipped fields
+    const std::string product_db = varint(5 << 3 | 0) + varint(300) + varint(6 << 3 | 5) + "abcd" +   // skipped fields
                            product("osi", "C:/D2R") + product("d2x", "C:/Classic") + field(1, field(2, "nopath"));
-    const auto entries = read_product_db(span(db));
+    const auto entries = read_product_db(span(product_db));
     assert(entries.size() == 2 && entries[0].code == "osi" && entries[0].path == "C:/D2R" && entries[1].path == "C:/Classic");
-    assert(read_product_db(span(db.substr(0, db.size() - 20))).size() == 1);         // truncated: what parsed so far
+    assert(read_product_db(span(product_db.substr(0, product_db.size() - 20))).size() == 1);         // truncated: what parsed so far
     assert(read_product_db(span(varint(1 << 3 | 2) + varint(1000) + "short")).empty());  // over-long length
     assert(read_product_db(span(std::string("\x0f\xff\xff", 3))).empty());               // bad wire type
     assert(read_product_db({}).empty());
@@ -258,18 +263,18 @@ int run() {
     // --- detect over a Windows-shaped machine ---------------------------------
     Environment win;
     win.home = root / "home";
-    win.program_files = { pf86, pf };
+    win.program_files = { pf86, program_files };
     win.local_app_data = lad;
-    win.program_data = pd;
+    win.program_data = program_data;
     win.app_dirs = { apps };
     win.registry = [&](Hive hive, std::string_view key, std::string_view value) -> std::optional<std::string> {
-        const std::string k(key), v(value);
-        if (k == R"(Software\Blizzard Entertainment\Diablo II)" && v == "InstallPath")
+        const std::string key_text(key), value_text(value);
+        if (key_text == R"(Software\Blizzard Entertainment\Diablo II)" && value_text == "InstallPath")
             return hive == Hive::current_user ? (root / "gone" / "Diablo II").string() : hklm_dir.string() + "\\";
-        if (k.ends_with(R"(\Uninstall\Diablo II)") && v == "DisplayName") return "Diablo II";
-        if (k.ends_with(R"(\Uninstall\Diablo II)") && v == "DisplayIcon") return "\"" + (icon_dir / "Game.exe").string() + "\",0";
-        if (k.ends_with(R"(\Uninstall\Other)") && v == "DisplayName") return "Other";
-        if (k.ends_with(R"(\Uninstall\Other)") && v == "InstallLocation") return (root / "lod113").string();
+        if (key_text.ends_with(R"(\Uninstall\Diablo II)") && value_text == "DisplayName") return "Diablo II";
+        if (key_text.ends_with(R"(\Uninstall\Diablo II)") && value_text == "DisplayIcon") return "\"" + (icon_dir / "Game.exe").string() + "\",0";
+        if (key_text.ends_with(R"(\Uninstall\Other)") && value_text == "DisplayName") return "Other";
+        if (key_text.ends_with(R"(\Uninstall\Other)") && value_text == "InstallLocation") return (root / "lod113").string();
         return std::nullopt;
     };
     win.subkeys = [](Hive hive, std::string_view) {

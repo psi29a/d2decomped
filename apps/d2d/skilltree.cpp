@@ -32,8 +32,8 @@ int skill_at(const Scene& scene, int cls, int tab, int mouse_x, int mouse_y) {
     const auto& list = scene.rules.class_skills[std::size_t(cls)];
     for (std::size_t i = 0; i < list.size(); ++i) {
         if (list[i].page != tab) continue;
-        const auto [x, y] = skill_icon_at(list[i]);
-        if (mouse_x > x && mouse_x < x + 0x30 && mouse_y > y - 0x30 && mouse_y < y) return int(i);
+        const auto [icon_x, icon_y] = skill_icon_at(list[i]);
+        if (mouse_x > icon_x && mouse_x < icon_x + 0x30 && mouse_y > icon_y - 0x30 && mouse_y < icon_y) return int(i);
     }
     return -1;
 }
@@ -79,20 +79,20 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     for (std::size_t i = 0; i < list.size(); ++i) {
         const auto& class_skill = list[i];
         if (class_skill.page != tab) continue;
-        const auto [x, y] = skill_icon_at(class_skill);
+        const auto [icon_x, icon_y] = skill_icon_at(class_skill);
         const bool live = pts > 0 ? d2d::rules::can_learn(scene.rules, cls, int(i), levels, clvl) : levels[i] > 0;
-        dc6(scene.skill_icons[std::size_t(cls)], class_skill.icon + (int(i) == pressed ? 1 : 0), x, y, live ? 256 : 128);
+        dc6(scene.skill_icons[std::size_t(cls)], class_skill.icon + (int(i) == pressed ? 1 : 0), icon_x, icon_y, live ? 256 : 128);
         if (levels[i] > 0) {
             const auto& font = levels[i] > 9 ? (scene.font_small.line_height() > 0 ? scene.font_small : scene.font) : scene.font;
-            font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x + 0x30 - (levels[i] > 9 ? 4 : 0), y + 0xc - int(font.sheet().frame(0, 0).height) + 1,
+            font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, icon_x + 0x30 - (levels[i] > 9 ? 4 : 0), icon_y + 0xc - int(font.sheet().frame(0, 0).height) + 1,
                    std::to_string(levels[i]));
         }
-        if (mouse_x > x && mouse_x < x + 0x30 && mouse_y > y - 0x30 && mouse_y < y) hover = int(i);
+        if (mouse_x > icon_x && mouse_x < icon_x + 0x30 && mouse_y > icon_y - 0x30 && mouse_y < icon_y) hover = int(i);
     }
     if (hover >= 0 && !list[std::size_t(hover)].name.empty()) {
-        const auto [x, y] = skill_icon_at(list[std::size_t(hover)]);
+        const auto [icon_x, icon_y] = skill_icon_at(list[std::size_t(hover)]);
         if (auto found = lookup_string(scene, list[std::size_t(hover)].name))
-            draw_hover_text(framebuffer, scene, { { u16_to_latin1(*found), kTxtWhite } }, x, x + 0x30, y, y - 0x30);
+            draw_hover_text(framebuffer, scene, { { u16_to_latin1(*found), kTxtWhite } }, icon_x, icon_x + 0x30, icon_y, icon_y - 0x30);
     }
 }
 

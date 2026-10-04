@@ -9,19 +9,20 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <vector>
 
 namespace fs = std::filesystem;
 
 static std::vector<unsigned char> bytes_of(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream stream(path, std::ios::binary);
     std::vector<unsigned char> out;
-    for (std::istreambuf_iterator<char> it(in), end; it != end; ++it) out.push_back(static_cast<unsigned char>(*it));
+    for (std::istreambuf_iterator<char> it(stream), end; it != end; ++it) out.push_back(static_cast<unsigned char>(*it));
     return out;
 }
-static std::uint32_t u32(const std::vector<unsigned char>& bytes, std::size_t at) {
-    return std::uint32_t(bytes[at]) | std::uint32_t(bytes[at + 1]) << 8 | std::uint32_t(bytes[at + 2]) << 16 | std::uint32_t(bytes[at + 3]) << 24;
+static std::uint32_t u32(const std::vector<unsigned char>& bytes, std::size_t offset) {
+    return std::uint32_t(bytes[offset]) | std::uint32_t(bytes[offset + 1]) << 8 | std::uint32_t(bytes[offset + 2]) << 16 | std::uint32_t(bytes[offset + 3]) << 24;
 }
 
 int main() {

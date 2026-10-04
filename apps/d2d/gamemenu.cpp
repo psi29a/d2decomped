@@ -2,19 +2,29 @@
 // The game menu and the mini-panel (docs/research/re/menu.md).
 #include "gamemenu.hpp"
 
+#include "audio.hpp"
 #include "common.hpp"
+#include "scene.hpp"
+#include "ui.hpp"
 
+#include <dc6.hpp>
+#include <palette.hpp>
 #include <sound_ids.hpp>
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace d2d::client {
 
 namespace {
 
-constexpr int kW = int(kScreenWidth), kH = int(kScreenHeight);
+constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
 
 // A menu row (0x550 bytes in game.exe): type -1 title, 0 button, 1 choice,
 // 2 slider; xp rows are LoD's only; count / def the choices or slider
@@ -88,11 +98,11 @@ void cel(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::
     const int top = bottom - int(image.height);
     for (int y = 0; y < int(image.height); ++y)
         for (int column = 0; column < int(image.width); ++column) {
-            const int px = x + column, py = top + y;
+            const int pixel_x = x + column, pixel_y = top + y;
             const auto index = image.pixels[std::size_t(y) * image.width + std::size_t(column)];
-            if (index == 0 || px < 0 || px >= kW || py < 0 || py >= kH) continue;
+            if (index == 0 || pixel_x < 0 || pixel_x >= kWidth || pixel_y < 0 || pixel_y >= kHeight) continue;
             const auto colour = pal[index];
-            auto* pixel = &framebuffer[(std::size_t(py) * kScreenWidth + std::size_t(px)) * 4];
+            auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
             pixel[0] = half ? std::uint8_t((pixel[0] + colour.r) / 2) : colour.r;
             pixel[1] = half ? std::uint8_t((pixel[1] + colour.g) / 2) : colour.g;
             pixel[2] = half ? std::uint8_t((pixel[2] + colour.b) / 2) : colour.b;
@@ -120,10 +130,10 @@ const d2d::dc6::Sprite* text_image(const Scene& scene, std::string_view name) {
 // unverified: modes 0 and 2 as 25 / 75% (mode 1, half, is npc-talk.md's).
 void darken(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height, int mode) {
     const int keep = 3 - mode;                       // quarters of the colour kept
-    for (int py = std::max(0, y); py < std::min(kH, y + height); ++py)
-        for (int px = std::max(0, x); px < std::min(kW, x + width); ++px) {
+    for (int py = std::max(0, y); py < std::min(kHeight, y + height); ++py)
+        for (int px = std::max(0, x); px < std::min(kWidth, x + width); ++px) {
             auto* pixel = &framebuffer[(std::size_t(py) * kScreenWidth + std::size_t(px)) * 4];
-            for (int c = 0; c < 3; ++c) pixel[c] = std::uint8_t(pixel[c] * keep / 4);
+            for (int channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t(pixel[channel] * keep / 4);
         }
 }
 
@@ -143,8 +153,8 @@ std::vector<std::string_view> game_menu_images() {
 }
 
 GameMenu::GameMenu() {
-    for (std::size_t m = 0; m < std::size(kMenus); ++m)
-        for (std::size_t r = 0; r < kMenus[m].rows.size(); ++r) value[m][r] = kMenus[m].rows[r].def;
+    for (std::size_t menu_index = 0; menu_index < std::size(kMenus); ++menu_index)
+        for (std::size_t row_index = 0; row_index < kMenus[menu_index].rows.size(); ++row_index) value[menu_index][row_index] = kMenus[menu_index].rows[row_index].def;
 }
 
 void GameMenu::show(int which) {
@@ -155,14 +165,14 @@ void GameMenu::show(int which) {
 
 std::vector<int> GameMenu::rows() const {
     std::vector<int> out;
-    for (std::size_t r = 0; r < kMenus[menu].rows.size(); ++r)
-        if (expansion || !kMenus[menu].rows[r].xp) out.push_back(int(r));
+    for (std::size_t row_index = 0; row_index < kMenus[menu].rows.size(); ++row_index)
+        if (expansion || !kMenus[menu].rows[row_index].xp) out.push_back(int(row_index));
     return out;
 }
 
 int GameMenu::top() const {
     const int count = int(rows().size());
-    return (kH - 80) / 2 - kMenus[menu].step * count / 2;
+    return (kHeight - 80) / 2 - kMenus[menu].step * count / 2;
 }
 
 bool GameMenu::enabled(int row) const {
@@ -174,7 +184,7 @@ bool GameMenu::enabled(int row) const {
 int GameMenu::hit(int mouse_y) const {
     const auto shown = rows();
     const int count = int(shown.size()), step = kMenus[menu].step;
-    const int mid = (kH - 80) / 2, half = step * count / 2;
+    const int mid = (kHeight - 80) / 2, half = step * count / 2;
     if (mouse_y <= mid - half || mouse_y >= mid + half) return -1;
     int found = -1;
     for (int k = 0; k < count; ++k)
@@ -233,7 +243,7 @@ void GameMenu::slide(const Scene& scene, Audio& audio, int mouse_x, int mouse_y)
     const int old = val;
     if (enabled(row_index) && row.type == 2) {
         const bool labelled = text_image(scene, row.name) != nullptr;
-        const int strip = kW / 2 + (labelled ? -0x3b : -0x90), base = kW / 2 + (labelled ? -0x3c : -0x91) + 12;
+        const int strip = kWidth / 2 + (labelled ? -0x3b : -0x90), base = kWidth / 2 + (labelled ? -0x3c : -0x91) + 12;
         if (drag || (mouse_x > strip && mouse_x < strip + 0x121)) {
             if (mouse_x < base) val = 0;
             else if (mouse_x > base + 0x109) val = row.count - 1;
@@ -299,23 +309,23 @@ void GameMenu::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) 
         const bool half = !enabled(row_index);              // draw mode 1, else 5
         const auto* label = text_image(scene, row.name);
         if (row.type <= 0) {
-            if (label) cels(framebuffer, scene, *label, kW / 2, text_y, 1, half);
+            if (label) cels(framebuffer, scene, *label, kWidth / 2, text_y, 1, half);
         } else if (row.type == 1) {
-            if (label) cels(framebuffer, scene, *label, kW / 2 - 230, text_y, 0, half);
+            if (label) cels(framebuffer, scene, *label, kWidth / 2 - 230, text_y, 0, half);
             if (const auto* choice = text_image(scene, row.choices[std::size_t(value[std::size_t(menu)][std::size_t(row_index)])]))
-                cels(framebuffer, scene, *choice, kW / 2 + 230, text_y, 2, half);
+                cels(framebuffer, scene, *choice, kWidth / 2 + 230, text_y, 2, half);
         } else {
-            if (label) cels(framebuffer, scene, *label, kW / 2 - 230, text_y, 0, half);
+            if (label) cels(framebuffer, scene, *label, kWidth / 2 - 230, text_y, 0, half);
             // FUN_0047e260: the strip darkened either side of the knob, the
             // bar, the skull.
             const int val = value[std::size_t(menu)][std::size_t(row_index)];
             const int slider_y = y + def.slider_dy;
-            const int bar_x = kW / 2 + (label ? -0x3c : -0x91);
+            const int bar_x = kWidth / 2 + (label ? -0x3c : -0x91);
             const int knob_x = bar_x + knob(row.count, val);
-            const int strip_x = kW / 2 + (label ? -0x3b : -0x90), filled = knob_x - bar_x + 12;
+            const int strip_x = kWidth / 2 + (label ? -0x3b : -0x90), filled = knob_x - bar_x + 12;
             darken(framebuffer, strip_x, slider_y - 30, filled, 30, row.centred ? 1 : 2);
             darken(framebuffer, strip_x + filled, slider_y - 30, 0x121 - filled, 30, row.centred ? 1 : 0);
-            cels(framebuffer, scene, row.centred ? scene.opt_bar_c : scene.opt_bar, label ? kW / 2 + 0xe6 : kW / 2, slider_y, label ? 2 : 1, half);
+            cels(framebuffer, scene, row.centred ? scene.opt_bar_c : scene.opt_bar, label ? kWidth / 2 + 0xe6 : kWidth / 2, slider_y, label ? 2 : 1, half);
             cel(framebuffer, scene, scene.opt_skull, 0, knob_x, slider_y - (row.centred ? 0 : 1) - 1, half);
         }
     }
@@ -323,8 +333,8 @@ void GameMenu::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) 
     int widest = 0;
     for (std::uint32_t i = 0; i < scene.pentspin.frames_per_direction(); ++i) widest = std::max(widest, int(scene.pentspin.frame(0, i).width));
     const int pent_y = first + def.step * sel + def.pent_dy;
-    cel(framebuffer, scene, scene.pentspin, pent ? 8 - pent : 0, kW / 2 - widest - 0xf9, pent_y, false);
-    cel(framebuffer, scene, scene.pentspin, pent, kW / 2 + 0xf9, pent_y, false);
+    cel(framebuffer, scene, scene.pentspin, pent ? 8 - pent : 0, kWidth / 2 - widest - 0xf9, pent_y, false);
+    cel(framebuffer, scene, scene.pentspin, pent, kWidth / 2 + 0xf9, pent_y, false);
 }
 
 namespace {
@@ -332,10 +342,10 @@ namespace {
 constexpr std::array<int, 7> kMiniActions = { 0, 1, 2, 4, 5, 6, 7 };   // single player: no party (3)
 
 // The first button's x (FUN_0047e8b0): centred, or beside the panels open.
-int mini_x0(bool left, bool right) { return right ? kW / 2 - 0xca : left ? kW / 2 + 0x39 : kW / 2 - 0x4a; }
+int mini_x0(bool left, bool right) { return right ? kWidth / 2 - 0xca : left ? kWidth / 2 + 0x39 : kWidth / 2 - 0x4a; }
 
 bool on_menu_button(int mouse_x, int mouse_y) {           // FUN_00497780
-    return mouse_x >= kW / 2 - 8 && mouse_x <= kW / 2 + 5 && mouse_y >= kH - 0x27 && mouse_y <= kH - 0xd;
+    return mouse_x >= kWidth / 2 - 8 && mouse_x <= kWidth / 2 + 5 && mouse_y >= kHeight - 0x27 && mouse_y <= kHeight - 0xd;
 }
 
 }  // namespace
@@ -356,19 +366,19 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
         took = true;
     }
     if (!open || (left && right)) { down.fill(false); return took; }   // both sides open: hidden (0x7bc970)
-    const int centre = kW / 2 + (right ? -0x76 : 0) + (left ? 0x77 : 0);
-    const bool in_box = mouse.x > centre - 0x54 && mouse.x < centre + 0x59 && mouse.y > kH - 0x45 && mouse.y < kH - 0x2f;
-    const int x0 = mini_x0(left, right);
+    const int centre = kWidth / 2 + (right ? -0x76 : 0) + (left ? 0x77 : 0);
+    const bool in_box = mouse.x > centre - 0x54 && mouse.x < centre + 0x59 && mouse.y > kHeight - 0x45 && mouse.y < kHeight - 0x2f;
+    const int buttons_x = mini_x0(left, right);
     if (mouse.press_this_frame && in_box) {                // FUN_0047ef30
         for (std::size_t i = 0; i < down.size(); ++i) {
-            const int button_x = x0 + 0x15 * int(i);
+            const int button_x = buttons_x + 0x15 * int(i);
             if (mouse.x > button_x && mouse.x < button_x + 0x14) { down[i] = true; audio.play_sfx(scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         }
         took = true;
     }
     if (mouse.release_this_frame && std::ranges::any_of(down, [](bool held) { return held; })) {   // FUN_0047ed90
         for (std::size_t i = 0; i < down.size(); ++i) {
-            const int button_x = x0 + 0x15 * int(i);
+            const int button_x = buttons_x + 0x15 * int(i);
             if (in_box && mouse.x > button_x && mouse.x < button_x + 0x14) action = kMiniActions[i];
         }
         down.fill(false);
@@ -379,15 +389,15 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
 
 void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y) const {
     if (open && !(left && right)) {                        // FUN_0047f710
-        const int panel_x = right ? kW / 2 - 0xcd : left ? kW / 2 + 0x38 - 2 : kW / 2 - 0x4a - 3;
-        cel(framebuffer, scene, scene.minipanel, 0, panel_x, kH - 0x2f, false);
-        const int x0 = mini_x0(left, right);
+        const int panel_x = right ? kWidth / 2 - 0xcd : left ? kWidth / 2 + 0x38 - 2 : kWidth / 2 - 0x4a - 3;
+        cel(framebuffer, scene, scene.minipanel, 0, panel_x, kHeight - 0x2f, false);
+        const int buttons_x = mini_x0(left, right);
         for (std::size_t i = 0; i < kMiniActions.size(); ++i)
-            cel(framebuffer, scene, scene.minipanel_btn, 2 * kMiniActions[i] + (down[i] ? 1 : 0), x0 + 0x15 * int(i), kH - 0x32, false);
+            cel(framebuffer, scene, scene.minipanel_btn, 2 * kMiniActions[i] + (down[i] ? 1 : 0), buttons_x + 0x15 * int(i), kHeight - 0x32, false);
     }
     // FUN_004977c0: frames 0 / 1 closed, 2 / 3 open, the odd one held down.
     const int frame = (open ? 2 : 0) + (button_down && on_menu_button(mouse_x, mouse_y) ? 1 : 0);
-    cel(framebuffer, scene, scene.menu_button, frame, kW / 2 - 8, kH - 16, false);
+    cel(framebuffer, scene, scene.menu_button, frame, kWidth / 2 - 8, kHeight - 16, false);
 }
 
 }  // namespace d2d::client

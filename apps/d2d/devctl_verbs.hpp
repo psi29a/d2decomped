@@ -19,6 +19,7 @@
 #include <d2s_items.hpp>
 #include <devctl.hpp>
 #include <light.hpp>
+#include <object_ids.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
@@ -345,7 +346,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() >= 4 && args[1] == "points" && scene) {   // give class skill <id> n points (tests)
-            const auto& ids = scene->skills.class_ids[std::size_t(std::max(character.character_class, 0))];
+            const auto& ids = scene->skills.class_ids[std::size_t(std::max(town.world.character.character_class, 0))];
             const auto found = std::ranges::find(ids, std::atoi(args[2].c_str()));
             if (found == ids.end()) return std::string("err not a class skill\n");
             town.world.character.stats.skills[std::size_t(found - ids.begin())] = std::uint8_t(std::clamp(std::atoi(args[3].c_str()), 0, 99));
@@ -374,9 +375,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             for (const auto& state : town.fight.self_states) out += std::format("{}:{},", state.skill, state.level);
             out += "\n";
             for (const auto& monster : town.fight.monsters)
-                if (monster.curse.skill >= 0 || monster.cry.skill >= 0)
-                    out += std::format("{} hp={} curse={} cry={} dmg%={} speed%={} reflect%={} flee={} blind={}\n", monster.npc.name, monster.hit_points,
-                                       monster.curse.skill, monster.cry.skill, monster.dmg_pct, monster.speed_pct, monster.reflect_pct, monster.flee_until, monster.blind_until);
+                if (monster.curse.skill >= 0 || monster.cry.skill >= 0 || monster.stun_until > 0)
+                    out += std::format("{} hp={} curse={} cry={} dmg%={} speed%={} reflect%={} flee={} blind={} stun={}\n", monster.npc.name, monster.hit_points,
+                                       monster.curse.skill, monster.cry.skill, monster.dmg_pct, monster.speed_pct, monster.reflect_pct, monster.flee_until, monster.blind_until,
+                                       monster.stun_until);
             return out + "ok\n";
         }
         if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura

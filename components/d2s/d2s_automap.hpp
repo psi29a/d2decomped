@@ -197,8 +197,8 @@ inline bool append_automap(const std::filesystem::path& path, int layer, const A
     for (const auto& list : cells.lists) detail::automap_write32(file, std::uint32_t(list.size() * 6));
     // The tree's in-order walk (FUN_00458470): y, then x, then the cel.
     for (auto list : cells.lists) {
-        std::sort(list.begin(), list.end(), [](const AutomapCell& a, const AutomapCell& b) {
-            return std::tie(a.y, a.x, a.cel) < std::tie(b.y, b.x, b.cel);
+        std::sort(list.begin(), list.end(), [](const AutomapCell& lhs, const AutomapCell& rhs) {
+            return std::tie(lhs.y, lhs.x, lhs.cel) < std::tie(rhs.y, rhs.x, rhs.cel);
         });
         for (const auto& cell : list)
             for (const std::int16_t value : { cell.cel, cell.x, cell.y }) {

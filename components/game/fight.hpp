@@ -95,7 +95,7 @@ inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK ||
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
 // each Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's).
 // ponytail: whether Dragon Flight's kick (do 52) releases isn't traced;
-// here it doesn't.
+// here it doesn't (a level 24 skill: past Act 1).
 inline bool finisher(const d2d::rules::Skill* skill) {
     return !skill || skill->id == 0 || skill->srvdofunc == ServerDoFunction::kDragonTalon || skill->srvdofunc == ServerDoFunction::kDragonTail || skill->srvdofunc == ServerDoFunction::kDragonClaw;
 }
@@ -272,17 +272,16 @@ struct Fight {
     // of double: rules::potion_amount) over their length, joined with
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
-    // ponytail: the doubling rolls d2d's rng, not the player's own seed;
-    // no shift-click to feed the merc (FUN_00562390: hpot, apot, wpot).
+    // ponytail: the doubling rolls d2d's rng, not the player's own seed
+    // (it matters once machines share a game: networking); no shift-click to feed the merc (FUN_00562390: hpot, apot, wpot).
     void drink(int col, std::uint32_t now_ms);
     void drink_item(int id, std::uint32_t now_ms);
     void potion(const std::string& code, std::uint32_t now_ms);
     // Potions and poison, then the steady regeneration: replenish life
-    // (hpregen, N/256 a tick) and mana (all of it in 120 s, faster by the
-    // manarecoverybonus %). Poison is negative hpregen, and the player's
-    // regen tick (FUN_00580610) never takes life below 1: poison can't kill
-    // a player (docs/research/re/combat.md).
-    // ponytail: the 120 s mana base is the commonly given rule, not traced.
+    // (hpregen, N/256 a tick) and mana (rules::mana_per_frame, FUN_005806f0:
+    // max mana over CharStats ManaRegen seconds, a frame at a time). Poison
+    // is negative hpregen, and the player's regen tick (FUN_00580610) never
+    // takes life below 1: poison can't kill a player (docs/research/re/combat.md).
     double regen_acc_life = 0, regen_acc_mana = 0;
     void apply_regen(std::uint32_t now_ms, std::uint32_t last_ms);
     // A monster's new mode sounds off (MonSounds.txt): an attack's cry (at
@@ -333,9 +332,15 @@ struct Fight {
     // a plain attack instead, any other doesn't swing. Its animation (A1,
     // KK for the kicks) at the swing's speed; Dragon Talon's kick count is
     // calc1 (FUN_005d5970).
-    // ponytail: SQ sequence skills (Jab, Fists of Fire) aren't built; no
-    // "not enough mana" voice.
     bool start_swing(std::uint32_t now_ms);
+    // Short of mana for a skill (the client's FUN_00647960 reason 1:
+    // FUN_00647540's cost, FUN_006440f0's minmana) the class says so: message
+    // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,
+    // <class>_needmana_1; the same voice again within 75 client frames
+    // (DAT_007a0498) is skipped.
+    // ponytail: FUN_004b9e90's guard (a voice already playing) isn't kept.
+    void need_mana(std::uint32_t now_ms);
+    std::uint32_t need_mana_until = 0;
     // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
     // the weapon class) at the attack's speed; with no frames for the
     // weapon it swings once.
@@ -474,8 +479,8 @@ struct Fight {
     //      many subtiles, each a missile of the count's (fire, ice cubes).
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
     // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
-    // (Royal Strike, Fists of Fire's first) are logged once; 39's points
-    // come from d2d's rng.
+    // (Royal Strike, level 30, past Act 1; Fists of Fire's first) are
+    // logged once; 39's points come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms);
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
@@ -689,7 +694,7 @@ struct Fight {
     // resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
     // 45 poison, 171 defense %).
     // ponytail: the published rule for immune monsters (a fifth of the
-    // cut) isn't applied, nor the other target stats (Holy Freeze's
+    // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
     // slow: its cold chills instead).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
     void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target);
@@ -761,7 +766,7 @@ struct Fight {
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part
     // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
-    // checked).
+    // checked). A level 24 skill: past Act 1.
     // Reading a scroll or a tome (Skills.txt 219 / 220): its skill cast,
     // no mana, anywhere but in town (checkfunc 5).
     bool portal_due = false;                       // Town Portal's action frame came
@@ -803,7 +808,7 @@ struct Fight {
     // Poison Shrines' 6 potions (FUN_005830e0 / FUN_00583410, missiles 45 /
     // 48) toward (-6, 6), (-6, -6), (0, 6), (0, -6), (6, 6), (6, -6).
     // ponytail: they hit monsters only (game.exe's are the shrine's own and
-    // may hit players too); the poison potion's cloud is a burst of its
+    // may hit players too: other players wait for networking); the poison potion's cloud is a burst of its
     // row's poison.
     void shrine_missiles(int code, float x, float y, int clvl, std::uint32_t now_ms);
     // The player went to `to`: an outdoor level's monsters come back, the

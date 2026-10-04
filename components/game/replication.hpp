@@ -294,6 +294,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
     out.u16(int(view.events.size()));
     for (const auto& event : view.events) {
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) out.u8(0).i32(level_changed->from ? level_changed->from->id : -1).u8(level_changed->keep_map);
+        else if (const auto* speech = std::get_if<ev::Speech>(&event)) out.u8(2).i32(speech->npc).i32(speech->string);
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -465,10 +466,14 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
     }
     view.events.clear();
     for (int k = u16(); k > 0 && input.ok; --k) {
-        if (byte() == 0) {
+        const int kind_byte = byte();
+        if (kind_byte == 0) {
             const Level* from = level_of(game_data, i32());
             const bool keep = byte();
             if (from) view.events.push_back(ev::LevelChanged{ from, keep });
+        } else if (kind_byte == 2) {
+            const int npc = i32();
+            view.events.push_back(ev::Speech{ npc, i32() });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };

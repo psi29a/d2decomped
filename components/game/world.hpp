@@ -5,7 +5,8 @@
 // (protocol.hpp). What the client needs to hear back goes out as Events.
 // ponytail: one player; the character (cc) is shared with the client
 // until the CharacterStore, and item moves, stat / skill points and the
-// store still edit it client-side; the rng is shared too.
+// store still edit it client-side; the rng is shared too. Waits for
+// networking and several players.
 #pragma once
 
 #include "ai.hpp"
@@ -21,6 +22,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <light.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
@@ -50,8 +52,11 @@ struct LevelChanged { const Level* from = nullptr; bool keep_map = false; };
 // UI" and the NPC interaction).
 // A talk carries the NPC's quest messages for the player (quests.hpp).
 struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; int npc = -1; std::vector<d2d::rules::QuestMsg> quest; };
+// An object's message for the player (S->C 0x27 mode 2: the Moldy Tome's
+// 127): the speech box plays it, and the client answers it heard.
+struct Speech { int npc = -1; int string = 0; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
+using Event = std::variant<ev::LevelChanged, ev::OpenUI, ev::Speech>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -59,7 +64,7 @@ using Event = std::variant<ev::LevelChanged, ev::OpenUI>;
 // ponytail: monsters go whole (the fields a client needs aren't picked yet);
 // the character (cc), the store and the item in hand are still shared with
 // the World; levels are pointers into the shared GameData (the same on every
-// machine, from the map seed).
+// machine, from the map seed). Waits for networking.
 struct View {
     const Level* level = nullptr;
     UnitState player;
@@ -238,7 +243,7 @@ struct World {
     // items. "" when it's written, else why not.
     std::string save();
     // Warriv took the player east this tick: the town saves and leaves.
-    // ponytail: no Act 2; the game ends at the caravan.
+    // ponytail: no Act 2 (later acts); the game ends at the caravan.
     bool went_east = false;
 
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
@@ -268,6 +273,9 @@ struct World {
     // whoever's within 3 subtiles and sets off the unopened ones nearer
     // than 3.
     void explode(int npc_index, std::uint32_t now_ms);
+    // An object's blast on a unit at (x, y) of `size` (rules::object_blast
+    // on the object's unit seed): none in town nor through a wall. 256ths.
+    int blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense);
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
@@ -276,10 +284,19 @@ struct World {
     // skill's damage, the others their own columns. 5 / 7 leave two fires
     // (no damage traced); 8 raises the level's undead.
     // ponytail: the AI's range check (aip1) is skipped — the player opening
-    // the chest is always close; chainlightning doesn't hop; trapfirebolt's
-    // fireexplode isn't spawned.
+    // the chest is always close; trapfirebolt's fireexplode isn't spawned;
+    // chainlightning doesn't hop (act 2 on: act 1 swaps it for firebolt).
     // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
+    // A container's trap as it opens (FUN_00582510): trap 8 with no undead
+    // family in act 1 is nothing (FUN_00582250); else its event 4 springs
+    // it 35 frames on (FUN_005817a0: rules::trap_on_level, then the table).
+    // One whose level the player has left by then is dropped: its trap
+    // monster would find no one in range.
+    struct Trap { const Level* level; int trap; float x, y; int alvl; std::uint32_t due; };
+    std::vector<Trap> traps;
+    void arm_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms);
+    void spring_traps(std::uint32_t now_ms);
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
@@ -312,7 +329,7 @@ struct World {
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
     // ponytail: counted when the number drops (game.exe: on each death);
-    // the count goes to the log.
+    // the count goes to the log. Quests: agent A's.
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 

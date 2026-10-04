@@ -464,7 +464,11 @@ ids).
 
 - **0x27 NPC info** (40; `0x45e0a0` → `FUN_004a1600`): +1 u8 mode (1 /
   2), +2 u32 unit id, +6 u16 **(?)**, +8 u16 (checked against 3), +10
-  u16 **(?)**; the rest **(?)**.
+  u16 **(?)**; the rest **(?)**. The server's `FUN_005456a0` (the
+  Moldy Tome's message 127) sends mode 2, the object's unit id, +8 byte
+  0, +10 u16 the message; the client's mode 2 (+8 not 3) keeps the id
+  (0x7bf206) and opens the speech box (`FUN_004a1320`, 0x145 wide at
+  y 12; message 0x7f flags 0x7bf230). d2d: `ev::Speech`.
 - **0x8a NPC interaction** (6; `FUN_004b3380`): +1 type, +2 u32 id.
   Class 0x216 closes the UI (`FUN_004b9a00`); if it isn't the unit being
   talked to, the player resets (`FUN_00470390(3)`); class 0x14b runs

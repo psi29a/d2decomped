@@ -16,6 +16,7 @@
 #include "units.hpp"
 
 #include <ds1.hpp>
+#include <level_ids.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -145,38 +146,38 @@ inline constexpr int kMask[6][5] = { { -1, 0, 0, -1, 0 }, { 23, 0, 5, 21, 17 }, 
 inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const std::vector<std::size_t>& nearby,
                         const std::vector<std::uint32_t>& orients, const std::vector<std::uint32_t>& floors) {
     auto& room = rooms[self];
-    const int w = room.width + 1, h = room.height + 1;
-    std::vector<std::uint32_t> labels(std::size_t(w * h));
-    std::vector<char> walls(std::size_t(w * h));
-    auto blocks = [](const PlacedTile& t) {                                                         // FUN_0066db20 flags
-        const bool hidden = (t.word & 0x20000000u) || (t.file && t.index >= 0 && (t.file->tiles[std::size_t(t.index)].material & 4));
-        return t.layer == 0 && t.orient != 13 && t.orient != 15 && ((t.word >> 18) & 3) == 0 && !hidden;
+    const int width = room.width + 1, height = room.height + 1;
+    std::vector<std::uint32_t> labels(std::size_t(width * height));
+    std::vector<char> walls(std::size_t(width * height));
+    auto blocks = [](const PlacedTile& tile) {                                                         // FUN_0066db20 flags
+        const bool hidden = (tile.word & 0x20000000u) || (tile.file && tile.index >= 0 && (tile.file->tiles[std::size_t(tile.index)].material & 4));
+        return tile.layer == 0 && tile.orient != 13 && tile.orient != 15 && ((tile.word >> 18) & 3) == 0 && !hidden;
     };
-    auto mark = [&](const PlacedTile& t) {
-        if (t.x >= room.x && t.y >= room.y && t.x <= room.x + room.width && t.y <= room.y + room.height && blocks(t))
-            walls[std::size_t((t.y - room.y) * w + t.x - room.x)] = 1;
+    auto mark = [&](const PlacedTile& tile) {
+        if (tile.x >= room.x && tile.y >= room.y && tile.x <= room.x + room.width && tile.y <= room.y + room.height && blocks(tile))
+            walls[std::size_t((tile.y - room.y) * width + tile.x - room.x)] = 1;
     };
-    for (const auto& t : room.tiles) mark(t);
+    for (const auto& tile : room.tiles) mark(tile);
     for (const auto other : nearby) {
         if (other == self || !rooms[other].upper) continue;
-        for (const auto& c : rooms[other].chains)
-            if (!c.floor)
-                for (int i = c.head; i != -1; i = rooms[other].tiles[std::size_t(i)].next) mark(rooms[other].tiles[std::size_t(i)]);
+        for (const auto& chain : rooms[other].chains)
+            if (!chain.floor)
+                for (int i = chain.head; i != -1; i = rooms[other].tiles[std::size_t(i)].next) mark(rooms[other].tiles[std::size_t(i)]);
     }
     std::uint32_t label = 0;
     auto flood = [&](auto&& flood, int x, int y, int dir) -> void {                                 // FUN_0066c3d0
         for (;;) {
-            if (x < 0 || y < 0 || x >= w || y >= h) return;
-            const auto at = std::size_t(y * w + x);
-            if (labels[at] & 0x10000000u) return;
-            if (!walls[at]) {
-                labels[at] = label;
-                for (int d = 0; d < 4; ++d) flood(flood, x + kDx[d], y + kDy[d], d);
+            if (x < 0 || y < 0 || x >= width || y >= height) return;
+            const auto cell = std::size_t(y * width + x);
+            if (labels[cell] & 0x10000000u) return;
+            if (!walls[cell]) {
+                labels[cell] = label;
+                for (int step = 0; step < 4; ++step) flood(flood, x + kDx[step], y + kDy[step], step);
                 return;
             }
-            const auto v = orients.empty() ? 0u : orients[at] & 0xff;
-            const int mask = kMask[(v < 20 ? kRow[v] : -1) + 1][dir + 1];
-            if (mask & 1) labels[at] = label;
+            const auto orient = orients.empty() ? 0u : orients[cell] & 0xff;
+            const int mask = kMask[(orient < 20 ? kRow[orient] : -1) + 1][dir + 1];
+            if (mask & 1) labels[cell] = label;
             if ((mask & 2) && dir != 2) flood(flood, x + 1, y, 0);
             if ((mask & 4) && dir != 3) flood(flood, x, y + 1, 1);
             if ((mask & 8) && dir != 0) flood(flood, x - 1, y, 2);
@@ -186,31 +187,31 @@ inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const s
         }
     };
     std::uint32_t count = 0;
-    for (int y = 0; y < h; ++y)                                                                     // FUN_0066c580
-        for (int x = 0; x < w; ++x) {
-            const auto at = std::size_t(y * w + x);
-            if (labels[at] & 0x10000000u) continue;
+    for (int y = 0; y < height; ++y)                                                                     // FUN_0066c580
+        for (int x = 0; x < width; ++x) {
+            const auto cell = std::size_t(y * width + x);
+            if (labels[cell] & 0x10000000u) continue;
             label = (++count & 0xfffffffu) | 0x10000000u;
-            if ((floors[at] & 0x1e0ff00u) == 0x1e00000u || (floors[at] & 0x80000000u)) label |= 0x20000000u;
+            if ((floors[cell] & 0x1e0ff00u) == 0x1e00000u || (floors[cell] & 0x80000000u)) label |= 0x20000000u;
             flood(flood, x, y, -1);
         }
-    std::vector<char> claimed(std::size_t(w * h));                                                  // FUN_0066ca50
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            if (claimed[std::size_t(y * w + x)]) continue;
-            const auto value = labels[std::size_t(y * w + x)], id = value & 0xfffffffu;
-            auto same = [&](int cx, int cy) { return !claimed[std::size_t(cy * w + cx)] && (labels[std::size_t(cy * w + cx)] & 0xfffffffu) == id; };
-            int x1 = x + 1;
-            while (x1 < w && same(x1, y)) ++x1;
-            int y1 = y + 1;
-            for (; y1 < h; ++y1) {
+    std::vector<char> claimed(std::size_t(width * height));                                                  // FUN_0066ca50
+    for (int y = 0; y < height; ++y)
+        for (int x = 0; x < width; ++x) {
+            if (claimed[std::size_t(y * width + x)]) continue;
+            const auto value = labels[std::size_t(y * width + x)], id = value & 0xfffffffu;
+            auto same = [&](int cell_x, int cell_y) { return !claimed[std::size_t(cell_y * width + cell_x)] && (labels[std::size_t(cell_y * width + cell_x)] & 0xfffffffu) == id; };
+            int right = x + 1;
+            while (right < width && same(right, y)) ++right;
+            int bottom = y + 1;
+            for (; bottom < height; ++bottom) {
                 bool row = true;
-                for (int cx = x; cx < x1 && row; ++cx) row = same(cx, y1);
+                for (int cx = x; cx < right && row; ++cx) row = same(cx, bottom);
                 if (!row) break;
             }
-            for (int cy = y; cy < y1; ++cy)
-                for (int cx = x; cx < x1; ++cx) claimed[std::size_t(cy * w + cx)] = 1;
-            Area area{ room.x + x, room.y + y, std::min(room.x + x1, room.x + room.width), std::min(room.y + y1, room.y + room.height), id, (value & 0x20000000u) != 0 };
+            for (int cy = y; cy < bottom; ++cy)
+                for (int cx = x; cx < right; ++cx) claimed[std::size_t(cy * width + cx)] = 1;
+            Area area{ room.x + x, room.y + y, std::min(room.x + right, room.x + room.width), std::min(room.y + bottom, room.y + room.height), id, (value & 0x20000000u) != 0 };
             if (area.left >= room.x + room.width || area.top >= room.y + room.height) area.left = area.top = area.right = area.bottom = 0;
             room.areas.insert(room.areas.begin(), area);
         }

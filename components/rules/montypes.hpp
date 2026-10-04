@@ -22,6 +22,8 @@ struct MonType {
     std::array<std::string, 3> tc_quest;        // TreasureClass4: while quest TCQuestId isn't done (flags 15, 1, TCQuestCP)
     int tc_quest_id = 0, tc_quest_cp = 0;
     bool tc_fixed = false;                      // noRatio or boss (MonStats +0xc & 0x44): its TC never moves on by level
+    bool boss_column = false;                   // boss (+0xc & 0x40, FUN_0063e9f0): can't be stunned (FUN_0057aae0)
+    bool no_ratio = false;                      // noRatio (+0xc & 4): stats as written, not MonLvl percentages (FUN_006538a0)
     int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
     int min_grp = 0, max_grp = 0, party_min = 0, party_max = 0, sparse = 0, rarity = 0;
     std::array<int, 2> minion{ -1, -1 };        // minion1/2 rows
@@ -39,6 +41,7 @@ struct MonType {
     int spawn_x = 0, spawn_y = 0;               // spawnx / spawny: where, off the layer (subtiles)
     int place_spawn = -1;                       // with placespawn, the spawn row a population pick becomes 80 % of the time (FUN_005bde80)
     std::string sound;                          // MonSound: its MonSounds.txt row
+    std::string usound;                         // UMonSound: a boss's or minion's (rules::boss_sound)
     // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
     std::array<std::string, 3> el_mode;
     std::array<int, 3> el_type{ -1, -1, -1 };

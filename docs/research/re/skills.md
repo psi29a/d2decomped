@@ -168,7 +168,7 @@ Token class → emitted VM op (matches the VM table at line 100+):
 | 6 | `/` | 0x13 |
 | 7 | `?` (top-level ternary hook) | 0x16 |
 | 8 | (paired with 7 at pop) | 0x17 |
-| 9 | `**` (power) | 0x14 |
+| 9 | `^` (power) | 0x14 |
 | 10..15 | `<= < > >= == !=` | 0x0c 0x0a 0x0b 0x0d 0x0e 0x0f |
 | 16 | `?` (call-site ternary) | routes through `FUN_006c19c0` |
 | 17 | `:` | routes through `FUN_006c1a50` |
@@ -194,7 +194,48 @@ This **resolves the "which of 0x6436e0 / 0x6436f0 is min vs max" question**: tab
 
 Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-byte operand id), larger ones 5 (2-byte) or 6 (4-byte). The operand id is the skillcalc.txt row number (matches d2d's compiler and the runtime table already documented in **The calc language** above).
 
-**Bottom line**: our compiler in `components/rules/skills.hpp` produces bytecode indistinguishable from game.exe's for every calc string that isn't malformed, provided we run the same VM over it as a constant-folding pass after emitting. 565/566 calcs already compile in our tests; the sole miss (Bone Wall's `par34`) is a Skills.txt data typo game.exe also can't parse (it stores 0xffffffff for that record).
+**Traced in full (2026-10-02)**, from FUN_006c11c0 / FUN_006c18a0 /
+FUN_006119f0 and checked black-box: tools/emu can run the compiler itself
+(set `DAT_0096c8b4` = 1 before `FUN_00619300` so the .txt link tables are
+built, then call `FUN_006c1ae0(text, buf, 0x400, 0x611930, 0x6119e0,
+0x6119f0)`). `components/rules/skills.hpp` `compile_calc` is a port, and
+its postfix matches game.exe's on all 1650 calc cells of Skills.txt and
+SkillDesc.txt and 4000 random strings, except the two `miss()` tooltip
+lines (missile names aren't passed in). What it does:
+
+- **Tokens**: whitespace and `"` are skipped anywhere. Digits: a constant
+  (32-bit wrap). A name (alnum run) followed, after spaces, by `(` and
+  one of `min max rand skill miss stat sklvl` (any case) opens that
+  function and eats the `(`. Any other name, a `'quoted name'` and a
+  `.name` go through `FUN_006119f0`, keyed on the function whose `(` is
+  on top of the operator stack: inside `skill(` / `sklvl(` a skill name
+  (any case) gives its id, inside `stat(` an ItemStatCost name gives its
+  id, else `base` 1, `mod` 2, anything else 0 (as an *operand* id);
+  otherwise the first **four** characters, space padded, are looked up
+  in skillcalc.txt (case matters). A plain or quoted name that's a
+  table id is a constant, an operand is an operand, unknown is constant
+  0. A `.name` is always a constant, and an unknown one ends the text.
+  `=` or `!` without `=`, and any other character, end the text.
+- **Bone Wall's `par34`** therefore reads `par3` (`04 0a 00`): calc2 is
+  Param3 = 8 at every level (bugs.md #2).
+- **Precedence** (`FUN_006c18a0`): pop while the in-stack precedence
+  (0x6fc874, by op byte: comparisons 15, `+ -` 17, `* /` 19, `^` 20,
+  unary minus 21, `?` 22) is at least the incoming op's own byte (0x0a..
+  0x16). So comparisons are one left-associative level, `?` is only
+  popped by a later operator: `lvl<4?1:2` is `lvl < (4 ? 1 : 2)`, and
+  `a?b:c+d` is `(a?b:c)+d`. `:` does nothing; `,` pops down to the
+  nearest `(`. `-` is unary unless an operand or a function's `(` came
+  last; `,` `?` `(` `)` leave that flag alone, so `min(lvl,-1)` and
+  `max(-1,2)` fail.
+- **Power** (`^`, VM 0x14): 1 when the exponent is below 1, else repeated
+  multiplies.
+- **The end**: pops down to a function left open (its call is dropped).
+  A `(` left open is written as its mark byte `02`, where the VM stops,
+  so `1+(2` is 2, but it still counts as a value for the ops under it.
+- **Failure** (0xffffffff, no calc): an op with too few values on the
+  stack, `)` with no `(`, nothing at all, 64 pending ops or 1024 bytes.
+- **Folding**: when no operand and no function token was seen, the VM
+  runs once and its result replaces the code. d2d skips it (same value).
 
 ### Melee skills, start to finish
 - **srvstfunc** (e.g. [32] Bash, FUN_005d7ea0):
@@ -252,10 +293,15 @@ Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-b
   ticks at least; cold: 50 ticks at least).
 - Stun (FUN_0057c6c0 → FUN_0057aae0): record +0x44 (or, when 0, gear stat 66
   × SrcDam / 128). Monsters flagged special (FUN_005a0180) shrug it off 90 %
-  of the time; a MonStats +0x0c flag (mask 0x6ce280) or MonStats +0x32 = 0
-  makes them immune; ids 0x10f / 0x152 / 0x167 / 0x230–0x231 cap it at 13
-  frames; others at 250. State 21 (stunned) for that many frames, refreshed
-  by a new stun.
+  of the time (the attacker's seed); MonStats boss (+0x0c & 0x40: mask
+  0x6ce280 of the bit table at 0x6ce268) or Velocity (+0x32, the loader's
+  field at 0x651614) 0 makes them immune; the hirelings (FUN_0063ee90: ids
+  0x10f RogueHireling, 0x152 Guard, 0x167 Iron Wolf, 0x230 / 0x231 the act 5
+  ones) cap it at 13 frames; others at 250. State 21 (stunned) for that many
+  frames, refreshed by a new stun. Special is FUN_005a0180's EDX 8: monster
+  data +0x16 & 8, set by FUN_005a0320 on every unique, champion and
+  superunique placed (FUN_005a09e0, FUN_005a48c0, FUN_005a4940), not on
+  minions. d2d: `Fight::land`.
 - Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
   ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
 
@@ -805,6 +851,17 @@ Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-b
 - Do **69** (FUN_005d81c0, Find Potion) / **72** (FUN_005d8780, Find Item):
   a corpse without state 0x76 (then marked), at calc1 %: a potion
   (FUN_005d8100) / a treasure drop of a tier by Param1..4 (FUN_005a8000).
+  FUN_005d8100: the caster's level id (FUN_00620bb0 → FUN_0061a1b0) to an
+  act by 0x6eb2f0's starts {1, 40, 75, 103, 109} (FUN_006427f0), the row act
+  + difficulty × 5 of 0x741b58 (15 rows of {healing, mana, rejuvenation}:
+  hp2 mp2 rvs; hp3 mp3 rvs ×2; hp4 mp4 rvl ×3; hp4 mp5 rvl; hp5 mp5 rvl ×8);
+  the caster's rand(100) below Param3 (+0x150, 30) the mana one, below
+  Param3 + Param4 (+0x154, 10) the rejuvenation, else the healing one.
+  d2d: `rules::find_potion`.
+- Curse lengths (FUN_005c37a0): auralen / DifficultyLevels AiCurseDivisor
+  (+0x1c; 1, 2, 4) for Confuse (FUN_005c3f20), Attract (FUN_005c3bcc), and
+  do 30's curses whose auratargetstate is 23 dimvision or 56 terror
+  (FUN_005c3400); the other curses keep auralen.
 - Aura event functions seen: 1 Chilling Armor (hitbymissile), 2 Frozen
   Armor (damagedinmelee), 3 Shiver Armor (attackedinmelee), 4 Iron Maiden
   (domeleedamage), 5 Life Tap (damagedinmelee / damagedbymissile), 22 /
@@ -820,7 +877,7 @@ Operand-emit is via `FUN_006c19c0` / `FUN_006c1a50`: small values emit op 4 (1-b
   effects), Thunder Storm's pace and reach, Confuse / Attract / Conversion
   (the monster only stops seeing the player's side), Battle Command's
   +1 skills, the war cries on the merc and pets, Leap's and Dragon
-  Flight's movement (they arrive at once), Find Potion's table.
+  Flight's movement (they arrive at once).
 
 ### The rest (phase 6, part 5)
 - Royal Strike's releases: **40** (FUN_005d5010: the count's missile
@@ -944,7 +1001,7 @@ and per-class base frames, not a table. What's stored:
 
 0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
 1. ~~**Skill data + selection + calcs**~~ — done: `skills.hpp` + `test_skills`
-   (565 of 566 calcs compile; Bone Wall's `par34` is a data typo),
+   (every calc compiles as game.exe's does; Bone Wall's `par34` reads `par3`),
    `skillbar.hpp` (buttons at game.exe's positions, picker, F1–F8, the
    save's skills), skill levels with item bonuses. Using any skill but
    Attack still swings a plain attack (logged once). Not done here: mana
@@ -1059,9 +1116,15 @@ Our picker vs game.exe (`apps/d2d/skillbar.hpp`):
   and iterates 0..4 outer-first (`if (local_c == *(char*)(iVar2 + 5))`
   in FUN_004aa3a0). 0 is general, 1..4 are class categories — five rows
   max, not four.
-- ➖ hotkey label: **game.exe does not draw hotkey text on picker icons**
-  (FUN_004aa3a0 renders icons only, no text). Ours is a d2d addition;
-  no game.exe layout to match.
+- ✅ hotkey label (corrected 2026-10-02: it is drawn). FUN_004aa3a0's
+  icon draw FUN_004a9870 ends in FUN_004a8ed0 (left) / FUN_004a9300
+  (right): for each of the 16 hotkey slots (skill 0x7c06c8 + 4k, item
+  0x7c0768 + 4k, left flag 0x7c07b8 + 4k) bound to this icon,
+  FUN_004a8df0(ECX = key action 0x0e + k, EDX = x + 0x22, y − 0x23,
+  colour 4). That fetches the bound key's name (FUN_00469aa0 /
+  FUN_0046a530; none → nothing), cuts it to 40 px, right-aligns it at
+  x + 47 when wider than 13 px and draws it (FUN_00502320). FUN_004a9260
+  then draws a number at the icon's bottom (an item skill's charges).
 
 ### Traced 2026-09-29 (2nd HUD pass)
 

@@ -227,7 +227,8 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     }
     if (auto bytes = mpqs.try_read(R"(data\global\ui\SPELLS\Skillicon.dc6)")) scene.generic_skill_icons = d2d::dc6::Sprite(*bytes);
     for (auto [sprite, file] : { std::pair{ &scene.quest_bg, "questbackground" }, { &scene.quest_tabs, "expquesttabs" },
-                                 { &scene.quest_sockets, "questsockets" }, { &scene.quest_last, "questlast" } })
+                                 { &scene.quest_tabs_classic, "questtabs" }, { &scene.quest_sockets, "questsockets" },
+                                 { &scene.quest_last, "questlast" }, { &scene.quest_done, "questdone" } })
         if (auto bytes = mpqs.try_read(std::string(R"(data\global\ui\menu\)") + file + ".dc6")) *sprite = d2d::dc6::Sprite(*bytes);
     for (std::size_t i = 0; i < scene.quest_icons.size(); ++i)    // the names at 0x6da2c8: a1q1..a1q6, a2q1.., a4q1..3, a5q1..
         if (auto bytes = mpqs.try_read(std::format(R"(data\global\ui\menu\a{}q{}.dc6)", i < 6 ? 1 : i < 12 ? 2 : i < 18 ? 3 : i < 21 ? 4 : 5,

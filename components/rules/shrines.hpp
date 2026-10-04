@@ -3,6 +3,7 @@
 // from game.exe 1.14d. docs/research/re/objects.md.
 #pragma once
 
+#include "object_ids.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>
@@ -166,31 +167,31 @@ inline ChestInit roll_chest(int mlvl1, bool lockable, Rng& seed) {
 // 20 a scroll, else a tome, of identify (odd step) or town portal.
 struct Opened { bool opened = true, undead = false; std::vector<std::string> extra; };
 template <class Round>
-Opened open_container(int op, int object_id, bool locked, bool sparkle, Rng& objects, Round&& round) {
+Opened open_container(int operate, int object_id, bool locked, bool sparkle, Rng& objects, Round&& round) {
     Opened out;
     auto undead = [&] { out.undead = (objects.next() % 10000 & 0xffffe000u) != 0; };
     auto magic = [](int quality) { return quality >= 4; };
-    if (op == operate_fn::kCasket) {
+    if (operate == operate_fn::kCasket) {
         if (!round(0)) out.opened = false;
         else undead();
-    } else if (op == operate_fn::kUrn) {
+    } else if (operate == operate_fn::kUrn) {
         if (objects(100) < 21) round(0);
-    } else if (op == operate_fn::kBarrel) {
+    } else if (operate == operate_fn::kBarrel) {
         undead();
         if (objects(100) < 21) round(0);
-    } else if (op == operate_fn::kCorpse) {
+    } else if (operate == operate_fn::kCorpse) {
         round(0);
-    } else if (op == operate_fn::kBookshelf) {
+    } else if (operate == operate_fn::kBookshelf) {
         const bool scroll = objects(20) < 13;
         out.extra.push_back(std::string(objects.next() & 1 ? "i" : "t") + (scroll ? "sc" : "bk"));
-    } else if (op == operate_fn::kChest && object_id != object_ids::kSparklyChest) {
+    } else if (operate == operate_fn::kChest && object_id != object_ids::kSparklyChest) {
         const int forced = sparkle ? objects(100) < 5 ? 6 : 4 : 0;   // drawn for 397 too, unused
         if (objects(100) >= 25 || sparkle || locked) {
             int magics = 0;
             for (int i = locked ? 2 : 1; i > 0; --i) magics += magic(round(forced));
             for (int i = 0; sparkle && magics == 0 && i < 10; ++i) if (magic(round(forced))) break;
         }
-    } else if (op == operate_fn::kChest) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
+    } else if (operate == operate_fn::kChest) {                              // 397: 2 % two tries for a unique, 4 % a set, 6 % a rare, ...
         auto extra = [&](const char* code, int count) { for (; count > 0; --count) out.extra.emplace_back(code); };
         auto fallback = [&] {                          // 10 tries for a magic item, at least 4 rounds, gold and potions
             int plain = 0;
@@ -312,6 +313,33 @@ inline bool well_drink(std::int64_t& life, std::int64_t max_life, std::int64_t& 
 inline constexpr std::array<const char*, 3> kBossMissile{ "lightunique", "coldunique", "monstercorpseexplode" };
 inline constexpr std::array<const char*, 9> kTrapMissile{ "", "chainlightning", "trapfirebolt", "primepoisoncloud", "trapnova",
                                                           "", "trapfirebolt", "", "" };
+// The trap a chest's event 4 springs (FUN_005817a0, 35 frames after it
+// opened) on level `level_id`: trap 8 past level 74 (act 4 on), trap 3 in
+// act 1 (levels under 40) but the Tower Cellar 5 (25), and traps 1 / 4 in
+// act 1 are trap 2 (trap-firebolt) instead.
+inline int trap_on_level(int trap, int level_id) {
+    if ((trap == 8 && level_id > 0x4a) || (trap == 3 && level_id < 0x28 && level_id != 0x19) || ((trap == 1 || trap == 4) && level_id < 0x28)) return 2;
+    return trap;
+}
+// An object's blast on a unit (FUN_005dfa00 on the object's unit seed):
+// the gas / exploding traps, the trap object (30) and the exploding barrel.
+// From the unit's life (256ths), low = life / 32 (at least 1), high = life
+// / 8 (at least low + 1); the hit: (rand(level / 4) + level as a byte) -
+// 5 x (dexterity / 2) - level, twice, less defense, + 125, at least 65 %,
+// against a step % 100; a hit does objects.txt Damage % (100 on every row)
+// of low + rand(high - low + 256) (FUN_005df990). 0: a miss. Not in town,
+// nor through a wall (FUN_00622b50, mask 0x804): the caller's.
+inline int object_blast(std::int64_t life, int level, int dexterity, int defense, Rng& seed) {
+    const int low = std::max(int(life >> 5), 1), high = std::max(int(life >> 3), low + 1);
+    const int roll = std::uint8_t(seed(level >> 2) + level);
+    const int chance = std::max((roll - (dexterity >> 1) * 5 - level) * 2 - defense + 125, 65);
+    if (int(seed.next() % 100) >= chance) return 0;
+    return low + seed(high - low + 256);
+}
+// What a blast's damage comes to (FUN_0057c1e0 -> FUN_0057bf80, the
+// resist table at 0x732980): less the flat reduction (physical stat 34,
+// fire stat 35, x 256), then less the resistance %.
+inline int blast_taken(int damage, int flat, int res) { return std::max(damage - flat * 256, 0) * (100 - std::min(res, 100)) / 100; }
 // The trap's missile level: DifficultyLevels MonsterSkillBonus (+0x10:
 // 0 / 3 / 7) + 1 — a mode's missile (FUN_005a6d50) and a monster's skills
 // (FUN_00573cb0, Sk1lvl 1) alike.
