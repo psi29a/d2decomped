@@ -46,9 +46,11 @@ inline std::optional<Level> parse_level(std::string_view name) {
     return std::nullopt;
 }
 
-inline void open(const std::filesystem::path& path) {
+// `append`: add to the file (a server's log across restarts) instead of
+// starting it over.
+inline void open(const std::filesystem::path& path, bool append = false) {
     std::lock_guard lock(g_mutex);
-    g_file.open(path, std::ios::trunc);
+    g_file.open(path, append ? std::ios::app : std::ios::trunc);
     if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", path.string().c_str());
 }
 

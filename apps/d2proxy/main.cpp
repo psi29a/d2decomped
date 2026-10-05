@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
         if (log_dir.empty()) log_dir = ".";
         std::filesystem::create_directories(log_dir, error);
         if (error) { d2d::log::error("--log-dir {}: {}", log_dir, error.message()); return 2; }
-        d2d::log::open(std::filesystem::path(log_dir) / "d2proxy.log");
+        d2d::log::open(std::filesystem::path(log_dir) / "d2proxy.log", true);   // kept across restarts
     }
     const auto level = d2d::log::parse_level(level_name);
     if (!level) { d2d::log::error("--level {}: one of error, warning, info, debug, trace", level_name); return 2; }
