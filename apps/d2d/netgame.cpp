@@ -13,6 +13,7 @@
 #include <join.hpp>
 #include <tcp.hpp>
 
+#include <algorithm>
 #include <bitset>
 #include <chrono>
 #include <cmath>
@@ -39,7 +40,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -67,7 +68,7 @@ NetGame::NetGame(d2d::net::JoinSession joined, d2d::net::TcpConnection socket, c
     : session(std::move(joined)), connection(std::move(socket)), log(log_path, used_ids()) {}
 
 auto NetGame::join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                   const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+                   const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party)
     -> std::expected<std::unique_ptr<NetGame>, std::string> {
     const auto tables = d2d::net::d2gs::load_exe_tables(game_exe);
     if (!tables) return std::unexpected(tables.error());
@@ -77,6 +78,7 @@ auto NetGame::join(const std::string& host, const std::filesystem::path& game_ex
     if (!connection) return std::unexpected(connection.error());
     std::unique_ptr<NetGame> game(new NetGame(std::move(*session), std::move(*connection), log_path));
     game->item_tables = item_tables;
+    game->auto_party = auto_party;
     game->log.note("joining " + host + " as " + game->session.name());
     const auto deadline = steady_ms() + std::uint32_t(timeout_ms);
     while (game->session.state() != d2d::net::JoinState::InGame) {
@@ -107,6 +109,43 @@ auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
 
 auto NetGame::steady_now() -> std::uint32_t { return steady_ms(); }
 
+auto NetGame::trade_answer(bool accept) -> void {
+    send({ d2d::net::d2gs::c2s::click_button(accept ? 3 : 2) });
+    trade.state = accept ? 3 : 0;
+}
+
+auto NetGame::trade_accept() -> void {
+    send({ d2d::net::d2gs::c2s::click_button(4, std::uint16_t(trade.our_gold >> 16), std::uint16_t(trade.our_gold)) });
+    trade.state = 7;
+}
+
+auto NetGame::trade_cancel() -> void {
+    send({ d2d::net::d2gs::c2s::click_button(2) });
+    auto offered = std::move(trade.ours);
+    trade = {};
+    trade.ours = std::move(offered);                      // they come back to our bags
+    trade.settle_until = steady_ms() + 5000;
+    store_items.clear();
+}
+
+auto NetGame::trade_gold(std::uint32_t gold) -> void {
+    namespace c2s = d2d::net::d2gs::c2s;
+    if (trade.state == 5 || trade.state == 7) { send({ c2s::click_button(7) }); trade.state = 3; }
+    trade.our_gold = gold;
+    send({ c2s::click_button(8, std::uint16_t(gold >> 16), std::uint16_t(gold)) });
+}
+
+auto NetGame::trade_settling() const -> bool { return steady_ms() < trade.settle_until; }
+
+auto NetGame::send_items(const std::vector<d2d::net::Bytes>& packets) -> void {
+    if (session.state() != d2d::net::JoinState::InGame) return;
+    for (const auto& packet : packets) {
+        if (packet.empty() || packet[0] != 0x20) { send({ packet }); continue; }
+        if (when_still.empty()) still_since_ms = steady_ms();
+        when_still.push_back(packet);
+    }
+}
+
 auto NetGame::closed() const -> bool {
     const auto state = session.state();
     return socket_gone || state == d2d::net::JoinState::Closed || state == d2d::net::JoinState::Refused || state == d2d::net::JoinState::Desync;
@@ -129,6 +168,15 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
             if (session.state() == d2d::net::JoinState::Desync) d2d::log::warn("net: the stream broke: {}", session.desync_reason());
         }
         send(session.tick(now_ms));
+        // Stopped: no walk sent for as long as the host's player needs to
+        // reach the last one from where it last said it was (at a walk's
+        // speed, the slower), and no word of walking lately; or 5 s.
+        if (!when_still.empty()) {
+            const float left = std::hypot(walk_to_x - host_x, walk_to_y - host_y);
+            const auto needs = std::uint32_t(std::min(left / kWalkSubtilesPerSec * 1000.f, 4000.f)) + 500;
+            if ((steady_ms() - walk_sent_ms >= needs && steady_ms() - walked_ms >= 300) || steady_ms() - still_since_ms >= 5000)
+                send(std::exchange(when_still, {}));
+        }
     }
     const float step = kWalkSubtilesPerSec * float(elapsed_ms) / 1000.f;
     for (auto& [unit_key, unit] : units) {
@@ -229,12 +277,27 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             store_items[id] = std::move(parsed->item);                 // into the open store's stock
         } else if (action == 0xc) {
             store_items.erase(id);
+        } else if (trade.state >= 3 && action == 4 && parsed->item.panel == 2
+                   && std::ranges::none_of(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; })) {
+            store_items[id] = std::move(parsed->item);                 // their offer: into page 2 (live, 2026-10-05)
         } else {                                                       // ours, somewhere
             ground.erase(id);
-            if ((action == 4 || action == 0xe) && (id == picking || (buying && !own_items.contains(id)))) {
+            if (trade.state != 0 || steady_ms() < trade.settle_until)   // ponytail: a trade's item packets aren't pinned down yet
+                log.note("trade: item " + std::to_string(id) + " " + parsed->item.code + " action " + std::to_string(action) + " panel " + std::to_string(parsed->item.panel));
+            const bool traded = (action == 4 || action == 0xe) && steady_ms() < trade.settle_until
+                                && (!own_items.contains(id) || std::ranges::any_of(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; }));
+            if (traded) std::erase_if(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; });
+            if ((action == 4 || action == 0xe) && (traded || id == picking || (buying && !own_items.contains(id)))) {
                 picked.push_back(parsed->item);
                 picking = 0;
                 buying = false;
+            }
+            if (steady_ms() < trade.settle_until) {                   // a trade's resend: the old id at that spot is gone
+                const auto& fresh = parsed->item;
+                std::erase_if(own_items, [&](const auto& entry) {
+                    const auto& held = entry.second;
+                    return held.location == fresh.location && held.panel == fresh.panel && held.column == fresh.column && held.row == fresh.row && held.slot == fresh.slot;
+                });
             }
             own_items[id] = std::move(parsed->item);
         }
@@ -262,6 +325,13 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     case 0x5d:   // quest log news: +1 quest, +2 flags (2: a sound), +3 log state, +4 s16 (quests.md)
         if (size >= 3 && packet[2] == 0) quest_news.push_back(packet[1]);
+        send({ d2d::net::d2gs::c2s::update_quests() });   // the words behind it (0x28)
+        break;
+    case 0x28:   // quest info: +1 6 (the player's own), +7 its 96 quest words (FUN_004b6dd0 -> FUN_0065c4d0)
+        if (size >= 103 && packet[1] == 6) {
+            quest_words.emplace();
+            std::copy_n(packet.begin() + 7, 96, quest_words->begin());
+        }
         break;
     case 0x27:   // NPC info: +1 mode, +2 unit id (the answer to an 0x13 on an NPC)
         if (size >= 6) npc_info = read_u32(packet, 2);
@@ -287,6 +357,46 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0d:   // a unit stops at x, y: +6 its unit command (0x13 hit, 8 dying, 9 dead)
         if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
         if (size >= 11 && packet[1] == 0 && read_u32(packet, 2) == self_id && packet[6] == 8) died = true;
+        break;
+    case 0x8b:   // relationship: +1 the other player, +5 its state (the party button's, FUN_00479eb0)
+        // game.exe's player clicks the party button; d2d has none: it
+        // invites a player not yet asked (state 0: 6) and accepts an
+        // invite (2: 8) itself.
+        if (size >= 6 && auto_party && read_u32(packet, 1) != self_id && (packet[5] == 0 || packet[5] == 2)) {
+            log.note(std::string(packet[5] == 0 ? "inviting " : "accepting the invite of ") + std::to_string(read_u32(packet, 1)));
+            send({ d2d::net::d2gs::c2s::party(packet[5] == 0 ? 6 : 8, read_u32(packet, 1)) });
+        }
+        break;
+    case 0x77:   // trade button action (FUN_004b8cf0): +1 what
+        if (size < 2) break;
+        log.note("trade: action " + std::to_string(packet[1]) + " in state " + std::to_string(trade.state));
+        switch (packet[1]) {
+        case 0: if (trade.state == 0) trade.state = 1; break;                      // our request is out
+        case 1: if (trade.state == 0) trade.state = 2; break;                      // someone asks us
+        case 5: trade.state = trade.state == 7 ? 7 : 5; break;                     // they accepted
+        case 6:                                                                    // open; or a change takes the accepts back
+            if (trade.state == 1 || trade.state == 2) { trade.ours.clear(); store_items.clear(); }
+            trade.state = 3;
+            break;
+        case 2: case 0xc: case 0xd: {                                              // closed, done, cancelled: items settle
+            auto offered = std::move(trade.ours);
+            trade = {};
+            trade.ours = std::move(offered);
+            trade.settle_until = steady_ms() + 5000;
+            store_items.clear();
+            break;
+        }
+        default: break;
+        }
+        break;
+    case 0x78:   // trade with: +1 char[16] name, +0x11 u32 id (FUN_004b9010)
+        if (size >= 0x15) { trade.with_name = std::string(read_name(packet, 1, 16)); trade.with = read_u32(packet, 0x11); }
+        break;
+    case 0x79:   // trade gold: +1 1 ours / 0 theirs, +2 u32 (FUN_004b90d0)
+        if (size >= 6) (packet[1] ? trade.our_gold : trade.their_gold) = read_u32(packet, 2);
+        break;
+    case 0x82:   // portal owner: +1 owner, +5 name, +0x15 the end where we are, +0x19 the other (again on arriving: swapped)
+        if (size >= 0x1d && read_u32(packet, 1) == self_id) portal_here = read_u32(packet, 0x15);
         break;
     case 0x8e:   // corpse: +1 add (1) / remove, +2 its player, +6 the corpse's own player unit
         if (size >= 10 && read_u32(packet, 2) == self_id) {
@@ -317,7 +427,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0a:   // remove: type, id (4: an item)
         if (size >= 6) {
             units.erase(key(packet[1], read_u32(packet, 2)));
-            if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); }
+            if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); store_items.erase(read_u32(packet, 2)); }
         }
         break;
     case 0x5c:   // a player leaves
@@ -331,6 +441,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
 auto NetGame::move_to(float subtile_x, float subtile_y, bool run) -> void {
     if (session.state() != d2d::net::JoinState::InGame || subtile_x < 0 || subtile_y < 0) return;
     send({ d2d::net::d2gs::c2s::move_to(std::uint16_t(subtile_x), std::uint16_t(subtile_y), run) });
+    walk_to_x = subtile_x;
+    walk_to_y = subtile_y;
+    walk_sent_ms = steady_ms();
 }
 
 auto NetGame::set_running(bool run) -> void {

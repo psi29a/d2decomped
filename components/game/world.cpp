@@ -174,10 +174,13 @@ auto World::view() const -> View {
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
             view.light_bonus = sum.size() > d2d::d2s::kLightRadius ? int(sum[d2d::d2s::kLightRadius]) : 0;
             view.attack_lines = character.panel.attack;
+            if (store.npc >= 0) {
+                view.store = store;
+                view.store->reduced = int(sum[d2d::d2s::kReducedPrices]);   // the player's gear: off what the store charges
+            }
         }
         view.has_character = true;
         view.header = character.header; view.stats = character.stats; view.items = character.items; view.held = held;
-        if (store.npc >= 0) view.store = store;
         view.hire_offers = hire_offers;
         return view;
     }
@@ -413,6 +416,12 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
             mode = d2d::rules::door_mode(state.mode, occupied);
         }
         if (mode >= 0) set_door_mode(npc_index, mode, now_ms);
+    }
+
+auto World::reduced_prices() const -> int {
+        d2d::rules::StatSum sum{};
+        (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
+        return int(sum[d2d::d2s::kReducedPrices]);
     }
 
 auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void {
@@ -1236,6 +1245,9 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* buy = std::get_if<cmd::Buy>(&command)) {
             if (store.npc < 0 || buy->stock < 0) return true;
+            store.reduced = reduced_prices();
+            if (buy->tab >= 0 && buy->tab < 4) store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
+            if (std::size_t(buy->stock) >= store.tabs[std::size_t(store.tab)].size()) return true;
             if (store.gamble) d2d::rules::store_gamble(tables, store, buy->stock, character.items, character.stats, rng);
             else d2d::rules::store_buy(tables, store, buy->stock, character.items, character.stats);
             return true;
@@ -1249,6 +1261,7 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
             if (store.npc < 0) return true;
+            store.reduced = reduced_prices();
             if (repair->item < 0) { d2d::rules::store_repair_all(tables, store, character.items, character.stats); return true; }
             const auto found = std::ranges::find(character.items, repair->item, &d2d::d2s::Item::id);
             if (found != character.items.end()) d2d::rules::store_repair(tables, store, *found, character.stats);

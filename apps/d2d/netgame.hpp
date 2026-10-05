@@ -18,6 +18,7 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -48,7 +49,7 @@ struct NetGame {
     // Connects, uploads the save and waits (up to timeout_ms) until the host
     // has put the player in the world (0x04). The log goes to `log_path`.
     static auto join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                     const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+                     const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party = true)
         -> std::expected<std::unique_ptr<NetGame>, std::string>;
 
     // What arrived, the ping when due, units walked on by `elapsed_ms`.
@@ -66,7 +67,10 @@ struct NetGame {
     // The host's id for one of our items as d2d has it: same code, same
     // place (grid cell and panel, body slot, belt box, cursor); 0: none.
     auto host_item(const d2d::d2s::Item& local) const -> std::uint32_t;
-    auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void { if (session.state() == d2d::net::JoinState::InGame) send(packets); }
+    // An item's use (0x20) waits for the host's player to stop: a walking
+    // player's is dropped (FUN_0054d750); the rest go now.
+    auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void;
+    auto holding() const -> bool { return !when_still.empty(); }   // an item's use waits: don't walk the host's player on
     // The host's unit of `type` (2 object, 5 warp) nearest act subtile
     // (x, y), of `cls` when >= 0; nullptr when none within `within`.
     auto nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit*;
@@ -105,13 +109,41 @@ struct NetGame {
     std::vector<StatChange> stat_changes;
     struct ObjectMode { std::uint32_t id = 0; int mode = 0; };
     std::vector<ObjectMode> object_modes;      // objects' new modes (0x0e): the client sets its doors
+    // A trade with another player (game.exe's DAT_007c0e7c, FUN_004b8cf0):
+    // 0 none, 1 we asked, 2 they asked us, 3 open, 5 they accepted, 7 we
+    // accepted. Their offer arrives as 0x9c action 4 into page 2 (kept in
+    // store_items, the store's stock while one's open); ours is what we
+    // put in. Done (0x77 0xd), what we got comes as 0x9c action 4 into our
+    // bags (live 2026-10-05: an isc for an ibk).
+    struct Trade {
+        int state = 0;
+        std::uint32_t with = 0;                // the other player (0x78)
+        std::string with_name;
+        std::uint32_t our_gold = 0, their_gold = 0;   // 0x79
+        std::vector<d2d::d2s::Item> ours;      // by the host's ids
+        std::uint32_t settle_until = 0;        // steady ms: items coming to our bags then are the trade's (back or new)
+    };
+    Trade trade;
+    auto trade_request(std::uint32_t player) -> void { trade.with = player; interact(0, player); }
+    auto trade_answer(bool accept) -> void;
+    auto trade_accept() -> void;
+    auto trade_cancel() -> void;
+    auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
+    auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
+    std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
+    bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
+    std::optional<std::array<std::uint8_t, 96>> quest_words;   // our quest words in the host's game (0x28 type 6): the client takes them
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:
     bool socket_gone = false;
     const d2d::d2s::ItemTables* item_tables = nullptr;
     bool reassigned = false;
+    std::vector<d2d::net::Bytes> when_still;   // held till the host's player stops (or 3 s)
+    std::uint32_t still_since_ms = 0;          // when the first of them was held
+    float walk_to_x = 0, walk_to_y = 0;        // our last walk sent (0x01 / 0x03), and when
+    std::uint32_t walk_sent_ms = 0;
     bool died = false;
     d2d::net::Bytes last_sent;
     std::uint32_t last_sent_ms = 0;

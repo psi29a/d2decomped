@@ -432,6 +432,85 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
+namespace {
+
+// The trade's boxes: {x0, y0, x1, y1}.
+constexpr std::array<int, 4> kTradeAsk{ 250, 200, 550, 290 }, kTradeYes{ 270, 252, 390, 278 }, kTradeNo{ 410, 252, 530, 278 };
+constexpr std::array<int, 4> kTradeAccept{ 301, 443, 335, 477 }, kTradeCancel{ 353, 443, 387, 477 }, kTheirAccept{ 353, 228, 387, 262 };
+constexpr std::array<int, 4> kOurGold{ 236, 286, 386, 304 };
+
+bool inside(const std::array<int, 4>& box, int x, int y) { return x >= box[0] && x < box[2] && y >= box[1] && y < box[3]; }
+
+void shade(std::vector<std::uint8_t>& framebuffer, const std::array<int, 4>& box, int keep) {   // keep / 4 of the colour
+    for (int y = std::max(box[1], 0); y < std::min(box[3], int(kScreenHeight)); ++y)
+        for (int x = std::max(box[0], 0); x < std::min(box[2], int(kScreenWidth)); ++x)
+            for (int channel = 0; channel < 3; ++channel) {
+                auto& value = framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4 + std::size_t(channel)];
+                value = std::uint8_t(value * keep / 4);
+            }
+}
+
+} // namespace
+
+void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
+                const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
+                std::uint32_t our_gold, const std::string* typing, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    auto centred = [&](const std::array<int, 4>& box, const std::string& text) {
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(text) / 2,
+                        (box[1] + box[3]) / 2 - scene.font.line_height() / 2, text);
+    };
+    if (state == 1 || state == 2) {
+        shade(framebuffer, kTradeAsk, 1);
+        centred({ kTradeAsk[0], kTradeAsk[1] + 6, kTradeAsk[2], kTradeAsk[1] + 40 }, state == 2 ? with + " wants to trade" : "Asking " + with + " to trade");
+        if (state == 2) { shade(framebuffer, kTradeYes, 2); centred(kTradeYes, "Accept"); }
+        shade(framebuffer, kTradeNo, 2);
+        centred(kTradeNo, state == 2 ? "Decline" : "Cancel");
+        return;
+    }
+    draw_storage(framebuffer, scene, theirs, scene.trade_panel, scene.trade_layout[0], 100, mouse_x, mouse_y, wearer);
+    draw_storage(framebuffer, scene, ours, d2d::dc6::Sprite{}, scene.trade_layout[1], 101, mouse_x, mouse_y, wearer);
+    // The buttons (the trade draw after the panel, 0x48fb20): buysellbtn
+    // frame 0x10 (0x11 once accepted) for ours at x+0xdf and theirs at
+    // x+0x113 bottom 0x116 up from the panel's foot; cancel 10 at x+0x113;
+    // ours and cancel 0x40 up. Hovered: "Accept Trade" / "Cancel".
+    if (std::uint32_t(0x11) < scene.store_buttons.frames_per_direction()) {
+        auto button = [&](std::uint32_t frame_index, int x, int bottom) {
+            const auto& frame = scene.store_buttons.frame(0, frame_index);
+            blit_sprite(framebuffer, frame, pal, x, bottom - int(frame.height) + 1);
+        };
+        button(state == 7 ? 0x11 : 0x10, kCharPanelX + 0xdf, int(kScreenHeight) - 60 - 0x40);
+        button(state == 5 ? 0x11 : 0x10, kCharPanelX + 0x113, int(kScreenHeight) - 60 - 0x116);
+        button(10, kCharPanelX + 0x113, int(kScreenHeight) - 60 - 0x40);
+    }
+    const bool on_accept = inside(kTradeAccept, mouse_x, mouse_y) || inside(kTheirAccept, mouse_x, mouse_y);
+    if (on_accept || inside(kTradeCancel, mouse_x, mouse_y)) {
+        const auto tip = string_id(scene, on_accept ? 0x1023 : 0x1022);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, mouse_x - scene.font.measure(tip) / 2, mouse_y - 30, tip);
+    }
+    // The bars over each grid (the art's): their name and gold; ours.
+    // ponytail: placed by eye on the art, not traced.
+    centred({ 98, 70, 222, 88 }, with);
+    if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
+    centred({ 98, 286, 222, 304 }, our_name);
+    if (typing) centred(kOurGold, *typing + "_");
+    else if (our_gold) centred(kOurGold, std::to_string(our_gold));
+}
+
+TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) {
+    if (state == 1 || state == 2) {
+        if (state == 2 && inside(kTradeYes, mouse_x, mouse_y)) return TradeClick::kAccept;
+        return inside(kTradeNo, mouse_x, mouse_y) ? TradeClick::kDecline : TradeClick::kNone;
+    }
+    if (inside(kTradeAccept, mouse_x, mouse_y)) return TradeClick::kAccept;
+    if (inside(kTradeCancel, mouse_x, mouse_y)) return TradeClick::kDecline;
+    if (inside(kOurGold, mouse_x, mouse_y)) return TradeClick::kGold;
+    const auto& ours = scene.trade_layout[1];
+    if (mouse_x >= ours.grid_x && mouse_x < ours.grid_x + ours.cols * ours.box_w && mouse_y >= ours.grid_y && mouse_y < ours.grid_y + ours.rows * ours.box_h)
+        return TradeClick::kOurGrid;
+    return TradeClick::kNone;
+}
+
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;

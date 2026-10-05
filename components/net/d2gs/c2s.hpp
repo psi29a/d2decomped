@@ -81,6 +81,10 @@ inline auto move_to(std::uint16_t x, std::uint16_t y, bool run) -> Bytes {
 // 0x53 / 0x54: run / walk from now on.
 inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(run ? 0x53 : 0x54) }; }
 
+// 0x40: the player's quest words again (the host's FUN_00546040 answers
+// 0x28 type 6, then 0x29).
+inline auto update_quests() -> Bytes { return { 0x40 }; }
+
 // 0x41: a dead player back to town (54c0e0 takes it only from the dead).
 inline auto resurrect() -> Bytes { return { 0x41 }; }
 
@@ -109,6 +113,30 @@ inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
     put_u8(out, left ? 0x06 : 0x0d);
     put_u32(out, type);
     put_u32(out, id);
+    return out;
+}
+
+// 0x4f: a UI button (FUN_00478600): +1 u16 button, +3 u16, +5 u16. The
+// trade's (FUN_004b8730 .. FUN_004b9110): 2 decline / cancel, 3 accept
+// the request, 4 accept the trade, 7 take the accept back, 8 our gold
+// (high, low half).
+inline auto click_button(std::uint16_t button, std::uint16_t first = 0, std::uint16_t second = 0) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x4f);
+    put_u16(out, button);
+    put_u16(out, first);
+    put_u16(out, second);
+    return out;
+}
+
+// 0x5e: party (FUN_00478780, from the party button FUN_00479eb0 by the
+// relationship 0x8b set): 6 invite, 7 cancel the invite, 8 accept one,
+// 9 leave.
+inline auto party(std::uint8_t action, std::uint32_t player) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x5e);
+    put_u8(out, action);
+    put_u32(out, player);
     return out;
 }
 

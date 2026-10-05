@@ -97,7 +97,7 @@ struct View {
     std::vector<Corpse> corpses;
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
-    struct OtherPlayer { UnitState unit; int cls = 0; std::string name; };
+    struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; };   // id: the host's unit
     std::vector<OtherPlayer> others;
     // The level's NPCs as they patrol, then each Level::nearby level's in
     // that order (its npcs.size() each, its own cells).
@@ -273,6 +273,8 @@ struct World {
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
     void set_door_mode(int npc_index, int mode, std::uint32_t now_ms);
+    // The player's item_reducedprices (stat 87) off their gear and charms now.
+    [[nodiscard]] int reduced_prices() const;
     // A monster's door at its think (Fight::open_door): found, operated in reach.
     void display_swing(int skill, float x, float y, std::uint32_t now_ms);   // a joined game: swing at a host monster, for show
     bool monster_door(const Monster& monster, std::uint32_t now_ms);

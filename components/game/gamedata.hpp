@@ -420,6 +420,10 @@ struct GameData {
     // loads the latter only for expansion games, FUN_00489e50), drawn in
     // the left-panel spot like the char panel (0x48f1a4).
     std::array<InvLayout, 2> stash_layout{};          // [expansion]
+    // A trade with another player: inventory.txt "Trade Page 1-2" (their
+    // offer, top) and "Trade Page 2-2" (ours), 10x4 each; art PANEL\trade
+    // (FUN_00489360), the left-panel spot.
+    std::array<InvLayout, 2> trade_layout{};          // [0] theirs, [1] ours
     // Horadric Cube: inventory.txt "Transmogrify Box2" (3x4), art
     // PANEL\supertransmogrifier (FUN_0048a4b0), same left-panel spot
     // (panel 0xe, 0x48eeca).

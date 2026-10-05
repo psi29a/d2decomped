@@ -112,7 +112,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "said" && verb_args.size() >= 4) town.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
         else if (verb == "chat" && verb_args.size() >= 3) town.send(cmd::Chat{ int_arg(2) });
         else if (verb == "trade" && verb_args.size() >= 3) town.send(cmd::OpenTrade{ int_arg(2), int_arg(3, 0) != 0 });
-        else if (verb == "buy" && verb_args.size() >= 3) town.send(cmd::Buy{ int_arg(2) });
+        else if (verb == "buy" && verb_args.size() >= 3) town.send(cmd::Buy{ int_arg(2), town.store.tab });
         else if (verb == "sell" && verb_args.size() >= 3) town.send(cmd::Sell{ int_arg(2) });
         else if (verb == "close") town.send(cmd::CloseTrade{});
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
@@ -191,6 +191,24 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.player.walking = false;
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "net" && town.net_game && town.level) {   // a joined game: where the host has us, where d2d has us (act subtiles), and how far apart
+            const float local_x = (town.world.player.x + float(town.level->world_x)) * 5.f, local_y = (town.world.player.y + float(town.level->world_y)) * 5.f;
+            std::string out = std::format("host {:.0f} {:.0f} local {:.0f} {:.0f} apart {:.1f} units {} trade {}\n", town.net_game->host_x, town.net_game->host_y, local_x, local_y,
+                                          std::hypot(town.net_game->host_x - local_x, town.net_game->host_y - local_y), town.net_game->units.size(), town.net_game->trade.state);
+            for (const auto& other : town.view.others)   // the other players: id, name, cell
+                out += std::format("player\t{}\t{}\t{:.1f}\t{:.1f}\n", other.id, other.name, other.unit.x, other.unit.y);
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "tradestate" && town.net_game) {   // a joined game: the trade's state, set here (its window's look; the host isn't told)
+            town.net_game->trade.state = std::atoi(args[2].c_str());
+            return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
+            std::string out;
+            for (std::size_t i = 0; i < town.world.portal.size(); ++i)
+                if (const auto& open = town.world.portal[i]; open.level) out += std::format("{}\t{}\t{:.1f}\t{:.1f}\n", i, open.level->id, open.x, open.y);
+            return out + "ok\n";
         }
         if (args.size() >= 2 && args[1] == "objects" && town.level) {   // operable objects: index, cell, kind (shrine, chest, opN), shrine row / trap, mode
             std::string out;
@@ -407,7 +425,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
+            return std::string("err debug collision|automap|portals|objects|net|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });

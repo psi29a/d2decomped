@@ -483,9 +483,23 @@ ids).
   quest checks.
 - **0x58 open UI** (7; `0x45e490`): +1 u32 unit id, +5 u8 UI (0 open;
   1 / 4 / 5 / 6 / 7 close variants) **(?)** which is which.
-- **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action (0 open, 1
-  request, 2 close, 5 state 3 → 5 / 4 → 6; 0..0x15 in all) **(?)** the
-  rest. Trade and stash windows.
+- **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action on the trade
+  state `DAT_007c0e7c` (0 none, 1 we asked, 2 asked of us, 3 open, 5 they
+  accepted, 7 we did): 0 our request is out, 1 someone asks us, 2 close,
+  5 they accepted, 6 the window opens / an offer changed (accepts off),
+  0xc cancelled, 0xd done; 9..0x15 other windows **(?)**.
+- **0x78 trade with** (21; `FUN_004b9010`): +1 char[16] name, +0x11 u32
+  player id. Sent as the window opens.
+- **0x79 trade gold** (6; `FUN_004b90d0`): +1 u8 (1 ours, 0 theirs), +2 u32.
+- **A trade, live 2026-10-05** (d2d's Tux and a game.exe client): their
+  click on us → 0x77 1; our C->S 0x4f 3 → 0x77 6, 0x78, 0x79; their item
+  into the offer → 0x9c action 4 into page 2, 0x77 6, 0x79; ours goes in
+  with C->S 0x18 buffer 2 (no echo); they accept → 0x77 5; our 0x4f 4 →
+  0x77 0xd and what we got as 0x9c action 4 into our bags. Our 0x4f 2 →
+  0x77 0xc and **all** our bags', stash's and belt's items again (0x9c 4 /
+  0xe, new ids). Our request is C->S 0x13 type 0 on them → 0x77 0.
+  Gold: our C->S 0x4f 8 (high, low) → 0x79 1 echoes it; done, our gold
+  comes as 0x1e stat 14 (live: 100 gold, 32047 → 31947). Trades only in town.
 - **0x62** (7; `FUN_004b5320`): +1 u8, +2 u32 (UI / NPC state, types 1,
   2, 4, 6) **(?)**.
 - **0x63 waypoints** (21; `0x45e670`): +1 u32 waypoint object id, +5 the
@@ -500,7 +514,10 @@ ids).
 - **0x60 town portal state** (7; `FUN_004bdf30`): +1 u8 state, +2 u8
   area, +3 u32 unit id.
 - **0x82 portal owner** (29): +1 u32 owner id, +5 char[16] name, +0x15
-  u32 local portal id, +0x19 u32 remote portal id.
+  u32 local portal id, +0x19 u32 remote portal id. Live: sent as the
+  portal opens and again on arriving through it, the two ids swapped:
+  "local" is the end in the receiver's area. 0x13 on it (type 2) warps the
+  player there (0x15); d2d sends that once the host has us beside it.
 
 ### Sounds, text
 
@@ -677,7 +694,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 | 3b skill point | 3 | u16 Skills.txt id | `54bd90` | `cmd::SkillPoint`: **class index 0..29** |
 | 3c select skill | 9 | u32 skill (bit 31: the hand, set by `FUN_004a9bd0` when `DAT_007c07fc`; left **(?)**), u32 item id (−1) | `54be70` | `cmd::SelectSkill` |
 | 51 hotkey | 9 | u32 (hotkey << 16, bit 15 left, skill), u32 item id | `54c870` | none |
-| 4f click button | 7 | u16 button, u16, u16 | `54c7c0` | none |
+| 4f click button | 7 | u16 button, u16, u16 | `54c7c0` | a trade's (`FUN_004b8730`..`FUN_004b9110`): 2 decline / cancel, 3 accept the request, 4 accept (our gold high, low), 7 take it back, 8 our gold |
 | 5d / 5e party | 7 / 6 | | `FUN_005a6000` | none |
 | 14 / 15 chat / overhead | var | u8, u8 type, message\0, name\0 | `54a290` / `54a5d0` | none |
 | 6d ping | 13 | u32 tick, u32 (`FUN_0044ce70` >> 1), u32 checksum | system | **none** (the host expects it, at most every 5 s) |

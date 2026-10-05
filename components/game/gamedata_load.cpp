@@ -1171,10 +1171,14 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             const d2d::txt::Table table(*bytes);
             for (std::size_t row = 0; row < table.size(); ++row) {
                 auto number = [&](const char* column) { return std::atoi(std::string(table.get(row, column)).c_str()); };
-                d2d::rules::NpcPrice prices{ number("buy mult"), number("sell mult"), number("rep mult"),
+                // The columns are the vendor's side: "sell mult" is what the
+                // player pays, "buy mult" what the vendor pays for theirs.
+                // Live on a 1.14d host (Akara, Den of Evil done, 14% reduced
+                // prices): mp1 (cost 60) cost 47 = 60 * 922 / 1024 - 14%.
+                d2d::rules::NpcPrice prices{ number("sell mult"), number("buy mult"), number("rep mult"),
                                    { number("questflag A"), number("questflag B"), number("questflag C") },
-                                   { number("questbuymult A"), number("questbuymult B"), number("questbuymult C") },
                                    { number("questsellmult A"), number("questsellmult B"), number("questsellmult C") },
+                                   { number("questbuymult A"), number("questbuymult B"), number("questbuymult C") },
                                    { number("questrepmult A"), number("questrepmult B"), number("questrepmult C") },
                                    { number("max buy"), number("max buy (N)"), number("max buy (H)") } };
                 game_data.rules.npc_prices[std::string(table.get(row, "npc"))] = prices;
@@ -1198,10 +1202,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     for (std::size_t row = 0; row < inv.size(); ++row) {
         const auto cls = inv.get(row, "class");
         const int layout_index = cls == "Big Bank Page2" ? 1 : cls == "Bank Page2" ? 0
-                    : cls == "Transmogrify Box2" ? 2 : -1;
+                    : cls == "Transmogrify Box2" ? 2 : cls == "Trade Page 1-2" ? 3 : cls == "Trade Page 2-2" ? 4 : -1;
         if (layout_index < 0) continue;
         auto num = [&](const char* column) { return std::atoi(std::string(inv.get(row, column)).c_str()); };
-        auto& layout = layout_index == 2 ? game_data.cube_layout : game_data.stash_layout[std::size_t(layout_index)];
+        auto& layout = layout_index == 2 ? game_data.cube_layout : layout_index >= 3 ? game_data.trade_layout[std::size_t(layout_index - 3)]
+                     : game_data.stash_layout[std::size_t(layout_index)];
         layout.grid_x = num("gridLeft"); layout.grid_y = num("gridTop");
         layout.cols = num("gridX"); layout.rows = num("gridY");
         layout.box_w = num("gridBoxWidth"); layout.box_h = num("gridBoxHeight");

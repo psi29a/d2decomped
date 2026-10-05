@@ -170,7 +170,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kMaxDurabilityPercent = 75, kMaxLifePercent = 76, kMaxManaPercent = 77,
               kAttackerTakesDamage = 78,
               kGoldFind = 79, kMagicFind = 80,      // item_goldbonus, item_magicbonus
-              kKnockback = 81, kAddExperience = 85, kLightRadius = 89,
+              kKnockback = 81, kAddExperience = 85, kReducedPrices = 87, kLightRadius = 89,
               kRequirementPercent = 91, kLevelRequirement = 92,   // item_req_percent, item_levelreq
               kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99, kFasterBlockRate = 102,
               kFasterCastRate = 105,

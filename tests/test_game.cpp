@@ -106,6 +106,15 @@ int main() {
     d2d::rules::Rng rng(7);
     constexpr int kBarbarian = 4;
     auto made = new_character(*data, kBarbarian, "Headless", false, true, rng);
+    {
+        // npc.txt's mults are the vendor's side: Akara sells at "sell mult"
+        // (1024) and buys at "buy mult" (512); reduced prices come off a buy.
+        d2d::d2s::Item potion;
+        potion.code = "mp1";
+        assert(d2d::rules::item_price(data->rules, potion, "akara", false, made.header) == 60);
+        assert(d2d::rules::item_price(data->rules, potion, "akara", true, made.header) == 30);
+        assert(d2d::rules::item_price(data->rules, potion, "akara", false, made.header, 14) == 52);
+    }
     Character character;
     character.character_class = kBarbarian;
     character.name = "Headless";

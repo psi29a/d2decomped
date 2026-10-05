@@ -221,7 +221,14 @@ struct Store {
     std::array<bool, 4> pressed{};
     std::vector<std::string> perm;              // PermStoreItems: buying doesn't use them up
     bool gamble = false;                        // Gheed's gamble list: buying rolls a new item
+    int reduced = 0;                            // the player's item_reducedprices (stat 87), 0..99: off buy, gamble and repair
 };
+
+// FUN_0062efb0's last step for a buy, a gamble or a repair: the player's
+// reduced prices (stat 87, at most 99) off, at least 1.
+inline long long price_reduced(long long price, int reduced) {
+    return std::max<long long>(price - price * std::clamp(reduced, 0, 99) / 100, 1);
+}
 
 inline std::pair<int, int> item_size(const Tables& tables, const std::string& code) {
     const auto info = tables.item_info.find(code);
@@ -310,7 +317,7 @@ inline Store open_store(const Tables& tables, int hc_idx, std::string npc_id, Rn
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
-                      const d2d::d2s::Header& header) {
+                      const d2d::d2s::Header& header, int reduced = 0) {
     const auto found = tables.item_base.find(item.code);
     const int base = found != tables.item_base.end() ? found->second.cost : 0;
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
@@ -344,7 +351,7 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     }
     if (item.quantity > 1 && !(found != tables.item_base.end() && found->second.stackable)) price *= item.quantity;
     if (sell && price_row != tables.npc_prices.end()) price = std::min<long long>(price, price_row->second.max_buy[std::size_t(diff)]);
-    return int(std::max<long long>(price, 1));
+    return int(sell ? std::max<long long>(price, 1) : price_reduced(price, reduced));
 }
 
 // An item's max durability with its modifiers: the save's base, plus
@@ -366,8 +373,8 @@ inline bool indestructible(const d2d::d2s::Item& item) {
 // quality extras, times missing / max durability, times npc.txt rep mult
 // and the quest rep mults / 1024; 0 when there's nothing to repair.
 // Ethereal items can't be repaired.
-// ponytail: no charge recharging, no socket or "reduced prices" terms.
-inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header) {
+// ponytail: no charge recharging or socket terms.
+inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
     if (item.max_durability <= 0 || item.durability >= max || item.ethereal || indestructible(item)) return 0;
     const auto found = tables.item_base.find(item.code);
@@ -397,13 +404,13 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
                 cost = cost * prices.qrep[std::size_t(quest)] / 1024;
     }
-    return int(std::max<long long>(cost, 1));
+    return int(price_reduced(cost, reduced));
 }
 
 // Repairs item i (gold first from the inventory, then the stash, as a
 // buy). False if it's whole or you can't pay.
 inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
-    const int cost = repair_cost(tables, item, store.npc_id, store.header);
+    const int cost = repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     if (cost <= 0 || stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
     stats.values[d2d::d2s::kGold] -= from_inv;
@@ -427,7 +434,7 @@ inline int store_repair_all(const Tables& tables, const Store& store, std::vecto
 inline bool store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     const auto& item = tab[std::size_t(index)];
-    const int price = item_price(tables, item, store.npc_id, false, store.header);
+    const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
@@ -1207,11 +1214,11 @@ inline std::pair<int, int> gamble_upgrade(const Tables& tables, const std::strin
 // Gheed's price for gambling on `code` (FUN_00629370): rings and amulets
 // cost their "gamble cost"; the rest mix the base, exceptional and elite
 // costs by upgrade odds and scale with character level.
-inline int gamble_price(const Tables& tables, const std::string& code, int clvl) {
+inline int gamble_price(const Tables& tables, const std::string& code, int clvl, int reduced = 0) {
     const auto found = tables.item_base.find(code);
     if (found == tables.item_base.end()) return 0;
     const auto& base = found->second;
-    if (code == "rin" || code == "amu") return base.gamble_cost;
+    if (code == "rin" || code == "amu") return int(price_reduced(base.gamble_cost, reduced));
     const auto [exceptional_chance, elite_chance] = gamble_upgrade(tables, code, clvl);
     auto cost_of = [&](const std::string& upgrade_code) { const auto upgrade_base = tables.item_base.find(upgrade_code); return upgrade_base != tables.item_base.end() ? upgrade_base->second.cost : 0; };
     const long long stack = std::max(1, (base.min_stack + base.max_stack) / 2);
@@ -1219,7 +1226,7 @@ inline int gamble_price(const Tables& tables, const std::string& code, int clvl)
     const long long mix = ((10000LL - elite_chance - exceptional_chance) * base.cost * stack + (long long)cost_of(base.ultracode) * elite_chance
                            + (long long)cost_of(base.ubercode) * exceptional_chance) / 10000;
     const long long lvl = ((std::max(base.level - 45, 0) - base.level / 2 + level) * 250) / 3;
-    return int((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15);
+    return int(price_reduced((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15, reduced));
 }
 
 // Gambles on `code`: the base may upgrade (exceptional / elite, by the
@@ -1268,7 +1275,7 @@ inline bool store_gamble(const Tables& tables, Store& store, int index, std::vec
                          d2d::d2s::Stats& stats, Rng& rng) {
     const auto& code = store.tabs[std::size_t(store.tab)][std::size_t(index)].code;
     const int clvl = int(stats.get(d2d::d2s::kLevel));
-    const int price = gamble_price(tables, code, clvl);
+    const int price = gamble_price(tables, code, clvl, store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
     auto item = gamble_item(tables, code, clvl, store.header.active_difficulty(), rng);
     std::vector<const d2d::d2s::Item*> inv;

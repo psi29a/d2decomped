@@ -569,7 +569,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         const auto log_path = g_user_dir / std::format("net-{:%Y%m%dT%H%M%SZ}.log", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
                         d2d::log::info("Joining {} as {} (net log {})", g_join_host, header.name, log_path.string());
                         auto joined = NetGame::join(g_join_host, g_game_exe, std::move(save), log_path, 10000,
-                                                    scene->item_tables ? &*scene->item_tables : nullptr);
+                                                    scene->item_tables ? &*scene->item_tables : nullptr, g_autoparty);
                         if (!joined) {
                             d2d::log::error("join failed: {}", joined.error());
                             screen = Screen::CharSelect;
@@ -577,6 +577,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             auto& net = **joined;
                             d2d::log::info("  in {}'s game: act {}, map seed {:#x}, difficulty {}", g_join_host, net.act + 1, net.map_seed, net.difficulty);
                             set_map_seed(*scene, net.map_seed);
+                            character.header.difficulty = {};              // the host's game's difficulty, Act 1
+                            character.header.difficulty[std::size_t(std::clamp(net.difficulty, 0, 2))] = 0x80;
                             town.world.characters = nullptr;
                             town.world.fight.remote_monsters = true;
                             town.net_game = std::move(*joined);
@@ -853,7 +855,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot)");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
@@ -928,6 +930,7 @@ int main(int argc, char** argv) {
         static const std::pair<std::string_view, bool*> kToggles[] = {
             { "trans_roof", &g_roof_cutout },   // the see-through circle in roofs round the player
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
+            { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
         };
         std::string_view rest = toggles;
         while (!rest.empty()) {
@@ -938,7 +941,7 @@ int main(int argc, char** argv) {
             const auto name = item.substr(0, equals_at), value = equals_at == std::string_view::npos ? std::string_view("on") : item.substr(equals_at + 1);
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot; values on|off)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty; values on|off)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";
