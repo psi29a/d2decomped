@@ -9,6 +9,7 @@
 #include <d2gs/s2c_names.hpp>
 #include <d2gs/split.hpp>
 #include <join.hpp>
+#include <d2gs/wire.hpp>
 
 #include <cassert>
 #include <cstdint>

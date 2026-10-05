@@ -491,7 +491,7 @@ auto Town::net_items(const Command& command) -> void {
             if (item && !id) net_game->log.note("no host id for our " + item->code + " (not sent)");
             return id;
         };
-        const std::uint32_t held = world.held ? (net_cursor ? net_cursor : net_game->host_item(*world.held)) : 0;
+        const std::uint32_t held_id = world.held ? (net_cursor ? net_cursor : net_game->host_item(*world.held)) : 0;
         if (const auto* use = std::get_if<cmd::UseItem>(&command)) {
             const auto* item = local(use->item);
             if (const auto id = host(item); id && item->location == item_location::kBelt) net_game->send_items({ c2s::use_belt(id) });
@@ -506,7 +506,7 @@ auto Town::net_items(const Command& command) -> void {
                 else net_game->send_items({ c2s::item_id_packet(item->location == item_location::kBelt ? 0x24 : 0x19, id) });
                 net_cursor = id;
             }
-        } else if (const auto* to_grid = std::get_if<cmd::ToGrid>(&command); to_grid && held) {
+        } else if (const auto* to_grid = std::get_if<cmd::ToGrid>(&command); to_grid && held_id) {
             // What's under the held item's footprint there: a swap (0x1f).
             const auto info = scene->rules.item_info.find(world.held->code);
             const int width = info != scene->rules.item_info.end() ? info->second.width : 1, height = info != scene->rules.item_info.end() ? info->second.height : 1;
@@ -518,18 +518,18 @@ auto Town::net_items(const Command& command) -> void {
                 if (item.column < to_grid->col + width && to_grid->col < item.column + item_w && item.row < to_grid->row + height && to_grid->row < item.row + item_h) { under = &item; break; }
             }
             const std::uint32_t buffer = to_grid->panel == item_panel::kStash ? 4 : to_grid->panel == item_panel::kCube ? 3 : 0;
-            if (under) { if (const auto target = host(under)) net_game->send_items({ c2s::swap_grid(held, target, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row)) }); net_cursor = net_game->host_item(*under); }
-            else { net_game->send_items({ c2s::cursor_to_grid(held, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row), buffer) }); net_cursor = 0; }
-        } else if (const auto* to_body = std::get_if<cmd::ToBody>(&command); to_body && held) {
+            if (under) { if (const auto target = host(under)) net_game->send_items({ c2s::swap_grid(held_id, target, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row)) }); net_cursor = net_game->host_item(*under); }
+            else { net_game->send_items({ c2s::cursor_to_grid(held_id, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row), buffer) }); net_cursor = 0; }
+        } else if (const auto* to_body = std::get_if<cmd::ToBody>(&command); to_body && held_id) {
             const auto worn = std::ranges::find_if(world.character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == to_body->slot; });
             const bool swap = worn != world.character.items.end();
-            net_game->send_items({ c2s::equip(held, std::uint32_t(to_body->slot), swap) });
+            net_game->send_items({ c2s::equip(held_id, std::uint32_t(to_body->slot), swap) });
             net_cursor = swap ? net_game->host_item(*worn) : 0;
-        } else if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command); to_belt && held) {
-            net_game->send_items({ c2s::cursor_to_belt(held, std::uint32_t(to_belt->box)) });
+        } else if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command); to_belt && held_id) {
+            net_game->send_items({ c2s::cursor_to_belt(held_id, std::uint32_t(to_belt->box)) });
             net_cursor = 0;
-        } else if (std::holds_alternative<cmd::Drop>(command) && held) {
-            net_game->send_items({ c2s::item_id_packet(0x17, held) });
+        } else if (std::holds_alternative<cmd::Drop>(command) && held_id) {
+            net_game->send_items({ c2s::item_id_packet(0x17, held_id) });
             net_cursor = 0;
         }
     }

@@ -37,9 +37,9 @@ struct ExeTables {
     C2sSizeTable c2s_sizes{};
 };
 
-// The file bytes behind [va, va + size) in a PE32 image, if one section's
+// The file bytes behind [virtual_address, virtual_address + size) in a PE32 image, if one section's
 // raw data holds all of them.
-auto pe_bytes_at(std::span<const std::uint8_t> image, std::uint32_t va, std::size_t size) -> std::optional<std::span<const std::uint8_t>>;
+auto pe_bytes_at(std::span<const std::uint8_t> image, std::uint32_t virtual_address, std::size_t size) -> std::optional<std::span<const std::uint8_t>>;
 
 // Every length in 1..15 and a complete code (Kraft sum exactly 1).
 auto check_lengths(std::span<const std::uint8_t> lengths) -> std::expected<void, std::string>;

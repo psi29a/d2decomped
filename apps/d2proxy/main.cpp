@@ -38,6 +38,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 namespace {
 
@@ -86,7 +87,7 @@ auto relay(d2d::net::TcpConnection& client, const std::string& host, std::uint16
     if (!file.is_open()) d2d::log::error("can't write the net log {}", log_path.string());
     d2d::net::d2gs::Receiver from_host(huffman, tables.s2c_sizes);
     d2d::net::d2gs::C2sSplitter from_client(tables.c2s_sizes);
-    Direction down{ "S>C", &d2d::net::d2gs::s2c_name }, up{ "C>S", &d2d::net::d2gs::c2s_name };
+    Direction from_host_dir{ "S>C", &d2d::net::d2gs::s2c_name }, from_client_dir{ "C>S", &d2d::net::d2gs::c2s_name };
     bool host_broken = false, client_broken = false;
     while (true) {
         // The client's bytes: to the host as they are, then decoded.
@@ -105,7 +106,7 @@ auto relay(d2d::net::TcpConnection& client, const std::string& host, std::uint16
                     if (bytes[0] == 0x68 && bytes.size() >= 0x25)
                         d2d::log::info("  join as {} (class {})", d2d::net::d2gs::read_name(bytes, 0x15, 16), bytes[7]);
                     if (bytes[0] == 0x69) d2d::log::info("  the client leaves");
-                    up.packet(bytes, file, false);
+                    from_client_dir.packet(bytes, file, false);
                 }
             }
         }
@@ -124,15 +125,15 @@ auto relay(d2d::net::TcpConnection& client, const std::string& host, std::uint16
                     for (const auto& bytes : *packets) {
                         if (bytes[0] == 0x04) d2d::log::info("  in the game");
                         if (bytes[0] == 0xb4 && bytes.size() >= 5) d2d::log::warn("the host refused the join: reason {:#x}", d2d::net::d2gs::read_u32(bytes, 1));
-                        down.packet(bytes, file, true);
+                        from_host_dir.packet(bytes, file, true);
                     }
                 }
             }
         }
     }
     d2d::log::info("  session over; packets by id (? = unknown):");
-    up.summary();
-    down.summary();
+    from_client_dir.summary();
+    from_host_dir.summary();
     file.summary();
 }
 

@@ -165,23 +165,23 @@ inline void logic_areas(std::vector<BuiltRoom>& rooms, std::size_t self, const s
                 for (int i = chain.head; i != -1; i = rooms[other].tiles[std::size_t(i)].next) mark(rooms[other].tiles[std::size_t(i)]);
     }
     std::uint32_t label = 0;
-    auto flood = [&](auto&& flood, int x, int y, int dir) -> void {                                 // FUN_0066c3d0
+    auto flood = [&](auto&& again, int x, int y, int dir) -> void {                                 // FUN_0066c3d0
         for (;;) {
             if (x < 0 || y < 0 || x >= width || y >= height) return;
             const auto cell = std::size_t(y * width + x);
             if (labels[cell] & 0x10000000u) return;
             if (!walls[cell]) {
                 labels[cell] = label;
-                for (int step = 0; step < 4; ++step) flood(flood, x + kDx[step], y + kDy[step], step);
+                for (int step = 0; step < 4; ++step) again(again, x + kDx[step], y + kDy[step], step);
                 return;
             }
             const auto orient = orients.empty() ? 0u : orients[cell] & 0xff;
             const int mask = kMask[(orient < 20 ? kRow[orient] : -1) + 1][dir + 1];
             if (mask & 1) labels[cell] = label;
-            if ((mask & 2) && dir != 2) flood(flood, x + 1, y, 0);
-            if ((mask & 4) && dir != 3) flood(flood, x, y + 1, 1);
-            if ((mask & 8) && dir != 0) flood(flood, x - 1, y, 2);
-            if ((mask & 0x10) && dir != 1) flood(flood, x, y - 1, 3);
+            if ((mask & 2) && dir != 2) again(again, x + 1, y, 0);
+            if ((mask & 4) && dir != 3) again(again, x, y + 1, 1);
+            if ((mask & 8) && dir != 0) again(again, x - 1, y, 2);
+            if ((mask & 0x10) && dir != 1) again(again, x, y - 1, 3);
             if (!(mask & 0x20)) return;
             ++x; ++y; dir = -1;
         }

@@ -15,28 +15,30 @@
 #include <span>
 #include <string>
 #include <vector>
+#include <ios>
+#include <utility>
 
 namespace d2d::net::d2gs {
 
-auto pe_bytes_at(std::span<const std::uint8_t> image, std::uint32_t va, std::size_t size) -> std::optional<std::span<const std::uint8_t>> {
+auto pe_bytes_at(std::span<const std::uint8_t> image, std::uint32_t virtual_address, std::size_t size) -> std::optional<std::span<const std::uint8_t>> {
     if (image.size() < 0x40 || image[0] != 'M' || image[1] != 'Z') return std::nullopt;
-    const std::size_t pe = read_u32(image, 0x3c);
+    const std::size_t pe_header = read_u32(image, 0x3c);
     // Signature, COFF header, and the optional header up to ImageBase.
-    if (pe > image.size() || image.size() - pe < 24 + 32) return std::nullopt;
-    if (image[pe] != 'P' || image[pe + 1] != 'E' || image[pe + 2] != 0 || image[pe + 3] != 0) return std::nullopt;
-    const std::size_t section_count = read_u16(image, pe + 6);
-    const std::size_t optional_size = read_u16(image, pe + 20);
-    if (read_u16(image, pe + 24) != 0x10b) return std::nullopt; // PE32: game.exe is 32-bit
-    const std::uint32_t image_base = read_u32(image, pe + 24 + 28);
-    const std::size_t table = pe + 24 + optional_size;
+    if (pe_header > image.size() || image.size() - pe_header < 24 + 32) return std::nullopt;
+    if (image[pe_header] != 'P' || image[pe_header + 1] != 'E' || image[pe_header + 2] != 0 || image[pe_header + 3] != 0) return std::nullopt;
+    const std::size_t section_count = read_u16(image, pe_header + 6);
+    const std::size_t optional_size = read_u16(image, pe_header + 20);
+    if (read_u16(image, pe_header + 24) != 0x10b) return std::nullopt; // PE32: game.exe is 32-bit
+    const std::uint32_t image_base = read_u32(image, pe_header + 24 + 28);
+    const std::size_t table = pe_header + 24 + optional_size;
     for (std::size_t i = 0; i < section_count; ++i) {
         const std::size_t header = table + 40 * i;
         if (header > image.size() || image.size() - header < 40) return std::nullopt;
         const std::uint64_t start = std::uint64_t{image_base} + read_u32(image, header + 12);
         const std::uint64_t raw_size = read_u32(image, header + 16);
         const std::uint64_t raw_offset = read_u32(image, header + 20);
-        if (va < start || va + std::uint64_t{size} > start + raw_size) continue;
-        const std::uint64_t offset = raw_offset + (va - start);
+        if (virtual_address < start || virtual_address + std::uint64_t{size} > start + raw_size) continue;
+        const std::uint64_t offset = raw_offset + (virtual_address - start);
         if (offset + size > image.size()) return std::nullopt;
         return image.subspan(static_cast<std::size_t>(offset), size);
     }
@@ -84,7 +86,7 @@ auto read_exe_tables(std::span<const std::uint8_t> image) -> std::expected<ExeTa
     for (std::size_t i = 0; i < kS2cIdCount; ++i) tables.s2c_sizes[i] = static_cast<std::int32_t>(read_u32(*sizes, i * 4));
     for (std::size_t i = 0; i < kC2sIdCount; ++i) tables.c2s_sizes[i] = static_cast<std::int32_t>(read_u32(*c2s_sizes, i * 4));
     // The C->S sizes d2d's builders fix (c2s.hpp): 0x01 5, 0x13 9, 0x68 37, 0x6d 13.
-    for (const auto [id, size] : { std::pair{ 0x01, 5 }, std::pair{ 0x13, 9 }, std::pair{ 0x68, 37 }, std::pair{ 0x6d, 13 } })
+    for (const auto& [id, size] : { std::pair{ 0x01, 5 }, std::pair{ 0x13, 9 }, std::pair{ 0x68, 37 }, std::pair{ 0x6d, 13 } })
         if (tables.c2s_sizes[std::size_t(id)] != size)
             return std::unexpected(std::format("game.exe's C->S size table: {:#04x} is {} bytes, not {}", id, tables.c2s_sizes[std::size_t(id)], size));
     if (auto checked = check_lengths(tables.lengths); !checked) return std::unexpected("game.exe's Huffman table: " + checked.error());

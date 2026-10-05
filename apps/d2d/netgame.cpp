@@ -9,6 +9,9 @@
 #include <d2gs/s2c_names.hpp>
 #include <d2gs/wire.hpp>
 #include <log.hpp>
+#include <d2s_items.hpp>
+#include <join.hpp>
+#include <tcp.hpp>
 
 #include <bitset>
 #include <chrono>
@@ -16,6 +19,14 @@
 #include <format>
 #include <string_view>
 #include <utility>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
+#include <filesystem>
+#include <memory>
+#include <span>
+#include <string>
+#include <vector>
 
 namespace {
 

@@ -7,6 +7,14 @@
 #include <chrono>
 #include <format>
 #include <ios>
+#include <bitset>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <ostream>
+#include <span>
+#include <string>
+#include <string_view>
 
 namespace d2d::net {
 

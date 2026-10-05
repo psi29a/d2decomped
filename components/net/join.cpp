@@ -2,9 +2,19 @@
 #include "join.hpp"
 
 #include <d2gs/c2s.hpp>
+#include <d2gs/exe_tables.hpp>
+#include <d2gs/huffman.hpp>
+#include <d2gs/wire.hpp>
 
 #include <algorithm>
 #include <utility>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace d2d::net {
 

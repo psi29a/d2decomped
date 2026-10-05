@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "tcp.hpp"
+#include <d2gs/wire.hpp>
 
 #include <cstring>
 #include <string>
@@ -18,6 +19,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
+#include <cstdint>
+#include <expected>
+#include <optional>
+#include <span>
 #endif
 
 namespace d2d::net {
@@ -161,8 +166,8 @@ auto TcpListener::accept(int timeout_ms, std::string* from) -> std::expected<std
     const Native client = ::accept(native(socket_), reinterpret_cast<sockaddr*>(&address), &length);
     if (client == kNone) return std::unexpected("accept: " + last_error());
     if (from) {
-        const auto ip = ntohl(address.sin_addr.s_addr);
-        *from = std::to_string(ip >> 24) + "." + std::to_string(ip >> 16 & 0xff) + "." + std::to_string(ip >> 8 & 0xff) + "." + std::to_string(ip & 0xff);
+        const auto address_bits = ntohl(address.sin_addr.s_addr);
+        *from = std::to_string(address_bits >> 24) + "." + std::to_string(address_bits >> 16 & 0xff) + "." + std::to_string(address_bits >> 8 & 0xff) + "." + std::to_string(address_bits & 0xff);
     }
     set_nonblocking(client);
     int enabled = 1;

@@ -407,7 +407,7 @@ int main() {
     }
     // The MonAI thinks: each rand(100) one seed step, a wander four, a circle one.
     {
-        auto steps = [](std::uint32_t seed, Rng& rng) { Rng count{ seed }; int step_count = 0; while (count.low != rng.low || count.high != rng.high) { (void)count.next(); ++step_count; } return step_count; };
+        auto steps = [](std::uint32_t seed, Rng& stepped) { Rng count{ seed }; int step_count = 0; while (count.low != stepped.low || count.high != stepped.high) { (void)count.next(); ++step_count; } return step_count; };
         auto no_away = [](int, bool) { return false; };
         auto ok_away = [](int, bool) { return true; };
         int state = 0;
