@@ -23,11 +23,11 @@ Kinds observed in this block:
 | 0x70ae70   | 3    | (345, 470, 110, 127)   |        | `0x00779728` |              |              | Fire — lower copy (fire.dc6) |
 | 0x70aea0   | 3    | (345, 454, 110, 127)   |        | `0x00779728` |              |              | Fire — upper copy |
 | 0x70aed0   | 3    | (195, 341, 88, 184)    |        |              | `0x00433bf0` | `0x00708aa0` | Class silhouette (classic layout) |
-| 0x70af00   | 3    | (301, 333, 88, 184)    |        |              | `0x00433bf0` | `0x00708af0` | Class silhouette |
+| **0x70af00** | 3  | **(301, 333, 88, 184)** |       |              | `0x00433bf0` | `0x00708af0` | **NECROMANCER** (LoD: FUN_00435580 index 0xb5) |
 | **0x70af30** | 3  | **(400, 330, 88, 184)** |       |              | `0x00433bf0` | `0x00708b40` | **BARBARIAN** (matches our kClassPos) |
 | 0x70af60   | 3    | (521, 344, 88, 184)    |        |              | `0x00433bf0` | `0x00708b90` | Class silhouette |
 | 0x70af90   | 3    | (610, 359, 88, 184)    |        |              | `0x00433bf0` | `0x00708be0` | Class silhouette |
-| **0x70afc0** | 3  | **(217, 360, 88, 184)** |       |              | `0x00433bf0` | `0x00708af0` | **NECROMANCER** |
+| 0x70afc0   | 3    | (217, 360, 88, 184)    |        |              | `0x00433bf0` | `0x00708af0` | Necromancer anims, but not the record LoD builds the class from |
 | **0x70aff0** | 3  | **(626, 353, 88, 184)** |       |              | `0x00433bf0` | `0x00708b90` | **SORCERESS** |
 | **0x70b020** | 3  | **(521, 339, 88, 184)** |       |              | `0x00433bf0` | `0x00708be0` | **PALADIN** |
 | **0x70b050** | 3  | **(100, 337, 88, 184)** |       |              | `0x00433bf0` | `0x00708aa0` | **AMAZON** |
