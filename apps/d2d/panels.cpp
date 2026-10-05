@@ -437,6 +437,7 @@ namespace {
 // The trade's boxes: {x0, y0, x1, y1}.
 constexpr std::array<int, 4> kTradeAsk{ 250, 200, 550, 290 }, kTradeYes{ 270, 252, 390, 278 }, kTradeNo{ 410, 252, 530, 278 };
 constexpr std::array<int, 4> kTradeAccept{ 301, 443, 335, 477 }, kTradeCancel{ 353, 443, 387, 477 }, kTheirAccept{ 353, 228, 387, 262 };
+constexpr std::array<int, 4> kOurGold{ 236, 286, 386, 304 };
 
 bool inside(const std::array<int, 4>& box, int x, int y) { return x >= box[0] && x < box[2] && y >= box[1] && y < box[3]; }
 
@@ -453,7 +454,7 @@ void shade(std::vector<std::uint8_t>& framebuffer, const std::array<int, 4>& box
 
 void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
                 const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
-                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
+                std::uint32_t our_gold, const std::string* typing, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     auto centred = [&](const std::array<int, 4>& box, const std::string& text) {
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(text) / 2,
@@ -479,6 +480,8 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
     centred({ 98, 70, 222, 88 }, with);
     if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
     centred({ 98, 286, 222, 304 }, our_name);
+    if (typing) centred(kOurGold, *typing + "_");
+    else if (our_gold) centred(kOurGold, std::to_string(our_gold));
 }
 
 TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) {
@@ -488,6 +491,7 @@ TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) 
     }
     if (inside(kTradeAccept, mouse_x, mouse_y)) return TradeClick::kAccept;
     if (inside(kTradeCancel, mouse_x, mouse_y)) return TradeClick::kDecline;
+    if (inside(kOurGold, mouse_x, mouse_y)) return TradeClick::kGold;
     const auto& ours = scene.trade_layout[1];
     if (mouse_x >= ours.grid_x && mouse_x < ours.grid_x + ours.cols * ours.box_w && mouse_y >= ours.grid_y && mouse_y < ours.grid_y + ours.rows * ours.box_h)
         return TradeClick::kOurGrid;

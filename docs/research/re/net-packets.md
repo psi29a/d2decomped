@@ -498,6 +498,8 @@ ids).
   0x77 0xd and what we got as 0x9c action 4 into our bags. Our 0x4f 2 →
   0x77 0xc and **all** our bags', stash's and belt's items again (0x9c 4 /
   0xe, new ids). Our request is C->S 0x13 type 0 on them → 0x77 0.
+  Gold: our C->S 0x4f 8 (high, low) → 0x79 1 echoes it; done, our gold
+  comes as 0x1e stat 14 (live: 100 gold, 32047 → 31947). Trades only in town.
 - **0x62** (7; `FUN_004b5320`): +1 u8, +2 u32 (UI / NPC state, types 1,
   2, 4, 6) **(?)**.
 - **0x63 waypoints** (21; `0x45e670`): +1 u32 waypoint object id, +5 the

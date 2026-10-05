@@ -161,6 +161,7 @@ struct Town {
     int net_operate_type = 2;                                // the host unit being walked to (0x13 once there): 2 object, 0 our corpse
     std::uint32_t net_operate = 0, net_operate_ms = 0;       // ... its id, when
     bool net_operate_moves = false;                          // ... a warp or portal: it takes us to another area
+    std::optional<std::string> trade_gold_typing;           // a trade's gold, being typed (our bar clicked)
     int net_operate_waypoint = -1;                           // ... a waypoint: then 0x49 to this level
     std::uint32_t net_moving_until = 0;                      // such a 0x13 went: no following walks till the host moves us (0x15) or then
     std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()

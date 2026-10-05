@@ -128,6 +128,7 @@ struct NetGame {
     auto trade_answer(bool accept) -> void;
     auto trade_accept() -> void;
     auto trade_cancel() -> void;
+    auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
     bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)

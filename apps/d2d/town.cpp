@@ -681,6 +681,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // and the character walks toward that point (the target
         // tracks the cursor while held); the camera follows.
         for (const auto key : keys_this_frame) {
+            if (trade_gold_typing && key != SDLK_ESCAPE) continue;   // typing a trade's gold: no hotkeys
             if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
             if (key == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (key == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
@@ -697,7 +698,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // closes, else every Esc-closable panel at once (FUN_00456300;
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
-                if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
+                if (trade_gold_typing) trade_gold_typing.reset();             // the gold being typed first
+                else if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
                 else if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
@@ -743,12 +745,26 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (net_game && net_game->trade.state != 0 && !game_menu.open) {
             auto& trade = net_game->trade;
             if (trade.state >= 3) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
+            if (trade.state < 3) trade_gold_typing.reset();
+            if (trade_gold_typing)                                              // digits, Backspace, Enter offers it (capped at what we carry)
+                for (const auto key : keys_this_frame) {
+                    if (key >= SDLK_0 && key <= SDLK_9 && trade_gold_typing->size() < 7) trade_gold_typing->push_back(char('0' + (key - SDLK_0)));
+                    else if (key == SDLK_BACKSPACE && !trade_gold_typing->empty()) trade_gold_typing->pop_back();
+                    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
+                        const auto carried = std::uint32_t(std::max<std::int64_t>(character.stats.get(d2d::d2s::kGold), 0));
+                        net_game->trade_gold(std::min(std::uint32_t(std::strtoul(trade_gold_typing->c_str(), nullptr, 10)), carried));
+                        trade_gold_typing.reset();
+                        break;
+                    }
+                }
             const auto click = trade_click(*scene, trade.state, mouse.x, mouse.y);
             const bool over_window = trade.state >= 3 && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320 && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432;
             if (mouse.press_this_frame && (click != TradeClick::kNone || over_window)) {
                 if (click == TradeClick::kAccept) {
                     if (trade.state == 2) net_game->trade_answer(true);
                     else if (trade.state >= 3 && trade.state != 7) net_game->trade_accept();
+                } else if (click == TradeClick::kGold) {
+                    trade_gold_typing = std::string{};
                 } else if (click == TradeClick::kDecline) {
                     if (trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel();
                 } else if (click == TradeClick::kOurGrid && world.held) {
@@ -1587,7 +1603,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
             if (with.empty())
                 if (const auto partner = net_game->units.find(trade.with); partner != net_game->units.end()) with = partner->second.name;
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
-                       held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
+                       trade.our_gold, trade_gold_typing ? &*trade_gold_typing : nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;

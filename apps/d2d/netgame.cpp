@@ -128,6 +128,13 @@ auto NetGame::trade_cancel() -> void {
     store_items.clear();
 }
 
+auto NetGame::trade_gold(std::uint32_t gold) -> void {
+    namespace c2s = d2d::net::d2gs::c2s;
+    if (trade.state == 5 || trade.state == 7) { send({ c2s::click_button(7) }); trade.state = 3; }
+    trade.our_gold = gold;
+    send({ c2s::click_button(8, std::uint16_t(gold >> 16), std::uint16_t(gold)) });
+}
+
 auto NetGame::trade_settling() const -> bool { return steady_ms() < trade.settle_until; }
 
 auto NetGame::send_items(const std::vector<d2d::net::Bytes>& packets) -> void {
