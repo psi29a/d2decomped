@@ -567,8 +567,15 @@ The ids apps/d2proxy flagged in a real game.exe client's session (table
   Id order: 1.14d has 16, Act 1's Town, Cold Plains, Dark Wood, Tamoe
   Highland, Courtyard 1, Jail 1, Cathedral, Catacombs 3, ...): bit i, the
   i-th of them entered (`FUN_0061ae30`). Host (`FUN_00537b50`) and client
-  (`FUN_00460e70`) OR in the bit of each new room's level. 1 at a new
-  character's join (the camp). Nothing else found reading it **(?)**.
+  (`FUN_00460e70`) OR in the bit of each new room's level. Player data
+  creation (`FUN_00621f90`, Units.cpp) starts it at `FUN_0061ae30(1)`, the
+  Act 1 town's bit: hence 1 at a new character's join. **Nothing in 1.14d
+  reads it**: every access to player data +0x2c (tools/ghidra/scripts
+  FieldUses.java `14 2c 8`: 41 hits, the rest monster / item data / other
+  structs; the getter `FUN_00622230` has 3 callers, all of them writers or
+  the 0x5f send) writes it; it isn't saved (`FUN_00569ad0`'s writers don't
+  touch it). A field kept up to date and sent, but never used: d2d can
+  take 0x5f and ignore it.
 - **0x7c item: end a stat list** (6; `0x45e910` → `FUN_004c51b0`): +1 u8
   unit type (4), +2 u32 item id; `FUN_004c2180` removes the item's stat
   list 0x36 (as 0x3f's clearing case does).
