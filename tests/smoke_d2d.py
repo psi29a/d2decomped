@@ -93,7 +93,7 @@ def frames(n=6):
         time.sleep(0.005)
 
 try:
-    for _ in range(100):
+    for _ in range(300):              # 30 s: a freshly linked binary's first start can be slow
         if os.path.exists(sock_path):
             break
         assert proc.poll() is None, "d2d exited during startup"
@@ -420,7 +420,7 @@ try:
     # and saved at once; it enters at level 1 and its file is there.
     proc = subprocess.Popen([d2d, "--headless", "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charcreate",
                              "--start-class", "1", "--start-name", "Newbie", "--scale", "2"], env=env)
-    for _ in range(100):
+    for _ in range(300):              # 30 s: a freshly linked binary's first start can be slow
         if os.path.exists(sock_path):
             break
         time.sleep(0.1)
