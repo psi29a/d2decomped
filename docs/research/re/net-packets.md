@@ -538,6 +538,35 @@ ids).
 - **0x8f pong** (33): zeros; the latency the correction uses.
 - **0x97 weapon switch** (1): toggles `DAT_007bcc4c`.
 
+### Traced from a recorded session (2026-10-05)
+
+The ids apps/d2proxy flagged in a real game.exe client's session (table
+`0x7114d0`: handler, size):
+
+- **0x47 / 0x48 check equipment** (11; `0x45e2a0` / `0x45e2d0` →
+  `FUN_004c1bc0` / `FUN_004c1bf0`): +1 u8 unit type, +3 u32 unit id; both
+  run `FUN_004c1350` on that player: each of the 11 body slots' items is
+  checked against its requirements (`FUN_004c10e0`), item flag 0x4000 set
+  or cleared (the red "can't use"), then the look is refreshed
+  (`FUN_0046f950` / `FUN_00470610` for the own player, `FUN_004aff60` for
+  another). Sent in pairs after item and stat changes. Which one the host
+  sends when isn't traced.
+- **0x5d quest log news** (6; `0x45e540` → `FUN_004a2cb0`): quests.md's
+  Quest Log button.
+- **0x5e quests open in this game** (38; `0x45e570`): 37 bytes copied to
+  `0x7c0ea4` (flag `0x7c0ecc` = 1), read by `FUN_004b92e0(_, quest)` (the
+  mini panel, the quest buttons). The host (`FUN_00546270`) fills them from
+  the game's quest records (game +0x10f4) in the order of the table at
+  `0x731520` (24 bytes a row, `DAT_00731888` rows): each record's +9, "open
+  in this game" (quests-act1.md). All 1 at a game's start.
+- **0x5f** (5; `0x45e5d0`): +1 u32 into the own player's data +0x2c
+  (`FUN_006221e0`); 1 at the join. What reads +0x2c **(?)**.
+- **0x7c item: end a stat list** (6; `0x45e910` → `FUN_004c51b0`): +1 u8
+  unit type (4), +2 u32 item id; `FUN_004c2180` removes the item's stat
+  list 0x36 (as 0x3f's clearing case does).
+- **0x7e load act COFs** (5; `0x45e970`): reloads `DATA\GLOBAL\cmncof_a<act>`
+  for the own player's act (`FUN_006427f0`); the payload isn't read.
+
 ### Not traced
 
 0x11 (report kill: +1 type, +2 id, +6 u16 → `FUN_00464e50`), 0x12..0x14
