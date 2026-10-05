@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   pull_request:
 
 permissions:
@@ -215,20 +217,26 @@ jobs:
         shell: pwsh
         run: ctest --test-dir build --output-on-failure -C Release
 
-      # A full artifact quota (it resets every 6-12 h) shouldn't fail a run
-      # whose build, tidy and tests passed; those are earlier steps and
-      # still fail the job themselves.
+      # Binaries only for main and tags (pull requests build and test, but
+      # their binaries would only fill the artifact quota): main's kept 14
+      # days, a tag's 90. A full quota (it resets every 6-12 h) doesn't fail
+      # a run whose build, tidy and tests passed; those are earlier steps
+      # and fail the job themselves.
       - name: Upload binaries
+        if: github.event_name == 'push'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: d2d-${{ matrix.os }}
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
           path: |
             build/apps/d2d/d2d
             build/apps/d2d/d2d.exe
             build/apps/launcher/d2d-launcher
             build/apps/launcher/d2d-launcher.exe
             build/apps/launcher/d2d-launcher.app
+            build/apps/d2proxy/d2proxy
+            build/apps/d2proxy/d2proxy.exe
             build/tools/mpq-cat/mpq-cat
             build/tools/mpq-cat/mpq-cat.exe
             build/tools/drlg-dump/drlg-dump
