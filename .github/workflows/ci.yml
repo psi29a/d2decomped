@@ -215,7 +215,11 @@ jobs:
         shell: pwsh
         run: ctest --test-dir build --output-on-failure -C Release
 
+      # A full artifact quota (it resets every 6-12 h) shouldn't fail a run
+      # whose build, tidy and tests passed; those are earlier steps and
+      # still fail the job themselves.
       - name: Upload binaries
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: d2d-${{ matrix.os }}
