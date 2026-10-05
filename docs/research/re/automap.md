@@ -29,6 +29,22 @@ returns `cel[rand % n_cels]` from the game's RNG (`FUN_0045c3e0`).
 - Lower walls (orientation > 15) get y + 24.
 - The cell stores `{cel, x, y}`.
 
+The lookup is by the tile's DT1 header (the room tile's +0x18):
+orientation `+0x14` (`FUN_00604b60`), main index `+0x18`
+(`FUN_00604b90`), sub index `+0x1c` (`FUN_00604c50`); the level type is
+the level def's `+0x34` (`FUN_00642750`). The "lower wall" test reads the
+room tile's own orientation (`+0x1c`).
+
+`FUN_00458f40(room, all, layer)` runs it over the room's floors
+(`FUN_00619660`), then its walls (`FUN_006196a0`), skipping tiles with
+flag 8 (hidden). Unless `all` (or `DAT_007a51a0`) is set, only tiles
+with flag 0x20000 count. Callers:
+- `FUN_00459020`, each time the player has moved ~80 (a distance on the
+  `FUN_00620650`/`FUN_006206b0` position) since the last reveal: the
+  player's room and its near rooms (`FUN_00619790`) of the same Layer,
+  `all` = 0.
+- `FUN_00459150`, the DRLG room callback: the whole room, `all` = 1.
+
 Cel sets: act 1 uses `UI\AutoMap\MaxiMap` (1499 cels of 16×32); act 2
 `Act2Map`; act 4 `Act4Map`; LoD town `ExTnMap`. The `…S` variants are
 used when the automap-size option is "small" (`DAT_007a5150` = 1,
@@ -162,6 +178,10 @@ dropped, otherwise the cel decides.
 - Tab toggles the automap.
 - Tiles within 12 of the player are revealed as you walk; D2 reveals by
   room.
+- A generated level reveals its `Level::picks` (the DT1 tiles game.exe's
+  rooms take), by their DT1 header like `FUN_00457cf0`. A maze level's
+  (caves, crypts, Jail, Cathedral, Catacombs) DS1 is blank, so reading
+  the DS1 left their maps empty.
 - Cel choice is a tile hash, not the game's RNG.
 - Your own mark is drawn.
 - Not yet: the fade, NPC/party marks, the small mode, panel shift.
