@@ -101,6 +101,7 @@ struct NetGame {
     // add). The client takes them each frame.
     struct StatChange { int id = 0; std::int64_t value = 0; bool add = false; };
     std::vector<StatChange> stat_changes;
+    std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:
     bool socket_gone = false;

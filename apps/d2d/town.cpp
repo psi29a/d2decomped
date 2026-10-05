@@ -1161,6 +1161,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     world.player.walking = false;
                 }
             }
+            // The host's quest log news (0x5d): the Quest Log button, as the
+            // single-player path raises it on a log change (FUN_004a2cb0).
+            for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
+            net_game->quest_news.clear();
             // Our stats as the host sets them: attributes, points, life / mana /
             // stamina and their maxima (8.8 fixed point, as in a save), level,
             // experience, gold. The host's word wins over d2d's own regen.
