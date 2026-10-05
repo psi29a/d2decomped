@@ -4,8 +4,8 @@
 // the time, send what it returns. The order a live host keeps: raw AF 01
 // -> 68 and every 6c at once -> 01 00 02 (answer 6b) -> 59 03 53 ... ->
 // 04 in the world; 6d every 5 s; 69 to leave -> B3 chunks, B0, 05, 06.
-// ponytail: the save the host sends back (B3) is kept, not written: a net
-// game doesn't change the local save yet.
+// The save the host sends back (B3) is handed over whole, once
+// (take_save_back); the client writes it.
 #pragma once
 
 #include <d2gs/exe_tables.hpp>
@@ -15,9 +15,11 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace d2d::net {
@@ -58,6 +60,8 @@ public:
     auto desync_reason() const -> const std::string& { return desync_reason_; }
     auto save_back() const -> const Bytes& { return save_back_; }
     auto save_back_total() const -> std::uint32_t { return save_back_total_; }
+    // A save-back whose bytes all came (FUN_0045c620 reaches the total), once.
+    auto take_save_back() -> std::optional<Bytes> { return std::exchange(completed_save_, std::nullopt); }
     auto name() const -> const std::string& { return name_; }
 
 private:
@@ -75,6 +79,7 @@ private:
     bool pinged_ = false;
     Bytes save_back_;
     std::uint32_t save_back_total_ = 0;
+    std::optional<Bytes> completed_save_;
 };
 
 } // namespace d2d::net

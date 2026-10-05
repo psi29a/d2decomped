@@ -161,8 +161,10 @@ int main() {
         assert(session->tick(4000).empty() && session->tick(5020).size() == 1 && session->tick(6000).empty());
         assert(session->leave() == std::vector<Bytes>{ { 0x69 } } && session->state() == JoinState::Leaving);
         session->receive(frame({ 0xb3, 3, 1, 5, 0, 0, 0, 0xaa, 0xbb, 0xcc }), 30);
+        assert(!session->take_save_back());
         session->receive(frame({ 0xb3, 2, 0, 5, 0, 0, 0, 0xdd, 0xee, 0xb0, 0x05, 0x06 }), 40);
         assert(session->save_back() == (Bytes{ 0xaa, 0xbb, 0xcc, 0xdd, 0xee }) && session->save_back_total() == 5);
+        assert(session->take_save_back() == (Bytes{ 0xaa, 0xbb, 0xcc, 0xdd, 0xee }) && !session->take_save_back());
         assert(session->state() == JoinState::Closed);
     }
     {
