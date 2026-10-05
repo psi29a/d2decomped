@@ -151,22 +151,22 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     if (map.width() == 0 || map.height() == 0) return;
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
     const int cx0 = int(kScreenWidth) / 2;
-    const int cy0 = int(kScreenHeight) / 2;
     const int map_width  = map.width();
     const int base_x = int(std::floor(cam_x)), base_y = int(std::floor(cam_y));
-    // Screen position of cell (gx, gy)'s top diamond corner. The camera
-    // point (cam_x, cam_y) — continuous, in cells — lands at (kW/2,
-    // kH/2 + kIsoH/2), i.e. a cell centre when the camera sits on one.
+    // Screen position of cell (gx, gy)'s tile point. A floor's 128-row
+    // buffer is blitted 48 rows above it (blit_cell), so its diamond's top
+    // lands on kFloorViewY when the camera sits on the cell's corner.
     auto iso = [&](int cell_x, int cell_y) {
         const float dx = float(cell_x) - cam_x, dy = float(cell_y) - cam_y;
         return std::pair{ cx0 + int(std::lround((dx - dy) * (kIsoW / 2))),
-                          cy0 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))) };
+                          kFloorViewY + 48 + int(std::lround((dx + dy) * (kIsoH / 2))) };
     };
-    // Screen position of a continuous world point (a unit's feet).
+    // Screen position of a continuous world point (a unit's feet): the
+    // camera point lands at (kW/2, kViewY).
     auto iso_point = [&](float x, float y) {
         const float dx = x - cam_x, dy = y - cam_y;
         return std::pair{ cx0 + int(std::lround((dx - dy) * (kIsoW / 2))),
-                          cy0 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))) };
+                          kViewY + int(std::lround((dx + dy) * (kIsoH / 2))) };
     };
 
     // Iso footprint for the 800x600 window: each screen cell is 160x80.

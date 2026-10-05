@@ -145,8 +145,8 @@ try:
     if patch:
         # Town music: Levels.txt 1 -> SoundEnviron 1 -> Sounds.txt 4673.
         assert state()["music"] == "4673", "no town music"
-        cmd("move 270 285"); frames(6)
-        cmd("click 270 285"); frames(30)
+        cmd("move 270 237"); frames(6)
+        cmd("click 270 237"); frames(30)
         assert state()["stash"] == "1", "stash did not open"
         cmd("key Escape"); frames()
         st = state()
@@ -165,8 +165,8 @@ try:
             for _ in range(tries):
                 x, y = npc_at(name)
                 y -= dy
-                f = min(1.0, 250 / max(abs(x - 400), 2 * abs(y - 340), 1))
-                x, y = int(400 + (x - 400) * f), int(340 + (y - 340) * f)
+                f = min(1.0, 250 / max(abs(x - 400), 2 * abs(y - 292), 1))
+                x, y = int(400 + (x - 400) * f), int(292 + (y - 292) * f)
                 cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(2)
                 for _ in range(60):
                     st = state()
@@ -209,7 +209,7 @@ try:
             """Warp next to a town NPC, click it, wait for its menu."""
             cx, cy = (float(v) for v in state()["cam"].split(","))
             x, y = npc_at(name)
-            u, v = (x - 400) / 80, (y - 340) / 40
+            u, v = (x - 400) / 80, (y - 292) / 40
             cmd(f"debug warp {cx + (u + v) / 2 + 1.2:.2f} {cy + (v - u) / 2 + 0.2:.2f}"); frames(6)
             for _ in range(3):
                 x, y = npc_at(name)

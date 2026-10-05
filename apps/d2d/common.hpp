@@ -25,6 +25,13 @@ namespace d2d::client {
 // (columns 256/256/256/32, rows 256/256/88).
 constexpr std::uint32_t kScreenWidth = 800;
 constexpr std::uint32_t kScreenHeight = 600;
+// Where the camera point (the player's feet) lands on screen, in y: the
+// camera sits at player - H/2 + 16 (FUN_0045b440) and units are drawn
+// 8 below it (FUN_0045afd0), so H/2 - 8. Floors centre on the view less
+// the 40-pixel panel instead (FUN_0045aea0 -> FUN_00476000, read in
+// FUN_0044c990), H/2 - 20 for the camera's cell corner.
+constexpr int kViewY = int(kScreenHeight) / 2 - 8;
+constexpr int kFloorViewY = (int(kScreenHeight) - 40) / 2;
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;

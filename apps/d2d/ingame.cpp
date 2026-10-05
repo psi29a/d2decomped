@@ -96,7 +96,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
         set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
         // Player: the camera follows them, so their feet sit on the camera
-        // point (kW/2, kH/2 + kIsoH/2); render_world slots them into the
+        // point (kW/2, kViewY); render_world slots them into the
         // wall pass by depth. Wears the loaded save's gear, or the
         // class's starting gear.
         std::vector<Unit> units;
@@ -171,7 +171,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (!unit.says) continue;
             const auto text = string_id(scene, unit.says);
             const int pixel_x = int(kScreenWidth) / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
-            const int pixel_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
+            const int pixel_y = kViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
             const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
         }
@@ -262,7 +262,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                     const float world_x = (float(screen_x) + 0.5f) / 5, world_y = (float(screen_y) + 0.5f) / 5;
                     if (!level.blocked(world_x, world_y)) continue;
                     const int pixel_x = int(kScreenWidth) / 2 + int(std::lround(((world_x - cam_x) - (world_y - cam_y)) * (kIsoW / 2)));
-                    const int pixel_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround(((world_x - cam_x) + (world_y - cam_y)) * (kIsoH / 2)));
+                    const int pixel_y = kViewY + int(std::lround(((world_x - cam_x) + (world_y - cam_y)) * (kIsoH / 2)));
                     for (int offset_y = -1; offset_y <= 1; ++offset_y)
                         for (int offset_x = -1; offset_x <= 1; ++offset_x) {
                             const int x = pixel_x + offset_x, y = pixel_y + offset_y;

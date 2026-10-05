@@ -939,7 +939,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto& state = view.npc_states[std::size_t(who)];
             const float dx = (npc.path.empty() ? npc.x : state.x) - view.player.x, dy = (npc.path.empty() ? npc.y : state.y) - view.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
-            const int screen_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
+            const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             npc_menu = {};
             if (action == NpcMenuState::kHire) {
                 net.send(cmd::OpenHire{ who });             // Kashya's list: the World rolls it
@@ -1124,9 +1124,9 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         }
         if (over_ui) return out;
         // Screen -> world: invert the iso projection around the player,
-        // who sits at (kW/2, kH/2 + kIsoH/2).
+        // who sits at (kW/2, kViewY).
         const float iso_u = float(mouse.x - int(kScreenWidth) / 2) / (kIsoW / 2);
-        const float iso_v = float(mouse.y - int(kScreenHeight) / 2 - kIsoH / 2) / (kIsoH / 2);
+        const float iso_v = float(mouse.y - kViewY) / (kIsoH / 2);
         const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
         const int hovered_monster_index = hovered_monster();
         const bool live = hovered_monster_index >= 0 && view.monsters[std::size_t(hovered_monster_index)].alive();
@@ -1379,7 +1379,7 @@ auto Town::open_menu(int npc) -> void {
         const float dx = (npc_info.path.empty() ? npc_info.x : state.x) - view.player.x, dy = (npc_info.path.empty() ? npc_info.y : state.y) - view.player.y;
         npc_menu = open_npc_menu(*scene, *level, npc,
             int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
-            int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))),
+            kViewY + int(std::lround((dx + dy) * (kIsoH / 2))),
             int(character.stats.get(d2d::d2s::kLevel)), d2d::rules::unidentified(character.items), [&] {
                 const int difficulty = character.header.active_difficulty();
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
