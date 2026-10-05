@@ -116,6 +116,19 @@ inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
     return out;
 }
 
+// 0x4f: a UI button (FUN_00478600): +1 u16 button, +3 u16, +5 u16. The
+// trade's (FUN_004b8730 .. FUN_004b9110): 2 decline / cancel, 3 accept
+// the request, 4 accept the trade, 7 take the accept back, 8 our gold
+// (high, low half).
+inline auto click_button(std::uint16_t button, std::uint16_t first = 0, std::uint16_t second = 0) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x4f);
+    put_u16(out, button);
+    put_u16(out, first);
+    put_u16(out, second);
+    return out;
+}
+
 // 0x5e: party (FUN_00478780, from the party button FUN_00479eb0 by the
 // relationship 0x8b set): 6 invite, 7 cancel the invite, 8 accept one,
 // 9 leave.

@@ -432,6 +432,68 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 
+namespace {
+
+// The trade's boxes: {x0, y0, x1, y1}.
+constexpr std::array<int, 4> kTradeAsk{ 250, 200, 550, 290 }, kTradeYes{ 270, 252, 390, 278 }, kTradeNo{ 410, 252, 530, 278 };
+constexpr std::array<int, 4> kTradeAccept{ 301, 443, 335, 477 }, kTradeCancel{ 353, 443, 387, 477 }, kTheirAccept{ 353, 228, 387, 262 };
+
+bool inside(const std::array<int, 4>& box, int x, int y) { return x >= box[0] && x < box[2] && y >= box[1] && y < box[3]; }
+
+void shade(std::vector<std::uint8_t>& framebuffer, const std::array<int, 4>& box, int keep) {   // keep / 4 of the colour
+    for (int y = std::max(box[1], 0); y < std::min(box[3], int(kScreenHeight)); ++y)
+        for (int x = std::max(box[0], 0); x < std::min(box[2], int(kScreenWidth)); ++x)
+            for (int channel = 0; channel < 3; ++channel) {
+                auto& value = framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4 + std::size_t(channel)];
+                value = std::uint8_t(value * keep / 4);
+            }
+}
+
+} // namespace
+
+void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
+                const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
+                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
+    const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;
+    auto centred = [&](const std::array<int, 4>& box, const std::string& text) {
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(text) / 2,
+                        (box[1] + box[3]) / 2 - scene.font.line_height() / 2, text);
+    };
+    if (state == 1 || state == 2) {
+        shade(framebuffer, kTradeAsk, 1);
+        centred({ kTradeAsk[0], kTradeAsk[1] + 6, kTradeAsk[2], kTradeAsk[1] + 40 }, state == 2 ? with + " wants to trade" : "Asking " + with + " to trade");
+        if (state == 2) { shade(framebuffer, kTradeYes, 2); centred(kTradeYes, "Accept"); }
+        shade(framebuffer, kTradeNo, 2);
+        centred(kTradeNo, state == 2 ? "Decline" : "Cancel");
+        return;
+    }
+    draw_storage(framebuffer, scene, theirs, scene.trade_panel, scene.trade_layout[0], 100, mouse_x, mouse_y, wearer);
+    draw_storage(framebuffer, scene, ours, d2d::dc6::Sprite{}, scene.trade_layout[1], 101, mouse_x, mouse_y, wearer);
+    shade(framebuffer, kTradeAccept, state == 7 ? 4 : 2);
+    centred(kTradeAccept, state == 7 ? "Ok!" : "Ok");
+    shade(framebuffer, kTradeCancel, 2);
+    centred(kTradeCancel, "X");
+    if (state == 5) centred(kTheirAccept, "Ok!");
+    // The bars over each grid (the art's): their name and gold; ours.
+    // ponytail: placed by eye on the art, not traced.
+    centred({ 98, 70, 222, 88 }, with);
+    if (their_gold) centred({ 236, 70, 386, 88 }, std::to_string(their_gold));
+    centred({ 98, 286, 222, 304 }, our_name);
+}
+
+TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) {
+    if (state == 1 || state == 2) {
+        if (state == 2 && inside(kTradeYes, mouse_x, mouse_y)) return TradeClick::kAccept;
+        return inside(kTradeNo, mouse_x, mouse_y) ? TradeClick::kDecline : TradeClick::kNone;
+    }
+    if (inside(kTradeAccept, mouse_x, mouse_y)) return TradeClick::kAccept;
+    if (inside(kTradeCancel, mouse_x, mouse_y)) return TradeClick::kDecline;
+    const auto& ours = scene.trade_layout[1];
+    if (mouse_x >= ours.grid_x && mouse_x < ours.grid_x + ours.cols * ours.box_w && mouse_y >= ours.grid_y && mouse_y < ours.grid_y + ours.rows * ours.box_h)
+        return TradeClick::kOurGrid;
+    return TradeClick::kNone;
+}
+
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
     const auto& pal = scene.act1_pal.entries().empty() ? scene.pal : scene.act1_pal;

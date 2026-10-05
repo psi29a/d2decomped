@@ -146,6 +146,20 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
                   const d2d::dc6::Sprite& art, const Scene::InvLayout& layout, int panel,
                   int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
 
+// A trade with another player (a joined game; NetGame::Trade's state):
+// 1 / 2 a box (waiting on them / their request, accept or decline);
+// 3.. the window in the left-panel spot, PANEL\trade, their offer in
+// "Trade Page 1-2" (items' panel 100), ours in "Trade Page 2-2" (101),
+// Accept Trade and Cancel where game.exe has them (FUN_004b8730's boxes,
+// tooltips 0x1023 / 0x1022), their accept beside their grid.
+// ponytail: text boxes for the buttons (their art, buysellbtn frames,
+// isn't traced), no gold button (gold: drop it).
+enum class TradeClick { kNone, kAccept, kDecline, kOurGrid };
+void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
+                const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
+                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
+TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y);
+
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the
 // HUD strip; with the popup open (0x499136) each further row gets a

@@ -124,10 +124,11 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     // A joined game's other players, in their class's bare look (the items
     // they wear, 0x9d, aren't read yet). ponytail: their look and modes past walk.
     const bool in_town = view.level && view.level->id == 1;
-    for (const auto& other : view.others) {
+    for (std::size_t i = 0; i < view.others.size(); ++i) {                   // -4000 - i: a click asks them to trade
+        const auto& other = view.others[i];
         if (!in_view(other.unit.x, other.unit.y)) continue;
         const int mode = other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
-        out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, GameData::Appearance{}), other.unit.dir, &other.name, other.unit.mode_ms, -4 });
+        out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, GameData::Appearance{}), other.unit.dir, &other.name, other.unit.mode_ms, -4000 - int(i) });
     }
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
@@ -476,6 +477,14 @@ auto Town::send(const Command& command) -> void {
                     net_game->log.note(std::format("no host portal near ({:.0f}, {:.0f})", (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f));
                 }
             }
+        } else if (interact && interact->npc <= -4000 && std::size_t(-4000 - interact->npc) < view.others.size()) {
+            if (net_game->trade.state != 0) return;            // one trade at a time
+            // Another player: walk up, then 0x13 on them asks for a trade
+            // (FUN_00548b00 case 0); their game.exe shows the request.
+            const auto& other = view.others[std::size_t(-4000 - interact->npc)];
+            net.send(cmd::Move{ other.unit.x, other.unit.y, true });
+            net_operate_type = 0; net_operate = other.id; net_operate_ms = frame_now; net_operate_moves = false; net_operate_waypoint = -1;
+            return;
         } else if (std::holds_alternative<cmd::Resurrect>(command)) {
             net_game->send_items({ d2d::net::d2gs::c2s::resurrect() });   // the host respawns us in town (0x15)
         } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {
@@ -575,7 +584,7 @@ auto Town::net_overlay() -> void {
         for (const auto& [unit_key, unit] : net_game->units) {
             if (unit.type == 0) {
                 if (unit.id == net_game->self_id) continue;
-                View::OtherPlayer other{ .cls = unit.cls, .name = unit.name };
+                View::OtherPlayer other{ .cls = unit.cls, .name = unit.name, .id = unit.id };
                 other.unit.x = cell_x(unit.x);
                 other.unit.y = cell_y(unit.y);
                 other.unit.walking = unit.moving;
@@ -688,7 +697,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // closes, else every Esc-closable panel at once (FUN_00456300;
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
-                if (waypoint.open) waypoint = {};
+                if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
+                else if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
@@ -726,6 +736,40 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (hud_click) {
             if (mouse.press_this_frame) press_on_ui = true;
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+        }
+        // A trade with another player: its box or window takes its clicks;
+        // the bags stay open beside it, the cursor's item goes into our
+        // offer (0x18, buffer 2).
+        if (net_game && net_game->trade.state != 0 && !game_menu.open) {
+            auto& trade = net_game->trade;
+            if (trade.state >= 3) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
+            const auto click = trade_click(*scene, trade.state, mouse.x, mouse.y);
+            const bool over_window = trade.state >= 3 && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320 && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432;
+            if (mouse.press_this_frame && (click != TradeClick::kNone || over_window)) {
+                if (click == TradeClick::kAccept) {
+                    if (trade.state == 2) net_game->trade_answer(true);
+                    else if (trade.state >= 3 && trade.state != 7) net_game->trade_accept();
+                } else if (click == TradeClick::kDecline) {
+                    if (trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel();
+                } else if (click == TradeClick::kOurGrid && world.held) {
+                    const auto& grid = scene->trade_layout[1];
+                    const int column = (mouse.x - grid.grid_x) / grid.box_w, row = (mouse.y - grid.grid_y) / grid.box_h;
+                    if (const std::uint32_t held_id = net_cursor ? net_cursor : net_game->host_item(*world.held)) {
+                        net_game->send_items({ d2d::net::d2gs::c2s::cursor_to_grid(held_id, std::uint32_t(column), std::uint32_t(row), 2) });
+                        auto offered = *world.held;
+                        offered.location = d2d::d2s::item_location::kStored;
+                        offered.panel = 101;
+                        offered.column = column;
+                        offered.row = row;
+                        offered.id = int(held_id);
+                        trade.ours.push_back(std::move(offered));
+                        world.held.reset();
+                        net_cursor = 0;
+                    }
+                }
+                press_on_ui = true;
+                mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            }
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
         const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
@@ -1161,7 +1205,8 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2004) || (hovered_npc <= -3000 && hovered_npc > -3016))
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2004) || (hovered_npc <= -3000 && hovered_npc > -3016)
+                     || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
             else out.push_back(cmd::Move{ world_x, world_y, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
@@ -1300,7 +1345,9 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                         net_game->move_to(object->second.x, object->second.y, view.running);
                     }
                 } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
-                    net_game->interact(net_operate_type, net_operate);
+                    if (net_operate_type == 0 && net_game->units.contains(net_operate) && net_game->corpses.end() == std::ranges::find(net_game->corpses, net_operate))
+                        net_game->trade_request(net_operate);            // a player, not our corpse: a trade
+                    else net_game->interact(net_operate_type, net_operate);
                     if (net_operate_waypoint >= 0) net_game->waypoint(net_operate, net_operate_waypoint);
                     net_operate = 0;
                     net_operate_waypoint = -1;
@@ -1515,6 +1562,20 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       Hud{ view.poisoned, view.running, run_down });
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        if (net_game && net_game->trade.state != 0) {
+            std::vector<d2d::d2s::Item> theirs;
+            for (const auto& [id, stocked] : net_game->store_items) {
+                theirs.push_back(stocked);
+                theirs.back().location = d2d::d2s::item_location::kStored;
+                theirs.back().panel = 100;
+            }
+            const auto& trade = net_game->trade;
+            std::string with = trade.with_name;
+            if (with.empty())
+                if (const auto unit = net_game->units.find(trade.with); unit != net_game->units.end()) with = unit->second.name;
+            draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
+                       held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
+        }
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
             quest_log_close(quest_log, quest_bits(), quest_state());

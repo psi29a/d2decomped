@@ -40,7 +40,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -108,6 +108,25 @@ auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
 }
 
 auto NetGame::steady_now() -> std::uint32_t { return steady_ms(); }
+
+auto NetGame::trade_answer(bool accept) -> void {
+    send({ d2d::net::d2gs::c2s::click_button(accept ? 3 : 2) });
+    trade.state = accept ? 3 : 0;
+}
+
+auto NetGame::trade_accept() -> void {
+    send({ d2d::net::d2gs::c2s::click_button(4, std::uint16_t(trade.our_gold >> 16), std::uint16_t(trade.our_gold)) });
+    trade.state = 7;
+}
+
+auto NetGame::trade_cancel() -> void {
+    send({ d2d::net::d2gs::c2s::click_button(2) });
+    auto offered = std::move(trade.ours);
+    trade = {};
+    trade.ours = std::move(offered);                      // they come back to our bags
+    trade.settle_until = steady_ms() + 5000;
+    store_items.clear();
+}
 
 auto NetGame::send_items(const std::vector<d2d::net::Bytes>& packets) -> void {
     if (session.state() != d2d::net::JoinState::InGame) return;
@@ -251,7 +270,12 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             store_items.erase(id);
         } else {                                                       // ours, somewhere
             ground.erase(id);
-            if ((action == 4 || action == 0xe) && (id == picking || (buying && !own_items.contains(id)))) {
+            if (trade.state != 0 || steady_ms() < trade.settle_until)   // ponytail: a trade's item packets aren't pinned down yet
+                log.note("trade: item " + std::to_string(id) + " " + parsed->item.code + " action " + std::to_string(action) + " panel " + std::to_string(parsed->item.panel));
+            const bool traded = (action == 4 || action == 0xe) && steady_ms() < trade.settle_until
+                                && (!own_items.contains(id) || std::ranges::any_of(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; }));
+            if (traded) std::erase_if(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; });
+            if ((action == 4 || action == 0xe) && (traded || id == picking || (buying && !own_items.contains(id)))) {
                 picked.push_back(parsed->item);
                 picking = 0;
                 buying = false;
@@ -323,6 +347,34 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             log.note(std::string(packet[5] == 0 ? "inviting " : "accepting the invite of ") + std::to_string(read_u32(packet, 1)));
             send({ d2d::net::d2gs::c2s::party(packet[5] == 0 ? 6 : 8, read_u32(packet, 1)) });
         }
+        break;
+    case 0x77:   // trade button action (FUN_004b8cf0): +1 what
+        if (size < 2) break;
+        log.note("trade: action " + std::to_string(packet[1]) + " in state " + std::to_string(trade.state));
+        switch (packet[1]) {
+        case 0: if (trade.state == 0) trade.state = 1; break;                      // our request is out
+        case 1: if (trade.state == 0) trade.state = 2; break;                      // someone asks us
+        case 5: trade.state = trade.state == 7 ? 7 : 5; break;                     // they accepted
+        case 6:                                                                    // open; or a change takes the accepts back
+            if (trade.state == 1 || trade.state == 2) { trade.ours.clear(); store_items.clear(); }
+            trade.state = 3;
+            break;
+        case 2: case 0xc: case 0xd: {                                              // closed, done, cancelled: items settle
+            auto offered = std::move(trade.ours);
+            trade = {};
+            trade.ours = std::move(offered);
+            trade.settle_until = steady_ms() + 5000;
+            store_items.clear();
+            break;
+        }
+        default: break;
+        }
+        break;
+    case 0x78:   // trade with: +1 char[16] name, +0x11 u32 id (FUN_004b9010)
+        if (size >= 0x15) { trade.with_name = std::string(read_name(packet, 1, 16)); trade.with = read_u32(packet, 0x11); }
+        break;
+    case 0x79:   // trade gold: +1 1 ours / 0 theirs, +2 u32 (FUN_004b90d0)
+        if (size >= 6) (packet[1] ? trade.our_gold : trade.their_gold) = read_u32(packet, 2);
         break;
     case 0x82:   // portal owner: +1 owner, +5 name, +0x15 the end where we are, +0x19 the other (again on arriving: swapped)
         if (size >= 0x1d && read_u32(packet, 1) == self_id) portal_here = read_u32(packet, 0x15);

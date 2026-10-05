@@ -217,6 +217,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (auto [path, page] : { std::pair{ R"(data\global\ui\PANEL\bank.dc6)", 0 },
                             { R"(data\global\ui\PANEL\TradeStash.dc6)", 1 } })
         if (auto bytes = mpqs.try_read(path)) scene.stash_panel[std::size_t(page)] = d2d::dc6::Sprite(*bytes);
+    for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\trade.dc6)", &scene.trade_panel },
+                               { R"(data\global\ui\PANEL\tradebtn.dc6)", &scene.trade_button } })
+        if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
     if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\supertransmogrifier.dc6)"))
         scene.cube_panel = d2d::dc6::Sprite(*bytes);
     static constexpr const char* kTree[7] = { "a", "s", "n", "p", "b", "d", "i" };

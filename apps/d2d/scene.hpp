@@ -136,6 +136,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite popbelt;                          // PANEL\ctrlpnl_popbelt
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     std::array<d2d::dc6::Sprite, 2> stash_panel;
+    d2d::dc6::Sprite trade_panel, trade_button;   // PANEL\trade, PANEL\tradebtn
     d2d::dc6::Sprite cube_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level

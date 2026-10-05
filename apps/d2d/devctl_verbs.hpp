@@ -194,8 +194,15 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         }
         if (args.size() >= 2 && args[1] == "net" && town.net_game && town.level) {   // a joined game: where the host has us, where d2d has us (act subtiles), and how far apart
             const float local_x = (town.world.player.x + float(town.level->world_x)) * 5.f, local_y = (town.world.player.y + float(town.level->world_y)) * 5.f;
-            return std::format("host {:.0f} {:.0f} local {:.0f} {:.0f} apart {:.1f} units {}\nok\n", town.net_game->host_x, town.net_game->host_y, local_x, local_y,
-                               std::hypot(town.net_game->host_x - local_x, town.net_game->host_y - local_y), town.net_game->units.size());
+            std::string out = std::format("host {:.0f} {:.0f} local {:.0f} {:.0f} apart {:.1f} units {} trade {}\n", town.net_game->host_x, town.net_game->host_y, local_x, local_y,
+                                          std::hypot(town.net_game->host_x - local_x, town.net_game->host_y - local_y), town.net_game->units.size(), town.net_game->trade.state);
+            for (const auto& other : town.view.others)   // the other players: id, name, cell
+                out += std::format("player\t{}\t{}\t{:.1f}\t{:.1f}\n", other.id, other.name, other.unit.x, other.unit.y);
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "tradestate" && town.net_game) {   // a joined game: the trade's state, set here (its window's look; the host isn't told)
+            town.net_game->trade.state = std::atoi(args[2].c_str());
+            return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
             std::string out;
