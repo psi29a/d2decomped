@@ -37,10 +37,11 @@ private:
     std::intptr_t socket_ = -1;
 };
 
-// A listening socket on every address (SO_REUSEADDR, like game.exe's host).
+// A listening socket (SO_REUSEADDR, like game.exe's host), on one IPv4
+// address or every one ("0.0.0.0").
 class TcpListener {
 public:
-    static auto listen(std::uint16_t port) -> std::expected<TcpListener, std::string>;
+    static auto listen(std::uint16_t port, const std::string& bind_address = "0.0.0.0") -> std::expected<TcpListener, std::string>;
     TcpListener(TcpListener&& other) noexcept;
     auto operator=(TcpListener&& other) noexcept -> TcpListener&;
     TcpListener(const TcpListener&) = delete;

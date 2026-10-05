@@ -8,6 +8,7 @@
 #include <d2gs/huffman.hpp>
 #include <d2gs/s2c_names.hpp>
 #include <d2gs/split.hpp>
+#include <allow.hpp>
 #include <join.hpp>
 #include <d2gs/wire.hpp>
 
@@ -99,6 +100,14 @@ int main() {
         assert((*splitter.next())->size() == 8);
         splitter.append(Bytes{ 0x77 });
         assert(!splitter.next());
+    }
+
+    // d2proxy's --allow: addresses and ranges, the default private ones.
+    {
+        const std::vector<Range> lan{ *parse_range("192.168.50.0/24"), *parse_range("127.0.0.1") };
+        assert(allowed(lan, "192.168.50.68") && allowed(lan, "127.0.0.1") && !allowed(lan, "192.168.51.1") && !allowed(lan, "8.8.8.8"));
+        assert(!parse_range("192.168.1") && !parse_range("1.2.3.256") && !parse_range("1.2.3.4/33") && !parse_range("a.b.c.d") && parse_range("0.0.0.0/0"));
+        assert(allowed({ *parse_range("0.0.0.0/0") }, "8.8.8.8") && !allowed(lan, "not an address"));
     }
 
     // The C->S splitter (what d2proxy decodes): fixed sizes from the table,

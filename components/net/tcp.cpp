@@ -45,6 +45,9 @@ auto ensure_started() -> bool {
 }
 auto set_nonblocking(Native socket) -> void { u_long enabled = 1; ::ioctlsocket(socket, FIONBIO, &enabled); }
 auto in_progress() -> bool { return ::WSAGetLastError() == WSAEWOULDBLOCK; }
+auto would_block() -> bool { const int code = ::WSAGetLastError(); return code == WSAEWOULDBLOCK || code == WSAEINTR; }
+auto no_sigpipe(Native) -> void {}                            // Winsock has no SIGPIPE
+constexpr int kSendFlags = 0;
 #else
 using Native = int;
 constexpr Native kNone = -1;
@@ -58,6 +61,20 @@ auto wait_for(Native socket, short events, int timeout_ms) -> int {
 auto ensure_started() -> bool { return true; }
 auto set_nonblocking(Native socket) -> void { ::fcntl(socket, F_SETFL, ::fcntl(socket, F_GETFL, 0) | O_NONBLOCK); }
 auto in_progress() -> bool { return errno == EINPROGRESS; }
+auto would_block() -> bool { return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR; }
+// A send to a peer that closed is an error here, not SIGPIPE killing the
+// process: SO_NOSIGPIPE on the socket (macOS / BSD), MSG_NOSIGNAL on each
+// send (Linux).
+#ifdef SO_NOSIGPIPE
+auto no_sigpipe(Native socket) -> void { int enabled = 1; ::setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof enabled); }
+#else
+auto no_sigpipe(Native) -> void {}
+#endif
+#ifdef MSG_NOSIGNAL
+constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+constexpr int kSendFlags = 0;
+#endif
 #endif
 
 auto native(std::intptr_t socket) -> Native { return static_cast<Native>(socket); }
@@ -75,6 +92,7 @@ auto TcpConnection::connect(const std::string& host, std::uint16_t port, int tim
     if (socket == kNone) { ::freeaddrinfo(found); return std::unexpected("socket: " + last_error()); }
     TcpConnection connection(static_cast<std::intptr_t>(socket));
     set_nonblocking(socket);
+    no_sigpipe(socket);
     const int result = ::connect(socket, found->ai_addr, static_cast<int>(found->ai_addrlen));
     ::freeaddrinfo(found);
     if (result != 0) {
@@ -107,9 +125,10 @@ TcpConnection::~TcpConnection() {
 auto TcpConnection::send(std::span<const std::uint8_t> bytes) -> std::expected<void, std::string> {
     std::size_t sent = 0;
     while (sent < bytes.size()) {
-        const auto result = ::send(native(socket_), reinterpret_cast<const char*>(bytes.data() + sent), static_cast<int>(bytes.size() - sent), 0);
+        const auto result = ::send(native(socket_), reinterpret_cast<const char*>(bytes.data() + sent), static_cast<int>(bytes.size() - sent), kSendFlags);
         if (result > 0) { sent += static_cast<std::size_t>(result); continue; }
-        if (wait_for(native(socket_), POLLOUT, 2000) <= 0) return std::unexpected("send: " + last_error());
+        if (result < 0 && !would_block()) return std::unexpected("send: " + last_error());   // the peer's gone: not a retry
+        if (wait_for(native(socket_), POLLOUT, 2000) <= 0) return std::unexpected("send: no room within 2 s");
     }
     return {};
 }
@@ -123,13 +142,15 @@ auto TcpConnection::receive(int timeout_ms) -> std::expected<d2gs::Bytes, std::s
         if (result > 0) { received.insert(received.end(), buffer, buffer + result); continue; }
         if (result == 0) {
             if (received.empty()) return std::unexpected("the other side closed the connection");
-            return received;
+            return received;                                   // the close comes back next time
         }
-        return received;   // would block: all there was
+        if (would_block()) return received;                    // all there was
+        if (received.empty()) return std::unexpected("receive: " + last_error());
+        return received;                                       // the error comes back next time
     }
 }
 
-auto TcpListener::listen(std::uint16_t port) -> std::expected<TcpListener, std::string> {
+auto TcpListener::listen(std::uint16_t port, const std::string& bind_address) -> std::expected<TcpListener, std::string> {
     if (!ensure_started()) return std::unexpected("couldn't start the socket library");
     const Native socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket == kNone) return std::unexpected("socket: " + last_error());
@@ -139,7 +160,7 @@ auto TcpListener::listen(std::uint16_t port) -> std::expected<TcpListener, std::
     sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
-    address.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (::inet_pton(AF_INET, bind_address.c_str(), &address.sin_addr) != 1) return std::unexpected("not an IPv4 address to listen on: " + bind_address);
     if (::bind(socket, reinterpret_cast<const sockaddr*>(&address), sizeof address) != 0) return std::unexpected("bind port " + std::to_string(port) + ": " + last_error());
     if (::listen(socket, 4) != 0) return std::unexpected("listen: " + last_error());
     return listener;
@@ -170,6 +191,7 @@ auto TcpListener::accept(int timeout_ms, std::string* from) -> std::expected<std
         *from = std::to_string(address_bits >> 24) + "." + std::to_string(address_bits >> 16 & 0xff) + "." + std::to_string(address_bits >> 8 & 0xff) + "." + std::to_string(address_bits & 0xff);
     }
     set_nonblocking(client);
+    no_sigpipe(client);
     int enabled = 1;
     ::setsockopt(client, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&enabled), sizeof enabled);
     return std::optional<TcpConnection>{ TcpConnection(static_cast<std::intptr_t>(client)) };
