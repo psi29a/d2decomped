@@ -60,6 +60,7 @@
 #include <iterator>
 #include <optional>
 #include <random>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -304,6 +305,18 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     town.world.characters = g_no_save ? nullptr : &characters;
     town.world.autoloot_gold = g_autoloot;
     if (!g_no_save) town.cfg_file = g_user_dir / "d2d.cfg";
+    // A joined game: the host keeps the character and sends its save back
+    // (B3) now and then and on leaving; each whole one goes to disk
+    // (FUN_0045c520 writes <save dir><name>.d2s).
+    auto write_save_back = [&] {
+        if (!town.net_game) return;
+        auto bytes = town.net_game->session.take_save_back();
+        if (!bytes || g_no_save) return;
+        const auto& name = town.net_game->session.name();
+        if (auto error = characters.save_bytes(name, std::as_bytes(std::span(*bytes))); !error.empty())
+            d2d::log::warn("net: {}'s save from the host not written: {}", name, error);
+        else d2d::log::info("net: wrote {}'s save from the host ({} bytes)", name, bytes->size());
+    };
     if (screen == Screen::InGame && scene) {
         // --start-screen ingame: a new character of the class and name given,
         // made as char-create's OK makes one (unsaved until the game saves).
@@ -548,9 +561,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         set_map_seed(*scene, game_seed(character.header));
                         town.enter();                            // the World takes the character
                     } else {
-                        // --join: the host's game, at its map seed. Nothing is saved
-                        // from it (the host keeps the character; ponytail: its B3
-                        // save-back isn't written either). A failed join stays here.
+                        // --join: the host's game, at its map seed. d2d's World saves
+                        // nothing from it: the host keeps the character and its
+                        // save-back is what's written. A failed join stays here.
                         std::ifstream save_file(save_dir / (header.name + ".d2s"), std::ios::binary);
                         std::vector<std::uint8_t> save{ std::istreambuf_iterator<char>(save_file), {} };
                         const auto log_path = g_user_dir / std::format("net-{:%Y%m%dT%H%M%SZ}.log", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
@@ -582,8 +595,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             }
             case Screen::InGame: {
                 town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
+                write_save_back();
                 if (screen == Screen::CharSelect && town.net_game) {   // a joined game: leave the host, saving on again
                     town.net_game->leave();
+                    write_save_back();
                     town.net_game.reset();
                     town.net_monsters.clear();
                     town.world.fight.remote_monsters = false;
@@ -741,7 +756,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         pace_frame(frame_start_ms);
     }
     if (screen == Screen::InGame) town.save();   // quitting from the game saves it
-    if (town.net_game) town.net_game->leave();   // a joined game: leave the host (0x69), don't just drop it
+    if (town.net_game) { town.net_game->leave(); write_save_back(); }   // a joined game: leave the host (0x69), don't just drop it
     // Shut the watchdog down cleanly so it doesn't outlive SDL_Quit()
     // and touch stale pointers.
     watchdog_stop.store(true, std::memory_order_relaxed);

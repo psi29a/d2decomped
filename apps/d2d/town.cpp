@@ -446,10 +446,22 @@ auto Town::send(const Command& command) -> void {
             // subtiles (FUN_00548b00 case 1), so the trade's 0x13 comes again
             // once the menu's up (OpenTrade).
             if (npc.root == "objects") {
-                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) net_game->interact(2, object->id);
+                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) { net_operate_type = 2; net_operate = object->id; net_operate_ms = frame_now; }
             } else if (const auto* host_npc = net_npc(interact->npc)) {
                 net_game->interact(1, host_npc->id);          // the host walks us up too (talk at 6)
             }
+        } else if (interact && interact->npc <= -3000 && std::size_t(-3000 - interact->npc) < world.corpses.size()) {
+            // Our corpse: the host's corpse unit (0x8e) nearest d2d's, its
+            // items back as the host hands them (FUN_00548b00 case 0).
+            const auto& corpse = world.corpses[std::size_t(-3000 - interact->npc)];
+            float best = 10.f;
+            for (const std::uint32_t id : net_game->corpses)
+                if (const auto unit = net_game->units.find(id); unit != net_game->units.end())
+                    if (const float apart = std::hypot(unit->second.x - subtile_x(corpse.x), unit->second.y - subtile_y(corpse.y)); apart < best) {
+                        best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now;
+                    }
+        } else if (std::holds_alternative<cmd::Resurrect>(command)) {
+            net_game->send_items({ d2d::net::d2gs::c2s::resurrect() });   // the host respawns us in town (0x15)
         } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(travel->npc)];
             if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) {
@@ -653,7 +665,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (key == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
             if (key == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (key == SDLK_Q) toggle_quest_log();
-            if (key == SDLK_ESCAPE && view.dead) { net.send(cmd::Resurrect{}); continue; }
+            if (key == SDLK_ESCAPE && view.dead) { send(cmd::Resurrect{}); continue; }
             if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1) });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
@@ -1161,6 +1173,9 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     world.player.walking = false;
                 }
             }
+            // The host killed us: d2d's death plays (DT, DD, the corpse); a
+            // click then sends 0x41 and respawns here too.
+            if (net_game->take_death() && !world.fight.dead()) world.fight.die(frame_ms);
             // The host's quest log news (0x5d): the Quest Log button, as the
             // single-player path raises it on a log change (FUN_004a2cb0).
             for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
@@ -1244,6 +1259,40 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     net_trade_asked = false;
                 }
             }
+            // An object operated here: the host operates it only near
+            // (FUN_00548b00 → FUN_00584540, range < 0x33) and drops a walking
+            // player's 0x13 (FUN_0054d750), so it goes once the host has us
+            // stopped close by; until then the host's player walks there.
+            if (net_operate != 0) {
+                const auto object = net_game->units.find(std::uint64_t(net_operate_type) << 32 | net_operate);
+                if (object == net_game->units.end() || frame_ms - net_operate_ms > 8000) {
+                    net_game->log.note("object " + std::to_string(net_operate) + " couldn't be reached on the host");
+                    net_operate = 0;
+                } else if (std::hypot(net_game->host_x - object->second.x, net_game->host_y - object->second.y) > 4.f) {
+                    if (frame_ms - net_follow_ms >= 500) {
+                        net_follow_ms = frame_ms;
+                        net_game->move_to(object->second.x, object->second.y, view.running);
+                    }
+                } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
+                    net_game->interact(net_operate_type, net_operate);
+                    net_operate = 0;
+                }
+            }
+            // The host's doors (0x0e: opened by anyone, a monster too): d2d's
+            // door nearest the host's object, to its mode and footprint.
+            for (const auto& [id, mode] : net_game->object_modes) {
+                const auto object = net_game->units.find(std::uint64_t(2) << 32 | id);
+                if (object == net_game->units.end() || mode < 0 || mode > 2) continue;
+                int door = -1;
+                float best = 4.f;
+                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                    const auto& npc = level->npcs[i];
+                    if (npc.root != "objects" || !World::is_door(npc.operate_fn)) continue;
+                    if (const float apart = std::hypot((npc.x + float(level->world_x)) * 5.f - object->second.x, (npc.y + float(level->world_y)) * 5.f - object->second.y); apart < best) { best = apart; door = int(i); }
+                }
+                if (door >= 0) world.set_door_mode(door, mode, frame_ms);
+            }
+            net_game->object_modes.clear();
             // A pick-up walked to: asked for once both of us are there.
             if (net_pick >= 0) {
                 const auto found = net_game->ground.find(std::uint32_t(net_pick));

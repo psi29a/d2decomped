@@ -516,9 +516,11 @@ Estimates assume the S->C game packet decoders are done separately (see network.
    - B4 reasons → UI text;
    - ping 0x6d every 5 s;
    - 0x69 on leave.
-5. **Save-back** (about 60 lines, 2 hours): reassemble B3 and write the .d2s. d2d should check
-   the checksum (+0xc) and keep a backup, since game.exe doesn't. Until then the host's copy is
-   authoritative for anything done in its game.
+5. **Save-back** (done): `JoinSession` reassembles B3 and hands each whole save over once;
+   d2d writes it through `CharacterStore::save_bytes` (it must parse as the same character with
+   a good +0xc checksum;
+   a .bak the first time; temp file + rename). Live: the host sends it on leave, 2531 bytes,
+   the 13 header bytes above changed.
 
 Later, for a d2d host:
 - the listen side (port 4000, AF 01 raw on accept);

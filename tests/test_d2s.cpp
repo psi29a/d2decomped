@@ -237,6 +237,10 @@ int main() {
                 assert(reparsed.name == "Fresh" && reparsed.cls == 4 && reparsed.expansion() && reparsed.active_difficulty() == 0);
                 assert(d2d::d2s::parse_stats(written, item_tables).get(d2d::d2s::kStr) == 30);
                 assert(items.size() == 1 && items[0].code == "hax" && items[0].durability == 28 && items[0].slot == 4);
+                // game.exe steps over "if" by +0x2A (FUN_0056a710): 30 skill bytes, then "JM".
+                assert(written[0x29] == std::byte{ 0x10 } && written[0x2A] == std::byte{ 0x1E });
+                const auto if_at = std::ranges::search(written, std::array{ std::byte{ 'i' }, std::byte{ 'f' } }).begin() - written.begin();
+                assert(written[std::size_t(if_at) + 2 + 0x1E] == std::byte{ 'J' } && written[std::size_t(if_at) + 3 + 0x1E] == std::byte{ 'M' });
             }
             std::printf("items: %d real saves parsed\n", saves);
             assert(saves > 0);

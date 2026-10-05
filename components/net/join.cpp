@@ -104,6 +104,8 @@ auto JoinSession::handle(const Bytes& packet, std::vector<Bytes>& to_send) -> vo
             if (packet[2] != 0) save_back_.clear();
             save_back_total_ = d2gs::read_u32(packet, 3);
             save_back_.insert(save_back_.end(), packet.begin() + 7, packet.begin() + 7 + std::min<std::size_t>(packet[1], packet.size() - 7));
+            if (save_back_total_ != 0 && save_back_.size() >= save_back_total_)
+                completed_save_ = Bytes(save_back_.begin(), save_back_.begin() + save_back_total_);
         }
         break;
     case 0x06:

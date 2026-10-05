@@ -518,6 +518,20 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
             const int act_x = tile_x + level.world_x, act_y = tile_y + level.world_y;     // act tiles
             const std::uint32_t hash = std::uint32_t(act_x * 73856093) ^ std::uint32_t(act_y * 19349663);
             const int automap_x = (act_x - act_y) * 80 / 10, automap_y = (act_x + act_y) * 40 / 10;
+            // A generated level's tiles are its picks (a maze's DS1 is blank):
+            // FUN_00458f40 adds the room's floors, then its walls, each
+            // not hidden (flag 8); FUN_00457cf0 looks the cel up by the
+            // DT1 tile's orientation, main and sub index (+0x14, +0x18,
+            // +0x1c); a lower wall (the room tile's orientation past 15) sits 24 down.
+            if (!level.picks.empty()) {
+                for (const int floor_or_wall : { 1, 0 })
+                    for (const auto& pick : level.picks[std::size_t(tile_y * width + tile_x)]) {
+                        if (pick.layer != floor_or_wall || pick.hidden) continue;
+                        if (const int cel = automap_cel(scene, level, pick.tile->type, pick.tile->style, pick.tile->sequence, hash); cel >= 0)
+                            automap.add({ cel, automap_x, automap_y + (pick.orient > 15 ? 24 : 0), floor_or_wall == 1 ? 0 : 1 });
+                    }
+                continue;
+            }
             for (const auto& layer : map.floors()) {
                 const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
                 if (tile.hidden || !(tile.prop1 & 2)) continue;

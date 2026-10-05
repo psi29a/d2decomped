@@ -81,6 +81,9 @@ inline auto move_to(std::uint16_t x, std::uint16_t y, bool run) -> Bytes {
 // 0x53 / 0x54: run / walk from now on.
 inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(run ? 0x53 : 0x54) }; }
 
+// 0x41: a dead player back to town (54c0e0 takes it only from the dead).
+inline auto resurrect() -> Bytes { return { 0x41 }; }
+
 // 0x3c: the skill on a hand (bit 31: the left), and the item it comes
 // from (-1: none). Sent before a skill packet when the hand's skill changed.
 inline auto select_skill(int skill, bool left, std::uint32_t item_id = 0xffffffff) -> Bytes {

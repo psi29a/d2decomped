@@ -18,6 +18,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -57,6 +58,36 @@ struct CharacterStore {
         } catch (const std::exception& error) {
             return std::string("write failed: ") + error.what();
         }
+        return replace(file, raw, out);
+    }
+
+    // A whole .d2s from elsewhere (a game.exe host's save-back, net-join.md
+    // "Save-back"): written when it parses as a save of `name` with a
+    // good checksum. FUN_0045c520 checks only the magic and the size; d2d
+    // checks more and keeps the .bak, as save() does.
+    std::string save_bytes(const std::string& name, std::span<const std::byte> bytes) const {
+        if (!tables) return "no item tables";
+        if (name.empty() || name.find_first_of("/\\.") != std::string::npos) return "bad name";
+        try {
+            if (d2d::d2s::parse_header(bytes).name != name) return "the save is another character's";
+            std::uint32_t checksum = 0;
+            std::memcpy(&checksum, bytes.data() + 0x0c, 4);
+            if (checksum != d2d::d2s::save_checksum(bytes)) return "bad checksum";
+            d2d::d2s::parse_items(bytes, *tables);
+        } catch (const std::exception& error) {
+            return std::string("not a save: ") + error.what();
+        }
+        const auto file = path(name);
+        std::vector<char> raw;
+        if (std::ifstream file_in(file, std::ios::binary); file_in) raw.assign(std::istreambuf_iterator<char>(file_in), {});
+        return replace(file, raw, { bytes.begin(), bytes.end() });
+    }
+
+private:
+    // `out` over `file` (whose bytes were `raw`): the first .bak, a temp
+    // file, a rename.
+    std::string replace(const std::filesystem::path& file, const std::vector<char>& raw, const std::vector<std::byte>& out) const {
+        namespace fs = std::filesystem;
         std::error_code error;
         fs::create_directories(dir, error);
         if (const auto bak = fs::path(file).replace_extension(".d2s.bak"); !raw.empty() && !fs::exists(bak))

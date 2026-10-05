@@ -296,6 +296,8 @@ struct Fight {
     // FCR (rules::speed_frames on the animation's base frame count).
     void set_pmode(int mode, std::uint32_t now_ms);
     [[nodiscard]] bool dead() const;
+    // Life 0 and the death plays (DT, then DD).
+    void die(std::uint32_t now_ms);
 
     // The player as combat sees them: item stats summed like the char
     // panel's (worn, charms, what's socketed), the weapon and shield worn,

@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
         if (state == d2d::net::JoinState::Closed || state == d2d::net::JoinState::Refused || state == d2d::net::JoinState::Desync) break;
     }
     if (state == d2d::net::JoinState::Uploading) std::puts("the host never answered the join: is it in a game (not a menu)?");
-    if (session->save_back_total()) std::printf("save-back: %zu / %u bytes (kept in memory, not written)\n", session->save_back().size(), session->save_back_total());
+    if (session->save_back_total()) std::printf("save-back: %zu / %u bytes (the tool doesn't write it; d2d does)\n", session->save_back().size(), session->save_back_total());
     std::fputs(log.summary().c_str(), stdout);
     std::printf("unknown S>C packets: %llu; log: %s\n", static_cast<unsigned long long>(log.unknown_count()), log_path.c_str());
     return state == d2d::net::JoinState::Closed ? 0 : 1;
