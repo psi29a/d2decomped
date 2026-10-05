@@ -128,6 +128,8 @@ auto NetGame::trade_cancel() -> void {
     store_items.clear();
 }
 
+auto NetGame::trade_settling() const -> bool { return steady_ms() < trade.settle_until; }
+
 auto NetGame::send_items(const std::vector<d2d::net::Bytes>& packets) -> void {
     if (session.state() != d2d::net::JoinState::InGame) return;
     for (const auto& packet : packets) {
@@ -268,6 +270,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             store_items[id] = std::move(parsed->item);                 // into the open store's stock
         } else if (action == 0xc) {
             store_items.erase(id);
+        } else if (trade.state >= 3 && action == 4 && parsed->item.panel == 2
+                   && std::ranges::none_of(trade.ours, [&](const auto& offered) { return std::uint32_t(offered.id) == id; })) {
+            store_items[id] = std::move(parsed->item);                 // their offer: into page 2 (live, 2026-10-05)
         } else {                                                       // ours, somewhere
             ground.erase(id);
             if (trade.state != 0 || steady_ms() < trade.settle_until)   // ponytail: a trade's item packets aren't pinned down yet
@@ -279,6 +284,13 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
                 picked.push_back(parsed->item);
                 picking = 0;
                 buying = false;
+            }
+            if (steady_ms() < trade.settle_until) {                   // a trade's resend: the old id at that spot is gone
+                const auto& fresh = parsed->item;
+                std::erase_if(own_items, [&](const auto& entry) {
+                    const auto& held = entry.second;
+                    return held.location == fresh.location && held.panel == fresh.panel && held.column == fresh.column && held.row == fresh.row && held.slot == fresh.slot;
+                });
             }
             own_items[id] = std::move(parsed->item);
         }
@@ -408,7 +420,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0a:   // remove: type, id (4: an item)
         if (size >= 6) {
             units.erase(key(packet[1], read_u32(packet, 2)));
-            if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); }
+            if (packet[1] == 4) { ground.erase(read_u32(packet, 2)); own_items.erase(read_u32(packet, 2)); store_items.erase(read_u32(packet, 2)); }
         }
         break;
     case 0x5c:   // a player leaves

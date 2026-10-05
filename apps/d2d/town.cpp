@@ -1266,6 +1266,19 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 world.cues.cue("item_pickup", 0, world.player.x, world.player.y);
             }
             net_game->picked.clear();
+            // A trade's end: the host sends our items again (a cancel, all
+            // of them, new ids; live 2026-10-05): one item a spot, the last.
+            if (net_game->trade_settling()) {
+                auto& items = world.character.items;
+                for (std::size_t later = items.size(); later-- > 0;)
+                    for (std::size_t earlier = 0; earlier < later; ++earlier)
+                        if (items[earlier].location == items[later].location && items[earlier].panel == items[later].panel && items[earlier].column == items[later].column
+                            && items[earlier].row == items[later].row && items[earlier].slot == items[later].slot && items[earlier].location != d2d::d2s::item_location::kEquipped) {
+                            items.erase(items.begin() + std::ptrdiff_t(earlier));
+                            --later;
+                            break;
+                        }
+            }
             // The open store shows the host's stock (its ids, for 0x32), by tab.
             if (world.store.npc >= 0 && net_game->trade_npc && net_game->store_items.size() != net_store_shown) {
                 net_store_shown = net_game->store_items.size();

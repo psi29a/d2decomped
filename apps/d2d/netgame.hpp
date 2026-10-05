@@ -111,8 +111,10 @@ struct NetGame {
     std::vector<ObjectMode> object_modes;      // objects' new modes (0x0e): the client sets its doors
     // A trade with another player (game.exe's DAT_007c0e7c, FUN_004b8cf0):
     // 0 none, 1 we asked, 2 they asked us, 3 open, 5 they accepted, 7 we
-    // accepted. Their offer arrives as a store's stock does (0x9c action
-    // 0xb: store_items); ours is what we put in.
+    // accepted. Their offer arrives as 0x9c action 4 into page 2 (kept in
+    // store_items, the store's stock while one's open); ours is what we
+    // put in. Done (0x77 0xd), what we got comes as 0x9c action 4 into our
+    // bags (live 2026-10-05: an isc for an ibk).
     struct Trade {
         int state = 0;
         std::uint32_t with = 0;                // the other player (0x78)
@@ -126,6 +128,7 @@ struct NetGame {
     auto trade_answer(bool accept) -> void;
     auto trade_accept() -> void;
     auto trade_cancel() -> void;
+    auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
     bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
