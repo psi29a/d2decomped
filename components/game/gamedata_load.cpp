@@ -1313,8 +1313,7 @@ void check_patch_layer(const d2d::mpq::Stack& mpqs) {
 
 }  // namespace
 
-std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
-                                       bool tile_pixels) {
+std::optional<GameData> open_game_data(const fs::path& data_dir, const fs::path& patch_installer, bool tile_pixels) {
     // MPQ names match case-insensitively (D2DATA.MPQ in Wine prefixes and
     // Linux copies); the install is read in place, never renamed.
     auto find = [&](std::string_view name) { return d2d::install::find_file(data_dir, name); };
@@ -1396,28 +1395,50 @@ std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path&
                 auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
                 return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
             }();
-        auto act1 = std::make_unique<d2d::drlg::OutdoorAssets>();
-        d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& path) { return mpqs.try_read(path); });
-        place_act1(game_data, mpqs, *act1, map_seed);
-        // The other levels build when they're first wanted (GameData::level).
-        game_data.builder = std::make_shared<GameData::LevelBuilder>();
-        game_data.builder->act1 = std::move(act1);
-        load_tables(game_data, mpqs);
-        load_npcs(game_data, mpqs);
-        load_monsters(game_data, mpqs);
-        load_skills(game_data, mpqs);
-        d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - start_ms);
-        d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
-                       game_data.item_tables ? "tables loaded" : "no item tables",
-                       game_data.sounds.size(), game_data.town.npcs.size());
+        d2d::log::info("Opened the MPQs and strings ({} ms)", d2d::log::ms() - start_ms);
         game_data.patched = patched;
         game_data.data_dir = data_dir;
         game_data.mpqs = std::move(mpqs);
         return game_data;
     } catch (const std::exception& error) {
+        d2d::log::error("open_game_data: {}", error.what());
+        return std::nullopt;
+    }
+}
+
+void load_game_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
+    load_tables(game_data, mpqs);
+}
+
+void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t map_seed) {
+    const auto start_ms = d2d::log::ms();
+    auto act1 = std::make_unique<d2d::drlg::OutdoorAssets>();
+    d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& path) { return mpqs.try_read(path); });
+    place_act1(game_data, mpqs, *act1, map_seed);
+    // The other levels build when they're first wanted (GameData::level).
+    game_data.builder = std::make_shared<GameData::LevelBuilder>();
+    game_data.builder->act1 = std::move(act1);
+    load_npcs(game_data, mpqs);
+    load_monsters(game_data, mpqs);
+    load_skills(game_data, mpqs);
+    d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - start_ms);
+    d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
+                   game_data.item_tables ? "tables loaded" : "no item tables",
+                   game_data.sounds.size(), game_data.town.npcs.size());
+}
+
+std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
+                                       bool tile_pixels) {
+    auto game_data = open_game_data(data_dir, patch_installer, tile_pixels);
+    if (!game_data) return std::nullopt;
+    try {
+        load_game_tables(*game_data, game_data->mpqs);
+        load_game_world(*game_data, game_data->mpqs, map_seed);
+    } catch (const std::exception& error) {
         d2d::log::error("load_game_data: {}", error.what());
         return std::nullopt;
     }
+    return game_data;
 }
 
 void set_map_seed(GameData& game_data, std::uint32_t seed) {
