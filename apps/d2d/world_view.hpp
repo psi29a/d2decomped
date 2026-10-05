@@ -34,6 +34,7 @@ namespace d2d::client {
 // round the player, so a player under a roof stays in sight. game.exe
 // draws roofs whole (walls.md). Off: --toggle trans_roof=off.
 inline bool g_roof_cutout = true;
+inline bool g_autoparty = true;      // a joined game: invite the others, accept invites (deviations.md #7); off: --toggle autoparty=off
 inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
 struct Hole {
     int x = 0, y = 0, radius = 0;                   // screen centre and radius, pixels

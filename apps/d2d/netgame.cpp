@@ -39,7 +39,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x82, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -67,7 +67,7 @@ NetGame::NetGame(d2d::net::JoinSession joined, d2d::net::TcpConnection socket, c
     : session(std::move(joined)), connection(std::move(socket)), log(log_path, used_ids()) {}
 
 auto NetGame::join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                   const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+                   const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party)
     -> std::expected<std::unique_ptr<NetGame>, std::string> {
     const auto tables = d2d::net::d2gs::load_exe_tables(game_exe);
     if (!tables) return std::unexpected(tables.error());
@@ -77,6 +77,7 @@ auto NetGame::join(const std::string& host, const std::filesystem::path& game_ex
     if (!connection) return std::unexpected(connection.error());
     std::unique_ptr<NetGame> game(new NetGame(std::move(*session), std::move(*connection), log_path));
     game->item_tables = item_tables;
+    game->auto_party = auto_party;
     game->log.note("joining " + host + " as " + game->session.name());
     const auto deadline = steady_ms() + std::uint32_t(timeout_ms);
     while (game->session.state() != d2d::net::JoinState::InGame) {
@@ -287,6 +288,15 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x0d:   // a unit stops at x, y: +6 its unit command (0x13 hit, 8 dying, 9 dead)
         if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
         if (size >= 11 && packet[1] == 0 && read_u32(packet, 2) == self_id && packet[6] == 8) died = true;
+        break;
+    case 0x8b:   // relationship: +1 the other player, +5 its state (the party button's, FUN_00479eb0)
+        // game.exe's player clicks the party button; d2d has none: it
+        // invites a player not yet asked (state 0: 6) and accepts an
+        // invite (2: 8) itself.
+        if (size >= 6 && auto_party && read_u32(packet, 1) != self_id && (packet[5] == 0 || packet[5] == 2)) {
+            log.note(std::string(packet[5] == 0 ? "inviting " : "accepting the invite of ") + std::to_string(read_u32(packet, 1)));
+            send({ d2d::net::d2gs::c2s::party(packet[5] == 0 ? 6 : 8, read_u32(packet, 1)) });
+        }
         break;
     case 0x82:   // portal owner: +1 owner, +5 name, +0x15 the end where we are, +0x19 the other (again on arriving: swapped)
         if (size >= 0x1d && read_u32(packet, 1) == self_id) portal_here = read_u32(packet, 0x15);

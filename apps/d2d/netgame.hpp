@@ -48,7 +48,7 @@ struct NetGame {
     // Connects, uploads the save and waits (up to timeout_ms) until the host
     // has put the player in the world (0x04). The log goes to `log_path`.
     static auto join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
-                     const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables)
+                     const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party = true)
         -> std::expected<std::unique_ptr<NetGame>, std::string>;
 
     // What arrived, the ping when due, units walked on by `elapsed_ms`.
@@ -106,6 +106,7 @@ struct NetGame {
     struct ObjectMode { std::uint32_t id = 0; int mode = 0; };
     std::vector<ObjectMode> object_modes;      // objects' new modes (0x0e): the client sets its doors
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
+    bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 

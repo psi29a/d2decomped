@@ -112,6 +112,17 @@ inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
     return out;
 }
 
+// 0x5e: party (FUN_00478780, from the party button FUN_00479eb0 by the
+// relationship 0x8b set): 6 invite, 7 cancel the invite, 8 accept one,
+// 9 leave.
+inline auto party(std::uint8_t action, std::uint32_t player) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x5e);
+    put_u8(out, action);
+    put_u32(out, player);
+    return out;
+}
+
 // 0x13: interact with a unit (type, id): talk, operate, take a warp.
 inline auto interact(std::uint32_t type, std::uint32_t id) -> Bytes {
     Bytes out;
