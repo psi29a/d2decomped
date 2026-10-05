@@ -9,10 +9,12 @@
 //   info     connections, the join, the leave, a summary   (the default)
 //   debug    every packet: direction, id, name, size
 //   trace    every packet's bytes, every read's size
-// The whole stream also goes to the net log file (net_log.hpp's format).
+// The whole stream also goes to a net log (net_log.hpp's format): one file
+// a session in --log-dir (d2proxy-<UTC>-<client>.log, beside d2proxy.log,
+// the console's lines), or every session appended to --log.
 // Tables come from your own game.exe. Only ever between machines of yours.
 //   d2proxy --host 192.168.50.7 [--port 4000] [--listen 4000] [--level info]
-//           [--game-exe PATH] [--log PATH]
+//           [--game-exe PATH] [--log-dir DIR | --log FILE]
 #include <d2gs/c2s_names.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/huffman.hpp>
@@ -76,11 +78,12 @@ struct Direction {
 
 // A client's session: until either side closes.
 auto relay(d2d::net::TcpConnection& client, const std::string& host, std::uint16_t port, const d2d::net::d2gs::ExeTables& tables,
-           const d2d::net::d2gs::Huffman& huffman, const std::filesystem::path& log_path) -> void {
+           const d2d::net::d2gs::Huffman& huffman, const std::filesystem::path& log_path, bool append) -> void {
     auto upstream = d2d::net::TcpConnection::connect(host, port, 5000);
     if (!upstream) { d2d::log::error("host {}:{}: {}", host, port, upstream.error()); return; }
     d2d::log::info("  connected to {}:{}; net log {}", host, port, log_path.string());
-    d2d::net::NetLog file(log_path, {});
+    d2d::net::NetLog file(log_path, {}, append);
+    if (!file.is_open()) d2d::log::error("can't write the net log {}", log_path.string());
     d2d::net::d2gs::Receiver from_host(huffman, tables.s2c_sizes);
     d2d::net::d2gs::C2sSplitter from_client(tables.c2s_sizes);
     Direction down{ "S>C", &d2d::net::d2gs::s2c_name }, up{ "C>S", &d2d::net::d2gs::c2s_name };
@@ -137,15 +140,23 @@ auto relay(d2d::net::TcpConnection& client, const std::string& host, std::uint16
 
 int main(int argc, char** argv) {
     CLI::App app{ "d2proxy: a network debug proxy between a Diablo II client and a game.exe TCP/IP host" };
-    std::string host, level_name = "info", game_exe, log_path;
+    std::string host, level_name = "info", game_exe, log_path, log_dir;
     int port = 4000, listen_port = 4000;
     app.add_option("--host", host, "The game.exe host to relay to (your own network only)")->required();
     app.add_option("--port", port, "Its port")->check(CLI::Range(1, 65535));
     app.add_option("--listen", listen_port, "Where the client connects")->check(CLI::Range(1, 65535));
     app.add_option("--level", level_name, "error, warning, info, debug or trace");
     app.add_option("--game-exe", game_exe, "Your 1.14d game.exe, for its tables (else $D2_GAME_EXE)");
-    app.add_option("--log", log_path, "The net log file (else d2proxy-<UTC>.log here, one a session)");
+    auto* dir_option = app.add_option("--log-dir", log_dir, "Where the logs go: a net log a session and d2proxy.log (else here)");
+    app.add_option("--log", log_path, "One net log file for every session, appended to")->excludes(dir_option);
     CLI11_PARSE(app, argc, argv);
+    if (log_path.empty()) {
+        std::error_code error;
+        if (log_dir.empty()) log_dir = ".";
+        std::filesystem::create_directories(log_dir, error);
+        if (error) { d2d::log::error("--log-dir {}: {}", log_dir, error.message()); return 2; }
+        d2d::log::open(std::filesystem::path(log_dir) / "d2proxy.log");
+    }
     const auto level = d2d::log::parse_level(level_name);
     if (!level) { d2d::log::error("--level {}: one of error, warning, info, debug, trace", level_name); return 2; }
     d2d::log::set_level(*level);
@@ -165,7 +176,7 @@ int main(int argc, char** argv) {
         if (!*client) continue;
         d2d::log::info("client {} connected", from);
         const auto session_log = !log_path.empty() ? std::filesystem::path(log_path)
-            : std::filesystem::path(std::format("d2proxy-{:%Y%m%dT%H%M%SZ}.log", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())));
-        relay(**client, host, std::uint16_t(port), *tables, *huffman, session_log);
+            : std::filesystem::path(log_dir) / std::format("d2proxy-{:%Y%m%dT%H%M%SZ}-{}.log", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()), from);
+        relay(**client, host, std::uint16_t(port), *tables, *huffman, session_log, !log_path.empty());
     }
 }

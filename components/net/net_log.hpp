@@ -24,8 +24,9 @@ namespace d2d::net {
 
 class NetLog {
 public:
-    // `used`: the S->C ids the caller acts on.
-    NetLog(const std::filesystem::path& path, std::bitset<256> used);
+    // `used`: the S->C ids the caller acts on. `append`: add to the file
+    // (one file for several sessions) instead of starting it over.
+    NetLog(const std::filesystem::path& path, std::bitset<256> used, bool append = false);
 
     auto is_open() const -> bool { return file_.is_open(); }
     auto from_host(std::span<const std::uint8_t> packet) -> void;

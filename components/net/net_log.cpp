@@ -14,7 +14,8 @@ auto utc_stamp() -> std::string {
     return std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()));
 }
 
-NetLog::NetLog(const std::filesystem::path& path, std::bitset<256> used) : file_(path, std::ios::trunc), used_(used) {}
+NetLog::NetLog(const std::filesystem::path& path, std::bitset<256> used, bool append)
+    : file_(path, append ? std::ios::app : std::ios::trunc), used_(used) {}
 
 auto NetLog::line(std::string_view direction, std::string_view tag, std::span<const std::uint8_t> packet) -> void {
     if (!file_ || packet.empty()) return;
