@@ -71,6 +71,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug warps`               | `<i>\t<x>\t<y>\t<to>` per warp, `ok` | The level's warps (cave mouths, stairs): cell and the Levels.txt Id they lead to. |
 | `debug objects`             | `<i>\t<x>\t<y>\t<shrine\|chest>\t<row\|trap>\t<locked\|->\t<mode>` per object, `ok` | The level's shrines (Shrines.txt row) and chests (trap type 0..8, locked), and their mode now. |
 | `debug portals`             | `<which>\t<level>\t<x>\t<y>` per open portal, `ok` | The player's portals: 0 where it was cast, 1 its twin in camp (cells). |
+| `debug net`                 | `host <x> <y> local <x> <y> apart <d> units <n>`, `ok` | A joined game: where the host has the player and where d2d does (act subtiles), how far apart, how many host units d2d knows. |
 | `debug operate <i> [n]`     | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (town.hpp operate) without walking to it; `n` plays that Shrines.txt row / chest trap type instead. |
 | `debug enter <i>`           | `ok` / `err no such warp` | Stand by warp i as if it was clicked; the next frame takes it (`debug level` shows where). |
 | `key <name>`                | `ok`                   | Pushes SDL key down+up by SDL key name (`Left`, `Home`, `Escape`, `Return`). |

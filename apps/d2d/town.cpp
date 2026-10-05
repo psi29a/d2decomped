@@ -447,7 +447,7 @@ auto Town::send(const Command& command) -> void {
             // subtiles (FUN_00548b00 case 1), so the trade's 0x13 comes again
             // once the menu's up (OpenTrade).
             if (npc.root == "objects") {
-                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) { net_operate_type = 2; net_operate = object->id; net_operate_ms = frame_now; }
+                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) { net_operate_type = 2; net_operate = object->id; net_operate_ms = frame_now; net_operate_moves = false; }
             } else if (const auto* host_npc = net_npc(interact->npc)) {
                 net_game->interact(1, host_npc->id);          // the host walks us up too (talk at 6)
             }
@@ -459,7 +459,7 @@ auto Town::send(const Command& command) -> void {
             for (const std::uint32_t id : net_game->corpses)
                 if (const auto unit = net_game->units.find(id); unit != net_game->units.end())
                     if (const float apart = std::hypot(unit->second.x - subtile_x(corpse.x), unit->second.y - subtile_y(corpse.y)); apart < best) {
-                        best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now;
+                        best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now; net_operate_moves = false;
                     }
         } else if (interact && interact->npc <= -2000 && interact->npc > -2004) {
             // A town portal: ours by the host's id for this end (0x82), else its
@@ -468,10 +468,10 @@ auto Town::send(const Command& command) -> void {
             // warps us (0x15); d2d takes its own here.
             const int which = -2000 - interact->npc;
             if (which < 2 && net_game->portal_here != 0) {
-                net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now;
+                net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now; net_operate_moves = true;
             } else if (const auto& entry = world.portal[std::size_t(which)]; entry.level) {
                 if (const auto* host_portal = net_game->nearest(2, 59, (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
-                    net_operate_type = 2; net_operate = host_portal->id; net_operate_ms = frame_now;
+                    net_operate_type = 2; net_operate = host_portal->id; net_operate_ms = frame_now; net_operate_moves = true;
                 } else {
                     net_game->log.note(std::format("no host portal near ({:.0f}, {:.0f})", (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f));
                 }
@@ -1182,6 +1182,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             // Only a spot on d2d's level: a warp's or waypoint's lands as d2d
             // takes it too (the same exit spot, FUN_005550b0).
             if (net_game->take_reassign() && level) {
+                net_moving_until = 0;
                 const float to_x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x), to_y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
                 if (to_x >= 0 && to_y >= 0 && to_x < float(level->ds1.width()) && to_y < float(level->ds1.height())) {
                     world.player.x = to_x;
@@ -1245,7 +1246,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             // d2d's walks of its own (up to an NPC, an object, an item, a melee
             // target): the host's player follows where ours is, every 300 ms
             // (a target the host can't stand on, an NPC's spot, it'd refuse).
-            if (world.player.walking && frame_ms - net_follow_ms >= 300) {
+            // Not while a warp or portal is being taken: ours may already
+            // be in the next area, the host's isn't yet.
+            const bool area_change = (net_operate != 0 && net_operate_moves) || frame_ms < net_moving_until;
+            if (world.player.walking && frame_ms - net_follow_ms >= 300 && !area_change) {
                 net_follow_ms = frame_ms;
                 net_game->move_to((world.player.x + float(level->world_x)) * 5.f, (world.player.y + float(level->world_y)) * 5.f, view.running);
             }
@@ -1290,7 +1294,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 if (object == net_game->units.end() || frame_ms - net_operate_ms > 8000) {
                     net_game->log.note("object " + std::to_string(net_operate) + " couldn't be reached on the host");
                     net_operate = 0;
-                } else if (std::hypot(net_game->host_x - object->second.x, net_game->host_y - object->second.y) > 4.f) {
+                } else if (std::hypot(net_game->host_x - object->second.x, net_game->host_y - object->second.y) > (net_operate_type == 5 ? 8.f : 4.f)) {   // a warp stands in its doorway
                     if (frame_ms - net_follow_ms >= 500) {
                         net_follow_ms = frame_ms;
                         net_game->move_to(object->second.x, object->second.y, view.running);
@@ -1298,6 +1302,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
                     net_game->interact(net_operate_type, net_operate);
                     net_operate = 0;
+                    if (net_operate_moves) net_moving_until = frame_ms + 5000;
                 }
             }
             // The host's doors (0x0e: opened by anyone, a monster too): d2d's
@@ -1330,7 +1335,9 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             // A warp d2d's player set off for: the host's warp unit there (0x13).
             if (world.take_warp >= 0 && world.take_warp != net_warp_sent && std::size_t(world.take_warp) < level->warps.size()) {
                 const auto& warp = level->warps[std::size_t(world.take_warp)];
-                if (const auto* unit = net_game->nearest(5, -1, (warp.unit_x + float(level->world_x)) * 5.f, (warp.unit_y + float(level->world_y)) * 5.f, 15.f)) net_game->interact(5, unit->id);
+                if (const auto* unit = net_game->nearest(5, -1, (warp.unit_x + float(level->world_x)) * 5.f, (warp.unit_y + float(level->world_y)) * 5.f, 15.f)) {
+                    net_operate_type = 5; net_operate = unit->id; net_operate_ms = frame_ms; net_operate_moves = true;   // as an object's: once the host has us there, stopped
+                }
             }
             net_warp_sent = world.take_warp;
         }

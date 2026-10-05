@@ -160,6 +160,8 @@ struct Town {
     bool net_trade_asked = false;                            // its 0x59 + 0x13 went out, NPC info awaited
     int net_operate_type = 2;                                // the host unit being walked to (0x13 once there): 2 object, 0 our corpse
     std::uint32_t net_operate = 0, net_operate_ms = 0;       // ... its id, when
+    bool net_operate_moves = false;                          // ... a warp or portal: it takes us to another area
+    std::uint32_t net_moving_until = 0;                      // such a 0x13 went: no following walks till the host moves us (0x15) or then
     std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()
     std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)

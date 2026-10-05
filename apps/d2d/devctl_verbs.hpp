@@ -192,6 +192,11 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "net" && town.net_game && town.level) {   // a joined game: where the host has us, where d2d has us (act subtiles), and how far apart
+            const float local_x = (town.world.player.x + float(town.level->world_x)) * 5.f, local_y = (town.world.player.y + float(town.level->world_y)) * 5.f;
+            return std::format("host {:.0f} {:.0f} local {:.0f} {:.0f} apart {:.1f} units {}\nok\n", town.net_game->host_x, town.net_game->host_y, local_x, local_y,
+                               std::hypot(town.net_game->host_x - local_x, town.net_game->host_y - local_y), town.net_game->units.size());
+        }
         if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
             std::string out;
             for (std::size_t i = 0; i < town.world.portal.size(); ++i)
@@ -413,7 +418,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|portals|objects|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
+            return std::string("err debug collision|automap|portals|objects|net|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });
