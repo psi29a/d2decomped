@@ -192,6 +192,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.take_warp = int(npc_index);
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
+            std::string out;
+            for (std::size_t i = 0; i < town.world.portal.size(); ++i)
+                if (const auto& open = town.world.portal[i]; open.level) out += std::format("{}\t{}\t{:.1f}\t{:.1f}\n", i, open.level->id, open.x, open.y);
+            return out + "ok\n";
+        }
         if (args.size() >= 2 && args[1] == "objects" && town.level) {   // operable objects: index, cell, kind (shrine, chest, opN), shrine row / trap, mode
             std::string out;
             for (std::size_t i = 0; i < town.level->npcs.size(); ++i)
@@ -407,7 +413,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok\n");
         }
         if (args.size() < 2 || args[1] != "collision")
-            return std::string("err debug collision|automap|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
+            return std::string("err debug collision|automap|portals|objects|statpts <n>|skillpts <n>|wear|unid|level|blocked <x> <y>|warp <x> <y>|stat <id> <v>|quest <q>|skill left|right <id>|points <id> <n>\n");
         g_debug_collision = !g_debug_collision;
         return std::string(g_debug_collision ? "ok on\n" : "ok off\n");
     });

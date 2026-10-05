@@ -460,6 +460,21 @@ auto Town::send(const Command& command) -> void {
                     if (const float apart = std::hypot(unit->second.x - subtile_x(corpse.x), unit->second.y - subtile_y(corpse.y)); apart < best) {
                         best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now;
                     }
+        } else if (interact && interact->npc <= -2000 && interact->npc > -2004) {
+            // A town portal: ours by the host's id for this end (0x82), else its
+            // TownPortal (object 59) nearest d2d's (they open apart:
+            // deviations.md); operated once the host has us there, as it
+            // warps us (0x15); d2d takes its own here.
+            const int which = -2000 - interact->npc;
+            if (which < 2 && net_game->portal_here != 0) {
+                net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now;
+            } else if (const auto& entry = world.portal[std::size_t(which)]; entry.level) {
+                if (const auto* host_portal = net_game->nearest(2, 59, (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
+                    net_operate_type = 2; net_operate = host_portal->id; net_operate_ms = frame_now;
+                } else {
+                    net_game->log.note(std::format("no host portal near ({:.0f}, {:.0f})", (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f));
+                }
+            }
         } else if (std::holds_alternative<cmd::Resurrect>(command)) {
             net_game->send_items({ d2d::net::d2gs::c2s::resurrect() });   // the host respawns us in town (0x15)
         } else if (const auto* travel = std::get_if<cmd::Waypoint>(&command); travel && travel->npc >= 0 && std::size_t(travel->npc) < level->npcs.size()) {

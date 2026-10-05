@@ -105,6 +105,7 @@ struct NetGame {
     std::vector<StatChange> stat_changes;
     struct ObjectMode { std::uint32_t id = 0; int mode = 0; };
     std::vector<ObjectMode> object_modes;      // objects' new modes (0x0e): the client sets its doors
+    std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 

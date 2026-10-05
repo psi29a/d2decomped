@@ -500,7 +500,10 @@ ids).
 - **0x60 town portal state** (7; `FUN_004bdf30`): +1 u8 state, +2 u8
   area, +3 u32 unit id.
 - **0x82 portal owner** (29): +1 u32 owner id, +5 char[16] name, +0x15
-  u32 local portal id, +0x19 u32 remote portal id.
+  u32 local portal id, +0x19 u32 remote portal id. Live: sent as the
+  portal opens and again on arriving through it, the two ids swapped:
+  "local" is the end in the receiver's area. 0x13 on it (type 2) warps the
+  player there (0x15); d2d sends that once the host has us beside it.
 
 ### Sounds, text
 
