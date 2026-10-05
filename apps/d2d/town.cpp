@@ -417,7 +417,7 @@ auto Town::send(const Command& command) -> void {
                 const auto& item = tab[std::size_t(buy->stock)];
                 const int cost = d2d::rules::item_price(scene->rules, item, world.store.npc_id, false, world.store.header);
                 net_game->buying = true;
-                net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), std::uint32_t(world.store.tab) << 16, std::uint32_t(cost)) });
+                net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), 0, std::uint32_t(cost)) });
             }
             return;                                         // the host's item comes to us; its gold change too
         } else if (const auto* sell = std::get_if<cmd::Sell>(&command); sell && net_game->trade_npc) {
@@ -1186,7 +1186,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 for (const auto& [id, stocked] : net_game->store_items) {
                     auto item = stocked;
                     item.id = int(id);
-                    world.store.tabs[std::size_t(std::clamp(item.panel, 0, 3))].push_back(std::move(item));
+                    world.store.tabs[std::size_t(std::clamp(item.panel - 1, 0, 3))].push_back(std::move(item));   // page 2 weapons, 4 misc (Akara's, recorded)
                 }
             }
             // Once, a while in: how many of our items the host's match (the net
@@ -1214,19 +1214,30 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                 if (vendor == net_game->units.end() || frame_ms - net_trade_ms > 8000) {
                     net_game->log.note("the trade's NPC couldn't be reached on the host");
                     net_trade_pending = -1;
+                    net_trade_asked = false;
                 } else if (const float apart = std::hypot(net_game->host_x - vendor->second.x, net_game->host_y - vendor->second.y); apart > 6.f) {
                     if (frame_ms - net_follow_ms >= 500) {                      // she walks: after her, 2 out
                         net_follow_ms = frame_ms;
                         net_game->move_to(vendor->second.x + (net_game->host_x - vendor->second.x) / apart * 2.f,
                                           vendor->second.y + (net_game->host_y - vendor->second.y) / apart * 2.f, view.running);
                     }
-                } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
+                } else if (!net_trade_asked && net_game->steady_now() - net_game->walked_ms >= 500) {
                     // A walking player is busy: the host drops all but chat,
-                    // skill picks, 0x43, 0x66 (FUN_0054d750, FUN_0057eec0).
+                    // skill picks, 0x43, 0x66 (FUN_0054d750, FUN_0057eec0). As a
+                    // real client (recorded through d2proxy): where we see the
+                    // NPC (0x59), then 0x13; the host answers with NPC info.
+                    namespace c2s = d2d::net::d2gs::c2s;
+                    net_game->npc_info = 0;
+                    net_game->send_items({ c2s::unit_position(1, std::uint32_t(net_trade_pending), std::uint32_t(vendor->second.x), std::uint32_t(vendor->second.y)),
+                                           c2s::interact(1, std::uint32_t(net_trade_pending)) });
+                    net_trade_asked = true;
+                } else if (net_trade_asked && net_game->npc_info == std::uint32_t(net_trade_pending)) {
+                    // Talking: start the chat, then the trade (1) or gamble (2: unverified).
                     namespace c2s = d2d::net::d2gs::c2s;
                     net_game->trade_npc = std::uint32_t(net_trade_pending);
-                    net_game->send_items({ c2s::interact(1, net_game->trade_npc), c2s::npc_chat(true, 1, net_game->trade_npc), c2s::npc_action(net_trade_gamble ? 1 : 0, net_game->trade_npc) });
+                    net_game->send_items({ c2s::npc_chat(true, 1, net_game->trade_npc), c2s::npc_action(net_trade_gamble ? 2 : 1, net_game->trade_npc) });
                     net_trade_pending = -1;
+                    net_trade_asked = false;
                 }
             }
             // A pick-up walked to: asked for once both of us are there.

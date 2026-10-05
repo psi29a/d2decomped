@@ -197,13 +197,22 @@ inline auto npc_chat(bool start, std::uint32_t type, std::uint32_t id) -> Bytes 
     put_u8(out, start ? 0x2f : 0x30); put_u32(out, type); put_u32(out, id);
     return out;
 }
-// 0x38: an NPC action (0 trade, 1 gamble) with NPC `id`.
+// 0x38: an NPC action with NPC `id`: 1 trade (a real client's, recorded
+// 2026-10-05 through d2proxy), 2 gamble (unverified).
 inline auto npc_action(std::uint32_t action, std::uint32_t id, std::uint32_t extra = 0) -> Bytes {
     Bytes out;
     put_u8(out, 0x38); put_u32(out, action); put_u32(out, id); put_u32(out, extra);
     return out;
 }
-// 0x32: buy the stock item `item` from NPC `npc` (flags: tab << 16), at `cost`.
+// 0x59: where we see unit (type, id), sent before an 0x13 on an NPC (a
+// real client's, recorded 2026-10-05).
+inline auto unit_position(std::uint32_t type, std::uint32_t id, std::uint32_t x, std::uint32_t y) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x59); put_u32(out, type); put_u32(out, id); put_u32(out, x); put_u32(out, y);
+    return out;
+}
+// 0x32: buy the stock item `item` from NPC `npc` at `cost`; flags 0 (a real
+// client's buy of a potion, page 4: no tab in them), 0x80000000 fill.
 inline auto buy(std::uint32_t npc, std::uint32_t item, std::uint32_t flags, std::uint32_t cost) -> Bytes {
     Bytes out;
     put_u8(out, 0x32); put_u32(out, npc); put_u32(out, item); put_u32(out, flags); put_u32(out, cost);

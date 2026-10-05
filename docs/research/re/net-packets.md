@@ -597,8 +597,8 @@ melee-range skill runs up first (`FUN_00548a50`).
 
 | Id | Size | Layout | Server | d2d |
 |---|---|---|---|---|
-| 38 NPC action | 13 | u32 action (0 trade / Go East / imbue, 1 gamble; 2, 3 **(?)**), u32 NPC id, u32 extra | `54bca0` → `FUN_00579d60` | `OpenTrade`, `OpenHire`, `Respec`, `GoEast`, `Imbue` (a kind byte of d2d's own) |
-| 32 buy | 17 | u32 NPC id, u32 item id, u32 flags (bits 16..30 tab, 0x80000000 fill), u32 cost | `54bac0` → `FUN_00577f30` | `cmd::Buy{stock}`: **stock index, not item id** |
+| 38 NPC action | 13 | u32 action (**1 trade**: a real client's, recorded through d2proxy 2026-10-05; gamble, Go East, imbue **(?)**), u32 NPC id, u32 extra | `54bca0` → `FUN_00579d60` | `OpenTrade`, `OpenHire`, `Respec`, `GoEast`, `Imbue` (a kind byte of d2d's own) |
+| 32 buy | 17 | u32 NPC id, u32 item id, u32 flags (0 for a potion on page 4: recorded; 0x80000000 fill), u32 cost | `54bac0` → `FUN_00577f30` | `cmd::Buy{stock}`: **stock index, not item id** |
 | 33 sell | 17 | u32 NPC id, u32 item id, u16 mode (+9), u32 cost (+0xd) | `54bb20` → `FUN_00579510` | `cmd::Sell` |
 | 35 repair | 17 | the same shape | `54bb60` → `FUN_00578050` | `cmd::Repair` (−1 = all **(?)**) |
 | 34 Cain identifies | 5 | u32 NPC id | `54bba0` | `cmd::Identify` |
@@ -773,11 +773,15 @@ host-side checks game.exe's server makes (flood guards, ranges).
 - Answered 2026-10-04: a monster's death is unit command 8 then 9 in
   0x69 (no 0x0c); a skill that comes mid-swing is dropped (`FUN_0057edd0`),
   not restarted; the own player's stats at join arrive as 0x1d..0x1f.
-- NPC trade with a TCP host (open): a walking player is busy and the
-  host drops 0x13 (network.md); stopped within 6 subtiles of Akara, 0x13
-  is answered by 0x27 (2026-10-05), but 0x2f + 0x38 sent with it bring no
-  stock (0x9c 0xb). Next: record a real game.exe client's trade through
-  apps/d2proxy.
+- NPC trade, answered 2026-10-05 by recording a real game.exe client
+  through apps/d2proxy: standing (a walking player is busy, network.md),
+  the client sends 0x59 (u32 type, u32 id, u32 x, u32 y: where it sees the
+  NPC) and 0x13; the host answers 0x27 NPC info (+2 the NPC's id), 0x29,
+  0x28; then 0x2f, and on Trade 0x38 action 1. The stock comes as 0x9c
+  action 0xb, its header's page 2 weapons / 4 misc (store tab + 1). A buy's
+  0x2a: +1 u8 4, +2 result (0 bought; 0x0c with too little gold), +7 the
+  new item's id, +0xb u32 gold left; then 0x9c action 4 brings the item
+  (a new id: stock stays), 0x1d stat 14 the gold. d2d does the same.
 - Player death: which packet puts another player (and the own one, when
   the server kills it) into DT / DD. Not 0x0c (always cmd 0x13).
 - Which builders make 0x69..0x6c; what 0x68's +0xf / +0x10 are.

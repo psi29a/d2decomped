@@ -93,6 +93,7 @@ struct NetGame {
     std::unordered_map<std::uint32_t, d2d::d2s::Item> own_items;   // ours as the host has them (grids, body, belt, cursor), by its ids
     std::unordered_map<std::uint32_t, d2d::d2s::Item> store_items;   // the open store's stock (0x9c 0xb), by its ids
     std::uint32_t trade_npc = 0;               // the NPC we trade with (its unit id), 0 none
+    std::uint32_t npc_info = 0;                // the unit the host last sent NPC info for (0x27): talking
     std::uint32_t picking = 0;                 // the ground item we asked for (0x16), until it lands with us
     bool buying = false;                       // a buy went out: the next new item in our bags is it
     std::vector<d2d::d2s::Item> picked;        // what came to us since (0x9c into a grid / the belt): the client takes them
