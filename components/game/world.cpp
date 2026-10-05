@@ -1124,7 +1124,8 @@ auto World::death_penalty(std::uint32_t now_ms) -> void {
         std::int64_t lost = std::min(lvl, 20) * total / 100;
         if (total - lost < std::int64_t(lvl) * 500) lost = std::max<std::int64_t>(0, total - std::int64_t(lvl) * 500);
         lost = std::min(lost, purse);
-        if (purse - lost > 0) loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, fight.spawning.game, now_ms);
+        if (purse - lost > 0 && !fight.remote_monsters)       // a joined game: the host drops it (0x9c)
+            loot.put({ .code = "gld", .gold = int(purse - lost) }, player.x, player.y, 1, fight.spawning.game, now_ms);
         stat_values[kGold] = 0;
         gold_lost = lost;
         d2d::log::info("died: {} experience and {} gold lost; {} gold on the ground", exp_lost, lost, purse - lost);

@@ -72,6 +72,8 @@ struct NetGame {
     auto nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit*;
     // The host moved us (0x15: a warp, a waypoint, a correction): once.
     auto take_reassign() -> bool { return std::exchange(reassigned, false); }
+    // The host killed us (0x0d, our unit's command 8: dying): once.
+    auto take_death() -> bool { return std::exchange(died, false); }
     // 0x69, then up to a second for the host to close.
     auto leave() -> void;
     auto closed() const -> bool;
@@ -103,12 +105,14 @@ struct NetGame {
     std::vector<StatChange> stat_changes;
     struct ObjectMode { std::uint32_t id = 0; int mode = 0; };
     std::vector<ObjectMode> object_modes;      // objects' new modes (0x0e): the client sets its doors
+    std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:
     bool socket_gone = false;
     const d2d::d2s::ItemTables* item_tables = nullptr;
     bool reassigned = false;
+    bool died = false;
     d2d::net::Bytes last_sent;
     std::uint32_t last_sent_ms = 0;
     std::array<int, 2> hand_skill{ -1, -1 };   // what the host has on the right / left hand

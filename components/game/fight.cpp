@@ -201,6 +201,13 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
 
 auto Fight::dead() const -> bool { return pmode == kModeDT || pmode == kModeDD; }
 
+auto Fight::die(std::uint32_t now_ms) -> void {
+    character.stats.values[d2d::d2s::kLife] = 0;
+    set_pmode(kModeDT, now_ms);
+    attack_mon = -1;
+    d2d::log::info("the player died");
+}
+
 auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                                                      const d2d::rules::StatSum* states ,
                                                      const std::vector<d2d::rules::PassiveStat>* passives ,
@@ -2624,10 +2631,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 using namespace d2d::d2s;
                 character.stats.values[kLife] -= std::int64_t(foe.damage) << 8;
                 if (character.stats.values[kLife] <= 0) {
-                    character.stats.values[kLife] = 0;
-                    set_pmode(kModeDT, now_ms);
-                    attack_mon = -1;
-                    d2d::log::info("the player died");
+                    die(now_ms);
                 } else if (std::int64_t(foe.damage) * 12 >= character.stats.fixed(kMaxLife) && !attack_mode(pmode) && pmode != kModeBL) {
                     set_pmode(kModeGH, now_ms);
                 }
