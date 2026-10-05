@@ -412,7 +412,7 @@ auto Town::send(const Command& command) -> void {
             net_game->log.note("a trade with no host NPC: not made (d2d's own store would make it here only)");
             return;
         } else if (const auto* buy = std::get_if<cmd::Buy>(&command); buy && net_game->trade_npc) {
-            const auto& tab = world.store.tabs[std::size_t(std::clamp(world.store.tab, 0, 3))];
+            const auto& tab = world.store.tabs[std::size_t(std::clamp(buy->tab >= 0 ? buy->tab : store.tab, 0, 3))];
             if (buy->stock >= 0 && std::size_t(buy->stock) < tab.size()) {
                 const auto& item = tab[std::size_t(buy->stock)];
                 const int cost = d2d::rules::item_price(scene->rules, item, world.store.npc_id, false, world.store.header);
@@ -1024,7 +1024,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const int store_index = store.npc >= 0 ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
             if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
-                net.send(cmd::Buy{ store_index });
+                send(cmd::Buy{ store_index, store.tab });
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (store.npc >= 0 && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
@@ -1034,8 +1034,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     if (!(item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) && !(worn && store.mode == 3)) continue;
                     const auto rect = worn ? lay.slots[std::size_t(item.slot)] : grid_rect(*scene, lay, item);
                     if (mouse.x >= rect[0] && mouse.x < rect[0] + rect[2] && mouse.y >= rect[1] && mouse.y < rect[1] + rect[3]) {
-                        if (store.mode == 2) net.send(cmd::Sell{ item.id });
-                        else net.send(cmd::Repair{ item.id });
+                        if (store.mode == 2) send(cmd::Sell{ item.id });
+                        else send(cmd::Repair{ item.id });
                         break;
                     }
                 }

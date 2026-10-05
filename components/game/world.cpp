@@ -1236,6 +1236,8 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* buy = std::get_if<cmd::Buy>(&command)) {
             if (store.npc < 0 || buy->stock < 0) return true;
+            if (buy->tab >= 0 && buy->tab < 4) store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
+            if (std::size_t(buy->stock) >= store.tabs[std::size_t(store.tab)].size()) return true;
             if (store.gamble) d2d::rules::store_gamble(tables, store, buy->stock, character.items, character.stats, rng);
             else d2d::rules::store_buy(tables, store, buy->stock, character.items, character.stats);
             return true;
