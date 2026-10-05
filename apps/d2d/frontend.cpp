@@ -76,8 +76,6 @@ void render_title(std::vector<std::uint8_t>& framebuffer,
             }
         }
     }
-
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 8, int(kScreenHeight) - 14, "d2d dev build");
 }
 
 int charselect_max_scroll(int count) {
@@ -284,10 +282,6 @@ void render_credits(std::vector<std::uint8_t>& framebuffer,
             y += pitch;
         }
     }
-
-    // Small hint at the bottom-left so anyone can find their way back.
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 8, int(kScreenHeight) - 14,
-                "d2d dev build — click or Esc to return");
 }
 
 void advance_char_states(CharCreateUI& create_ui,
@@ -500,9 +494,6 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
         }
     }
-
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 8, int(kScreenHeight) - 14,
-                "d2d dev build — pick class, type name, hit OK");
 }
 
 int cinematics_unlocked(const std::string& seen) {

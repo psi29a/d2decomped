@@ -771,7 +771,7 @@ int main(int argc, char** argv) {
     fs::create_directories(save_dir, mk_ec);
     fs::create_directories(shot_dir, mk_ec);
     d2d::log::open(user_dir / "d2d.log");
-    d2d::log::info("d2d — Diablo II re-implementation (dev build)");
+    d2d::log::info("d2d — Diablo II re-implementation");
     d2d::log::info("  User dir: {}", user_dir.string());
     d2d::userdir::Config cfg;
     for (const auto& dir : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
@@ -790,7 +790,7 @@ int main(int argc, char** argv) {
     bool        no_save = false;
     std::uint32_t map_seed = std::random_device{}();   // --seed fixes it (3 puts the Blood Moor east, townE1)
 
-    CLI::App app{"d2d — Diablo II re-implementation (dev build)"};
+    CLI::App app{"d2d — Diablo II re-implementation"};
     app.add_option("--seed", map_seed, "Map seed (act 1 layout and the Blood Moor)");
     app.add_option("--devctl", devctl_path,
                    "Unix-socket dev-control channel path");
