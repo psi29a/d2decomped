@@ -599,8 +599,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 character.ok_btn.do_switch = character.selected >= 0 && d2d::net::valid_join_name(character.name);
                 update_button(character.cancel_btn, mouse, screen, quit);
                 update_button(character.ok_btn,     mouse, screen, quit);
-                if (!character.cancel_btn.hovered && !character.ok_btn.hovered)
-                    handle_charcreate_click(character, mouse, now_ms);
+                if (!character.cancel_btn.hovered && !character.ok_btn.hovered && scene)
+                    handle_charcreate_click(character, *scene, mouse, now_ms);
                 // OK: a new character (CharStats.txt's start), saved at once so
                 // it's on the roster. A name that has a save already is refused.
                 if (screen == Screen::InGame && scene) {
