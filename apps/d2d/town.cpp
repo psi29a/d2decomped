@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <span>
 #include <string>
 #include <tuple>
