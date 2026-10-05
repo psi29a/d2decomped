@@ -67,7 +67,10 @@ struct NetGame {
     // The host's id for one of our items as d2d has it: same code, same
     // place (grid cell and panel, body slot, belt box, cursor); 0: none.
     auto host_item(const d2d::d2s::Item& local) const -> std::uint32_t;
-    auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void { if (session.state() == d2d::net::JoinState::InGame) send(packets); }
+    // An item's use (0x20) waits for the host's player to stop: a walking
+    // player's is dropped (FUN_0054d750); the rest go now.
+    auto send_items(const std::vector<d2d::net::Bytes>& packets) -> void;
+    auto holding() const -> bool { return !when_still.empty(); }   // an item's use waits: don't walk the host's player on
     // The host's unit of `type` (2 object, 5 warp) nearest act subtile
     // (x, y), of `cls` when >= 0; nullptr when none within `within`.
     auto nearest(int type, int cls, float subtile_x, float subtile_y, float within) const -> const Unit*;
@@ -116,6 +119,10 @@ private:
     bool socket_gone = false;
     const d2d::d2s::ItemTables* item_tables = nullptr;
     bool reassigned = false;
+    std::vector<d2d::net::Bytes> when_still;   // held till the host's player stops (or 3 s)
+    std::uint32_t still_since_ms = 0;          // when the first of them was held
+    float walk_to_x = 0, walk_to_y = 0;        // our last walk sent (0x01 / 0x03), and when
+    std::uint32_t walk_sent_ms = 0;
     bool died = false;
     d2d::net::Bytes last_sent;
     std::uint32_t last_sent_ms = 0;

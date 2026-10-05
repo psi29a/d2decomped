@@ -109,6 +109,15 @@ auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
 
 auto NetGame::steady_now() -> std::uint32_t { return steady_ms(); }
 
+auto NetGame::send_items(const std::vector<d2d::net::Bytes>& packets) -> void {
+    if (session.state() != d2d::net::JoinState::InGame) return;
+    for (const auto& packet : packets) {
+        if (packet.empty() || packet[0] != 0x20) { send({ packet }); continue; }
+        if (when_still.empty()) still_since_ms = steady_ms();
+        when_still.push_back(packet);
+    }
+}
+
 auto NetGame::closed() const -> bool {
     const auto state = session.state();
     return socket_gone || state == d2d::net::JoinState::Closed || state == d2d::net::JoinState::Refused || state == d2d::net::JoinState::Desync;
@@ -131,6 +140,15 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
             if (session.state() == d2d::net::JoinState::Desync) d2d::log::warn("net: the stream broke: {}", session.desync_reason());
         }
         send(session.tick(now_ms));
+        // Stopped: no walk sent for as long as the host's player needs to
+        // reach the last one from where it last said it was (at a walk's
+        // speed, the slower), and no word of walking lately; or 5 s.
+        if (!when_still.empty()) {
+            const float left = std::hypot(walk_to_x - host_x, walk_to_y - host_y);
+            const auto needs = std::uint32_t(std::min(left / kWalkSubtilesPerSec * 1000.f, 4000.f)) + 500;
+            if ((steady_ms() - walk_sent_ms >= needs && steady_ms() - walked_ms >= 300) || steady_ms() - still_since_ms >= 5000)
+                send(std::exchange(when_still, {}));
+        }
     }
     const float step = kWalkSubtilesPerSec * float(elapsed_ms) / 1000.f;
     for (auto& [unit_key, unit] : units) {
@@ -352,6 +370,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
 auto NetGame::move_to(float subtile_x, float subtile_y, bool run) -> void {
     if (session.state() != d2d::net::JoinState::InGame || subtile_x < 0 || subtile_y < 0) return;
     send({ d2d::net::d2gs::c2s::move_to(std::uint16_t(subtile_x), std::uint16_t(subtile_y), run) });
+    walk_to_x = subtile_x;
+    walk_to_y = subtile_y;
+    walk_sent_ms = steady_ms();
 }
 
 auto NetGame::set_running(bool run) -> void {
