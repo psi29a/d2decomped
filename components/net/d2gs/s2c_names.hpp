@@ -34,7 +34,7 @@ inline auto s2c_name(std::uint8_t id) -> std::string_view {
         names[0x0b] = "unit handshake";    names[0x69] = "monster act at x, y"; names[0x6a] = "monster act on a unit";
         names[0x6b] = "monster act at x, y (where it is)"; names[0x6c] = "monster act on a unit (where it is)";
         names[0x47] = "check equipment";   names[0x48] = "check equipment"; names[0x5d] = "quest log news";
-        names[0x5e] = "quests open in game"; names[0x5f] = "player data +0x2c"; names[0x7c] = "item: end stat list";
+        names[0x5e] = "quests open in game"; names[0x5f] = "portal levels visited"; names[0x7c] = "item: end stat list";
         names[0x7e] = "load act COFs";
         names[0x65] = "player kills";      names[0x59] = "assign player";     names[0x5a] = "event message";   names[0x5b] = "player joins";
         names[0x5c] = "player leaves";     names[0x60] = "town portal state"; names[0x63] = "waypoints";

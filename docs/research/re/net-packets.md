@@ -559,8 +559,16 @@ The ids apps/d2proxy flagged in a real game.exe client's session (table
   the game's quest records (game +0x10f4) in the order of the table at
   `0x731520` (24 bytes a row, `DAT_00731888` rows): each record's +9, "open
   in this game" (quests-act1.md). All 1 at a game's start.
-- **0x5f** (5; `0x45e5d0`): +1 u32 into the own player's data +0x2c
-  (`FUN_006221e0`); 1 at the join. What reads +0x2c **(?)**.
+- **0x5f portal levels visited** (5; `0x45e5d0`): +1 u32 into the own
+  player's data +0x2c (`FUN_006221e0`). The host sends it from the join
+  (`FUN_00539760`: `FUN_00622230`, the getter). It's a mask over the
+  levels with Levels.txt `Portal` = 1 (the list `0x96c9f4` /
+  `0x96c9f8`, built by `FUN_0061dd00` from the level records' +0x8c, in
+  Id order: 1.14d has 16, Act 1's Town, Cold Plains, Dark Wood, Tamoe
+  Highland, Courtyard 1, Jail 1, Cathedral, Catacombs 3, ...): bit i, the
+  i-th of them entered (`FUN_0061ae30`). Host (`FUN_00537b50`) and client
+  (`FUN_00460e70`) OR in the bit of each new room's level. 1 at a new
+  character's join (the camp). Nothing else found reading it **(?)**.
 - **0x7c item: end a stat list** (6; `0x45e910` → `FUN_004c51b0`): +1 u8
   unit type (4), +2 u32 item id; `FUN_004c2180` removes the item's stat
   list 0x36 (as 0x3f's clearing case does).
