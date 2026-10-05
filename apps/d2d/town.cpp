@@ -446,7 +446,7 @@ auto Town::send(const Command& command) -> void {
             // subtiles (FUN_00548b00 case 1), so the trade's 0x13 comes again
             // once the menu's up (OpenTrade).
             if (npc.root == "objects") {
-                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) net_game->interact(2, object->id);
+                if (const auto* object = net_game->nearest(2, -1, subtile_x(npc.x), subtile_y(npc.y), 4.f)) { net_operate = object->id; net_operate_ms = frame_now; }
             } else if (const auto* host_npc = net_npc(interact->npc)) {
                 net_game->interact(1, host_npc->id);          // the host walks us up too (talk at 6)
             }
@@ -1244,6 +1244,40 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                     net_trade_asked = false;
                 }
             }
+            // An object operated here: the host operates it only near
+            // (FUN_00548b00 → FUN_00584540, range < 0x33) and drops a walking
+            // player's 0x13 (FUN_0054d750), so it goes once the host has us
+            // stopped close by; until then the host's player walks there.
+            if (net_operate != 0) {
+                const auto object = net_game->units.find(std::uint64_t(2) << 32 | net_operate);
+                if (object == net_game->units.end() || frame_ms - net_operate_ms > 8000) {
+                    net_game->log.note("object " + std::to_string(net_operate) + " couldn't be reached on the host");
+                    net_operate = 0;
+                } else if (std::hypot(net_game->host_x - object->second.x, net_game->host_y - object->second.y) > 4.f) {
+                    if (frame_ms - net_follow_ms >= 500) {
+                        net_follow_ms = frame_ms;
+                        net_game->move_to(object->second.x, object->second.y, view.running);
+                    }
+                } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
+                    net_game->interact(2, net_operate);
+                    net_operate = 0;
+                }
+            }
+            // The host's doors (0x0e: opened by anyone, a monster too): d2d's
+            // door nearest the host's object, to its mode and footprint.
+            for (const auto& [id, mode] : net_game->object_modes) {
+                const auto object = net_game->units.find(std::uint64_t(2) << 32 | id);
+                if (object == net_game->units.end() || mode < 0 || mode > 2) continue;
+                int door = -1;
+                float best = 4.f;
+                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                    const auto& npc = level->npcs[i];
+                    if (npc.root != "objects" || !World::is_door(npc.operate_fn)) continue;
+                    if (const float apart = std::hypot((npc.x + float(level->world_x)) * 5.f - object->second.x, (npc.y + float(level->world_y)) * 5.f - object->second.y); apart < best) { best = apart; door = int(i); }
+                }
+                if (door >= 0) world.set_door_mode(door, mode, frame_ms);
+            }
+            net_game->object_modes.clear();
             // A pick-up walked to: asked for once both of us are there.
             if (net_pick >= 0) {
                 const auto found = net_game->ground.find(std::uint32_t(net_pick));

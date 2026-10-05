@@ -158,6 +158,7 @@ struct Town {
     int net_trade_pending = -1;                              // the host NPC being walked to for a trade
     bool net_trade_gamble = false;
     bool net_trade_asked = false;                            // its 0x59 + 0x13 went out, NPC info awaited
+    std::uint32_t net_operate = 0, net_operate_ms = 0;       // the host object being walked to (0x13 once there), when
     std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()
     std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)

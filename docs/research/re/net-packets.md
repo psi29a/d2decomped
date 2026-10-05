@@ -209,7 +209,7 @@ The generic unit commands (players, and any unit type the table allows):
 |---|---|---|---|---|
 | 0x0c hit | 9 | `0x45cc70` | +7 u8 hit class (→ unit +0xb0); +8 u8 life / 128 (−1 when > 1; bit 7 set by `FUN_005a0180`) | cmd 0x13 always (builder `0x53b430`, from `FUN_00597cf0`); `{+7, +8}` |
 | 0x0d stop | 13 | `0x45ccc0` | +7 u16 x, +9 u16 y, +0xb u8, +0xc u8 life / 128 | `{x, y, +0xb}`; a player's party life bar (`FUN_0047a690`) (builder `0x53b4b0`) |
-| 0x0e object state | 12 | `0x45cd10` | +7 u8 **(?)**, +8 u32 new mode | object cmd 3 (mode) or 0x15 (operate effect) |
+| 0x0e object state | 12 | `0x45cd10` | +7 u8 **(?)** (1 when we operated it, 0 for a door already open as its room comes), +8 u32 new mode | object cmd 3 (mode) or 0x15 (operate effect); d2d sets its nearest door to the mode |
 | 0x0f move to x, y | 16 | `0x45cd40` | +7 u16 target x, +9 u16 target y, +0xb u8, +0xc u16 x, +0xe u16 y (where it is) | `{tx, ty, +0xb}`, correction at (x, y) (builder `0x53b570`) |
 | 0x10 move to unit | 16 | `0x45cd90` | +7 u8 target type, +8 u32 target id, +0xc u16 x, +0xe u16 y | `{type, id}`, correction (builder `0x53b520`) |
 
@@ -624,7 +624,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 
 | Id | Size | Layout | Server | d2d |
 |---|---|---|---|---|
-| 13 interact | 9 | u32 type, u32 id | `54aa90` → `FUN_00548b00`: player (corpse / trade), NPC (walk up; ≤ 6 talk, `FUN_00573020`), object (range < 0x33, `FUN_00584540`) | `cmd::Interact` (by `Level::npcs` index) |
+| 13 interact | 9 | u32 type, u32 id | `54aa90` → `FUN_00548b00`: player (corpse / trade), NPC (walk up; ≤ 6 talk, `FUN_00573020`), object (range < 0x33, `FUN_00584540`; a walking player's 0x13 is dropped) | `cmd::Interact` (by `Level::npcs` index); a joined d2d sends it once the host has the player stopped within 4 subtiles |
 | 2f start NPC chat | 9 | u32 type, u32 NPC id | `54b930` → `FUN_00572e60` | `cmd::Chat{npc}` |
 | 30 end NPC chat | 9 | the same | `54b9f0` → `FUN_00572f20` | `cmd::Chat{-1}` / `CloseTrade` |
 | 31 quest message heard | 9 | u32 NPC id, u16 message (+5) | `54ba90` → `FUN_005443b0` | `cmd::QuestMessage` |

@@ -412,7 +412,13 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
                 for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.x, monster.unit.y));
             mode = d2d::rules::door_mode(state.mode, occupied);
         }
-        if (mode < 0) return;
+        if (mode >= 0) set_door_mode(npc_index, mode, now_ms);
+    }
+
+auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void {
+        const auto& door = level->npcs[std::size_t(npc_index)];
+        auto& state = doors.try_emplace({ level, npc_index }, Door{ mode_index(door.mode), 0 }).first->second;
+        if (state.mode == mode) return;
         state = { mode, now_ms };
         set_footprint(*level, door, door.collision >> mode & 1);   // FUN_00623830 out / FUN_00620a70 back in
         if (const auto sound = d2d::rules::object_sound(door.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, door.x, door.y);
