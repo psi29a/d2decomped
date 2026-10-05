@@ -470,11 +470,24 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
     }
     draw_storage(framebuffer, scene, theirs, scene.trade_panel, scene.trade_layout[0], 100, mouse_x, mouse_y, wearer);
     draw_storage(framebuffer, scene, ours, d2d::dc6::Sprite{}, scene.trade_layout[1], 101, mouse_x, mouse_y, wearer);
-    shade(framebuffer, kTradeAccept, state == 7 ? 4 : 2);
-    centred(kTradeAccept, state == 7 ? "Ok!" : "Ok");
-    shade(framebuffer, kTradeCancel, 2);
-    centred(kTradeCancel, "X");
-    if (state == 5) centred(kTheirAccept, "Ok!");
+    // The buttons (the trade draw after the panel, 0x48fb20): buysellbtn
+    // frame 0x10 (0x11 once accepted) for ours at x+0xdf and theirs at
+    // x+0x113 bottom 0x116 up from the panel's foot; cancel 10 at x+0x113;
+    // ours and cancel 0x40 up. Hovered: "Accept Trade" / "Cancel".
+    if (std::uint32_t(0x11) < scene.store_buttons.frames_per_direction()) {
+        auto button = [&](std::uint32_t frame_index, int x, int bottom) {
+            const auto& frame = scene.store_buttons.frame(0, frame_index);
+            blit_sprite(framebuffer, frame, pal, x, bottom - int(frame.height) + 1);
+        };
+        button(state == 7 ? 0x11 : 0x10, kCharPanelX + 0xdf, int(kScreenHeight) - 60 - 0x40);
+        button(state == 5 ? 0x11 : 0x10, kCharPanelX + 0x113, int(kScreenHeight) - 60 - 0x116);
+        button(10, kCharPanelX + 0x113, int(kScreenHeight) - 60 - 0x40);
+    }
+    const bool on_accept = inside(kTradeAccept, mouse_x, mouse_y) || inside(kTheirAccept, mouse_x, mouse_y);
+    if (on_accept || inside(kTradeCancel, mouse_x, mouse_y)) {
+        const auto tip = string_id(scene, on_accept ? 0x1023 : 0x1022);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, mouse_x - scene.font.measure(tip) / 2, mouse_y - 30, tip);
+    }
     // The bars over each grid (the art's): their name and gold; ours.
     // ponytail: placed by eye on the art, not traced.
     centred({ 98, 70, 222, 88 }, with);

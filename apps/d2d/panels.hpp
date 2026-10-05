@@ -153,8 +153,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // Accept Trade and Cancel where game.exe has them (FUN_004b8730's boxes,
 // tooltips 0x1023 / 0x1022), their accept beside their grid.
 // Gold: a click on our bar types an amount (Enter offers it).
-// ponytail: text boxes for the buttons (their art, buysellbtn frames,
-// isn't traced); the amount is typed in the bar, not game.exe's gold box.
+// ponytail: the amount is typed in the bar, not game.exe's gold box.
 enum class TradeClick { kNone, kAccept, kDecline, kOurGrid, kGold };
 void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
                 const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
