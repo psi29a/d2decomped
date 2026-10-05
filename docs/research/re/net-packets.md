@@ -125,6 +125,9 @@ is, and the server walks it there, resyncs it (`FUN_0054cb10` /
 | +0x18 | u16 | y |
 
 The look comes afterwards, from the items the player wears (0x9d).
+Another player's arrive as 0x9d action 6 with them as owner (type 0,
+their id), one per worn item (50 for one Amazon on joining, 2026-10-05);
+d2d draws the look from them as from its own (`GameData::look_of`).
 
 **0xac assign monster** (variable; builder `0x53e2e0`, handler
 `0x45f190`). NPCs, the merc and summons are monsters too.
@@ -230,6 +233,13 @@ The server picks 0x67 or 0x68 by the mode table `DAT_006e1d90` (0x18
 bytes a mode: +0x10 the command for "at x, y", +0x14 "on a unit").
 Which of the builders `0x53b9f0 / 0x53ba40 / 0x53baa0 / 0x53bb00` makes
 which of 0x69..0x6c isn't settled **(?)**.
+
+**A monster's speed** is the client's: its path velocity is MonStats
+`Velocity` << 8 × stat 0x43 velocitypercent / 100 in any mode
+(`FUN_00462a20`, `FUN_00620e40`'s walk). The velocity in 0x67 / 0x68
+is that stat: `FUN_004aff60` adds the difference to 0x43 when it isn't
+0. The host sent 70 / 75 for walks and 125 / 130 for runs in Act 1
+Normal (1513 moves, 2026-10-05).
 
 **The server sends one packet per decision, never per step.** A move
 names the goal (and, in the correcting forms, where the unit is now);
@@ -528,7 +538,17 @@ ids).
 - **0x26 chat / overhead** (var; → `FUN_0049f490`; builder
   `FUN_0053c750`): +1 u8 type, +2 u8 language, +3 u8 unit type, +4 u32
   unit id, +8 u8 colour **(?)**, +9 u8 **(?)**, +10 name (≤ 16, NUL),
-  then the message (NUL).
+  then the message (NUL). Types: 1 to all, 2 a whisper, 4, 5 overhead
+  on the unit (`FUN_0049f410`), 6, 7. A player's chat (C→S 0x15,
+  `54a5d0`) goes out as type 1 (2 with a target), +3 unit type 2, +4
+  id 0, +9 the sender's level (stat 0xc), their name.
+- **The chat lines** (`FUN_0049e3a0` adds, `FUN_0049dc40` draws):
+  wrapped to the screen's width − 70, at most 6 lines a message, each
+  message 10 s (GetTickCount + 10000); past 18 lines the oldest message
+  goes. FontInGameChat (0xd), x 15 (W/2 + 15 when `FUN_0045ae90` is 2,
+  taken as a left panel open **(?)**), baselines 20 + 15 a line (0x5f
+  when `FUN_004538d0` **(?)**), each on a dark box (`FUN_0046efd0`: x − 5,
+  baseline − 14, the width + 10, 16 high, colour 0, mode 1).
 - **0x5a event message** (40; `FUN_0049eb10`; builder `FUN_0053c850`):
   +1 u8 event (0..0x12: joined, left, slain ...), +2 u8 colour **(?)**,
   +3 u32 argument, +7 u8, +8 char[16] name, +0x18 char[16] second name.
@@ -696,7 +716,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 | 51 hotkey | 9 | u32 (hotkey << 16, bit 15 left, skill), u32 item id | `54c870` | none |
 | 4f click button | 7 | u16 button, u16, u16 | `54c7c0` | a trade's (`FUN_004b8730`..`FUN_004b9110`): 2 decline / cancel, 3 accept the request, 4 accept (our gold high, low), 7 take it back, 8 our gold |
 | 5d / 5e party | 7 / 6 | | `FUN_005a6000` | none |
-| 14 / 15 chat / overhead | var | u8, u8 type, message\0, name\0 | `54a290` / `54a5d0` | none |
+| 14 / 15 overhead / chat | var | u8 type, u8 language, message\0, target\0 (15: total > length + 4) | `54a290` / `54a5d0` | none (d2d's chat line: `c2s::chat`, type 1) |
 | 6d ping | 13 | u32 tick, u32 (`FUN_0044ce70` >> 1), u32 checksum | system | **none** (the host expects it, at most every 5 s) |
 
 ## What the client does itself
@@ -777,7 +797,7 @@ works it out locally; d2d's View gets it from its own World today.
 | `ev::LevelChanged` | 0x15, room changes | derived on the client |
 | `ev::OpenUI` | 0x58, 0x27, 0x63, 0x77, 0x8a | |
 | — | 0x59 / 0x5b / 0x5c / 0x75 / 0x7f / 0x8b..0x8d (other players, party) | **no field**: the View has one player |
-| — | 0x26 / 0x5a (chat, events) | **no field** |
+| — | 0x26 / 0x5a (chat, events) | **no field**: d2d's client takes 0x26 types 1 / 2 itself (`NetGame::chat`) |
 | — | 0x07 / 0x08 (rooms in play) | d2d reveals client-side; fine for drawing, but units only exist in rooms in play |
 | — | 0x20, 0x9e..0xa2 (other units' stats) | **no field** |
 | — | 0x63 known waypoints | d2d has them in the character; the packet overrides |

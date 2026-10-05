@@ -180,6 +180,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
             scene.font_formal11 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
+    if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontingamechat.tbl)"))
+        if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontingamechat.dc6)"))
+            scene.font_chat = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.tbl)"))
         if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.dc6)"))
             scene.font30 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));

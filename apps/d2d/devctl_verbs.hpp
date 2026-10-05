@@ -204,6 +204,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.net_game->trade.state = std::atoi(args[2].c_str());
             return std::string("ok\n");
         }
+        if (args.size() >= 3 && args[1] == "chat") {   // a chat line shown as received (its look; no one is told)
+            std::string text = args[2];
+            for (std::size_t i = 3; i < args.size(); ++i) text += " " + args[i];
+            town.add_chat(text);
+            return std::string("ok\n");
+        }
         if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
             std::string out;
             for (std::size_t i = 0; i < town.world.portal.size(); ++i)

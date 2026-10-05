@@ -85,6 +85,17 @@ inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(
 // 0x28 type 6, then 0x29).
 inline auto update_quests() -> Bytes { return { 0x40 }; }
 
+// 0x15: chat (54a5d0): +1 type (1: to all), +2 language, the message,
+// NUL, a whisper's target, NUL. The host sends it on as 0x26 type 1
+// (2 when a target is named), the sender's name and level filled in.
+inline auto chat(std::string_view message) -> Bytes {
+    Bytes out{ 0x15, 0x01, 0x00 };
+    for (const char letter : message.substr(0, 255)) put_u8(out, std::uint8_t(letter));
+    put_u8(out, 0);
+    put_u8(out, 0);
+    return out;
+}
+
 // 0x41: a dead player back to town (54c0e0 takes it only from the dead).
 inline auto resurrect() -> Bytes { return { 0x41 }; }
 

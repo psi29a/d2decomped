@@ -37,6 +37,11 @@ struct NetGame {
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
+        std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;   // another player's: by item id (0x9d)
+        int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id
+        std::uint32_t skill_ms = 0;   // when (steady ms)
+        float skill_x = 0, skill_y = 0;   // where it went
+        int velocity_pct = 100;       // a monster's stat 0x43 velocitypercent, from its moves (0x67 / 0x68)
     };
 
     // An item on the ground (0x9c actions 0 / 2 / 3): act subtiles.
@@ -95,6 +100,7 @@ struct NetGame {
     float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
     std::uint32_t walked_ms = 0;      // the host's last word of our walk (0x96), steady ms: still walking
     std::unordered_map<std::uint64_t, Unit> units;
+    std::vector<int> monster_velocity;   // MonStats Velocity by row: a monster's walk (empty: a player's walk)
     std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id
     std::unordered_map<std::uint32_t, d2d::d2s::Item> own_items;   // ours as the host has them (grids, body, belt, cursor), by its ids
     std::unordered_map<std::uint32_t, d2d::d2s::Item> store_items;   // the open store's stock (0x9c 0xb), by its ids
@@ -128,12 +134,15 @@ struct NetGame {
     auto trade_answer(bool accept) -> void;
     auto trade_accept() -> void;
     auto trade_cancel() -> void;
+    auto say(std::string_view message) -> void;   // chat to all (0x15)
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
     bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
     std::optional<std::array<std::uint8_t, 96>> quest_words;   // our quest words in the host's game (0x28 type 6): the client takes them
+    struct ChatLine { std::string name, message; };
+    std::vector<ChatLine> chat;                // players' chat (0x26 types 1, 2), for the client to take
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:

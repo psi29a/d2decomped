@@ -367,7 +367,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
-        if (const bool want = screen == Screen::CharCreate; want != text_active) {
+        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && town.chat_typing); want != text_active) {
             if (want) SDL_StartTextInput(win.window);
             else      SDL_StopTextInput(win.window);
             text_active = want;
@@ -581,6 +581,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             character.header.difficulty[std::size_t(std::clamp(net.difficulty, 0, 2))] = 0x80;
                             town.world.characters = nullptr;
                             town.world.fight.remote_monsters = true;
+                            for (const auto& type_info : scene->monsters.types) net.monster_velocity.push_back(type_info.velocity);
                             town.net_game = std::move(*joined);
                             town.enter();
                             if (const auto* here = town.world.level; here && net.self_x > 0) {
@@ -596,6 +597,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 break;
             }
             case Screen::InGame: {
+                town.typed = text_this_frame;
                 town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
                 write_save_back();
                 if (screen == Screen::CharSelect && town.net_game) {   // a joined game: leave the host, saving on again

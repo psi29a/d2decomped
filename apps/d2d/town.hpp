@@ -147,7 +147,9 @@ struct Town {
     View view;                             // what the World told the client after its last tick
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
     std::unique_ptr<NetGame> net_game;     // --join: a game on a game.exe host (its other players and monsters)
-    std::unordered_map<std::uint32_t, Monster> net_monsters;   // the host's monsters as d2d draws them, by unit id
+    std::unordered_map<std::uint32_t, Monster> net_monsters;
+    struct ShownMode { int mode = -1; std::uint32_t skill_ms = 0, since = 0; };   // since: world ms
+    std::unordered_map<std::uint32_t, ShownMode> net_other_modes;   // another player's mode, by unit id   // the host's monsters as d2d draws them, by unit id
     int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int net_pick = -1;                                       // the host item being walked to, to pick up
@@ -161,6 +163,12 @@ struct Town {
     int net_operate_type = 2;                                // the host unit being walked to (0x13 once there): 2 object, 0 our corpse
     std::uint32_t net_operate = 0, net_operate_ms = 0;       // ... its id, when
     bool net_operate_moves = false;                          // ... a warp or portal: it takes us to another area
+    auto add_chat(const std::string& text) -> void;
+    auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
+    std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)
+    std::string typed;                                      // this frame's typed text (SDL text input)
+    struct ChatShown { std::string text; std::uint32_t until = 0; };
+    std::vector<ChatShown> chat_lines;                      // the top-left chat lines, oldest first
     std::optional<std::string> trade_gold_typing;           // a trade's gold, being typed (our bar clicked)
     int net_operate_waypoint = -1;                           // ... a waypoint: then 0x49 to this level
     std::uint32_t net_moving_until = 0;                      // such a 0x13 went: no following walks till the host moves us (0x15) or then

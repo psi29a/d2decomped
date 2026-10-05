@@ -121,14 +121,14 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ view.merc->unit.x, view.merc->unit.y, &scene.npc_anim(*view.merc->npc, view.merc->mode), view.merc->unit.dir,
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
     for (const auto& pet : view.pets) out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
-    // A joined game's other players, in their class's bare look (the items
-    // they wear, 0x9d, aren't read yet). ponytail: their look and modes past walk.
+    // A joined game's other players, in what they wear (0x9d), walking,
+    // standing or in a skill's mode.
     const bool in_town = view.level && view.level->id == 1;
     for (std::size_t i = 0; i < view.others.size(); ++i) {                   // -4000 - i: a click asks them to trade
         const auto& other = view.others[i];
         if (!in_view(other.unit.x, other.unit.y)) continue;
-        const int mode = other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
-        out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, GameData::Appearance{}), other.unit.dir, &other.name, other.unit.mode_ms, -4000 - int(i) });
+        const int mode = other.mode >= 0 ? other.mode : other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
+        out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, other.gfx), other.unit.dir, &other.name, other.unit.mode_ms, -4000 - int(i) });
     }
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
@@ -585,10 +585,27 @@ auto Town::net_overlay() -> void {
             if (unit.type == 0) {
                 if (unit.id == net_game->self_id) continue;
                 View::OtherPlayer other{ .cls = unit.cls, .name = unit.name, .id = unit.id };
+                std::vector<d2d::d2s::Item> worn;
+                for (const auto& entry : unit.worn) worn.push_back(entry.second);
+                other.gfx = scene->look_of(worn);
                 other.unit.x = cell_x(unit.x);
                 other.unit.y = cell_y(unit.y);
                 other.unit.walking = unit.moving;
                 if (unit.moving) other.unit.dir = direction16(unit.goal_x - unit.x, unit.goal_y - unit.y);
+                // A skill (0x4c / 0x4d) plays its Skills.txt anim once, facing
+                // where it went (A1 / TH an attack, else a cast, as ours).
+                auto& shown = net_other_modes[unit.id];
+                if (const auto* skill_row = unit.skill >= 0 ? scene->skills.get(unit.skill) : nullptr) {
+                    const int mode = skill_row->anim == "A1" || skill_row->anim == "TH" ? kModeA1 : kModeSC;
+                    if (net_game->steady_now() - unit.skill_ms < scene->composite(unit.cls, mode, other.gfx).length_ms()) {
+                        other.mode = mode;
+                        other.unit.dir = direction16(unit.skill_x - unit.x, unit.skill_y - unit.y);
+                    }
+                }
+                if (other.mode != shown.mode || (other.mode >= 0 && unit.skill_ms != shown.skill_ms)) shown.since = world_ms;   // the animation starts over
+                shown.mode = other.mode;
+                shown.skill_ms = unit.skill_ms;
+                other.unit.mode_ms = shown.since;
                 view.others.push_back(std::move(other));
                 continue;
             }
@@ -680,8 +697,25 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // D2 movement: press or hold the left button on the ground
         // and the character walks toward that point (the target
         // tracks the cursor while held); the camera follows.
+        // Chat (a joined game): Enter opens a line, typing and Backspace edit
+        // it, Enter sends it (0x15) and Esc drops it. The host's 0x26 comes
+        // back to everyone, us too, as "name: message".
+        // ponytail: no whispers (/w name), no single-player echo.
+        if (net_game && !trade_gold_typing && !game_menu.open) {
+            if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
+            for (const auto key : keys_this_frame) {
+                if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
+                if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
+                if (!chat_typing) { chat_typing = std::string{}; continue; }
+                if (!chat_typing->empty()) net_game->say(*chat_typing);
+                chat_typing.reset();
+            }
+        }
+        if (net_game)
+            for (auto& line : std::exchange(net_game->chat, {})) add_chat(line.name + ": " + line.message);
+        std::erase_if(chat_lines, [&](const auto& line) { return frame_ms >= line.until; });
         for (const auto key : keys_this_frame) {
-            if (trade_gold_typing && key != SDLK_ESCAPE) continue;   // typing a trade's gold: no hotkeys
+            if ((trade_gold_typing || chat_typing) && key != SDLK_ESCAPE) continue;   // typing: no hotkeys
             if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
             if (key == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (key == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
@@ -698,7 +732,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // closes, else every Esc-closable panel at once (FUN_00456300;
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
-                if (trade_gold_typing) trade_gold_typing.reset();             // the gold being typed first
+                if (chat_typing) chat_typing.reset();                         // a chat line being typed first
+                else if (trade_gold_typing) trade_gold_typing.reset();        // then the gold being typed
                 else if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
                 else if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
@@ -1605,6 +1640,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
                        trade.our_gold, trade_gold_typing ? &*trade_gold_typing : nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
+        draw_chat(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
             quest_log_close(quest_log, quest_bits(), quest_state());
@@ -1623,5 +1659,53 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
     }
+
+
+// A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
+// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
+auto Town::add_chat(const std::string& text) -> void {
+    const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
+    std::vector<std::string> wrapped{ std::string{} };
+    std::size_t start = 0;
+    while (start < text.size()) {
+        const auto end = std::min(text.find(' ', start), text.size());
+        const auto word = text.substr(start, end - start);
+        const auto joined = wrapped.back().empty() ? word : wrapped.back() + " " + word;
+        if (!wrapped.back().empty() && font.measure(joined) > int(kScreenWidth) - 70) wrapped.push_back(word);
+        else wrapped.back() = joined;
+        start = end + 1;
+    }
+    wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
+    for (auto& line : wrapped) chat_lines.push_back({ std::move(line), now_ms + 10000 });
+    if (chat_lines.size() > 18) chat_lines.erase(chat_lines.begin(), chat_lines.end() - 18);   // ponytail: by line, not by message
+}
+
+// The chat lines (FUN_0049dc40): FontInGameChat (0xd), at x 15 (the
+// right half's when only a left panel is open, FUN_0045ae90 2 (?)),
+// baselines 20 + 15 a line, each on a dark box from x - 5, 14 up,
+// 16 high, the text's width + 10 (FUN_0046efd0 colour 0, mode 1).
+// The line being typed sits below them.
+// ponytail: white; the colour per message type isn't traced. The typed
+// line's place and look are d2d's: game.exe's edit box isn't traced.
+auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void {
+    if (chat_lines.empty() && !chat_typing) return;
+    const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
+    const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
+    const int x = left_open && !right_open ? int(kScreenWidth) / 2 + 15 : 15;
+    int baseline = 20;
+    auto line = [&](const std::string& text) {
+        const int width = font.measure(text);
+        for (int y = std::max(baseline - 14, 0); y < std::min(baseline + 2, int(kScreenHeight)); ++y)
+            for (int column = std::max(x - 5, 0); column < std::min(x + width + 5, int(kScreenWidth)); ++column)
+                for (int channel = 0; channel < 3; ++channel) {
+                    auto& value = framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(column)) * 4 + std::size_t(channel)];
+                    value = std::uint8_t(value / 2);
+                }
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, baseline - font.line_height() + 1, text, 255, 255, 255);
+        baseline += 15;
+    };
+    for (const auto& shown : chat_lines) line(shown.text);
+    if (chat_typing) line(*chat_typing + "_");
+}
 
 }  // namespace d2d::client

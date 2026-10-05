@@ -97,7 +97,7 @@ struct View {
     std::vector<Corpse> corpses;
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
-    struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; };   // id: the host's unit
+    struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; };   // id: the host's unit; mode: an act, -1 walk / stand
     std::vector<OtherPlayer> others;
     // The level's NPCs as they patrol, then each Level::nearby level's in
     // that order (its npcs.size() each, its own cells).

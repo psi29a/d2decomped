@@ -43,6 +43,7 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
             }
         } else if (event.key.key == SDLK_BACKSPACE) {
             text_backspace = true;
+            if (current_screen == Screen::InGame) keys.push_back(event.key.key);   // typing chat or a trade's gold
         } else {
             keys.push_back(event.key.key);   // per-screen key handling
         }
