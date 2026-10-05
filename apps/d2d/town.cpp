@@ -1194,6 +1194,12 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             if (net_game->take_death() && !world.fight.dead()) world.fight.die(frame_ms);
             // The host's quest log news (0x5d): the Quest Log button, as the
             // single-player path raises it on a log change (FUN_004a2cb0).
+            // Our quest words as the host has them (0x28): the quest log
+            // and the NPCs' talk read these.
+            if (net_game->quest_words) {
+                world.character.header.quests[std::size_t(std::clamp(world.character.header.active_difficulty(), 0, 2))] = *net_game->quest_words;
+                net_game->quest_words.reset();
+            }
             for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
             net_game->quest_news.clear();
             // Our stats as the host sets them: attributes, points, life / mana /

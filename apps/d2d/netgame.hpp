@@ -18,6 +18,7 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -108,6 +109,7 @@ struct NetGame {
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
     bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
+    std::optional<std::array<std::uint8_t, 96>> quest_words;   // our quest words in the host's game (0x28 type 6): the client takes them
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:

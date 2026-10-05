@@ -577,6 +577,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             auto& net = **joined;
                             d2d::log::info("  in {}'s game: act {}, map seed {:#x}, difficulty {}", g_join_host, net.act + 1, net.map_seed, net.difficulty);
                             set_map_seed(*scene, net.map_seed);
+                            character.header.difficulty = {};              // the host's game's difficulty, Act 1
+                            character.header.difficulty[std::size_t(std::clamp(net.difficulty, 0, 2))] = 0x80;
                             town.world.characters = nullptr;
                             town.world.fight.remote_monsters = true;
                             town.net_game = std::move(*joined);

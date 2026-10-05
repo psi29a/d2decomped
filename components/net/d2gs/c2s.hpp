@@ -81,6 +81,10 @@ inline auto move_to(std::uint16_t x, std::uint16_t y, bool run) -> Bytes {
 // 0x53 / 0x54: run / walk from now on.
 inline auto set_running(bool run) -> Bytes { return { static_cast<std::uint8_t>(run ? 0x53 : 0x54) }; }
 
+// 0x40: the player's quest words again (the host's FUN_00546040 answers
+// 0x28 type 6, then 0x29).
+inline auto update_quests() -> Bytes { return { 0x40 }; }
+
 // 0x41: a dead player back to town (54c0e0 takes it only from the dead).
 inline auto resurrect() -> Bytes { return { 0x41 }; }
 
