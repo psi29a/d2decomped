@@ -4,13 +4,17 @@
 #include "game_api.hpp"
 
 #include <d2gs/c2s.hpp>
+#include <d2gs/c2s_names.hpp>
 #include <d2gs/exe_tables.hpp>
+#include <d2gs/s2c_names.hpp>
 #include <d2gs/wire.hpp>
 #include <log.hpp>
 
 #include <bitset>
 #include <chrono>
 #include <cmath>
+#include <format>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -27,6 +31,16 @@ auto used_ids() -> std::bitset<256> {
     for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
+}
+
+// d2d.log's view of the stream (the net log file has all of it):
+// warning for an id nobody has looked at, debug every packet, trace bytes.
+auto log_packet(std::string_view arrow, std::string_view name, const d2d::net::Bytes& packet) -> void {
+    if (packet.empty()) return;
+    auto bytes = [&] { std::string out; for (const auto byte : packet) out += std::format(" {:02x}", byte); return out; };
+    if (name.empty()) d2d::log::warn("net: {} {:02x} unknown ({} bytes):{}", arrow, packet[0], packet.size(), bytes());
+    else d2d::log::debug("net: {} {:02x} {} ({} bytes)", arrow, packet[0], name, packet.size());
+    if (d2d::log::enabled(d2d::log::Level::trace)) d2d::log::trace("net: {} {:02x}{}", arrow, packet[0], bytes());
 }
 
 auto steady_ms() -> std::uint32_t {
@@ -74,6 +88,7 @@ auto NetGame::send(const std::vector<d2d::net::Bytes>& packets) -> void {
         if (packet == last_sent && now - last_sent_ms < 200) continue;
         last_sent = packet;
         last_sent_ms = now;
+        log_packet("C>S", d2d::net::d2gs::c2s_name(packet[0]), packet);
         log.to_host(packet);
         if (auto sent = connection.send(packet); !sent) log.note("send failed: " + sent.error());
     }
@@ -96,6 +111,7 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
             auto step = session.receive(*received, now_ms);
             for (const auto& packet : step.packets) {
                 log.from_host(packet);
+                log_packet("S>C", d2d::net::d2gs::s2c_name(packet[0]), packet);
                 handle(packet);
             }
             send(step.to_send);

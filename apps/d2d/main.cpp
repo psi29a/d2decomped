@@ -820,7 +820,8 @@ int main(int argc, char** argv) {
     std::string toggles;
     app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
-    std::string join_host, game_exe;
+    std::string join_host, game_exe, log_level = "info";
+    app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
     app.add_option("--join", join_host, "Join a game.exe TCP/IP game at this address (your own network only)");
     app.add_option("--game-exe", game_exe, "Your 1.14d game.exe, for --join (else $D2_GAME_EXE, game.exe or bin/game.exe beside the MPQs)");
     int start_cam_x = -1, start_cam_y = -1;
@@ -833,6 +834,8 @@ int main(int argc, char** argv) {
     } catch (const CLI::ParseError& error) {
         return app.exit(error);
     }
+    if (const auto level = d2d::log::parse_level(log_level)) d2d::log::set_level(*level);
+    else { d2d::log::error("--log-level {}: one of error, warning, info, debug, trace", log_level); return 2; }
     g_seed_fixed = app.count("--seed") > 0;
     g_map_seed = map_seed;
     // The MPQs: first hit wins, each a hard stop (install-detect.md,
