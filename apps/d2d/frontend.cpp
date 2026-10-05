@@ -76,8 +76,6 @@ void render_title(std::vector<std::uint8_t>& framebuffer,
             }
         }
     }
-
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 8, int(kScreenHeight) - 14, "d2d dev build");
 }
 
 int charselect_max_scroll(int count) {
@@ -284,10 +282,6 @@ void render_credits(std::vector<std::uint8_t>& framebuffer,
             y += pitch;
         }
     }
-
-    // Small hint at the bottom-left so anyone can find their way back.
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 8, int(kScreenHeight) - 14,
-                "d2d dev build — click or Esc to return");
 }
 
 void advance_char_states(CharCreateUI& create_ui,
@@ -316,6 +310,7 @@ void advance_char_states(CharCreateUI& create_ui,
 }
 
 void handle_charcreate_click(CharCreateUI& create_ui,
+                             const Scene& scene,
                              const Mouse& mouse,
                              std::uint32_t elapsed_ms) {
     if (!mouse.release_this_frame) return;
@@ -329,12 +324,16 @@ void handle_charcreate_click(CharCreateUI& create_ui,
         create_ui.hardcore = !create_ui.hardcore;
         return;
     }
-    // Class hitboxes ARE the (x, y, w, h) rects from the RE'd records — 88×184
-    // per class, position varies. D2 uses the same rects for hover + click
-    // detection AND for sprite placement anchor.
+    // A class is hit inside its current animation's first frame, drawn at
+    // the record's (x, y) (FUN_005003a0); the record's w x h isn't used.
     for (int i = 0; i < 7; ++i) {
         const auto position = kClassPos[i];
-        if (mouse.x >= position.x && mouse.x < position.x + position.width && mouse.y >= position.y && mouse.y < position.y + position.height) {
+        const auto& class_ui = create_ui.classes[std::size_t(i)];
+        const auto& anim = scene.class_anims[std::size_t(i)][class_ui.state == ClassState::Idle ? 0 : class_ui.state == ClassState::Selecting ? 2 : class_ui.state == ClassState::Selected ? 3 : 4];
+        if (anim.frames_per_direction() == 0) continue;
+        const auto& frame = anim.frame(0, 0);
+        const int left = position.x + frame.offset_x, bottom = position.y + frame.offset_y;
+        if (mouse.x >= left && mouse.x < left + int(frame.width) && mouse.y >= bottom - int(frame.height) && mouse.y < bottom) {
             if (create_ui.selected == i) return;   // clicked selected class → no-op
             // Deselect old.
             if (create_ui.selected >= 0) {
@@ -360,16 +359,17 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
 
     blit_dc6_grid(framebuffer, scene.charcreate_bg, pal, 0, 0, scene.bg_tiles_across);
 
-    // Campfire — RE record 0x70ae70: (x=345, y=470, w=110, h=127).
-    // D2's drawer treats (x, y) as sprite origin (feet-of-flame); anchor
-    // for BOTTOM-LEFT DC6 convention = (x + w/2, y + h). A shadow layer
-    // exists at (345, 454) — same handle, 16 px higher — draw both.
+    // Campfire — records 0x70ae70 (345, 470) and 0x70aea0 (345, 454), the
+    // same fire.dc6 twice. A one-sprite widget draws at (x, y) less its
+    // first frame's offsets (FUN_005005b0), so (x, y) is that frame's
+    // bottom-left; an animation set (the classes) draws at (x, y) itself.
     const auto fire_frames = scene.fire.frames_per_direction();
     if (fire_frames > 0) {
         const auto fire_frame = std::uint32_t(((elapsed_ms + 7) / kBaseFrameMs) % fire_frames);
         // Shadow first, then main flame on top.
-        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 + 55, 454 + 127);
-        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 + 55, 470 + 127);
+        const auto& first = scene.fire.frame(0, 0);
+        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 - first.offset_x, 454 - first.offset_y);
+        blit_additive(framebuffer, scene.fire.frame(0, fire_frame), pal, &scene.fechar_pl2, 345 - first.offset_x, 470 - first.offset_y);
     }
 
     // Per-class draw: pick anim + frame based on state, place at the RE'd
@@ -396,9 +396,9 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
         } else {
             frame_index = std::uint32_t((elapsed_for_frame / kBaseFrameMs) % frames);
         }
-        // Anchor is the box's centre-bottom point; each frame's own DC6
-        // offset places the actual pixels relative to that anchor.
-        blit_at_anchor(framebuffer, spr.frame(0, frame_index), pal, position.x + position.width / 2, position.y + position.height);
+        // The record's (x, y) is the anchor; each frame's own DC6 offset
+        // places its pixels.
+        blit_at_anchor(framebuffer, spr.frame(0, frame_index), pal, position.x, position.y);
     }
 
     // Selected class name — big warm-gold caption above the panel area.
@@ -494,9 +494,6 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
         }
     }
-
-    scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 8, int(kScreenHeight) - 14,
-                "d2d dev build — pick class, type name, hit OK");
 }
 
 int cinematics_unlocked(const std::string& seen) {

@@ -11,6 +11,8 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <dcc.hpp>
+#include <gamedata.hpp>
+#include <gamedata_load.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
 #include <palette.hpp>
@@ -317,8 +319,8 @@ void load_saves(Scene& scene, const fs::path& dir) {
     d2d::log::info("Characters: {} in {}", scene.saves.size(), dir.string());
 }
 
-std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed) {
-    auto data = game::load_game_data(data_dir, patch_installer, map_seed, /*tile_pixels=*/true);
+std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_installer) {
+    auto data = game::open_game_data(data_dir, patch_installer, /*tile_pixels=*/true);
     if (!data) return std::nullopt;
     const auto start_ms = d2d::log::ms();
     try {
@@ -410,38 +412,35 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
                 if (!bytes) bytes = mpqs.try_read(R"(data\local\ui\eng\Credits.txt)");
                 return bytes ? parse_credits_utf16(*bytes) : std::vector<std::string>{};
             }();
-        // Frontend button labels (IDs 0x13f2..0x13f7) live in the base
-        // string.tbl per probe. patchstring.tbl (826 entries) overrides
-        // specific IDs when Blizzard shipped patches; expansionstring.tbl
-        // (2788 entries) carries LoD-specific additions. For MVP we use
-        // string.tbl directly; when a subsystem needs a patch-shifted
-        // entry, load all three and query in order (patch → expansion →
-        // base).
-        scene.strings = [&] {
-                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\string.tbl)");
-                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
-            }();
-        scene.patch_strings = [&] {
-                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\patchstring.tbl)");
-                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
-            }();
-        scene.exp_strings = [&] {
-                auto bytes = mpqs.try_read(R"(data\local\LNG\ENG\expansionstring.tbl)");
-                return bytes ? d2d::tbl::Table(*bytes) : d2d::tbl::Table{};
-            }();
         // Rogue-camp world data — separate call so a DS1/DT1 miss doesn't
         // nuke the whole scene; the InGame screen falls back to the credits
         // placeholder when world is empty.
         if (auto bytes = mpqs.try_read(R"(data\global\ui\FrontEnd\CinematicsSelectionEXP.dc6)"))
             scene.cinematics_panel = d2d::dc6::Sprite(*bytes);
-        load_ui_sprites(scene, mpqs);
-        load_monster_sprites(scene, mpqs);
-        load_act1_palettes(scene, mpqs);
-        d2d::log::info("Scene loaded in {} ms.", d2d::log::ms() - start_ms);
+        d2d::log::info("Menus loaded in {} ms.", d2d::log::ms() - start_ms);
         return scene;
     } catch (const std::exception& error) {
         d2d::log::error("load_scene: {}", error.what());
         return std::nullopt;
+    }
+}
+
+void finish_scene(Scene& scene, const fs::path& save_dir, std::uint32_t map_seed,
+                  std::uint32_t (*save_seed)(const d2d::d2s::Header&)) {
+    const auto start_ms = d2d::log::ms();
+    try {
+        auto mpqs = scene.mpqs.reopen();        // StormLib handles stay on their thread
+        game::load_game_tables(scene, mpqs);
+        load_saves(scene, save_dir);            // their items need the tables
+        if (!scene.saves.empty()) map_seed = save_seed(scene.saves.front());   // the likely pick's map
+        game::load_game_world(scene, mpqs, map_seed);
+        load_ui_sprites(scene, mpqs);
+        load_monster_sprites(scene, mpqs);
+        load_act1_palettes(scene, mpqs);
+        want_nearby(scene, scene.town);         // the Blood Moor builds while the menus run
+        d2d::log::info("Scene loaded in {} ms.", d2d::log::ms() - start_ms);
+    } catch (const std::exception& error) {
+        d2d::log::error("finish_scene: {}", error.what());
     }
 }
 

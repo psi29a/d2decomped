@@ -191,7 +191,7 @@ const ExeTable kTables[] = {
         }
     } },
     { "client::kClassPos", 0x70af30, [](const Exe& exe, std::uint32_t) {   // scattered 48-byte records, {x, y, w, h} at +4
-        constexpr std::uint32_t kRecord[7] = { 0x70af30, 0x70afc0, 0x70b020, 0x70b050, 0x70aff0, 0x70b470, 0x70b440 };
+        constexpr std::uint32_t kRecord[7] = { 0x70af30, 0x70af00, 0x70b020, 0x70b050, 0x70aff0, 0x70b470, 0x70b440 };
         for (std::uint32_t i = 0; i < 7; ++i) {
             const auto& pos = client::kClassPos[i];
             eq(4 * i, pos.x, exe.i32(kRecord[i] + 4)); eq(4 * i + 1, pos.y, exe.i32(kRecord[i] + 8));

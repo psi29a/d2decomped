@@ -11,8 +11,8 @@ namespace fs = std::filesystem;
 
 // D2 iso-diamond tile dimensions. Each cell footprint = 160x80; each
 // step in x moves (+80, +40) on screen, each step in y moves (-80, +40).
-// unverified (source: OpenDiablo2's mapengine): the projection; the data
-// agrees (DT1 floor tiles are 160x80 diamonds and the camp's tiles meet).
+// A subtile is (x - y) * 16, (x + y) * 8 (FUN_00643260), a tile 5 of
+// them (FUN_00643310).
 constexpr int kIsoW = 160;
 constexpr int kIsoH = 80;
 

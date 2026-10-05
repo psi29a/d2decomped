@@ -438,7 +438,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             const bool live = i < town.npc_states.size() && !npc.path.empty();
             const float dx = (live ? town.npc_states[i].x : npc.x) - town.player.x, dy = (live ? town.npc_states[i].y : npc.y) - town.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
-            const int screen_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
+            const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             const bool menu = std::ranges::any_of(kNpcMenus, [&](const NpcMenu& menu_entry) { return menu_entry.hc_idx == npc.hc_idx; });
             out += std::format("{}\t{}\t{}\t{}\t{}\t{:.1f}\t{:.1f}\n", npc.name, screen_x, screen_y, menu ? 1 : 0, i, dx + town.player.x, dy + town.player.y);
         }
@@ -453,7 +453,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         for (const auto& monster : town.net_game ? town.view.monsters : town.fight.monsters) {   // a joined game: the host's
             const float dx = monster.unit.x - town.player.x, dy = monster.unit.y - town.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
-            const int screen_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
+            const int screen_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2)));
             static constexpr std::array<const char*, 5> kBoss = { "-", "champion", "unique", "superunique", "minion" };
             std::string mods;
             for (const int mod : monster.mods) mods += (mods.empty() ? "" : ",") + std::to_string(mod);
@@ -470,7 +470,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             const float dx = ground_item.x - town.player.x, dy = ground_item.y - town.player.y;
             out += std::format("{}\t{}\t{}\t{}\t#{}\n", ground_item.item.code, ground_item.label,
                                int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),
-                               int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2))), ground_item.id);
+                               kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), ground_item.id);
         }
         return out + "ok\n";
     });

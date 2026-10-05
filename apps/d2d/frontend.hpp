@@ -94,6 +94,7 @@ constexpr int kHardcoreX = 319, kHardcoreW = 15, kHardcoreH = 16;
 constexpr int kHardcoreY = rec_top(560, kHardcoreH);
 
 void handle_charcreate_click(CharCreateUI& create_ui,
+                             const Scene& scene,
                              const Mouse& mouse,
                              std::uint32_t elapsed_ms);
 

@@ -38,20 +38,17 @@ struct ClassUI {
     std::uint32_t state_start_ms = 0;
 };
 
-// Class placement records — sourced from RE'd char-create menu table at
-// 0x70aed0..0x70b470 (each entry is one kind=3 record from the master
-// table). (x, y, w, h) is the bounding-box rect the D2 drawer uses to
-// position the class sprite and to hit-test clicks. Sprite renders so
-// its logical origin (feet-centre) lands at (x + w/2, y + h), which
-// combined with each frame's own DC6 offset positions the actual pixels.
-// Order matches Scene::class_anims (BA, NE, PA, AM, SO, DZ, AS — our
-// left-to-right visual order). Individual records source addresses:
-//   AM 0x70b050  NE 0x70afc0  AS 0x70b440  BA 0x70af30
+// Class placement records: the kind-3 records game.exe builds the LoD
+// classes from (FUN_00435580: FUN_0042f430(index), record 0x708d10 +
+// index * 0x30). (x, y) is the sprite anchor; w x h isn't used (see
+// render_charcreate). Order matches Scene::class_anims (BA, NE, PA, AM,
+// SO, DZ, AS). Records:
+//   AM 0x70b050  NE 0x70af00  AS 0x70b440  BA 0x70af30
 //   PA 0x70b020  SO 0x70aff0  DZ 0x70b470
 struct ClassPos { int x, y, width, height; };
 constexpr ClassPos kClassPos[7] = {
     {400, 330, 88, 184},   // Barbarian
-    {217, 360, 88, 184},   // Necromancer
+    {301, 333, 88, 184},   // Necromancer
     {521, 339, 88, 184},   // Paladin
     {100, 337, 88, 184},   // Amazon
     {626, 353, 88, 184},   // Sorceress

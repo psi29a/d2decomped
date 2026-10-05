@@ -19,6 +19,12 @@ namespace d2d::game {
 // tile_pixels: decode the levels' tile graphics (GameData::tile_pixels).
 std::optional<GameData> load_game_data(const fs::path& data_dir, const fs::path& patch_installer, std::uint32_t map_seed,
                                        bool tile_pixels = false);
+// load_game_data in steps, so the menus can come up first: the MPQs and the
+// strings; then every table; then Act 1 for map_seed with its units,
+// monsters and skills (after the tables: a save's seed needs them read).
+std::optional<GameData> open_game_data(const fs::path& data_dir, const fs::path& patch_installer, bool tile_pixels = false);
+void load_game_tables(GameData& data, const d2d::mpq::Stack& mpqs);
+void load_game_world(GameData& data, d2d::mpq::Stack& mpqs, std::uint32_t map_seed);
 
 // A game on another map seed: act 1 laid out again, the camp rebuilt with
 // its units, the other levels dropped (they build again when wanted). The

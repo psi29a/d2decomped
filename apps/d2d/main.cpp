@@ -54,6 +54,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <future>
 #include <functional>
 #include <ios>
 #include <iterator>
@@ -126,6 +127,7 @@ inline void pace_frame(std::uint32_t frame_start_ms) {
 
 int run_windowed(std::vector<std::uint8_t>& framebuffer,
                  std::optional<Scene>& scene,
+                 std::future<void>& loading,
                  const fs::path& save_dir,
                  d2d::devctl::Channel& channel,
                  std::atomic<std::uint64_t>& frame_count,
@@ -141,6 +143,24 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale)) { SDL_Quit(); return 1; }
     d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
                    SDL_GetRendererName(win.renderer));
+    // The title shows while finish_scene loads the rest (only the menus'
+    // part of the scene is read here); then the menus take input.
+    // ponytail: input waits too (a few hundred ms); clicks in that time are dropped.
+    // (Black when the startup videos come first, or another screen was asked for.)
+    const bool title_first = (g_start_screen.empty() && !g_video) || g_start_screen == "title";
+    const auto boot_title = scene && title_first ? std::optional<TitleUI>(title_ui(*scene)) : std::nullopt;
+    while (loading.valid() && loading.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) if (event.type == SDL_EVENT_QUIT) quit = true;
+        if (boot_title) render_title(framebuffer, *scene, boot_title->buttons, std::uint32_t(SDL_GetTicks()));
+        SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
+        SDL_RenderClear(win.renderer);
+        SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
+        SDL_RenderPresent(win.renderer);
+        if (++frame_count == 1) d2d::log::info("First frame presented at {} ms after launch.", d2d::log::ms());
+        SDL_Delay(10);
+    }
+    if (loading.valid()) loading.get();
     Audio audio;
     audio.init();
     audio.master_volume = g_master_volume;
@@ -599,8 +619,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 character.ok_btn.do_switch = character.selected >= 0 && d2d::net::valid_join_name(character.name);
                 update_button(character.cancel_btn, mouse, screen, quit);
                 update_button(character.ok_btn,     mouse, screen, quit);
-                if (!character.cancel_btn.hovered && !character.ok_btn.hovered)
-                    handle_charcreate_click(character, mouse, now_ms);
+                if (!character.cancel_btn.hovered && !character.ok_btn.hovered && scene)
+                    handle_charcreate_click(character, *scene, mouse, now_ms);
                 // OK: a new character (CharStats.txt's start), saved at once so
                 // it's on the roster. A name that has a save already is refused.
                 if (screen == Screen::InGame && scene) {
@@ -771,7 +791,7 @@ int main(int argc, char** argv) {
     fs::create_directories(save_dir, mk_ec);
     fs::create_directories(shot_dir, mk_ec);
     d2d::log::open(user_dir / "d2d.log");
-    d2d::log::info("d2d — Diablo II re-implementation (dev build)");
+    d2d::log::info("d2d — Diablo II re-implementation");
     d2d::log::info("  User dir: {}", user_dir.string());
     d2d::userdir::Config cfg;
     for (const auto& dir : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
@@ -790,7 +810,7 @@ int main(int argc, char** argv) {
     bool        no_save = false;
     std::uint32_t map_seed = std::random_device{}();   // --seed fixes it (3 puts the Blood Moor east, townE1)
 
-    CLI::App app{"d2d — Diablo II re-implementation (dev build)"};
+    CLI::App app{"d2d — Diablo II re-implementation"};
     app.add_option("--seed", map_seed, "Map seed (act 1 layout and the Blood Moor)");
     app.add_option("--devctl", devctl_path,
                    "Unix-socket dev-control channel path");
@@ -860,10 +880,10 @@ int main(int argc, char** argv) {
 
     std::vector<std::uint8_t> framebuffer(std::size_t(kScreenWidth) * kScreenHeight * 4, 0);
     for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
-    auto scene = load_scene(data_dir, patch_layer, map_seed);   // nullopt if the MPQs won't load
-    if (scene) load_saves(*scene, save_dir);
-    if (scene && !scene->saves.empty()) set_map_seed(*scene, game_seed(scene->saves.front()));   // the likely pick's map
-    if (scene) want_nearby(*scene, scene->town);        // the Blood Moor builds while the menus run
+    auto scene = load_scene(data_dir, patch_layer);   // the menus' part; nullopt if the MPQs won't load
+    // The rest loads while the title shows (run_windowed waits before the menus).
+    std::future<void> loading;
+    if (scene) loading = std::async(std::launch::async, [&scene, save_dir, map_seed] { finish_scene(*scene, save_dir, map_seed, game_seed); });
 
     std::atomic<std::uint64_t> frame_count{0};
     std::atomic<bool>          quit{false};
@@ -937,5 +957,5 @@ int main(int argc, char** argv) {
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
         if (!std::getenv("ALSOFT_DRIVERS")) SDL_setenv_unsafe("ALSOFT_DRIVERS", "null", 1);   // openal-soft's silent backend
     }
-    return run_windowed(framebuffer, scene, save_dir, channel, frame_count, quit);
+    return run_windowed(framebuffer, scene, loading, save_dir, channel, frame_count, quit);
 }
