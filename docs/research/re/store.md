@@ -92,11 +92,18 @@ The base y is 539 (= 60 + 255 + 224):
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
      from the affix/set/unique cost columns;
   3. plus half of each socketed item's cost; ethereal sells for ¼;
-  4. × npc.txt buy or sell mult / 1024, then × the quest mult / 1024
-     for each quest flag done on the active difficulty;
+  4. × npc.txt mult / 1024, then × the quest mult / 1024 for each quest
+     flag done on the active difficulty. The columns are the vendor's
+     side: a buy takes "sell mult" and "questsellmult", a sale "buy mult"
+     and "questbuymult";
   5. × quantity for non-stackables; a sale is capped at the NPC's
-     max buy for the difficulty; the minimum is 1.
-  Checked: an Akara Scepter (cost 350, buy mult 512) = 175.
+     max buy for the difficulty;
+  6. a buy, gamble or repair takes the player's item_reducedprices
+     (stat 87, at most 99) off: price − price × r / 100; the minimum is 1.
+  Checked live on a 1.14d host (2026-10-05; Akara, Den of Evil done, a
+  14% Gheed's Fortune): mp1 47, hp1 24, isc 62, tsc 78, vps 19, yps 31 =
+  cost × 922 / 1024 − 14%. d2d had the columns swapped (buying at half,
+  selling at full) and no stat 87.
 - Gold (FUN_00488100, font16 white; 800x600 offsets 0x7a2858 = 80,
   0x7a285c = −60):
   - inventory: goldcoinbtn at bottom-left (484, 469), carried gold

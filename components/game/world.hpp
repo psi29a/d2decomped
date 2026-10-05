@@ -273,6 +273,8 @@ struct World {
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
     void set_door_mode(int npc_index, int mode, std::uint32_t now_ms);
+    // The player's item_reducedprices (stat 87) off their gear and charms now.
+    [[nodiscard]] int reduced_prices() const;
     // A monster's door at its think (Fight::open_door): found, operated in reach.
     void display_swing(int skill, float x, float y, std::uint32_t now_ms);   // a joined game: swing at a host monster, for show
     bool monster_door(const Monster& monster, std::uint32_t now_ms);

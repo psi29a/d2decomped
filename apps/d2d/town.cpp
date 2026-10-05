@@ -415,7 +415,7 @@ auto Town::send(const Command& command) -> void {
             const auto& tab = world.store.tabs[std::size_t(std::clamp(buy->tab >= 0 ? buy->tab : store.tab, 0, 3))];
             if (buy->stock >= 0 && std::size_t(buy->stock) < tab.size()) {
                 const auto& item = tab[std::size_t(buy->stock)];
-                const int cost = d2d::rules::item_price(scene->rules, item, world.store.npc_id, false, world.store.header);
+                const int cost = d2d::rules::item_price(scene->rules, item, world.store.npc_id, false, world.store.header, store.reduced);
                 net_game->buying = true;
                 net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), 0, std::uint32_t(cost)) });
             }

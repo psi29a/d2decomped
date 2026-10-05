@@ -231,8 +231,10 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
 // at a quarter. Then npc.txt: * buy/sell mult / 1024 and each questflag's
 // mult when that quest is done; * quantity; selling caps at "max buy"
 // for the difficulty.
-// ponytail: no charges/books/ammo branches, automagic affix, durability
-// or the reduced-prices stat.
+// npc.txt's mults are the vendor's side: its "sell mult" is our buy price
+// (gamedata_load.cpp swaps them in). A buy, gamble or repair then takes
+// the player's reduced prices (stat 87) off (price_reduced).
+// ponytail: no charges/books/ammo branches, automagic affix or durability.
 
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
 // 10..27 (frames, below), column by class and bow/crossbow (0x722078);

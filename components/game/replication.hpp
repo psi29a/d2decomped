@@ -236,7 +236,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
             chunk.u8(view.store.has_value());
             if (view.store) {
                 const auto& store = *view.store;
-                chunk.i32(store.npc).i32(store.vendor).i32(store.hc_idx).str(store.npc_id).u8(store.gamble);
+                chunk.i32(store.npc).i32(store.vendor).i32(store.hc_idx).str(store.npc_id).u8(store.gamble).i32(store.reduced);
                 chunk.u16(int(store.perm.size()));
                 for (const auto& perm_code : store.perm) chunk.str(perm_code);
                 for (const auto& tab : store.tabs) wire::items(chunk, tab, *game_data.item_tables);
@@ -424,7 +424,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         view.store.reset();
         if (byte()) {
             Store store;
-            store.npc = i32(); store.vendor = i32(); store.hc_idx = i32(); store.npc_id = input.str(); store.gamble = byte();
+            store.npc = i32(); store.vendor = i32(); store.hc_idx = i32(); store.npc_id = input.str(); store.gamble = byte(); store.reduced = i32();
             for (int k = u16(); k > 0 && input.ok; --k) store.perm.push_back(input.str());
             for (auto& tab : store.tabs) tab = wire::items(input, *game_data.item_tables);
             store.header = view.header;
