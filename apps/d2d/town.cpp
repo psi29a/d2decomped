@@ -1585,7 +1585,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
             const auto& trade = net_game->trade;
             std::string with = trade.with_name;
             if (with.empty())
-                if (const auto unit = net_game->units.find(trade.with); unit != net_game->units.end()) with = unit->second.name;
+                if (const auto partner = net_game->units.find(trade.with); partner != net_game->units.end()) with = partner->second.name;
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
                        held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
