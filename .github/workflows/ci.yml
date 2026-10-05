@@ -11,6 +11,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or PR cancels the run it makes obsolete:
+# billed minutes (macOS counts 10x) go to the last commit only. main and
+# tags each keep every run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: ${{ matrix.name }}
