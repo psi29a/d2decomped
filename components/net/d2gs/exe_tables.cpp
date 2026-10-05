@@ -77,10 +77,16 @@ auto check_sizes(const SizeTable& sizes) -> std::expected<void, std::string> {
 auto read_exe_tables(std::span<const std::uint8_t> image) -> std::expected<ExeTables, std::string> {
     const auto lengths = pe_bytes_at(image, kHuffmanLengthsVa, kSymbolCount);
     const auto sizes = pe_bytes_at(image, kS2cSizesVa, kS2cIdCount * 4);
-    if (!lengths || !sizes) return std::unexpected(std::string("not a 1.14d game.exe (its tables aren't at the expected addresses)"));
+    const auto c2s_sizes = pe_bytes_at(image, kC2sSizesVa, kC2sIdCount * 4);
+    if (!lengths || !sizes || !c2s_sizes) return std::unexpected(std::string("not a 1.14d game.exe (its tables aren't at the expected addresses)"));
     ExeTables tables;
     for (std::size_t i = 0; i < kSymbolCount; ++i) tables.lengths[i] = (*lengths)[i];
     for (std::size_t i = 0; i < kS2cIdCount; ++i) tables.s2c_sizes[i] = static_cast<std::int32_t>(read_u32(*sizes, i * 4));
+    for (std::size_t i = 0; i < kC2sIdCount; ++i) tables.c2s_sizes[i] = static_cast<std::int32_t>(read_u32(*c2s_sizes, i * 4));
+    // The C->S sizes d2d's builders fix (c2s.hpp): 0x01 5, 0x13 9, 0x68 37, 0x6d 13.
+    for (const auto [id, size] : { std::pair{ 0x01, 5 }, std::pair{ 0x13, 9 }, std::pair{ 0x68, 37 }, std::pair{ 0x6d, 13 } })
+        if (tables.c2s_sizes[std::size_t(id)] != size)
+            return std::unexpected(std::format("game.exe's C->S size table: {:#04x} is {} bytes, not {}", id, tables.c2s_sizes[std::size_t(id)], size));
     if (auto checked = check_lengths(tables.lengths); !checked) return std::unexpected("game.exe's Huffman table: " + checked.error());
     if (auto checked = check_sizes(tables.s2c_sizes); !checked) return std::unexpected("game.exe's size table: " + checked.error());
     return tables;

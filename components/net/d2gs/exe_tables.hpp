@@ -21,15 +21,20 @@ inline constexpr std::uint32_t kHuffmanLengthsVa = 0x7076c0; // 256 u8 code leng
 inline constexpr std::uint32_t kS2cSizesVa = 0x730ae8;       // S->C sizes, one i32 an id
 inline constexpr std::size_t kSymbolCount = 256;
 inline constexpr std::size_t kS2cIdCount = 181; // ids 0x00..0xb4
+inline constexpr std::uint32_t kC2sSizesVa = 0x730dc0;       // C->S sizes, one i32 an id (FUN_0052bc20)
+inline constexpr std::size_t kC2sIdCount = 0x71;             // ids 0x00..0x70
 
 // Huffman code lengths, one per byte value.
 using CodeLengths = std::array<std::uint8_t, kSymbolCount>;
 // S->C packet sizes by id: > 0 fixed, 0 never sent, < 0 variable (split.hpp).
 using SizeTable = std::array<std::int32_t, kS2cIdCount>;
+// C->S packet sizes by id: > 0 fixed, 0 not valid, -1 variable (split.hpp).
+using C2sSizeTable = std::array<std::int32_t, kC2sIdCount>;
 
 struct ExeTables {
     CodeLengths lengths{};
     SizeTable s2c_sizes{};
+    C2sSizeTable c2s_sizes{};
 };
 
 // The file bytes behind [va, va + size) in a PE32 image, if one section's

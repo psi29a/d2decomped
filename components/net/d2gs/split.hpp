@@ -54,6 +54,24 @@ private:
     std::size_t start_ = 0;
 };
 
+// The size of the C->S packet starting `stream` (FUN_0052bc20 / the host's
+// frame parser FUN_0052b100): the table, but 0xff is 16, 0x14 / 0x15 run
+// to the second NUL after +3 (message, then name), 0x66 is u16 + 3, 0x6c
+// b[1] + 7. nullopt while more bytes are needed; an id over 0x70 (but
+// 0xff), a size of 0 or one past 0x204 is a Desync (the host refuses it).
+auto c2s_packet_size(std::span<const std::uint8_t> stream, const C2sSizeTable& sizes) -> std::expected<std::optional<std::size_t>, Desync>;
+// Splits what a client sends (never compressed, never framed) into packets.
+class C2sSplitter {
+public:
+    explicit C2sSplitter(const C2sSizeTable& sizes) : sizes_(sizes) {}
+    auto append(std::span<const std::uint8_t> stream) -> void;
+    auto next() -> std::expected<std::optional<Bytes>, Desync>;
+private:
+    C2sSizeTable sizes_;
+    Bytes pending_;
+    std::size_t start_ = 0;
+};
+
 // The client's receive side, sans-IO: hand it what recv() returned and
 // take the packets. Raw at first (the host's AF 01 comes unframed); the
 // first AF with a nonzero byte 1 switches to frames for the next read.

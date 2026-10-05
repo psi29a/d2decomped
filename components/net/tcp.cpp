@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -116,11 +117,57 @@ auto TcpConnection::receive(int timeout_ms) -> std::expected<d2gs::Bytes, std::s
         const auto result = ::recv(native(socket_), reinterpret_cast<char*>(buffer), static_cast<int>(sizeof buffer), 0);
         if (result > 0) { received.insert(received.end(), buffer, buffer + result); continue; }
         if (result == 0) {
-            if (received.empty()) return std::unexpected("the host closed the connection");
+            if (received.empty()) return std::unexpected("the other side closed the connection");
             return received;
         }
         return received;   // would block: all there was
     }
+}
+
+auto TcpListener::listen(std::uint16_t port) -> std::expected<TcpListener, std::string> {
+    if (!ensure_started()) return std::unexpected("couldn't start the socket library");
+    const Native socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socket == kNone) return std::unexpected("socket: " + last_error());
+    TcpListener listener(static_cast<std::intptr_t>(socket));
+    int enabled = 1;
+    ::setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&enabled), sizeof enabled);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (::bind(socket, reinterpret_cast<const sockaddr*>(&address), sizeof address) != 0) return std::unexpected("bind port " + std::to_string(port) + ": " + last_error());
+    if (::listen(socket, 4) != 0) return std::unexpected("listen: " + last_error());
+    return listener;
+}
+
+TcpListener::TcpListener(TcpListener&& other) noexcept : socket_(std::exchange(other.socket_, -1)) {}
+
+auto TcpListener::operator=(TcpListener&& other) noexcept -> TcpListener& {
+    if (this != &other) {
+        if (socket_ != -1) close_native(native(socket_));
+        socket_ = std::exchange(other.socket_, -1);
+    }
+    return *this;
+}
+
+TcpListener::~TcpListener() {
+    if (socket_ != -1) close_native(native(socket_));
+}
+
+auto TcpListener::accept(int timeout_ms, std::string* from) -> std::expected<std::optional<TcpConnection>, std::string> {
+    if (wait_for(native(socket_), POLLIN, timeout_ms) <= 0) return std::optional<TcpConnection>{};
+    sockaddr_in address{};
+    socklen_t length = sizeof address;
+    const Native client = ::accept(native(socket_), reinterpret_cast<sockaddr*>(&address), &length);
+    if (client == kNone) return std::unexpected("accept: " + last_error());
+    if (from) {
+        const auto ip = ntohl(address.sin_addr.s_addr);
+        *from = std::to_string(ip >> 24) + "." + std::to_string(ip >> 16 & 0xff) + "." + std::to_string(ip >> 8 & 0xff) + "." + std::to_string(ip & 0xff);
+    }
+    set_nonblocking(client);
+    int enabled = 1;
+    ::setsockopt(client, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&enabled), sizeof enabled);
+    return std::optional<TcpConnection>{ TcpConnection(static_cast<std::intptr_t>(client)) };
 }
 
 } // namespace d2d::net

@@ -773,10 +773,11 @@ host-side checks game.exe's server makes (flood guards, ranges).
 - Answered 2026-10-04: a monster's death is unit command 8 then 9 in
   0x69 (no 0x0c); a skill that comes mid-swing is dropped (`FUN_0057edd0`),
   not restarted; the own player's stats at join arrive as 0x1d..0x1f.
-- NPC trade with a TCP host (2026-10-04, open): within 6 subtiles of
-  Akara, 0x13 + 0x2f + 0x38 (trade) got no answer at all (no 0x27, no
-  stock 0x9c 0xb); the host's player was still walking when they came.
-  Next: record a real game.exe client's trade through a relay.
+- NPC trade with a TCP host (open): a walking player is busy and the
+  host drops 0x13 (network.md); stopped within 6 subtiles of Akara, 0x13
+  is answered by 0x27 (2026-10-05), but 0x2f + 0x38 sent with it bring no
+  stock (0x9c 0xb). Next: record a real game.exe client's trade through
+  apps/d2proxy.
 - Player death: which packet puts another player (and the own one, when
   the server kills it) into DT / DD. Not 0x0c (always cmd 0x13).
 - Which builders make 0x69..0x6c; what 0x68's +0xf / +0x10 are.

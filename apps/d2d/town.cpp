@@ -1220,7 +1220,9 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
                         net_game->move_to(vendor->second.x + (net_game->host_x - vendor->second.x) / apart * 2.f,
                                           vendor->second.y + (net_game->host_y - vendor->second.y) / apart * 2.f, view.running);
                     }
-                } else {
+                } else if (net_game->steady_now() - net_game->walked_ms >= 500) {
+                    // A walking player is busy: the host drops all but chat,
+                    // skill picks, 0x43, 0x66 (FUN_0054d750, FUN_0057eec0).
                     namespace c2s = d2d::net::d2gs::c2s;
                     net_game->trade_npc = std::uint32_t(net_trade_pending);
                     net_game->send_items({ c2s::interact(1, net_game->trade_npc), c2s::npc_chat(true, 1, net_game->trade_npc), c2s::npc_action(net_trade_gamble ? 1 : 0, net_game->trade_npc) });

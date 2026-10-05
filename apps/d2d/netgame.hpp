@@ -87,6 +87,7 @@ struct NetGame {
     std::uint32_t merc_id = 0;        // our merc (0x81): d2d's World draws its own
     float self_x = 0, self_y = 0;     // where the host put us (0x15)
     float host_x = 0, host_y = 0;     // where the host has us now (0x95 / 0x96 / 0x18)
+    std::uint32_t walked_ms = 0;      // the host's last word of our walk (0x96), steady ms: still walking
     std::unordered_map<std::uint64_t, Unit> units;
     std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id
     std::unordered_map<std::uint32_t, d2d::d2s::Item> own_items;   // ours as the host has them (grids, body, belt, cursor), by its ids

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "net_log.hpp"
 
+#include <d2gs/c2s_names.hpp>
 #include <d2gs/s2c_names.hpp>
 
 #include <chrono>
@@ -17,7 +18,7 @@ NetLog::NetLog(const std::filesystem::path& path, std::bitset<256> used) : file_
 
 auto NetLog::line(std::string_view direction, std::string_view tag, std::span<const std::uint8_t> packet) -> void {
     if (!file_ || packet.empty()) return;
-    const auto name = direction == "S>C" ? d2gs::s2c_name(packet[0]) : std::string_view{};
+    const auto name = direction == "S>C" ? d2gs::s2c_name(packet[0]) : d2gs::c2s_name(packet[0]);
     std::string hex;
     hex.reserve(packet.size() * 3);
     for (const auto byte : packet) hex += std::format(" {:02x}", byte);
@@ -34,7 +35,7 @@ auto NetLog::from_host(std::span<const std::uint8_t> packet) -> void {
 auto NetLog::to_host(std::span<const std::uint8_t> packet) -> void {
     if (packet.empty()) return;
     ++to_host_[packet[0]];
-    line("C>S", "", packet);
+    line("C>S", d2gs::c2s_name(packet[0]).empty() ? "UNKNOWN" : "", packet);
 }
 
 auto NetLog::note(std::string_view text) -> void {

@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 
@@ -31,7 +32,25 @@ public:
     auto receive(int timeout_ms) -> std::expected<d2gs::Bytes, std::string>;
 
 private:
+    friend class TcpListener;
     explicit TcpConnection(std::intptr_t socket) : socket_(socket) {}
+    std::intptr_t socket_ = -1;
+};
+
+// A listening socket on every address (SO_REUSEADDR, like game.exe's host).
+class TcpListener {
+public:
+    static auto listen(std::uint16_t port) -> std::expected<TcpListener, std::string>;
+    TcpListener(TcpListener&& other) noexcept;
+    auto operator=(TcpListener&& other) noexcept -> TcpListener&;
+    TcpListener(const TcpListener&) = delete;
+    auto operator=(const TcpListener&) -> TcpListener& = delete;
+    ~TcpListener();
+    // A client that connected within `timeout_ms` (empty: none), and its address.
+    auto accept(int timeout_ms, std::string* from = nullptr) -> std::expected<std::optional<TcpConnection>, std::string>;
+
+private:
+    explicit TcpListener(std::intptr_t socket) : socket_(socket) {}
     std::intptr_t socket_ = -1;
 };
 

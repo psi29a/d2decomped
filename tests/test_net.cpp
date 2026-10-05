@@ -100,6 +100,22 @@ int main() {
         assert(!splitter.next());
     }
 
+    // The C->S splitter (what d2proxy decodes): fixed sizes from the table,
+    // chat to its second NUL, the save chunk by its length, 0xff 16.
+    {
+        d2gs::C2sSizeTable sizes{};
+        sizes[0x13] = 9; sizes[0x6b] = 1; sizes[0x15] = -1; sizes[0x6c] = -1;
+        d2gs::C2sSplitter splitter(sizes);
+        splitter.append(Bytes{ 0x6b, 0x13, 1, 0, 0, 0, 0x11, 0, 0 });
+        assert(**splitter.next() == Bytes{ 0x6b } && !*splitter.next());   // 0x13 still partial
+        splitter.append(Bytes{ 0, 0x15, 1, 0, 'h', 'i', 0, 'B', 0, 0x6c, 2, 2, 0, 0, 0, 0xaa, 0xbb, 0 });
+        assert((*splitter.next())->size() == 9);
+        assert((**splitter.next() == Bytes{ 0x15, 1, 0, 'h', 'i', 0, 'B', 0 }));
+        assert((*splitter.next())->size() == 9 && !*splitter.next());
+        splitter.append(Bytes{ 0x71 });
+        assert(!splitter.next());                                           // past 0x70: refused, as the host does
+    }
+
     // C->S: 0x68 is 37 bytes; a save goes out in 0xff chunks that add up to it.
     {
         const auto join = d2gs::c2s::join_request(3, "Tester");

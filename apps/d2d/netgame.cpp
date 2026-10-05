@@ -163,6 +163,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         };
         host_x = float(bits_at(skip, 16));
         host_y = float(bits_at(skip + 16, 16));
+        if (packet[0] == 0x96) walked_ms = steady_ms();
         // Life, mana, stamina: whole points, stats 6 / 8 / 10 take them << 8
         // (FUN_0045d4b0); 0x96 has stamina alone.
         if (packet[0] == 0x96) {

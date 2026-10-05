@@ -157,4 +157,51 @@ auto Receiver::receive(std::span<const std::uint8_t> received) -> std::expected<
     }
 }
 
+auto c2s_packet_size(std::span<const std::uint8_t> stream, const C2sSizeTable& sizes) -> std::expected<std::optional<std::size_t>, Desync> {
+    if (stream.empty()) return std::optional<std::size_t>{};
+    const std::uint8_t id = stream[0];
+    std::size_t size = 0;
+    if (id == 0xff) {
+        size = 16;
+    } else if (id >= sizes.size()) {
+        return std::unexpected(Desync{std::format("C->S id {:#04x} past 0x70", id)});
+    } else if (id == 0x6c) {
+        if (stream.size() < 2) return std::optional<std::size_t>{};
+        size = std::size_t(stream[1]) + 7;
+    } else if (id == 0x66) {
+        if (stream.size() < 3) return std::optional<std::size_t>{};
+        size = std::size_t(read_u16(stream, 1)) + 3;
+    } else if (id == 0x14 || id == 0x15) {   // u8, u8 type, message\0, name\0
+        int nuls = 0;
+        for (std::size_t at = 3; at < stream.size() && at < kMaxPacketSize; ++at)
+            if (stream[at] == 0 && ++nuls == 2) { size = at + 1; break; }
+        if (!size) {
+            if (stream.size() >= kMaxPacketSize) return std::unexpected(Desync{"C->S chat past 0x204 bytes"});
+            return std::optional<std::size_t>{};
+        }
+    } else if (sizes[id] > 0) {
+        size = std::size_t(sizes[id]);
+    } else {
+        return std::unexpected(Desync{std::format("C->S id {:#04x} isn't valid (size {})", id, sizes[id])});
+    }
+    if (size > kMaxPacketSize) return std::unexpected(Desync{std::format("C->S {:#04x} of {} bytes", id, size)});
+    if (stream.size() < size) return std::optional<std::size_t>{};
+    return std::optional<std::size_t>{size};
+}
+
+auto C2sSplitter::append(std::span<const std::uint8_t> stream) -> void {
+    if (start_ > 0 && start_ == pending_.size()) { pending_.clear(); start_ = 0; }
+    pending_.insert(pending_.end(), stream.begin(), stream.end());
+}
+
+auto C2sSplitter::next() -> std::expected<std::optional<Bytes>, Desync> {
+    const auto rest = std::span<const std::uint8_t>(pending_).subspan(start_);
+    auto size = c2s_packet_size(rest, sizes_);
+    if (!size) return std::unexpected(size.error());
+    if (!*size) return std::optional<Bytes>{};
+    Bytes packet(rest.begin(), rest.begin() + std::ptrdiff_t(**size));
+    start_ += **size;
+    return std::optional<Bytes>{std::move(packet)};
+}
+
 } // namespace d2d::net::d2gs
