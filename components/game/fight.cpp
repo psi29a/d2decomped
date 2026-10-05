@@ -2733,6 +2733,7 @@ auto Fight::enter(const Level* destination) -> void {
 
 auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void {
         for (const auto& [grown, from] : player_moved(*game_data, spawning, here, x, y, arrived)) {
+            if (remote_monsters) continue;          // the rooms still come up (their objects); the host has the monsters
             const auto& spawns = spawning.levels[grown].spawns;
             const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
             auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty);

@@ -94,26 +94,31 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         auto float_arg = [&](std::size_t index) { return index < verb_args.size() ? std::stof(verb_args[index]) : 0.f; };
         auto int_arg = [&](std::size_t index, int fallback = -1) { return index < verb_args.size() ? std::atoi(verb_args[index].c_str()) : fallback; };
         const std::string verb = verb_args.size() > 1 ? verb_args[1] : "";
-        if (verb == "move" && verb_args.size() >= 4) town.net.send(cmd::Move{ float_arg(2), float_arg(3), true });
-        else if (verb == "skill" && verb_args.size() >= 5) town.net.send(cmd::UseSkill{ int_arg(2, 0), float_arg(3), float_arg(4), int_arg(5), int_arg(6, 0) != 0 });
-        else if (verb == "interact" && verb_args.size() >= 3) town.net.send(cmd::Interact{ int_arg(2) });
-        else if (verb == "pickup" && verb_args.size() >= 3) town.net.send(cmd::Pickup{ int_arg(2) });
-        else if (verb == "resurrect") town.net.send(cmd::Resurrect{});
-        else if (verb == "stat" && verb_args.size() >= 3) town.net.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
-        else if (verb == "skillpt" && verb_args.size() >= 3) town.net.send(cmd::SkillPoint{ int_arg(2, 0) });
-        else if (verb == "select" && verb_args.size() >= 4) town.net.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
-        else if (verb == "belt" && verb_args.size() >= 3) town.net.send(cmd::UseBelt{ int_arg(2, 0) });
-        else if (verb == "waypoint" && verb_args.size() >= 4) town.net.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
-        else if (verb == "goeast" && verb_args.size() >= 3) town.net.send(cmd::GoEast{ int_arg(2) });
-        else if (verb == "imbue" && verb_args.size() >= 3) town.net.send(cmd::Imbue{ int_arg(2) });
-        else if (verb == "hand" && verb_args.size() >= 3) town.net.send(cmd::ToCursor{ int_arg(2) });
-        else if (verb == "use" && verb_args.size() >= 3) town.net.send(cmd::UseItem{ int_arg(2) });
-        else if (verb == "grid" && verb_args.size() >= 4) town.net.send(cmd::ToGrid{ d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
-        else if (verb == "said" && verb_args.size() >= 4) town.net.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
-        else if (verb == "chat" && verb_args.size() >= 3) town.net.send(cmd::Chat{ int_arg(2) });
+        if (verb == "move" && verb_args.size() >= 4) town.send(cmd::Move{ float_arg(2), float_arg(3), true });
+        else if (verb == "skill" && verb_args.size() >= 5) town.send(cmd::UseSkill{ int_arg(2, 0), float_arg(3), float_arg(4), int_arg(5), int_arg(6, 0) != 0 });
+        else if (verb == "interact" && verb_args.size() >= 3) town.send(cmd::Interact{ int_arg(2) });
+        else if (verb == "pickup" && verb_args.size() >= 3) town.send(cmd::Pickup{ int_arg(2) });
+        else if (verb == "resurrect") town.send(cmd::Resurrect{});
+        else if (verb == "stat" && verb_args.size() >= 3) town.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
+        else if (verb == "skillpt" && verb_args.size() >= 3) town.send(cmd::SkillPoint{ int_arg(2, 0) });
+        else if (verb == "select" && verb_args.size() >= 4) town.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
+        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0) });
+        else if (verb == "waypoint" && verb_args.size() >= 4) town.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "goeast" && verb_args.size() >= 3) town.send(cmd::GoEast{ int_arg(2) });
+        else if (verb == "imbue" && verb_args.size() >= 3) town.send(cmd::Imbue{ int_arg(2) });
+        else if (verb == "hand" && verb_args.size() >= 3) town.send(cmd::ToCursor{ int_arg(2) });
+        else if (verb == "use" && verb_args.size() >= 3) town.send(cmd::UseItem{ int_arg(2) });
+        else if (verb == "grid" && verb_args.size() >= 4) town.send(cmd::ToGrid{ d2d::d2s::item_panel::kInventory, int_arg(2), int_arg(3) });
+        else if (verb == "said" && verb_args.size() >= 4) town.send(cmd::QuestMessage{ int_arg(2), int_arg(3, 0) });
+        else if (verb == "chat" && verb_args.size() >= 3) town.send(cmd::Chat{ int_arg(2) });
+        else if (verb == "trade" && verb_args.size() >= 3) town.send(cmd::OpenTrade{ int_arg(2), int_arg(3, 0) != 0 });
+        else if (verb == "buy" && verb_args.size() >= 3) town.send(cmd::Buy{ int_arg(2) });
+        else if (verb == "sell" && verb_args.size() >= 3) town.send(cmd::Sell{ int_arg(2) });
+        else if (verb == "close") town.send(cmd::CloseTrade{});
         else return std::string("err cmd move <x> <y> | skill <id> <x> <y> [unit] [left] | interact <npc> | pickup <unit> | resurrect"
                                 " | stat <stat> [n] | skillpt <index> | select <skill> <left> | belt <slot> | waypoint <npc> <level>"
-                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>\n");
+                                " | goeast <npc> | imbue <npc> | hand <item> | grid <col> <row> | use <item> | said <npc> <string> | chat <npc|-1>"
+                                " | trade <npc> [gamble] | buy <stock> | sell <item> | close\n");
         return std::string("ok\n");
     });
     channel.on("key", [&](const std::vector<std::string>& args) {
@@ -445,7 +450,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("monsters", [&](const std::vector<std::string>&) {
         if (!scene) return std::string("err no scene\n");
         std::string out;
-        for (const auto& monster : town.fight.monsters) {
+        for (const auto& monster : town.net_game ? town.view.monsters : town.fight.monsters) {   // a joined game: the host's
             const float dx = monster.unit.x - town.player.x, dy = monster.unit.y - town.player.y;
             const int screen_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
             const int screen_y = int(kScreenHeight) / 2 + kIsoH / 2 + int(std::lround((dx + dy) * (kIsoH / 2)));
@@ -461,7 +466,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     // Loot on the ground: "<code>\t<label>\t<sx>\t<sy>" (feet on screen, game pixels).
     channel.on("ground", [&](const std::vector<std::string>&) {
         std::string out;
-        for (const auto& ground_item : town.loot.ground) {
+        for (const auto& ground_item : town.net_game ? town.view.ground : town.loot.ground) {   // a joined game: the host's
             const float dx = ground_item.x - town.player.x, dy = ground_item.y - town.player.y;
             out += std::format("{}\t{}\t{}\t{}\t#{}\n", ground_item.item.code, ground_item.label,
                                int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))),

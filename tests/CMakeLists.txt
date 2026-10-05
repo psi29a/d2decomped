@@ -31,6 +31,7 @@ d2d_add_test(test_d2s d2s mpq compcode)
 d2d_add_test(test_automap d2s)
 d2d_add_test(test_protocol game)
 d2d_add_test(test_game game)
+d2d_add_test(test_net net)
 
 d2d_add_test(test_userdir userdir)
 d2d_add_test(test_install install_detect)

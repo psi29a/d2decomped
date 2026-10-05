@@ -27,6 +27,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -225,8 +226,16 @@ inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemPro
     }
 }
 
-inline Item item(Bits& bits, const ItemTables& item_tables) {
-    if (bits.pos % 8 || bits.read(16) != 0x4d4a) throw std::runtime_error("d2s items: missing JM");
+// `net`: the item as a game.exe host sends it (0x9c / 0x9d, FUN_0062e430
+// with is_save 0; net-packets.md "The item bitstream on the wire"): no JM,
+// ground items (modes 3 / 5) at x 16, y 16 bits in place of the grid
+// fields, no uid, no bit after the quality fields, no stat lists while
+// unidentified, gold's amount right after a simple gld's code (1 bit: 32
+// or 12; no socket count, FUN_0062a970), its
+// socketed items in packets of their own. Ground x / y go to `ground`.
+struct NetPlace { int x = -1, y = -1, gold = 0; };
+inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = nullptr) {
+    if (!net && (bits.pos % 8 || bits.read(16) != 0x4d4a)) throw std::runtime_error("d2s items: missing JM");
     Item parsed;
     const std::uint32_t flags = bits.read(32);
     parsed.flags = flags;
@@ -235,8 +244,13 @@ inline Item item(Bits& bits, const ItemTables& item_tables) {
     parsed.ethereal     = flags >> 22 & 1; parsed.personalized = flags >> 24 & 1;
     parsed.runeword     = flags >> 26 & 1;
     parsed.version = int(bits.read(10));
-    parsed.location = int(bits.read(3)); parsed.slot = int(bits.read(4));
-    parsed.column   = int(bits.read(4)); parsed.row  = int(bits.read(4)); parsed.panel = int(bits.read(3));
+    parsed.location = int(bits.read(3));
+    if (net && (parsed.location == 3 || parsed.location == 5)) {
+        net->x = int(bits.read(16)); net->y = int(bits.read(16));
+    } else {
+        parsed.slot = int(bits.read(4));
+        parsed.column = int(bits.read(4)); parsed.row = int(bits.read(4)); parsed.panel = int(bits.read(3));
+    }
     int filled = 0;
     if (ear) {
         parsed.code = "ear";
@@ -247,9 +261,14 @@ inline Item item(Bits& bits, const ItemTables& item_tables) {
             const char letter = char(bits.read(8));
             if (letter != ' ' && letter != '\0') parsed.code.push_back(letter);
         }
-        filled = int(bits.read(3));
+        // A compact item (FUN_0062a970) has no socket count: gold's amount
+        // follows its code (1 bit: 32 or 12). ponytail: a quest item's
+        // difficulty bits (ItemsTxt +0x12a / +0x12b) aren't read.
+        if (net && parsed.simple) { if (parsed.code == "gld") net->gold = int(bits.read(bits.read(1) ? 32 : 12)); }
+        else filled = int(bits.read(3));
         if (!parsed.simple) {
-            parsed.uid = bits.read(32); parsed.ilvl = int(bits.read(7)); parsed.quality = int(bits.read(4));
+            if (!net) parsed.uid = bits.read(32);
+            parsed.ilvl = int(bits.read(7)); parsed.quality = int(bits.read(4));
             if (bits.read(1)) parsed.picture = int(bits.read(3));
             if (bits.read(1)) parsed.class_affix = int(bits.read(11));   // class-specific auto affix
             switch (parsed.quality) {
@@ -266,7 +285,7 @@ inline Item item(Bits& bits, const ItemTables& item_tables) {
             if (parsed.runeword) { parsed.runeword_id = int(bits.read(12)); parsed.rw_extra = int(bits.read(4)); }
             if (parsed.personalized) while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
             if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));
-            parsed.bit_after = int(bits.read(1));
+            if (!net) parsed.bit_after = int(bits.read(1));
             if (item_tables.armor.contains(parsed.code)) parsed.defense = int(bits.read(11)) - 10;
             if (item_tables.armor.contains(parsed.code) || item_tables.weapons.contains(parsed.code))
                 if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (8 bits + 1 unused)
@@ -275,6 +294,7 @@ inline Item item(Bits& bits, const ItemTables& item_tables) {
                 }
             if (item_tables.stackable.contains(parsed.code)) parsed.quantity = int(bits.read(9));
             if (parsed.socketed) parsed.sockets = int(bits.read(4));
+            if (net && !parsed.identified) return parsed;            // no stat lists
             int lists = 0;
             if (parsed.quality == 5) { parsed.set_lists = int(bits.read(5)); for (auto set_list = parsed.set_lists; set_list; set_list &= set_list - 1) ++lists; }
             props(bits, item_tables, parsed.props);
@@ -287,11 +307,28 @@ inline Item item(Bits& bits, const ItemTables& item_tables) {
             if (parsed.runeword) props(bits, item_tables, parsed.props);
         }
     }
+    if (net) return parsed;                                         // its sockets' items come apart
     bits.pos = (bits.pos + 7) & ~std::size_t(7);
     for (int i = 0; i < filled; ++i) parsed.socketed_items.push_back(item(bits, item_tables));
     return parsed;
 }
 }  // namespace detail
+
+// An item from a game.exe host's 0x9c (from +8) or 0x9d (from +13): the
+// item, where it lies when on the ground (act subtiles), gold's amount.
+// nullopt when the bits run out (a layout d2d doesn't know yet).
+struct NetItem { Item item; int x = -1, y = -1, gold = 0; };
+inline std::optional<NetItem> parse_net_item(std::span<const std::byte> bits_bytes, const ItemTables& item_tables) {
+    detail::Bits bits{ bits_bytes, 0 };
+    detail::NetPlace place;
+    try {
+        auto parsed = detail::item(bits, item_tables, &place);
+        if (bits.pos > bits_bytes.size() * 8) return std::nullopt;
+        return NetItem{ std::move(parsed), place.x, place.y, place.gold };
+    } catch (const std::runtime_error&) {
+        return std::nullopt;
+    }
+}
 
 // Character attributes — the "gf" section at 0x2FD: 9-bit stat id, value
 // of ItemStatCost CSvBits width, until 0x1ff; then "if" + 30 skill bytes,

@@ -159,6 +159,7 @@ struct Fight {
     // ponytail: the merc's poison isn't kept, nor whether its drink counts.
     bool cure(std::uint32_t now_ms);
     int game_difficulty = 0;                         // new_game's
+    bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     Spawning spawning;                                   // the game's rooms in play and what they spawned (new_game)

@@ -7,6 +7,7 @@
 #include "audio.hpp"
 #include "common.hpp"
 #include "gamemenu.hpp"
+#include "netgame.hpp"
 #include "panels.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -144,6 +146,20 @@ struct Town {
     LocalTransport net;                    // the commands to the World, as their wire form (single player)
     View view;                             // what the World told the client after its last tick
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
+    std::unique_ptr<NetGame> net_game;     // --join: a game on a game.exe host (its other players and monsters)
+    std::unordered_map<std::uint32_t, Monster> net_monsters;   // the host's monsters as d2d draws them, by unit id
+    int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
+    int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
+    int net_pick = -1;                                       // the host item being walked to, to pick up
+    std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
+    bool net_items_checked = false;                          // the once-a-game item match logged
+    std::size_t net_store_shown = 0;                         // the host stock count the store last showed
+    std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
+    int net_trade_pending = -1;                              // the host NPC being walked to for a trade
+    bool net_trade_gamble = false;
+    bool net_trade_asked = false;                            // its 0x59 + 0x13 went out, NPC info awaited
+    std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()
+    std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
@@ -204,6 +220,9 @@ struct Town {
     // character in it becomes the client's (the panels draw it); the store
     // keeps the client's tab and buttons.
     void publish();
+    void send(const Command& command);    // to the World, and to a joined host
+    void net_items(const Command& command);   // a joined game: our item moves and uses to the host
+    const NetGame::Unit* net_npc(int index) const;   // the host's NPC for d2d's NPC index
 
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.
@@ -218,6 +237,7 @@ struct Town {
 
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
+    void net_overlay();                   // the joined host's units into `view`
     void new_game();
 
     // The game menu (FUN_0047e090 / FUN_0047e200): opening closes the

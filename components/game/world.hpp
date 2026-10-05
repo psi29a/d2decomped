@@ -95,6 +95,10 @@ struct View {
     // The player's corpses where they stand: their look when they fell.
     struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
     std::vector<Corpse> corpses;
+    // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
+    // replicated, the client sets them after each View (apps/d2d netgame).
+    struct OtherPlayer { UnitState unit; int cls = 0; std::string name; };
+    std::vector<OtherPlayer> others;
     // The level's NPCs as they patrol, then each Level::nearby level's in
     // that order (its npcs.size() each, its own cells).
     std::vector<UnitState> npc_states;
@@ -268,6 +272,7 @@ struct World {
     // footprint and sound.
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A monster's door at its think (Fight::open_door): found, operated in reach.
+    void display_swing(int skill, float x, float y, std::uint32_t now_ms);   // a joined game: swing at a host monster, for show
     bool monster_door(const Monster& monster, std::uint32_t now_ms);
     // An exploding barrel (FUN_00584330 / FUN_00584240): open, it hurts
     // whoever's within 3 subtiles and sets off the unopened ones nearer

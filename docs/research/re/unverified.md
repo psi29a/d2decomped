@@ -19,6 +19,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
 | Objects.txt CycleAnim0..7: 0 = play once, hold the last frame | apps/d2d/ingame.cpp `holds` | objects.txt's column names | an opened chest stops open | the object animation update |
 | MonStats AI Idle (the cow): stands, never chases | components/game/ai.cpp after `think` | the AI's name | the cow no longer follows the player and vanishes | the AI table's Idle entry |
+| Character-create name filter: letters, one ' - _ not first or last, 2..15 | apps/d2d/main.cpp Screen::CharCreate | the TCP host's join check (FUN_0052c5b0) | "Bob Bitchen" (a space) got no answer from a live host | the create screen's edit box / OK handler |
 | DT1 block y-shift, `max(0, -min(block.y))` | components/dt1/dt1.hpp | OpenDiablo2's renderer | tiles draw seamlessly | the DT1 loader / tile blitter |
 | Iso projection: a cell is 160x80, x → (+80, +40), y → (-80, +40) | components/game/game.hpp `kIsoW`/`kIsoH` | OpenDiablo2's mapengine | floor tiles are 160x80 diamonds and meet | the world→screen transform |
 | pal.dat is BGR triples | components/palette/palette.hpp | OpenDiablo2's d2dat.Load | colours match the game's screens | the palette loader |
