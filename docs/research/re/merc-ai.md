@@ -80,13 +80,43 @@ player is over 45 (squared subtiles) from the newest spot, it's written and
 the cursor moves on. `FUN_00554ea0`, a unit put somewhere (a warp), writes
 the arrival.
 
-## Not traced yet
+## The attack think (FUN_005e5050), read, not ported
 
-- The attack think `FUN_005e5050`: the melee mercs (0x152, 0x230, 0x231)
-  skill chance 98, the others +0x14 + 40 + 2 × level (95 at most), +10 per
-  miss; aip1 0 (the shooters) backs off 4 half the time under 4 off; the
-  rest walk into melee (MonStats2 +0xe). A roll under the chance uses a
-  skill (`FUN_005e4d30`, not read); else it stands 10. d2d strikes or walks
-  at the foe instead.
+`FUN_005e5050(ECX game, EDX merc, class, owner, target, seed, params)`:
+
+- The skill chance: 98 for the melee mercs (0x152, 0x230, 0x231); else the
+  AI control's +0x14 + 40 + 2 × the merc's level, at most 95 (0x5f). A
+  rand(100) on its seed at or over the chance: +0x14 += 10, no skill; under:
+  +0x14 = 0, a skill.
+- aip1 (MonStats +0x56 by difficulty) 0 — the shooters: under 4 off, half
+  the time (rand(100) < 50) it backs off 4 from the foe (`FUN_005df530`,
+  else `FUN_005defe0`); else, with the skill, `FUN_005e4d30`.
+- aip1 not 0: over 2 off or not in melee (`FUN_00622c40`) it walks at the
+  foe, stopping MonStats2 +0xe off (`FUN_005ded00`); in melee with the
+  skill, `FUN_005e4d30`.
+- Else it stands 10.
+
+## Its skills (FUN_005e4d30)
+
+The merc's hireling.txt row at its level (`FUN_006562f0`, row +0x1c Level).
+A table: DefaultChance, then per Skill1..6 it has (`FUN_006442a0` > 0) that
+isn't an aura already on (+0x230 1 and its state set) the running sum of
+Chance + ChancePerLvl × (level − Level) / 4 (skill 0x29 only within its
+level / 2 + 4 of the foe). A rand(sum + 1) on its seed: at DefaultChance or
+over, the first skill whose sum covers it — an aura (Skills.txt +4 & flag)
+starts (`FUN_005701b0`), else `FUN_005dead0(Mode, skill, foe)`. Under:
+roguehire fires MonStats Skill1 in Sk1mode; act2hire (and act3hire, the
+Act 5 mercs) swing A1 in melee (`FUN_005ddf90(4)`); else it stands 10.
+
+hireling.txt's columns: DefaultChance, Skill1..6, Mode1..6, Chance1..6,
+ChancePerLvl1..6, Level1..6, LvlPerLvl1..6 (Rogue Scout, Fire: 75; Inner
+Sight 10; Fire Arrow 25 + 8 a level).
+
+## Not ported yet
+
+- The attack think and the skills above: d2d's merc strikes or walks at the
+  foe (an Act 1 rogue shoots plain arrows). Porting them wants the merc as
+  a Monster, so the monster skill path (`FUN_005dead0`, ai.cpp) runs its
+  skills.
 - `FUN_005ddc30`'s choice (threat order, sight); d2d takes the nearest live
   monster under 0x31 by `merc_gap`.
