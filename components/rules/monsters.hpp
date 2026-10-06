@@ -655,6 +655,161 @@ std::vector<std::pair<int, int>> search_path(int x, int y, int to_x, int to_y, b
     return points;
 }
 
+// The wall pather (FUN_0067c2d0, path type 0xf: a monster's walk when the
+// toward pather finds nothing, FUN_005a6290). A line (FUN_0067b9f0, a
+// Bresenham on the long axis) of `steps` (+0x91; 0x28 at least with a unit
+// to walk to) less one subtiles at most, else nothing; nothing either with
+// two subtiles or fewer. Walking it, a blocked subtile sends two tracers
+// round the obstacle from the one before (FUN_0067bdf0), taking turns: one
+// keeps a wall on its right (turning left after each step, right when
+// blocked), the other on its left, starting 45° off the line
+// (DAT_006f1e18 +1 / +7, of 16 directions from north clockwise,
+// DAT_006f1d98). A step tries its way and up to three turns
+// (FUN_0067bbf0). A tracer back on the line further on is spliced in
+// (FUN_0067bd80; the subtile after isn't tested); one that steps onto the
+// other's last-but-one spot ends the path before the obstacle. A tracer
+// that reaches the other's spot goes on alone until they part. They stop
+// stuck or past `steps` less the line less the walked; then, unless over
+// 0x50 were left, the path ends with the tracer nearer the end, if nearer
+// than the start (a tracer with no step counts as (1, 0) or (0, 0)). The
+// points (FUN_0067c1e0) are each turn and the last; a first turn on both
+// axes isn't one.
+template <class Blocked>
+std::vector<std::pair<int, int>> wall_path(int x, int y, int to_x, int to_y, int steps, bool to_unit, Blocked&& blocked) {
+    using P = std::pair<int, int>;
+    static constexpr std::array<P, 8> kVec{ { { 0, -1 }, { 1, -1 }, { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 } } };
+    static constexpr std::array<int, 9> kFirst{ 7, 0, 1, 6, -1, 2, 5, 4, 3 };              // by (dy + 1) * 3 + dx + 1
+    static constexpr std::array<int, 8> kLeftAfter{ 6, 6, 0, 0, 2, 2, 4, 4 }, kLeftBlocked{ 2, 2, 4, 4, 6, 6, 0, 0 };
+    static constexpr std::array<int, 8> kRightAfter{ 2, 2, 4, 4, 6, 6, 0, 0 }, kRightBlocked{ 6, 0, 0, 2, 2, 4, 4, 6 };
+    if (to_unit && steps < 0x28) steps = 0x28;
+    const int dx = to_x - x, dy = to_y - y, step_x = dx >= 0 ? 1 : -1, step_y = dy >= 0 ? 1 : -1;
+    const int across = std::abs(dx), down = std::abs(dy);
+    std::vector<P> line;
+    int heading = 0;                                              // 0 -y, 1 +x, 2 +y, 3 -x: the long axis
+    if (across < down || across == 0) {
+        heading = step_y > 0 ? 2 : 0;
+        if (down > 0 && down <= steps - 1)
+            for (int walked = 1, err = 0, at_x = x; walked <= down; ++walked) {
+                if ((err += across) >= down) { err -= down; at_x += step_x; }
+                line.emplace_back(at_x, y + step_y * walked);
+            }
+    } else {
+        heading = step_x > 0 ? 1 : 3;
+        if (across <= steps - 1)
+            for (int walked = 1, err = 0, at_y = y; walked <= across; ++walked) {
+                if ((err += down) >= across) { err -= across; at_y += step_y; }
+                line.emplace_back(x + step_x * walked, at_y);
+            }
+    }
+    int count = int(line.size());
+    if (count <= 2) return {};
+    struct Tracer {
+        int dir; P cur; P next{}; int meet = 0; bool done = false; std::vector<P> points;
+        const std::array<int, 8>* after; const std::array<int, 8>* turn;
+    };
+    auto distance2 = [&](P spot) { return (spot.first - to_x) * (spot.first - to_x) + (spot.second - to_y) * (spot.second - to_y); };
+    // FUN_0067bdf0: false ends the path at `index`; true goes on from `index`.
+    auto detour = [&](P prev, int& index, int budget) {
+        const P first = line[std::size_t(index)];
+        const int base = kFirst[std::size_t((first.second - prev.second + 1) * 3 + first.first - prev.first + 1)];
+        Tracer left{ .dir = base + 1, .cur = prev, .after = &kLeftAfter, .turn = &kLeftBlocked };
+        Tracer right{ .dir = base + 7, .cur = prev, .after = &kRightAfter, .turn = &kRightBlocked };
+        Tracer* cur = &left;
+        Tracer* other = &right;
+        while (true) {
+            if (!cur->done) {
+                bool free = false;
+                for (int turn = 0; turn < 4 && !free; ++turn) {          // FUN_0067bbf0
+                    if (turn) cur->dir = (*cur->turn)[std::size_t(cur->dir & 7)];
+                    const P vec = kVec[std::size_t(cur->dir & 7)];
+                    cur->next = { cur->cur.first + vec.first, cur->cur.second + vec.second };
+                    free = !blocked(cur->next.first, cur->next.second);
+                }
+                if (!free) {
+                    cur->done = true;
+                } else {
+                    const P next = cur->next;
+                    if (!cur->points.empty()) {
+                        const std::array<int, 4> ahead_by{ prev.second - next.second, next.first - prev.first, next.second - prev.second, prev.first - next.first };
+                        const int ahead = ahead_by[std::size_t(heading)], rejoin = ahead - 1 + index;
+                        if (ahead > 0 && rejoin < count && line[std::size_t(rejoin)] == next) {       // FUN_0067bd80
+                            cur->points.push_back(next);
+                            std::vector<P> spliced(line.begin(), line.begin() + index);
+                            spliced.insert(spliced.end(), cur->points.begin(), cur->points.end());
+                            spliced.insert(spliced.end(), line.begin() + rejoin + 1, line.begin() + count);
+                            line = std::move(spliced);
+                            index += int(cur->points.size());
+                            count = int(line.size());
+                            return true;
+                        }
+                    }
+                    if (other->points.size() > 1) {
+                        if (cur->meet != 0) {
+                            if (next == other->points[std::size_t(cur->meet - 2)]) return false;   // round in a ring
+                            cur->meet = 0;
+                        }
+                        if (next == other->cur) cur->meet = int(other->points.size());
+                    }
+                    cur->points.push_back(next);
+                    cur->cur = next;
+                    cur->dir = (*cur->after)[std::size_t(cur->dir & 7)];
+                    if (budget - count - 1 <= int(cur->points.size())) cur->done = true;
+                }
+            }
+            if (cur->meet == 0) std::swap(cur, other);
+            if (left.done || right.done) break;
+        }
+        if (budget > 0x50) return false;
+        auto last = [](const Tracer& tracer) { return tracer.points.empty() ? P{ tracer.done ? 1 : 0, 0 } : tracer.points.back(); };
+        const int to_left = distance2(last(left)), to_right = distance2(last(right)), from_start = distance2({ x, y });
+        const Tracer& best = to_left < to_right ? left : right;
+        if (from_start < std::min(to_left, to_right) || (to_left >= to_right && from_start < to_right)) return false;
+        line.resize(std::size_t(index));
+        line.insert(line.end(), best.points.begin(), best.points.end());
+        index = count = int(line.size());
+        return true;
+    };
+    P prev{ x, y };
+    for (int index = 0; index < count; ++index) {
+        if (blocked(line[std::size_t(index)].first, line[std::size_t(index)].second) && !detour(prev, index, steps - index)) {
+            count = index;
+            break;
+        }
+        if (index < int(line.size())) prev = line[std::size_t(index)];
+    }
+    line.resize(std::size_t(count));
+    if (line.size() <= 1) return line;                            // FUN_0067c1e0
+    std::vector<P> points;
+    int run = 0, last_dx = line[0].first - x, last_dy = line[0].second - y;
+    for (std::size_t at = 0; at + 1 < line.size(); ++at) {
+        const int step_dx = line[at + 1].first - line[at].first, step_dy = line[at + 1].second - line[at].second;
+        if (step_dx == last_dx && step_dy == last_dy) { ++run; last_dx = step_dx; }
+        else if (run < 1 && last_dx != step_dx && last_dy != step_dy) { run = 1; last_dx = -2; }
+        else { points.push_back(line[at]); run = 0; last_dx = step_dx; }
+        last_dy = step_dy;
+    }
+    points.push_back(line.back());
+    return points;
+}
+
+// A monster's walk (FUN_005a7c20 -> FUN_005a63f0 -> FUN_005a6290; town
+// NPCs, Cain, the merc and pets walk as monsters): the toward pather (type
+// 0xd: 5 steps, near 1 at a unit, FUN_006498a0); with no point left, the
+// wall pather (type 0xf: 5 steps, 0x28 at a unit). Leading points on its
+// own subtile are dropped as the path is made (FUN_00649970 ->
+// FUN_0064fe40). None at its own subtile or over 100 off.
+template <class Blocked>
+std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked) {
+    if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return {};
+    auto off_own = [&](std::vector<std::pair<int, int>> points) {
+        const auto own = std::ranges::find_if(points, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); });
+        points.erase(points.begin(), own);
+        return points;
+    };
+    if (auto toward = off_own(toward_path(x, y, to_x, to_y, 5, to_unit ? 1 : 0, blocked)); !toward.empty()) return toward;
+    return off_own(wall_path(x, y, to_x, to_y, 5, to_unit, blocked));
+}
+
 // A player's path (type 7, FUN_00679ed0; +0x91 steps 0x49, FUN_00649d00):
 // the toward pather; taken when its end is within `nearby` of the target
 // and isn't the start. Else, with the target under 18 subtiles off (dx^2 +

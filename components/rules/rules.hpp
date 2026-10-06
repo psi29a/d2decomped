@@ -1556,49 +1556,4 @@ inline int identify_all(std::vector<d2d::d2s::Item>& items) {
     return count;
 }
 
-// Pathing over subtiles for a unit that can't stand where blocked(x, y):
-// 8-way A* (no cutting corners past a blocked neighbour), at most
-// max_nodes expanded. Returns the subtiles from start (exclusive) to the
-// goal, or to the reached subtile nearest the goal when it can't be
-// reached (clicking a wall walks up to it); empty when already there.
-// ponytail: stands in for D2's pathing (Path.cpp), which isn't traced.
-template <class Blocked>
-std::vector<std::pair<int, int>> find_path(int start_x, int start_y, int goal_x, int goal_y, Blocked&& blocked, int max_nodes = 6000) {
-    using P = std::pair<int, int>;
-    auto key = [](int x, int y) { return std::uint64_t(std::uint32_t(x)) << 32 | std::uint32_t(y); };
-    auto heuristic = [&](int x, int y) {
-        const int dx = std::abs(x - goal_x), dy = std::abs(y - goal_y);
-        return 10 * std::max(dx, dy) + 4 * std::min(dx, dy);
-    };
-    std::unordered_map<std::uint64_t, std::pair<int, P>> seen;     // g, parent
-    std::priority_queue<std::tuple<int, int, int, int>, std::vector<std::tuple<int, int, int, int>>, std::greater<>> open;
-    seen[key(start_x, start_y)] = { 0, { start_x, start_y } };
-    open.push({ heuristic(start_x, start_y), 0, start_x, start_y });
-    P best{ start_x, start_y };
-    int best_h = heuristic(start_x, start_y), expanded = 0;
-    while (!open.empty() && expanded < max_nodes) {
-        const auto [estimate, cost, node_x, node_y] = open.top();
-        open.pop();
-        if (cost > seen[key(node_x, node_y)].first) continue;
-        ++expanded;
-        if (heuristic(node_x, node_y) < best_h) { best_h = heuristic(node_x, node_y); best = { node_x, node_y }; }
-        if (node_x == goal_x && node_y == goal_y) break;
-        for (int dy = -1; dy <= 1; ++dy)
-            for (int dx = -1; dx <= 1; ++dx) {
-                if (!dx && !dy) continue;
-                const int next_x = node_x + dx, next_y = node_y + dy;
-                if (blocked(next_x, next_y) || (dx && dy && (blocked(node_x + dx, node_y) || blocked(node_x, node_y + dy)))) continue;
-                const int next_cost = cost + (dx && dy ? 14 : 10);
-                const auto next_key = key(next_x, next_y);
-                if (const auto found = seen.find(next_key); found != seen.end() && found->second.first <= next_cost) continue;
-                seen[next_key] = { next_cost, { node_x, node_y } };
-                open.push({ next_cost + heuristic(next_x, next_y), next_cost, next_x, next_y });
-            }
-    }
-    std::vector<P> path;
-    for (P step = best; step != P{ start_x, start_y }; step = seen[key(step.first, step.second)].second) path.push_back(step);
-    std::ranges::reverse(path);
-    return path;
-}
-
 }  // namespace d2d::rules

@@ -373,6 +373,22 @@ int main() {
             for (const auto& route : player_routes)
                 assert(player_path(0, 0, route.to_x, route.to_y, route.nearby, route.to_unit, [&](int x, int y) {
                     return std::ranges::contains(route.walls, std::pair(x, y)); }) == route.points);
+            // The wall pather (FUN_0067c2d0, moves.py --dump): to, steps, to a
+            // unit, points, walls.
+            struct WallRoute { int to_x, to_y, steps; bool to_unit; std::vector<std::pair<int, int>> points, walls; };
+            const std::vector<WallRoute> wall_routes{
+                { 5, -2, 40, false, { {2, 0}, {3, -1}, {4, -1}, {5, -2} }, {} },
+                { -8, -1, 40, false, { {-1, -1}, {-2, 0}, {-7, 0}, {-8, -1} }, { {-1, 0} } },
+                { 12, 2, 40, false, { {3, 0}, {4, 1}, {5, 0}, {6, 1}, {11, 1} }, { {4, 0}, {12, 1}, {12, 2} } },
+                { 3, 27, 40, false, { {-1, 1}, {0, 2}, {0, 6}, {-1, 7}, {0, 8}, {1, 9}, {1, 16}, {0, 17} }, { {0, 1}, {0, 7}, {1, 2}, {1, 17} } },
+                { 4, -7, 40, false, { {0, -1}, {1, -2}, {2, -3}, {6, -3}, {6, -5}, {2, -5}, {4, -7} },
+                  { {-1, -4}, {0, -4}, {0, -3}, {1, -4}, {2, -4}, {3, -4}, {4, -4}, {5, -4} } },
+            };
+            for (const auto& route : wall_routes)
+                assert(wall_path(0, 0, route.to_x, route.to_y, route.steps, route.to_unit, [&](int x, int y) {
+                    return std::ranges::contains(route.walls, std::pair(x, y)); }) == route.points);
+            assert(wall_path(0, 0, 2, 0, 40, false, [](int, int) { return false; }).empty());          // two subtiles: none
+            assert(wall_path(0, 0, 9, 0, 5, false, [](int, int) { return false; }).empty());           // past steps - 1: none
             // The search round a wall across the way (game.exe's own answer,
             // tools/emu); none from where it stands.
             auto across = [](int x, int y) { return x == 3 && y > -6 && y < 5; };

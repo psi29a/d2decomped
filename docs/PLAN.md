@@ -219,9 +219,9 @@ Noted while playing the dev build (2026-09-24):
 - **Collision.** Now built like game.exe's room grid (DT1 subtile rows
   were read upside down) with the plus-shaped unit test, and click-to-walk
   paths round obstacles (docs/research/re/collision.md). Left: the tile
-  entry flag bits, units blocking each other, doors. The player walks
-  game.exe's path type 7 (collision.md "Path types"); the merc, NPC
-  approaches and Cain still take our A*.
+  entry flag bits, units blocking each other, doors. Every walker takes
+  game.exe's pathers (collision.md "Path types"): the player type 7,
+  monsters, NPCs, Cain, the merc and pets 0xd then 0xf.
 - **NPC menu entries.** Not every menu item does something yet:
   - trade/repair, gamble, healing, hire and identify work (see Next up
     for what's approximate);

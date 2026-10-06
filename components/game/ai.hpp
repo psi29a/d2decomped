@@ -42,12 +42,15 @@ struct UnitState {
     std::uint32_t wait_until = 0;     // ms; idle until then
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
-    float goal_x = 0, goal_y = 0;     // where the merc's route was planned to
+    float goal_x = 0, goal_y = 0;     // where the route was planned to
+    int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
+    int path_points = 0;              // points the route had when made
+    bool to_unit = false;             // walking up to a unit (near 1, the wall pather's 0x28 steps)
     bool hidden = false;              // a quest-gated NPC who isn't here (yet)
     bool alert = false;               // has something new to say on a quest: the balloon over its head
     std::string_view mode;            // an object's mode now, "" = its start mode (Npc::mode)
     std::uint16_t says = 0;           // string id over its head (a shrine's message), 0 none
-    std::vector<std::pair<float, float>> path;   // a walk_path route being followed
+    std::vector<std::pair<float, float>> path;   // the route being followed, cells
     d2d::rules::NpcBrain brain;       // a town NPC's AI commands (town_npcs.hpp)
 };
 
@@ -74,17 +77,11 @@ struct Crowd {
 // mode (S1, S2) aidel (15) frames after it ends. An NPC with a "!" walks
 // up to `player` within 16 and greets it; one in `busy` (menu, speech or
 // store open on it) stops and stands (rules::npc_think's visitor).
-// ponytail: the walk is walk_path's route at Velocity, not game.exe's
-// pathers (toward 0xd, search 0xf); an NPC's first think comes at once.
+// The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
+// Velocity.
+// ponytail: an NPC's first think comes at once.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
                 std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr);
-
-// A walkable route from (x, y) to (gx, gy), in cells: rules::find_path
-// over subtiles with the unit collision test, then string-pulled (a turn
-// is dropped while the straight line past it stays clear). It ends on
-// the goal itself when that's walkable, else as close as it gets.
-std::vector<std::pair<float, float>> walk_path(const Level& level, float x, float y, float goal_x, float goal_y,
-                                               const Crowd& crowd = {}, const UnitState* self = nullptr);
 
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
@@ -94,13 +91,24 @@ std::vector<std::pair<float, float>> walk_path(const Level& level, float x, floa
 std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
                                                  const Crowd& crowd = {}, const UnitState* self = nullptr);
 
+// A walk as a monster's (town NPCs, Cain, the merc, pets) to (gx, gy) in
+// cells: rules::monster_path's points as subtile centres, a budget of 0x14
+// points (FUN_005a7c20 -> FUN_006490e0). False with no step to take.
+bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bool to_unit, const Crowd& crowd = {});
+
+// A frame of that walk (FUN_00650840): along its path; run out short of its
+// end, it paths again while the budget lasts, the points walked coming off
+// it (FUN_006503f0 -> FUN_00650350). Blocked, it ends (FUN_00650150).
+// False once it's over.
+bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
+
 // Moves u along its path by `step` cells, dropping reached points and
 // turning it to face the way; blocked by a wall or another unit, it
 // drops the route. False once there (or stuck).
 bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
 
 // The mercenary follows the player: it sets off when more than 3 cells
-// behind and stops within 1.5, at `speed` cells/s along a walk_path;
+// behind and stops within 1.5, at `speed` cells/s on a monster's walk;
 // more than 12 behind (a warp), or stuck for 1.5 s (no route), it's put
 // next to the player.
 // ponytail: D2's follow distances aren't traced.

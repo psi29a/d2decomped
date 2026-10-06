@@ -362,17 +362,6 @@ int main() {
     assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == 1);
     assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && purse.get(kGoldBank) == 100);   // 50100 pays once more
     assert(!store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 2);             // then it can't
-    // Pathing: round a wall; up to it when the goal is walled off.
-    auto wall = [](int x, int y) { return x == 5 && y >= -10 && y <= 10; };   // a wall at x = 5
-    const auto round = find_path(0, 0, 10, 0, wall);
-    assert(!round.empty() && round.back() == std::pair(10, 0));
-    for (const auto& [step_x, step_y] : round) assert(!wall(step_x, step_y));
-    assert(round.size() > 10);                                             // had to detour
-    auto boxed = [](int x, int y) { return std::abs(x - 20) <= 2 && std::abs(y) <= 2 && !(x == 20 && y == 0); };
-    const auto closest = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in
-    assert(!closest.empty() && closest.back() == std::pair(17, 0));
-    assert(find_path(3, 3, 3, 3, wall).empty());
-
     // Mercenaries: the hire list's offers and hiring.
     Tables merc_tables;
     merc_tables.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,

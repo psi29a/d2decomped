@@ -932,7 +932,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
         if (unit.walking) {
-            unit.walking = follow_path(*level, unit, cells_per_sec(npc.velocity) * elapsed);
+            unit.walking = walk_on(*level, unit, cells_per_sec(npc.velocity) * elapsed);
             if (unit.walking) return;
             unit.path.clear();
         }
@@ -940,8 +940,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto cell = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
         const int at_x = int(std::floor(unit.x * 5)), at_y = int(std::floor(unit.y * 5));
         const auto walk = [&](int x, int y) {
-            unit.path = walk_path(*level, unit.x, unit.y, cell(x), cell(y));
-            unit.walking = !unit.path.empty();
+            unit.walking = set_off(*level, unit, cell(x), cell(y), false);
         };
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
@@ -1743,7 +1742,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             // target moves off its end (dragging, a walking NPC) and when
             // it ran out short of it (FUN_006503f0's last test).
             // ponytail: a target unit re-paths at 0.3 cells, not game.exe's
-            // 5 subtiles off SP2; the merc, NPCs and Cain still walk_path.
+            // 5 subtiles off SP2.
             const auto subtile = [](float value) { return int(std::floor(value * 5)); };
             if (player.path.empty() || std::hypot(player.goal_x - target_x, player.goal_y - target_y) > 0.3f) {
                 player.path = player_walk(*level, player.x, player.y, target_x, target_y, to_unit, crowd, &player);

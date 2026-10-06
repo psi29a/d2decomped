@@ -59,10 +59,10 @@ warp tile 1.
   oracle: `diff_drlg.py 1-10 <level> collision` brings game.exe's rooms up
   shuffled ($ORDER) and compares every room's grid (levels 2–39, 10/10).
 - `Scene::unit_blocked` is the plus test with mask 0x09.
-- Pathing: the player walks game.exe's path type 7 (below,
-  `rules::player_path` / `ai.cpp player_walk`). NPC approaches, Cain and
-  the merc still take `rules::find_path` (8-way A*) + string-pulling
-  (`walk_path`); their path types aren't traced.
+- Pathing: game.exe's path types (below). The player walks type 7
+  (`rules::player_path` / `ai.cpp player_walk`); monsters, town NPCs,
+  Cain, the merc and pets walk as monsters, 0xd then 0xf
+  (`rules::monster_path`; `ai.cpp path_to`, `set_off` / `walk_on`).
 
 ## Path types (`.\PATH\Path.cpp`)
 
@@ -95,10 +95,38 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   that node and every turn, start first, the start left out, at most 77.
   Walking to a unit, nothing when all eight subtiles 2 off it are blocked
   (FUN_0067b740).
-- Checked: `tools/emu/moves.py` runs FUN_0067b850 and FUN_00679ed0 on
-  random walls against the port (6,000 cases, all equal).
+- A monster's walk (town NPCs too: FUN_005ded90 → FUN_005a7c20 →
+  FUN_005a63f0, move mode 0x65 → type 0xd, steps +0x91 = 5): FUN_005a6290
+  computes type 0xd (the toward pather, monster-ai.md) and, with no point,
+  type 0xf. FUN_005a7c20 gives it a budget of 0x14 points (+0x94); a path
+  run out short of its end paths again while that lasts, the points walked
+  coming off it (FUN_006503f0 → FUN_00650350).
+- The wall pather (FUN_0067c2d0, type 0xf): a line (FUN_0067b9f0,
+  Bresenham on the long axis) of at most `steps` − 1 subtiles (`steps` is
+  +0x91, 0x28 at least with a unit to walk to), else none; none with two
+  subtiles or fewer either. Walking it, a blocked subtile starts two
+  tracers from the one before (FUN_0067bdf0), taking turns: one keeps the
+  wall on its right (after a step it turns left, blocked it turns right:
+  tables 0x6f1f00 / 0x6f1ec0), the other on its left (0x6f1e80 /
+  0x6f1e40); they start 45° either side of the line (DAT_006f1e18 + 1 /
+  + 7; directions DAT_006f1d98, 0 north, clockwise). A step tries its way
+  and up to three turns (FUN_0067bbf0). A tracer back on the line further
+  on is spliced in (FUN_0067bd80; the subtile after it isn't tested). One
+  stepping onto the other's last-but-one spot ends the path before the
+  block; one reaching the other's spot goes on alone until they part.
+  Stuck, or past `steps` less the line less the walked, they stop: then
+  (unless over 0x50 were left: the path ends at the block) the tracer
+  nearer the end ends the path, if nearer than the start. FUN_0067c1e0
+  makes the points: each turn and the last (a first step off both axes
+  isn't a turn).
+- Checked: `tools/emu/moves.py` runs FUN_0067b850, FUN_00679ed0 and
+  FUN_0067c2d0 on random walls against the port (6,000 and 9,000 cases,
+  all equal).
 - ponytail: d2d drops a repeated point (the toward pather's cut-short
   subtile); game.exe spends a frame on it. A target that moves re-paths at
-  0.3 cells, not FUN_006503f0's 5 subtiles off SP2.
+  0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
+  FUN_006503f0's 5 subtiles off SP2. The merc's follow distances (the
+  Hireable AI) aren't traced; town NPCs walking up to the player go to a
+  spot, not a unit.
 - Not yet: the tile-entry flag bits, units blocking each other (0x800 /
   0x1000), doors.
