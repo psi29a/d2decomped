@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <format>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -1161,7 +1162,13 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 game_data.rules.hirelings.push_back({ number("Version"), number("Id"), number("Class"), number("Act"), number("Difficulty"), number("Level"),
                     number("Gold"), number("Exp/Lvl"), number("HP"), number("HP/Lvl"), number("Defense"), number("Def/Lvl"), number("Str"), number("Str/Lvl"),
                     number("Dex"), number("Dex/Lvl"), number("Dmg-Min"), number("Dmg-Max"), number("Dmg/Lvl"), std::max(1, names),
-                    number("AR"), number("AR/Lvl") });
+                    number("AR"), number("AR/Lvl"), number("Resist"), number("Resist/Lvl"), number("DefaultChance") });
+                auto& hireling = game_data.rules.hirelings.back();
+                for (std::size_t k = 0; k < hireling.skills.size(); ++k) {
+                    auto column = [&](const char* name) { return std::format("{}{}", name, k + 1); };
+                    hireling.skills[k] = { std::string(hireling_table.get(row, column("Skill"))), number(column("Mode").c_str()), number(column("Chance").c_str()),
+                                           number(column("ChancePerLvl").c_str()), number(column("Level").c_str()), number(column("LvlPerLvl").c_str()) };
+                }
             }
         if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
             for (std::size_t row = 0; row < 3; ++row)

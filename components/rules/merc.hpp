@@ -166,4 +166,121 @@ MercAct hireable_think(const MercView& view, Rng& seed, LevelAt&& level_at, TryM
     return { .kind = Kind::stand, .frames = 5 };
 }
 
+// The hireling.txt row a merc of Id `id` at `level` reads (FUN_006562f0):
+// the LoD rows (Version 100) of its Id in file order, the last whose Level
+// isn't over its own (the first if all are).
+[[nodiscard]] inline const Hireling* hireling_row(const Tables& tables, int id, int level) {
+    const Hireling* found = nullptr;
+    for (const auto& row : tables.hirelings) {
+        if (row.version != 100 || row.id != id) continue;
+        if (found && level < row.level) return found;
+        found = &row;
+    }
+    return found;
+}
+
+// Its skills' levels (the level-up FUN_00572840): Level + (LvlPerLvl x
+// (level - the row's Level) >> 5), 1..32, each skill from its required
+// level on (`reqlevel(id)`); 0 none. `ids`: Skill1..6 as Skills.txt ids
+// (0 none); a missing one or a Mode over 15 ends the list.
+template <class ReqLevel>
+std::array<int, 6> merc_skill_levels(const Hireling& row, const std::array<int, 6>& ids, int level, ReqLevel&& reqlevel) {
+    std::array<int, 6> levels{};
+    const int gained = level - row.level;
+    for (std::size_t k = 0; k < 6; ++k) {
+        if (ids[k] < 1 || row.skills[k].mode > 15) break;
+        if (reqlevel(ids[k]) > level) continue;
+        const int skill_level = (row.skills[k].level_per_level * gained >> 5) + row.skills[k].level;
+        if (skill_level >= 1) levels[k] = std::min(skill_level, 0x20);
+    }
+    return levels;
+}
+
+// The attack think's view: its class (hcIdx), level, MonStats aip1 for the
+// difficulty, its gap to the foe (merc_gap), the skill-0x29 distance
+// (FUN_006416d0), in melee (FUN_00622c40), its row and skills (ids, levels,
+// which are auras (Skills.txt flag 0x20), which run: Skills +0x230 1 with
+// its aurastate on the merc, Frozen Armor too), MonStats Skill1 / Sk1mode, and
+// the AI control's +0x14 (the skill chance's growth, kept across thinks).
+struct MercFightView {
+    int cls = 0, level = 1, aip1 = 0, gap = 0, distance = 0;
+    bool melee = false;
+    const Hireling* row = nullptr;
+    std::array<int, 6> ids{}, levels{};
+    std::array<bool, 6> aura{}, running{};
+    int skill1 = -1, sk1mode = 4;
+};
+
+// What it comes to: a move (to a spot `x`, `y` about the foe or away from
+// it, or a run at the foe), a run that found no path (it thinks again aidel
+// on, FUN_005a73e0), a skill in a mode at the foe, an aura started (then it
+// stands 10), a swing (A1), or a stand.
+struct MercAttack {
+    enum class Kind { moved, failed, skill, aura, swing, stand } kind = Kind::stand;
+    int skill = -1, mode = 0, frames = 10;
+};
+
+// The attack think (FUN_005e5050) and its skill pick (FUN_005e4d30). The
+// chance: 98 for the melee mercs (0x152, 0x230, 0x231), else +0x14 + 40 +
+// 2 x level, 95 at most; a rand(100) under it resets +0x14 and may use a
+// skill, else +0x14 grows by 10. aip1 0 (the shooters): under 4 off, half
+// the time a spot 4 about the foe (FUN_005df530), else 4 away from it
+// (FUN_005defe0), else the pick anyway. Else out of melee (or over 2 off)
+// a run at the foe. The pick: from DefaultChance a running sum of each
+// skill's Chance + ChancePerLvl x (level - Level) / 4 for those it has
+// and isn't running (0x29 only within its level / 2 + 4); a
+// rand(sum + 1) at DefaultChance or over takes the first skill whose sum
+// covers it; under, roguehire uses Skill1 in Sk1mode, act2 / act3 / act5
+// mercs swing in melee; else a stand 10. Rolls on its seed. `move(kind,
+// x, y)`: 0 about, 1 away (spots in subtiles), 2 run at the foe; true when
+// it sets off. `x`, `y`, `foe_x`, `foe_y`: subtiles.
+template <class TryMove>
+MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int y, int foe_x, int foe_y, Rng& seed, TryMove&& move) {
+    using Kind = MercAttack::Kind;
+    const bool melee_class = view.cls == 0x152 || view.cls == 0x230 || view.cls == 0x231;
+    const int chance = melee_class ? 0x62 : std::min(chance_growth + 0x28 + 2 * view.level, 0x5f);
+    const bool use = int(seed.next() % 100) < chance;
+    chance_growth = use ? 0 : chance_growth + 10;
+    auto pick = [&]() -> MercAttack {
+        if (!view.row) return { .kind = Kind::stand, .frames = 0 };
+        const int gained = std::max(view.level - view.row->level, 0);
+        int total = view.row->default_chance;
+        std::array<int, 6> sums{};
+        int listed = 0;
+        for (std::size_t k = 0; k < 6; ++k, ++listed) {
+            if (view.ids[k] < 1) break;
+            if (view.levels[k] <= 0 || view.running[k]) continue;
+            if (view.ids[k] == 0x29 && view.levels[k] / 2 + 4 < view.distance) continue;
+            total += view.row->skills[k].chance_per_level * gained / 4 + view.row->skills[k].chance;
+            sums[k] = total;
+        }
+        const int roll = total + 1 < 1 ? 0 : seed(total + 1);
+        if (view.row->default_chance <= roll)
+            for (std::size_t k = 0; k < std::size_t(listed); ++k) {
+                if (sums[k] < roll) continue;
+                if (view.aura[k]) return { .kind = Kind::aura, .skill = view.ids[k] };
+                return { .kind = Kind::skill, .skill = view.ids[k], .mode = view.row->skills[k].mode };
+            }
+        if (view.cls == 0x10f) return { .kind = Kind::skill, .skill = view.skill1, .mode = view.sk1mode };
+        if ((view.cls == 0x152 || view.cls == 0x167 || view.cls == 0x230 || view.cls == 0x231) && view.melee) return { .kind = Kind::swing };
+        return { .kind = Kind::stand };
+    };
+    if (view.aip1 == 0) {
+        if (view.gap < 4 && seed.next() % 100 < 0x32) {
+            int off_x = 0, off_y = 0;                                 // FUN_005df530: 4 about the foe
+            if ((seed.next() & 1) == 0) { off_x = seed(4); off_y = 4; }
+            else { off_x = 4; off_y = seed(4); }
+            if (seed.next() & 1) off_x = -off_x;
+            if (seed.next() & 1) off_y = -off_y;
+            if (move(0, foe_x + off_x, foe_y + off_y)) return { .kind = Kind::moved };
+            const int away_x = x < foe_x ? -1 : foe_x < x ? 1 : 0, away_y = y < foe_y ? -1 : foe_y < y ? 1 : 0;
+            if (move(1, x + 4 * away_x, y + 4 * away_y)) return { .kind = Kind::moved };
+            return pick();
+        }
+        return use ? pick() : MercAttack{ .kind = Kind::stand };
+    }
+    if (view.gap > 2 || !view.melee) return { .kind = move(2, foe_x, foe_y) ? Kind::moved : Kind::failed };
+    return use ? pick() : MercAttack{ .kind = Kind::stand };
+}
+
 }  // namespace d2d::rules

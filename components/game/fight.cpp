@@ -76,6 +76,15 @@ auto Fight::merc_joins() -> void {
         const auto& header = character.header;
         merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
         merc_target = -1; merc_chase = false;
+        merc_ids = {}; merc_levels = {}; merc_growth = 0; merc_aura = -1; merc_skill = -1;
+        if (const auto* row = d2d::rules::hireling_row(game_data->rules, header.merc_type, merc_st.level)) {
+            for (std::size_t k = 0; k < merc_ids.size(); ++k)
+                if (const auto* skill = skill_named(row->skills[k].name)) merc_ids[k] = skill->id;
+            merc_levels = d2d::rules::merc_skill_levels(*row, merc_ids, merc_st.level, [&](int id) {
+                const auto* skill = game_data->skills.get(id);
+                return skill ? skill->reqlevel : 0x7fff;
+            });
+        }
         if (!merc) return;
         merc->hit_points = merc_st.life;
         merc->mode = "NU"; merc->next_act = 0; merc->move_pct = 0;
@@ -719,8 +728,12 @@ auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
             ServerDoFunction::kDoubleThrow }, skill.srvdofunc);
     }
 
-auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
-        const int lvl = skill_level ? skill_level(skill.id) : 1;
+auto Fight::player_caster(int skill) const -> Caster {
+        return { player.x, player.y, skill_level ? skill_level(skill) : 1, attack_mon, cast_x, cast_y, false };
+    }
+
+auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
+        const int lvl = caster.level;
         const auto env = calc_env();
         const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
         auto within = [&](float x, float y, int radius, auto&& each) {
@@ -844,7 +857,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
                         within(lure.unit.x, lure.unit.y, calc(skill, skill.aurarange, lvl), [&](std::size_t index) { if (!monsters[index].align) set(monsters[index], 2, lure.id); });
                     }
                 } else {
-                    within(skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.x : cast_x, skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? player.y : cast_y, calc(skill, skill.aurarange, lvl), put);
+                    within(skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? caster.x : cast_x, skill.srvdofunc == ServerDoFunction::kStateAroundCaster ? caster.y : cast_y, calc(skill, skill.aurarange, lvl), put);
                 }
                 break;
             }
@@ -1291,10 +1304,15 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         if (merc->mode == "GH") { if (now_ms < merc->mode_until) return; set("NU"); merc->next_act = now_ms; }
         const bool archer = merc_npc && merc_npc->id == "roguehire";
         const float reach = archer ? 6.f : kMeleeReach;
-        if (merc->mode == "A1") {
-            if (!merc->struck && merc_target >= 0 && now_ms >= unit.mode_ms + game_data->npc_timing(*merc_npc, "A1").action_ms()) {
+        if (merc->mode != "NU" && merc->mode != "WL" && merc->mode != "RN") {   // an attack: its skill (or blow) on the action frame
+            if (!merc->struck && merc_target >= 0 && now_ms >= unit.mode_ms + game_data->npc_timing(*merc_npc, merc->mode).action_ms()) {
                 merc->struck = true;
                 auto& target = monsters[std::size_t(merc_target)];
+                const auto* skill = merc_skill >= 0 ? game_data->skills.get(merc_skill) : nullptr;
+                const Caster caster{ unit.x, unit.y, std::max(merc_skill_level, 1), merc_target, target.unit.x, target.unit.y, true };
+                if (skill && missile_skill(*skill)) fire(*skill, now_ms, caster);
+                else if (skill && spot_skill(*skill)) spot(*skill, now_ms, caster);
+                else {
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 if (archer && game_data->missiles.contains("arrow")) {
                     const auto& missile_info = game_data->missiles.at("arrow");
@@ -1305,6 +1323,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     missiles.push_back(missile);
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), target_of(std::size_t(merc_target)), merc_st.level, rng), false, now_ms);
+                }
                 }
             }
             if (now_ms < merc->mode_until) return;
@@ -1399,19 +1418,57 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 }
             }
             merc->next_act = now_ms + 5 * 40;
-        } else if (act.kind == Kind::attack && merc_target >= 0) {
+        } else if (act.kind == Kind::attack && merc_target >= 0 && type_info) {
+            // The attack think (FUN_005e5050) and its skill pick (FUN_005e4d30).
+            // ponytail: the 0x29 distance is the gap + 1, not FUN_006416d0;
+            // a skill's own mode token falls back to A1 without frames.
             const auto& target = monsters[std::size_t(merc_target)];
-            const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y;
-            if (std::hypot(dx, dy) <= reach) {
-                unit.dir = direction16(dx, dy);
-                set("A1");
-                merc->struck = false;
-            } else if (set_off(*level, unit, target.unit.x, target.unit.y, true, crowd)) {
+            const int foe_x = sub(target.unit.x), foe_y = sub(target.unit.y), difficulty = std::clamp(character.header.active_difficulty(), 0, 2);
+            static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
+            const auto* skill1 = skill_named(type_info->skill[0]);
+            const auto sk1mode = std::ranges::find(kModes, std::string_view(type_info->sk_mode[0]));
+            d2d::rules::MercFightView fight_view{ .cls = merc_npc->hc_idx, .level = merc_st.level, .aip1 = type_info->diff[std::size_t(difficulty)].aip[0],
+                .gap = target_gap, .distance = target_gap + 1,
+                .melee = d2d::rules::unit_distance(foe_x - merc_x, foe_y - merc_y, type_info->size, game_data->monsters.types[std::size_t(target.type)].size) <= type_info->melee_rng + 1,
+                .row = d2d::rules::hireling_row(game_data->rules, character.header.merc_type, merc_st.level), .ids = merc_ids, .levels = merc_levels,
+                .skill1 = skill1 ? skill1->id : -1, .sk1mode = sk1mode == kModes.end() ? 4 : int(sk1mode - kModes.begin()) };
+            for (std::size_t k = 0; k < merc_ids.size(); ++k) {
+                const auto* skill = game_data->skills.get(merc_ids[k]);
+                fight_view.aura[k] = skill && skill->aura;
+                fight_view.running[k] = merc_ids[k] > 0 && merc_ids[k] == merc_aura;
+            }
+            auto move = [&](int kind, int x, int y) {
+                if (kind == 2) {                                      // FUN_005ded00: a run at the foe
+                    if (!set_off(*level, unit, target.unit.x, target.unit.y, true, crowd)) return false;
+                    const auto path = unit.path;
+                    set("RN"); unit.path = path;
+                    merc->move_pct = 0; merc_chase = true;
+                    return true;
+                }
+                if (!try_move({ .x = x, .y = y })) return false;
                 set("WL");
+                unit.path = route; unit.goal_x = centre(x); unit.goal_y = centre(y);
+                unit.budget = 0x14; unit.path_points = int(route.size()); unit.to_unit = false;
                 merc->move_pct = 0;
-                merc_chase = true;
-            } else {
-                merc->next_act = now_ms + std::uint32_t(aidel) * 40;
+                return true;
+            };
+            using AttackKind = d2d::rules::MercAttack::Kind;
+            const auto attack = d2d::rules::merc_attack(fight_view, merc_growth, merc_x, merc_y, foe_x, foe_y, merc->seed, move);
+            if (attack.kind == AttackKind::failed) merc->next_act = now_ms + std::uint32_t(aidel) * 40;
+            else if (attack.kind == AttackKind::stand) merc->next_act = now_ms + std::uint32_t(attack.frames) * 40;
+            else if (attack.kind == AttackKind::aura) {
+                merc_aura = attack.skill;
+                d2d::log::info("the merc starts its aura {}", attack.skill);
+                merc->next_act = now_ms + 10 * 40;
+            } else if (attack.kind == AttackKind::skill || attack.kind == AttackKind::swing) {
+                merc_skill = attack.kind == AttackKind::skill ? attack.skill : -1;
+                merc_skill_level = 0;
+                for (std::size_t k = 0; k < merc_ids.size(); ++k) if (merc_ids[k] == merc_skill) merc_skill_level = merc_levels[k];
+                if (skill1 && merc_skill == skill1->id && merc_skill_level == 0) merc_skill_level = type_info->sk_lvl[0];
+                const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kModes[std::size_t(attack.mode)];
+                unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
+                set(game_data->npc_timing(*merc_npc, mode).directions ? mode : std::string_view("A1"));
+                merc->struck = false;
             }
         }
     }
@@ -1593,7 +1650,7 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
                     int range, std::uint32_t now_ms) -> Missile& {
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
-        missile.friendly = true; missile.skill = skill.id; missile.level = lvl;
+        missile.friendly = true; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc;
         pending.push_back(missile);
         return pending.back();
     }
@@ -1602,18 +1659,20 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
         return d2d::rules::eval_calc(game_data->skills, calc_row, calc_env(), skill.id, lvl);
     }
 
-auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
+auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const auto& missile_info = *skill_missile(skill);
-        const int lvl = skill_level ? skill_level(skill.id) : 1;
+        const int lvl = caster.level;
+        casting_merc = caster.merc;
+        struct Reset { bool& flag; ~Reset() { flag = false; } } reset{ casting_merc };
         const int calc1 = calc(skill, skill.calc[0], lvl);
         const auto shared = std::make_shared<std::vector<int>>();
-        const float dx = cast_x - player.x, dy = cast_y - player.y;
+        const float dx = caster.to_x - caster.x, dy = caster.to_y - caster.y;
         const int range = missile_info.range + missile_info.lev_range * lvl;
-        const int target = attack_mon >= 0 && monsters[std::size_t(attack_mon)].alive() ? attack_mon : -1;
+        const int target = caster.target >= 0 && monsters[std::size_t(caster.target)].alive() ? caster.target : -1;
         auto send = [&](float ddx, float ddy, int reach) -> Missile& {
-            auto& missile = launch(missile_info, skill, lvl, player.x, player.y, ddx, ddy, reach, now_ms);
-            missile.target_x = cast_x; missile.target_y = cast_y;                    // where it was sent (Molten Boulder's roll)
-            missile.to = { player.x + ddx, player.y + ddy };                         // its flight's aim (FUN_0059fa30)
+            auto& missile = launch(missile_info, skill, lvl, caster.x, caster.y, ddx, ddy, reach, now_ms);
+            missile.target_x = caster.to_x; missile.target_y = caster.to_y;                    // where it was sent (Molten Boulder's roll)
+            missile.to = { caster.x + ddx, caster.y + ddy };                         // its flight's aim (FUN_0059fa30)
             return missile;
         };
         if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
@@ -1645,7 +1704,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             if (target >= 0) nearby.push_back(target);
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (int(i) != target && monsters[i].alive()
-                    && std::hypot(monsters[i].unit.x - player.x, monsters[i].unit.y - player.y) * 5 <= float(radius)) nearby.push_back(int(i));
+                    && std::hypot(monsters[i].unit.x - caster.x, monsters[i].unit.y - caster.y) * 5 <= float(radius)) nearby.push_back(int(i));
             const int high = calc1, low = std::min(calc(skill, skill.calc[2], lvl), high);
             const int count = std::clamp(int(nearby.size()), low, high);
             for (int k = 0; k < count; ++k)
@@ -1653,11 +1712,11 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         } else if (skill.srvdofunc == ServerDoFunction::kChainLightning) {
             send(dx, dy, range).hops = calc1;
         } else if (skill.srvdofunc == ServerDoFunction::kMissileAtTarget) {
-            launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, range, now_ms);
+            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kMissileWall) {
-            const float around_x = target >= 0 ? monsters[std::size_t(target)].unit.x : cast_x;
-            const float around_y = target >= 0 ? monsters[std::size_t(target)].unit.y : cast_y;
-            const float perp_x = around_y - player.y, perp_y = player.x - around_x;
+            const float around_x = target >= 0 ? monsters[std::size_t(target)].unit.x : caster.to_x;
+            const float around_y = target >= 0 ? monsters[std::size_t(target)].unit.y : caster.to_y;
+            const float perp_x = around_y - caster.y, perp_y = caster.x - around_x;
             launch(missile_info, skill, lvl, around_x, around_y, perp_x, perp_y, range, now_ms);
             launch(missile_info, skill, lvl, around_x, around_y, -perp_x, -perp_y, range, now_ms);
             if (const auto found = game_data->missiles.find(skill.srvmissileb); found != game_data->missiles.end())
@@ -1666,7 +1725,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             channel = skill.id;
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             auto& missile = send(dx, dy, range);
-            missile.target_x = player.x; missile.target_y = player.y;
+            missile.target_x = caster.x; missile.target_y = caster.y;
             missile.turn = int(std::atan2(dy, dx) * 1000);
         } else if (skill.srvdofunc == ServerDoFunction::kFistOfTheHeavens) {                      // Fist of the Heavens (FUN_005d0670): on the target
             if (target < 0) return;
@@ -1682,18 +1741,18 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
             // the caster and the point; here its missile row does, hitting
             // as it passes (NextHit).
             auto& missile = send(dx, dy, std::max(range, skill.par[0]));
-            missile.origin_x = player.x; missile.origin_y = player.y;
+            missile.origin_x = caster.x; missile.origin_y = caster.y;
             const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
             missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed;
         } else if (skill.srvdofunc == ServerDoFunction::kGrimWard) {                      // Grim Ward: its start row at the point
-            launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, missile_info.range, now_ms);
+            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, missile_info.range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kVolcano) {                     // Volcano (FUN_005c8080): at the target point
-            launch(missile_info, skill, lvl, cast_x, cast_y, 0, 0, range, now_ms);
+            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kShockField) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
             const int count = std::max(calc(skill, skill.prgcalc[0], lvl), 1), radius = std::max(calc(skill, skill.aurarange, lvl), 1);
             for (int k = 0; k < count; ++k) {
-                const float target_x = cast_x + float(int(rng(2 * radius + 1)) - radius) / 5, target_y = cast_y + float(int(rng(2 * radius + 1)) - radius) / 5;
-                send(target_x - player.x, target_y - player.y, land_range(missile_info, target_x - player.x, target_y - player.y));
+                const float target_x = caster.to_x + float(int(rng(2 * radius + 1)) - radius) / 5, target_y = caster.to_y + float(int(rng(2 * radius + 1)) - radius) / 5;
+                send(target_x - caster.x, target_y - caster.y, land_range(missile_info, target_x - caster.x, target_y - caster.y));
             }
         } else {
             send(dx, dy, missile_info.hit_func == 36 ? land_range(missile_info, dx, dy) : range);
@@ -1928,18 +1987,22 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
         const auto target = target_of(monster_index);
-        const int clvl = int(character.stats.get(d2d::d2s::kLevel));
+        // A merc's skill missile (Fire Arrow): its weapon, attack rating and
+        // level; its skill's calcs see no synergies (mercs have none).
+        const int clvl = missile.by_merc ? merc_st.level : int(character.stats.get(d2d::d2s::kLevel));
+        const auto fighter = missile.by_merc ? merc_fighter() : player_combat;
+        const auto env = missile.by_merc ? d2d::rules::CalcEnv{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, clvl, &rng } : calc_env();
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level)
-                                        : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
+                                        : d2d::rules::missile_damage(game_data->skills, *skill, env, missile.level);
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;
             swing.srcdam = damage.srcdam;
             swing.ed_pct = missile.ed_pct;
-            blow = d2d::rules::player_blow(player_combat, target, clvl, rng, swing);
+            blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
-            blow.hit = int(rng(100)) < d2d::rules::hit_chance(player_combat.attack_rating, target.armor_class, clvl, target.level);
+            blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)

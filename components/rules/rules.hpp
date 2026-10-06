@@ -159,6 +159,12 @@ struct Hireling {
     int dmg_min = 0, dmg_max = 0, dmg_per_level = 0;
     int names = 1;                                      // NameFirst..NameLast
     int attack_rating = 0, ar_per_level = 0;
+    int resist = 0, resist_per_level = 0, default_chance = 0;   // Resist, Resist/Lvl, DefaultChance (+0x5c, +0x60, +0x64)
+    // Skill1..6 (+0x78), Mode (+0xc0), Chance (+0x90), ChancePerLvl (+0xa8),
+    // Level (+0xc6), LvlPerLvl (+0xcc): the merc's skills and how it picks
+    // them (rules::merc_skill_levels, merc_skill_pick).
+    struct Skill { std::string name; int mode = 0, chance = 0, chance_per_level = 0, level = 0, level_per_level = 0; };
+    std::array<Skill, 6> skills{};
 };
 
 struct Tables {

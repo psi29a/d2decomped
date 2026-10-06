@@ -268,6 +268,7 @@ struct Missile {
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
     int min = 0, max = 0, attack_rating = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
+    bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over

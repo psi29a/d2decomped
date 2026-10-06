@@ -80,9 +80,13 @@ player is over 45 (squared subtiles) from the newest spot, it's written and
 the cursor moves on. `FUN_00554ea0`, a unit put somewhere (a warp), writes
 the arrival.
 
-## The attack think (FUN_005e5050), read, not ported
+## The attack think (FUN_005e5050)
 
-`FUN_005e5050(ECX game, EDX merc, class, owner, target, seed, params)`:
+`FUN_005e5050(ECX game, EDX merc, class, owner, target, seed, params)`.
+Port: `rules::merc_attack` (with the skill pick), checked by
+`tools/emu/merc_attack.py` (FUN_005e5050 and FUN_005e4d30 natively on
+game.exe's own tables: 15,000 cases equal, every outcome, +0x14 and the
+seed); `tests/test_monsters.cpp` replays 16.
 
 - The skill chance: 98 for the melee mercs (0x152, 0x230, 0x231); else the
   AI control's +0x14 + 40 + 2 × the merc's level, at most 95 (0x5f). A
@@ -112,11 +116,31 @@ hireling.txt's columns: DefaultChance, Skill1..6, Mode1..6, Chance1..6,
 ChancePerLvl1..6, Level1..6, LvlPerLvl1..6 (Rogue Scout, Fire: 75; Inner
 Sight 10; Fire Arrow 25 + 8 a level).
 
-## Not ported yet
+## Its skill levels (FUN_00572840, the level-up)
 
-- The attack think and the skills above: d2d's merc strikes or walks at the
-  foe (an Act 1 rogue shoots plain arrows). Porting them wants the merc as
-  a Monster, so the monster skill path (`FUN_005dead0`, ai.cpp) runs its
-  skills.
+The hireling row at its level: per Skill1..6 (a 0 or a Mode over 15 ends
+them), from the skill's reqlevel on, Level + (LvlPerLvl × (level − Level)
+>> 5), 1..32 (`rules::merc_skill_levels`). The same function sets its
+stats: Str / Dex + (per level × d >> 3) (10 at least), life (HP + HP/Lvl ×
+d, 40 at least), defence, AR, damage (+ Dmg/Lvl × d >> 3) and all four
+resistances Resist + (Resist/Lvl × d >> 2).
+
+## In d2d
+
+`Fight::merc_turn` runs the think, then on an attack the attack think: a
+move (WL, or RN at the foe), a skill in its hireling Mode (or MonStats
+Sk1mode for roguehire's Skill1), a swing, a stand. On the mode's action
+frame the skill goes through `Fight::fire` / `spot` with a merc
+`Caster`: its missiles strike with the merc's weapon damage, attack rating
+and level and no synergies (Fire Arrow, Cold Arrow, the Act 3 bolts and
+balls); Inner Sight puts its state about the merc.
+
+## Not built yet
+
+- Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
+  Freeze, Might) count as running for the pick but do nothing; self buffs
+  (Frozen Armor) aren't tracked; melee skills (Jab, Bash, Stun) strike as a
+  plain blow; the merc's resistances aren't on it.
 - `FUN_005ddc30`'s choice (threat order, sight); d2d takes the nearest live
-  monster under 0x31 by `merc_gap`.
+  monster under 0x31 by `merc_gap`. Skill 0x29's distance is the gap + 1,
+  not FUN_006416d0.

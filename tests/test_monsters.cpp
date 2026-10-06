@@ -425,6 +425,56 @@ int main() {
                 assert(next == entry.tried.size() && act.kind == entry.kind && seed.low == entry.after_low && seed.high == entry.after_high);
             }
         }
+            // The merc's attack think and skill pick (FUN_005e5050 / FUN_005e4d30;
+            // tools/emu/merc_attack.py --dump, game.exe's own hireling rows):
+            // class, level, aip1, gap, melee, +0x14, seed; the row's Level,
+            // DefaultChance, skills, chances, per level, modes; its skill levels,
+            // auras, running; Skill1 / Sk1mode; the moves' results; the outcome,
+            // its skill and mode, +0x14 and the seed after.
+            {
+                using AttackKind = d2d::rules::MercAttack::Kind;
+                struct AttackCase {
+                    int cls, level, aip1, gap, melee, growth; std::uint32_t low, high; int row_level, default_chance;
+                    std::array<int, 6> ids, chance, per, mode, levels, aura, running; int skill1, sk1mode;
+                    std::vector<int> moves; AttackKind kind; int skill, use_mode, growth_after; std::uint32_t after_low, after_high;
+                };
+                const std::vector<AttackCase> attack_cases{
+                    { 359, 33, 0, 5, 0, 0, 1069673014u, 2787324501u, 49, 10, { 55, 40, 45, 0, 0, 0 }, { 60, 1000, 240, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 7, 0, 0, 0 }, { 23, 0, 30, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, {  }, AttackKind::stand, -1, 0, 10, 1272892899u, 446152452u },
+                    { 271, 21, 0, 0, 1, 30, 1752995436u, 1200367645u, 3, 75, { 8, 11, 0, 0, 0, 0 }, { 10, 25, 0, 0, 0, 0 }, { 0, 5, 0, 0, 0, 0 }, { 4, 4, 0, 0, 0, 0 }, { 28, 18, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 336, 4, { 0, 1 }, AttackKind::moved, -1, 0, 0, 1561708745u, 60308774u },
+                    { 271, 50, 0, 3, 1, 0, 22819762u, 899608315u, 67, 75, { 8, 11, 0, 0, 0, 0 }, { 10, 69, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 4, 4, 0, 0, 0, 0 }, { 3, 20, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 336, 4, { 0, 0 }, AttackKind::skill, 11, 4, 0, 3071597439u, 623125764u },
+                    { 561, 28, 1, 5, 0, 60, 4159919668u, 2966284567u, 28, 50, { 126, 139, 0, 0, 0, 0 }, { 15, 15, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 5, 5, 0, 0, 0, 0 }, { 0, 7, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, { 1 }, AttackKind::moved, -1, 0, 0, 2479128347u, 1735070750u },
+                    { 338, 50, 1, 2, 1, 0, 2517457551u, 14530381u, 43, 30, { 10, 99, 0, 0, 0, 0 }, { 104, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 14, 5, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, {  }, AttackKind::skill, 10, 14, 0, 1213407590u, 424638134u },
+                    { 359, 87, 0, 3, 1, 60, 4033025023u, 98206823u, 79, 10, { 55, 40, 45, 0, 0, 0 }, { 60, 1000, 240, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 7, 0, 0, 0 }, { 10, 10, 11, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, -1, 0, {  }, AttackKind::skill, 45, 7, 0, 353992406u, 808010879u },
+                    { 338, 16, 1, 2, 1, 30, 3331189597u, 1987924596u, 9, 30, { 10, 99, 0, 0, 0, 0 }, { 70, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, {  }, AttackKind::swing, -1, 0, 0, 2578390618u, 1133776383u },
+                    { 359, 21, 0, 0, 0, 0, 1074638861u, 1957066694u, 15, 10, { 41, 47, 0, 0, 0, 0 }, { 60, 30, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 0, 0, 0, 0 }, { 20, 13, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, { 1 }, AttackKind::moved, -1, 0, 0, 1818072910u, 807067680u },
+                    { 338, 46, 1, 2, 1, 0, 4109290207u, 1644190109u, 75, 30, { 10, 108, 0, 0, 0, 0 }, { 104, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 1, 5, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, {  }, AttackKind::aura, 108, 0, 0, 3904325964u, 772198829u },
+                    { 561, 64, 1, 2, 1, 30, 1514990962u, 4268459348u, 80, 50, { 126, 139, 0, 0, 0, 0 }, { 70, 70, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 5, 5, 0, 0, 0, 0 }, { 21, 9, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, {  }, AttackKind::stand, -1, 0, 40, 2606390798u, 631891170u },
+                    { 359, 66, 0, 3, 1, 20, 493077469u, 2641610868u, 79, 10, { 41, 47, 0, 0, 0, 0 }, { 60, 30, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, {  }, AttackKind::swing, -1, 0, 0, 4122923759u, 514194593u },
+                    { 359, 56, 0, 3, 0, 20, 1193839240u, 3146637366u, 79, 10, { 38, 49, 0, 0, 0, 0 }, { 60, 30, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 0, 0, 0, 0 }, { 9, 12, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, { 0, 0 }, AttackKind::stand, -1, 0, 0, 15533903u, 1399659081u },
+                    { 359, 21, 0, 3, 1, 20, 1330804564u, 2236366800u, 79, 10, { 38, 49, 0, 0, 0, 0 }, { 60, 30, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 7, 7, 0, 0, 0, 0 }, { 0, 25, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, -1, 0, { 0, 0 }, AttackKind::swing, -1, 0, 0, 1761635358u, 1037823986u },
+                    { 338, 33, 1, 1, 1, 0, 934367838u, 2555213081u, 75, 30, { 10, 99, 0, 0, 0, 0 }, { 104, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 24, 6, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, {  }, AttackKind::aura, 99, 0, 0, 708982570u, 1475047410u },
+                    { 338, 54, 1, 5, 0, 0, 2503952625u, 4070378921u, 75, 30, { 10, 104, 0, 0, 0, 0 }, { 104, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 18, 27, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, { 0 }, AttackKind::failed, -1, 0, 0, 2579349278u, 1044379533u },
+                    { 338, 71, 1, 0, 1, 0, 2779566913u, 1803954443u, 43, 30, { 10, 104, 0, 0, 0, 0 }, { 104, 10, 0, 0, 0, 0 }, { 4, 0, 0, 0, 0, 0 }, { 14, 1, 0, 0, 0, 0 }, { 14, 10, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, 10, 14, {  }, AttackKind::aura, 104, 0, 0, 3887533861u, 774095468u },
+                };
+                for (const auto& entry : attack_cases) {
+                    d2d::rules::Hireling row;
+                    row.version = 100; row.level = entry.row_level; row.default_chance = entry.default_chance;
+                    for (std::size_t k = 0; k < 6; ++k) row.skills[k] = { "", entry.mode[k], entry.chance[k], entry.per[k], 0, 0 };
+                    d2d::rules::MercFightView fight{ .cls = entry.cls, .level = entry.level, .aip1 = entry.aip1, .gap = entry.gap, .distance = entry.gap + 1,
+                                                     .melee = entry.melee != 0, .row = &row, .ids = entry.ids, .levels = entry.levels, .skill1 = entry.skill1, .sk1mode = entry.sk1mode };
+                    for (std::size_t k = 0; k < 6; ++k) { fight.aura[k] = entry.aura[k] != 0; fight.running[k] = entry.running[k] != 0; }
+                    d2d::rules::Rng seed;
+                    seed.low = entry.low; seed.high = entry.high;
+                    int growth = entry.growth;
+                    std::size_t next = 0;
+                    const auto attack = d2d::rules::merc_attack(fight, growth, 5000, 5000, 5001 + entry.gap, 5000, seed, [&](int, int, int) {
+                        assert(next < entry.moves.size());
+                        return entry.moves[next++] != 0;
+                    });
+                    assert(next == entry.moves.size() && attack.kind == entry.kind && growth == entry.growth_after && seed.low == entry.after_low && seed.high == entry.after_high);
+                    if (attack.kind == AttackKind::skill || attack.kind == AttackKind::aura) assert(attack.skill == entry.skill && attack.mode == entry.use_mode);
+                }
+            }
             // The wall pather (FUN_0067c2d0, moves.py --dump): to, steps, to a
             // unit, points, walls.
             struct WallRoute { int to_x, to_y, steps; bool to_unit; std::vector<std::pair<int, int>> points, walls; };

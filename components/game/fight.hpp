@@ -254,6 +254,12 @@ struct Fight {
     d2d::rules::MercStats merc_st;
     int   merc_target = -1;
     bool  merc_chase = false;
+    // Its hireling skills (Skills.txt ids, levels: rules::merc_skill_levels),
+    // the AI control's +0x14 (the attack think's chance growth), the aura it
+    // started (FUN_005701b0: running from then, its effect not built) and
+    // the skill (and level) its attack mode carries (-1: a plain blow).
+    std::array<int, 6> merc_ids{}, merc_levels{};
+    int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
     // What the merc's think reads of the player: its mode (2 walk, 3 run, 6
     // walk in town, 1 else) and footsteps (player data +0xa0 / +0xa8, 20
     // subtile spots, `footstep_cursor` the next to write), World's to fill.
@@ -435,7 +441,14 @@ struct Fight {
     // guards aren't applied; Corpse Explosion takes its corpse's life from
     // the MonStats roll, not FUN_006538a0's.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
-    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    // Who casts a skill: where from, at what level, at which monster (-1
+    // none) and point, and whether it's the merc's (its missiles strike with
+    // its damage, attack rating and level).
+    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false; };
+    [[nodiscard]] Caster player_caster(int skill) const;
+    bool casting_merc = false;             // launch() marks what's fired as the merc's
+    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }
+    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
     // brackets, synergy and the element's mastery (flag 1); Power Strike's
     // lightning, Poison Dagger's poison). Stun is elsewhere.
@@ -625,7 +638,8 @@ struct Fight {
     // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
-    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) { fire(skill, now_ms, player_caster(skill.id)); }
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
     // down at its target: its range is the frames to get there.
     [[nodiscard]] static int land_range(const GameData::MissileInfo& missile_info, float dx, float dy);
