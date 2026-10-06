@@ -548,7 +548,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " items=" + std::to_string(character.items.size())
              + " held=" + (town.held ? town.held->code : "-")
              + " unid=" + std::to_string(d2d::rules::unidentified(character.items))
-             + " merc=" + (town.merc ? std::format("{:.1f},{:.1f}", town.merc->x, town.merc->y) + ":" + town.world.merc_npc->code : std::string("-"))
+             + " merc=" + (town.merc ? std::format("{:.1f},{:.1f}", town.merc->unit.x, town.merc->unit.y) + ":" + town.world.merc_npc->code : std::string("-"))
              + " menu=" + std::to_string(town.npc_menu.npc >= 0 ? int(town.npc_menu.lines.size()) : 0)
              + " automap=" + std::to_string(town.automap.open ? int(town.automap.cells.size()) : 0)
              + " speech=" + std::to_string(town.speech.npc >= 0 ? int(town.speech.lines.size()) : 0)

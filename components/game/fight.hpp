@@ -132,7 +132,7 @@ struct Fight {
     const Level* const& level;             // Town's: where the player is
     Character& character;
     UnitState& player;
-    std::optional<UnitState>& merc;
+    std::optional<Monster>& merc;          // the save's mercenary, a monster on the player's side (World's)
     const Npc* const& merc_npc;
     d2d::rules::Rng& rng;
     Loot& loot;
@@ -246,19 +246,14 @@ struct Fight {
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
-    // The merc in a fight: its stats (hireling.txt at its level), life,
-    // mode (NU/WL follow, A1 attack, GH, DT) and the monster it's after.
+    // The merc in a fight: its stats (hireling.txt at its level), the
+    // monster it's after and whether it's walking at it. The rest is its
+    // Monster's (World::merc): life, mode (NU / WL / RN follow, A1 attack,
+    // GH, DT), mode_until, struck, its seed (+0x20, the think's rolls),
+    // next_act (its next think), move_pct (a move's pace).
     d2d::rules::MercStats merc_st;
-    int   merc_life = 0;
-    std::string_view merc_mode = "NU";
-    std::uint32_t merc_until = 0;
-    bool  merc_struck = false;
     int   merc_target = -1;
-    int   merc_type = -1;                          // its MonStats row (velocity, run, aidel, size)
-    d2d::rules::Rng merc_seed;                     // its unit seed (+0x20): its think's rolls
-    std::uint32_t merc_think_at = 0;               // its next think (Hireable, rules::hireable_think)
-    int   merc_pct = 0;                            // the move's pace % (FUN_005a6380: velocitypercent)
-    bool  merc_chase = false;                      // walking at merc_target
+    bool  merc_chase = false;
     // What the merc's think reads of the player: its mode (2 walk, 3 run, 6
     // walk in town, 1 else) and footsteps (player data +0xa0 / +0xa8, 20
     // subtile spots, `footstep_cursor` the next to write), World's to fill.

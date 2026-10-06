@@ -75,11 +75,12 @@ auto Fight::new_game(int difficulty) -> void {
 auto Fight::merc_joins() -> void {
         const auto& header = character.header;
         merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
-        merc_life = merc_st.life;
-        merc_mode = "NU"; merc_target = -1;
-        merc_seed = d2d::rules::Rng(header.merc_seed);
-        merc_think_at = 0; merc_pct = 0;
-        merc_type = merc_npc ? game_data->monsters.row(merc_npc->id) : -1;
+        merc_target = -1; merc_chase = false;
+        if (!merc) return;
+        merc->hit_points = merc_st.life;
+        merc->mode = "NU"; merc->next_act = 0; merc->move_pct = 0;
+        merc->seed = d2d::rules::Rng(header.merc_seed);
+        merc->type = merc_npc ? game_data->monsters.row(merc_npc->id) : -1;
     }
 
 auto Fight::revive(std::uint32_t now_ms) -> void {
@@ -89,7 +90,7 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
         charges.clear();
         self_states.clear();
         pmode = -1; player.mode_ms = now_ms; attack_mon = -1;
-        if (merc) { merc->x = player.x + 1; merc->y = player.y + 1; merc->path.clear(); merc_mode = "NU"; merc_target = -1; }
+        if (merc) { merc->unit.x = player.x + 1; merc->unit.y = player.y + 1; merc->unit.path.clear(); merc->mode = "NU"; merc_target = -1; }
     }
 
 auto Fight::drink(int col, std::uint32_t now_ms) -> void {
@@ -131,7 +132,7 @@ auto Fight::cure(std::uint32_t now_ms) -> bool {
         const bool cursed = now_ms < amplified[0];
         const bool poisoned = std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
         amplified = {};
-        if (merc && merc_life > 0) merc_life = merc_st.life;
+        if (merc && merc->hit_points > 0) merc->hit_points = merc_st.life;
         return cursed || poisoned;
     }
 
@@ -1277,22 +1278,22 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
     }
 
 auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town) -> void {
-        auto& unit = *merc;
+        auto& unit = merc->unit;
         const auto set = [&](std::string_view mode) {
-            merc_mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
+            merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
             if (!unit.walking) unit.path.clear();
-            merc_until = mode == "NU" || unit.walking ? 0 : now_ms + game_data->npc_timing(*merc_npc, mode).length_ms();
+            merc->mode_until = mode == "NU" || unit.walking ? 0 : now_ms + game_data->npc_timing(*merc_npc, mode).length_ms();
         };
-        if (merc_mode == "DT") {
-            if (now_ms >= merc_until) { merc.reset(); character.header.merc_dead = true; d2d::log::info("the merc died"); }
+        if (merc->mode == "DT") {
+            if (now_ms >= merc->mode_until) { merc.reset(); character.header.merc_dead = true; d2d::log::info("the merc died"); }
             return;
         }
-        if (merc_mode == "GH") { if (now_ms < merc_until) return; set("NU"); merc_think_at = now_ms; }
+        if (merc->mode == "GH") { if (now_ms < merc->mode_until) return; set("NU"); merc->next_act = now_ms; }
         const bool archer = merc_npc && merc_npc->id == "roguehire";
         const float reach = archer ? 6.f : kMeleeReach;
-        if (merc_mode == "A1") {
-            if (!merc_struck && merc_target >= 0 && now_ms >= unit.mode_ms + game_data->npc_timing(*merc_npc, "A1").action_ms()) {
-                merc_struck = true;
+        if (merc->mode == "A1") {
+            if (!merc->struck && merc_target >= 0 && now_ms >= unit.mode_ms + game_data->npc_timing(*merc_npc, "A1").action_ms()) {
+                merc->struck = true;
                 auto& target = monsters[std::size_t(merc_target)];
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 if (archer && game_data->missiles.contains("arrow")) {
@@ -1306,27 +1307,27 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), target_of(std::size_t(merc_target)), merc_st.level, rng), false, now_ms);
                 }
             }
-            if (now_ms < merc_until) return;
+            if (now_ms < merc->mode_until) return;
             set("NU");
-            merc_think_at = now_ms;
+            merc->next_act = now_ms;
         }
-        const auto* type_info = merc_type >= 0 ? &game_data->monsters.types[std::size_t(merc_type)] : nullptr;
-        if ((merc_mode == "WL" || merc_mode == "RN") && merc_chase) {       // at a foe: in reach (or it's gone), think again
+        const auto* type_info = merc->type >= 0 ? &game_data->monsters.types[std::size_t(merc->type)] : nullptr;
+        if ((merc->mode == "WL" || merc->mode == "RN") && merc_chase) {       // at a foe: in reach (or it's gone), think again
             const bool gone = merc_target < 0 || !monsters[std::size_t(merc_target)].alive();
             if (gone || std::hypot(monsters[std::size_t(merc_target)].unit.x - unit.x, monsters[std::size_t(merc_target)].unit.y - unit.y) <= reach) {
                 set("NU");
                 merc_chase = false;
-                merc_think_at = now_ms;
+                merc->next_act = now_ms;
             }
         }
-        if (merc_mode == "WL" || merc_mode == "RN") {                    // velocitypercent: the move's pace
-            const int velocity = type_info ? (merc_mode == "RN" ? type_info->run : type_info->velocity) : 6;
-            if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(100 + merc_pct, 10)) / 100 * elapsed, crowd)) return;
+        if (merc->mode == "WL" || merc->mode == "RN") {                    // velocitypercent: the move's pace
+            const int velocity = type_info ? (merc->mode == "RN" ? type_info->run : type_info->velocity) : 6;
+            if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(100 + merc->move_pct, 10)) / 100 * elapsed, crowd)) return;
             set("NU");
             merc_chase = false;
-            merc_think_at = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)
+            merc->next_act = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)
         }
-        if (merc_mode != "NU" || now_ms < merc_think_at) return;
+        if (merc->mode != "NU" || now_ms < merc->next_act) return;
         auto sub = [](float cells) { return int(std::floor(cells * 5)); };
         auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
         const int merc_x = sub(unit.x), merc_y = sub(unit.y), size = merc_npc->size_x > 0 ? merc_npc->size_x : 1;
@@ -1367,7 +1368,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             return !route.empty();
         };
         using Kind = d2d::rules::MercAct::Kind;
-        const auto act = d2d::rules::hireable_think(view, merc_seed, level_at, try_move);
+        const auto act = d2d::rules::hireable_think(view, merc->seed, level_at, try_move);
         const int aidel = type_info && type_info->diff[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))].aidel > 0
                               ? type_info->diff[std::size_t(std::clamp(character.header.active_difficulty(), 0, 2))].aidel : 15;
         merc_chase = false;
@@ -1375,11 +1376,11 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             set(act.move.mode == d2d::rules::kMonsterRun ? "RN" : "WL");
             unit.path = route; unit.goal_x = centre(act.move.x); unit.goal_y = centre(act.move.y);
             unit.budget = 0x14; unit.path_points = int(route.size()); unit.to_unit = false;
-            merc_pct = act.move.pct;
+            merc->move_pct = act.move.pct;
         } else if (act.kind == Kind::stand) {
-            merc_think_at = now_ms + std::uint32_t(act.frames) * 40;
+            merc->next_act = now_ms + std::uint32_t(act.frames) * 40;
         } else if (act.kind == Kind::failed) {
-            merc_think_at = now_ms + std::uint32_t(aidel) * 40;
+            merc->next_act = now_ms + std::uint32_t(aidel) * 40;
         } else if (act.kind == Kind::teleport) {
             // FUN_005e3930 mode 3: a spot in the player's room (FUN_0054dc40:
             // up to 20 tries inside its rect less a subtile each side, on
@@ -1397,20 +1398,20 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     break;
                 }
             }
-            merc_think_at = now_ms + 5 * 40;
+            merc->next_act = now_ms + 5 * 40;
         } else if (act.kind == Kind::attack && merc_target >= 0) {
             const auto& target = monsters[std::size_t(merc_target)];
             const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y;
             if (std::hypot(dx, dy) <= reach) {
                 unit.dir = direction16(dx, dy);
                 set("A1");
-                merc_struck = false;
+                merc->struck = false;
             } else if (set_off(*level, unit, target.unit.x, target.unit.y, true, crowd)) {
                 set("WL");
-                merc_pct = 0;
+                merc->move_pct = 0;
                 merc_chase = true;
             } else {
-                merc_think_at = now_ms + std::uint32_t(aidel) * 40;
+                merc->next_act = now_ms + std::uint32_t(aidel) * 40;
             }
         }
     }
@@ -2585,11 +2586,11 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
         // and a hit of a twelfth of max life or more makes them flinch (GH).
         if (in_moor) {
             std::vector<Foe> foes{ Foe{ player.x, player.y, int(character.stats.get(d2d::d2s::kLevel)), true, player.walking, player_combat },
-                                   Foe{ merc ? merc->x : 0, merc ? merc->y : 0, merc_st.level, merc && merc_mode != "DT",
-                                        merc && merc->walking, merc_fighter() } };
+                                   Foe{ merc ? merc->unit.x : 0, merc ? merc->unit.y : 0, merc_st.level, merc && merc->mode != "DT",
+                                        merc && merc->unit.walking, merc_fighter() } };
             foes[0].life_pct = int(std::int64_t(character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(character.stats.get(d2d::d2s::kMaxLife), 1));
             foes[1].pet = true;                                  // the merc: its MonStats class's size
-            foes[1].life_pct = int(std::int64_t(merc_life) * 100 / std::max(merc_st.life, 1));
+            foes[1].life_pct = merc ? int(std::int64_t(merc->hit_points) * 100 / std::max(merc_st.life, 1)) : 0;
             if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
                 foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
@@ -2665,13 +2666,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             });
             std::ranges::move(pending, std::back_inserter(missiles));
             pending.clear();
-            if (merc && foes[1].damage > 0 && merc_mode != "DT") {
-                merc_life -= foes[1].damage;
-                auto& unit = *merc;
-                const auto mode = merc_life <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_st.life ? std::string_view("GH") : merc_mode;
-                if (mode != merc_mode) {
-                    merc_mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
-                    merc_until = now_ms + game_data->npc_timing(*merc_npc, mode).length_ms();
+            if (merc && foes[1].damage > 0 && merc->mode != "DT") {
+                merc->hit_points -= foes[1].damage;
+                auto& unit = merc->unit;
+                const auto mode = merc->hit_points <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_st.life ? std::string_view("GH") : merc->mode;
+                if (mode != merc->mode) {
+                    merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
+                    merc->mode_until = now_ms + game_data->npc_timing(merc->npc, mode).length_ms();
                 }
             }
             for (auto& monster : monsters)
