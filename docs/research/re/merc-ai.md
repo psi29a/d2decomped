@@ -133,14 +133,29 @@ Sk1mode for roguehire's Skill1), a swing, a stand. On the mode's action
 frame the skill goes through `Fight::fire` / `spot` with a merc
 `Caster`: its missiles strike with the merc's weapon damage, attack rating
 and level and no synergies (Fire Arrow, Cold Arrow, the Act 3 bolts and
-balls); Inner Sight puts its state about the merc.
+balls); Inner Sight puts its state about the merc; a melee skill (Jab, Bash,
+Stun) builds its hit as the player's do (`Fight::skill_swing`) at its level.
+Its four resistances are on its fighter (75 at most).
+
+## Its target (FUN_005ddc30)
+
+The skill-set target (FUN_005dd610) first, else FUN_005dd0b0 mode 6:
+FUN_005dce60 walks every near room's units (mode 5's FUN_005dcf70 skips
+town and unsearched rooms), FUN_005dcbd0 each: an enemy (FUN_005dc970)
+under 0x31 off (`near_distance`, the candidate's size), in sight
+(FUN_00622aa0 mask 4, always), threat 2 or more the primary, else the
+secondary, the nearest each (the first at a tie). FUN_005dd510 takes the
+primary, else the secondary. Port: `rules::search_sight`; checked by
+`tools/emu/search.py`'s mode 6 run (FUN_005ddc30 natively on the same
+setups as mode 5's: 30,000 cases equal).
 
 ## Not built yet
 
 - Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
   Freeze, Might) count as running for the pick but do nothing; self buffs
-  (Frozen Armor) aren't tracked; melee skills (Jab, Bash, Stun) strike as a
-  plain blow; the merc's resistances aren't on it.
-- `FUN_005ddc30`'s choice (threat order, sight); d2d takes the nearest live
-  monster under 0x31 by `merc_gap`. Skill 0x29's distance is the gap + 1,
-  not FUN_006416d0.
+  (Frozen Armor) aren't tracked; Jab's SQ hits come as one.
+- No difficulty penalty on its resistances (not traced for mercs); its
+  items aren't counted.
+- The target's candidates go in fight order, not the near rooms' units;
+  FUN_005dd510's path test and FUN_005dc970's state 0x92 test are left out.
+  Skill 0x29's distance is the gap + 1, not FUN_006416d0.

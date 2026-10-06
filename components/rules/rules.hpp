@@ -1339,28 +1339,38 @@ inline std::optional<MercOffer> merc_offer(const Tables& tables, bool expansion,
 
 // The save's mercenary (hireling Id, experience) as it fights: its level
 // is the highest whose experience ((level + 1) * Exp/Lvl * level^2, as
-// hiring sets it) it has, its row the band of that Id at or below that
-// level, and life / defence / damage / strength / dexterity grow from the
-// row like a hire offer's; attack rating is AR + AR/Lvl per level.
-// ponytail: items the merc wears aren't counted.
-struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0; };
+// hiring sets it) it has, its row the LoD band (Version 100) of that Id the
+// last at or below that level (FUN_006562f0), its stats as the level-up
+// sets them (FUN_00572840, d = level - the row's Level): life HP + HP/Lvl
+// x d (40 at least), defence and attack rating + per level x d (0 at
+// least), damage + Dmg/Lvl x d / 8 (min 0, max 1 at least), each of its
+// four resistances (stats 0x27 / 0x29 / 0x2b / 0x2d) Resist + Resist/Lvl x
+// d / 4 (0 at least).
+// ponytail: items the merc wears aren't counted; no difficulty penalty is
+// taken off its resistances (not traced for mercs).
+struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0, resist = 0; };
 inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     MercStats merc;
-    const Hireling* row = nullptr;
+    const Hireling* first = nullptr;
     for (const auto& hireling : tables.hirelings)
-        if (hireling.id == id && (!row || hireling.level < row->level)) row = &hireling;
-    if (!row) return merc;
+        if (hireling.version == 100 && hireling.id == id) { first = &hireling; break; }
+    if (!first) return merc;
     for (int level = 1; level < 99; ++level)
-        if ((long long)(level + 1) * row->exp_per_level * level * level <= (long long)exp) merc.level = level;
-    for (const auto& hireling : tables.hirelings)
-        if (hireling.id == id && hireling.level <= merc.level && hireling.level > row->level) row = &hireling;
+        if ((long long)(level + 1) * first->exp_per_level * level * level <= (long long)exp) merc.level = level;
+    const Hireling* row = nullptr;
+    for (const auto& hireling : tables.hirelings) {
+        if (hireling.version != 100 || hireling.id != id) continue;
+        if (row && merc.level < hireling.level) break;
+        row = &hireling;
+    }
     const auto& hireling = *row;
     const int level_delta = merc.level - hireling.level;
     merc.life = std::max(40, hireling.hit_points + hireling.hp_per_level * level_delta);
     merc.def = std::max(0, hireling.def + hireling.def_per_level * level_delta);
-    merc.dmg_min = std::max(0, hireling.dmg_min + (hireling.dmg_per_level * level_delta >> 3));
-    merc.dmg_max = std::max(merc.dmg_min + 1, hireling.dmg_max + (hireling.dmg_per_level * level_delta >> 3));
-    merc.attack_rating = std::max(1, hireling.attack_rating + hireling.ar_per_level * level_delta);
+    merc.dmg_min = std::max(0, hireling.dmg_min + hireling.dmg_per_level * level_delta / 8);
+    merc.dmg_max = std::max(1, hireling.dmg_max + hireling.dmg_per_level * level_delta / 8);
+    merc.attack_rating = std::max(0, hireling.attack_rating + hireling.ar_per_level * level_delta);
+    merc.resist = std::max(0, hireling.resist + hireling.resist_per_level * level_delta / 4);
     return merc;
 }
 

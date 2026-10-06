@@ -937,6 +937,32 @@ inline NearPick search_near(std::span<const NearFoe> foes, int align, bool need_
     return pick;
 }
 
+// The second-target search of a merc (and of the Vampire): FUN_005ddc30 ->
+// FUN_005dd0b0 mode 6 (FUN_005dcbd0 over the near rooms' units). An enemy
+// (FUN_005dc970: player or monster, neither dying, the candidate not in a
+// town room, FUN_00554200's foe) under 0x31 off (near_distance), in sight
+// (FUN_00622aa0 mask 4, always tested): threat 2 or more a primary, else a
+// secondary, each the nearest, the first found at a tie. FUN_005dd510
+// takes the primary, else the secondary. The pick's index (-1 none) and
+// its distance in `distance`.
+// ponytail: FUN_005dd510's path test to a primary when the secondary is
+// under 6 off always finds one (as search_pick's); FUN_005dc970's state
+// 0x92 test is left out.
+struct SightFoe { int distance = 0, threat = 0; bool enemy = false, blocked = false; };
+inline int search_sight(std::span<const SightFoe> foes, int& distance) {
+    int first = -1, first_best = 0x7fffffff, second = -1, second_best = 0x7fffffff;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        if (!foe.enemy || foe.distance >= 0x31) continue;
+        const bool primary = foe.threat >= 2;
+        if (foe.distance >= (primary ? first_best : second_best) || foe.blocked) continue;
+        (primary ? first : second) = int(i);
+        (primary ? first_best : second_best) = foe.distance;
+    }
+    distance = first >= 0 ? first_best : second_best;
+    return first >= 0 ? first : second;
+}
+
 // A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0
 // -> FUN_0064fc60): the smaller delta over the larger in 128ths picks an
 // eighth of a quadrant (the table at 0x6eb7e0), folded into its octant.

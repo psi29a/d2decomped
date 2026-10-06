@@ -349,6 +349,8 @@ struct Fight {
 
     // What calcs ask of the player (skills.hpp).
     [[nodiscard]] d2d::rules::CalcEnv calc_env();
+    // The merc's: its level, no skills or stats behind it (mercs have no synergies).
+    [[nodiscard]] d2d::rules::CalcEnv merc_calc_env();
     // A swing starts: the skill in use when it's built, paid for from mana
     // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana swings
     // a plain attack instead, any other doesn't swing. Its animation (A1,
@@ -397,6 +399,10 @@ struct Fight {
     // calc4's element conversion aren't applied; stat 325's to-hit on kicks
     // isn't added.
     [[nodiscard]] d2d::rules::Swing swing();
+    // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
+    // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
+    // Dragon Talon's last-kick knockback read the player's state.
+    [[nodiscard]] d2d::rules::Swing skill_swing(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, bool by_player);
 
     // A hit on monster i (the player's or the merc's): blocked, it blocks;
     // otherwise the damage, life/mana leech (the player's), poison and

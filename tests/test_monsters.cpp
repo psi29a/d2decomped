@@ -475,6 +475,18 @@ int main() {
                     if (attack.kind == AttackKind::skill || attack.kind == AttackKind::aura) assert(attack.skill == entry.skill && attack.mode == entry.use_mode);
                 }
             }
+            // A merc's search, mode 6 (FUN_005ddc30; search.py checks it against
+            // game.exe): the primary (threat 2+) over a nearer secondary, the
+            // first at a tie, sight, 0x31 out.
+            {
+                using d2d::rules::SightFoe;
+                int distance = 0;
+                const std::vector<SightFoe> picks{ { 10, 0, true, false }, { 20, 3, true, false }, { 20, 5, true, false }, { 5, 14, true, true } };
+                assert(d2d::rules::search_sight(picks, distance) == 1 && distance == 20);
+                const std::vector<SightFoe> lows{ { 0x31, 3, true, false }, { 12, 1, true, false }, { 9, 0, false, false } };
+                assert(d2d::rules::search_sight(lows, distance) == 1 && distance == 12);
+                assert(d2d::rules::search_sight(std::vector<SightFoe>{ { 0x30, 2, true, true } }, distance) == -1 && distance == 0x7fffffff);
+            }
             // The wall pather (FUN_0067c2d0, moves.py --dump): to, steps, to a
             // unit, points, walls.
             struct WallRoute { int to_x, to_y, steps; bool to_unit; std::vector<std::pair<int, int>> points, walls; };

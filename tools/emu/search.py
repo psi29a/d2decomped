@@ -83,6 +83,18 @@ def search_near(foes, align, need_sight):
     return pick
 
 
+def search_sight(foes):
+    """monsters.hpp search_sight, line for line: (index, distance)."""
+    first, fb, second, sb = -1, 0x7fffffff, -1, 0x7fffffff
+    for i, f in enumerate(foes):
+        if not f["enemy"] or f["distance"] >= 0x31: continue
+        primary = f["threat"] >= 2
+        if f["distance"] >= (fb if primary else sb) or f["blocked"]: continue
+        if primary: first, fb = i, f["distance"]
+        else: second, sb = i, f["distance"]
+    return (first, fb) if first >= 0 else (second, sb)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     cases = int(args[0]) if args else 3000
@@ -120,6 +132,7 @@ def main():
     near_room = [e.alloc(0x100) for _ in range(4)]     # A (its own), B, T (town), Z (+0x78 clear)
     arr = e.alloc(0x10)
     bad, mark, found, kinds = 0, e.brk, 0, {}
+    found6 = [0]
     town_room, dead_room = near_room[2], near_room[3]
     dumped = [0, 0]
     for case in range(cases):
@@ -264,6 +277,25 @@ def main():
         if have != need:
             bad += 1
             if bad < 20: print(f"case {case}: game {have}, port {need}; kind {kind} align {my_align}")
+        # Mode 6 (FUN_005ddc30, a merc's search) on the same units, the searcher good.
+        align[mon] = 2; e.w32(data + 0x38, 0)
+        got6 = e.call(0x5ddc30, out_dist, out_melee, ecx=game, edx=mon)
+        sights, sight_units = [], []
+        for r in order:
+            for u in room_list[r]:
+                i = info[u]
+                x, y = e.r16(e.r32(u + 0x2c) + 2), e.r16(e.r32(u + 0x2c) + 6)
+                sights.append({"distance": near_distance(x - mx, y - my, size.get(u, 2)), "threat": i["threat"],
+                               "enemy": not i["dead"] and r != town_room and not friends(2, align.get(u, 2)),
+                               "blocked": u in blocked or mon in blocked})
+                sight_units.append(u)
+        k6, d6 = search_sight(sights)
+        have6, need6 = (got6, e.s32(out_dist) if got6 else 0x7fffffff), ((sight_units[k6], d6) if k6 >= 0 else (0, 0x7fffffff))
+        if have6 != need6:
+            bad += 1
+            if bad < 20: print(f"case {case}: mode 6 game {have6}, port {need6}")
+        found6[0] += bool(need6[0])
+        align[mon] = my_align
         if dump and dumped[0] < 5 and my_align == 0 and kind == 0 and len(foes) <= 8 and any(f["list"] for f in foes):
             dumped[0] += 1
             fs = ", ".join(f"{{{f['distance']}, {int(f['pet'])}, {int(f['away'])}, {int(f['dead'])}, {int(f['blocked'])}, {f['list']}}}" for f in foes)
@@ -275,7 +307,7 @@ def main():
             p = search_near(nears, a, need_sight)
             fs = ", ".join(f"{{{f['distance']}, {f['align']}, {f['threat']}, {int(f['self'])}, {int(f['monster'])}, {int(f['dead'])}, {int(f['skip'])}, {int(f['blocked'])}, {int(f['waking'])}}}" for f in nears)
             print(f"{{ {a}, {int(need_sight)}, {{ {p[0]}, {p[1]}, {p[2]}, {p[3]} }}, {{ {fs} }} }},")
-    print(f"ok: {cases} cases, {found} found a target; found by (kind, alignment): {dict(sorted(kinds.items()))}" if not bad else f"{bad} of {cases} differ")
+    print(f"ok: {cases} cases, {found} found a target, mode 6 {found6[0]}; found by (kind, alignment): {dict(sorted(kinds.items()))}" if not bad else f"{bad} of {cases} differ")
     return 1 if bad else 0
 
 
