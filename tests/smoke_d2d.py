@@ -332,8 +332,10 @@ try:
     assert lv[1] == "1", lv
     cmd("debug warp 44.5 16.5"); frames(6)
     # Until it crosses (a camp NPC patrolling the bridge can hold it up).
+    # Clicks ~15 subtiles off: game.exe's player path searches round what's
+    # in the way only that close (path type 7); further, it stops at it.
     for _ in range(40):
-        cmd("move 700 490"); cmd("click 700 490"); frames(30)
+        cmd("move 620 400"); cmd("click 620 400"); frames(30)
         lv = cmd("debug level").split()
         if lv[1] == "2":
             break

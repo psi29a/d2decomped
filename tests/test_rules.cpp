@@ -362,17 +362,6 @@ int main() {
     assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == 1);
     assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && purse.get(kGoldBank) == 100);   // 50100 pays once more
     assert(!store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 2);             // then it can't
-    // Pathing: round a wall; up to it when the goal is walled off.
-    auto wall = [](int x, int y) { return x == 5 && y >= -10 && y <= 10; };   // a wall at x = 5
-    const auto round = find_path(0, 0, 10, 0, wall);
-    assert(!round.empty() && round.back() == std::pair(10, 0));
-    for (const auto& [step_x, step_y] : round) assert(!wall(step_x, step_y));
-    assert(round.size() > 10);                                             // had to detour
-    auto boxed = [](int x, int y) { return std::abs(x - 20) <= 2 && std::abs(y) <= 2 && !(x == 20 && y == 0); };
-    const auto closest = find_path(0, 0, 20, 0, boxed);                      // (20,0) is sealed in
-    assert(!closest.empty() && closest.back() == std::pair(17, 0));
-    assert(find_path(3, 3, 3, 3, wall).empty());
-
     // Mercenaries: the hire list's offers and hiring.
     Tables merc_tables;
     merc_tables.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,
@@ -395,6 +384,14 @@ int main() {
     const MercOffer offer{ .id = 7, .level = 20, .cost = 120, .exp = 999, .seed = 5, .name = 3 };
     assert(hire(offer, merc_header, wallet2) && merc_header.merc_type == 7 && merc_header.merc_seed == 5 && merc_header.merc_name == 3 && merc_header.merc_exp == 999);
     assert(wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 30 && !hire(offer, merc_header, wallet2));
+    // Resurrection: level^2 / 2 * 15 (integer halving), capped at 50,000.
+    assert(merc_resurrect_cost(1) == 0 && merc_resurrect_cost(5) == 180 && merc_resurrect_cost(20) == 3000 && merc_resurrect_cost(98) == 50000);
+    assert(!resurrect_merc(5, merc_header, wallet2));                                  // alive
+    merc_header.merc_dead = true;
+    wallet2.values[kGold] = 100; wallet2.values[kGoldBank] = 100;
+    assert(resurrect_merc(5, merc_header, wallet2) && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
+    merc_header.merc_dead = true;
+    assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
 
     // Identify: carried, worn and belt items; not the stash.
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };

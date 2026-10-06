@@ -1328,11 +1328,9 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 return;
             }
             if (merc_mode != "WL") set("WL");
-            if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f) {
-                unit.path = walk_path(*level, unit.x, unit.y, target.unit.x, target.unit.y, crowd, &unit);
-                unit.goal_x = target.unit.x; unit.goal_y = target.unit.y;
-            }
-            if (!follow_path(*level, unit, speed * elapsed, crowd)) merc_target = -1;
+            if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f)
+                set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
+            if (!walk_on(*level, unit, speed * elapsed, crowd)) merc_target = -1;
             return;
         }
         merc_target = -1;
@@ -2414,11 +2412,9 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     monster.struck = false;
                     continue;
                 }
-                if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f) {
-                    unit.path = walk_path(*level, unit.x, unit.y, target.unit.x, target.unit.y, crowd, &unit);
-                    unit.goal_x = target.unit.x; unit.goal_y = target.unit.y;
-                }
-                if (!follow_path(*level, unit, speed * elapsed, crowd)) pet.target = -1;
+                if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f)
+                    set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
+                if (!walk_on(*level, unit, speed * elapsed, crowd)) pet.target = -1;
             } else {
                 merc_follow(*level, unit, player.x, player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
             }

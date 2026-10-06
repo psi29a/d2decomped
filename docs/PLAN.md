@@ -26,7 +26,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-09-28.
+Status as of 2026-10-06.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -52,10 +52,9 @@ Status as of 2026-09-28.
    done, the `bin/` import will be dropped from the launcher — redistributing
    Blizzard's binaries is not permitted, so no release will include them.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
-   render tiles. *Done for Act 1's start:* frontend, town, NPCs, panels,
-   trade and waypoints (no travel yet); leaving camp into a generated
-   Blood Moor and the Den of Evil, saving. Left: the other Act 1 levels,
-   waypoint travel.
+   render tiles. *Done for Act 1:* frontend, town, NPCs, panels, trade,
+   waypoints, all 38 levels (maps, monsters, objects and drops match
+   game.exe), the six quests, saving. Left: Acts 2–5.
 6. **Combat + AI**: actor state machine, packet-equivalent events,
    monster AI from game.exe. *Implemented:* monsters and their fights,
    gear in combat, drops, experience, the merc, and the skills (phases 0–6
@@ -220,8 +219,9 @@ Noted while playing the dev build (2026-09-24):
 - **Collision.** Now built like game.exe's room grid (DT1 subtile rows
   were read upside down) with the plus-shaped unit test, and click-to-walk
   paths round obstacles (docs/research/re/collision.md). Left: the tile
-  entry flag bits, units blocking each other, doors, and D2's own
-  pathing in place of our A*.
+  entry flag bits, units blocking each other, doors. Every walker takes
+  game.exe's pathers (collision.md "Path types"): the player type 7,
+  monsters, NPCs, Cain, the merc and pets 0xd then 0xf.
 - **NPC menu entries.** Not every menu item does something yet:
   - trade/repair, gamble, healing, hire and identify work (see Next up
     for what's approximate);
@@ -576,7 +576,7 @@ patches (FUN_0064c860), in the order the player brings rooms up (relevel;
 `diff_drlg.py 1-10 <level> collision`, shuffled order, levels 2–39 pass);
 ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
 scatter, the Tristram portal position, the HC smoke's
-extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
+extra life. Netplay: plan in docs/design/net-join-plan.md (built since: PRs #8–#12).
 Quest log (2026-10-03): all six Act 1 records, and the panel as game.exe
 draws it (tabs by act reached, held icons and the questdone plate, the
 pick on opening, hover texts, FontFormal11) and the Quest Log button a
@@ -654,9 +654,9 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
 - Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
   item identifies it (cmd::IdentifyWith, FUN_00561ed0), with the
   identify cursor drawn ("Identify cursor" below).
-- A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
-  "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
-  roll for quivers, or how game.exe handles no eligible affix.
+- Fixed (4a882fb): a magic Bolts quiver (cqv) with neither prefix nor
+  suffix landed in "Bob Bitchen.d2s"; with no affix game.exe remakes it
+  superior, then normal (FUN_005565e0 → FUN_00557320 / FUN_005572a0).
 - Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
   FUN_00454850 steps once a draw past 50 ms (menu.md).
 

@@ -355,6 +355,45 @@ int main() {
             for (const auto& route : paths)
                 assert(toward_path(0, 0, route.to_x, route.to_y, route.steps, route.nearby, [&](int x, int y) {
                     return std::ranges::contains(route.walls, std::pair(x, y)); }) == route.points);
+            // A player's path (type 7, FUN_00679ed0; its search leg FUN_0067b850,
+            // moves.py --dump): to, near, to a unit, points, walls.
+            struct PlayerRoute { int to_x, to_y, nearby; bool to_unit; std::vector<std::pair<int, int>> points, walls; };
+            const std::vector<PlayerRoute> player_routes{
+                { -8, 5, 1, false, { {-2, 2}, {-2, 2}, {-3, 3}, {-5, 3}, {-6, 4}, {-7, 4} }, { {-3, -1}, {-3, 0}, {-3, 2}, {1, -1} } },
+                { -3, -3, 0, false, { {-1, -1}, {-1, -1}, {-1, -3}, {-2, -4} },
+                  { {-2, -3}, {-2, -2}, {-2, -1}, {-1, -5}, {-1, 0}, {-1, 1}, {0, 1}, {1, -3}, {1, 0} } },
+                { 9, 6, 0, false, { {-1, 1}, {1, 3}, {5, 3}, {7, 5}, {8, 5}, {9, 6} },
+                  { {-2, 1}, {-1, -2}, {-1, -1}, {-1, 0}, {-1, 3}, {0, 1}, {1, -1}, {1, 0}, {1, 1}, {1, 2}, {3, 2}, {4, 2}, {4, 4}, {7, 3}, {7, 4}, {7, 6}, {9, 5} } },
+                { -13, 6, 1, true, { {0, 1}, {-1, 2}, {-5, 2}, {-9, 6}, {-13, 6} },
+                  { {-13, 5}, {-13, 7}, {-12, 7}, {-11, 2}, {-11, 4}, {-11, 5}, {-10, 4}, {-9, 2}, {-9, 5}, {-9, 7}, {-8, 3}, {-7, 1}, {-7, 6}, {-6, 1},
+                    {-6, 4}, {-5, 1}, {-5, 4}, {-3, 1}, {-3, 3}, {-3, 4}, {-2, -1}, {-2, 0}, {-1, 0}, {-1, 1}, {-1, 4}, {1, 1} } },
+                { 3, 2, 0, true, { {0, 2}, {-1, 3}, {0, 4}, {1, 4}, {3, 2} },
+                  { {-3, 2}, {-2, -1}, {-1, 1}, {0, 3}, {1, -3}, {1, -2}, {1, -1}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 5}, {2, 5} } },
+            };
+            for (const auto& route : player_routes)
+                assert(player_path(0, 0, route.to_x, route.to_y, route.nearby, route.to_unit, [&](int x, int y) {
+                    return std::ranges::contains(route.walls, std::pair(x, y)); }) == route.points);
+            // The wall pather (FUN_0067c2d0, moves.py --dump): to, steps, to a
+            // unit, points, walls.
+            struct WallRoute { int to_x, to_y, steps; bool to_unit; std::vector<std::pair<int, int>> points, walls; };
+            const std::vector<WallRoute> wall_routes{
+                { 5, -2, 40, false, { {2, 0}, {3, -1}, {4, -1}, {5, -2} }, {} },
+                { -8, -1, 40, false, { {-1, -1}, {-2, 0}, {-7, 0}, {-8, -1} }, { {-1, 0} } },
+                { 12, 2, 40, false, { {3, 0}, {4, 1}, {5, 0}, {6, 1}, {11, 1} }, { {4, 0}, {12, 1}, {12, 2} } },
+                { 3, 27, 40, false, { {-1, 1}, {0, 2}, {0, 6}, {-1, 7}, {0, 8}, {1, 9}, {1, 16}, {0, 17} }, { {0, 1}, {0, 7}, {1, 2}, {1, 17} } },
+                { 4, -7, 40, false, { {0, -1}, {1, -2}, {2, -3}, {6, -3}, {6, -5}, {2, -5}, {4, -7} },
+                  { {-1, -4}, {0, -4}, {0, -3}, {1, -4}, {2, -4}, {3, -4}, {4, -4}, {5, -4} } },
+            };
+            for (const auto& route : wall_routes)
+                assert(wall_path(0, 0, route.to_x, route.to_y, route.steps, route.to_unit, [&](int x, int y) {
+                    return std::ranges::contains(route.walls, std::pair(x, y)); }) == route.points);
+            assert(wall_path(0, 0, 2, 0, 40, false, [](int, int) { return false; }).empty());          // two subtiles: none
+            assert(wall_path(0, 0, 9, 0, 5, false, [](int, int) { return false; }).empty());           // past steps - 1: none
+            // The search round a wall across the way (game.exe's own answer,
+            // tools/emu); none from where it stands.
+            auto across = [](int x, int y) { return x == 3 && y > -6 && y < 5; };
+            assert((search_path(0, 0, 6, 0, false, across) == std::vector<std::pair<int, int>>{ { 2, 2 }, { 2, 4 }, { 3, 5 }, { 4, 4 }, { 4, 2 }, { 6, 0 } }));
+            assert(search_path(0, 0, 0, 0, false, across).empty());
             const std::vector<std::array<int, 12>> chases{ {
                 { 0, 0, 1, 0, 0, 0, 4, 5, 1, 20, 1, 20 }, { 1, 25, 1, 1, -7, 7, 0, 5, 1, 1, 2, 1 }, { 1, 6, 0, 1, 1, 3, 0, 2, 1, 0, 1, 0 },
                 { 1, 4, 3, 1, -4, 7, 1, 6, 1, 20, 2, 19 }, { 1, 6, 3, 0, 3, 1, 1, 2, 0, 1, 1, 1 }, { 0, 0, 3, 0, 0, 0, 6, 2, 0, 0, 0, 0 },

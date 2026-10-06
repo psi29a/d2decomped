@@ -932,7 +932,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
         if (unit.walking) {
-            unit.walking = follow_path(*level, unit, cells_per_sec(npc.velocity) * elapsed);
+            unit.walking = walk_on(*level, unit, cells_per_sec(npc.velocity) * elapsed);
             if (unit.walking) return;
             unit.path.clear();
         }
@@ -940,8 +940,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         const auto cell = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
         const int at_x = int(std::floor(unit.x * 5)), at_y = int(std::floor(unit.y * 5));
         const auto walk = [&](int x, int y) {
-            unit.path = walk_path(*level, unit.x, unit.y, cell(x), cell(y));
-            unit.walking = !unit.path.empty();
+            unit.walking = set_off(*level, unit, cell(x), cell(y), false);
         };
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
@@ -1294,6 +1293,20 @@ auto World::deal(const Command& command) -> bool {
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
             if (hire->offer >= 0 && std::size_t(hire->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(hire->offer)], character.header, character.stats))
                 spawn_merc();
+            return true;
+        }
+        // A hire NPC brings the dead merc back (FUN_00579c00): paid, full
+        // life, beside the player (FUN_00579aa0).
+        // ponytail: no 0x5b..0x5a messages (refused / done) back to the client.
+        if (const auto* resurrect = std::get_if<cmd::ResurrectMerc>(&command)) {
+            auto& header = character.header;
+            if (std::size_t(resurrect->npc) >= level->npcs.size() || std::ranges::find(d2d::rules::kMercNpcs, level->npcs[std::size_t(resurrect->npc)].hc_idx) == d2d::rules::kMercNpcs.end())
+                return true;
+            const int merc_level = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp).level;
+            if (d2d::rules::resurrect_merc(merc_level, header, character.stats)) {
+                spawn_merc();
+                d2d::log::info("the merc is back");
+            }
             return true;
         }
         if (std::holds_alternative<cmd::CloseTrade>(command)) { store = {}; return true; }
@@ -1722,12 +1735,17 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     if (loot.index_of(pick_item) == int(i)) pick_item = -1;
                     loot.take(i);
                 }
-        if (const auto target = fight.engage(now_ms)) { std::tie(target_x, target_y) = *target; player.walking = true; }
+        bool to_unit = interact_npc >= 0 && std::size_t(interact_npc) < level->npcs.size() && level->npcs[std::size_t(interact_npc)].root == "monsters";
+        if (const auto target = fight.engage(now_ms)) { std::tie(target_x, target_y) = *target; player.walking = true; to_unit = true; }
         if (player.walking && fight.pmode < 0) {
-            // A route to the target, re-planned when the target
-            // moves off its end (dragging, a walking NPC).
+            // A route to the target (path type 7), re-planned when the
+            // target moves off its end (dragging, a walking NPC) and when
+            // it ran out short of it (FUN_006503f0's last test).
+            // ponytail: a target unit re-paths at 0.3 cells, not game.exe's
+            // 5 subtiles off SP2.
+            const auto subtile = [](float value) { return int(std::floor(value * 5)); };
             if (player.path.empty() || std::hypot(player.goal_x - target_x, player.goal_y - target_y) > 0.3f) {
-                player.path = walk_path(*level, player.x, player.y, target_x, target_y, crowd, &player);
+                player.path = player_walk(*level, player.x, player.y, target_x, target_y, to_unit, crowd, &player);
                 player.goal_x = target_x; player.goal_y = target_y;
             }
             const auto save_class = std::size_t(std::max(character.character_class, 0));
@@ -1736,8 +1754,14 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const int walk = std::max(game_data->walk_velocity[save_class], 1);
             const int base = running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] * 100 / walk : 100;
             const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
+            const float before_x = player.x, before_y = player.y;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
-            if (!player.walking) player.path.clear();
+            if (!player.walking) {
+                player.path.clear();
+                // Short of the target with a step made: it paths again from here.
+                player.walking = (subtile(player.x) != subtile(target_x) || subtile(player.y) != subtile(target_y))
+                                 && (player.x != before_x || player.y != before_y);
+            }
         }
         npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &player);
         cain_step(now_ms, elapsed);

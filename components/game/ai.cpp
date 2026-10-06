@@ -30,58 +30,59 @@
 
 namespace d2d::game {
 
-std::vector<std::pair<float, float>> walk_path(const Level& level, float x, float y, float goal_x, float goal_y,
-                                               const Crowd& crowd , const UnitState* self) {
-    auto blocked = [&](float at_x, float at_y) { return level.unit_blocked(at_x, at_y) || crowd.at(at_x, at_y, self); };
+std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
+                                                 const Crowd& crowd, const UnitState* self) {
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
-    const auto steps = d2d::rules::find_path(sub(x), sub(y), sub(goal_x), sub(goal_y),
-        [&](int subtile_x, int subtile_y) { return blocked(centre(subtile_x), centre(subtile_y)); });
-    std::vector<std::pair<float, float>> pts;
-    for (const auto& [step_x, step_y] : steps) pts.emplace_back(centre(step_x), centre(step_y));
-    if (!steps.empty() && steps.back() == std::pair(sub(goal_x), sub(goal_y)) && !blocked(goal_x, goal_y)) pts.back() = { goal_x, goal_y };
-    // No wall in any subtile one of the unit's five probes (unit_blocked's
-    // plus) crosses on the way: every subtile the line touches, not
-    // samples along it, so wherever follow_path's steps land on it they
-    // stand clear (samples let a corner through that stopped the walk).
-    auto walls_clear = [&](float from_x, float from_y, float to_x, float to_y) {
-        for (const auto& [offset_x, offset_y] : { std::pair{ 0.f, 0.f }, { -0.2f, 0.f }, { 0.2f, 0.f }, { 0.f, -0.2f }, { 0.f, 0.2f } }) {
-            const float start_x = (from_x + offset_x) * 5, start_y = (from_y + offset_y) * 5, end_x = (to_x + offset_x) * 5, end_y = (to_y + offset_y) * 5;
-            int cell_x = int(std::floor(start_x)), cell_y = int(std::floor(start_y));
-            const int step_x = end_x > start_x ? 1 : -1, step_y = end_y > start_y ? 1 : -1;
-            const float delta_x = end_x != start_x ? 1 / std::abs(end_x - start_x) : HUGE_VALF, delta_y = end_y != start_y ? 1 / std::abs(end_y - start_y) : HUGE_VALF;
-            float next_x = end_x != start_x ? (step_x > 0 ? float(cell_x + 1) - start_x : start_x - float(cell_x)) * delta_x : HUGE_VALF;
-            float next_y = end_y != start_y ? (step_y > 0 ? float(cell_y + 1) - start_y : start_y - float(cell_y)) * delta_y : HUGE_VALF;
-            for (int left = std::abs(int(std::floor(end_x)) - cell_x) + std::abs(int(std::floor(end_y)) - cell_y);; --left) {
-                if (level.blocked(centre(cell_x), centre(cell_y))) return false;
-                if (left <= 0) break;
-                if (next_x < next_y) { cell_x += step_x; next_x += delta_x; }
-                else if (next_y < next_x) { cell_y += step_y; next_y += delta_y; }
-                else {                                                     // through a corner: both sides
-                    if (level.blocked(centre(cell_x + step_x), centre(cell_y)) || level.blocked(centre(cell_x), centre(cell_y + step_y))) return false;
-                    cell_x += step_x; cell_y += step_y; next_x += delta_x; next_y += delta_y; --left;
-                }
-            }
-        }
-        return true;
-    };
-    auto clear = [&](float from_x, float from_y, float to_x, float to_y) {
-        if (!walls_clear(from_x, from_y, to_x, to_y)) return false;
-        const int step_count = int(std::hypot(to_x - from_x, to_y - from_y) / 0.05f) + 1;
-        for (int i = 1; i <= step_count; ++i)
-            if (blocked(from_x + (to_x - from_x) * float(i) / float(step_count), from_y + (to_y - from_y) * float(i) / float(step_count))) return false;
-        return true;
-    };
-    std::vector<std::pair<float, float>> out;
-    float corner_x = x, corner_y = y;
-    for (std::size_t i = 0; i < pts.size();) {
-        std::size_t last_clear = i;
-        while (last_clear + 1 < pts.size() && clear(corner_x, corner_y, pts[last_clear + 1].first, pts[last_clear + 1].second)) ++last_clear;
-        out.push_back(pts[last_clear]);
-        std::tie(corner_x, corner_y) = pts[last_clear];
-        i = last_clear + 1;
-    }
-    return out;
+    const std::pair from{ sub(x), sub(y) };
+    const auto steps = d2d::rules::player_path(from.first, from.second, sub(goal_x), sub(goal_y), to_unit ? 1 : 0, to_unit, [&](int subtile_x, int subtile_y) {
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y)) || crowd.at(centre(subtile_x), centre(subtile_y), self);
+    });
+    // ponytail: a point given twice (the toward pather's cut-short subtile)
+    // is dropped; game.exe spends a frame on it (FUN_00650090).
+    std::vector<std::pair<float, float>> points;
+    std::pair last = from;
+    for (const auto& step : steps)
+        if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
+    return points;
+}
+
+namespace {
+
+std::vector<std::pair<float, float>> monster_walk(const Level& level, const UnitState& unit, const Crowd& crowd) {
+    auto sub = [](float value) { return int(std::floor(value * 5)); };
+    auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+    const auto steps = d2d::rules::monster_path(sub(unit.x), sub(unit.y), sub(unit.goal_x), sub(unit.goal_y), unit.to_unit, [&](int subtile_x, int subtile_y) {
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y)) || crowd.at(centre(subtile_x), centre(subtile_y), &unit);
+    });
+    std::vector<std::pair<float, float>> points;
+    std::pair last{ sub(unit.x), sub(unit.y) };
+    for (const auto& step : steps)                                // ponytail: a repeated point is dropped (game.exe: a frame on it)
+        if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
+    return points;
+}
+
+}  // namespace
+
+bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bool to_unit, const Crowd& crowd) {
+    unit.goal_x = goal_x; unit.goal_y = goal_y; unit.to_unit = to_unit;
+    unit.budget = 0x14;
+    unit.path = monster_walk(level, unit, crowd);
+    unit.path_points = int(unit.path.size());
+    return !unit.path.empty();
+}
+
+bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd) {
+    if (unit.path.empty()) return false;
+    const auto end = unit.path.back();
+    if (follow_path(level, unit, step, crowd)) return true;
+    if (unit.x != end.first || unit.y != end.second) return false;      // blocked on the way
+    auto sub = [](float value) { return int(std::floor(value * 5)); };
+    if ((sub(unit.x) == sub(unit.goal_x) && sub(unit.y) == sub(unit.goal_y)) || unit.budget == 0) return false;
+    unit.budget = std::max(unit.budget - unit.path_points, 0);
+    unit.path = monster_walk(level, unit, crowd);
+    unit.path_points = int(unit.path.size());
+    return !unit.path.empty();
 }
 
 std::string unique_name(const GameData& game_data, int name_seed) {
@@ -180,7 +181,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         }
         state.brain.listed = listed;
         if (state.walking) {                                    // a walk's end (or a block) thinks at once
-            if (!follow_path(level, state, cells_per_sec(npc.velocity) * elapsed, crowd)) {
+            if (!walk_on(level, state, cells_per_sec(npc.velocity) * elapsed, crowd)) {
                 state.walking = false; state.path.clear(); state.mode_ms = now_ms; state.wait_until = now_ms;
             }
             continue;
@@ -209,8 +210,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         switch (act.kind) {
         case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
         case d2d::rules::NpcAct::Kind::walk:
-            state.path = walk_path(level, state.x, state.y, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, crowd, &state);
-            state.walking = !state.path.empty();
+            state.walking = set_off(level, state, (float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5, false, crowd);   // FUN_005ded90
             state.mode_ms = now_ms;
             if (!state.walking) state.wait_until = now_ms + std::uint32_t(act.fail) * kFrameMs;
             break;
@@ -228,42 +228,18 @@ namespace {
 constexpr int kAndrialSpray = 164, kAndyPoisonBolt = 201;
 int subtile(float cells) { return int(std::floor(cells * 5)); }
 
-// A move's path to subtile (to_x, to_y) (FUN_00649970): none at its own
-// subtile or over 100 off; the toward pather (type 0xd, rules::toward_path:
-// 5 steps, near 1 at a foe), else the search pather (type 0xf: FUN_00650350,
-// FUN_005a6290). Points whose centre it stands on are skipped (FUN_0064fe40).
-// ponytail: the search pather (FUN_0067c2d0, 0x28 steps) as
-// rules::find_path's turns over its first 0x28 subtiles; FUN_006483a0 and
-// path flag 0x1000 left out.
+// A move's path to subtile (to_x, to_y) (FUN_00649970): rules::monster_path,
+// the toward pather then the wall pather (FUN_00650350, FUN_005a6290).
+// ponytail: FUN_006483a0 and path flag 0x1000 left out.
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
-    const int x = subtile(unit.x), y = subtile(unit.y);
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
-    auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit); };
-    auto& steps = monster.steps;
-    steps.clear();
     monster.step = 0;
     monster.end_x = to_x; monster.end_y = to_y;
-    if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return false;
-    for (const bool search : { false, true }) {
-        if (!search) steps = d2d::rules::toward_path(x, y, to_x, to_y, 5, at_foe ? 1 : 0, blocked);
-        else {
-            const auto found = d2d::rules::find_path(x, y, to_x, to_y, blocked, 400);
-            const std::size_t count = std::min<std::size_t>(found.size(), 0x28);
-            std::pair prev{ x, y };
-            for (std::size_t node = 0; node < count; ++node) {
-                if (node + 1 == count || found[node + 1].first - found[node].first != found[node].first - prev.first
-                    || found[node + 1].second - found[node].second != found[node].second - prev.second) steps.push_back(found[node]);
-                prev = found[node];
-            }
-        }
-        while (monster.step < int(steps.size()) && centre(steps[std::size_t(monster.step)].first) == unit.x
-               && centre(steps[std::size_t(monster.step)].second) == unit.y) ++monster.step;
-        if (monster.step < int(steps.size())) return true;
-        steps.clear();
-        monster.step = 0;
-    }
-    return false;
+    monster.steps = d2d::rules::monster_path(subtile(unit.x), subtile(unit.y), to_x, to_y, at_foe, [&](int at_x, int at_y) {
+        return level.unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit);
+    });
+    return !monster.steps.empty();
 }
 
 // A move's frame (FUN_00650840): a chase checks its foe first
@@ -1042,12 +1018,9 @@ void merc_follow(const Level& level, UnitState& unit, float player_x, float play
     if (moving != unit.walking) { unit.walking = moving; unit.mode_ms = now_ms; }
     if (!moving) { path.clear(); return; }
     // Re-plan when the player has moved a cell from where it was planned.
-    if (path.empty() || std::hypot(unit.goal_x - player_x, unit.goal_y - player_y) > 1.f) {
-        path = walk_path(level, unit.x, unit.y, player_x, player_y, crowd, &unit);
-        unit.goal_x = player_x; unit.goal_y = player_y;
-    }
+    if (path.empty() || std::hypot(unit.goal_x - player_x, unit.goal_y - player_y) > 1.f) set_off(level, unit, player_x, player_y, true, crowd);
     const float old_x = unit.x, old_y = unit.y;
-    follow_path(level, unit, speed * elapsed, crowd);
+    walk_on(level, unit, speed * elapsed, crowd);
     if (std::hypot(unit.x - old_x, unit.y - old_y) > speed * elapsed * 0.3f) unit.stuck_since = 0;
     else if (!unit.stuck_since) unit.stuck_since = now_ms;
     else if (now_ms - unit.stuck_since > 1500) { unit.x = player_x + 1; unit.y = player_y + 1; unit.walking = false; unit.stuck_since = 0; path.clear(); }

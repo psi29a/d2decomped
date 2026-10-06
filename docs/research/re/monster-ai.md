@@ -167,7 +167,7 @@ The path is D2DynamicPath (unit +0x2c):
   - Else it stops at the last free subtile. Within `near` of the dest (FUN_00679380 = unit_distance at size 1), that subtile is the path.
   - Else from there up to `steps` 8-way steps. Each is the first free of three directions (DAT_006f1518 by FUN_00678c10's 5x5 index), and the walk stops at the dest, a wall, or a step back.
   - Points go at each turn and at the end, unless the last step turned. The cut-short subtile comes twice when the first step leaves from it.
-  - Type 0xf is FUN_0067c2d0, a search of up to 0x28 steps.
+  - Type 0xf is FUN_0067c2d0, the wall pather (collision.md "Path types"): a line of up to `steps` (0x28 at least at a unit), two tracers round each block.
 - **Each frame (FUN_00650840, from FUN_00554ca0 in the WL / RN updates).** FUN_006503f0 runs first:
   - With a target unit: stop when unit_distance ≤ +0x93. Re-path (FUN_00650350) when the target, a player or monster, stands over 5 subtiles from SP2 on either axis, or when idx ≥ count short of SP3.
   - With none: re-path only on the last test.
@@ -232,7 +232,7 @@ Approximated (`ponytail:` in ai.cpp, fight.cpp, monsters.hpp):
 - Mode 5's candidates are every foe in foes order, not the near rooms' units room by room; its area is the room_areas rect at the unit. List 8 is empty (no good monsters) and kind 1 (a player by id) and 4 aren't set.
 - A monster's missiles, poison and Mana Burn reach only the player's side; monsters block as the player does.
 - Confuse's and Attract's duration is auralen's, not FUN_005c37a0's; FUN_0056e2f0's test is unread.
-- The search pather (type 0xf, FUN_0067c2d0) is `rules::find_path`'s turns over its first 0x28 subtiles. Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
+- Movement is floats in cells, blocked as `monster_step` has it, and the target's +0x68 offset is taken as 0.
 - A dead pet is skipped (game.exe takes it off the list), and a dead monster leaves list 9.
 - An untraced AI (none in Act 1: every Act 1 MonStats AI is traced) goes at what it found from the next frame on.
 - A pace (`ThinkIn::pace` → `Monster::move_pct`) adds to the move's speed %; Spider Lay's −100 % leaves it creeping at the 10 % floor, and its slowed state on those about is left out. A foe's life % (`Foe::life_pct`) is the player's only.

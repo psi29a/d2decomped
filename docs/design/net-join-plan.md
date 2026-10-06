@@ -1,6 +1,7 @@
 # Joining a game.exe host — implementation plan (step 1)
 
-Status: plan, 2026-09-30. Nothing built. Goal: d2d's client joins an open
+Status: built through M10 (PRs #8–#12, 2026-10-06); the live checks on
+PR #12's features are still open. Planned 2026-09-30. Goal: d2d's client joins an open
 TCP/IP game hosted by an unmodified 1.14d game.exe, and Act 1 plays
 together (multiplayer.md "Order" step 4, the netplay goal's first leg).
 

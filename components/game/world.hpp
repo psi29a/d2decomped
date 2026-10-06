@@ -429,7 +429,7 @@ struct World {
     void apply(const Command& command, std::uint32_t now_ms);
 
     // One step of the game: the player's commands, then the world. The
-    // player walks a walk_path to the target (and operates or talks on
+    // player walks its path (type 7) to the target (and operates or talks on
     // arrival); NPCs patrol; the merc follows; the monsters and missiles
     // (Fight::world); crossing into the next level or through a warp;
     // potions and regeneration.
