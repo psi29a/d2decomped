@@ -137,6 +137,7 @@ struct Scene : GameData {
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     std::array<d2d::dc6::Sprite, 2> stash_panel;
     d2d::dc6::Sprite trade_panel, trade_button;   // PANEL\trade, PANEL\tradebtn
+    std::array<d2d::dc6::Sprite, 7> class_icons;  // Hireables\<class>Icon by d2s class: party portraits
     d2d::dc6::Sprite cube_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level

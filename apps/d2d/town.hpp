@@ -163,11 +163,16 @@ struct Town {
     int net_operate_type = 2;                                // the host unit being walked to (0x13 once there): 2 object, 0 our corpse
     std::uint32_t net_operate = 0, net_operate_ms = 0;       // ... its id, when
     bool net_operate_moves = false;                          // ... a warp or portal: it takes us to another area
-    auto add_chat(const std::string& text) -> void;
+    auto add_chat(const std::string& text, int colour = 0, std::size_t gold = 0) -> void;
+    auto draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
+    struct Said { std::uint16_t string = 0; std::uint32_t until = 0; };
+    std::map<std::uint64_t, Said> net_said;                 // the host's overhead messages by unit key (0x26 type 5)
+    bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
+    auto event_text(const NetGame::Event& event) const -> std::string;
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
     std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)
     std::string typed;                                      // this frame's typed text (SDL text input)
-    struct ChatShown { std::string text; std::uint32_t until = 0; };
+    struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; };   // gold: that many letters first in gold (a speaker's name)
     std::vector<ChatShown> chat_lines;                      // the top-left chat lines, oldest first
     std::optional<std::string> trade_gold_typing;           // a trade's gold, being typed (our bar clicked)
     int net_operate_waypoint = -1;                           // ... a waypoint: then 0x49 to this level

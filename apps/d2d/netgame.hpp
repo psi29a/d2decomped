@@ -34,6 +34,9 @@ struct NetGame {
         float x = 0, y = 0;
         float goal_x = 0, goal_y = 0;
         bool moving = false;
+        bool running = false;         // a player's move is a run (command 0x17 / 0x18)
+        int party = 0xffff;           // a player's party (0x8d, 0x75; 0xffff none)
+        int party_life = 100;         // a party member's life % (0x7f)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
@@ -141,8 +144,14 @@ struct NetGame {
     bool auto_party = true;                    // invite the other players, accept their invites (deviations.md)
     std::vector<std::uint32_t> corpses;        // our corpses' player units (0x8e), oldest first
     std::optional<std::array<std::uint8_t, 96>> quest_words;   // our quest words in the host's game (0x28 type 6): the client takes them
-    struct ChatLine { std::string name, message; };
+    struct ChatLine { int type = 1, colour = 0; std::string name, message; };   // type 1 to all, 2 a whisper; colour +8
     std::vector<ChatLine> chat;                // players' chat (0x26 types 1, 2), for the client to take
+    // An event message (0x5a): +1 event, +2 colour, +3 u32 argument, +7
+    // u8, +8 name[16], +0x18 second name[16] (or a u16), for the client.
+    struct Event { int event = 0, colour = 0, sub = 0; std::uint32_t argument = 0; std::string name, second; std::uint16_t second_id = 0; };
+    std::vector<Event> events;
+    struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; };   // 0x26 type 5: over a unit
+    std::vector<Overhead> overheads;
     std::vector<int> quest_news;               // quests whose log state the host sent (0x5d, no flags): the Quest Log button
 
 private:

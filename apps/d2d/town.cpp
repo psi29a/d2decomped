@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <initializer_list>
 #include <span>
 #include <string>
 #include <tuple>
@@ -127,7 +128,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     for (std::size_t i = 0; i < view.others.size(); ++i) {                   // -4000 - i: a click asks them to trade
         const auto& other = view.others[i];
         if (!in_view(other.unit.x, other.unit.y)) continue;
-        const int mode = other.mode >= 0 ? other.mode : other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
+        const int mode = other.mode >= 0 ? other.mode : other.running ? kModeRN : other.unit.walking ? (in_town ? kModeTW : kModeWL) : (in_town ? kModeTN : kModeNU);
         out.push_back({ other.unit.x, other.unit.y, &scene.composite(other.cls, mode, other.gfx), other.unit.dir, &other.name, other.unit.mode_ms, -4000 - int(i) });
     }
     auto shot = [&](const View::Shot& shot_state) {
@@ -591,6 +592,7 @@ auto Town::net_overlay() -> void {
                 other.unit.x = cell_x(unit.x);
                 other.unit.y = cell_y(unit.y);
                 other.unit.walking = unit.moving;
+                other.running = unit.moving && unit.running;
                 if (unit.moving) other.unit.dir = direction16(unit.goal_x - unit.x, unit.goal_y - unit.y);
                 // A skill (0x4c / 0x4d) plays its Skills.txt anim once, facing
                 // where it went (A1 / TH an attack, else a cast, as ours).
@@ -711,8 +713,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 chat_typing.reset();
             }
         }
-        if (net_game)
-            for (auto& line : std::exchange(net_game->chat, {})) add_chat(line.name + ": " + line.message);
+        if (net_game) {
+            // FUN_0049f490: to all, the name gold (colour code 4) then
+            // SysmsgPlayer1 ": " and the message in the packet's colour;
+            // a whisper, "name whispers: message" all green (2).
+            for (auto& line : std::exchange(net_game->chat, {})) {
+                if (line.type == 2) add_chat(line.name + string_id(*scene, 0xe46) + line.message, 2);
+                else add_chat(line.name + string_id(*scene, 0xfd0) + line.message, line.colour, line.name.size());
+            }
+            for (const auto& event : std::exchange(net_game->events, {}))
+                if (auto text = event_text(event); !text.empty()) add_chat(text, event.colour);
+        }
         std::erase_if(chat_lines, [&](const auto& line) { return frame_ms >= line.until; });
         for (const auto key : keys_this_frame) {
             if ((trade_gold_typing || chat_typing) && key != SDLK_ESCAPE) continue;   // typing: no hotkeys
@@ -1599,6 +1610,40 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
         cam_y = jump ? unit.y : prev_y + (unit.y - prev_y) * blend;
         state_clock.now = frame_ms;
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
+        // The host's overhead messages (0x26 type 5): a shrine's comes as
+        // its string id in decimal ("3684", ShrMsg1). Each stays (length x 8
+        // + 125) frames (FUN_00661110). An object's goes on d2d's object
+        // nearest the host's; a player's or monster's on theirs.
+        // ponytail: text that isn't a string id isn't shown.
+        std::vector<UnitState> said_npcs;                    // the NPC states drawn, with the host's objects' messages: a copy (the View's are replicated by change)
+        if (net_game) {
+            for (const auto& said : std::exchange(net_game->overheads, {})) {
+                const auto number = std::strtoul(said.text.c_str(), nullptr, 10);
+                if (said.text.empty() || said.text.find_first_not_of("0123456789") != std::string::npos || number == 0 || number > 0xffff) continue;
+                net_said[std::uint64_t(said.type) << 32 | said.id] = { std::uint16_t(number), frame_ms + std::uint32_t(said.text.size() * 8 + 125) * kTickMs };
+            }
+            std::erase_if(net_said, [&](const auto& entry) { return frame_ms >= entry.second.until; });
+            for (const auto& [unit_key, said] : net_said) {
+                const auto host = net_game->units.find(unit_key);
+                if (host == net_game->units.end()) continue;
+                if (host->second.type == 2) {
+                    int nearest = -1;
+                    float best = 4.f;
+                    for (std::size_t i = 0; i < level->npcs.size() && i < view.npc_states.size(); ++i)
+                        if (level->npcs[i].root == "objects")
+                            if (const float apart = std::hypot((level->npcs[i].x + float(level->world_x)) * 5.f - host->second.x, (level->npcs[i].y + float(level->world_y)) * 5.f - host->second.y); apart < best) { best = apart; nearest = int(i); }
+                    if (nearest < 0) continue;
+                    if (said_npcs.empty()) said_npcs = view.npc_states;
+                    said_npcs[std::size_t(nearest)].says = said.string;
+                    continue;
+                }
+                for (auto& drawn : extra) {
+                    const bool is_player = drawn.npc <= -4000 && std::size_t(-4000 - drawn.npc) < view.others.size() && view.others[std::size_t(-4000 - drawn.npc)].id == host->second.id && host->second.type == 0;
+                    const bool is_monster = drawn.npc <= -10 && drawn.npc > -4000 && std::size_t(-10 - drawn.npc) < view.monsters.size() && std::uint32_t(view.monsters[std::size_t(-10 - drawn.npc)].id) == host->second.id && host->second.type == 1;
+                    if (is_player || is_monster) drawn.says = said.string;
+                }
+            }
+        }
         std::erase_if(state_clock.seen, [&](const auto& entry) { return frame_ms - entry.second.last > 5000; });
         Unit player_look{};
         dress(*scene, player_look, -1, player_states(*scene, view), &state_clock);
@@ -1615,7 +1660,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       view.gfx,
                       character.name, character.hardcore,
                       cam_x, cam_y, mode,
-                      unit.dir, frame_ms, held ? -1 : mouse.x, held ? -1 : mouse.y, view.npc_states,
+                      unit.dir, frame_ms, held ? -1 : mouse.x, held ? -1 : mouse.y, said_npcs.empty() ? std::span<const UnitState>(view.npc_states) : std::span<const UnitState>(said_npcs),
                       inv_open ? &character.items : nullptr,
                       char_open ? &character.stats : nullptr, &character.stats, &character.panel, mode_ms, &character.items,
                       &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_open,
@@ -1640,6 +1685,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
                        trade.our_gold, trade_gold_typing ? &*trade_gold_typing : nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
+        draw_portraits(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open);
         draw_chat(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
@@ -1663,7 +1709,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
 
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
 // - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
-auto Town::add_chat(const std::string& text) -> void {
+auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     std::vector<std::string> wrapped{ std::string{} };
     std::size_t start = 0;
@@ -1676,7 +1722,10 @@ auto Town::add_chat(const std::string& text) -> void {
         start = end + 1;
     }
     wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
-    for (auto& line : wrapped) chat_lines.push_back({ std::move(line), now_ms + 10000 });
+    for (auto& line : wrapped) {
+        chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold });
+        gold = 0;                                               // the name is on the first line
+    }
     if (chat_lines.size() > 18) chat_lines.erase(chat_lines.begin(), chat_lines.end() - 18);   // ponytail: by line, not by message
 }
 
@@ -1685,15 +1734,17 @@ auto Town::add_chat(const std::string& text) -> void {
 // baselines 20 + 15 a line, each on a dark box from x - 5, 14 up,
 // 16 high, the text's width + 10 (FUN_0046efd0 colour 0, mode 1).
 // The line being typed sits below them.
-// ponytail: white; the colour per message type isn't traced. The typed
-// line's place and look are d2d's: game.exe's edit box isn't traced.
+// ponytail: the typed line's place and look are d2d's: game.exe's edit
+// box isn't traced. Colours 6 / 7 (black, tan) are drawn white.
 auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void {
     if (chat_lines.empty() && !chat_typing) return;
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
     const int x = left_open && !right_open ? int(kScreenWidth) / 2 + 15 : 15;
-    int baseline = 20;
-    auto line = [&](const std::string& text) {
+    int baseline = portraits_shown ? 0x5f : 20;   // ponytail: taken as below the portraits (UI flag 0x13 (?))
+    static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
+                                                                          { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
+    auto line = [&](const std::string& text, int colour, std::size_t gold) {
         const int width = font.measure(text);
         for (int y = std::max(baseline - 14, 0); y < std::min(baseline + 2, int(kScreenHeight)); ++y)
             for (int column = std::max(x - 5, 0); column < std::min(x + width + 5, int(kScreenWidth)); ++column)
@@ -1701,11 +1752,113 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
                     auto& value = framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(column)) * 4 + std::size_t(channel)];
                     value = std::uint8_t(value / 2);
                 }
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, baseline - font.line_height() + 1, text, 255, 255, 255);
+        const auto& rgb = kRgb[std::size_t(colour >= 0 && colour < 10 ? colour : 0)];
+        const std::string name = text.substr(0, gold), rest = text.substr(name.size());
+        const int top = baseline - font.line_height() + 1;
+        if (!name.empty()) font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, top, name, 199, 179, 119);
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + font.measure(name), top, rest, rgb[0], rgb[1], rgb[2]);
         baseline += 15;
     };
-    for (const auto& shown : chat_lines) line(shown.text);
-    if (chat_typing) line(*chat_typing + "_");
+    for (const auto& shown : chat_lines) line(shown.text, shown.colour, shown.gold);
+    if (chat_typing) line(*chat_typing + "_", 0, 0);
+}
+
+// An event message's line (FUN_0049eb10, by +1; the strings by id), or
+// "" for one d2d doesn't show. The party's (7, FUN_0049e8f0) name the
+// player of +3; a death (6) names the killer by +7: 0 a player (the
+// second name), 1 a monster (MonStats NameStr of +3; a SuperUnique's,
+// +0x18 its row, when set), 2 an object (an Exploding Barrel, 0xb).
+// ponytail: 0xb / 0xf / 0x11 / 0x12 (realm news, SOJ, Diablo Walks the
+// Earth) aren't shown; nor an object's own name in a death.
+auto Town::event_text(const NetGame::Event& event) const -> std::string {
+    auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
+    auto format = [](std::string pattern, std::initializer_list<std::string> values) {
+        for (const auto& value : values)
+            if (const auto found = pattern.find("%s"); found != std::string::npos) pattern.replace(found, 2, value);
+        return pattern;
+    };
+    switch (event.event) {
+    case 0: return event.name + text(0xe37);                   // " dropped due to timeout."
+    case 1: return event.name + text(0xe38);
+    case 2:                                                    // joined (not us)
+        if (event.name == character.name) return {};
+        return event.second.empty() ? format(text(0xe39), { event.name }) : format(text(0xe3b), { event.name, event.second });
+    case 3: return event.second.empty() ? format(text(0xe3a), { event.name }) : format(text(0xe3c), { event.name, event.second });
+    case 4: return event.name + text(0xe3d);                   // " is not in the game."
+    case 5: return event.name + text(0xe3e);
+    case 6: {
+        std::string killer;
+        std::uint16_t slain_by = 0xe3f;                              // " was slain by "
+        if (event.sub == 0 && !event.second.empty()) { killer = event.second; slain_by = 0xe40; }
+        else if (event.sub == 1 && event.second.empty() && event.argument < scene->monsters.types.size()) {
+            const auto& key = scene->monsters.types[event.argument].name_key;
+            const auto found = lookup_string(*scene, key);
+            killer = found ? u16_to_latin1(*found) : key;
+        } else if (event.sub == 1 && !event.second.empty() && event.second_id < scene->superuniques.size()) {
+            killer = scene->superuniques[event.second_id].name;
+            slain_by = 0xe40;
+        } else if (event.sub == 2 && event.argument == 0xb) killer = text(0xc98);
+        return killer.empty() ? event.name + text(0xe41) : event.name + text(slain_by) + killer;
+    }
+    case 7: {
+        std::string who;
+        if (net_game)
+            if (const auto found = net_game->units.find(std::uint64_t(event.argument)); found != net_game->units.end()) who = found->second.name;
+        static constexpr std::array<std::uint16_t, 11> kParty{ 0x277a, 0x277b, 0xfba, 0xfbb, 0xfbc, 0xfbd, 0xfbe, 0xfbf, 0xfc0, 0x277c, 0x277d };
+        if (event.sub < 1 || event.sub > 11 || who.empty()) return {};
+        const auto line = text(kParty[std::size_t(event.sub - 1)]);
+        if (event.sub <= 2 || event.sub >= 10) return format(line, { who });   // "%s permits you to loot his corpse."
+        return event.sub == 8 ? line + who : who + line;      // "You are now allied with " / " has left your party."
+    }
+    case 8: return event.name + text(0xfcc);                   // " is busy"
+    case 9: return text(0xfcf);
+    case 0xa: return event.name.empty() ? text(0x1027) : event.name + text(0x1026);
+    case 0xd: return event.name + text(0xe44);
+    case 0x10: return text(0x2a38);
+    default: return {};
+    }
+}
+
+// The party's portraits (FUN_00494020 -> FUN_00493b50): each other player
+// in our party, left to right from x 15, 0x38 apart: the class's
+// Hireables icon with its bottom at y 0x3c, a life bar above it
+// (FUN_00493a00: x .. x + 0x2e, y 0xe .. 0x13, filled life % of the
+// way, green (0, 0x80, 0) / from under 50 % (0xc0, 0xc0, 0) / under 25 %
+// red, the rest black) and the name in Font6, cut to 0x42 px, centred on
+// x + 0x16, its baseline at y 0x48 and 0x52 by turns (FUN_00492fa0).
+// None while a left panel is open (FUN_0045ae90 2 / 3 (?)).
+// ponytail: no merc or pet portraits (FUN_00493ce0, FUN_00493e10..),
+// no hover text, no Show Portraits toggle (DAT_007beecc); the bar's
+// mode 5 blend is drawn solid.
+auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
+    portraits_shown = false;
+    if (!net_game || left_open) return;
+    const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
+    if (self == net_game->units.end() || self->second.party == 0xffff) return;
+    const auto& pal = scene->act1_pal.entries().empty() ? scene->pal : scene->act1_pal;
+    const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
+    int x = 15, name_y = 0x48;
+    for (const auto& [unit_key, unit] : net_game->units) {
+        if (unit.type != 0 || unit.id == net_game->self_id || unit.party != self->second.party || unit.cls < 0 || unit.cls > 6) continue;
+        const auto& icon = scene->class_icons[std::size_t(unit.cls)];
+        if (icon.total_frames() > 0) {
+            const auto& frame = icon.frame(0, 0);
+            blit_sprite(framebuffer, frame, pal, x, 0x3c - int(frame.height) + 1);
+        }
+        const int life = std::clamp(unit.party_life, 0, 100), filled = x + life * 0x2e / 100;
+        const std::array<std::uint8_t, 3> rgb = life < 25 ? std::array<std::uint8_t, 3>{ 0xff, 0, 0 } : life < 50 ? std::array<std::uint8_t, 3>{ 0xc0, 0xc0, 0 } : std::array<std::uint8_t, 3>{ 0, 0x80, 0 };
+        for (int y = 0xe; y < 0x13; ++y)
+            for (int column = x; column < x + 0x2e; ++column) {
+                auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(column)) * 4];
+                for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = column < filled ? rgb[channel] : 0;
+            }
+        std::string name = unit.name;
+        while (!name.empty() && font.measure(name) > 0x42) name.pop_back();
+        font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::max(x + 0x16 - font.measure(name) / 2, 0), name_y - font.line_height() + 1, name);
+        name_y = name_y == 0x48 ? 0x52 : 0x48;
+        x += 0x38;
+        portraits_shown = true;
+    }
 }
 
 }  // namespace d2d::client

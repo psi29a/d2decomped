@@ -213,8 +213,8 @@ The generic unit commands (players, and any unit type the table allows):
 | 0x0c hit | 9 | `0x45cc70` | +7 u8 hit class (→ unit +0xb0); +8 u8 life / 128 (−1 when > 1; bit 7 set by `FUN_005a0180`) | cmd 0x13 always (builder `0x53b430`, from `FUN_00597cf0`); `{+7, +8}` |
 | 0x0d stop | 13 | `0x45ccc0` | +6 u8 unit command (0x13 hit, 8 dying, 9 dead: a player's death, live), +7 u16 x, +9 u16 y, +0xb u8, +0xc u8 life / 128 | `{x, y, +0xb}`; a player's party life bar (`FUN_0047a690`) (builder `0x53b4b0`) |
 | 0x0e object state | 12 | `0x45cd10` | +7 u8 **(?)** (1 when we operated it, 0 for a door already open as its room comes), +8 u32 new mode | object cmd 3 (mode) or 0x15 (operate effect); d2d sets its nearest door to the mode |
-| 0x0f move to x, y | 16 | `0x45cd40` | +7 u16 target x, +9 u16 target y, +0xb u8, +0xc u16 x, +0xe u16 y (where it is) | `{tx, ty, +0xb}`, correction at (x, y) (builder `0x53b570`) |
-| 0x10 move to unit | 16 | `0x45cd90` | +7 u8 target type, +8 u32 target id, +0xc u16 x, +0xe u16 y | `{type, id}`, correction (builder `0x53b520`) |
+| 0x0f move to x, y | 16 | `0x45cd40` | +6 u8 the unit command (1 walk, 0x17 run), +7 u16 target x, +9 u16 target y, +0xb u8, +0xc u16 x, +0xe u16 y (where it is) | `{tx, ty, +0xb}`, correction at (x, y) (builder `0x53b570`) |
+| 0x10 move to unit | 16 | `0x45cd90` | +6 u8 the unit command (0 walk, 0x18 run), +7 u8 target type, +8 u32 target id, +0xc u16 x, +0xe u16 y | `{type, id}`, correction (builder `0x53b520`) |
 
 Monsters (type always 1): +1 u32 id, +5 u8 cmd.
 
@@ -539,7 +539,11 @@ ids).
   `FUN_0053c750`): +1 u8 type, +2 u8 language, +3 u8 unit type, +4 u32
   unit id, +8 u8 colour **(?)**, +9 u8 **(?)**, +10 name (≤ 16, NUL),
   then the message (NUL). Types: 1 to all, 2 a whisper, 4, 5 overhead
-  on the unit (`FUN_0049f410`), 6, 7. A player's chat (C→S 0x15,
+  on the unit (`FUN_0049f410`; a shrine's message comes as its string
+  id in decimal, "3684" ShrMsg1), 6, 7. Type 1's line is the name in
+  gold (`FUN_004521c0` puts colour code 4 before it), then 0xfd0 ": "
+  and the message in colour +8; type 2's is name + 0xe46 " whispers: "
+  + message, all green (2). A player's chat (C→S 0x15,
   `54a5d0`) goes out as type 1 (2 with a target), +3 unit type 2, +4
   id 0, +9 the sender's level (stat 0xc), their name.
 - **The chat lines** (`FUN_0049e3a0` adds, `FUN_0049dc40` draws):
@@ -550,8 +554,19 @@ ids).
   when `FUN_004538d0` **(?)**), each on a dark box (`FUN_0046efd0`: x − 5,
   baseline − 14, the width + 10, 16 high, colour 0, mode 1).
 - **0x5a event message** (40; `FUN_0049eb10`; builder `FUN_0053c850`):
-  +1 u8 event (0..0x12: joined, left, slain ...), +2 u8 colour **(?)**,
-  +3 u32 argument, +7 u8, +8 char[16] name, +0x18 char[16] second name.
+  +1 u8 event, +2 u8 the line's colour (4 gold for a join), +3 u32
+  argument, +7 u8, +8 char[16] name, +0x18 char[16] second name. A
+  chat line (`FUN_0049e3a0`) by event, the strings by id:
+
+  | Event | Line |
+  |---|---|
+  | 0 / 1 | name + 0xe37 " dropped due to timeout." / 0xe38 "... errors." |
+  | 2 / 3 | 0xe39 "%s joined our world..." / 0xe3a "%s left ..." (0xe3b / 0xe3c "%s(%s)" with the second name); a join of our own name isn't shown |
+  | 4 / 5 / 0xd | name + 0xe3d " is not in the game." / 0xe3e " is not logged in." / 0xe44 " is not listening to you." |
+  | 6 | a death, by +7: 0 a player (name + 0xe40 " was slain by " + second name), 1 a monster (0xe3f + MonStats NameStr of +3; a SuperUnique's name, row u16 +0x18, with 0xe40), 2 an object (+3; 0xb: 0xc98 "an Exploding Barrel"); else name + 0xe41 " was slain." |
+  | 7 | party news (`FUN_0049e8f0`), the player of +3, by +7 1..11: 0x277a / 0x277b "%s permits you to loot his / her corpse.", 0xfba..0xfbe and 0xfc0 name + " has expressed hostility ..." / " is no longer hostile ..." / " invites you to ally ..." / " has cancelled the party invite." / " has joined your party ..." / " has left your party.", 8 0xfbf "You are now allied with " + name, 0x277c / 0x277d "%s no longer allows ..." |
+  | 8 / 9 / 0xa | name + 0xfcc " is busy" / 0xfcf "You must wait ... to trade ..." / name + 0x1026 " has items in his box." (no name: 0x1027) |
+  | 0xb / 0xf / 0x10..0x12 | 0x69b / realm going down 0xe43 / 0x2a38 hostility timeout / 0x2afc SOJs sold / 0x2afd Diablo Walks the Earth |
 
 ### Players and party
 
@@ -568,6 +583,16 @@ ids).
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags.
 - **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22).
+- **Party portraits** (`FUN_00494020`): the other players in our party
+  (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets, left to
+  right from x 15, 0x38 apart: the class's `Hireables\<Class>Icon`
+  (by d2s class; `FUN_00492c20` loads them) with its bottom at y 0x3c, a
+  life bar over it (`FUN_00493a00`: x .. x + 0x2e, y 0xe .. 0x13, life %
+  of it in (0, 0x80, 0), (0xc0, 0xc0, 0) under 50 %, red under 25 %, the
+  rest black, mode 5), and the name in Font6 cut to 0x42 px, centred on
+  x + 0x16, baseline y 0x48 and 0x52 by turns (`FUN_00492fa0`). Hidden
+  while `FUN_0045ae90` is 2 or 3, UI flags 9 / 0xb are up, or the Show
+  Portraits toggle (`DAT_007beecc`, string 0xf8e) is off.
 - **0x8e corpse** (10): +1 u8 add / remove, +2 u32 player id, +6 u32
   corpse id (list at roster +0x38).
 - **0x76 player in proximity** (6; `FUN_0049f8c0`).
