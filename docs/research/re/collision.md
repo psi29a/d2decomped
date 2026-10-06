@@ -43,7 +43,10 @@ own lifted while it paths, `FUN_00649970`) by pattern (`FUN_0064ea90`):
 
 The pattern (`FUN_006484e0`): MonStats2 SizeX through `DAT_006eb3dc` (0,
 1, 1, 2; over 3: 1); a MonStats npc or inTown (+0xd & 1 / 4) that isn't
-interact (+0xd & 2) goes 1 → 3, 2 → 4 — the mercs and the cow. A mover
+interact (+0xd & 2) goes 1 → 3, 2 → 4 — the mercs and the cow — as does a
+player's pet (unit +0xc4 bit 31: FUN_0056d8d0 for every summon, Revive's
+FUN_005c55c0; FUN_0063e860). Pattern 0 (SizeX 0: the chicken, rats,
+hydras, sentries) stamps nothing and tests its own subtile. A mover
 tests (`FUN_0064d910`) the plus for 1 / 3 / 5 (`FUN_0064d4e0`), its box for
 2 / 4 (`FUN_0064d7c0`), against its mask (path +0x50): a player 0x1c09, a
 monster 0x3c01, opendoors (+0xc & 8) 0x3401, flying (+0xd & 0x40) 0x1804.
@@ -147,5 +150,6 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
   to a spot, not a unit. The merc's moves carry their own type, pace and
   steps (merc-ai.md).
-- Not yet: the tile-entry flag bits. ponytail: SizeX 0 (pattern 0) is
-  tested as 1; unit flag +0xc4 bit 31's switch to 3 / 4 isn't kept.
+- ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
+  no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
+  d2d pet takes 3 / 4.

@@ -52,21 +52,28 @@ namespace d2d::game {
 
 // A unit's collision (FUN_006484e0): its pattern from MonStats2 SizeX
 // (DAT_006eb3dc 0, 1, 1, 2; over 3: 1), 1 → 3 and 2 → 4 for a MonStats
-// npc or inTown that isn't interact (the merc, the cow). Stamped
-// (FUN_0064ea90): 1 / 3 its footprint bit (0x1000, 3 / 4 0x2000) on its
-// subtile, 2 / 4 on the plus. Tested (FUN_0064d910): 1 / 3 the plus, 2 / 4
-// the SizeX box. `mask` (path +0x50) is what blocks it: a player 0x1c09, a
+// npc or inTown that isn't interact (the merc, the cow), or a player's pet
+// (unit +0xc4 bit 31, FUN_0056d8d0; FUN_0063e860). Stamped (FUN_0064ea90):
+// 0 nothing, 1 / 3 its footprint bit (0x1000, 3 / 4 0x2000) on its
+// subtile, 2 / 4 on the plus. Tested (FUN_0064d910): 0 its subtile, 1 / 3
+// the plus, 2 / 4 the SizeX box. `mask` (path +0x50) is what blocks it: a player 0x1c09, a
 // monster 0x3c01, opendoors 0x3401, flying 0x1804. Players, by default.
 struct UnitShape {
     std::uint8_t pattern = 1, size = 2;
     std::uint16_t mask = 0x1c09;
     [[nodiscard]] std::uint16_t bit() const { return pattern >= 3 ? 0x2000 : 0x1000; }
     [[nodiscard]] bool box() const { return pattern == 2 || pattern == 4; }
-    // ponytail: pattern 0 (SizeX 0) is tested as 1
+    [[nodiscard]] bool stamps() const { return pattern >= 1 && pattern <= 4; }
+    // A pet's: 1 → 3, 2 → 4 (FUN_00648580 with bit 31 set).
+    [[nodiscard]] UnitShape owned() const {
+        UnitShape out = *this;
+        if (pattern == 1 || pattern == 2) out.pattern = std::uint8_t(pattern + 2);
+        return out;
+    }
     static UnitShape monster(int size, bool town_unit, bool flying, bool open_doors) {
-        const int pattern = size == 3 ? 2 : 1;
-        return { std::uint8_t(town_unit ? pattern + 2 : pattern), std::uint8_t(size),
-                 std::uint16_t(flying ? 0x1804 : open_doors ? 0x3401 : 0x3c01) };
+        const int pattern = size == 0 ? 0 : size == 3 ? 2 : 1;
+        const UnitShape shape{ std::uint8_t(pattern), std::uint8_t(size), std::uint16_t(flying ? 0x1804 : open_doors ? 0x3401 : 0x3c01) };
+        return town_unit ? shape.owned() : shape;
     }
 };
 
@@ -216,6 +223,7 @@ struct Level {
     // A unit's grid test by its shape: the plus, or its SizeX box
     // (FUN_0064d7c0: the subtile less half the size).
     [[nodiscard]] bool unit_blocked(float x, float y, const UnitShape& shape) const {
+        if (shape.pattern == 0) return blocked(x, y, shape.mask & 0x0fff);
         if (!shape.box()) return unit_blocked(x, y, shape.mask);
         const float left = std::floor(x * 5) - float(shape.size / 2), top = std::floor(y * 5) - float(shape.size / 2);
         for (int row = 0; row < shape.size; ++row)

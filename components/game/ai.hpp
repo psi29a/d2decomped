@@ -73,11 +73,12 @@ struct Crowd {
         const int sub_x = int(std::floor(x * 5)), sub_y = int(std::floor(y * 5));
         const int half = mover.size / 2;
         auto covers = [&](int cell_x, int cell_y) {
+            if (mover.pattern == 0) return cell_x == sub_x && cell_y == sub_y;
             if (mover.box()) return cell_x >= sub_x - half && cell_x < sub_x - half + mover.size && cell_y >= sub_y - half && cell_y < sub_y - half + mover.size;
             return std::abs(cell_x - sub_x) + std::abs(cell_y - sub_y) <= 1;
         };
         for (const auto* other : units) {
-            if (other == self || !(other->shape.bit() & mover.mask)) continue;
+            if (other == self || !other->shape.stamps() || !(other->shape.bit() & mover.mask)) continue;
             const int other_x = int(std::floor(other->x * 5)), other_y = int(std::floor(other->y * 5));
             if (covers(other_x, other_y)) return true;
             if (other->shape.box())

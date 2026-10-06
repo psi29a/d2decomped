@@ -2456,7 +2456,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         auto& monster = pet.monster;
         monster.type = type;
         monster.npc = game_data->mon_npc[std::size_t(type)];
-        monster.unit.shape = monster.npc.shape;
+        monster.unit.shape = monster.npc.shape.owned();   // a pet: +0xc4 bit 31 (FUN_0056d8d0)
         const auto& type_info = game_data->monsters.types[std::size_t(type)];
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();

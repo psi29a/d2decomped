@@ -146,7 +146,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.base_w = std::string(ms2.get(row2, "BaseW"));
     npc.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
-    npc.shape = UnitShape::monster(std::max(npc.size_x, 1), (monstats.get(row, "npc") == "1" || monstats.get(row, "inTown") == "1") && monstats.get(row, "interact") != "1",
+    npc.shape = UnitShape::monster(npc.size_x, (monstats.get(row, "npc") == "1" || monstats.get(row, "inTown") == "1") && monstats.get(row, "interact") != "1",
                                    monstats.get(row, "flying") == "1", monstats.get(row, "opendoors") == "1");
     npc.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
     npc.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
