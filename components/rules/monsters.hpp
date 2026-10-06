@@ -942,25 +942,57 @@ inline NearPick search_near(std::span<const NearFoe> foes, int align, bool need_
 // (FUN_005dc970: player or monster, neither dying, the candidate not in a
 // town room, FUN_00554200's foe) under 0x31 off (near_distance), in sight
 // (FUN_00622aa0 mask 4, always tested): threat 2 or more a primary, else a
-// secondary, each the nearest, the first found at a tie. FUN_005dd510
-// takes the primary, else the secondary. The pick's index (-1 none) and
-// its distance in `distance`.
-// ponytail: FUN_005dd510's path test to a primary when the secondary is
-// under 6 off always finds one (as search_pick's); FUN_005dc970's state
-// 0x92 test is left out.
-struct SightFoe { int distance = 0, threat = 0; bool enemy = false, blocked = false; };
-inline int search_sight(std::span<const SightFoe> foes, int& distance) {
-    int first = -1, first_best = 0x7fffffff, second = -1, second_best = 0x7fffffff;
+// secondary, each the nearest, the first found at a tie. FUN_005dc970
+// passes over a monster in state 0x92 (invis) within melee of the searcher
+// (a player in it 80 % of the time unless in melee: the merc's foes are all
+// monsters). The picks (-1 none) and their distances. FUN_005dd510 then
+// takes the primary, else the secondary (merc_target).
+struct SightFoe { int distance = 0, threat = 0; bool enemy = false, blocked = false, invisible = false, in_melee = false; };
+struct SightPick { int first = -1, first_best = 0x7fffffff, second = -1, second_best = 0x7fffffff; };
+inline SightPick search_sight(std::span<const SightFoe> foes) {
+    SightPick pick;
     for (std::size_t i = 0; i < foes.size(); ++i) {
         const auto& foe = foes[i];
-        if (!foe.enemy || foe.distance >= 0x31) continue;
+        if (!foe.enemy || (foe.invisible && foe.in_melee) || foe.distance >= 0x31) continue;
         const bool primary = foe.threat >= 2;
-        if (foe.distance >= (primary ? first_best : second_best) || foe.blocked) continue;
-        (primary ? first : second) = int(i);
-        (primary ? first_best : second_best) = foe.distance;
+        if (foe.distance >= (primary ? pick.first_best : pick.second_best) || foe.blocked) continue;
+        (primary ? pick.first : pick.second) = int(i);
+        (primary ? pick.first_best : pick.second_best) = foe.distance;
     }
-    distance = first >= 0 ? first_best : second_best;
-    return first >= 0 ? first : second;
+    return pick;
+}
+
+// FUN_005dd510's mode 7 (FUN_005dcc60): with no path to the primary, the
+// nearest other enemy of threat 2 or more under 0x31 off in sight; -1 none.
+inline int search_threat(std::span<const SightFoe> foes, int skip, int& distance) {
+    int best = -1;
+    distance = 0x7fffffff;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        if (int(i) == skip || !foe.enemy || (foe.invisible && foe.in_melee) || foe.distance >= 0x31 || foe.threat < 2 || foe.distance >= distance || foe.blocked) continue;
+        best = int(i); distance = foe.distance;
+    }
+    return best;
+}
+
+// FUN_005dd510 for a monster searcher: no secondary, the primary; no
+// primary, the secondary; the secondary under 6 off and no path to the
+// primary (`path_to_primary`: a type 2 path, the toward pather), mode 7's
+// pick when within 0x13, else the secondary; else the primary.
+template <class PathTo>
+int sight_choice(std::span<const SightFoe> foes, const SightPick& pick, PathTo&& path_to_primary, int& distance) {
+    if (pick.second < 0 || pick.first < 0) {
+        distance = pick.first >= 0 ? pick.first_best : pick.second_best;
+        return pick.first >= 0 ? pick.first : pick.second;
+    }
+    if (pick.second_best < 6 && !path_to_primary(pick.first)) {
+        int other_best = 0;
+        if (const int other = search_threat(foes, pick.first, other_best); other >= 0 && other_best <= 0x13) { distance = other_best; return other; }
+        distance = pick.second_best;
+        return pick.second;
+    }
+    distance = pick.first_best;
+    return pick.first;
 }
 
 // A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0

@@ -530,6 +530,17 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
 
 }  // namespace
 
+int room_of(const Level& level, float x, float y) { return room_holding(room_rects(level), level, x, y); }
+
+std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y) {
+    std::vector<std::pair<const Level*, int>> rooms;
+    const int room = room_holding(room_rects(level), level, x, y);
+    if (room < 0) return rooms;
+    for (const auto& near_room : near_list(game_data, level, room)) rooms.emplace_back(near_room.level, near_room.room);
+    return rooms;
+}
+
+
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y) {
     const int room = room_holding(room_rects(level), level, x, y);
     if (room < 0) return {};

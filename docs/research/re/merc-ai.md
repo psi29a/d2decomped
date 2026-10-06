@@ -165,16 +165,21 @@ FUN_005dce60 walks every near room's units (mode 5's FUN_005dcf70 skips
 town and unsearched rooms), FUN_005dcbd0 each: an enemy (FUN_005dc970)
 under 0x31 off (`near_distance`, the candidate's size), in sight
 (FUN_00622aa0 mask 4, always), threat 2 or more the primary, else the
-secondary, the nearest each (the first at a tie). FUN_005dd510 takes the
-primary, else the secondary. Port: `rules::search_sight`; checked by
-`tools/emu/search.py`'s mode 6 run (FUN_005ddc30 natively on the same
-setups as mode 5's: 30,000 cases equal).
+secondary, the nearest each (the first at a tie). FUN_005dc970 passes over
+a monster in state 0x92 (invis) within melee (a player in it 80 % of the
+time unless in melee). FUN_005dd510 (a monster searching): no secondary,
+the primary; no primary, the secondary; the secondary under 6 off and no
+type 2 (toward) path to the primary: mode 7 (FUN_005dcc60, the nearest
+other threat-2 enemy in sight under 0x31) when within 0x13, else the
+secondary; else the primary. Port: `rules::search_sight`, `sight_choice`;
+the candidates the merc's room's near list (`near_rooms`), each room's
+monsters newest first. Checked by `tools/emu/search.py`'s mode 6 run
+(FUN_005ddc30 natively, the searcher's path count random: 30,000 cases
+equal, 360 through the path test; the invis rule is read, not run).
 
 ## Not built yet
 
 - Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
   Freeze, Might) count as running for the pick but do nothing.
 - Its items' life and mana aren't on its life; it doesn't block.
-- The target's candidates go in fight order, not the near rooms' units;
-  FUN_005dd510's path test and FUN_005dc970's state 0x92 test are left out.
-  Skill 0x29's distance is the gap + 1, not FUN_006416d0.
+- Skill 0x29's distance is the gap + 1, not FUN_006416d0.

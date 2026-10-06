@@ -481,11 +481,22 @@ int main() {
             {
                 using d2d::rules::SightFoe;
                 int distance = 0;
+                auto pick_of = [&](const std::vector<SightFoe>& foes, bool path) {
+                    return d2d::rules::sight_choice(foes, d2d::rules::search_sight(foes), [&](int) { return path; }, distance);
+                };
                 const std::vector<SightFoe> picks{ { 10, 0, true, false }, { 20, 3, true, false }, { 20, 5, true, false }, { 5, 14, true, true } };
-                assert(d2d::rules::search_sight(picks, distance) == 1 && distance == 20);
+                assert(pick_of(picks, true) == 1 && distance == 20);
                 const std::vector<SightFoe> lows{ { 0x31, 3, true, false }, { 12, 1, true, false }, { 9, 0, false, false } };
-                assert(d2d::rules::search_sight(lows, distance) == 1 && distance == 12);
-                assert(d2d::rules::search_sight(std::vector<SightFoe>{ { 0x30, 2, true, true } }, distance) == -1 && distance == 0x7fffffff);
+                assert(pick_of(lows, true) == 1 && distance == 12);
+                assert(pick_of(std::vector<SightFoe>{ { 0x30, 2, true, true } }, true) == -1 && distance == 0x7fffffff);
+                // No path to the primary with the secondary under 6: mode 7's
+                // other threat within 0x13, else the secondary.
+                const std::vector<SightFoe> walled{ { 10, 3, true, false }, { 4, 0, true, false }, { 15, 2, true, false } };
+                assert(pick_of(walled, false) == 2 && distance == 15 && pick_of(walled, true) == 0);
+                const std::vector<SightFoe> alone{ { 10, 3, true, false }, { 4, 0, true, false }, { 25, 2, true, false } };
+                assert(pick_of(alone, false) == 1 && distance == 4);
+                // An invisible monster in melee isn't a foe (state 0x92).
+                assert(pick_of(std::vector<SightFoe>{ { 1, 3, true, false, true, true }, { 3, 3, true, false, true, false } }, true) == 1);
             }
             // The wall pather (FUN_0067c2d0, moves.py --dump): to, steps, to a
             // unit, points, walls.

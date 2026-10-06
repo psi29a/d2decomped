@@ -1470,20 +1470,40 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         auto sub = [](float cells) { return int(std::floor(cells * 5)); };
         auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
         const int merc_x = sub(unit.x), merc_y = sub(unit.y), size = merc_npc->size_x > 0 ? merc_npc->size_x : 1;
-        // The foe (FUN_005ddc30 -> rules::search_sight): monsters not good,
-        // alive, out of town, their MonStats threat; sight from them to it.
-        // ponytail: the candidates in fight order, not the near rooms' units.
+        // The foe (FUN_005ddc30 -> rules::search_sight / sight_choice): the
+        // near rooms' monsters (FUN_005dce60: the merc's room's near list,
+        // each room's units newest first), not good, alive, out of town,
+        // their MonStats threat; sight from them to it; FUN_005dd510's path
+        // test a type 2 (toward) path to the primary.
+        // ponytail: no monster here is ever in state 0x92 (invis).
         std::vector<d2d::rules::SightFoe> sight_foes;
+        std::vector<int> sight_index;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
-        for (const auto& monster : monsters) {
-            const auto& foe_type = game_data->monsters.types[std::size_t(monster.type)];
-            const int foe_x = sub(monster.unit.x), foe_y = sub(monster.unit.y);
-            auto& entry = sight_foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - merc_x, foe_y - merc_y, foe_type.size), foe_type.threat,
-                                                                        monster.alive() && !town && !d2d::rules::friends(2, monster.align) });
-            entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, foe_type.size, merc_x, merc_y, size, wall);
+        for (const auto& [room_level, room] : near_rooms(*game_data, *level, unit.x, unit.y)) {
+            if (room_level != level) continue;
+            for (std::size_t i = monsters.size(); i-- > 0;) {
+                const auto& monster = monsters[i];
+                if (room_of(*level, monster.unit.x, monster.unit.y) != room) continue;
+                const auto& foe_type = game_data->monsters.types[std::size_t(monster.type)];
+                const int foe_x = sub(monster.unit.x), foe_y = sub(monster.unit.y);
+                auto& entry = sight_foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - merc_x, foe_y - merc_y, foe_type.size), foe_type.threat,
+                                                                            monster.alive() && !town && !d2d::rules::friends(2, monster.align) });
+                entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, foe_type.size, merc_x, merc_y, size, wall);
+                sight_index.push_back(int(i));
+            }
         }
         int target_gap = 0x7fffffff;
-        merc_target = d2d::rules::search_sight(sight_foes, target_gap);
+        const auto path_to_primary = [&](int pick) {
+            const auto& foe = monsters[std::size_t(sight_index[std::size_t(pick)])];
+            const int foe_x = sub(foe.unit.x), foe_y = sub(foe.unit.y);
+            if ((foe_x == merc_x && foe_y == merc_y) || std::abs(foe_x - merc_x) > 100 || std::abs(foe_y - merc_y) > 100) return false;   // FUN_00649970
+            const auto points = d2d::rules::toward_path(merc_x, merc_y, foe_x, foe_y, 5, 1, [&](int at_x, int at_y) {
+                return level->unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit);
+            });
+            return std::ranges::any_of(points, [&](const std::pair<int, int>& point) { return point != std::pair(merc_x, merc_y); });
+        };
+        const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), path_to_primary, target_gap);
+        merc_target = chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
         if (merc_target < 0) target_gap = -1;
         d2d::rules::MercView view{ .cls = merc_npc->hc_idx, .x = merc_x, .y = merc_y, .size = size, .mode = d2d::rules::kMonsterNeutral,
                                    .owner_x = sub(player.x), .owner_y = sub(player.y), .owner_mode = owner_mode,

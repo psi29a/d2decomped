@@ -808,6 +808,12 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
 void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data = nullptr, const Spawning* spawning = nullptr);
+
+// The near list (room2 +8, FUN_0066c370) of the room holding (x, y) cells:
+// each (level, room index) in game.exe's order; empty outside every room.
+std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y);
+// The room holding (x, y) cells (its Level::rooms index), -1 none.
+int room_of(const Level& level, float x, float y);
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);
