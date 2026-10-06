@@ -1009,7 +1009,7 @@ std::string merc_name(const GameData& game_data, const GameData::Merc& merc, int
     return found ? u16_to_latin1(*found) : key;
 }
 
-void merc_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
+void pet_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
                  const Crowd& crowd) {
     auto& path = unit.path;
     const float dist = std::hypot(player_x - unit.x, player_y - unit.y);

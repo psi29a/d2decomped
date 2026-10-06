@@ -1103,6 +1103,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             merc->path.clear();
             std::tie(merc->x, merc->y) = level->nearest_free(free_x + 1, free_y + 1);
         }
+        fight.footstep(int(std::floor(free_x * 5)), int(std::floor(free_y * 5)), now);   // an arrival is a footstep (FUN_00554ea0)
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);   // off what the room just made
@@ -1756,6 +1757,12 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
             const float before_x = player.x, before_y = player.y;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
+            // The merc's think reads the player's footsteps (FUN_00580c20): walking or
+            // running, 25 ms on from the last, over 45 (squared) from it.
+            if (const int step_x = int(std::floor(player.x * 5)), step_y = int(std::floor(player.y * 5)); now_ms > fight.footstep_ms + 25) {
+                const auto [last_x, last_y] = fight.footsteps[std::size_t(fight.footstep_cursor == 0 ? 0x13 : fight.footstep_cursor - 1)];
+                if ((step_x - last_x) * (step_x - last_x) + (step_y - last_y) * (step_y - last_y) > 0x2d) fight.footstep(step_x, step_y, now_ms);
+            }
             if (!player.walking) {
                 player.path.clear();
                 // Short of the target with a step made: it paths again from here.
@@ -1776,6 +1783,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
+        // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
+        fight.owner_mode = !player.walking ? 1 : running && character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }

@@ -254,6 +254,24 @@ struct Fight {
     std::uint32_t merc_until = 0;
     bool  merc_struck = false;
     int   merc_target = -1;
+    int   merc_type = -1;                          // its MonStats row (velocity, run, aidel, size)
+    d2d::rules::Rng merc_seed;                     // its unit seed (+0x20): its think's rolls
+    std::uint32_t merc_think_at = 0;               // its next think (Hireable, rules::hireable_think)
+    int   merc_pct = 0;                            // the move's pace % (FUN_005a6380: velocitypercent)
+    bool  merc_chase = false;                      // walking at merc_target
+    // What the merc's think reads of the player: its mode (2 walk, 3 run, 6
+    // walk in town, 1 else) and footsteps (player data +0xa0 / +0xa8, 20
+    // subtile spots, `footstep_cursor` the next to write), World's to fill.
+    int   owner_mode = 1;
+    std::array<std::pair<int, int>, 20> footsteps{};
+    int   footstep_cursor = 0;
+    std::uint32_t footstep_ms = 0;
+    // A footstep at subtile (x, y): written over the oldest, the cursor on.
+    void footstep(int x, int y, std::uint32_t now_ms) {
+        footsteps[std::size_t(footstep_cursor)] = { x, y };
+        footstep_cursor = footstep_cursor >= 0x13 ? 0 : footstep_cursor + 1;
+        footstep_ms = now_ms;
+    }
     // Potions working: life / mana (8.8 fixed) a millisecond, until when.
     struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
     std::vector<Regen> regen;
@@ -521,15 +539,18 @@ struct Fight {
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;
 
-    // The merc's turn: it goes for the nearest monster within 6 cells of the
-    // player that has noticed them (or is within 3 of the merc), strikes in
-    // melee — an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to
-    // 6 cells — and otherwise follows. Hits use its attack rating against
-    // the monster's defense and its damage. Killed, it plays its death and
-    // is gone (the save's merc is dead until resurrected).
-    // ponytail: mercs' skills and the Hireable AI aren't traced; the rogue's
-    // bow is assumed, other mercs fight in melee.
-    void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // The merc's turn. Standing, at its think (MonAI Hireable,
+    // rules::hireable_think) it follows the player, wanders, stands or,
+    // outside town with a foe under 25 off, fights: in reach it strikes —
+    // an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to 6 cells —
+    // else it walks at the foe. A walk or run ends with a think at once
+    // (FUN_005a8030). Hits use its attack rating against the monster's
+    // defense and its damage. Killed, it plays its death and is gone (the
+    // save's merc is dead until resurrected).
+    // ponytail: the attack think (FUN_005e5050) and mercs' skills
+    // (FUN_005e4d30) aren't ported; the target is the nearest live monster
+    // by merc_gap under 0x31, not FUN_005ddc30's threat order.
+    void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);
 
     // The player's combat modes this frame: dead, the death plays out
     // (true once it's over: a Resurrect may respawn); a swing strikes, and

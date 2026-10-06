@@ -125,8 +125,8 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - ponytail: d2d drops a repeated point (the toward pather's cut-short
   subtile); game.exe spends a frame on it. A target that moves re-paths at
   0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
-  FUN_006503f0's 5 subtiles off SP2. The merc's follow distances (the
-  Hireable AI) aren't traced; town NPCs walking up to the player go to a
-  spot, not a unit.
+  FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
+  to a spot, not a unit. The merc's moves carry their own type, pace and
+  steps (merc-ai.md).
 - Not yet: the tile-entry flag bits, units blocking each other (0x800 /
   0x1000), doors.

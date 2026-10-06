@@ -797,17 +797,18 @@ std::vector<std::pair<int, int>> wall_path(int x, int y, int to_x, int to_y, int
 // 0xd: 5 steps, near 1 at a unit, FUN_006498a0); with no point left, the
 // wall pather (type 0xf: 5 steps, 0x28 at a unit). Leading points on its
 // own subtile are dropped as the path is made (FUN_00649970 ->
-// FUN_0064fe40). None at its own subtile or over 100 off.
+// FUN_0064fe40). None at its own subtile or over 100 off. `steps`: the
+// path's (+0x91; a think's pace can set it, FUN_005a6260).
 template <class Blocked>
-std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked) {
+std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked, int steps = 5) {
     if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return {};
     auto off_own = [&](std::vector<std::pair<int, int>> points) {
         const auto own = std::ranges::find_if(points, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); });
         points.erase(points.begin(), own);
         return points;
     };
-    if (auto toward = off_own(toward_path(x, y, to_x, to_y, 5, to_unit ? 1 : 0, blocked)); !toward.empty()) return toward;
-    return off_own(wall_path(x, y, to_x, to_y, 5, to_unit, blocked));
+    if (auto toward = off_own(toward_path(x, y, to_x, to_y, steps, to_unit ? 1 : 0, blocked)); !toward.empty()) return toward;
+    return off_own(wall_path(x, y, to_x, to_y, steps, to_unit, blocked));
 }
 
 // A player's path (type 7, FUN_00679ed0; +0x91 steps 0x49, FUN_00649d00):
@@ -815,9 +816,10 @@ std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, 
 // and isn't the start. Else, with the target under 18 subtiles off (dx^2 +
 // dy^2 < 325), the search pather when that finds a way; else the toward
 // path.
+// `steps`: the path's +0x91 (a player's 0x49; a merc given type 7, its own).
 template <class Blocked>
-std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, int nearby, bool to_unit, Blocked&& blocked) {
-    auto toward = toward_path(x, y, to_x, to_y, 0x49, nearby, blocked);
+std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, int nearby, bool to_unit, Blocked&& blocked, int steps = 0x49) {
+    auto toward = toward_path(x, y, to_x, to_y, steps, nearby, blocked);
     if (!toward.empty() && unit_distance(toward.back().first - to_x, toward.back().second - to_y, 1, 1) <= nearby
         && toward.back() != std::pair(x, y))
         return toward;

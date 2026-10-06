@@ -107,12 +107,12 @@ bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd
 // drops the route. False once there (or stuck).
 bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
 
-// The mercenary follows the player: it sets off when more than 3 cells
+// A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
 // more than 12 behind (a warp), or stuck for 1.5 s (no route), it's put
 // next to the player.
-// ponytail: D2's follow distances aren't traced.
-void merc_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
+// ponytail: the pets' AIs aren't traced (the merc's is: rules::hireable_think).
+void pet_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
                  const Crowd& crowd = {});
 
 // A monster in the level: its type (MonStats row), composite recipe with
