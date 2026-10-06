@@ -481,6 +481,10 @@ struct GameData {
     // Mercenary units by hireling.txt Id (the save's merc type): the
     // monster, and the first name key (merc01, merca201, MercX101, ...).
     struct Merc { Npc npc; std::string name_first; };
+    // MonSeq.txt: a monster skill's sequence (its MonStats Sk*mode names
+    // one), frame by frame: the mode played, its frame, the event (1 a hit).
+    struct MonSeqFrame { std::string mode; int frame = 0, event = 0; };
+    std::unordered_map<std::string, std::vector<MonSeqFrame>> mon_seqs;
     std::unordered_map<int, Merc> mercs;
     // Waypoints (docs/research/re/waypoint.md): Levels.txt rows with a
     // Waypoint index, per act in index order; art ui\menu\waygate*.

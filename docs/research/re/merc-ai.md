@@ -135,7 +135,14 @@ frame the skill goes through `Fight::fire` / `spot` with a merc
 and level and no synergies (Fire Arrow, Cold Arrow, the Act 3 bolts and
 balls); Inner Sight puts its state about the merc; a melee skill (Jab, Bash,
 Stun) builds its hit as the player's do (`Fight::skill_swing`) at its level.
-Its four resistances are on its fighter (75 at most).
+Its four resistances are on its fighter less the difficulty's penalty
+(FUN_0057be00 takes it off a player and a hireling alike: its ctx +0x14 is
+set only for a monster outside FUN_0063ee90's five hireling classes;
+DifficultyLevels ResistPenalty, −100..75). An SQ skill plays its MonStats
+slot's MonSeq sequence (Jab: seq_act2guardjab, 14 frames of A1, hits on
+frames 5 and 9). A self cast (Frozen Armor, do 18) puts its state on the
+merc for auralen: skill_armor_percent on its defence, its melee strikers
+frozen calc1 frames, the pick passing it over while it runs.
 
 ## Its target (FUN_005ddc30)
 
@@ -152,10 +159,8 @@ setups as mode 5's: 30,000 cases equal).
 ## Not built yet
 
 - Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
-  Freeze, Might) count as running for the pick but do nothing; self buffs
-  (Frozen Armor) aren't tracked; Jab's SQ hits come as one.
-- No difficulty penalty on its resistances (not traced for mercs); its
-  items aren't counted.
+  Freeze, Might) count as running for the pick but do nothing.
+- Its items aren't counted (stats, resistances).
 - The target's candidates go in fight order, not the near rooms' units;
   FUN_005dd510's path test and FUN_005dc970's state 0x92 test are left out.
   Skill 0x29's distance is the gap + 1, not FUN_006416d0.

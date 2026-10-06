@@ -1346,8 +1346,8 @@ inline std::optional<MercOffer> merc_offer(const Tables& tables, bool expansion,
 // least), damage + Dmg/Lvl x d / 8 (min 0, max 1 at least), each of its
 // four resistances (stats 0x27 / 0x29 / 0x2b / 0x2d) Resist + Resist/Lvl x
 // d / 4 (0 at least).
-// ponytail: items the merc wears aren't counted; no difficulty penalty is
-// taken off its resistances (not traced for mercs).
+// The difficulty's resistance penalty goes on in the fight (Fight::merc_fighter).
+// ponytail: items the merc wears aren't counted.
 struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0, resist = 0; };
 inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     MercStats merc;

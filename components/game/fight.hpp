@@ -260,6 +260,16 @@ struct Fight {
     // the skill (and level) its attack mode carries (-1: a plain blow).
     std::array<int, 6> merc_ids{}, merc_levels{};
     int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
+    // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
+    // its MonStats Sk*mode), and the sequence frames already past.
+    const std::vector<GameData::MonSeqFrame>* merc_seq = nullptr;
+    int   merc_seq_done = 0;
+    // A self cast's state on the merc (Frozen Armor, do 18 FUN_005c9480):
+    // the skill, its level, until when. Its aurastats go on its fighter
+    // (skill_armor_percent), melee strikers freeze (merc_buff_events), and
+    // the pick passes it over while it runs (FUN_005e4d30, its state on).
+    struct MercBuff { int skill = -1, level = 0; std::uint32_t until = 0; } merc_buff;
+    void merc_buff_events(Foe& foe, std::uint32_t now_ms);
     // What the merc's think reads of the player: its mode (2 walk, 3 run, 6
     // walk in town, 1 else) and footsteps (player data +0xa0 / +0xa8, 20
     // subtile spots, `footstep_cursor` the next to write), World's to fill.

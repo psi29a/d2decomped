@@ -568,6 +568,12 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             game_data.mercs.emplace(id, GameData::Merc{ std::move(npc), std::string(hire.get(row_index, "NameFirst")) });
         }
     }
+    game_data.mon_seqs.clear();                               // loaded again with the rest: not twice over
+    if (const auto sequences = txt("MonSeq"); sequences.size() > 0)
+        for (std::size_t row_index = 0; row_index < sequences.size(); ++row_index)
+            game_data.mon_seqs[std::string(sequences.get(row_index, "sequence"))].push_back(
+                { std::string(sequences.get(row_index, "mode")), std::atoi(std::string(sequences.get(row_index, "frame")).c_str()),
+                  std::atoi(std::string(sequences.get(row_index, "event")).c_str()) });
 
     // Type-2 objects: id -> objects.txt Id through game.exe's own preset
     // table (obj_preset.hpp), then that row's Token and layer flags. Start

@@ -76,7 +76,7 @@ auto Fight::merc_joins() -> void {
         const auto& header = character.header;
         merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
         merc_target = -1; merc_chase = false;
-        merc_ids = {}; merc_levels = {}; merc_growth = 0; merc_aura = -1; merc_skill = -1;
+        merc_ids = {}; merc_levels = {}; merc_growth = 0; merc_aura = -1; merc_skill = -1; merc_seq = nullptr; merc_buff = {};
         if (const auto* row = d2d::rules::hireling_row(game_data->rules, header.merc_type, merc_st.level)) {
             for (std::size_t k = 0; k < merc_ids.size(); ++k)
                 if (const auto* skill = skill_named(row->skills[k].name)) merc_ids[k] = skill->id;
@@ -997,6 +997,18 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         }
     }
 
+auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
+        const auto* skill = merc_buff.skill >= 0 && now_ms < merc_buff.until ? game_data->skills.get(merc_buff.skill) : nullptr;
+        if (!skill || skill->aurastate != "frozenarmor") return;
+        const int frames = std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], merc_calc_env(), skill->id, merc_buff.level), 1);
+        for (const auto* monster : foe.melee_by) {                    // as the player's (buff_events): its strikers freeze
+            const auto monster_index = std::size_t(monster - monsters.data());
+            if (monster_index >= monsters.size() || !monsters[monster_index].alive()) continue;
+            monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
+            monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
+        }
+    }
+
 auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         if (const auto* blaze = state_of("blaze"); blaze && player.walking && now_ms / 40 != blaze_frame) {
             blaze_frame = now_ms / 40;
@@ -1295,7 +1307,21 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
 
 auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         auto fighter = d2d::rules::simple_fighter(merc_st.dmg_min, merc_st.dmg_max, merc_st.attack_rating, merc_st.def);
-        fighter.res.fill(std::min(merc_st.resist, 75));               // its four resistances (FUN_00572840), the base cap
+        // Its four resistances (FUN_00572840) less the difficulty's penalty:
+        // FUN_0057be00 takes it off for a player or a hireling (ctx +0x14 0:
+        // the defender isn't a monster outside FUN_0063ee90's five classes),
+        // DifficultyLevels ResistPenalty in LoD, then -100..75 (no max-resist
+        // stat on a merc).
+        const int difficulty = std::clamp(character.header.active_difficulty(), 0, 2);
+        const auto penalty = int(character.header.expansion() ? game_data->resist_penalty[std::size_t(difficulty)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(difficulty)]);
+        fighter.res.fill(std::clamp(merc_st.resist + penalty, -100, 75));
+        // A self cast running: its aurastats (Frozen Armor's skill_armor_percent, 171).
+        if (const auto* skill = merc_buff.skill >= 0 ? game_data->skills.get(merc_buff.skill) : nullptr) {
+            const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, merc_st.level, nullptr };
+            for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+                if (skill->aurastat[k] == 171)
+                    fighter.defense += fighter.defense * d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, merc_buff.level) / 100;
+        }
         return fighter;
     }
 
@@ -1306,6 +1332,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             if (!unit.walking) unit.path.clear();
             merc->mode_until = mode == "NU" || unit.walking ? 0 : now_ms + game_data->npc_timing(*merc_npc, mode).length_ms();
         };
+        if (merc->mode == "GH" || merc->mode == "DT") merc_seq = nullptr;   // struck or dying: the sequence is cut
+        if (merc_buff.skill >= 0 && now_ms >= merc_buff.until) merc_buff = {};
         if (merc->mode == "DT") {
             if (now_ms >= merc->mode_until) { merc.reset(); character.header.merc_dead = true; d2d::log::info("the merc died"); }
             return;
@@ -1313,6 +1341,23 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         if (merc->mode == "GH") { if (now_ms < merc->mode_until) return; set("NU"); merc->next_act = now_ms; }
         const bool archer = merc_npc && merc_npc->id == "roguehire";
         const float reach = archer ? 6.f : kMeleeReach;
+        if (merc_seq && merc->mode != "NU" && merc->mode != "WL" && merc->mode != "RN") {   // an SQ skill: a hit at each event-1 frame
+            const auto frame_ms = std::max<std::uint32_t>(game_data->npc_timing(*merc_npc, merc->mode).ms_per_frame(), 1);
+            const int reached = std::min(int((now_ms - unit.mode_ms) / frame_ms), int(merc_seq->size()) - 1);
+            for (; merc_seq_done <= reached; ++merc_seq_done) {
+                if ((*merc_seq)[std::size_t(merc_seq_done)].event != 1 || merc_target < 0) continue;
+                auto& target = monsters[std::size_t(merc_target)];
+                const auto* skill = merc_skill >= 0 ? game_data->skills.get(merc_skill) : nullptr;
+                if (target.alive() && std::hypot(target.unit.x - unit.x, target.unit.y - unit.y) <= kMeleeReach + 0.3f) {
+                    const auto swing_with = skill ? skill_swing(*skill, std::max(merc_skill_level, 1), merc_calc_env(), false) : d2d::rules::Swing{};
+                    land(std::size_t(merc_target), d2d::rules::player_blow(merc_fighter(), target_of(std::size_t(merc_target)), merc_st.level, rng, swing_with), false, now_ms);
+                }
+            }
+            if (now_ms < merc->mode_until) return;
+            merc_seq = nullptr;
+            set("NU");
+            merc->next_act = now_ms;
+        }
         if (merc->mode != "NU" && merc->mode != "WL" && merc->mode != "RN") {   // an attack: its skill (or blow) on the action frame
             if (!merc->struck && merc_target >= 0 && now_ms >= unit.mode_ms + game_data->npc_timing(*merc_npc, merc->mode).action_ms()) {
                 merc->struck = true;
@@ -1321,6 +1366,10 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 const Caster caster{ unit.x, unit.y, std::max(merc_skill_level, 1), merc_target, target.unit.x, target.unit.y, true };
                 if (skill && missile_skill(*skill)) fire(*skill, now_ms, caster);
                 else if (skill && spot_skill(*skill)) spot(*skill, now_ms, caster);
+                else if (skill && self_cast(*skill)) {                    // Frozen Armor: its state on the merc for auralen frames
+                    const int length = d2d::rules::eval_calc(game_data->skills, skill->auralen, merc_calc_env(), skill->id, caster.level);
+                    merc_buff = { skill->id, caster.level, length > 0 ? now_ms + std::uint32_t(length) * 40 : ~0u };
+                }
                 else {
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 if (!skill && archer && game_data->missiles.contains("arrow")) {
@@ -1455,7 +1504,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             for (std::size_t k = 0; k < merc_ids.size(); ++k) {
                 const auto* skill = game_data->skills.get(merc_ids[k]);
                 fight_view.aura[k] = skill && skill->aura;
-                fight_view.running[k] = merc_ids[k] > 0 && merc_ids[k] == merc_aura;
+                fight_view.running[k] = merc_ids[k] > 0 && (merc_ids[k] == merc_aura || (merc_ids[k] == merc_buff.skill && now_ms < merc_buff.until));
             }
             auto move = [&](int kind, int x, int y) {
                 if (kind == 2) {                                      // FUN_005ded00: a run at the foe
@@ -1487,7 +1536,17 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 if (skill1 && merc_skill == skill1->id && merc_skill_level == 0) merc_skill_level = type_info->sk_lvl[0];
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kModes[std::size_t(attack.mode)];
                 unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
-                set(game_data->npc_timing(*merc_npc, mode).directions ? mode : std::string_view("A1"));
+                merc_seq = nullptr;
+                if (attack.kind == AttackKind::skill && attack.mode == 14)   // SQ: the sequence its MonStats slot for the skill names
+                    for (std::size_t slot = 0; slot < type_info->skill.size(); ++slot)
+                        if (const auto* slot_skill = skill_named(type_info->skill[slot]); slot_skill && slot_skill->id == merc_skill)
+                            if (const auto found = game_data->mon_seqs.find(type_info->sk_mode[slot]); found != game_data->mon_seqs.end() && !found->second.empty()) {
+                                merc_seq = &found->second;
+                                merc_seq_done = 0;
+                            }
+                const std::string_view played = merc_seq ? std::string_view(merc_seq->front().mode) : mode;
+                set(game_data->npc_timing(*merc_npc, played).directions ? played : std::string_view("A1"));
+                if (merc_seq) merc->mode_until = now_ms + std::uint32_t(merc_seq->size()) * game_data->npc_timing(*merc_npc, merc->mode).ms_per_frame();
                 merc->struck = false;
             }
         }
@@ -2715,6 +2774,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             monster_dots(now_ms, elapsed);
             monster_states(now_ms);
             buff_events(foes[0], now_ms);
+            if (merc) merc_buff_events(foes[1], now_ms);
             buff_tick(now_ms);
             aura_pulse(now_ms);
             for (auto& monster : monsters) monster.in_aura = monster.alive() && in_aura(monster);   // its auratargetstate shows (states.md)
