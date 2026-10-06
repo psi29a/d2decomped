@@ -137,7 +137,18 @@ stats join its base as a unit's do, read as game.exe reads any unit's:
   merc's sword hits for its own damage only);
 - attack rating (a monster's, combat.md): stat 19 + dex × 5, × (100 + 119) %;
 - defence (FUN_006223f0): stat 31 + dex / 4, + skill_armor_percent;
-- resistances: base + items', the penalty, −100 .. 75 + max-resist (95).
+- resistances: base + items', the penalty, −100 .. 75 + max-resist (95);
+- life: the level-up's + its items' maxhp (7) and hp per level (216, an
+  eighth a level), with their maxhp percent (76) on the level-up's;
+- block (FUN_00622720, a monster's): stat 20 (MonStats ToBlock, blank for
+  every hireling row, so its shield's block and its items' to-block), 75 at
+  most, only with a shield (FUN_006225f0: classes 0xf3 / 0x136 / 0x14d
+  always, act3hire 0x167 never, the rest a shield worn). No merc but the
+  Iron Wolf can hold a shield, so in 1.14d a merc never blocks.
+
+A hireling's base stats come from MonStats' Normal columns whatever the
+difficulty (FUN_00573cb0 forces the column when FUN_0063ee90 names it):
+ToBlock, ResDm, ResMa are blank for all five.
 
 ## In d2d
 
@@ -181,5 +192,6 @@ equal, 360 through the path test; the invis rule is read, not run).
 
 - Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
   Freeze, Might) count as running for the pick but do nothing.
-- Its items' life and mana aren't on its life; it doesn't block.
+- Vitality on its items gives no life (a hireling has no CharStats row;
+  not traced further); d2d keeps no merc mana.
 - Skill 0x29's distance is the gap + 1, not FUN_006416d0.

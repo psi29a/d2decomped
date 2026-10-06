@@ -562,6 +562,17 @@ struct Fight {
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;
+    // What the merc wears (World::character.merc_items): its items' stats
+    // summed (sockets, set bonuses), the weapon's own, its weapon and shield,
+    // the items' own defence (after their enhanced defence), defence per level.
+    struct MercGear {
+        d2d::rules::StatSum sum{}, weapon_sum{};
+        const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
+        std::int64_t item_def = 0, per_level = 0;
+    };
+    [[nodiscard]] MercGear merc_gear() const;
+    // Its maximum life with its gear.
+    [[nodiscard]] int merc_max_life() const;
 
     // The merc's turn. Standing, at its think (MonAI Hireable,
     // rules::hireable_think) it follows the player, wanders, stands or,

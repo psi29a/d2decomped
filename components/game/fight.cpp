@@ -86,7 +86,7 @@ auto Fight::merc_joins() -> void {
             });
         }
         if (!merc) return;
-        merc->hit_points = merc_st.life;
+        merc->hit_points = merc_max_life();
         merc->mode = "NU"; merc->next_act = 0; merc->move_pct = 0;
         merc->seed = d2d::rules::Rng(header.merc_seed);
         merc->type = merc_npc ? game_data->monsters.row(merc_npc->id) : -1;
@@ -141,7 +141,7 @@ auto Fight::cure(std::uint32_t now_ms) -> bool {
         const bool cursed = now_ms < amplified[0];
         const bool poisoned = std::erase_if(regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
         amplified = {};
-        if (merc && merc->hit_points > 0) merc->hit_points = merc_st.life;
+        if (merc && merc->hit_points > 0) merc->hit_points = merc_max_life();
         return cursed || poisoned;
     }
 
@@ -1323,35 +1323,15 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         //   (FUN_0057be00 takes it off a player or a hireling: ctx +0x14 0),
         //   DifficultyLevels ResistPenalty in LoD, -100 .. 75 + max-resist
         //   (95 at most).
-        // ponytail: items' life and mana aren't on its life; block isn't rolled.
-        d2d::rules::StatSum sum{}, weapon_sum{};
-        const Item *weapon = nullptr, *shield = nullptr;
-        std::int64_t item_def = 0, per_level = 0;
-        auto add = [](d2d::rules::StatSum& into, const std::vector<ItemProp>& props) {
-            for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
-        };
-        for (const auto& item : character.merc_items) {
-            if (item.location != item_location::kEquipped) continue;
-            add(sum, item.props);
-            for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
-            add(sum, set_bonus_props(*game_data, character.merc_items, item));
-            std::int64_t enhanced_defense = 0;
-            for (const auto& prop : item.props) {
-                if (prop.stat == kArmorPercent) enhanced_defense += prop.value;
-                if (prop.stat == kArmorPerLevel) per_level += prop.value;
-            }
-            if (item.defense > 0) item_def += item.defense * (100 + enhanced_defense) / 100;
-            if (item.slot != body_location::kRightArm && item.slot != body_location::kLeftArm) continue;
-            const auto info = game_data->rules.item_info.find(item.code);
-            const auto found = game_data->rules.item_base.find(item.code);
-            if (info == game_data->rules.item_info.end() || found == game_data->rules.item_base.end()) continue;
-            if (info->second.kind == 2 && (!weapon || item.slot == body_location::kRightArm)) weapon = &item;
-            if (info->second.kind == 1 && found->second.block > 0) shield = &item;
-        }
-        if (weapon) {
-            add(weapon_sum, weapon->props);
-            for (const auto& socketed : weapon->socketed_items) add(weapon_sum, socket_props(*game_data, *weapon, socketed));
-        }
+        // - block (FUN_00622720 for a monster): stat 20 (MonStats ToBlock,
+        //   none for a hireling, its shield's block and its items' to-block),
+        //   75 at most, only with a shield (FUN_006225f0: never for act3hire,
+        //   0x167; no other merc can hold one).
+        const auto gear = merc_gear();
+        auto sum = gear.sum;
+        const auto& weapon_sum = gear.weapon_sum;
+        const Item *weapon = gear.weapon, *shield = gear.shield;
+        const std::int64_t item_def = gear.item_def, per_level = gear.per_level;
         const auto weapon_info = weapon ? game_data->rules.item_info.find(weapon->code) : game_data->rules.item_info.end();
         if (weapon_info != game_data->rules.item_info.end() && weapon_info->second.two_handed) {
             sum[kMinDamage] += merc_st.dmg_min;                           // stats 0x17 / 0x18
@@ -1379,7 +1359,51 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
             res[k] = int(std::clamp<std::int64_t>(merc_st.resist + sum[std::size_t(kResStat[k])] + penalty, -100, std::min<std::int64_t>(75 + sum[std::size_t(kResStat[k] + 1)], 95)));
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, stats, gains, int(defense), res);
         fighter.block = 0;
+        if (const auto found = shield && merc_npc && merc_npc->hc_idx != 0x167 ? game_data->rules.item_base.find(shield->code) : game_data->rules.item_base.end();
+            found != game_data->rules.item_base.end())
+            fighter.block = int(std::clamp<std::int64_t>(found->second.block + sum[kToBlock], 0, 75));
         return fighter;
+    }
+
+auto Fight::merc_gear() const -> MercGear {
+        using namespace d2d::d2s;
+        MercGear gear;
+        auto add = [](d2d::rules::StatSum& into, const std::vector<ItemProp>& props) {
+            for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
+        };
+        for (const auto& item : character.merc_items) {
+            if (item.location != item_location::kEquipped) continue;
+            add(gear.sum, item.props);
+            for (const auto& socketed : item.socketed_items) add(gear.sum, socket_props(*game_data, item, socketed));
+            add(gear.sum, set_bonus_props(*game_data, character.merc_items, item));
+            std::int64_t enhanced_defense = 0;
+            for (const auto& prop : item.props) {
+                if (prop.stat == kArmorPercent) enhanced_defense += prop.value;
+                if (prop.stat == kArmorPerLevel) gear.per_level += prop.value;
+            }
+            if (item.defense > 0) gear.item_def += item.defense * (100 + enhanced_defense) / 100;
+            if (item.slot != body_location::kRightArm && item.slot != body_location::kLeftArm) continue;
+            const auto info = game_data->rules.item_info.find(item.code);
+            const auto found = game_data->rules.item_base.find(item.code);
+            if (info == game_data->rules.item_info.end() || found == game_data->rules.item_base.end()) continue;
+            if (info->second.kind == 2 && (!gear.weapon || item.slot == body_location::kRightArm)) gear.weapon = &item;
+            if (info->second.kind == 1 && found->second.block > 0) gear.shield = &item;
+        }
+        if (gear.weapon) {
+            add(gear.weapon_sum, gear.weapon->props);
+            for (const auto& socketed : gear.weapon->socketed_items) add(gear.weapon_sum, socket_props(*game_data, *gear.weapon, socketed));
+        }
+        return gear;
+    }
+
+auto Fight::merc_max_life() const -> int {
+        // Its level-up life (stat 7) + its items' maxhp and hp per level (216,
+        // an eighth a level), the items' maxhp percent (76) on the level-up's.
+        // ponytail: vitality's share isn't given (a hireling has no CharStats
+        // row); its items' mana goes nowhere (d2d keeps no merc mana).
+        const auto gear = merc_gear();
+        return int(std::max<std::int64_t>(merc_st.life + gear.sum[d2d::d2s::kMaxLife] + gear.sum[216] * merc_st.level / 8
+                                              + std::int64_t(merc_st.life) * gear.sum[d2d::d2s::kMaxLifePercent] / 100, 1));
     }
 
 auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town) -> void {
@@ -2810,7 +2834,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                                         merc && merc->unit.walking, merc_fighter() } };
             foes[0].life_pct = int(std::int64_t(character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(character.stats.get(d2d::d2s::kMaxLife), 1));
             foes[1].pet = true;                                  // the merc: its MonStats class's size
-            foes[1].life_pct = merc ? int(std::int64_t(merc->hit_points) * 100 / std::max(merc_st.life, 1)) : 0;
+            foes[1].life_pct = merc ? int(std::int64_t(merc->hit_points) * 100 / std::max(merc_max_life(), 1)) : 0;
             if (const int row = merc_npc ? game_data->monsters.row(merc_npc->id) : -1; row >= 0)
                 foes[1].size = game_data->monsters.types[std::size_t(row)].size, foes[1].threat = game_data->monsters.types[std::size_t(row)].threat;
             for (std::size_t k = 0; k < 2; ++k)                  // Amplify Damage on them: damage reduced -100 %
@@ -2890,7 +2914,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             if (merc && foes[1].damage > 0 && merc->mode != "DT") {
                 merc->hit_points -= foes[1].damage;
                 auto& unit = merc->unit;
-                const auto mode = merc->hit_points <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_st.life ? std::string_view("GH") : merc->mode;
+                const auto mode = merc->hit_points <= 0 ? std::string_view("DT") : foes[1].damage * 12 >= merc_max_life() ? std::string_view("GH") : merc->mode;
                 if (mode != merc->mode) {
                     merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
                     merc->mode_until = now_ms + game_data->npc_timing(merc->npc, mode).length_ms();
