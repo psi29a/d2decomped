@@ -17,6 +17,10 @@ components/rules/monsters.hpp toward_path / chase_check and ai.cpp.
    (FUN_0064c040).
 3. Which modes think at once when they end (FUN_005a8030: DAT_0073c6d0)
    against ai.cpp's WL and RN.
+4. The search pather (FUN_0067b850, path type 1) and a player's path (type
+   7, FUN_00679ed0: toward, then the search when close) against
+   monsters.hpp search_path / player_path, natively on random walls, with
+   and without a unit to walk to. Hooks: the collision test only.
 
 Prints `ok` or each mismatch. `--dump` prints cases as C++ lines for
 tests/test_monsters.cpp; `--break` breaks the port (a re-path at 4 off, not
@@ -102,6 +106,78 @@ def toward_path(x, y, tx, ty, steps, near, blocked):
         prev = d
     if not turned and taken: points.append(at)
     return points
+
+
+def search_path(x, y, tx, ty, to_unit, blocked):
+    """monsters.hpp search_path, line for line."""
+    if to_unit and all(blocked(tx + a, ty + b) for a, b in ((-2, -2), (-2, 2), (2, -2), (2, 2), (-2, 0), (0, -2), (2, 0), (0, 2))):
+        return []
+    def estimate(p):
+        across, down = abs(p[0] - tx), abs(p[1] - ty)
+        return down + across * 2 if down <= across else across + down * 2
+    pool = [dict(at=(x, y), est=estimate((x, y)), walked=0, parent=-1, kids=[], closed=False)]
+    pool[0]["cost"] = pool[0]["est"]
+    opn = []
+    def push(i):
+        k = next((n for n, o in enumerate(opn) if pool[i]["cost"] <= pool[o]["cost"]), len(opn))
+        opn.insert(k, i)
+    def link(node, kid):
+        if len(node["kids"]) < 8: node["kids"].append(kid)
+    def cost(a, b): return 2 if a[0] == b[0] or a[1] == b[1] else 3
+    push(0)
+    def relax(frm, spot):
+        walked = pool[frm]["walked"] + cost(pool[frm]["at"], spot)
+        idx = next((i for i, n in enumerate(pool) if n["at"] == spot), -1)
+        if idx < 0:
+            if len(pool) == 200: return False
+            pool.append(dict(at=spot, est=estimate(spot), walked=walked, parent=frm, kids=[], closed=False))
+            pool[-1]["cost"] = pool[-1]["est"] + walked
+            push(len(pool) - 1); link(pool[frm], len(pool) - 1)
+            return True
+        link(pool[frm], idx)
+        node = pool[idx]
+        if walked >= node["walked"]: return True
+        node.update(parent=frm, walked=walked, cost=node["est"] + walked)
+        if not node["closed"]: return True
+        stack = [idx]
+        while stack:
+            top = stack.pop()
+            for kid in pool[top]["kids"]:
+                nxt = pool[kid]
+                through = pool[top]["walked"] + cost(pool[top]["at"], nxt["at"])
+                if through < nxt["walked"]:
+                    nxt.update(parent=top, walked=through, cost=nxt["est"] + through); stack.append(kid)
+        return True
+    best = -1
+    while opn:
+        i = opn.pop(0); pool[i]["closed"] = True; node = pool[i]
+        if best < 0 or node["est"] < pool[best]["est"] or (node["est"] == pool[best]["est"] and pool[best]["walked"] + 5 < node["walked"]):
+            best = i
+        if node["est"] == 0: break
+        frm = node["at"]
+        if any(not blocked(frm[0] + a, frm[1] + b) and not relax(i, (frm[0] + a, frm[1] + b))
+               for a, b in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (0, -1), (1, 0), (0, 1))): break
+    points, last = [], (-2, -2)
+    i = best
+    while i >= 0 and len(points) <= 77:
+        node = pool[i]
+        if node["parent"] < 0: break
+        par = pool[node["parent"]]["at"]
+        step = (node["at"][0] - par[0], node["at"][1] - par[1])
+        if step != last: points.append(node["at"]); last = step
+        i = node["parent"]
+    if not points or len(points) > 77: return []
+    return points[::-1]
+
+
+def player_path(x, y, tx, ty, near, to_unit, blocked):
+    """monsters.hpp player_path, line for line."""
+    toward = toward_path(x, y, tx, ty, 0x49, near, blocked)
+    if toward and unit_distance(toward[-1][0] - tx, toward[-1][1] - ty, 1, 1) <= near and toward[-1] != (x, y): return toward
+    if (x - tx) ** 2 + (y - ty) ** 2 < 0x145:
+        searched = search_path(x, y, tx, ty, to_unit, blocked)
+        if searched: return searched
+    return toward
 
 
 def chase_check(target, distance, stop, mover, mx, my, idx, count, at_end, budget):
@@ -218,6 +294,62 @@ def check_chase(e, rng, cases, dump):
     return bad
 
 
+def check_search(e, rng, cases, dump):
+    walls, asked = set(), set()
+    def collide(e):
+        spot = (e.arg(1) & 0xffff, e.arg(2) & 0xffff)
+        asked.add(spot)
+        return int(spot in walls)
+    e.hook(0x64d910, collide, 5)
+    e.hook(0x64fe40, lambda e: 0, 1)
+    mark, bad, found, dumped = e.brk, [0, 0], [0, 0], 0
+    for case in range(cases):
+        e.brk = mark
+        walls.clear(); asked.clear()
+        x, y = 1000, 1000
+        spread = rng.choice((3, 8, 14, 20))
+        while True:
+            tx, ty = x + rng.randint(-spread, spread), y + rng.randint(-spread, spread)
+            if (tx, ty) != (x, y): break
+        density = rng.choice((0.1, 0.25, 0.4, 0.5))
+        for wx in range(x - 24, x + 25):
+            for wy in range(y - 24, y + 25):
+                if (wx, wy) != (x, y) and rng.random() < density: walls.add((wx, wy))
+        if rng.random() < 0.3:                                   # a wall across the way, with a gap or none
+            gap = rng.choice((None, rng.randint(-6, 6)))
+            mx, my = (x + tx) // 2, (y + ty) // 2
+            for k in range(-10, 11):
+                if k != gap: walls.add((mx + k, my) if abs(tx - x) < abs(ty - y) else (mx, my + k))
+            walls.discard((x, y))
+        near, to_unit = rng.choice((0, 0, 1)), rng.random() < 0.3
+        unit, path, ctx, target = e.alloc(0x100), e.alloc(0x200), e.alloc(0x40), e.alloc(0x100)
+        e.w32(unit, 0); e.w32(unit + 0x2c, path)
+        e.w32(path, x << 16 | 0x8000); e.w32(path + 4, y << 16 | 0x8000); e.w32(path + 0x30, unit)
+        e.w32(path + 0x3c, 7); e.w32(path + 0x7c, 0x800); e.w32(path + 0x1c, 1)
+        e.w32(path + 0x58, target if to_unit else 0)
+        e.w32(ctx, y << 16 | x); e.w32(ctx + 4, ty << 16 | tx); e.w32(ctx + 8, 1)
+        e.mu.mem_write(ctx + 0x14, bytes([near])); e.w32(ctx + 0x18, 0x49); e.w32(ctx + 0x30, path)
+        blocked = lambda a, b: (a, b) in walls
+        for which, (addr, port) in enumerate(((0x67b850, lambda: search_path(x, y, tx, ty, to_unit, blocked)),
+                                              (0x679ed0, lambda: player_path(x, y, tx, ty, near, to_unit, blocked)))):
+            e.w32(path + 0x24, 0); e.w32(path + 0x28, 0)
+            n = e.call(addr, ecx=ctx)
+            got = [struct.unpack("<HH", e.read(path + 0x9c + 4 * i, 4)) for i in range(n)]
+            want = port()
+            found[which] += bool(want) and want[-1] == (tx, ty)
+            if got != want:
+                bad[which] += 1
+                if bad[which] <= 6: print(f"{('search', 'player')[which]} case {case}: game {got}, port {want}; to {tx - x},{ty - y} near {near} unit {to_unit}")
+        if dump and dumped < 40 and 2 < len(want) < 8 and len(walls & asked) < 40:
+            dumped += 1
+            ws = ", ".join(f"{{{a - x}, {b - y}}}" for a, b in sorted(walls & asked))
+            ps = ", ".join(f"{{{a - x}, {b - y}}}" for a, b in want)
+            print(f"{{ {tx - x}, {ty - y}, {near}, {int(to_unit)}, {{ {ps} }}, {{ {ws} }} }},   // player")
+    for which, name in enumerate(("search", "player")):
+        print(f"{name} ok: {cases} cases, {found[which]} reach their end" if not bad[which] else f"{name}: {bad[which]} of {cases} differ")
+    return sum(bad)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     cases = int(args[0]) if args else 20000
@@ -226,6 +358,7 @@ def main():
     e = emu.Emu()
     bad = check_paths(e, rng, cases, dump)
     bad += check_chase(e, rng, cases, dump)
+    bad += check_search(emu.Emu(), rng, max(cases // 10, 1), dump)   # unhooked: the chase stubs the sizes
     flagged = [m for m in range(16) if e.read(0x73c6d0 + m, 1)[0]]
     if flagged != [2, 15]: print(f"think at once: game modes {flagged}, ai.cpp [2 (WL), 15 (RN)]"); bad += 1
     else: print("think at once: WL and RN only, as ai.cpp")

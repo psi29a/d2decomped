@@ -549,6 +549,129 @@ std::vector<std::pair<int, int>> toward_path(int x, int y, int to_x, int to_y, i
     return points;
 }
 
+// The search pather (FUN_0067b850, path type 1; type 7's close leg): an A*
+// over subtiles from (x, y) to (to_x, to_y) in a pool of 200 nodes. Costs:
+// a straight step 2, a diagonal 3 (FUN_0067b200); the estimate is 2 x the
+// long axis + the short one (FUN_0067adc0). The open list is kept sorted by
+// cost (FUN_0067aed0: a node goes before the first that costs as much, so
+// ties pop newest first), and a cheaper way to a node on it changes its
+// cost without moving it. A cheaper way to a closed node passes down its
+// children (up to 8 links a node, FUN_0067afe0, a stack). Neighbours go in
+// the order (-1,-1) (-1,+1) (+1,-1) (+1,+1) (-1,0) (0,-1) (+1,0) (0,+1)
+// (FUN_0067b440). It stops at the end, with the open list empty or the
+// pool spent, and keeps the node nearest the end (the estimate; at a tie,
+// one more than 5 further along). The points (FUN_0067b690) are that
+// node and each node where the way turns, start first, the start left
+// out; none past 77 or with no step. With a unit to walk to
+// (`to_unit`), nothing when all eight subtiles 2 off the end are blocked
+// (FUN_0067b740).
+template <class Blocked>
+std::vector<std::pair<int, int>> search_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked) {
+    using P = std::pair<int, int>;
+    if (to_unit && std::ranges::all_of(std::array<P, 8>{ { { -2, -2 }, { -2, 2 }, { 2, -2 }, { 2, 2 }, { -2, 0 }, { 0, -2 }, { 2, 0 }, { 0, 2 } } },
+                                       [&](P off) { return blocked(to_x + off.first, to_y + off.second); }))
+        return {};
+    struct Node { P at; int cost = 0, estimate = 0, walked = 0; int parent = -1; std::array<int, 8> children{ -1, -1, -1, -1, -1, -1, -1, -1 }; bool closed = false; };
+    std::vector<Node> pool;
+    pool.reserve(200);
+    std::vector<int> open;                                        // sorted by cost, front first
+    auto estimate = [&](P spot) {
+        const int across = std::abs(spot.first - to_x), down = std::abs(spot.second - to_y);
+        return down <= across ? down + across * 2 : across + down * 2;
+    };
+    auto push_open = [&](int index) {
+        const auto before = std::ranges::find_if(open, [&](int other) { return pool[std::size_t(index)].cost <= pool[std::size_t(other)].cost; });
+        open.insert(before, index);
+    };
+    auto step_cost = [](P from, P dest) { return from.first == dest.first || from.second == dest.second ? 2 : 3; };
+    auto link = [](Node& node, int child) {
+        if (const auto free = std::ranges::find(node.children, -1); free != node.children.end()) *free = child;
+    };
+    pool.push_back({ .at = { x, y }, .cost = estimate({ x, y }), .estimate = estimate({ x, y }) });
+    push_open(0);
+    auto relax = [&](int from, P spot) {                            // FUN_0067b200: false when the pool is spent
+        const int walked = pool[std::size_t(from)].walked + step_cost(pool[std::size_t(from)].at, spot);
+        int index = -1;                                           // FUN_0067ae00 / FUN_0067ae50: open or closed
+        for (std::size_t slot = 0; slot < pool.size() && index < 0; ++slot)
+            if (pool[slot].at == spot) index = int(slot);
+        if (index < 0) {
+            if (pool.size() == 200) return false;
+            pool.push_back({ .at = spot, .estimate = estimate(spot), .walked = walked, .parent = from });
+            pool.back().cost = pool.back().estimate + walked;
+            const int added = int(pool.size()) - 1;
+            push_open(added);
+            link(pool[std::size_t(from)], added);
+            return true;
+        }
+        link(pool[std::size_t(from)], index);
+        auto& node = pool[std::size_t(index)];
+        if (walked >= node.walked) return true;
+        node.parent = from; node.walked = walked; node.cost = node.estimate + walked;
+        if (!node.closed) return true;
+        std::vector<int> stack{ index };                          // FUN_0067afe0
+        while (!stack.empty()) {
+            const int top = stack.back();
+            stack.pop_back();
+            for (const int child : pool[std::size_t(top)].children) {
+                if (child < 0) break;
+                auto& next = pool[std::size_t(child)];
+                const int through = pool[std::size_t(top)].walked + step_cost(pool[std::size_t(top)].at, next.at);
+                if (through < next.walked) {
+                    next.parent = top; next.walked = through; next.cost = next.estimate + through;
+                    stack.push_back(child);
+                }
+            }
+        }
+        return true;
+    };
+    int best = -1;
+    while (!open.empty()) {
+        const int index = open.front();                           // FUN_0067af40: to the closed list
+        open.erase(open.begin());
+        pool[std::size_t(index)].closed = true;
+        const auto& node = pool[std::size_t(index)];
+        if (best < 0 || node.estimate < pool[std::size_t(best)].estimate
+            || (node.estimate == pool[std::size_t(best)].estimate && pool[std::size_t(best)].walked + 5 < node.walked))
+            best = index;
+        if (node.estimate == 0) break;
+        const P from = node.at;
+        bool spent = false;
+        for (const P off : { P{ -1, -1 }, P{ -1, 1 }, P{ 1, -1 }, P{ 1, 1 }, P{ -1, 0 }, P{ 0, -1 }, P{ 1, 0 }, P{ 0, 1 } }) {
+            const P next{ from.first + off.first, from.second + off.second };
+            if (!blocked(next.first, next.second) && !relax(index, next)) { spent = true; break; }
+        }
+        if (spent) break;
+    }
+    std::vector<P> points;                                        // FUN_0067b690, end first
+    P last_step{ -2, -2 };
+    for (int index = best; index >= 0 && points.size() <= 77; index = pool[std::size_t(index)].parent) {
+        const auto& node = pool[std::size_t(index)];
+        if (node.parent < 0) break;
+        const P step{ node.at.first - pool[std::size_t(node.parent)].at.first, node.at.second - pool[std::size_t(node.parent)].at.second };
+        if (step != last_step) { points.push_back(node.at); last_step = step; }
+    }
+    if (points.empty() || points.size() > 77) return {};
+    std::ranges::reverse(points);
+    return points;
+}
+
+// A player's path (type 7, FUN_00679ed0; +0x91 steps 0x49, FUN_00649d00):
+// the toward pather; taken when its end is within `nearby` of the target
+// and isn't the start. Else, with the target under 18 subtiles off (dx^2 +
+// dy^2 < 325), the search pather when that finds a way; else the toward
+// path.
+template <class Blocked>
+std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, int nearby, bool to_unit, Blocked&& blocked) {
+    auto toward = toward_path(x, y, to_x, to_y, 0x49, nearby, blocked);
+    if (!toward.empty() && unit_distance(toward.back().first - to_x, toward.back().second - to_y, 1, 1) <= nearby
+        && toward.back() != std::pair(x, y))
+        return toward;
+    const int dx = x - to_x, dy = y - to_y;
+    if (dx * dx + dy * dy < 0x145)
+        if (auto searched = search_path(x, y, to_x, to_y, to_unit, blocked); !searched.empty()) return searched;
+    return toward;
+}
+
 // A chase's check each frame of its move (FUN_00650840 -> FUN_006503f0, a
 // path of type 2 / 0xd / 0xf): 0 stop when its target is within `stop`
 // (+0x93: FUN_00649070, 0 for a walk or run) by unit_distance; 2 re-path

@@ -1736,12 +1736,17 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                     if (loot.index_of(pick_item) == int(i)) pick_item = -1;
                     loot.take(i);
                 }
-        if (const auto target = fight.engage(now_ms)) { std::tie(target_x, target_y) = *target; player.walking = true; }
+        bool to_unit = interact_npc >= 0 && std::size_t(interact_npc) < level->npcs.size() && level->npcs[std::size_t(interact_npc)].root == "monsters";
+        if (const auto target = fight.engage(now_ms)) { std::tie(target_x, target_y) = *target; player.walking = true; to_unit = true; }
         if (player.walking && fight.pmode < 0) {
-            // A route to the target, re-planned when the target
-            // moves off its end (dragging, a walking NPC).
+            // A route to the target (path type 7), re-planned when the
+            // target moves off its end (dragging, a walking NPC) and when
+            // it ran out short of it (FUN_006503f0's last test).
+            // ponytail: a target unit re-paths at 0.3 cells, not game.exe's
+            // 5 subtiles off SP2; the merc, NPCs and Cain still walk_path.
+            const auto subtile = [](float value) { return int(std::floor(value * 5)); };
             if (player.path.empty() || std::hypot(player.goal_x - target_x, player.goal_y - target_y) > 0.3f) {
-                player.path = walk_path(*level, player.x, player.y, target_x, target_y, crowd, &player);
+                player.path = player_walk(*level, player.x, player.y, target_x, target_y, to_unit, crowd, &player);
                 player.goal_x = target_x; player.goal_y = target_y;
             }
             const auto save_class = std::size_t(std::max(character.character_class, 0));
@@ -1750,8 +1755,14 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const int walk = std::max(game_data->walk_velocity[save_class], 1);
             const int base = running && character.stats.values[d2d::d2s::kStamina] > 0 ? game_data->run_velocity[save_class] * 100 / walk : 100;
             const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
+            const float before_x = player.x, before_y = player.y;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
-            if (!player.walking) player.path.clear();
+            if (!player.walking) {
+                player.path.clear();
+                // Short of the target with a step made: it paths again from here.
+                player.walking = (subtile(player.x) != subtile(target_x) || subtile(player.y) != subtile(target_y))
+                                 && (player.x != before_x || player.y != before_y);
+            }
         }
         npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &player);
         cain_step(now_ms, elapsed);

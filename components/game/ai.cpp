@@ -30,6 +30,23 @@
 
 namespace d2d::game {
 
+std::vector<std::pair<float, float>> player_walk(const Level& level, float x, float y, float goal_x, float goal_y, bool to_unit,
+                                                 const Crowd& crowd, const UnitState* self) {
+    auto sub = [](float value) { return int(std::floor(value * 5)); };
+    auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+    const std::pair from{ sub(x), sub(y) };
+    const auto steps = d2d::rules::player_path(from.first, from.second, sub(goal_x), sub(goal_y), to_unit ? 1 : 0, to_unit, [&](int subtile_x, int subtile_y) {
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y)) || crowd.at(centre(subtile_x), centre(subtile_y), self);
+    });
+    // ponytail: a point given twice (the toward pather's cut-short subtile)
+    // is dropped; game.exe spends a frame on it (FUN_00650090).
+    std::vector<std::pair<float, float>> points;
+    std::pair last = from;
+    for (const auto& step : steps)
+        if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
+    return points;
+}
+
 std::vector<std::pair<float, float>> walk_path(const Level& level, float x, float y, float goal_x, float goal_y,
                                                const Crowd& crowd , const UnitState* self) {
     auto blocked = [&](float at_x, float at_y) { return level.unit_blocked(at_x, at_y) || crowd.at(at_x, at_y, self); };

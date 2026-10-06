@@ -59,8 +59,46 @@ warp tile 1.
   oracle: `diff_drlg.py 1-10 <level> collision` brings game.exe's rooms up
   shuffled ($ORDER) and compares every room's grid (levels 2–39, 10/10).
 - `Scene::unit_blocked` is the plus test with mask 0x09.
-- Pathing: `rules::find_path` (8-way A* over subtiles) + string-pulling
-  (`walk_path`) for the player, NPC approaches and the merc. D2's own
-  pathing (Path.cpp) isn't traced; this stands in for it.
+- Pathing: the player walks game.exe's path type 7 (below,
+  `rules::player_path` / `ai.cpp player_walk`). NPC approaches, Cain and
+  the merc still take `rules::find_path` (8-way A*) + string-pulling
+  (`walk_path`); their path types aren't traced.
+
+## Path types (`.\PATH\Path.cpp`)
+
+A unit's path (+0x2c, 0x200 bytes, FUN_00649d00) has a type (+0x3c, set by
+FUN_00648cf0 with flags from `0x6eb690`). FUN_00649970 computes it with the
+pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
+6 / 0xd `0x679c80` (toward), 3 `0x679e50`, 7 `0x679ed0`, 8 `0x67a000`, 9
+`0x679f70`, 0xb `0x679fd0`, 0xc `0x679e60`, 0xf `0x67c2d0`; 4, 0xa and 0xe
+(flag 0x40000) go through FUN_00649760 instead.
+
+- A player's path is type 7 (FUN_00649d00 for unit type 0: steps +0x91 =
+  0x49, +0x92 = 0x46, mask +0x50 = 0x1c09); FUN_00648dc0 puts it back to 7
+  before each walk (FUN_0057f090, from C→S 0x01 / 0x03 → FUN_005809d0 →
+  FUN_0057f1f0).
+- Type 7 (FUN_00679ed0): the toward pather; taken when its last point is
+  within `near` of the end and isn't the start. Else, when the end is under
+  18 subtiles off (dx² + dy² < 0x145), the search pather; if that finds
+  nothing, the toward path again. So a far click stops at what's in the
+  way; a close one goes round it.
+- The search (FUN_0067b850): A* in a 200-node pool (FUN_0067b1c0), open and
+  closed lists hashed by position (DAT_006f1998 / DAT_006f1b98, 128
+  buckets), the open list sorted by cost with ties newest first
+  (FUN_0067aed0). Step 2 straight, 3 diagonal; estimate 2 × the long axis +
+  the short (FUN_0067adc0). Neighbours (-1,-1) (-1,+1) (+1,-1) (+1,+1)
+  (-1,0) (0,-1) (+1,0) (0,+1) (FUN_0067b440). A cheaper way to an open node
+  changes its cost in place (not re-sorted); to a closed one it passes down
+  the node's up to 8 children (FUN_0067afe0). It keeps the node nearest
+  the end (at a tie, one more than 5 further along) and stops at the end, an
+  empty open list or a full pool. FUN_0067b690 turns the way into points:
+  that node and every turn, start first, the start left out, at most 77.
+  Walking to a unit, nothing when all eight subtiles 2 off it are blocked
+  (FUN_0067b740).
+- Checked: `tools/emu/moves.py` runs FUN_0067b850 and FUN_00679ed0 on
+  random walls against the port (6,000 cases, all equal).
+- ponytail: d2d drops a repeated point (the toward pather's cut-short
+  subtile); game.exe spends a frame on it. A target that moves re-paths at
+  0.3 cells, not FUN_006503f0's 5 subtiles off SP2.
 - Not yet: the tile-entry flag bits, units blocking each other (0x800 /
   0x1000), doors.
