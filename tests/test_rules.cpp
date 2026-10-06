@@ -395,6 +395,14 @@ int main() {
     const MercOffer offer{ .id = 7, .level = 20, .cost = 120, .exp = 999, .seed = 5, .name = 3 };
     assert(hire(offer, merc_header, wallet2) && merc_header.merc_type == 7 && merc_header.merc_seed == 5 && merc_header.merc_name == 3 && merc_header.merc_exp == 999);
     assert(wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 30 && !hire(offer, merc_header, wallet2));
+    // Resurrection: level^2 / 2 * 15 (integer halving), capped at 50,000.
+    assert(merc_resurrect_cost(1) == 0 && merc_resurrect_cost(5) == 180 && merc_resurrect_cost(20) == 3000 && merc_resurrect_cost(98) == 50000);
+    assert(!resurrect_merc(5, merc_header, wallet2));                                  // alive
+    merc_header.merc_dead = true;
+    wallet2.values[kGold] = 100; wallet2.values[kGoldBank] = 100;
+    assert(resurrect_merc(5, merc_header, wallet2) && !merc_header.merc_dead && wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 20);
+    merc_header.merc_dead = true;
+    assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
 
     // Identify: carried, worn and belt items; not the stash.
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };

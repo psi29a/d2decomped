@@ -1374,6 +1374,30 @@ inline bool hire(const MercOffer& offer, d2d::d2s::Header& header, d2d::d2s::Sta
     return true;
 }
 
+// A dead merc's resurrection (FUN_006637b0): level^2 / 2 * 15, at most
+// 50,000.
+inline int merc_resurrect_cost(int merc_level) {
+    return std::min((merc_level * merc_level / 2) * 15, 50000);
+}
+
+// The NPCs that resurrect a merc (FUN_00579c00; the client's FUN_004b6440
+// adds "resurrect", string 0x1507, to their menu while it's dead).
+inline constexpr std::array kMercNpcs = { 150, 198, 252, 367, 515 };   // hcIdx: Kashya, Greiz, Asheara, Tyrael (act 4), Qual-Kehk
+
+// Resurrects the save's dead merc at a hire NPC (FUN_00579c00): pays as
+// FUN_00576d90 (carried gold, then the stash). False with no dead merc or
+// not enough gold.
+inline bool resurrect_merc(int merc_level, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {
+    using namespace d2d::d2s;
+    const int cost = merc_resurrect_cost(merc_level);
+    if (!header.merc_seed || !header.merc_dead || stats.get(kGold) + stats.get(kGoldBank) < cost) return false;
+    const auto from_inv = std::min<std::int64_t>(stats.get(kGold), cost);
+    stats.values[kGold] -= from_inv;
+    stats.values[kGoldBank] -= cost - from_inv;
+    header.merc_dead = false;
+    return true;
+}
+
 // Drinks the potion at the bottom of belt column `col` (box col, 0..3):
 // the item goes, those stacked above it (boxes col + 4, + 8, + 12) drop
 // a row. Returns its code, "" when there's no potion there.

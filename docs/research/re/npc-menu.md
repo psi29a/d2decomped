@@ -38,9 +38,11 @@ Runtime changes to the table (FUN_004b66b0, opening an NPC):
   her record to 3 entries with string[1] = 0xd45 "hire", handler
   0x4b5c60. Not quest-gated: FUN_004b66b0 reads only stat 0xc (level);
   Sisters' Burial Grounds' free merc (FUN_00579180) needs no entry.
-- The act hire NPCs (0xfc, 0xc6, 0x16f, 0x203, and Kashya):
-  FUN_004b6440 adds "resurrect" (0x1507? handler FUN_004b1dd0) ahead of
-  hire while the merc is dead.
+- The act hire NPCs (hcIdx 0x96 Kashya, 0xc6 Greiz, 0xfc Asheara, 0x16f
+  Tyrael, 0x203 Qual-Kehk): FUN_004b6440 adds entry 0x1507 (handler
+  FUN_004b1dd0) ahead of "hire", or before "cancel" with no hire, while
+  the client has a dead merc's name (DAT_00725494 != 0xffff). See
+  "Resurrect" below.
 - 0xfb4 "identify items" only shows when there's something to identify.
 Warriv's "go east" still comes from elsewhere.
 
@@ -63,6 +65,25 @@ Def/Lvl·d, damage = Dmg-Min/Max + (Dmg/Lvl·d >> 3).
 
 d2d: `rules::merc_offer` / `hire`; five offers per opening (the server's
 count isn't traced), one line each.
+
+## Resurrect (FUN_004b1dd0, server FUN_00579c00)
+
+- Text (FUN_004b4830): entry 0x1507 isn't drawn from its id (string.tbl's
+  5383 is a "Dummy"); the line is 0x58a8 "Resurrect %s: %d" with the merc's
+  name string (DAT_00725494; 0x421 → 0x2b0d, as the hire list) and the cost
+  the server sent (DAT_007c0dd0).
+- Click: C→S 0x62 (5 bytes, u32 NPC id; FUN_0054bc00 needs a game player
+  and length 5) → FUN_00579c00(player, npc id). Refused unless the NPC is
+  the one being talked to and one of the five above; then the player's dead
+  merc (FUN_00574ec0(7, 1)).
+- Cost (FUN_006637b0): merc level (stat 0xc)² / 2 × 15, at most 50,000.
+- Pay (FUN_00576d90): carried gold (stat 0xe), then the stash (0xf);
+  refused when both together fall short.
+- Done: flag 0x10000 off at merc +0xc4, full life (stat 6 = max), and
+  FUN_00579aa0 puts it by the player with its states cleared.
+- d2d: `rules::merc_resurrect_cost` / `resurrect_merc`, `cmd::ResurrectMerc`,
+  `ui.cpp resurrect_line`. ponytail: the refusal / done messages back to the
+  client aren't sent; a joined game doesn't send 0x62.
 
 ## Identify (FUN_004b2020)
 

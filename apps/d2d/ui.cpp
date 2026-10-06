@@ -48,7 +48,7 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 }
 
 NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y, int clvl , int unidentified ,
-                           bool respec, bool east, bool imbue) {
+                           bool respec, bool east, bool imbue, const std::string& resurrect) {
     NpcMenuState menu;
     const auto& npc_info = level.npcs[std::size_t(npc)];
     const auto found = std::ranges::find_if(kNpcMenus, [&](const NpcMenu& entry) { return entry.hc_idx == npc_info.hc_idx; });
@@ -61,9 +61,14 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
     if (npc_info.hc_idx == monster_ids::kAkara && respec) entries[2] = 0x2ba0;
     if (npc_info.hc_idx == monster_ids::kWarriv && east) entries = { 0xd35, 0xd36 };
     if (npc_info.hc_idx == monster_ids::kCharsi && imbue) entries = { 0xd35, 0xd06, 0xfb1 };
+    if (!resurrect.empty() && std::ranges::find(d2d::rules::kMercNpcs, npc_info.hc_idx) != d2d::rules::kMercNpcs.end()) {
+        auto at = std::ranges::find(entries, 0xd45);
+        if (at == entries.end()) at = std::ranges::find(entries, 0);
+        if (at != entries.end()) { std::shift_right(at, entries.end(), 1); *at = 0x1507; }
+    }
     for (const auto id : entries)
         if (id && !(id == 0xfb4 && unidentified == 0))
-            menu.lines.push_back({ string_id(scene, id), 15, 0, 0, false,
+            menu.lines.push_back({ id == 0x1507 ? resurrect : string_id(scene, id), 15, 0, 0, false,
                                 id == 0xd35 ? NpcMenuState::kTalk
                                 : id == 0xd44 || id == 0xd06 ? NpcMenuState::kTrade
                                 : id == 0xd46 ? NpcMenuState::kGamble
@@ -71,10 +76,19 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
                                 : id == 0xfb4 ? NpcMenuState::kIdentify
                                 : id == 0x2ba0 ? NpcMenuState::kRespec
                                 : id == 0xd36 ? NpcMenuState::kGoEast
-                                : id == 0xfb1 ? NpcMenuState::kImbue : NpcMenuState::kClose });
+                                : id == 0xfb1 ? NpcMenuState::kImbue
+                                : id == 0x1507 ? NpcMenuState::kResurrectMerc : NpcMenuState::kClose });
     menu.lines.push_back({ string_id(scene, 0x102e), 15 });
     layout_npc_menu(scene, menu, screen_x, screen_y);
     return menu;
+}
+
+std::string resurrect_line(const Scene& scene, int merc_type, int name_index, int cost) {
+    const auto merc = scene.mercs.find(merc_type);
+    std::string line = string_id(scene, 0x58a8);
+    if (const auto at = line.find("%s"); at != line.npos) line.replace(at, 2, merc != scene.mercs.end() ? merc_name(scene, merc->second, name_index) : std::string("?"));
+    if (const auto at = line.find("%d"); at != line.npos) line.replace(at, 2, std::to_string(cost));
+    return line;
 }
 
 NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int screen_y) {

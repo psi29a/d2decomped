@@ -1091,6 +1091,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::Respec{ who });
             } else if (action == NpcMenuState::kGoEast) {
                 net.send(cmd::GoEast{ who });
+            } else if (action == NpcMenuState::kResurrectMerc) {
+                net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {
                 // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
                 // the item in hand.
@@ -1587,7 +1589,11 @@ auto Town::open_menu(int npc) -> void {
                 const auto& quest_bits = character.header.quests[std::size_t(std::clamp(difficulty, 0, 2))];
                 return !d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::qbit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(), d2d::rules::AndyQuest::kQuest, 0),
-            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1));
+            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1),
+            character.header.merc_seed != 0 && character.header.merc_dead
+                ? resurrect_line(*scene, character.header.merc_type, character.header.merc_name,
+                                 d2d::rules::merc_resurrect_cost(d2d::rules::merc_stats(scene->rules, character.header.merc_type, character.header.merc_exp).level))
+                : std::string());
     }
 
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {

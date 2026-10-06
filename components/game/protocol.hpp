@@ -68,6 +68,8 @@ struct Repair { int item = -1; };
 struct Identify {};
 struct IdentifyWith { int scroll = -1; int item = -1; };   // a Scroll / Tome of Identify on an item (C→S 0x27, FUN_0054b280)
 struct Hire { int offer = -1; };
+// 0x62 (FUN_00579c00): resurrect the dead merc at hire NPC `npc`.
+struct ResurrectMerc { int npc = -1; };
 struct CloseTrade {};
 // Akara's Reset Stat/Skill Points, confirmed ("ok" sends game.exe's 0x38
 // to her; d2d tells it apart with kind 3).
@@ -91,7 +93,7 @@ struct Waypoint { int npc = -1, level = 0; };
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
-                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::CloseTrade, cmd::Respec,
+                             cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
                              cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::GoEast, cmd::Imbue>;
 
 // The wire form of a command (what a transport carries): its id byte —
@@ -178,7 +180,7 @@ inline constexpr std::uint8_t kRunOff = 0x54;
 // 0x38's first byte: which deal (d2d's numbering; game.exe tells Respec,
 // GoEast and Imbue apart by the NPC and an argument, see the cmd structs).
 namespace npc_deal {
-inline constexpr int kTrade = 0, kGamble = 1, kHire = 2, kRespec = 3, kGoEast = 4, kImbue = 5;
+inline constexpr int kTrade = 0, kGamble = 1, kHire = 2, kRespec = 3, kGoEast = 4, kImbue = 5, kResurrectMerc = 6;
 }  // namespace npc_deal
 
 inline std::vector<std::uint8_t> encode(const Command& command) {
@@ -203,6 +205,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(opcode::kNpcDeal).u8(message.gamble ? npc_deal::kGamble : npc_deal::kTrade).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(opcode::kNpcDeal).u8(npc_deal::kHire).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(opcode::kNpcDeal).u8(npc_deal::kRespec).i32(message.npc);
+        else if constexpr (std::is_same_v<T, cmd::ResurrectMerc>) out.u8(opcode::kNpcDeal).u8(npc_deal::kResurrectMerc).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.stock).i32(message.tab);
         else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(opcode::kSell).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(opcode::kRepair).i32(message.item);
@@ -248,7 +251,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
-            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc } } : kind == npc_deal::kGoEast ? Command{ cmd::GoEast{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } }
+            command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc } } : kind == npc_deal::kGoEast ? Command{ cmd::GoEast{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }
                     : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
             break;
         }

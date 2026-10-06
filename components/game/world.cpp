@@ -1296,6 +1296,20 @@ auto World::deal(const Command& command) -> bool {
                 spawn_merc();
             return true;
         }
+        // A hire NPC brings the dead merc back (FUN_00579c00): paid, full
+        // life, beside the player (FUN_00579aa0).
+        // ponytail: no 0x5b..0x5a messages (refused / done) back to the client.
+        if (const auto* resurrect = std::get_if<cmd::ResurrectMerc>(&command)) {
+            auto& header = character.header;
+            if (std::size_t(resurrect->npc) >= level->npcs.size() || std::ranges::find(d2d::rules::kMercNpcs, level->npcs[std::size_t(resurrect->npc)].hc_idx) == d2d::rules::kMercNpcs.end())
+                return true;
+            const int merc_level = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp).level;
+            if (d2d::rules::resurrect_merc(merc_level, header, character.stats)) {
+                spawn_merc();
+                d2d::log::info("the merc is back");
+            }
+            return true;
+        }
         if (std::holds_alternative<cmd::CloseTrade>(command)) { store = {}; return true; }
         // Akara's reset (the 0x38 handler for her, hcIdx 0x94): while quest
         // 41 (the Den of Evil's reward) is open, stats and skills go back,

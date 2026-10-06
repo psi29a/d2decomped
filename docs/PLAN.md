@@ -653,9 +653,9 @@ clang-tidy 0, sweep 228/228 at 20/20; played live (Bret), missiles land and kill
 - Fixed: Scroll / Tome of Identify: right-click picks it, a click on an
   item identifies it (cmd::IdentifyWith, FUN_00561ed0), with the
   identify cursor drawn ("Identify cursor" below).
-- A magic Bolts quiver (cqv) with neither prefix nor suffix landed in
-  "Bob Bitchen.d2s", so test_d2s (real saves) fails locally: the magic
-  roll for quivers, or how game.exe handles no eligible affix.
+- Fixed (4a882fb): a magic Bolts quiver (cqv) with neither prefix nor
+  suffix landed in "Bob Bitchen.d2s"; with no affix game.exe remakes it
+  superior, then normal (FUN_005565e0 → FUN_00557320 / FUN_005572a0).
 - Fixed: the Esc menu's pentagrams stepped every 40 ms with catch-up;
   FUN_00454850 steps once a draw past 50 ms (menu.md).
 

@@ -824,7 +824,6 @@ FUN_00547170(game, obj, ...)   // push {room, dest wp x, y} onto game+0x10f0->+0
 ## Not yet traced
 
 - **Imbue:** the client item panel's send path (`0x4c0620` / `0x4c01e0`) that emits C→S 0x38 kind 0.
-- **Andariel:** the AnimData event frames for her SQ mode, which give the spray missile count (probably 9, frames 4..12); and the wander offsets in `FUN_0045c3e0`.
 - **a1q6:** the log state on Catacombs levels 1–3 (the `0x596062` path).
 - **Act load:** the contents of the 10-byte act-load packet (`FUN_0053c900`).
 - **Waypoints:** `FUN_00548ef0`; the EDX of `FUN_00553380` in the 10-second refusal; the field layout of `FUN_0053b4b0`.
