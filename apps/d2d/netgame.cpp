@@ -22,6 +22,7 @@
 #include <utility>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -40,7 +41,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -60,7 +61,9 @@ auto steady_ms() -> std::uint32_t {
     return std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
 }
 
-constexpr float kWalkSubtilesPerSec = d2d::game::cells_per_sec(6) * 5;   // ponytail: everyone at a player's walk (6); MonStats Velocity later
+constexpr float kWalkSubtilesPerSec = d2d::game::cells_per_sec(6) * 5;   // a player's walk (6)
+// A run: velocitypercent + run * 100 / walk - 100 (FUN_00620e80), every class's 9 / 6.
+constexpr float kRunSubtilesPerSec = d2d::game::cells_per_sec(9) * 5;
 
 } // namespace
 
@@ -118,6 +121,8 @@ auto NetGame::trade_accept() -> void {
     send({ d2d::net::d2gs::c2s::click_button(4, std::uint16_t(trade.our_gold >> 16), std::uint16_t(trade.our_gold)) });
     trade.state = 7;
 }
+
+auto NetGame::say(std::string_view message) -> void { send({ d2d::net::d2gs::c2s::chat(message) }); }
 
 auto NetGame::trade_cancel() -> void {
     send({ d2d::net::d2gs::c2s::click_button(2) });
@@ -178,9 +183,15 @@ auto NetGame::pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void {
                 send(std::exchange(when_still, {}));
         }
     }
-    const float step = kWalkSubtilesPerSec * float(elapsed_ms) / 1000.f;
+    // A monster walks its path at MonStats Velocity x stat 0x43 / 100 in any
+    // mode (FUN_00462a20, FUN_00620e40's walk); the host's moves set 0x43
+    // (FUN_004aff60). Players at a walk.
     for (auto& [unit_key, unit] : units) {
         if (!unit.moving) continue;
+        const bool known = unit.type == 1 && unit.cls >= 0 && std::size_t(unit.cls) < monster_velocity.size();
+        const float per_sec = known ? d2d::game::cells_per_sec(float(monster_velocity[std::size_t(unit.cls)])) * 5 * float(unit.velocity_pct) / 100.f
+                              : unit.running ? kRunSubtilesPerSec : kWalkSubtilesPerSec;
+        const float step = per_sec * float(elapsed_ms) / 1000.f;
         const float dx = unit.goal_x - unit.x, dy = unit.goal_y - unit.y, distance = std::hypot(dx, dy);
         if (distance <= step) { unit.x = unit.goal_x; unit.y = unit.goal_y; unit.moving = false; continue; }
         unit.x += dx / distance * step;
@@ -219,11 +230,21 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; }
         }
         break;
-    case 0x0f:   // a unit to x, y: +1 type, +2 id, +7 target, +0xc where it is
+    case 0x0f:   // a unit to x, y: +1 type, +2 id, +6 the command (1 walk, 0x17 run), +7 target, +0xc where it is
         if (size >= 16) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             unit.x = read_u16(packet, 0xc); unit.y = read_u16(packet, 0xe);
             walk(unit, read_u16(packet, 7), read_u16(packet, 9));
+            unit.running = packet[6] == 0x17;
+        }
+        break;
+    case 0x10:   // a unit to a unit: +6 the command (0 walk, 0x18 run), +7 target type, +8 id, +0xc where it is
+        if (size >= 16) {
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            place(unit, read_u16(packet, 0xc), read_u16(packet, 0xe));
+            if (const auto target = units.find(key(packet[7], read_u32(packet, 8))); target != units.end() && &target->second != &unit)
+                walk(unit, target->second.x, target->second.y);   // ponytail: to where the target was, not following it
+            unit.running = packet[6] == 0x18;
         }
         break;
     case 0x95:   // our life, mana, stamina and place: bits 8 id, 15, 15, 15, 16 x, 16 y
@@ -304,10 +325,17 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         break;
     }
     case 0x9d: {  // an item owned by a unit: +8 owner type, +9 owner id, the item from +13
-        if (size < 14 || !item_tables || packet[8] != 0 || read_u32(packet, 9) != self_id) break;
-        const std::uint32_t id = read_u32(packet, 4);
-        if (auto parsed = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(13), *item_tables)) own_items[id] = std::move(parsed->item);
-        else log.note("item " + std::to_string(id) + " (0x9d action " + std::to_string(packet[1]) + ") didn't parse");
+        if (size < 14 || !item_tables || packet[8] != 0) break;
+        const std::uint32_t id = read_u32(packet, 4), owner = read_u32(packet, 9);
+        auto parsed = d2d::d2s::parse_net_item(std::as_bytes(std::span(packet)).subspan(13), *item_tables);
+        if (!parsed) { log.note("item " + std::to_string(id) + " (0x9d action " + std::to_string(packet[1]) + ") didn't parse"); break; }
+        if (owner == self_id) { own_items[id] = std::move(parsed->item); break; }
+        // Another player's: what they wear is their look. A swap (7, 9)
+        // sends only the incoming item, so it pushes out that slot's old one.
+        // ponytail: the weapon switch (0x17) isn't followed; slots 0xb / 0xc aren't drawn.
+        auto& worn = unit_at(0, owner).worn;
+        std::erase_if(worn, [&](const auto& entry) { return entry.first == id || entry.second.slot == parsed->item.slot; });
+        if (parsed->item.location == d2d::d2s::item_location::kEquipped) worn[id] = std::move(parsed->item);
         break;
     }
     case 0x42:   // our cursor's item is gone
@@ -412,14 +440,64 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             unit.life = packet[0xb];
         }
         break;
-    case 0x67:   // monster to x, y
-        if (size >= 10) walk(unit_at(1, read_u32(packet, 1)), read_u16(packet, 6), read_u16(packet, 8));
+    case 0x67:   // monster to x, y; +0xd i16 its velocity % (0: unchanged)
+        if (size >= 15) {
+            auto& unit = unit_at(1, read_u32(packet, 1));
+            walk(unit, read_u16(packet, 6), read_u16(packet, 8));
+            if (const auto pct = std::int16_t(read_u16(packet, 0xd)); pct != 0) unit.velocity_pct = pct;
+        }
         break;
-    case 0x68:   // monster to a unit, from where it is
-        if (size >= 10) place(unit_at(1, read_u32(packet, 1)), read_u16(packet, 6), read_u16(packet, 8));
+    case 0x68:   // monster to a unit (+0xa type, +0xb id), from where it is; +0x12 its velocity %
+        if (size >= 20) {
+            auto& unit = unit_at(1, read_u32(packet, 1));
+            place(unit, read_u16(packet, 6), read_u16(packet, 8));
+            if (const auto pct = std::int16_t(read_u16(packet, 0x12)); pct != 0) unit.velocity_pct = pct;
+            if (const auto target = units.find(key(packet[0xa], read_u32(packet, 0xb))); target != units.end() && &target->second != &unit)
+                walk(unit, target->second.x, target->second.y);   // ponytail: to where the target was, not following it
+        }
         break;
     case 0x6d:   // monster stops at x, y
         if (size >= 10) { auto& unit = unit_at(1, read_u32(packet, 1)); place(unit, read_u16(packet, 5), read_u16(packet, 7)); unit.life = packet[9]; }
+        break;
+    case 0x4c:   // a skill on a unit: +1 caster type, +2 id, +6 u16 skill, +9 target type, +0xa id
+    case 0x4d:   // ... at x, y: +6 u32 skill, +0xb x, +0xd y
+        if (size >= 15 && packet[1] == 0 && read_u32(packet, 2) != self_id) {
+            auto& unit = unit_at(0, read_u32(packet, 2));
+            unit.skill = packet[0] == 0x4c ? read_u16(packet, 6) : int(read_u32(packet, 6));
+            unit.skill_ms = steady_ms();
+            unit.skill_x = unit.x; unit.skill_y = unit.y;
+            if (packet[0] == 0x4d) { unit.skill_x = read_u16(packet, 0xb); unit.skill_y = read_u16(packet, 0xd); }
+            else if (const auto target = units.find(key(packet[9], read_u32(packet, 0xa))); target != units.end()) { unit.skill_x = target->second.x; unit.skill_y = target->second.y; }
+        }
+        break;
+    case 0x26:   // chat / overhead: +1 type (1 to all, 2 a whisper, 5 overhead), +10 name\0, the message\0
+        if (size >= 12 && packet[1] == 5) {                   // +3 unit type, +4 id (FUN_0049f410)
+            const auto* text = reinterpret_cast<const char*>(packet.data());
+            const std::size_t message_at = 10 + strnlen(text + 10, size - 10) + 1;
+            if (message_at <= size) overheads.push_back({ packet[3], read_u32(packet, 4), std::string(text + message_at, strnlen(text + message_at, size - message_at)) });
+        }
+        if (size >= 12 && (packet[1] == 1 || packet[1] == 2)) {
+            const auto* text = reinterpret_cast<const char*>(packet.data());
+            const std::string name(text + 10, strnlen(text + 10, size - 10));
+            const std::size_t message_at = 10 + name.size() + 1;
+            if (message_at < size) chat.push_back({ packet[1], packet[8], name, std::string(text + message_at, strnlen(text + message_at, size - message_at)) });
+        }
+        break;
+    case 0x8d:   // assign party: +1 the player, +5 u16 party (0xffff none)
+        if (size >= 7) unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
+        break;
+    case 0x75:   // party roster: +1 the player, +5 u16 party, +7 u16 level
+        if (size >= 13) unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
+        break;
+    case 0x7f:   // party member: +1 is a player, +2 u16 life %, +4 the id, +8 u16 area
+        if (size >= 10 && packet[1] == 1) unit_at(0, read_u32(packet, 4)).party_life = read_u16(packet, 2);
+        break;
+    case 0x5a:   // an event message (FUN_0049eb10)
+        if (size >= 40) {
+            const auto* text = reinterpret_cast<const char*>(packet.data());
+            events.push_back({ packet[1], packet[2], packet[7], read_u32(packet, 3), std::string(text + 8, strnlen(text + 8, 16)),
+                               std::string(text + 0x18, strnlen(text + 0x18, 16)), read_u16(packet, 0x18) });
+        }
         break;
     case 0xab:   // heal: type, id, life
         if (size >= 7) unit_at(packet[1], read_u32(packet, 2)).life = packet[6];

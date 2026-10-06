@@ -137,6 +137,7 @@ struct Scene : GameData {
     std::unordered_map<std::string, std::array<std::string, 6>> type_invgfx;
     std::array<d2d::dc6::Sprite, 2> stash_panel;
     d2d::dc6::Sprite trade_panel, trade_button;   // PANEL\trade, PANEL\tradebtn
+    std::array<d2d::dc6::Sprite, 7> class_icons;  // Hireables\<class>Icon by d2s class: party portraits
     d2d::dc6::Sprite cube_panel;
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level
@@ -162,6 +163,7 @@ struct Scene : GameData {
     std::array<d2d::palette::Palette, 32>    act1_lit;   // act1_pal at each light level (PL2 +0x400)
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)
+    d2d::font::Font  font_chat;                        // FontInGameChat (font id 0xd): chat lines
     d2d::font::Font  font30;                           // Font30 (font id 2): the death screen's lines
     d2d::dc6::Sprite you_died, you_died_inst;          // UI\ENG\youdiedhardcore, youdiedinst (FUN_00453100)
     // The game menu and the mini-panel (docs/research/re/menu.md): the menus'

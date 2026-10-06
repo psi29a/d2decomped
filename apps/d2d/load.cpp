@@ -180,6 +180,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.tbl)"))
         if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontformal11.dc6)"))
             scene.font_formal11 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
+    if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontingamechat.tbl)"))
+        if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\fontingamechat.dc6)"))
+            scene.font_chat = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
     if (auto bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.tbl)"))
         if (auto sheet_bytes = mpqs.try_read(R"(data\local\FONT\LATIN\font30.dc6)"))
             scene.font30 = d2d::font::Font(*bytes, d2d::dc6::Sprite(*sheet_bytes));
@@ -220,6 +223,10 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (auto [path, into] : { std::pair{ R"(data\global\ui\PANEL\trade.dc6)", &scene.trade_panel },
                                { R"(data\global\ui\PANEL\tradebtn.dc6)", &scene.trade_button } })
         if (auto bytes = mpqs.try_read(path)) *into = d2d::dc6::Sprite(*bytes);
+    static constexpr const char* kClassIcon[7] = { "Amazon", "Sorceress", "Necromancer", "Paladin", "Barbarian", "Druid", "Assassin" };
+    for (std::size_t class_index = 0; class_index < 7; ++class_index)
+        if (auto bytes = mpqs.try_read(std::string(R"(data\global\ui\Hireables\)") + kClassIcon[class_index] + "Icon.dc6"))
+            scene.class_icons[class_index] = d2d::dc6::Sprite(*bytes);
     if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\supertransmogrifier.dc6)"))
         scene.cube_panel = d2d::dc6::Sprite(*bytes);
     static constexpr const char* kTree[7] = { "a", "s", "n", "p", "b", "d", "i" };

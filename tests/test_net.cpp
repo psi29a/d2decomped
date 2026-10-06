@@ -139,6 +139,8 @@ int main() {
         }
         assert(chunks.size() == 10 && total == 2516);
         assert(d2gs::c2s::ping(1234).size() == 13);
+        // Chat to all: type 1, language 0, the message, no target (54a5d0 wants size > length + 4).
+        assert((d2gs::c2s::chat("hi") == d2d::net::Bytes{ 0x15, 0x01, 0x00, 'h', 'i', 0x00, 0x00 }));
     }
     assert(d2gs::s2c_name(0x59) == "assign player" && d2gs::s2c_name(0xb5).empty());
 

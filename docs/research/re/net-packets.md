@@ -125,6 +125,9 @@ is, and the server walks it there, resyncs it (`FUN_0054cb10` /
 | +0x18 | u16 | y |
 
 The look comes afterwards, from the items the player wears (0x9d).
+Another player's arrive as 0x9d action 6 with them as owner (type 0,
+their id), one per worn item (50 for one Amazon on joining, 2026-10-05);
+d2d draws the look from them as from its own (`GameData::look_of`).
 
 **0xac assign monster** (variable; builder `0x53e2e0`, handler
 `0x45f190`). NPCs, the merc and summons are monsters too.
@@ -210,8 +213,8 @@ The generic unit commands (players, and any unit type the table allows):
 | 0x0c hit | 9 | `0x45cc70` | +7 u8 hit class (→ unit +0xb0); +8 u8 life / 128 (−1 when > 1; bit 7 set by `FUN_005a0180`) | cmd 0x13 always (builder `0x53b430`, from `FUN_00597cf0`); `{+7, +8}` |
 | 0x0d stop | 13 | `0x45ccc0` | +6 u8 unit command (0x13 hit, 8 dying, 9 dead: a player's death, live), +7 u16 x, +9 u16 y, +0xb u8, +0xc u8 life / 128 | `{x, y, +0xb}`; a player's party life bar (`FUN_0047a690`) (builder `0x53b4b0`) |
 | 0x0e object state | 12 | `0x45cd10` | +7 u8 **(?)** (1 when we operated it, 0 for a door already open as its room comes), +8 u32 new mode | object cmd 3 (mode) or 0x15 (operate effect); d2d sets its nearest door to the mode |
-| 0x0f move to x, y | 16 | `0x45cd40` | +7 u16 target x, +9 u16 target y, +0xb u8, +0xc u16 x, +0xe u16 y (where it is) | `{tx, ty, +0xb}`, correction at (x, y) (builder `0x53b570`) |
-| 0x10 move to unit | 16 | `0x45cd90` | +7 u8 target type, +8 u32 target id, +0xc u16 x, +0xe u16 y | `{type, id}`, correction (builder `0x53b520`) |
+| 0x0f move to x, y | 16 | `0x45cd40` | +6 u8 the unit command (1 walk, 0x17 run), +7 u16 target x, +9 u16 target y, +0xb u8, +0xc u16 x, +0xe u16 y (where it is) | `{tx, ty, +0xb}`, correction at (x, y) (builder `0x53b570`) |
+| 0x10 move to unit | 16 | `0x45cd90` | +6 u8 the unit command (0 walk, 0x18 run), +7 u8 target type, +8 u32 target id, +0xc u16 x, +0xe u16 y | `{type, id}`, correction (builder `0x53b520`) |
 
 Monsters (type always 1): +1 u32 id, +5 u8 cmd.
 
@@ -230,6 +233,13 @@ The server picks 0x67 or 0x68 by the mode table `DAT_006e1d90` (0x18
 bytes a mode: +0x10 the command for "at x, y", +0x14 "on a unit").
 Which of the builders `0x53b9f0 / 0x53ba40 / 0x53baa0 / 0x53bb00` makes
 which of 0x69..0x6c isn't settled **(?)**.
+
+**A monster's speed** is the client's: its path velocity is MonStats
+`Velocity` << 8 × stat 0x43 velocitypercent / 100 in any mode
+(`FUN_00462a20`, `FUN_00620e40`'s walk). The velocity in 0x67 / 0x68
+is that stat: `FUN_004aff60` adds the difference to 0x43 when it isn't
+0. The host sent 70 / 75 for walks and 125 / 130 for runs in Act 1
+Normal (1513 moves, 2026-10-05).
 
 **The server sends one packet per decision, never per step.** A move
 names the goal (and, in the correcting forms, where the unit is now);
@@ -528,10 +538,35 @@ ids).
 - **0x26 chat / overhead** (var; → `FUN_0049f490`; builder
   `FUN_0053c750`): +1 u8 type, +2 u8 language, +3 u8 unit type, +4 u32
   unit id, +8 u8 colour **(?)**, +9 u8 **(?)**, +10 name (≤ 16, NUL),
-  then the message (NUL).
+  then the message (NUL). Types: 1 to all, 2 a whisper, 4, 5 overhead
+  on the unit (`FUN_0049f410`; a shrine's message comes as its string
+  id in decimal, "3684" ShrMsg1), 6, 7. Type 1's line is the name in
+  gold (`FUN_004521c0` puts colour code 4 before it), then 0xfd0 ": "
+  and the message in colour +8; type 2's is name + 0xe46 " whispers: "
+  + message, all green (2). A player's chat (C→S 0x15,
+  `54a5d0`) goes out as type 1 (2 with a target), +3 unit type 2, +4
+  id 0, +9 the sender's level (stat 0xc), their name.
+- **The chat lines** (`FUN_0049e3a0` adds, `FUN_0049dc40` draws):
+  wrapped to the screen's width − 70, at most 6 lines a message, each
+  message 10 s (GetTickCount + 10000); past 18 lines the oldest message
+  goes. FontInGameChat (0xd), x 15 (W/2 + 15 when `FUN_0045ae90` is 2,
+  taken as a left panel open **(?)**), baselines 20 + 15 a line (0x5f
+  when `FUN_004538d0` **(?)**), each on a dark box (`FUN_0046efd0`: x − 5,
+  baseline − 14, the width + 10, 16 high, colour 0, mode 1).
 - **0x5a event message** (40; `FUN_0049eb10`; builder `FUN_0053c850`):
-  +1 u8 event (0..0x12: joined, left, slain ...), +2 u8 colour **(?)**,
-  +3 u32 argument, +7 u8, +8 char[16] name, +0x18 char[16] second name.
+  +1 u8 event, +2 u8 the line's colour (4 gold for a join), +3 u32
+  argument, +7 u8, +8 char[16] name, +0x18 char[16] second name. A
+  chat line (`FUN_0049e3a0`) by event, the strings by id:
+
+  | Event | Line |
+  |---|---|
+  | 0 / 1 | name + 0xe37 " dropped due to timeout." / 0xe38 "... errors." |
+  | 2 / 3 | 0xe39 "%s joined our world..." / 0xe3a "%s left ..." (0xe3b / 0xe3c "%s(%s)" with the second name); a join of our own name isn't shown |
+  | 4 / 5 / 0xd | name + 0xe3d " is not in the game." / 0xe3e " is not logged in." / 0xe44 " is not listening to you." |
+  | 6 | a death, by +7: 0 a player (name + 0xe40 " was slain by " + second name), 1 a monster (0xe3f + MonStats NameStr of +3; a SuperUnique's name, row u16 +0x18, with 0xe40), 2 an object (+3; 0xb: 0xc98 "an Exploding Barrel"); else name + 0xe41 " was slain." |
+  | 7 | party news (`FUN_0049e8f0`), the player of +3, by +7 1..11: 0x277a / 0x277b "%s permits you to loot his / her corpse.", 0xfba..0xfbe and 0xfc0 name + " has expressed hostility ..." / " is no longer hostile ..." / " invites you to ally ..." / " has cancelled the party invite." / " has joined your party ..." / " has left your party.", 8 0xfbf "You are now allied with " + name, 0x277c / 0x277d "%s no longer allows ..." |
+  | 8 / 9 / 0xa | name + 0xfcc " is busy" / 0xfcf "You must wait ... to trade ..." / name + 0x1026 " has items in his box." (no name: 0x1027) |
+  | 0xb / 0xf / 0x10..0x12 | 0x69b / realm going down 0xe43 / 0x2a38 hostility timeout / 0x2afc SOJs sold / 0x2afd Diablo Walks the Earth |
 
 ### Players and party
 
@@ -548,6 +583,16 @@ ids).
 - **0x8b relationship** (6): +1 u32 id, +5 u8 (roster +0x30).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags.
 - **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22).
+- **Party portraits** (`FUN_00494020`): the other players in our party
+  (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets, left to
+  right from x 15, 0x38 apart: the class's `Hireables\<Class>Icon`
+  (by d2s class; `FUN_00492c20` loads them) with its bottom at y 0x3c, a
+  life bar over it (`FUN_00493a00`: x .. x + 0x2e, y 0xe .. 0x13, life %
+  of it in (0, 0x80, 0), (0xc0, 0xc0, 0) under 50 %, red under 25 %, the
+  rest black, mode 5), and the name in Font6 cut to 0x42 px, centred on
+  x + 0x16, baseline y 0x48 and 0x52 by turns (`FUN_00492fa0`). Hidden
+  while `FUN_0045ae90` is 2 or 3, UI flags 9 / 0xb are up, or the Show
+  Portraits toggle (`DAT_007beecc`, string 0xf8e) is off.
 - **0x8e corpse** (10): +1 u8 add / remove, +2 u32 player id, +6 u32
   corpse id (list at roster +0x38).
 - **0x76 player in proximity** (6; `FUN_0049f8c0`).
@@ -696,7 +741,7 @@ melee-range skill runs up first (`FUN_00548a50`).
 | 51 hotkey | 9 | u32 (hotkey << 16, bit 15 left, skill), u32 item id | `54c870` | none |
 | 4f click button | 7 | u16 button, u16, u16 | `54c7c0` | a trade's (`FUN_004b8730`..`FUN_004b9110`): 2 decline / cancel, 3 accept the request, 4 accept (our gold high, low), 7 take it back, 8 our gold |
 | 5d / 5e party | 7 / 6 | | `FUN_005a6000` | none |
-| 14 / 15 chat / overhead | var | u8, u8 type, message\0, name\0 | `54a290` / `54a5d0` | none |
+| 14 / 15 overhead / chat | var | u8 type, u8 language, message\0, target\0 (15: total > length + 4) | `54a290` / `54a5d0` | none (d2d's chat line: `c2s::chat`, type 1) |
 | 6d ping | 13 | u32 tick, u32 (`FUN_0044ce70` >> 1), u32 checksum | system | **none** (the host expects it, at most every 5 s) |
 
 ## What the client does itself
@@ -777,7 +822,7 @@ works it out locally; d2d's View gets it from its own World today.
 | `ev::LevelChanged` | 0x15, room changes | derived on the client |
 | `ev::OpenUI` | 0x58, 0x27, 0x63, 0x77, 0x8a | |
 | — | 0x59 / 0x5b / 0x5c / 0x75 / 0x7f / 0x8b..0x8d (other players, party) | **no field**: the View has one player |
-| — | 0x26 / 0x5a (chat, events) | **no field** |
+| — | 0x26 / 0x5a (chat, events) | **no field**: d2d's client takes 0x26 types 1 / 2 itself (`NetGame::chat`) |
 | — | 0x07 / 0x08 (rooms in play) | d2d reveals client-side; fine for drawing, but units only exist in rooms in play |
 | — | 0x20, 0x9e..0xa2 (other units' stats) | **no field** |
 | — | 0x63 known waypoints | d2d has them in the character; the packet overrides |
