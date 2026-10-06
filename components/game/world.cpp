@@ -211,11 +211,10 @@ static void take_blast(std::int64_t& life, int taken) {
 }
 
 // FUN_00622b50 (mask 0x804): rules::sight_blocked from the unit to the
-// object over the walk grid's missile barrier (0x04).
-// ponytail: other objects' footprints (0x800) aren't a bit of the walk grid.
+// object over the walk grid's missile barrier (0x04) and doors (0x800).
 auto World::blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense) -> int {
     if (level == &game_data->town) return 0;
-    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
     const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
     if (d2d::rules::sight_blocked(subtile(x), subtile(y), size, subtile(object.x), subtile(object.y), object.size_x, wall)) return 0;
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
@@ -688,6 +687,7 @@ auto World::spawn_merc() -> void {
         if (const auto found = game_data->mercs.find(header.merc_type); header.merc_seed && !header.merc_dead && found != game_data->mercs.end()) {
             merc = Monster{};
             merc->npc = found->second.npc;
+            merc->unit.shape = merc->npc.shape;
             merc->difficulty = header.active_difficulty();
             std::tie(merc->unit.x, merc->unit.y) = level->nearest_free(player.x + 1, player.y + 1);
             merc_npc = &found->second.npc;
@@ -1659,7 +1659,7 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
         crowd.units.push_back(&player);
         if (merc) crowd.units.push_back(&merc->unit);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            if (!level->npcs[i].path.empty() && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
+            if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
         const bool in_moor = level != &game_data->town;     // outside: this level's monsters are about
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then Resurrect respawns in camp; a

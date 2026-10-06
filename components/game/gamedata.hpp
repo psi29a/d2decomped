@@ -50,6 +50,26 @@
 
 namespace d2d::game {
 
+// A unit's collision (FUN_006484e0): its pattern from MonStats2 SizeX
+// (DAT_006eb3dc 0, 1, 1, 2; over 3: 1), 1 → 3 and 2 → 4 for a MonStats
+// npc or inTown that isn't interact (the merc, the cow). Stamped
+// (FUN_0064ea90): 1 / 3 its footprint bit (0x1000, 3 / 4 0x2000) on its
+// subtile, 2 / 4 on the plus. Tested (FUN_0064d910): 1 / 3 the plus, 2 / 4
+// the SizeX box. `mask` (path +0x50) is what blocks it: a player 0x1c09, a
+// monster 0x3c01, opendoors 0x3401, flying 0x1804. Players, by default.
+struct UnitShape {
+    std::uint8_t pattern = 1, size = 2;
+    std::uint16_t mask = 0x1c09;
+    [[nodiscard]] std::uint16_t bit() const { return pattern >= 3 ? 0x2000 : 0x1000; }
+    [[nodiscard]] bool box() const { return pattern == 2 || pattern == 4; }
+    // ponytail: pattern 0 (SizeX 0) is tested as 1
+    static UnitShape monster(int size, bool town_unit, bool flying, bool open_doors) {
+        const int pattern = size == 3 ? 2 : 1;
+        return { std::uint8_t(town_unit ? pattern + 2 : pattern), std::uint8_t(size),
+                 std::uint16_t(flying ? 0x1804 : open_doors ? 0x3401 : 0x3c01) };
+    }
+};
+
 // Things the DS1 places (its object list): NPCs (type 1, from
 // data\global\monsters) and objects (type 2 — torches, fires, the
 // waypoint..., from data\global\objects). Both are composites.
@@ -68,8 +88,14 @@ struct Npc {
     bool npc_ai = false;                 // MonStats AI "Npc" (FUN_005e7130): thinks with rules::npc_think
     std::uint32_t modes = 0;             // MonStats2 mS1 / mS2 as bits 8 / 9 (FUN_0046c140)
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    UnitShape shape;                     // an NPC's collision (MonStats / MonStats2)
     int object_id = 0;                   // an object's objects.txt Id
     bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)
+    // What an object stamps into the collision grid while its mode has
+    // collision (FUN_006209d0): a door 0x806 with BlocksVis (+0x13b), else
+    // 0x804 with BlockMissile (+0x1b6), else 0x400; another object 0x8000
+    // with SubClass (+0x167) & 4, else 0x400 (| 4 with BlockMissile).
+    std::uint16_t stamp = 0x400;
     std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
     std::uint8_t cycle = 0xff;           // its CycleAnim0..7: loops in that mode, else holds the last frame
@@ -143,11 +169,14 @@ struct Level {
     // cell loses the old tile's flags and takes the new one's (FUN_0064c860).
     struct Patch { int x, y; const d2d::dt1::Tile* old_tile; const d2d::dt1::Tile* tile; };
     std::vector<Patch> patches;
-    // Walkability: every floor/wall tile's 5x5 subtile flags OR'd onto
-    // its cell, (width*5) x (height*5), row-major. 0x01 blocks walking,
-    // 0x08 blocks player walking (DT1 subtile flag bits).
+    // Collision, as game.exe's room grids hold it (u16 a subtile): every
+    // floor/wall tile's 5x5 subtile flags OR'd onto its cell, (width*5) x
+    // (height*5), row-major — 0x01 blocks walking, 0x08 a player's, 0x04
+    // missiles (DT1 subtile flag bits) — and the objects' stamps (Npc::stamp:
+    // 0x400 objects, 0x800 doors, 0x8000 the unblocking). Units aren't in
+    // it: they stamp the Crowd (ai.hpp).
     // Mutable: a door's footprint comes and goes as it's used (set_footprint).
-    mutable std::vector<std::uint8_t> walk;
+    mutable std::vector<std::uint16_t> walk;
     std::vector<Npc> npcs;                             // what its DS1 places (and Cain)
     // The levels next to it in the act, (dx, dy) = their origin minus
     // ours, in cells. Past this map's edge, collision and
@@ -161,13 +190,13 @@ struct Level {
     // `mask` 0x09 walls for walkers; 0x04 the missile barrier (the DT1
     // subtile bit missiles stop on; walk-only 0x01 cells, like the Fallen
     // camp's, let them by).
-    [[nodiscard]] bool blocked(float x, float y, std::uint8_t mask = 0x09) const {
+    [[nodiscard]] bool blocked(float x, float y, std::uint16_t mask = 0x09) const {
         if (!inside(x, y))
             for (const auto& neighbour : nearby)
                 if (neighbour.level->inside(x - float(neighbour.dx), y - float(neighbour.dy))) return neighbour.level->blocked_here(x - float(neighbour.dx), y - float(neighbour.dy), mask);
         return blocked_here(x, y, mask);
     }
-    [[nodiscard]] bool blocked_here(float x, float y, std::uint8_t mask = 0x09) const {
+    [[nodiscard]] bool blocked_here(float x, float y, std::uint16_t mask = 0x09) const {
         const int width = ds1.width() * 5, height = ds1.height() * 5;
         const int screen_x = int(std::floor(x * 5)), screen_y = int(std::floor(y * 5));
         if (screen_x < 0 || screen_y < 0 || screen_x >= width || screen_y >= height || walk.empty()) return true;
@@ -175,14 +204,24 @@ struct Level {
     }
     // Can a small unit (the player, the merc, NPCs) stand at (x, y)? Its
     // collision pattern is a plus: the subtile and its four neighbours,
-    // any of them walls (0x09) blocks — FUN_0064d100, collision pattern
-    // 1 (FUN_0064d870). Off the map counts as blocked, like the game's
-    // 0x27 outside a room.
-    // Units don't stamp themselves in; moving ones block each other through
-    // the Crowd (ai.hpp).
-    [[nodiscard]] bool unit_blocked(float x, float y) const {
-        return blocked(x, y) || blocked(x - 0.2f, y) || blocked(x + 0.2f, y)
-            || blocked(x, y - 0.2f) || blocked(x, y + 0.2f);
+    // any of them with a bit of `mask` blocks — FUN_0064d4e0, collision
+    // pattern 1 (FUN_0064d910). The default is a player's grid part
+    // (0x1c09 less the units' 0x1000): walls, player walls, doors and
+    // objects. Off the map counts as blocked, like the game's 0x27 outside
+    // a room. Units block through the Crowd (ai.hpp unit_blocked).
+    [[nodiscard]] bool unit_blocked(float x, float y, std::uint16_t mask = 0x0c09) const {
+        return blocked(x, y, mask & 0x0fff) || blocked(x - 0.2f, y, mask & 0x0fff) || blocked(x + 0.2f, y, mask & 0x0fff)
+            || blocked(x, y - 0.2f, mask & 0x0fff) || blocked(x, y + 0.2f, mask & 0x0fff);
+    }
+    // A unit's grid test by its shape: the plus, or its SizeX box
+    // (FUN_0064d7c0: the subtile less half the size).
+    [[nodiscard]] bool unit_blocked(float x, float y, const UnitShape& shape) const {
+        if (!shape.box()) return unit_blocked(x, y, shape.mask);
+        const float left = std::floor(x * 5) - float(shape.size / 2), top = std::floor(y * 5) - float(shape.size / 2);
+        for (int row = 0; row < shape.size; ++row)
+            for (int column = 0; column < shape.size; ++column)
+                if (blocked((left + float(column) + 0.5f) / 5, (top + float(row) + 0.5f) / 5, shape.mask & 0x0fff)) return true;
+        return false;
     }
     // The nearest spot a unit can stand, searching outward a subtile per
     // ring (FUN_0064dea0 does it per room for spawns).
@@ -245,7 +284,7 @@ struct Level {
     std::vector<std::size_t> laid;                     // the order (list indices) relevel last laid its rooms in, empty: list order
     // The walk grid as the tiles alone make it (finish_level, before any
     // footprint): what room_objects' collision starts from.
-    std::vector<std::uint8_t> tile_walk;
+    std::vector<std::uint16_t> tile_walk;
     // How many of `npcs` the level has before any room populates (off-room
     // units, Tristram Cain): a new game cuts `npcs` back to these.
     std::size_t npc_base = 0;

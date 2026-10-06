@@ -36,7 +36,7 @@ std::vector<std::pair<float, float>> player_walk(const Level& level, float x, fl
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
     const std::pair from{ sub(x), sub(y) };
     const auto steps = d2d::rules::player_path(from.first, from.second, sub(goal_x), sub(goal_y), to_unit ? 1 : 0, to_unit, [&](int subtile_x, int subtile_y) {
-        return level.unit_blocked(centre(subtile_x), centre(subtile_y)) || crowd.at(centre(subtile_x), centre(subtile_y), self);
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y), self ? self->shape : UnitShape{}) || crowd.at(centre(subtile_x), centre(subtile_y), self);
     });
     // ponytail: a point given twice (the toward pather's cut-short subtile)
     // is dropped; game.exe spends a frame on it (FUN_00650090).
@@ -53,13 +53,21 @@ std::vector<std::pair<float, float>> monster_walk(const Level& level, const Unit
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
     const auto steps = d2d::rules::monster_path(sub(unit.x), sub(unit.y), sub(unit.goal_x), sub(unit.goal_y), unit.to_unit, [&](int subtile_x, int subtile_y) {
-        return level.unit_blocked(centre(subtile_x), centre(subtile_y)) || crowd.at(centre(subtile_x), centre(subtile_y), &unit);
+        return level.unit_blocked(centre(subtile_x), centre(subtile_y), unit.shape) || crowd.at(centre(subtile_x), centre(subtile_y), &unit);
     });
     std::vector<std::pair<float, float>> points;
     std::pair last{ sub(unit.x), sub(unit.y) };
     for (const auto& step : steps)                                // ponytail: a repeated point is dropped (game.exe: a frame on it)
         if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
     return points;
+}
+
+// FUN_00648eb0: a door's 0x800 (BlocksVis) under the unit's test shape
+// (FUN_0064d9b0) — what an opendoors monster (mask 0x3401) walks onto.
+bool on_door(const Level& level, const UnitState& unit) {
+    UnitShape door_test = unit.shape;
+    door_test.mask = 0x0800;
+    return level.unit_blocked(unit.x, unit.y, door_test);
 }
 
 }  // namespace
@@ -148,7 +156,7 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
 
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
-    for (const auto& npc : level.npcs) out.push_back({ .x = npc.x, .y = npc.y });
+    for (const auto& npc : level.npcs) out.push_back({ .x = npc.x, .y = npc.y, .shape = npc.shape });
     return out;
 }
 
@@ -237,7 +245,7 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
     monster.step = 0;
     monster.end_x = to_x; monster.end_y = to_y;
     monster.steps = d2d::rules::monster_path(subtile(unit.x), subtile(unit.y), to_x, to_y, at_foe, [&](int at_x, int at_y) {
-        return level.unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit);
+        return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
     });
     return !monster.steps.empty();
 }
@@ -272,7 +280,7 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
     }
     if (going) return true;
     const float centre_x = (float(subtile(unit.x)) + 0.5f) / 5, centre_y = (float(subtile(unit.y)) + 0.5f) / 5;
-    if (!level.unit_blocked(centre_x, centre_y)) { unit.x = centre_x; unit.y = centre_y; }
+    if (!level.unit_blocked(centre_x, centre_y, unit.shape)) { unit.x = centre_x; unit.y = centre_y; }
     monster.steps.clear();
     monster.step = 0;
     return false;
@@ -499,9 +507,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // The driver's first step (FUN_005b10e0 → FUN_005b0f50): with opendoors
     // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
     // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
-    // ponytail: the 0x800 test taken as true (its own footprint stamps it;
-    // a moving path's cached word, path +0x54, isn't traced).
-    if (type_info.open_doors && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
+    // ponytail: the word read now, not a moving path's cached +0x54.
+    if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
     const int x = subtile(unit.x), y = subtile(unit.y);
     const auto [target, best, nearest] = search_target(game_data, level, monster, foes, now_ms, seen);
     monster.aware = target != nullptr;
@@ -902,7 +909,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // foe it found is the frame's foe from the next frame on.
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
-        if (type_info.open_doors && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
+        if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
             if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
             monster.next_act = now_ms + 5 * 40;
             return false;
@@ -927,7 +934,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const float region_x = std::floor(unit.x / 8) * 8, region_y = std::floor(unit.y / 8) * 8;
                 for (int tries = 0; tries < 20; ++tries) {
                     const float next_x = region_x + float(rng(80)) / 10, next_y = region_y + float(rng(80)) / 10;
-                    if (level.unit_blocked(next_x, next_y)) continue;
+                    if (level.unit_blocked(next_x, next_y, unit.shape)) continue;
                     unit.x = next_x; unit.y = next_y; unit.walking = false;
                     if (low && rng(100) < 25) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
                     monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
@@ -992,10 +999,8 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
     if (dist < 0.01f) return true;
     unit.dir = direction16(dx, dy);
     const float fraction = std::min(step, dist) / dist, next_x = unit.x + dx * fraction, next_y = unit.y + dy * fraction;
-    if (level.unit_blocked(next_x, next_y)) return false;
-    for (const auto* other : crowd.units)                   // into someone: blocked; out of an overlap: fine
-        if (other != &unit && std::abs(other->x - next_x) < 0.3f && std::abs(other->y - next_y) < 0.3f
-            && std::hypot(other->x - next_x, other->y - next_y) < std::hypot(other->x - unit.x, other->y - unit.y)) return false;
+    if (level.unit_blocked(next_x, next_y, unit.shape)) return false;
+    if (crowd.at(next_x, next_y, &unit) && !crowd.at(unit.x, unit.y, &unit)) return false;   // into someone: blocked; out of an overlap: fine
     unit.x = next_x; unit.y = next_y;
     return true;
 }
@@ -1036,6 +1041,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.x = monster.home_x = x;
     monster.unit.y = monster.home_y = y;
     monster.unit.dir = rng(16);
+    monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng);
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
@@ -1118,7 +1124,7 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
         if (dist > 0.05f) dir = direction16(dx, dy);
         if (dist <= step) { x = target_x; y = target_y; step -= dist; path.erase(path.begin()); continue; }
         const float next_x = x + dx / dist * step, next_y = y + dy / dist * step;
-        if (level.unit_blocked(next_x, next_y) || crowd.at(next_x, next_y, &unit)) { path.clear(); break; }
+        if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) { path.clear(); break; }
         x = next_x; y = next_y;
         break;
     }

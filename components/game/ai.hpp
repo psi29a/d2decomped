@@ -36,6 +36,7 @@ namespace d2d::game {
 // patrolling NPCs walk their DS1 path, pausing at each point.
 struct UnitState {
     float x = 0, y = 0;
+    UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
     int dir = 0;
     bool walking = false;
     std::size_t next = 0;             // path point being walked to
@@ -56,18 +57,33 @@ struct UnitState {
 
 std::vector<UnitState> npc_start(const Level& level);
 
-// The units moving about (the player, the merc, patrolling NPCs): each
-// blocks the others within 0.3 cells (1.5 subtiles) of its centre, so
-// routes go round them and walkers wait. Standing NPCs are already in
-// the walk grid.
-// ponytail: centres only — D2 stamps each unit's collision pattern with
-// its own bits (0x800 monsters, 0x1000 players) and walkers test mask
-// 0x1c09.
+// The units (the player, the merc, NPCs, monsters near) as game.exe's
+// collision sees them: each stamps its footprint bit (UnitShape: 0x1000,
+// or 0x2000 for the merc and the cow) on its subtile, or the plus for
+// pattern 2 / 4; a mover is blocked where its own test shape (the plus, or
+// its SizeX box) meets a footprint its mask holds. game.exe lifts the
+// mover's own stamp first (FUN_00649970). So a player (0x1c09) walks
+// through its merc; monsters (0x3c01) don't. Own bits (0x80 player, 0x100
+// monster) are in no walker's mask, so aren't kept.
 struct Crowd {
     std::vector<const UnitState*> units;
     [[nodiscard]] bool at(float x, float y, const UnitState* self) const {
-        for (const auto* other : units)
-            if (other != self && std::abs(other->x - x) < 0.3f && std::abs(other->y - y) < 0.3f) return true;
+        static const UnitShape player;
+        const UnitShape& mover = self ? self->shape : player;
+        const int sub_x = int(std::floor(x * 5)), sub_y = int(std::floor(y * 5));
+        const int half = mover.size / 2;
+        auto covers = [&](int cell_x, int cell_y) {
+            if (mover.box()) return cell_x >= sub_x - half && cell_x < sub_x - half + mover.size && cell_y >= sub_y - half && cell_y < sub_y - half + mover.size;
+            return std::abs(cell_x - sub_x) + std::abs(cell_y - sub_y) <= 1;
+        };
+        for (const auto* other : units) {
+            if (other == self || !(other->shape.bit() & mover.mask)) continue;
+            const int other_x = int(std::floor(other->x * 5)), other_y = int(std::floor(other->y * 5));
+            if (covers(other_x, other_y)) return true;
+            if (other->shape.box())
+                for (const auto& [step_x, step_y] : { std::pair{ 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } })
+                    if (covers(other_x + step_x, other_y + step_y)) return true;
+        }
         return false;
     }
 };

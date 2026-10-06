@@ -3,6 +3,7 @@
 // (apps/d2d: SDL, sound, sprites, fonts), so a standalone server links
 // just this library. With the game's MPQs (D2_MPQ_DIR, as test_outdoor)
 // it loads GameData and plays a new character for a second.
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>
@@ -46,6 +47,16 @@ int main() {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    // Collision shapes (FUN_006484e0): the Rogue merc stamps 0x2000 and
+    // opens doors, Akara 0x1000; a player walks through the merc, not back.
+    if (data->mon_npc.size() > 0x10f) {                  // MonStats: the patch's
+        const auto rogue = data->mon_npc[0x10f].shape, akara = data->mon_npc[std::size_t(d2d::rules::monster_ids::kAkara)].shape;
+        assert(rogue.bit() == 0x2000 && rogue.mask == 0x3401 && akara.bit() == 0x1000);
+        UnitState player{ .x = 10.1f, .y = 10.1f }, merc{ .x = 10.3f, .y = 10.1f, .shape = rogue };
+        const Crowd crowd{ { &player, &merc } };
+        assert(!crowd.at(player.x, player.y, &player) && crowd.at(merc.x, merc.y, &merc));
+        assert(!crowd.at(10.5f, 10.1f, &merc));          // two subtiles off: clear of the player's subtile
+    }
     // A server's GameData keeps the tiles' walk flags, not their pixels.
     for (const auto& archive : data->town.dt1s)
         for (const auto& tile : archive.tiles()) assert(tile.pixels.empty());

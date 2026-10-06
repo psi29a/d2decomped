@@ -597,7 +597,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (blow.knockback) {                                   // a step straight back, if there's room
             const float dx = target.unit.x - player.x, dy = target.unit.y - player.y, distance = std::max(std::hypot(dx, dy), 0.01f);
             const float next_x = target.unit.x + dx / distance * 0.6f, next_y = target.unit.y + dy / distance * 0.6f;
-            if (!level->unit_blocked(next_x, next_y)) { target.unit.x = next_x; target.unit.y = next_y; }
+            if (!level->unit_blocked(next_x, next_y, target.unit.shape)) { target.unit.x = next_x; target.unit.y = next_y; }
         }
     }
 
@@ -1522,7 +1522,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             const int foe_x = sub(foe.unit.x), foe_y = sub(foe.unit.y);
             if ((foe_x == merc_x && foe_y == merc_y) || std::abs(foe_x - merc_x) > 100 || std::abs(foe_y - merc_y) > 100) return false;   // FUN_00649970
             const auto points = d2d::rules::toward_path(merc_x, merc_y, foe_x, foe_y, 5, 1, [&](int at_x, int at_y) {
-                return level->unit_blocked(centre(at_x), centre(at_y)) || crowd.at(centre(at_x), centre(at_y), &unit);
+                return level->unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
             });
             return std::ranges::any_of(points, [&](const std::pair<int, int>& point) { return point != std::pair(merc_x, merc_y); });
         };
@@ -1544,7 +1544,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         };
         std::vector<std::pair<float, float>> route;
         auto try_move = [&](const d2d::rules::MercMove& move) {          // the move's path, by its type (FUN_00649970)
-            auto blocked = [&](int x, int y) { return level->unit_blocked(centre(x), centre(y)) || crowd.at(centre(x), centre(y), &unit); };
+            auto blocked = [&](int x, int y) { return level->unit_blocked(centre(x), centre(y), unit.shape) || crowd.at(centre(x), centre(y), &unit); };
             const int steps = move.steps ? move.steps : 5;
             std::vector<std::pair<int, int>> points;
             if (move.type == 7) points = d2d::rules::player_path(merc_x, merc_y, move.x, move.y, 0, false, blocked, steps);
@@ -1583,7 +1583,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 auto& seed = room_seeds[std::size_t(spawning.room)];
                 for (int tries = 0; tries < 20; ++tries) {
                     const int x = room.x * 5 + 1 + seed(room.width * 5 - 1), y = room.y * 5 + 1 + seed(room.height * 5 - 1);
-                    if (level->unit_blocked(centre(x), centre(y))) continue;
+                    if (level->unit_blocked(centre(x), centre(y), unit.shape)) continue;
                     unit.x = centre(x); unit.y = centre(y);
                     break;
                 }
@@ -2456,6 +2456,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         auto& monster = pet.monster;
         monster.type = type;
         monster.npc = game_data->mon_npc[std::size_t(type)];
+        monster.unit.shape = monster.npc.shape;
         const auto& type_info = game_data->monsters.types[std::size_t(type)];
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
