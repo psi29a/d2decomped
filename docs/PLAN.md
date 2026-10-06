@@ -26,7 +26,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-09-28.
+Status as of 2026-10-06.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -52,10 +52,9 @@ Status as of 2026-09-28.
    done, the `bin/` import will be dropped from the launcher — redistributing
    Blizzard's binaries is not permitted, so no release will include them.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
-   render tiles. *Done for Act 1's start:* frontend, town, NPCs, panels,
-   trade and waypoints (no travel yet); leaving camp into a generated
-   Blood Moor and the Den of Evil, saving. Left: the other Act 1 levels,
-   waypoint travel.
+   render tiles. *Done for Act 1:* frontend, town, NPCs, panels, trade,
+   waypoints, all 38 levels (maps, monsters, objects and drops match
+   game.exe), the six quests, saving. Left: Acts 2–5.
 6. **Combat + AI**: actor state machine, packet-equivalent events,
    monster AI from game.exe. *Implemented:* monsters and their fights,
    gear in combat, drops, experience, the merc, and the skills (phases 0–6
@@ -576,7 +575,7 @@ patches (FUN_0064c860), in the order the player brings rooms up (relevel;
 `diff_drlg.py 1-10 <level> collision`, shuffled order, levels 2–39 pass);
 ponytail: units, warps and object groups stay as list order made them. Still open: object drops on the shared rng, drop
 scatter, the Tristram portal position, the HC smoke's
-extra life. Netplay: plan in docs/design/net-join-plan.md (planning only).
+extra life. Netplay: plan in docs/design/net-join-plan.md (built since: PRs #8–#12).
 Quest log (2026-10-03): all six Act 1 records, and the panel as game.exe
 draws it (tabs by act reached, held icons and the questdone plate, the
 pick on opening, hover texts, FontFormal11) and the Quest Log button a

@@ -13,10 +13,11 @@ data we own, and lets us adventure together.
 
 ## What to expect
 
-D2Decomp is an unfinished, single-player project—not the original game or a
+D2Decomp is an unfinished project—not the original game or a
 complete replacement. All of Act I plays through: character setup, the Rogue
 Encampment, every area from the Blood Moor to Andariel's lair, and all six
-quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
+quests. Act II isn't built yet, so Warriv's caravan goes nowhere. d2d can also join
+an Act I game hosted by the original game over TCP/IP.
 
 | Area | Progress |
 |---|---:|
@@ -28,7 +29,7 @@ quests. Act II isn't built yet, so Warriv's caravan goes nowhere.
 | Acts II–V | Not started |
 | Single player, softcore and hardcore | ✅ Runs as a one-player client/server, like the original |
 | Multiplayer over TCP/IP (a d2d host) | Not started |
-| Joining a game hosted by the original | Not started |
+| Joining a game hosted by the original | 🚧 Act I together: party, trade, portals, waypoints, chat; live checks pending |
 | Dedicated server | Not started |
 
 ## Bring your own game
@@ -54,9 +55,8 @@ headless mode and local control channel for scripted play and testing.
 Small comforts, each switchable off with `--toggle`: gold is picked up by
 walking over it, and roofs turn see-through around your character.
 
-**Planned:** continue through the rest of the campaign; add multiplayer and
-dedicated-server play, including joining a game hosted by the original
-game; and support controllers, high-DPI displays, and remappable controls. These features are not implemented yet.
+**Planned:** continue through the rest of the campaign; let d2d host multiplayer
+games and run a dedicated server; and support controllers, high-DPI displays, and remappable controls. These features are not implemented yet.
 
 ## Build and run
 
@@ -67,6 +67,7 @@ StormLib, and Qt 6.5+ for the launcher.
 cmake -S . -B build -G Ninja
 cmake --build build
 build/apps/d2d/d2d --data /path/to/your/MPQ-folder
+build/apps/d2d/d2d --join 192.168.1.10   # an original game's TCP/IP host, your LAN only
 ```
 
 d2d looks for the game data in this order, and the first hit wins:
