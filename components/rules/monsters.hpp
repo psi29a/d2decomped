@@ -636,7 +636,7 @@ std::vector<std::pair<int, int>> search_path(int x, int y, int to_x, int to_y, b
         if (node.estimate == 0) break;
         const P from = node.at;
         bool spent = false;
-        for (const P off : { P{ -1, -1 }, P{ -1, 1 }, P{ 1, -1 }, P{ 1, 1 }, P{ -1, 0 }, P{ 0, -1 }, P{ 1, 0 }, P{ 0, 1 } }) {
+        for (const P& off : { P{ -1, -1 }, P{ -1, 1 }, P{ 1, -1 }, P{ 1, 1 }, P{ -1, 0 }, P{ 0, -1 }, P{ 1, 0 }, P{ 0, 1 } }) {
             const P next{ from.first + off.first, from.second + off.second };
             if (!blocked(next.first, next.second) && !relax(index, next)) { spent = true; break; }
         }

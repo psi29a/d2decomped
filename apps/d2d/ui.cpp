@@ -62,9 +62,9 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
     if (npc_info.hc_idx == monster_ids::kWarriv && east) entries = { 0xd35, 0xd36 };
     if (npc_info.hc_idx == monster_ids::kCharsi && imbue) entries = { 0xd35, 0xd06, 0xfb1 };
     if (!resurrect.empty() && std::ranges::find(d2d::rules::kMercNpcs, npc_info.hc_idx) != d2d::rules::kMercNpcs.end()) {
-        auto at = std::ranges::find(entries, 0xd45);
-        if (at == entries.end()) at = std::ranges::find(entries, 0);
-        if (at != entries.end()) { std::shift_right(at, entries.end(), 1); *at = 0x1507; }
+        auto slot = std::ranges::find(entries, 0xd45);
+        if (slot == entries.end()) slot = std::ranges::find(entries, 0);
+        if (slot != entries.end()) { std::shift_right(slot, entries.end(), 1); *slot = 0x1507; }
     }
     for (const auto id : entries)
         if (id && !(id == 0xfb4 && unidentified == 0))
@@ -86,8 +86,8 @@ NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int 
 std::string resurrect_line(const Scene& scene, int merc_type, int name_index, int cost) {
     const auto merc = scene.mercs.find(merc_type);
     std::string line = string_id(scene, 0x58a8);
-    if (const auto at = line.find("%s"); at != line.npos) line.replace(at, 2, merc != scene.mercs.end() ? merc_name(scene, merc->second, name_index) : std::string("?"));
-    if (const auto at = line.find("%d"); at != line.npos) line.replace(at, 2, std::to_string(cost));
+    if (const auto found_at = line.find("%s"); found_at != line.npos) line.replace(found_at, 2, merc != scene.mercs.end() ? merc_name(scene, merc->second, name_index) : std::string("?"));
+    if (const auto found_at = line.find("%d"); found_at != line.npos) line.replace(found_at, 2, std::to_string(cost));
     return line;
 }
 
