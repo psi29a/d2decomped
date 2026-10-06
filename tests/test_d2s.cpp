@@ -143,7 +143,7 @@ int main() {
                 col("SetItems", "chrtransform", false), col("MagicPrefix", "transformcolor", true),
                 col("MagicSuffix", "transformcolor", true), col("AutoMagic", "transformcolor", true),
                 d2d::compcode::gem_colours(tab("ItemTypes"), tab("misc"), tab("gems")) };
-            int saves = 0;
+            int saves = 0, merc_gear = 0;
             for (const auto& entry : fs::directory_iterator(saves_env)) {
                 if (entry.path().extension() != ".d2s") continue;
                 std::ifstream file(entry.path(), std::ios::binary);
@@ -161,6 +161,12 @@ int main() {
                 assert(stats.fixed(d2d::d2s::kMaxLife) > 0 && stats.get(d2d::d2s::kVit) > 0);
                 assert(bytes[stats.items_at] == std::byte{'J'} && bytes[stats.items_at + 1] == std::byte{'M'});
                 const auto items = d2d::d2s::parse_items(bytes, item_tables);
+                // The merc's gear (after "jf"): worn on the head, torso or hands.
+                if (hdr.merc_seed) {
+                    const auto merc_items = d2d::d2s::parse_merc_items(bytes, item_tables);
+                    for (const auto& item : merc_items) assert(item.location == 1 && (item.slot == 1 || item.slot == 3 || item.slot == 4 || item.slot == 5));
+                    merc_gear += int(merc_items.size());
+                }
                 // The look, from what's worn, is the header's (compcode::look).
                 {
                     std::vector<d2d::compcode::Worn> worn;
@@ -242,7 +248,7 @@ int main() {
                 const auto if_at = std::ranges::search(written, std::array{ std::byte{ 'i' }, std::byte{ 'f' } }).begin() - written.begin();
                 assert(written[std::size_t(if_at) + 2 + 0x1E] == std::byte{ 'J' } && written[std::size_t(if_at) + 3 + 0x1E] == std::byte{ 'M' });
             }
-            std::printf("items: %d real saves parsed\n", saves);
+            std::printf("items: %d real saves parsed, %d merc items\n", saves, merc_gear);
             assert(saves > 0);
         }
     }

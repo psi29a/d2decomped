@@ -592,7 +592,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
 auto World::enter(const Character& entering) -> void {
         character.character_class = entering.character_class; character.name = entering.name;
         character.appearance = entering.appearance; character.items = entering.items; character.stats = entering.stats; character.panel = entering.panel;
-        character.expansion = entering.expansion; character.header = entering.header;
+        character.expansion = entering.expansion; character.header = entering.header; character.merc_items = entering.merc_items;
         // A corpse in the save (its corpse list, FUN_00533850) lies by the
         // camp's start.
         // ponytail: where game.exe puts it isn't traced; the save's x / y

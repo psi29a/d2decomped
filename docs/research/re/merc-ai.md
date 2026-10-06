@@ -125,6 +125,20 @@ stats: Str / Dex + (per level × d >> 3) (10 at least), life (HP + HP/Lvl ×
 d, 40 at least), defence, AR, damage (+ Dmg/Lvl × d >> 3) and all four
 resistances Resist + (Resist/Lvl × d >> 2).
 
+## Its gear
+
+The save's "jf" list (after the corpse list): a hired merc's "JM" item list,
+what it wears (head, torso, the hands); `d2s::parse_merc_items`. Its items'
+stats join its base as a unit's do, read as game.exe reads any unit's:
+
+- damage (FUN_0057b420): a two-handed weapon reads stats 0x17 / 0x18 (its
+  base damage there, the bow's or polearm's on top); a one-handed weapon or
+  none 0x15 / 0x16, which hold none of its base (1 / 2 at least: an Act 3
+  merc's sword hits for its own damage only);
+- attack rating (a monster's, combat.md): stat 19 + dex × 5, × (100 + 119) %;
+- defence (FUN_006223f0): stat 31 + dex / 4, + skill_armor_percent;
+- resistances: base + items', the penalty, −100 .. 75 + max-resist (95).
+
 ## In d2d
 
 `Fight::merc_turn` runs the think, then on an attack the attack think: a
@@ -160,7 +174,7 @@ setups as mode 5's: 30,000 cases equal).
 
 - Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
   Freeze, Might) count as running for the pick but do nothing.
-- Its items aren't counted (stats, resistances).
+- Its items' life and mana aren't on its life; it doesn't block.
 - The target's candidates go in fight order, not the near rooms' units;
   FUN_005dd510's path test and FUN_005dc970's state 0x92 test are left out.
   Skill 0x29's distance is the gap + 1, not FUN_006416d0.

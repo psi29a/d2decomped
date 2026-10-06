@@ -1306,22 +1306,79 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
     }
 
 auto Fight::merc_fighter() const -> d2d::rules::Fighter {
-        auto fighter = d2d::rules::simple_fighter(merc_st.dmg_min, merc_st.dmg_max, merc_st.attack_rating, merc_st.def);
-        // Its four resistances (FUN_00572840) less the difficulty's penalty:
-        // FUN_0057be00 takes it off for a player or a hireling (ctx +0x14 0:
-        // the defender isn't a monster outside FUN_0063ee90's five classes),
-        // DifficultyLevels ResistPenalty in LoD, then -100..75 (no max-resist
-        // stat on a merc).
-        const int difficulty = std::clamp(character.header.active_difficulty(), 0, 2);
-        const auto penalty = int(character.header.expansion() ? game_data->resist_penalty[std::size_t(difficulty)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(difficulty)]);
-        fighter.res.fill(std::clamp(merc_st.resist + penalty, -100, 75));
-        // A self cast running: its aurastats (Frozen Armor's skill_armor_percent, 171).
+        using namespace d2d::d2s;
+        // Its stats as a unit's (FUN_00572840's base, its worn items'
+        // props, sockets and set bonuses summed, as a player's are), read as
+        // game.exe reads any unit's:
+        // - damage (FUN_0057b420): a two-handed weapon reads stats 0x17 /
+        //   0x18, where the level-up put its base damage; a one-handed one or
+        //   none 0x15 / 0x16, which it doesn't (1 / 2 at least); the weapon's
+        //   own damage and enhanced damage as make_fighter has them;
+        // - attack rating (combat.md, a monster's): stat 19 + dex x 5,
+        //   x (100 + stat 119) / 100;
+        // - defence (FUN_006223f0): stat 31 (its base, its items' own
+        //   defence after their enhanced defence) + dex / 4, + skill_armor_percent
+        //   (Frozen Armor);
+        // - resistances: its base + its items', less the difficulty's penalty
+        //   (FUN_0057be00 takes it off a player or a hireling: ctx +0x14 0),
+        //   DifficultyLevels ResistPenalty in LoD, -100 .. 75 + max-resist
+        //   (95 at most).
+        // ponytail: items' life and mana aren't on its life; block isn't rolled.
+        d2d::rules::StatSum sum{}, weapon_sum{};
+        const Item *weapon = nullptr, *shield = nullptr;
+        std::int64_t item_def = 0, per_level = 0;
+        auto add = [](d2d::rules::StatSum& into, const std::vector<ItemProp>& props) {
+            for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
+        };
+        for (const auto& item : character.merc_items) {
+            if (item.location != item_location::kEquipped) continue;
+            add(sum, item.props);
+            for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
+            add(sum, set_bonus_props(*game_data, character.merc_items, item));
+            std::int64_t enhanced_defense = 0;
+            for (const auto& prop : item.props) {
+                if (prop.stat == kArmorPercent) enhanced_defense += prop.value;
+                if (prop.stat == kArmorPerLevel) per_level += prop.value;
+            }
+            if (item.defense > 0) item_def += item.defense * (100 + enhanced_defense) / 100;
+            if (item.slot != body_location::kRightArm && item.slot != body_location::kLeftArm) continue;
+            const auto info = game_data->rules.item_info.find(item.code);
+            const auto found = game_data->rules.item_base.find(item.code);
+            if (info == game_data->rules.item_info.end() || found == game_data->rules.item_base.end()) continue;
+            if (info->second.kind == 2 && (!weapon || item.slot == body_location::kRightArm)) weapon = &item;
+            if (info->second.kind == 1 && found->second.block > 0) shield = &item;
+        }
+        if (weapon) {
+            add(weapon_sum, weapon->props);
+            for (const auto& socketed : weapon->socketed_items) add(weapon_sum, socket_props(*game_data, *weapon, socketed));
+        }
+        const auto weapon_info = weapon ? game_data->rules.item_info.find(weapon->code) : game_data->rules.item_info.end();
+        if (weapon_info != game_data->rules.item_info.end() && weapon_info->second.two_handed) {
+            sum[kMinDamage] += merc_st.dmg_min;                           // stats 0x17 / 0x18
+            sum[kMaxDamage] += merc_st.dmg_max;
+        }
+        sum[kToHit] += merc_st.attack_rating;
+        Stats stats;
+        stats.values[kLevel] = merc_st.level;
+        stats.values[kStr] = merc_st.str + sum[kStr];
+        stats.values[kDex] = merc_st.dex + sum[kDex];
+        d2d::rules::ClassGains gains;
+        gains.to_hit = 35;                                                // make_fighter's (dex - 7) x 5: a monster's dex x 5
+        std::int64_t defense = merc_st.def + item_def + sum[kArmorClass] + per_level * merc_st.level / 8 + stats.values[kDex] / 4;
         if (const auto* skill = merc_buff.skill >= 0 ? game_data->skills.get(merc_buff.skill) : nullptr) {
             const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, merc_st.level, nullptr };
             for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
-                if (skill->aurastat[k] == 171)
-                    fighter.defense += fighter.defense * d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, merc_buff.level) / 100;
+                if (skill->aurastat[k] == kSkillArmorPercent)
+                    defense += defense * d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, merc_buff.level) / 100;
         }
+        const int difficulty = std::clamp(character.header.active_difficulty(), 0, 2);
+        const auto penalty = character.header.expansion() ? game_data->resist_penalty[std::size_t(difficulty)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(difficulty)];
+        std::array<int, 4> res{};
+        constexpr std::array<int, 4> kResStat{ 39, 41, 43, 45 };          // fire, lightning, cold, poison (+1: its max)
+        for (std::size_t k = 0; k < 4; ++k)
+            res[k] = int(std::clamp<std::int64_t>(merc_st.resist + sum[std::size_t(kResStat[k])] + penalty, -100, std::min<std::int64_t>(75 + sum[std::size_t(kResStat[k] + 1)], 95)));
+        auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, stats, gains, int(defense), res);
+        fighter.block = 0;
         return fighter;
     }
 
@@ -1377,7 +1434,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     const float speed = missile_speed(missile_info, merc_st.level);
                     Missile missile{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms, now_ms + std::uint32_t(missile_info.range) * 40, {} };
                     missile.to = { target.unit.x, target.unit.y };
-                    missile.min = merc_st.dmg_min; missile.max = merc_st.dmg_max; missile.attack_rating = merc_st.attack_rating; missile.level = merc_st.level; missile.friendly = true;
+                    const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
+                    missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = merc_st.level; missile.friendly = true;
                     missiles.push_back(missile);
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Jab, Bash, Stun) builds its hit as the

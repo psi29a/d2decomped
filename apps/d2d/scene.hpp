@@ -104,6 +104,7 @@ struct Scene : GameData {
     std::vector<std::vector<d2d::d2s::Item>> save_items;
     std::vector<d2d::d2s::Stats> save_stats;
     std::vector<std::vector<d2d::d2s::Item>> save_corpses;   // each save's corpse list (its items), empty: none
+    std::vector<std::vector<d2d::d2s::Item>> save_mercs;     // each save's merc's gear (after "jf")
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> flippy_sprites;
     const d2d::dc6::Sprite* flippy(const std::string& code) const;   // an item code's ground animation

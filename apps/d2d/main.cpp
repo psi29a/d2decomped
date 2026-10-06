@@ -554,6 +554,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
                     character.corpse = csu.selected < int(scene->save_corpses.size())
                                     ? scene->save_corpses[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
+                    character.merc_items = csu.selected < int(scene->save_mercs.size())
+                                        ? scene->save_mercs[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
                     character.panel = panel_stats(*scene, header, character.items, character.stats);
                     character.expansion = header.expansion();
                     character.header = header;

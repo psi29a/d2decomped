@@ -1343,12 +1343,13 @@ inline std::optional<MercOffer> merc_offer(const Tables& tables, bool expansion,
 // last at or below that level (FUN_006562f0), its stats as the level-up
 // sets them (FUN_00572840, d = level - the row's Level): life HP + HP/Lvl
 // x d (40 at least), defence and attack rating + per level x d (0 at
-// least), damage + Dmg/Lvl x d / 8 (min 0, max 1 at least), each of its
+// least), damage + Dmg/Lvl x d / 8 (min 0, max 1 at least: stats 0x17 /
+// 0x18), strength and dexterity + per level x d / 8 (10 at least), each of its
 // four resistances (stats 0x27 / 0x29 / 0x2b / 0x2d) Resist + Resist/Lvl x
 // d / 4 (0 at least).
 // The difficulty's resistance penalty goes on in the fight (Fight::merc_fighter).
 // ponytail: items the merc wears aren't counted.
-struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0, resist = 0; };
+struct MercStats { int level = 1, life = 40, def = 0, dmg_min = 1, dmg_max = 2, attack_rating = 0, resist = 0, str = 10, dex = 10; };
 inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     MercStats merc;
     const Hireling* first = nullptr;
@@ -1371,6 +1372,8 @@ inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     merc.dmg_max = std::max(1, hireling.dmg_max + hireling.dmg_per_level * level_delta / 8);
     merc.attack_rating = std::max(0, hireling.attack_rating + hireling.ar_per_level * level_delta);
     merc.resist = std::max(0, hireling.resist + hireling.resist_per_level * level_delta / 4);
+    merc.str = std::max(10, hireling.str + hireling.str_per_level * level_delta / 8);         // stats 0 / 2
+    merc.dex = std::max(10, hireling.dex + hireling.dex_per_level * level_delta / 8);
     return merc;
 }
 
