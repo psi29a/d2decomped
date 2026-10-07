@@ -657,7 +657,7 @@ lines (missile names aren't passed in). What it does:
   `Monsters::row` ignores case (Skills.txt says ClayGolem). Not yet:
   FUN_005c4470's stats, sumskills (the skeletal mage's bolt, Fire Golem's
   Holy Fire, Valkyrie's), sumumod, Skeleton / Golem Mastery
-  (FUN_005d6b60), pets' own think (they fight as the merc does, melee),
+  (FUN_005d6b60), pets' own think (NecroPet's since traced: pet-ai.md),
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 
@@ -756,8 +756,7 @@ lines (missile names aren't passed in). What it does:
   Fire round it), the totems' do-65 auras on the player in range
   (`update_fighters`), `pets_cross` (pets follow the player over a level
   edge; traps stay), devctl `debug pets`. Not traced / not built: the pet
-  AI functions (NecroPet, DruidWolf, Totem, ... — the merc's think for
-  all), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
+  AI functions but NecroPet's (DruidWolf, Totem, ...; pet-ai.md), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
   Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, the Shadow
   Warrior's own skills (it swings the owner's blow), Decoy's and the
   Shadow's look (drawn as their rows), Raven's hit count (Param5).

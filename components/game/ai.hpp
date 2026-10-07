@@ -128,7 +128,7 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
 // more than 12 behind (a warp), or stuck for 1.5 s (no route), it's put
 // next to the player.
-// ponytail: the pets' AIs aren't traced (the merc's is: rules::hireable_think).
+// ponytail: the pets' AIs but NecroPet's (rules::necropet_think) aren't traced.
 void pet_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
                  const Crowd& crowd = {});
 

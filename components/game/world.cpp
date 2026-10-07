@@ -1106,6 +1106,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
             std::tie(merc->unit.x, merc->unit.y) = level->nearest_free(free_x + 1, free_y + 1);
         }
         fight.footstep(int(std::floor(free_x * 5)), int(std::floor(free_y * 5)), now);   // an arrival is a footstep (FUN_00554ea0)
+        fight.warp_spot = { int(std::floor(free_x * 5)), int(std::floor(free_y * 5)) };
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);   // off what the room just made

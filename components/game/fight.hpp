@@ -201,6 +201,7 @@ struct Fight {
         int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
         int hits = 0;                              // a Raven's attacks left (0: no count)
         bool idle = false, mirror = false;         // Decoy stands; a Shadow Warrior swings the owner's blow
+        bool chase = false;                        // walking at its target (FUN_005ded40)
     };
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
@@ -277,6 +278,9 @@ struct Fight {
     std::array<std::pair<int, int>, 20> footsteps{};
     int   footstep_cursor = 0;
     std::uint32_t footstep_ms = 0;
+    // Where the player last arrived through a warp (player data +0x148 /
+    // +0x14c, FUN_00554ea0; subtiles): a pet near it steps out of the crowd.
+    std::pair<int, int> warp_spot{};
     // A footstep at subtile (x, y): written over the oldest, the cursor on.
     void footstep(int x, int y, std::uint32_t now_ms) {
         footsteps[std::size_t(footstep_cursor)] = { x, y };
@@ -821,6 +825,7 @@ struct Fight {
     // ponytail: every pet fights in melee with A1; the Hireable-style
     // think isn't game.exe's pet AI (not traced).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part

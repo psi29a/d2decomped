@@ -9,9 +9,11 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <level_ids.hpp>
 #include <merc.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <skills.hpp>
@@ -31,6 +33,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -1406,6 +1409,27 @@ auto Fight::merc_max_life() const -> int {
                                               + std::int64_t(merc_st.life) * gear.sum[d2d::d2s::kMaxLifePercent] / 100, 1));
     }
 
+// A think's move as a path by its type (FUN_00649970) from subtile
+// (from_x, from_y): the cells to walk, empty when none.
+namespace {
+auto move_route(const Level& level, const UnitState& unit, int from_x, int from_y, const d2d::rules::MercMove& move, const Crowd& crowd)
+    -> std::vector<std::pair<float, float>> {
+    auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+    auto blocked = [&](int x, int y) { return level.unit_blocked(centre(x), centre(y), unit.shape) || crowd.at(centre(x), centre(y), &unit); };
+    const int steps = move.steps ? move.steps : 5;
+    std::vector<std::pair<int, int>> points;
+    if (move.type == 7) points = d2d::rules::player_path(from_x, from_y, move.x, move.y, 0, false, blocked, steps);
+    else if (move.type == 1) points = d2d::rules::search_path(from_x, from_y, move.x, move.y, false, blocked);
+    else if (move.type == 0xf) points = d2d::rules::wall_path(from_x, from_y, move.x, move.y, steps, false, blocked);
+    else points = d2d::rules::monster_path(from_x, from_y, move.x, move.y, false, blocked, steps);
+    std::vector<std::pair<float, float>> route;
+    std::pair last{ from_x, from_y };
+    for (const auto& point : points)
+        if (point != last) { route.emplace_back(centre(point.first), centre(point.second)); last = point; }
+    return route;
+}
+}  // namespace
+
 auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town) -> void {
         auto& unit = merc->unit;
         const auto set = [&](std::string_view mode) {
@@ -1543,18 +1567,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             return 0;
         };
         std::vector<std::pair<float, float>> route;
-        auto try_move = [&](const d2d::rules::MercMove& move) {          // the move's path, by its type (FUN_00649970)
-            auto blocked = [&](int x, int y) { return level->unit_blocked(centre(x), centre(y), unit.shape) || crowd.at(centre(x), centre(y), &unit); };
-            const int steps = move.steps ? move.steps : 5;
-            std::vector<std::pair<int, int>> points;
-            if (move.type == 7) points = d2d::rules::player_path(merc_x, merc_y, move.x, move.y, 0, false, blocked, steps);
-            else if (move.type == 1) points = d2d::rules::search_path(merc_x, merc_y, move.x, move.y, false, blocked);
-            else if (move.type == 0xf) points = d2d::rules::wall_path(merc_x, merc_y, move.x, move.y, steps, false, blocked);
-            else points = d2d::rules::monster_path(merc_x, merc_y, move.x, move.y, false, blocked, steps);
-            route.clear();
-            std::pair last{ merc_x, merc_y };
-            for (const auto& point : points)
-                if (point != last) { route.emplace_back(centre(point.first), centre(point.second)); last = point; }
+        auto try_move = [&](const d2d::rules::MercMove& move) {
+            route = move_route(*level, unit, merc_x, merc_y, move, crowd);
             return !route.empty();
         };
         using Kind = d2d::rules::MercAct::Kind;
@@ -2700,6 +2714,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 set_mode(*game_data, monster, "NU", now_ms);
             }
             if (monster.mode == "GH" && now_ms < monster.mode_until) continue;
+            if (game_data->monsters.types[std::size_t(monster.type)].ai_name == "NecroPet") { necropet_turn(pet, now_ms, elapsed, crowd); continue; }
             if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) pet.target = -1;
             if (pet.target < 0) {
                 float best = 1e9f;
@@ -2743,6 +2758,121 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             }
             const std::string_view want = unit.walking ? "WL" : "NU";
             if (monster.mode != want) set_mode(*game_data, monster, want, now_ms);
+        }
+    }
+
+// A NecroPet's frame outside an attack (the golems, the Valkyrie, the
+// skeletons and mages): a walk goes on (a walk at its foe ends in reach),
+// then at its think rules::necropet_think. The foe is FUN_005dd7f0's for a
+// good monster: mode 5 over the near rooms' monsters (rules::search_near:
+// a threat of 2 or more first, else the rest, within 0x23), sight needed
+// in a preset room that isn't Outdoors, or once after a walk at a foe found
+// no path (flag 0x40); its melee is MeleeRng + 1, its line FUN_005dc640.
+// ponytail: the owner's path spot (+0x10) is the player's next path point;
+// a teleport lands by the player (game.exe: a spot in its room,
+// FUN_0054dc40); the crowd counts by merc_gap from this pet's size
+// (FUN_005e3900's order of units isn't read); a good monster's own room
+// order isn't kept (the search runs over the monsters in fight order).
+auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
+        auto& monster = pet.monster;
+        auto& unit = monster.unit;
+        const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+        const int difficulty = std::clamp(character.header.active_difficulty(), 0, 2);
+        auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+        if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) { pet.target = -1; pet.chase = false; }
+        if (unit.walking) {
+            if (pet.chase && (pet.target < 0 || std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) <= kMeleeReach)) {
+                unit.walking = false; unit.path.clear();
+            } else {
+                const int velocity = monster.mode == "RN" ? type_info.run : type_info.velocity;
+                const float pace = float(std::max(100 + monster.move_pct, 10)) * float(100 + pet.speed_pct) / 10000;
+                if (walk_on(*level, unit, cells_per_sec(float(velocity)) * pace * elapsed, crowd)) return;
+            }
+            pet.chase = false;
+            set_mode(*game_data, monster, "NU", now_ms);
+            monster.next_act = now_ms;                                    // a walk's end thinks at once (FUN_005a8030)
+        }
+        if (monster.mode != "NU" || now_ms < monster.next_act) return;
+        const int pet_x = sub(unit.x), pet_y = sub(unit.y), size = std::max(type_info.size, 1);
+        const bool town = d2d::rules::level_ids::is_town(level->id);
+        // The foe (FUN_005dd7f0 -> FUN_005dd0b0 mode 5).
+        const int room = room_of(*level, unit.x, unit.y);
+        const auto* in_room = room >= 0 ? &level->rooms[std::size_t(room)] : nullptr;
+        const bool indoor = in_room && in_room->kind == 2
+            && !(std::size_t(in_room->def) < game_data->prest_outdoors.size() && game_data->prest_outdoors[std::size_t(in_room->def)]);
+        const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
+        const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
+        std::vector<d2d::rules::NearFoe> nears;
+        for (const auto& other : monsters) {
+            const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
+            const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
+            auto& entry = nears.emplace_back(d2d::rules::NearFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other.align, other_type.threat,
+                                                                  false, true, !other.alive(), town });
+            entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
+        }
+        const auto pick = d2d::rules::search_near(nears, 2, need_sight);
+        const int found = pick.target >= 0 ? pick.target : pick.second;
+        d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(player.x), .owner_y = sub(player.y), .owner_mode = owner_mode,
+                                  .cur_x = sub(player.path.empty() ? player.x : player.path.front().first),
+                                  .cur_y = sub(player.path.empty() ? player.y : player.path.front().second),
+                                  .end_x = sub(player.path.empty() ? player.x : player.path.back().first),
+                                  .end_y = sub(player.path.empty() ? player.y : player.path.back().second),
+                                  .ring = footsteps, .cursor = footstep_cursor, .arrive_x = warp_spot.first, .arrive_y = warp_spot.second,
+                                  .town = town, .velocity = type_info.velocity, .run = type_info.run };
+        view.pets = int(std::ranges::count_if(pets, [](const Pet& other) { return other.monster.alive(); }));
+        view.crowd = int(std::ranges::count_if(pets, [&](const Pet& other) {
+            return &other != &pet && other.monster.alive() && other.where == level
+                && d2d::rules::merc_gap(pet_x, pet_y, size, sub(other.monster.unit.x), sub(other.monster.unit.y)) < 2;
+        }));
+        if (found >= 0) {
+            const auto& foe = monsters[std::size_t(found)];
+            const auto& foe_type = game_data->monsters.types[std::size_t(foe.type)];
+            view.foe = true;
+            view.foe_x = sub(foe.unit.x); view.foe_y = sub(foe.unit.y);
+            view.foe_distance = pick.target >= 0 ? pick.best : pick.second_best;
+            view.foe_melee = d2d::rules::unit_distance(view.foe_x - pet_x, view.foe_y - pet_y, size, foe_type.size) <= type_info.melee_rng + 1;
+            view.clear = d2d::rules::pet_line_clear(pet_x, pet_y, size, view.foe_x, view.foe_y,
+                                                    [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x805); });
+        }
+        auto level_at = [&](int x, int y) {                            // FUN_0061b130
+            const float cell_x = centre(x), cell_y = centre(y);
+            if (level->inside(cell_x, cell_y)) return level->id;
+            for (const auto& neighbour : level->nearby)
+                if (neighbour.level->inside(cell_x - float(neighbour.dx), cell_y - float(neighbour.dy))) return neighbour.level->id;
+            return 0;
+        };
+        std::vector<std::pair<float, float>> route;
+        auto try_move = [&](const d2d::rules::MercMove& move) {
+            if (move.foe) return found >= 0 && set_off(*level, unit, monsters[std::size_t(found)].unit.x, monsters[std::size_t(found)].unit.y, true, crowd);
+            route = move_route(*level, unit, pet_x, pet_y, move, crowd);
+            return !route.empty();
+        };
+        using Kind = d2d::rules::PetAct::Kind;
+        const auto act = d2d::rules::necropet_think(view, monster.seed, level_at, try_move);
+        monster.force_sight = act.unreachable;
+        const int aidel = type_info.diff[std::size_t(difficulty)].aidel > 0 ? type_info.diff[std::size_t(difficulty)].aidel : 15;
+        if (act.kind == Kind::moved || act.kind == Kind::chase) {
+            const auto path = act.kind == Kind::chase ? unit.path : route;
+            set_mode(*game_data, monster, act.move.mode == d2d::rules::kMonsterRun ? "RN" : "WL", now_ms);
+            unit.path = path; unit.walking = true;
+            if (act.kind == Kind::moved) { unit.goal_x = centre(act.move.x); unit.goal_y = centre(act.move.y); unit.budget = 0x14; unit.path_points = int(route.size()); unit.to_unit = false; }
+            monster.move_pct = act.move.pct;
+            pet.chase = act.kind == Kind::chase;
+            pet.target = pet.chase ? found : -1;
+        } else if (act.kind == Kind::swing && found >= 0) {
+            pet.target = found;
+            unit.dir = direction16(monsters[std::size_t(found)].unit.x - unit.x, monsters[std::size_t(found)].unit.y - unit.y);
+            unit.path.clear(); unit.walking = false;
+            set_mode(*game_data, monster, "A1", now_ms);
+            monster.struck = false;
+        } else if (act.kind == Kind::teleport) {
+            std::tie(unit.x, unit.y) = level->nearest_free(player.x + 1, player.y + 1);
+            unit.path.clear(); unit.walking = false;
+            set_mode(*game_data, monster, "NU", now_ms);
+            monster.next_act = now_ms + 5 * 40;
+        } else {
+            monster.next_act = now_ms + std::uint32_t(act.kind == Kind::stand ? act.frames : aidel) * 40;
         }
     }
 
