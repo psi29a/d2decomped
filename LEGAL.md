@@ -20,6 +20,9 @@ EU law it relies on. It is not legal advice.
   formats, rules, network messages. Test tools run functions of *your own*
   copy of the 1.14d `Game.exe` (with Unicorn) to check that our code behaves
   the same. Those tools load the program from your disk; they do not ship it.
+- **One piece of licensed artwork.** The app icon's goat skull and pentagram
+  (`apps/icon/`) are *Designed by dgim-studio / Freepik*, used under the
+  Freepik license, not the GPL. The binary "decompiling" half is ours.
 
 ## The EU Software Directive
 

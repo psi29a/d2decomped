@@ -3,8 +3,10 @@
 #include "window.hpp"
 
 #include "platform.hpp"
+#include "d2d_icon.hpp"
 #include "ui.hpp"
 
+#include <log.hpp>
 #include <userdir.hpp>
 
 #include <atomic>
@@ -12,6 +14,13 @@
 #include <vector>
 
 namespace d2d::client {
+
+void set_icon(SDL_Window* window) {
+    SDL_Surface* icon = SDL_LoadBMP_IO(SDL_IOFromConstMem(kIconBmp, sizeof kIconBmp), true);
+    if (!icon) { d2d::log::warn("icon: {}", SDL_GetError()); return; }
+    SDL_SetWindowIcon(window, icon);
+    SDL_DestroySurface(icon);
+}
 
 void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
                        std::string& text_input, bool& text_backspace,

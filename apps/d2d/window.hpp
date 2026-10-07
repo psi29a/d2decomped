@@ -17,6 +17,8 @@ namespace d2d::client {
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.
 
+void set_icon(SDL_Window* window);   // apps/icon/d2d.bmp: title bar, taskbar, dock
+
 struct Window {
     SDL_Window*   window = nullptr;
     SDL_Renderer* renderer = nullptr;
@@ -48,6 +50,7 @@ struct Window {
         window = SDL_CreateWindow("d2d", width_ * scale, height_ * scale,
                                   SDL_WINDOW_HIGH_PIXEL_DENSITY | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
         if (!window) { d2d::log::error("SDL_CreateWindow: {}", SDL_GetError()); return false; }
+        set_icon(window);
         // The launcher quits as it starts us: take the foreground it leaves
         // (Windows' focus-stealing guard otherwise leaves us behind).
         SDL_SetHint(SDL_HINT_FORCE_RAISEWINDOW, "1");

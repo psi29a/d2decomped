@@ -6,7 +6,6 @@
 #include <iso9660.hpp>
 #include <mpq.hpp>
 #include <userdir.hpp>
-#include <StormLib.h>
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -30,6 +29,8 @@
 #include <QProcess>
 #include <QProgressDialog>
 #include <QProgressBar>
+#include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
 #include <QSettings>
 #include <QStyle>
@@ -113,13 +114,6 @@ static QString default_dest() {
         QStandardPaths::AppLocalDataLocation);
     if (base.isEmpty()) base = QDir::homePath();
     return base + "/game";
-}
-
-// A PE's VS_FIXEDFILEINFO file version ("1.14.3.71"); empty if not a PE.
-static QString pe_file_version(const std::filesystem::path& file) {
-    const auto version = d2d::install::file_version(file);
-    if (!version) return {};
-    return QString("%1.%2.%3.%4").arg((*version)[0]).arg((*version)[1]).arg((*version)[2]).arg((*version)[3]);
 }
 
 static std::filesystem::path to_path(const QString& text) {
@@ -468,32 +462,19 @@ public:
 // Main window
 // ===========================================================================
 class MainWindow : public QWidget {
+    static constexpr int kWindowWidth = 560;
 public:
     MainWindow() {
         setWindowTitle(tr("D2Decomp Launcher"));
-        resize(560, 340);
-
-        // --- game data path row --------------------------------------------
-        auto* pathLabel = new QLabel(tr("Game data:"), this);
-        path_ = new QLineEdit(this);
-        auto* browse = new QPushButton(tr("Browse..."), this);
-        connect(browse, &QPushButton::clicked, this, [this] {
-            QFileDialog dlg(this, tr("Game data directory"), path_->text());
-            dlg.setFileMode(QFileDialog::Directory);
-            dlg.setOption(QFileDialog::ShowDirsOnly, true);
-            dlg.setOptions(macos_dlg_opts() | dlg.options());
-            if (dlg.exec() != QDialog::Accepted) return;
-            const auto sel = dlg.selectedFiles();
-            if (!sel.isEmpty()) browsed(sel.first());
-        });
-        connect(path_, &QLineEdit::textChanged, this, &MainWindow::refresh);
-        connect(path_, &QLineEdit::textEdited, this, [this] { source_ = "manual"; patch_path_.clear(); });
 
         status_ = new QLabel(this);
         status_->setWordWrap(true);
         fix_ = new QPushButton(tr("Fix: use LODPatch_114d.exe..."), this);
         fix_->setToolTip(tr("d2d reads the 1.14d tables from the patch installer; your install stays as it is."));
         connect(fix_, &QPushButton::clicked, this, &MainWindow::pickPatch);
+
+        install_ = new QPushButton(tr("Install / Reinstall..."), this);
+        connect(install_, &QPushButton::clicked, this, &MainWindow::openInstaller);
 
         // --- installs found on this machine --------------------------------
         found_ = new QListWidget(this);
@@ -504,10 +485,19 @@ public:
                 choose(installs_[std::size_t(row)], QString::fromStdString("detected:" + installs_[std::size_t(row)].source));
         });
         connect(found_, &QListWidget::itemDoubleClicked, use, &QPushButton::click);
-        auto* more = new QPushButton(tr("Search more places"), this);
-        connect(more, &QPushButton::clicked, this, [this] { scan(true); });
+        // Search more places = Browse: the pick joins the list, checked.
+        auto* more = new QPushButton(tr("Search more places..."), this);
+        connect(more, &QPushButton::clicked, this, [this] {
+            QFileDialog dlg(this, tr("Game data directory"), path_);
+            dlg.setFileMode(QFileDialog::Directory);
+            dlg.setOption(QFileDialog::ShowDirsOnly, true);
+            dlg.setOptions(macos_dlg_opts() | dlg.options());
+            if (dlg.exec() != QDialog::Accepted) return;
+            const auto sel = dlg.selectedFiles();
+            if (!sel.isEmpty()) browsed(sel.first());
+        });
         auto* rescan = new QPushButton(tr("Rescan"), this);
-        connect(rescan, &QPushButton::clicked, this, [this] { scan(false); });
+        connect(rescan, &QPushButton::clicked, this, &MainWindow::scan);
         foundBox_ = new QWidget(this);   // always shown: Rescan lives here
         auto* foundLayout = new QVBoxLayout(foundBox_);
         foundLayout->setContentsMargins(0, 0, 0, 0);
@@ -515,19 +505,13 @@ public:
         foundLayout->addWidget(found_);
         auto* foundRow = new QHBoxLayout;
         foundRow->addWidget(use);
+        foundRow->addWidget(install_);
         foundRow->addStretch();
         foundRow->addWidget(more);
         foundRow->addWidget(rescan);
         foundLayout->addLayout(foundRow);
 
         // --- action buttons ------------------------------------------------
-        install_ = new QPushButton(tr("Install / Reinstall..."), this);
-        connect(install_, &QPushButton::clicked, this, &MainWindow::openInstaller);
-
-        addBins_ = new QPushButton(tr("Add patch binaries..."), this);
-        connect(addBins_, &QPushButton::clicked, this,
-                &MainWindow::addPatchBinaries);
-
         fetchBins_ = new QPushButton(tr("Fetch patch..."), this);
         fetchBins_->setVisible(
             !QString::fromUtf8(d2::kPatchUrl).isEmpty());
@@ -550,9 +534,7 @@ public:
         // --- version + update line -----------------------------------------
         version_ = new QLabel(this);
         version_->setStyleSheet("color: gray;");
-        version_->setText(tr("v%1  (%2)")
-            .arg(QString::fromUtf8(d2::kAppVersion))
-            .arg(QString::fromUtf8(d2::kGitCommit)));
+        version_->setText(QString::fromUtf8(d2::kAppVersion));   // v0.1.0-g42200f5[-dirty]
         upgrade_ = new QPushButton(tr("Update available"), this);
         upgrade_->setHidden(true);
         connect(upgrade_, &QPushButton::clicked, this, [this] {
@@ -561,18 +543,27 @@ public:
         });
 
         // --- layout --------------------------------------------------------
-        auto* layout = new QVBoxLayout(this);
+        // Banner flush with the top and sides: the root layout has no
+        // margins; `layout` puts them back for the controls. The width is
+        // fixed so the banner always spans it (baked at 2x for retina).
+        auto* root = new QVBoxLayout(this);
+        root->setContentsMargins(0, 0, 0, 0);
+        root->setSpacing(0);
+        auto* hero = new QLabel(this);
+        QPixmap banner(":/hero.png");
+        banner = banner.scaledToWidth(2 * kWindowWidth, Qt::SmoothTransformation);
+        banner.setDevicePixelRatio(2.0);
+        hero->setPixmap(banner);
+        root->addWidget(hero);
+        auto* layout = new QVBoxLayout;
+        layout->setContentsMargins(11, 8, 11, 11);
+        root->addLayout(layout);
 
-        auto* pathRow = new QHBoxLayout;
-        pathRow->addWidget(pathLabel);
-        pathRow->addWidget(path_, 1);
-        pathRow->addWidget(browse);
-        layout->addLayout(pathRow);
+        layout->addWidget(foundBox_);
         auto* statusRow = new QHBoxLayout;
         statusRow->addWidget(status_, 1);
         statusRow->addWidget(fix_);
         layout->addLayout(statusRow);
-        layout->addWidget(foundBox_);
 
         auto* line = new QFrame(this);
         line->setFrameShape(QFrame::HLine);
@@ -581,11 +572,10 @@ public:
         layout->addWidget(line);
 
         auto* btnRow = new QHBoxLayout;
-        btnRow->addWidget(install_);
-        btnRow->addWidget(addBins_);
         btnRow->addWidget(fetchBins_);
         btnRow->addStretch();
         btnRow->addWidget(fullscreen_);
+        btnRow->addSpacing(12);   // macOS clips the checkbox label against the default button
         btnRow->addWidget(launch_);
         layout->addLayout(btnRow);
         layout->addStretch();
@@ -596,13 +586,16 @@ public:
         footer->addWidget(upgrade_);
         layout->addLayout(footer);
 
+        setFixedWidth(kWindowWidth);
+        resize(kWindowWidth, 460);
+
         loadSettings();
         refresh();
         // A saved install that still classifies as usable is kept; the
         // list still shows what else is on the machine.
-        const auto saved = classify_dir(path_->text());
+        const auto saved = classify_dir(path_);
         if (saved && d2d::install::usable(*saved)) persist();   // d2d.cfg follows the launcher
-        scan(false);
+        scan();
         startUpdateCheck();
     }
 
@@ -613,7 +606,7 @@ public:
 private:
     void loadSettings() {
         QSettings settings;
-        path_->setText(settings.value("game/dataPath").toString());
+        path_ = settings.value("game/dataPath").toString();
         patch_path_ = settings.value("game/patchPath").toString();
         d2d::userdir::Config cfg;
         d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
@@ -625,7 +618,7 @@ private:
     }
     void saveSettings() const {
         QSettings settings;
-        settings.setValue("game/dataPath", path_->text());
+        settings.setValue("game/dataPath", path_);
         settings.setValue("game/patchPath", patch_path_);
         settings.setValue("game/source", source_);
         settings.sync();   // on disk now, not at some later event-loop tick
@@ -636,7 +629,7 @@ private:
     // hand-set LODPatch_114d.exe survives); a stale one is the user's to clear.
     bool persist() {
         saveSettings();
-        const auto install = classify_dir(path_->text());
+        const auto install = classify_dir(path_);
         if (!install || !d2d::install::usable(*install)) return true;
         const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
         std::vector<std::pair<std::string, std::string>> values{ { "data", install->dir.string() } };
@@ -649,12 +642,12 @@ private:
     // Look for installs off the UI thread; results land in onDetected.
     // ponytail: no time budget, a slow network drive in a probed folder
     // stalls the list (not the window); add a 2 s cutoff if that bites.
-    void scan(bool search_more) {
+    void scan() {
         status_->setText(tr("Looking for Diablo II..."));
         status_->setStyleSheet("color: gray;");
-        QThreadPool::globalInstance()->start([this, search_more] {
-            auto found = d2d::install::detect(d2d::install::system_environment(search_more));
-            QMetaObject::invokeMethod(this, [this, found = std::move(found)]() mutable { onDetected(std::move(found)); },
+        QThreadPool::globalInstance()->start([this] {
+            auto detected = d2d::install::detect(d2d::install::system_environment(false));
+            QMetaObject::invokeMethod(this, [this, found = std::move(detected)]() mutable { onDetected(std::move(found)); },
                                       Qt::QueuedConnection);
         });
     }
@@ -666,12 +659,22 @@ private:
         const auto is_114d = [](const auto& install) {
             return d2d::install::usable(install) && install.version == d2d::install::Version::v114d;
         };
-        const auto current = classify_dir(path_->text());
+        const auto current = classify_dir(path_);
         if (!(current && d2d::install::usable(*current))
             && std::count_if(installs_.begin(), installs_.end(), is_114d) == 1) {
             const auto& install = *std::find_if(installs_.begin(), installs_.end(), is_114d);
             choose(install, QString::fromStdString("detected:" + install.source));
         }
+        fillList();
+        refresh();
+    }
+
+    // Every install found, plus the chosen one (browsed / installed) if the
+    // scan missed it; the chosen one wears the green check.
+    void fillList() {
+        const auto current = classify_dir(path_);
+        const auto is_current = [&](const auto& install) { return current && install.dir == current->dir; };
+        if (current && std::none_of(installs_.begin(), installs_.end(), is_current)) installs_.push_back(*current);
         found_->clear();
         for (const auto& install : installs_) {
             auto* item = new QListWidgetItem(QString::fromStdString(d2d::install::title(install)) + "  —  "
@@ -679,21 +682,30 @@ private:
             const auto problem = QString::fromStdString(d2d::install::problem(install));
             const auto source = QString::fromStdString(install.source);
             item->setToolTip(problem.isEmpty() ? source : problem + "\n" + source);
+            if (is_current(install)) {
+                item->setIcon(check_icon());
+                found_->setCurrentItem(item);
+            }
             if (!d2d::install::usable(install)) item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
-            else if (!problem.isEmpty()) item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
+            else if (!problem.isEmpty() && !is_current(install))
+                item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
         }
-        const auto first_usable = std::find_if(installs_.begin(), installs_.end(),
-                                               [](const auto& install) { return d2d::install::usable(install); });
-        const auto chosen = std::find_if(installs_.begin(), installs_.end(), [&](const auto& install) {
-            return current && install.dir == current->dir;
-        });
-        if (chosen != installs_.end()) found_->setCurrentRow(int(chosen - installs_.begin()));
-        else if (first_usable != installs_.end()) found_->setCurrentRow(int(first_usable - installs_.begin()));
         if (installs_.empty()) {
-            auto* item = new QListWidgetItem(tr("No Diablo II install found. Browse to yours, or install from the discs."), found_);
+            auto* item = new QListWidgetItem(tr("No Diablo II install found. Search more places, or install from the discs."), found_);
             item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
         }
-        refresh();
+    }
+
+    static QIcon check_icon() {
+        QPixmap pixmap(16, 16);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        auto font = painter.font();
+        font.setBold(true);
+        painter.setFont(font);
+        painter.setPen(QColor(0, 160, 0));
+        painter.drawText(pixmap.rect(), Qt::AlignCenter, QString::fromUtf8("✓"));
+        return QIcon(pixmap);
     }
 
     void choose(const d2d::install::Install& install, const QString& source) {
@@ -702,8 +714,9 @@ private:
         // d2d only finds it as an explicit patch layer.
         const bool outside = !install.patch_mpq.empty() && install.patch_mpq.parent_path() != install.dir;
         patch_path_ = outside ? from_path(install.patch_mpq) : QString{};
-        path_->setText(from_path(install.dir));
+        path_ = from_path(install.dir);
         persist();
+        fillList();
         refresh();
     }
 
@@ -719,8 +732,10 @@ private:
         if (install) { choose(*install, "manual"); return; }
         source_ = "manual";
         patch_path_.clear();
-        path_->setText(dir);           // not an install (yet): Install can fill it
+        path_ = dir;           // not an install (yet): Install can fill it
         saveSettings();
+        fillList();
+        refresh();
     }
 
     // Not 1.14d: point the patch layer at a 1.14d patch installer. The
@@ -746,11 +761,11 @@ private:
     }
 
     void refresh() {
-        const auto install = classify_dir(path_->text());
+        const auto install = classify_dir(path_);
         const bool ok = install && d2d::install::usable(*install);
         QString msg;
         if (!install) {
-            msg = path_->text().isEmpty() ? tr("⚠ No game data chosen. Pick an install, Browse, or click Install.")
+            msg = path_.isEmpty() ? tr("⚠ No game data chosen. Pick an install, Search more places, or click Install.")
                                           : tr("⚠ No game data at this path. Click Install to set it up.");
         } else {
             msg = (ok ? tr("✓ ") : tr("⚠ ")) + QString::fromStdString(d2d::install::title(*install));
@@ -775,12 +790,13 @@ private:
     }
 
     void openInstaller() {
-        InstallerWizard wiz(path_->text(), this);
+        InstallerWizard wiz(path_, this);
         if (wiz.exec() == QDialog::Accepted) {
             source_ = "installed";
             patch_path_.clear();
-            path_->setText(wiz.field("dest").toString());
+            path_ = wiz.field("dest").toString();
             persist();
+            fillList();
             refresh();
         }
     }
@@ -796,118 +812,6 @@ private:
             return;
         }
         close();
-    }
-
-    void addPatchBinaries() {
-        QFileDialog dlg(this, tr("Point at patch installer or install folder"),
-                        QDir::homePath());
-        dlg.setFileMode(QFileDialog::AnyFile);
-        dlg.setOptions(macos_dlg_opts() | dlg.options());
-        if (dlg.exec() != QDialog::Accepted) return;
-        const auto sel = dlg.selectedFiles();
-        if (sel.isEmpty()) return;
-        const QString path = sel.first();
-        const QFileInfo info(path);
-        int count = 0;
-        if (info.isDir()) {
-            count = importBinariesFromDir(path, path_->text());
-        } else if (info.isFile()) {
-            count = importBinariesFromExe(path, path_->text());
-            if (count < 0) {
-                QMessageBox::warning(this, tr("Cannot open"),
-                    tr("Not a Blizzard MPQ-appended installer (or corrupt): %1")
-                        .arg(path));
-                return;
-            }
-        } else {
-            return;
-        }
-        namespace fs = std::filesystem;
-        const auto bin = fs::path(path_->text().toStdString()) / "bin";
-        QString ver;
-        for (const auto& probe : {"game.exe", "d2client.dll", "d2common.dll"}) {
-            ver = pe_file_version(bin / probe);
-            if (!ver.isEmpty()) break;
-        }
-        QMessageBox::information(this, tr("Import complete"),
-            ver.isEmpty()
-                ? tr("✓ Imported %1 D2 binaries into %2/bin/")
-                    .arg(count).arg(path_->text())
-                : tr("✓ Imported %1 D2 binaries (v%2) into %3/bin/")
-                    .arg(count).arg(ver).arg(path_->text()));
-        refresh();
-    }
-
-    static int importBinariesFromDir(const QString& src, const QString& dst) {
-        namespace fs = std::filesystem;
-        std::error_code error;
-        fs::create_directories(fs::path(dst.toStdString()) / "bin", error);
-        int count = 0;
-        for (const auto& dir_entry : fs::recursive_directory_iterator(
-                src.toStdString(),
-                fs::directory_options::skip_permission_denied, error)) {
-            if (!dir_entry.is_regular_file(error)) continue;
-            auto name = runtime_target(dir_entry.path().filename().string());
-            if (name.empty()) continue;
-            const fs::path out = fs::path(dst.toStdString()) / name;
-            fs::copy_file(dir_entry.path(), out,
-                          fs::copy_options::overwrite_existing, error);
-            if (!error) ++count;
-        }
-        return count;
-    }
-
-    // Returns -1 if the file cannot be opened as an MPQ, else count extracted.
-    static int importBinariesFromExe(const QString& exe, const QString& dst) {
-        namespace fs = std::filesystem;
-        HANDLE mpq{};
-        const fs::path exePath(exe.toStdWString());      // TCHAR: wchar_t with UNICODE on Windows, else char
-        if (!SFileOpenArchive(exePath.string<TCHAR>().c_str(), 0,
-                              MPQ_OPEN_READ_ONLY | STREAM_FLAG_READ_ONLY, &mpq)) {
-            return -1;
-        }
-        std::error_code error;
-        fs::create_directories(fs::path(dst.toStdString()) / "bin", error);
-        static constexpr std::string_view kBins[] = {
-            "Game.exe", "Diablo II.exe",
-            "D2Client.dll", "D2Common.dll", "D2Game.dll", "D2Gfx.dll",
-            "D2Lang.dll",   "D2Launch.dll", "D2MCPClient.dll",
-            "D2Multi.dll",  "D2Net.dll",    "D2Server.dll",
-            "D2Sound.dll",  "D2Win.dll",
-            "Bnclient.dll", "Fog.dll",      "Storm.dll",  "ijl11.dll",
-            "BinkW32.dll",  "SmackW32.dll",
-        };
-        int count = 0;
-        for (auto name : kBins) {
-            HANDLE file{};
-            const std::string namez(name);
-            if (!SFileOpenFileEx(mpq, namez.c_str(), 0, &file)) continue;
-            const DWORD size = SFileGetFileSize(file, nullptr);
-            std::vector<char> buf(size);
-            DWORD got = 0;
-            SFileReadFile(file, buf.data(), size, &got, nullptr);
-
-            SFileCloseFile(file);
-
-            // kBins are all PEs, so they must start with "MZ". Blizzard's patch
-            // installer prepends a proprietary wrapper (~24 bytes: header size,
-            // flags, payload size, FILETIME) to each stored PE that its own
-            // installer strips at extraction time. StormLib delivers the wrapper
-            // verbatim — scan the first 64 bytes for MZ and skip anything before.
-            std::size_t off = 0;
-            for (std::size_t i = 0; i + 1 < std::min<std::size_t>(64, got); ++i) {
-                if (buf[i] == 'M' && buf[i + 1] == 'Z') { off = i; break; }
-            }
-
-            auto target = runtime_target(name);
-            if (target.empty()) continue;
-            const fs::path out = fs::path(dst.toStdString()) / target;
-            std::ofstream(out, std::ios::binary)
-                .write(buf.data() + off, got - off);
-            ++count;
-        }
-        SFileCloseArchive(mpq);
-        return count;
     }
 
     void fetchPatch() {
@@ -960,8 +864,8 @@ private:
                 return;
             }
             QMessageBox::information(this, tr("Download complete"),
-                tr("Saved to %1.\n\nNow click \"Add patch binaries...\" and "
-                   "point at this file to extract the binaries.").arg(dst));
+                tr("Saved to %1.\n\nNow click \"Fix: use LODPatch_114d.exe...\" "
+                   "and pick this file.").arg(dst));
         });
     }
 
@@ -1006,7 +910,7 @@ private:
         upgrade_->setHidden(false);
     }
 
-    QLineEdit* path_{};
+    QString path_;   // the chosen game data dir
     QLabel* status_{};
     QPushButton* fix_{};
     QListWidget* found_{};
@@ -1015,7 +919,6 @@ private:
     QString patch_path_, source_ = "manual";
     QLabel* version_{};
     QPushButton* install_{};
-    QPushButton* addBins_{};
     QPushButton* fetchBins_{};
     QPushButton* launch_{};
     QCheckBox* fullscreen_{};
@@ -1029,6 +932,7 @@ private:
 // ===========================================================================
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
+    QApplication::setWindowIcon(QIcon(":/d2d.png"));
     QApplication::setOrganizationName("D2Decomp");
     QApplication::setApplicationName("D2 Launcher");
 
