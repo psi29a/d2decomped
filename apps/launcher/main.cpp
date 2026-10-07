@@ -26,6 +26,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QProgressBar>
 #include <QPushButton>
@@ -748,15 +749,14 @@ private:
         status_->setStyleSheet(ok && (!needs_patch || patched) ? "color: green;" : "color: orange;");
         fix_->setVisible(needs_patch && !patched);
         // Launch is grayed until the engine binary exists AND game data is
-        // present. Engine binary lives beside the launcher; there is none
-        // yet, so Launch stays disabled and says why.
+        // present. d2d lives beside the launcher.
         const QString engine = engineBinaryPath();
         const bool haveEngine = !engine.isEmpty() &&
                                 QFileInfo(engine).isExecutable();
         launch_->setEnabled(ok && haveEngine);
         launch_->setToolTip(
             !ok       ? tr("Install the game first.")
-          : !haveEngine ? tr("Engine binary not built yet (phase 5).")
+          : !haveEngine ? tr("d2d not found beside the launcher.")
           : tr("Launch the game."));
     }
 
@@ -772,8 +772,13 @@ private:
     }
 
     void launch() {
-        QMessageBox::information(this, tr("Launch"),
-            tr("Engine not built yet — coming in phase 5."));
+        persist();
+        const QString engine = engineBinaryPath();
+        if (!QProcess::startDetached(engine, {}, QFileInfo(engine).absolutePath())) {
+            QMessageBox::warning(this, tr("Launch"), tr("Could not start %1").arg(engine));
+            return;
+        }
+        close();
     }
 
     void addPatchBinaries() {
@@ -943,15 +948,18 @@ private:
         });
     }
 
-    QString engineBinaryPath() const {
-        const auto dir = QCoreApplication::applicationDirPath();
+    static QString engineBinaryPath() {
+        const QDir dir(QCoreApplication::applicationDirPath());
 #ifdef Q_OS_WIN
-        const QString name = "d2.exe";
+        const QString name = "d2d.exe";
 #else
-        const QString name = "d2";
+        const QString name = "d2d";
 #endif
-        const QString path = dir + "/" + name;
-        return QFileInfo::exists(path) ? path : QString{};
+        for (const auto* relative : {".", "../../..", "../../../../d2d", "../d2d", "../../d2d/Release", "../../d2d/Debug"}) {
+            const QFileInfo info(dir.filePath(QString(relative) + "/" + name));
+            if (info.isFile() && info.isExecutable()) return info.canonicalFilePath();
+        }
+        return {};
     }
 
     void startUpdateCheck() {
