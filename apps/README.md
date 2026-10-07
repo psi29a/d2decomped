@@ -8,6 +8,8 @@ End-user binaries.
 
 `cmake --build build --target package` makes the shipping package: the
 launcher with d2d beside it and every library both need (macOS: one
-`.app` in a `.dmg`, d2d inside it; Linux: `.tar.gz`; Windows: `.zip`).
+`D2D.app` in a `.dmg`, d2d inside it; Linux: `.tar.gz`; Windows: `.zip`).
+The dev tools (`d2proxy`, `mpq-cat`, `drlg-dump`) sit beside d2d
+(macOS: in `D2D.app/Contents/MacOS`).
 
 Each app is its own CMake target under `apps/<name>/CMakeLists.txt`.

@@ -225,10 +225,6 @@ jobs:
           foreach ($dir in @("build\apps\d2d", "build\apps\launcher", "build\tests")) {
             if (Test-Path $dir) { Copy-Item -Path $dlls -Destination $dir -Force }
           }
-          # The dev tools need only StormLib, zlib and bzip2 (vcpkg's).
-          foreach ($dir in @("build\tools\mpq-cat", "build\tools\drlg-dump")) {
-            if (Test-Path $dir) { Copy-Item -Path "$deps\vcpkg\x64-windows\bin\*.dll" -Destination $dir -Force }
-          }
           # soft_oal.dll is what OpenAL32.lib imports as OpenAL32.dll.
           Get-ChildItem -Recurse build -Filter soft_oal.dll | ForEach-Object { Copy-Item $_.FullName (Join-Path $_.DirectoryName "OpenAL32.dll") -Force }
           windeployqt --no-translations --no-compiler-runtime build\apps\launcher\d2d-launcher.exe
@@ -245,33 +241,21 @@ jobs:
       - name: Package
         run: cmake --build build --target package
 
-      # One artifact per OS: the package, and the dev tools in tools/ as
-      # built (macOS / Linux: they want the system's StormLib; Windows: its
-      # DLLs ride along). Only for main and tags (pull requests build it, but
-      # uploading would only fill the artifact quota): main's kept 14 days, a
-      # tag's 90. A full quota (it resets every 6-12 h) doesn't fail a run
-      # whose build, tidy and tests passed; those are earlier steps and fail
-      # the job themselves.
-      - name: Collect artifact
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          mkdir -p build/artifact/tools
-          cp build/d2d-*.dmg build/d2d-*.tar.gz build/d2d-*.zip build/artifact/ 2>/dev/null || true
-          for tool in apps/d2proxy/d2proxy tools/mpq-cat/mpq-cat tools/drlg-dump/drlg-dump; do
-            for file in "build/$tool" "build/$tool.exe"; do
-              if [ -f "$file" ]; then cp "$file" build/artifact/tools/; fi
-            done
-          done
-          cp build/tools/mpq-cat/*.dll build/artifact/tools/ 2>/dev/null || true
-          ls -R build/artifact
-
-      - name: Upload artifact
+      # One artifact per OS: the package (the dev tools are in it, beside
+      # d2d). Only for main and tags (pull requests build it, but uploading
+      # would only fill the artifact quota): main's kept 14 days, a tag's 90.
+      # A full quota (it resets every 6-12 h) doesn't fail a run whose build,
+      # tidy and tests passed; those are earlier steps and fail the job
+      # themselves.
+      - name: Upload package
         if: github.event_name == 'push'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: d2d-${{ runner.os }}
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
-          path: build/artifact
+          path: |
+            build/d2d-*.dmg
+            build/d2d-*.tar.gz
+            build/d2d-*.zip
           if-no-files-found: error

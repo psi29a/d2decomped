@@ -17,10 +17,18 @@ add_subdirectory(d2proxy)
 #   macOS   D2D.app (the launcher), d2d in Contents/MacOS, in a .dmg
 #   Linux   d2d-launcher, d2d, lib/, plugins/, qt.conf in a .tar.gz
 #   Windows d2d-launcher.exe, d2d.exe, the DLLs, Qt's plugin dirs in a .zip
+# The dev tools (d2proxy, mpq-cat, drlg-dump) ride along beside d2d, on the
+# same bundled libraries.
 # d2d alone in a Diablo II folder (as game.exe) works too, but isn't this.
 find_package(Qt6 6.5 COMPONENTS Core REQUIRED)
 string(REGEX REPLACE "^v" "" D2D_VERSION "${D2D_VERSION}")   # tag v0.1.0 -> 0.1.0
-set(engine "$<TARGET_FILE_NAME:d2d>")
+set(tools d2proxy)
+foreach(tool mpq-cat drlg-dump)
+    if(TARGET ${tool})   # -DD2D_BUILD_TOOLS=OFF
+        list(APPEND tools ${tool})
+    endif()
+endforeach()
+set(beside_d2d d2d ${tools})
 install(TARGETS d2d-launcher BUNDLE DESTINATION . RUNTIME DESTINATION .)
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" DESTINATION .)
 
@@ -30,20 +38,23 @@ if(APPLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${D2D_VERSION}")
     # Some Homebrew dylibs load their siblings by @rpath (brotli, webp);
     # macdeployqt puts them all in Frameworks.
-    set_target_properties(d2d d2d-launcher PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
+    set_target_properties(d2d-launcher ${beside_d2d} PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
     # Finder's name. Only the bundle: an executable D2D would be d2d's file
     # on a case-insensitive disk.
     install(CODE "
         set(dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\")
         file(REMOVE_RECURSE \"\${dir}/D2D.app\")
         file(RENAME \"\${dir}/d2d-launcher.app\" \"\${dir}/D2D.app\")")
-    install(TARGETS d2d RUNTIME DESTINATION D2D.app/Contents/MacOS)
-    set(deploy_args "EXECUTABLE D2D.app
-        ADDITIONAL_EXECUTABLES \"D2D.app/Contents/MacOS/${engine}\"")
+    install(TARGETS ${beside_d2d} RUNTIME DESTINATION D2D.app/Contents/MacOS)
+    set(deploy_args "EXECUTABLE D2D.app ADDITIONAL_EXECUTABLES")
+    foreach(target IN LISTS beside_d2d)
+        string(APPEND deploy_args " \"D2D.app/Contents/MacOS/$<TARGET_FILE_NAME:${target}>\"")
+    endforeach()
 elseif(WIN32)
     # windeployqt brings Qt for the launcher; d2d's DLLs (SDL3, OpenAL32,
-    # FFmpeg, zlib, StormLib) are the ones staged beside it (CI does that).
-    install(TARGETS d2d RUNTIME_DEPENDENCY_SET d2d_dlls RUNTIME DESTINATION .)
+    # FFmpeg, zlib, StormLib), which cover the tools', are the ones staged
+    # beside it (CI does that).
+    install(TARGETS ${beside_d2d} RUNTIME_DEPENDENCY_SET d2d_dlls RUNTIME DESTINATION .)
     install(RUNTIME_DEPENDENCY_SET d2d_dlls DESTINATION .
         PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
         POST_EXCLUDE_REGEXES "[Ss]ystem32"
@@ -52,17 +63,22 @@ elseif(WIN32)
     include(InstallRequiredSystemLibraries)   # vcruntime140.dll, msvcp140.dll
     set(deploy_args "EXECUTABLE \"$<TARGET_FILE_NAME:d2d-launcher>\"")
 else()
+    set(beside_d2d_files "")
+    foreach(target IN LISTS beside_d2d)
+        string(APPEND beside_d2d_files " \"$<TARGET_FILE_NAME:${target}>\"")
+    endforeach()
     # DT_RPATH, not RUNPATH: it also serves the bundled libraries' own
     # dependencies (libavcodec's codecs, Qt's xcb libs).
-    set_target_properties(d2d d2d-launcher PROPERTIES INSTALL_RPATH "$ORIGIN/lib")
-    target_link_options(d2d PRIVATE "LINKER:--disable-new-dtags")
-    target_link_options(d2d-launcher PRIVATE "LINKER:--disable-new-dtags")
-    install(TARGETS d2d RUNTIME DESTINATION .)
+    set_target_properties(d2d-launcher ${beside_d2d} PROPERTIES INSTALL_RPATH "$ORIGIN/lib")
+    foreach(target d2d-launcher ${beside_d2d})
+        target_link_options(${target} PRIVATE "LINKER:--disable-new-dtags")
+    endforeach()
+    install(TARGETS ${beside_d2d} RUNTIME DESTINATION .)
     # Qt's default skips everything in the system lib dirs, i.e. all of it on
     # a distro. Ship all but what every desktop has and must match the
     # system: glibc, GL, X11 / Wayland, the sound servers.
     set(deploy_args "EXECUTABLE \"$<TARGET_FILE_NAME:d2d-launcher>\"
-        ADDITIONAL_EXECUTABLES \"${engine}\"
+        ADDITIONAL_EXECUTABLES ${beside_d2d_files}
         POST_EXCLUDE_REGEXES
             \"/ld-linux\" \"/lib(c|m|dl|rt|pthread|resolv|util)[.]so\"
             \"/lib(GL|GLX|GLdispatch|EGL|OpenGL|drm|gbm|vulkan)[.]so\"
