@@ -452,7 +452,15 @@ void finish_scene(Scene& scene, const fs::path& save_dir, std::uint32_t map_seed
         auto mpqs = scene.mpqs.reopen();        // StormLib handles stay on their thread
         game::load_game_tables(scene, mpqs);
         load_saves(scene, save_dir);            // their items need the tables
-        if (!scene.saves.empty()) map_seed = save_seed(scene.saves.front());   // the likely pick's map
+        // The newest save is the likely pick: its map, and the act it was left in.
+        int act = 0;
+        if (!scene.saves.empty()) {
+            map_seed = save_seed(scene.saves.front());
+            act = scene.saves.front().active_act();
+        }
+        // ponytail: only Act 1 exists, so any act preloads Act 1; once
+        // load_game_world takes an act, pass `act` and drop this fallback.
+        if (act != 0) d2d::log::info("  Newest save is in act {}; only Act 1 is built, preloading it", act + 1);
         game::load_game_world(scene, mpqs, map_seed);
         load_ui_sprites(scene, mpqs);
         load_monster_sprites(scene, mpqs);

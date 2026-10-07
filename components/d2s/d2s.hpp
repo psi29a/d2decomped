@@ -101,6 +101,10 @@ struct Header {
         for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
         return 0;
     }
+    // 0..4: the act the character was last in, on that difficulty.
+    [[nodiscard]] int active_act() const noexcept {
+        return std::min(difficulty[std::size_t(active_difficulty())] & 0x07, 4);
+    }
 
     [[nodiscard]] bool hardcore()  const noexcept { return status & 0x04; }
     [[nodiscard]] bool died()      const noexcept { return status & 0x08; }
