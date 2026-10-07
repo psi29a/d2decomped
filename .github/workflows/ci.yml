@@ -133,6 +133,15 @@ jobs:
           max-size: 1G
           verbose: 2          # the stats list why a call wasn't cacheable
 
+      # The Bink-only FFmpeg (apps/d2d/CMakeLists.txt): CMake skips building
+      # it when build/ffmpeg-<version and options> is already there.
+      - name: Cache FFmpeg (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: build/ffmpeg-*
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('apps/d2d/CMakeLists.txt') }}
+
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
