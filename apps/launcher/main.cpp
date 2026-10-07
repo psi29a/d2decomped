@@ -673,7 +673,11 @@ private:
     // scan missed it; the chosen one wears the green check.
     void fillList() {
         const auto current = classify_dir(path_);
-        const auto is_current = [&](const auto& install) { return current && install.dir == current->dir; };
+        // Same folder, any spelling (trailing slash, symlink).
+        const auto is_current = [&](const auto& install) {
+            std::error_code error;
+            return current && std::filesystem::equivalent(install.dir, current->dir, error);
+        };
         if (current && std::none_of(installs_.begin(), installs_.end(), is_current)) installs_.push_back(*current);
         found_->clear();
         for (const auto& install : installs_) {
