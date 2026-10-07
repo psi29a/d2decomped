@@ -54,3 +54,6 @@ target_link_libraries(d2d-launcher PRIVATE
     install_detect
     userdir
 )
+
+# The package name (apps/CMakeLists.txt) carries the same version.
+set(D2D_VERSION "${D2LAUNCHER_VERSION}" PARENT_SCOPE)
