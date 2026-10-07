@@ -14,6 +14,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <sstream>
+#include <string>
+#include <string_view>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -498,13 +501,131 @@ int main() {
                         [&](const d2d::rules::MercMove& move) {
                             assert(next < entry.tried.size());
                             const auto& want = entry.tried[next++];
-                            assert(move.mode == want.mode && move.foe == (want.foe != 0) && move.type == want.type && move.pct == want.pct && move.steps == want.steps);
-                            assert(move.foe || (move.x == 5000 + want.x && move.y == 5000 + want.y));
+                            assert(move.mode == want.mode && (move.unit != 0) == (want.foe != 0) && move.type == want.type && move.pct == want.pct && move.steps == want.steps);
+                            assert(move.unit != 0 || (move.x == 5000 + want.x && move.y == 5000 + want.y));
                             return want.found != 0;
                         });
                     assert(next == entry.tried.size() && act.kind == entry.kind && act.frames == entry.frames && act.unreachable == (entry.unreachable != 0));
                     assert(seed.low == entry.after_low && seed.high == entry.after_high);
                 }
+            }
+            // The other pets' thinks (rules::*_think on PetBrain; tools/emu/pet_ais.py
+            // --dump: game.exe's own runs, the follow / decide answers replayed):
+            // the scene, the calls each makes and what it comes to.
+            {
+                static constexpr std::string_view kCases =
+#include "pet_ais_cases.inc"
+                    ;
+                using d2d::rules::PetAct;
+                using d2d::rules::PetUnit;
+                struct Replay {
+                    std::vector<std::string> calls;
+                    std::size_t next = 0;
+                    std::vector<int> call(char kind) {
+                        assert(next < calls.size());
+                        std::istringstream fields(calls[next++]);
+                        char got = 0;
+                        fields >> got;
+                        assert(got == kind);
+                        std::vector<int> values;
+                        for (int value = 0; fields >> value;) values.push_back(value);
+                        return values;
+                    }
+                    bool try_move(const d2d::rules::MercMove& move) {
+                        const auto want = call('m');
+                        assert(move.mode == want[2] && move.unit == want[3] && move.type == want[4] && move.pct == want[5] && move.steps == want[6]);
+                        assert(move.unit != 0 || move.mode == 0 || ((move.x & 0xffff) == want[0] && (move.y & 0xffff) == want[1]));
+                        return want[7] != 0;
+                    }
+                    bool follow(int mode, bool run, int pct, int reach) {
+                        const auto want = call('f');
+                        assert(mode == want[0] && int(run) == want[1] && pct == want[2] && reach == want[3]);
+                        return want[4] != 0;
+                    }
+                    bool decide(PetUnit foe, bool melee, bool stay, int reach) {
+                        const auto want = call('d');
+                        assert(int(foe) == want[0] && int(melee) == want[1] && int(stay) == want[2] && reach == want[3]);
+                        return want[4] != 0;
+                    }
+                    bool teleport() { return call('t')[0] != 0; }
+                    [[nodiscard]] PetAct followed() const { return { .kind = PetAct::Kind::stand, .frames = -7 }; }
+                };
+                std::istringstream lines{ std::string(kCases) };
+                int checked = 0;
+                for (std::string line; std::getline(lines, line);) {
+                    if (line.empty()) continue;
+                    const auto bar = line.find('|'), bar2 = line.rfind('|');
+                    std::istringstream fields(line.substr(0, bar));
+                    auto read = [&] { int value = 0; fields >> value; return value; };
+                    d2d::rules::PetScene scene;
+                    const int which = read();
+                    scene.cls = read(); scene.owner = read() != 0; scene.owner_id = read(); scene.owner_mode = read(); scene.town = read() != 0; scene.frame = read();
+                    for (std::size_t unit = 1; unit < 6; ++unit) { scene.spot[unit].first = read(); scene.spot[unit].second = read(); }
+                    for (std::size_t from = 1; from < 6; ++from) for (std::size_t to = 1; to < 6; ++to) scene.gap[from][to] = read();
+                    for (std::size_t from = 1; from < 6; ++from) for (std::size_t to = 1; to < 6; ++to) scene.distance[from][to] = read();
+                    scene.foe = read() != 0; scene.foe_melee = read() != 0; scene.foe2 = read() != 0; scene.foe2_melee = read() != 0; scene.nearby = read() != 0;
+                    scene.foe_distance = read(); scene.foe2_distance = read();
+                    scene.driver = read() != 0; scene.driver_melee = read() != 0; scene.driver_distance = read();
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.clear[unit] = read() != 0;
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.melee_of[unit] = read() != 0;
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.dying[unit] = read() != 0;
+                    scene.poisoned = read() != 0; scene.slowed = read() != 0; scene.raging = read() != 0;
+                    scene.poison_resist = read(); scene.life = read(); scene.mana = read(); scene.max_life = read(); scene.max_mana = read();
+                    scene.skill_calc = read(); scene.skill_level = read(); scene.skill_mode = read(); scene.corpse_id = read(); scene.radius = read();
+                    for (auto& value : scene.aip) value = read();
+                    scene.skill1 = read(); scene.skill2 = read(); scene.mode1 = read(); scene.mode2 = read(); scene.velocity = read(); scene.run = read();
+                    if (const bool corpse = read() != 0; which == 6) scene.nearby = corpse;   // the Death Sentry's corpse is its `nearby`
+                    scene.ends = read() != 0;
+                    for (auto& [x, y] : scene.end) { x = read(); y = read(); }
+                    std::array<int, 3> ctrl{};
+                    for (auto& value : ctrl) value = read();
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
+                    seed.high = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
+                    Replay world;
+                    std::istringstream call_text(line.substr(bar + 1, bar2 - bar - 1));
+                    for (std::string call; std::getline(call_text, call, ';');)
+                        if (call.find_first_not_of(' ') != std::string::npos) world.calls.push_back(call.substr(call.find_first_not_of(' ')));
+                    d2d::rules::PetBrain brain(scene, seed, ctrl, world);
+                    switch (which) {
+                    case 0: d2d::rules::hydra_think(brain); break;
+                    case 1: d2d::rules::totem_think(brain); break;
+                    case 2: d2d::rules::poison_creeper_think(brain); break;
+                    case 3: case 4: d2d::rules::cycle_vine_think(brain); break;
+                    case 5: d2d::rules::sentry_think(brain); break;
+                    case 6: d2d::rules::death_sentry_think(brain); break;
+                    case 7: d2d::rules::blade_sentinel_think(brain); break;
+                    case 8: d2d::rules::raven_think(brain); break;
+                    case 9: d2d::rules::druid_bear_think(brain); break;
+                    case 10: d2d::rules::spirit_wolf_think(brain); break;
+                    default: d2d::rules::fenris_think(brain); break;
+                    }
+                    assert(world.next == world.calls.size());
+                    std::istringstream tail(line.substr(bar2 + 1));
+                    std::string kind;
+                    int frames = 0, unreachable = 0, unit = 0, skill = 0, mode = 0, x = 0, y = 0;
+                    tail >> kind >> frames >> unreachable >> unit >> skill >> mode >> x >> y;
+                    using Kind = PetAct::Kind;
+                    const auto& act = brain.act;
+                    const bool same = kind == "followed" ? act.kind == Kind::stand && act.frames == -7
+                        : kind == "stand"  ? act.kind == Kind::stand && act.frames == frames
+                        : kind == "failed" ? act.kind == Kind::failed
+                        : kind == "die"    ? act.kind == Kind::die
+                        : kind == "moved"  ? act.kind == Kind::moved
+                        : kind == "chase"  ? act.kind == Kind::chase && int(act.unit) == unit
+                        : kind == "swing"  ? act.kind == Kind::swing && int(act.unit) == unit && act.frames == frames
+                        : kind == "skill"  ? act.kind == Kind::skill && int(act.unit) == unit && act.skill == skill && act.mode == mode && act.frames == frames && act.x == x && act.y == y
+                        : kind == "seq"    ? act.kind == Kind::seq && int(act.unit) == unit && act.skill == skill
+                                           : false;
+                    assert(same);
+                    assert(int(act.unreachable) == unreachable);
+                    for (auto& value : ctrl) { int want = 0; tail >> want; assert(value == want); }
+                    std::uint32_t low = 0, high = 0;
+                    tail >> low >> high;
+                    assert(seed.low == low && seed.high == high);
+                    ++checked;
+                }
+                assert(checked > 100);
             }
             // The merc's attack think and skill pick (FUN_005e5050 / FUN_005e4d30;
             // tools/emu/merc_attack.py --dump, game.exe's own hireling rows):

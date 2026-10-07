@@ -202,6 +202,9 @@ struct Fight {
         int hits = 0;                              // a Raven's attacks left (0: no count)
         bool idle = false, mirror = false;         // Decoy stands; a Shadow Warrior swings the owner's blow
         bool chase = false;                        // walking at its target (FUN_005ded40)
+        std::array<int, 3> ctrl{};                 // its AI control's +0x14 / +0x18 / +0x1c (rules::PetBrain)
+        int cast = -1;                             // the skill its attack mode does (a traced think's), -1 a swing
+        float cast_x = 0, cast_y = 0;              // a skill at a spot (a wolf's Teleport)
     };
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
@@ -826,6 +829,10 @@ struct Fight {
     // think isn't game.exe's pet AI (not traced).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
+    void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part

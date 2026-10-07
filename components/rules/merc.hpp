@@ -38,8 +38,8 @@ struct MercView {
 // spot, walking (mode 2) or running (0xf), the path ctx (FUN_005a6260):
 // a path type (0: the walk's own, 0xd then 0xf), the pace % and the path's
 // steps (0: the type's own); stopping 1 off (FUN_00649070).
-// `foe`: at the foe unit, not a spot (FUN_005ded40, a pet's).
-struct MercMove { int x = 0, y = 0, mode = kMonsterWalk, type = 0, pct = 0, steps = 0; bool foe = false; };
+// `unit`: at a unit, not a spot (a pet's rules::PetUnit; 0 none).
+struct MercMove { int x = 0, y = 0, mode = kMonsterWalk, type = 0, pct = 0, steps = 0, unit = 0; };
 
 // The think's outcome: a move that found a path, a stand (frames), a
 // teleport into the owner's room, the attack think (FUN_005e5050), every
