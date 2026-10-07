@@ -43,7 +43,7 @@ if(APPLE)
 elseif(WIN32)
     # windeployqt brings Qt for the launcher; d2d's DLLs (SDL3, OpenAL32,
     # FFmpeg, zlib, StormLib) are the ones staged beside it (CI does that).
-    install(TARGETS d2d RUNTIME DESTINATION . RUNTIME_DEPENDENCY_SET d2d_dlls)
+    install(TARGETS d2d RUNTIME_DEPENDENCY_SET d2d_dlls RUNTIME DESTINATION .)
     install(RUNTIME_DEPENDENCY_SET d2d_dlls DESTINATION .
         PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
         POST_EXCLUDE_REGEXES "[Ss]ystem32"
