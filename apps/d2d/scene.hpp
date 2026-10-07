@@ -58,6 +58,14 @@ struct Scene : GameData {
     d2d::dc6::Sprite      charselect_box;     // charselectbox.dc6 (filled slot)
     d2d::dc6::Sprite      charselect_scroll;  // FrontEnd\joingamescrollbars.dc6
     d2d::dc6::Sprite      tall_button;        // TallButtonBlank.dc6 (168×60) — CREATE / DELETE
+    d2d::dc6::Sprite      tcpip_bg;           // FrontEnd\tcpipbckg (handle 0x7797d0), 800x600 in 4x3 tiles
+    d2d::dc6::Sprite      ip_box;             // FrontEnd\IPAddressBox (0x7797d4), 218x26
+    d2d::dc6::Sprite      popup_ok_cancel;    // FrontEnd\PopUpOKCancel2 (0x779784), 264x176 in 2 frames
+    d2d::dc6::Sprite      cancel_button;      // FrontEnd\CancelButtonBlank (0x7797b4), 96x32, 2 frames
+    d2d::dc6::Sprite      popup_ok;           // FrontEnd\PopUpOK (0x779798), 264x176 in 2 frames
+    d2d::font::Font       font24;             // Font24 (font id 7): popup messages
+    d2d::font::Font       font42;             // Font42 (font id 3): screen titles
+    d2d::font::Font       font_formal12;      // FontFormal12 (font id 5): edit boxes
     d2d::dc6::Sprite      cursor;             // CURSOR\ohand.dc6 — D2's gauntlet, 8 frames
     d2d::dc6::Sprite      cursor_buysell;     // CURSOR\buysell.dc6 — the item-use cursors (frame 0 identify)
     // Character composites (in-game player, char-select portraits). The

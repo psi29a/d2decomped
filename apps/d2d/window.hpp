@@ -36,15 +36,22 @@ struct Window {
     // letterboxing any other window size. Same setup as thirdeye's
     // graphics.cpp — pair with SDL_ConvertEventToRenderCoordinates so
     // mouse events arrive in game pixels.
-    bool open(int width_, int height_, int scale) {
+    // `fullscreen` is borderless at the desktop's own mode (SDL3's default
+    // fullscreen; no display mode switch), the game letterboxed inside it.
+    bool open(int width_, int height_, int scale, bool fullscreen) {
         // Hints have to be set BEFORE SDL_CreateWindow to take effect.
         // Disable the CGWindowServer "wants full-screen space" nag on
         // macOS — that dialog is what triggers user reports of the
         // window appearing to freeze right after launch. Also request
         // high-DPI so the renderer picks up the true screen scale.
         SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
-        window = SDL_CreateWindow("d2d", width_ * scale, height_ * scale, SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        window = SDL_CreateWindow("d2d", width_ * scale, height_ * scale,
+                                  SDL_WINDOW_HIGH_PIXEL_DENSITY | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
         if (!window) { d2d::log::error("SDL_CreateWindow: {}", SDL_GetError()); return false; }
+        // The launcher quits as it starts us: take the foreground it leaves
+        // (Windows' focus-stealing guard otherwise leaves us behind).
+        SDL_SetHint(SDL_HINT_FORCE_RAISEWINDOW, "1");
+        SDL_RaiseWindow(window);
         renderer = SDL_CreateRenderer(window, nullptr);
         if (!renderer) { d2d::log::error("SDL_CreateRenderer: {}", SDL_GetError()); return false; }
         // VSync avoids tearing AND caps our frame rate at the monitor

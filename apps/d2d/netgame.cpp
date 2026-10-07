@@ -72,24 +72,26 @@ NetGame::NetGame(d2d::net::JoinSession joined, d2d::net::TcpConnection socket, c
 
 auto NetGame::join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
                    const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party)
-    -> std::expected<std::unique_ptr<NetGame>, std::string> {
+    -> std::expected<std::unique_ptr<NetGame>, JoinError> {
     const auto tables = d2d::net::d2gs::load_exe_tables(game_exe);
-    if (!tables) return std::unexpected(tables.error());
+    if (!tables) return std::unexpected(JoinError{ tables.error() });
     auto session = d2d::net::JoinSession::create(*tables, std::move(save));
-    if (!session) return std::unexpected(session.error());
+    if (!session) return std::unexpected(JoinError{ session.error() });
     auto connection = d2d::net::TcpConnection::connect(host, 4000, 5000);
-    if (!connection) return std::unexpected(connection.error());
+    if (!connection) return std::unexpected(JoinError{ connection.error(), true });
     std::unique_ptr<NetGame> game(new NetGame(std::move(*session), std::move(*connection), log_path));
     game->item_tables = item_tables;
     game->auto_party = auto_party;
     game->log.note("joining " + host + " as " + game->session.name());
     const auto deadline = steady_ms() + std::uint32_t(timeout_ms);
     while (game->session.state() != d2d::net::JoinState::InGame) {
-        if (steady_ms() > deadline) return std::unexpected("the host didn't put us in the game within " + std::to_string(timeout_ms / 1000) + " s");
+        if (steady_ms() > deadline) return std::unexpected(JoinError{ "the host didn't put us in the game within " + std::to_string(timeout_ms / 1000) + " s" });
         game->pump(steady_ms(), 0);
         if (game->closed()) {
-            if (game->session.state() == d2d::net::JoinState::Refused) return std::unexpected("the host refused the join (reason " + std::to_string(game->session.refused_reason()) + ")");
-            return std::unexpected(std::string("the join ended: ") + d2d::net::join_state_name(game->session.state()) + " " + game->session.desync_reason());
+            if (game->session.state() == d2d::net::JoinState::Refused)
+                return std::unexpected(JoinError{ "the host refused the join (reason " + std::to_string(game->session.refused_reason()) + ")",
+                                                  false, game->session.refused_reason() });
+            return std::unexpected(JoinError{ std::string("the join ended: ") + d2d::net::join_state_name(game->session.state()) + " " + game->session.desync_reason() });
         }
     }
     game->log.note("in the game: map seed " + std::to_string(game->map_seed) + ", difficulty " + std::to_string(game->difficulty));

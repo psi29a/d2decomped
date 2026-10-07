@@ -388,6 +388,14 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.charselect_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)"));
         scene.charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)"));
         scene.tall_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)"));
+        scene.tcpip_bg = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\tcpipbckg.dc6)"));
+        scene.ip_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\IPAddressBox.dc6)"));
+        scene.popup_ok_cancel = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOKCancel2.dc6)"));
+        scene.cancel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\CancelButtonBlank.dc6)"));
+        scene.popup_ok = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOK.dc6)"));
+        for (auto [font, name] : { std::pair{ &scene.font42, "font42" }, { &scene.font_formal12, "fontformal12" }, { &scene.font24, "font24" } })
+            *font = d2d::font::Font(mpqs.read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"),
+                                    d2d::dc6::Sprite(mpqs.read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6")));
         scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
         scene.cursor_buysell = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\buysell.dc6)"));
         scene.class_anims = [&] {

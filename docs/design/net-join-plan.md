@@ -1,7 +1,8 @@
 # Joining a game.exe host — implementation plan (step 1)
 
 Status: built through M10 (PRs #8–#12, 2026-10-06); the live checks on
-PR #12's features are still open. Planned 2026-09-30. Goal: d2d's client joins an open
+PR #12's features are still open. M4's menu path (Other Multiplayer → TCP/IP
+→ Join) and its error popup landed 2026-10-07: re/tcpip-menu.md. Planned 2026-09-30. Goal: d2d's client joins an open
 TCP/IP game hosted by an unmodified 1.14d game.exe, and Act 1 plays
 together (multiplayer.md "Order" step 4, the netplay goal's first leg).
 

@@ -24,7 +24,7 @@ namespace d2d::client {
 
 // --- Screen state machine + mouse routing ---------------------------------
 
-enum class Screen { Title, Credits, CharSelect, CharCreate, InGame, Video, Cinematics };
+enum class Screen { Title, Credits, CharSelect, CharCreate, InGame, Video, Cinematics, OtherMultiplayer, TcpIp };
 
 // Per-class animation state on the char-create screen. Matches D2's flow:
 // classes idle in place (nu1); on click the "just clicked" class walks
@@ -101,7 +101,7 @@ struct Button {
     const char*             label   = nullptr;
     const d2d::dc6::Sprite* chrome  = nullptr;
     // Action: set BOTH goto_screen (screen switch) OR quit (exit). Neither
-    // means "no-op for now" — used for the Battle.net / Multiplayer buttons.
+    // means "no-op for now" — used for the Battle.net buttons.
     Screen                  goto_screen = Screen::Title;
     bool                    do_switch   = false;
     bool                    quit        = false;

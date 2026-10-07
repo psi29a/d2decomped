@@ -41,6 +41,11 @@ struct CharSelectUI {
     std::string delete_label, delete_label2;
     std::string cancel_label;
     std::string ok_label;
+    // A failed join's message in game.exe's OK popup (FUN_00433380); empty
+    // when none is up. OK goes to popup_return.
+    std::string popup;
+    Button popup_ok{};
+    Screen popup_return = Screen::CharSelect;
     int selected = -1;           // index into Scene::saves, or -1
     int scroll = 0;              // index of the save in slot 0; always even
     std::uint32_t last_click_ms = 0;   // double-click = OK (FUN_0043a9d0)
@@ -134,6 +139,25 @@ constexpr std::array<const char*, 7> kCinematicVideo = {
     R"(data\local\video\ENG\Act03start640x292.bik)", R"(data\local\video\ENG\Act04start640x292.bik)",
     R"(data\local\video\ENG\Act04end640x292.bik)",   R"(data\local\video\ENG\D2x_Intro_640x292.bik)",
     R"(data\local\video\ENG\D2x_Out_640x292.bik)" };
+
+// Other Multiplayer (FUN_00430c50, docs/research/re/tcpip-menu.md): the
+// title's background and logo (FUN_0043c4f0) under records 0xff OPEN
+// BATTLE.NET, 0x100 TCP/IP GAME and 0x101 CANCEL. Drawn by render_title.
+TitleUI other_multiplayer_ui(const Scene& scene);
+
+// TCP/IP Options (FUN_0042ffe0) and its join box (FUN_00431d20). main.cpp
+// runs the input; this holds the buttons and texts.
+struct TcpIpUI {
+    Button host{}, join{}, cancel{};      // records 0x106, 0x107, 0x10a
+    Button box_cancel{}, box_ok{};        // 0x110, 0x111: the join box's
+    std::string host_label, join_label, cancel_label, ok_label;
+    std::string heading, ip_label, ip, host_text, join_text, prompt;
+    bool has_ip = false;                  // not 127.0.0.1: HOST, JOIN and the label are live
+    bool box_open = false;                // the join box is up
+    std::string address;                  // typed into it
+};
+TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip);
+void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms);
 
 // How many entries are unlocked, from what has been seen: game.exe's
 // chain (FUN_00431600) over its registry bits — 0x01 LoD ending: 7,

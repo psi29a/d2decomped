@@ -10,6 +10,7 @@
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
@@ -26,6 +27,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QProgressBar>
 #include <QPushButton>
@@ -506,7 +508,7 @@ public:
         connect(more, &QPushButton::clicked, this, [this] { scan(true); });
         auto* rescan = new QPushButton(tr("Rescan"), this);
         connect(rescan, &QPushButton::clicked, this, [this] { scan(false); });
-        foundBox_ = new QWidget(this);
+        foundBox_ = new QWidget(this);   // always shown: Rescan lives here
         auto* foundLayout = new QVBoxLayout(foundBox_);
         foundLayout->setContentsMargins(0, 0, 0, 0);
         foundLayout->addWidget(new QLabel(tr("Diablo II installs found:"), foundBox_));
@@ -517,7 +519,6 @@ public:
         foundRow->addWidget(more);
         foundRow->addWidget(rescan);
         foundLayout->addLayout(foundRow);
-        foundBox_->setHidden(true);
 
         // --- action buttons ------------------------------------------------
         install_ = new QPushButton(tr("Install / Reinstall..."), this);
@@ -532,6 +533,15 @@ public:
             !QString::fromUtf8(d2::kPatchUrl).isEmpty());
         connect(fetchBins_, &QPushButton::clicked, this,
                 &MainWindow::fetchPatch);
+
+        // d2d.cfg's `fullscreen`, the same key d2d's Alt+Enter writes.
+        fullscreen_ = new QCheckBox(tr("Fullscreen"), this);
+        fullscreen_->setToolTip(tr("Borderless fullscreen (Alt+Enter switches in game)"));
+        connect(fullscreen_, &QCheckBox::toggled, this, [this](bool checked) {
+            const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
+            if (!d2d::userdir::save_cfg(cfg, { { "fullscreen", checked ? "1" : "0" } }))
+                QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+        });
 
         launch_ = new QPushButton(tr("Launch"), this);
         launch_->setDefault(true);
@@ -575,6 +585,7 @@ public:
         btnRow->addWidget(addBins_);
         btnRow->addWidget(fetchBins_);
         btnRow->addStretch();
+        btnRow->addWidget(fullscreen_);
         btnRow->addWidget(launch_);
         layout->addLayout(btnRow);
         layout->addStretch();
@@ -587,10 +598,11 @@ public:
 
         loadSettings();
         refresh();
-        // A saved install that still classifies as usable is kept; else look.
+        // A saved install that still classifies as usable is kept; the
+        // list still shows what else is on the machine.
         const auto saved = classify_dir(path_->text());
         if (saved && d2d::install::usable(*saved)) persist();   // d2d.cfg follows the launcher
-        else scan(false);
+        scan(false);
         startUpdateCheck();
     }
 
@@ -603,11 +615,12 @@ private:
         QSettings settings;
         path_->setText(settings.value("game/dataPath").toString());
         patch_path_ = settings.value("game/patchPath").toString();
-        if (patch_path_.isEmpty()) {   // a hand-set `patch =` in d2d.cfg counts
-            d2d::userdir::Config cfg;
-            d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
+        d2d::userdir::Config cfg;
+        d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
+        if (patch_path_.isEmpty())   // a hand-set `patch =` in d2d.cfg counts
             patch_path_ = QString::fromStdString(cfg["patch"]);
-        }
+        const QSignalBlocker quiet(fullscreen_);   // loading isn't a change to write back
+        fullscreen_->setChecked(cfg["fullscreen"] == "1");
         source_ = settings.value("game/source", "manual").toString();
     }
     void saveSettings() const {
@@ -615,20 +628,22 @@ private:
         settings.setValue("game/dataPath", path_->text());
         settings.setValue("game/patchPath", patch_path_);
         settings.setValue("game/source", source_);
+        settings.sync();   // on disk now, not at some later event-loop tick
     }
     // QSettings always; d2d.cfg's `data` / `patch` only for an install d2d
     // can use (d2d stops on a bad `data =`).
     // ponytail: no patch chosen leaves d2d.cfg's `patch` as it is (a
     // hand-set LODPatch_114d.exe survives); a stale one is the user's to clear.
-    void persist() {
+    bool persist() {
         saveSettings();
         const auto install = classify_dir(path_->text());
-        if (!install || !d2d::install::usable(*install)) return;
+        if (!install || !d2d::install::usable(*install)) return true;
         const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
         std::vector<std::pair<std::string, std::string>> values{ { "data", install->dir.string() } };
         if (!patch_path_.isEmpty()) values.emplace_back("patch", to_path(patch_path_).string());
-        if (!d2d::userdir::save_cfg(cfg, values))
-            QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+        if (d2d::userdir::save_cfg(cfg, values)) return true;
+        QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+        return false;
     }
 
     // Look for installs off the UI thread; results land in onDetected.
@@ -644,18 +659,18 @@ private:
         });
     }
 
-    // Exactly one 1.14d install: take it silently. Otherwise list them all,
-    // the unusable ones greyed out with why.
+    // No usable install chosen yet and exactly one 1.14d found: take it.
+    // The list always shows them all, the unusable ones greyed out with why.
     void onDetected(std::vector<d2d::install::Install> found) {
         installs_ = std::move(found);
         const auto is_114d = [](const auto& install) {
             return d2d::install::usable(install) && install.version == d2d::install::Version::v114d;
         };
-        if (std::count_if(installs_.begin(), installs_.end(), is_114d) == 1) {
+        const auto current = classify_dir(path_->text());
+        if (!(current && d2d::install::usable(*current))
+            && std::count_if(installs_.begin(), installs_.end(), is_114d) == 1) {
             const auto& install = *std::find_if(installs_.begin(), installs_.end(), is_114d);
             choose(install, QString::fromStdString("detected:" + install.source));
-            foundBox_->setHidden(true);
-            return;
         }
         found_->clear();
         for (const auto& install : installs_) {
@@ -669,12 +684,15 @@ private:
         }
         const auto first_usable = std::find_if(installs_.begin(), installs_.end(),
                                                [](const auto& install) { return d2d::install::usable(install); });
-        if (first_usable != installs_.end()) found_->setCurrentRow(int(first_usable - installs_.begin()));
+        const auto chosen = std::find_if(installs_.begin(), installs_.end(), [&](const auto& install) {
+            return current && install.dir == current->dir;
+        });
+        if (chosen != installs_.end()) found_->setCurrentRow(int(chosen - installs_.begin()));
+        else if (first_usable != installs_.end()) found_->setCurrentRow(int(first_usable - installs_.begin()));
         if (installs_.empty()) {
             auto* item = new QListWidgetItem(tr("No Diablo II install found. Browse to yours, or install from the discs."), found_);
             item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
         }
-        foundBox_->setHidden(false);
         refresh();
     }
 
@@ -747,17 +765,13 @@ private:
         status_->setText(msg);
         status_->setStyleSheet(ok && (!needs_patch || patched) ? "color: green;" : "color: orange;");
         fix_->setVisible(needs_patch && !patched);
-        // Launch is grayed until the engine binary exists AND game data is
-        // present. Engine binary lives beside the launcher; there is none
-        // yet, so Launch stays disabled and says why.
+        // Launch needs the d2d binary and game data d2d can use.
         const QString engine = engineBinaryPath();
-        const bool haveEngine = !engine.isEmpty() &&
-                                QFileInfo(engine).isExecutable();
-        launch_->setEnabled(ok && haveEngine);
+        launch_->setEnabled(ok && !engine.isEmpty());
         launch_->setToolTip(
-            !ok       ? tr("Install the game first.")
-          : !haveEngine ? tr("Engine binary not built yet (phase 5).")
-          : tr("Launch the game."));
+            !ok              ? tr("Install the game first.")
+          : engine.isEmpty() ? tr("d2d not found beside the launcher.")
+          : tr("Launch %1").arg(engine));
     }
 
     void openInstaller() {
@@ -771,9 +785,17 @@ private:
         }
     }
 
+    // d2d reads `data` / `patch` from d2d.cfg, which persist() keeps current.
+    // Config is flushed first, then the launcher gets out of the way; d2d
+    // raises its own window (window.hpp) so it lands in front.
     void launch() {
-        QMessageBox::information(this, tr("Launch"),
-            tr("Engine not built yet — coming in phase 5."));
+        if (!persist()) return;
+        const QString engine = engineBinaryPath();
+        if (!QProcess::startDetached(engine, {}, QFileInfo(engine).absolutePath())) {
+            QMessageBox::warning(this, tr("Launch"), tr("Could not start %1").arg(engine));
+            return;
+        }
+        close();
     }
 
     void addPatchBinaries() {
@@ -943,15 +965,20 @@ private:
         });
     }
 
-    QString engineBinaryPath() const {
-        const auto dir = QCoreApplication::applicationDirPath();
+    // d2d beside the launcher, beside the macOS .app bundle, or in the
+    // build tree (apps/launcher → apps/d2d, incl. MSVC's Release/ dirs).
+    static QString engineBinaryPath() {
+        const QDir dir(QCoreApplication::applicationDirPath());
 #ifdef Q_OS_WIN
-        const QString name = "d2.exe";
+        const QString name = "d2d.exe";
 #else
-        const QString name = "d2";
+        const QString name = "d2d";
 #endif
-        const QString path = dir + "/" + name;
-        return QFileInfo::exists(path) ? path : QString{};
+        for (const auto* relative : {".", "../../..", "../../../../d2d", "../d2d", "../../d2d/Release", "../../d2d/Debug"}) {
+            const QFileInfo info(dir.filePath(QString(relative) + "/" + name));
+            if (info.isFile() && info.isExecutable()) return info.canonicalFilePath();
+        }
+        return {};
     }
 
     void startUpdateCheck() {
@@ -991,6 +1018,7 @@ private:
     QPushButton* addBins_{};
     QPushButton* fetchBins_{};
     QPushButton* launch_{};
+    QCheckBox* fullscreen_{};
     QPushButton* upgrade_{};
     QString latest_url_;
     Q_OBJECT

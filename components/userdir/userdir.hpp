@@ -120,6 +120,7 @@ inline bool save_cfg(const fs::path& file, const std::vector<std::pair<std::stri
     fs::create_directories(file.parent_path(), error);
     std::ofstream output(file, std::ios::trunc);
     for (const auto& line : out) output << line << '\n';
+    output.close();   // a failed flush shows up here, not in the destructor
     return bool(output);
 }
 

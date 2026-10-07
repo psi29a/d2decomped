@@ -54,11 +54,19 @@ struct NetGame {
         int x = 0, y = 0, gold = 0;
     };
 
+    // Why a join failed: d2d's account of it, and what game.exe would show
+    // its player for (docs/research/re/tcpip-menu.md, "Join errors").
+    struct JoinError {
+        std::string what;
+        bool no_connect = false;         // the TCP connect itself failed
+        std::int64_t refused = -1;       // the host's B4 reason, when it refused
+    };
+
     // Connects, uploads the save and waits (up to timeout_ms) until the host
     // has put the player in the world (0x04). The log goes to `log_path`.
     static auto join(const std::string& host, const std::filesystem::path& game_exe, std::vector<std::uint8_t> save,
                      const std::filesystem::path& log_path, int timeout_ms, const d2d::d2s::ItemTables* item_tables, bool auto_party = true)
-        -> std::expected<std::unique_ptr<NetGame>, std::string>;
+        -> std::expected<std::unique_ptr<NetGame>, JoinError>;
 
     // What arrived, the ping when due, units walked on by `elapsed_ms`.
     auto pump(std::uint32_t now_ms, std::uint32_t elapsed_ms) -> void;
