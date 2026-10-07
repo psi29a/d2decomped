@@ -73,6 +73,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug portals`             | `<which>\t<level>\t<x>\t<y>` per open portal, `ok` | The player's portals: 0 where it was cast, 1 its twin in camp (cells). |
 | `debug net`                 | `host <x> <y> local <x> <y> apart <d> units <n> trade <state>`, then `player\t<id>\t<name>\t<x>\t<y>` per other player, `ok` | A joined game: where the host has the player and where d2d does (act subtiles), how far apart, how many host units d2d knows, the trade's state; the other players (cells). |
 | `debug chat <text>`        | `ok` | Shows a chat line as if it came from the host ("name: message"), to look at it; no one is told. |
+| `debug typing [text]`      | `ok` | Opens the chat edit box holding `text`, to look at it; nothing is sent. |
 | `debug tradestate <n>`      | `ok` | A joined game: sets the trade's state (0 none, 1 asked, 2 asked of us, 3 open, 5 they accepted, 7 we did) to look at its box or window; the host isn't told. |
 | `debug operate <i> [n]`     | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (town.hpp operate) without walking to it; `n` plays that Shrines.txt row / chest trap type instead. |
 | `debug enter <i>`           | `ok` / `err no such warp` | Stand by warp i as if it was clicked; the next frame takes it (`debug level` shows where). |

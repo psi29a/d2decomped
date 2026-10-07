@@ -212,6 +212,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.add_chat(text);
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "typing") {   // the chat edit box open with this text (its look; nothing is sent)
+            std::string text;
+            for (std::size_t i = 2; i < args.size(); ++i) text += (i > 2 ? " " : "") + args[i];
+            town.chat_typing = text;
+            return std::string("ok\n");
+        }
         if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
             std::string out;
             for (std::size_t i = 0; i < town.world.portal.size(); ++i)

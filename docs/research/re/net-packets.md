@@ -553,6 +553,15 @@ ids).
   taken as a left panel open **(?)**), baselines 20 + 15 a line (0x5f
   when `FUN_004538d0` **(?)**), each on a dark box (`FUN_0046efd0`: x − 5,
   baseline − 14, the width + 10, 16 high, colour 0, mode 1).
+- **The chat edit box** (`FUN_0047b720`, `.\UI\chat.cpp`; UI flag 5 is
+  the box open, `FUN_00455f20(5, 1)` shuts it while `DAT_007a0620` **(?)**):
+  FontInGameChat (0xd); a dark box (`FUN_0046efd0` colour 0, mode 1) at
+  x 0x7f, y H − 0x67, W − 0xff wide, 0x2f high; the text (`FUN_00526790`)
+  wrapped to W − 0x109 (`FUN_00502970`), white, at x 0x83 on baselines
+  H − 0x58 + 15 a line, only the first 3 lines drawn. The caret
+  (`FUN_0047b450`) is string 0xd4c "_" (strMenuMain15) after the last line
+  drawn, on 500 ms, off 100 (0x713000 / 0x713004, GetTickCount). The IME
+  states (0x7bb5e0 / e1 / f0) draw a candidate list instead, not ported.
 - **0x5a event message** (40; `FUN_0049eb10`; builder `FUN_0053c850`):
   +1 u8 event, +2 u8 the line's colour (4 gold for a join), +3 u32
   argument, +7 u8, +8 char[16] name, +0x18 char[16] second name. A

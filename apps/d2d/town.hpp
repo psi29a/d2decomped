@@ -170,6 +170,7 @@ struct Town {
     bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
     auto event_text(const NetGame::Event& event) const -> std::string;
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
+    auto wrap_chat(const std::string& text, int width) const -> std::vector<std::string>;
     std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)
     std::string typed;                                      // this frame's typed text (SDL text input)
     struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; };   // gold: that many letters first in gold (a speaker's name)
