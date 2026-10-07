@@ -11,7 +11,6 @@ set(CMAKE_AUTOMOC ON)
 # --- version stamp (git describe → config.hpp) ------------------------------
 find_package(Git QUIET)
 set(D2LAUNCHER_VERSION "0.1.0-dev")
-set(D2LAUNCHER_COMMIT  "unknown")
 if(GIT_FOUND)
     execute_process(
         COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
@@ -19,15 +18,11 @@ if(GIT_FOUND)
         OUTPUT_VARIABLE _tmp
         OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
     if(_tmp)
-        set(D2LAUNCHER_VERSION "${_tmp}")
+        string(REGEX REPLACE "-[0-9]+-g" "-g" D2LAUNCHER_VERSION "${_tmp}")   # drop commits-since-tag
     endif()
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE _tmp
-        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-    if(_tmp)
-        set(D2LAUNCHER_COMMIT "${_tmp}")
+    # Re-stamp on each commit/checkout, not only on a fresh configure.
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
     endif()
 endif()
 
@@ -40,9 +35,15 @@ set(D2_PATCH_URL "" CACHE STRING
 
 configure_file(config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/config.hpp @ONLY)
 
+set(icon_dir "${PROJECT_SOURCE_DIR}/apps/icon")
+set_source_files_properties("${icon_dir}/d2d.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 add_executable(d2d-launcher WIN32 MACOSX_BUNDLE
     main.cpp
+    "${icon_dir}/d2d.icns"
+    $<$<PLATFORM_ID:Windows>:${icon_dir}/d2d.rc>
 )
+set_target_properties(d2d-launcher PROPERTIES MACOSX_BUNDLE_ICON_FILE d2d.icns)
+qt_add_resources(d2d-launcher icon PREFIX "/" BASE "${icon_dir}" FILES "${icon_dir}/d2d.png" "${icon_dir}/hero.png")
 
 target_include_directories(d2d-launcher PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

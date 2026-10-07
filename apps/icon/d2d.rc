@@ -1,0 +1,2 @@
+// The exe icon in Explorer, for d2d-launcher.exe and d2d.exe.
+IDI_ICON1 ICON "d2d.ico"

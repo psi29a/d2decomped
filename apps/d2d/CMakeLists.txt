@@ -67,9 +67,19 @@ else()
     set(ffmpeg_target PkgConfig::FFMPEG)
 endif()
 
+# The window/dock icon, as bytes SDL_LoadBMP_IO reads (any SDL3; PNG needs 3.4).
+set(icon_bmp "${PROJECT_SOURCE_DIR}/apps/icon/d2d.bmp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${icon_bmp}")
+file(READ "${icon_bmp}" icon_hex HEX)
+string(REGEX REPLACE "(..)" "0x\\1," icon_bytes "${icon_hex}")
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/d2d_icon.hpp" CONTENT
+    "#pragma once\n// generated from apps/icon/d2d.bmp\ninline constexpr unsigned char kIconBmp[] = {${icon_bytes}};\n")
+
 add_executable(d2d
     main.cpp common.cpp cursor.cpp frontend.cpp gamemenu.cpp ingame.cpp items.cpp load.cpp panels.cpp
-    netgame.cpp scene.cpp skilltree.cpp store.cpp town.cpp ui.cpp window.cpp world_view.cpp)
+    netgame.cpp scene.cpp skilltree.cpp store.cpp town.cpp ui.cpp window.cpp world_view.cpp
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/apps/icon/d2d.rc>)
+target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(d2d PRIVATE
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
