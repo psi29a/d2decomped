@@ -457,7 +457,7 @@ void finish_scene(Scene& scene, const fs::path& save_dir, std::uint32_t map_seed
         load_ui_sprites(scene, mpqs);
         load_monster_sprites(scene, mpqs);
         load_act1_palettes(scene, mpqs);
-        want_nearby(scene, scene.town);         // the Blood Moor builds while the menus run
+        want_nearby(scene, scene.town);         // the Blood Moor builds while the menus run (deviations.md improvement 8)
         d2d::log::info("Scene loaded in {} ms.", d2d::log::ms() - start_ms);
     } catch (const std::exception& error) {
         d2d::log::error("finish_scene: {}", error.what());

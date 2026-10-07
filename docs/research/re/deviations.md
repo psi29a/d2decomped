@@ -31,6 +31,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 5 | Gold on the ground | Picked up only by clicking it | Walking within half a cell of gold puts it in the purse (on by default). `--toggle autoloot=off` turns it off | Less clicking for coins | yes | world.cpp `autoloot_gold`, main.cpp `g_autoloot` |
 | 6 | A joined game's save-back (B3) | Written as it came: magic and size checked (`FUN_0045c520`) | Written only when it parses as the same character with a good +0xc checksum; a .d2s.bak the first time; temp file + rename | A broken or foreign save never replaces the player's own | no | character_store.hpp `save_bytes` |
 | 7 | Party in a joined game | The party button: the player invites (0x5e 6) and accepts an invite (8) by hand | d2d invites each other player once and accepts their invites itself (on by default; d2d has no party screen). `--toggle autoparty=off` turns it off | Shared experience without a party UI | yes | netgame.cpp 0x8b, main.cpp `g_autoparty` |
+| 8 | When the world loads | Built after char-select's OK, behind the loading screen | Built behind the title: game tables, saves, sprites, then the town and the Blood Moor for the newest save's map seed (the likely pick). Picking another character rebuilds for its seed (`set_map_seed`). No toggle | The usual pick is ready the moment OK is clicked | yes: no wait after OK; the log shows the Blood Moor building on the title | load.cpp `finish_scene`, main.cpp `set_map_seed` |
 
 ## Approximations
 
