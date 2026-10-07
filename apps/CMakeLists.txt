@@ -14,7 +14,7 @@ add_subdirectory(d2proxy)
 # --- packaging: `cmake --build build --target package` -----------------------
 # The launcher is what a user runs; d2d sits next to it (engineBinaryPath
 # looks beside the launcher), with every library both need:
-#   macOS   d2d-launcher.app, d2d in Contents/MacOS, in a .dmg
+#   macOS   D2D.app (the launcher), d2d in Contents/MacOS, in a .dmg
 #   Linux   d2d-launcher, d2d, lib/, plugins/, qt.conf in a .tar.gz
 #   Windows d2d-launcher.exe, d2d.exe, the DLLs, Qt's plugin dirs in a .zip
 # d2d alone in a Diablo II folder (as game.exe) works too, but isn't this.
@@ -26,14 +26,20 @@ install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" 
 
 if(APPLE)
     set_target_properties(d2d-launcher PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "D2Decomp"
+        MACOSX_BUNDLE_BUNDLE_NAME "D2D"   # the menu bar's name
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${D2D_VERSION}")
     # Some Homebrew dylibs load their siblings by @rpath (brotli, webp);
     # macdeployqt puts them all in Frameworks.
     set_target_properties(d2d d2d-launcher PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
-    install(TARGETS d2d RUNTIME DESTINATION d2d-launcher.app/Contents/MacOS)
-    set(deploy_args "EXECUTABLE d2d-launcher.app
-        ADDITIONAL_EXECUTABLES \"d2d-launcher.app/Contents/MacOS/${engine}\"")
+    # Finder's name. Only the bundle: an executable D2D would be d2d's file
+    # on a case-insensitive disk.
+    install(CODE "
+        set(dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\")
+        file(REMOVE_RECURSE \"\${dir}/D2D.app\")
+        file(RENAME \"\${dir}/d2d-launcher.app\" \"\${dir}/D2D.app\")")
+    install(TARGETS d2d RUNTIME DESTINATION D2D.app/Contents/MacOS)
+    set(deploy_args "EXECUTABLE D2D.app
+        ADDITIONAL_EXECUTABLES \"D2D.app/Contents/MacOS/${engine}\"")
 elseif(WIN32)
     # windeployqt brings Qt for the launcher; d2d's DLLs (SDL3, OpenAL32,
     # FFmpeg, zlib, StormLib) are the ones staged beside it (CI does that).
@@ -76,15 +82,19 @@ install(SCRIPT "${deploy_script}")
 if(APPLE)
     # macdeployqt copies every plugin Homebrew's qtbase has, even those whose
     # Qt module isn't installed (pdf, svg, virtual keyboard); they'd fail to
-    # load, and the launcher uses none of them. Then re-sign ad hoc, as
+    # load, and the launcher uses none of them. The virtual keyboard alone
+    # brought QtQuick and the QtQml family (10 MB). Then re-sign ad hoc, as
     # macdeployqt rewrote install names (as ../thirdeye): Gatekeeper then
     # offers "Open anyway" instead of "damaged".
     install(CODE "
-        set(app \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/d2d-launcher.app\")
+        set(app \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/D2D.app\")
         file(REMOVE \"\${app}/Contents/PlugIns/imageformats/libqpdf.dylib\"
             \"\${app}/Contents/PlugIns/imageformats/libqsvg.dylib\"
             \"\${app}/Contents/PlugIns/iconengines/libqsvgicon.dylib\"
             \"\${app}/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib\")
+        foreach(module Quick Qml QmlMeta QmlModels QmlWorkerScript OpenGL)
+            file(REMOVE_RECURSE \"\${app}/Contents/Frameworks/Qt\${module}.framework\")
+        endforeach()
         execute_process(COMMAND codesign --force --deep --sign - \"\${app}\" COMMAND_ERROR_IS_FATAL ANY)")
 elseif(UNIX)
     # A bundled library's own RUNPATH (libproxy's points into /usr/lib) hides

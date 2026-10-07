@@ -248,3 +248,23 @@ jobs:
             build/d2d-*.tar.gz
             build/d2d-*.zip
           if-no-files-found: error
+
+      # The dev tools, loose and as built: they use the system's libraries
+      # (Windows: the DLLs staged beside them above).
+      - name: Upload dev tools
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2d-tools-${{ matrix.os }}
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
+          path: |
+            build/apps/d2proxy/d2proxy
+            build/apps/d2proxy/d2proxy.exe
+            build/tools/mpq-cat/mpq-cat
+            build/tools/mpq-cat/mpq-cat.exe
+            build/tools/drlg-dump/drlg-dump
+            build/tools/drlg-dump/drlg-dump.exe
+            build/tools/mpq-cat/*.dll
+            build/tools/drlg-dump/*.dll
+          if-no-files-found: warn
