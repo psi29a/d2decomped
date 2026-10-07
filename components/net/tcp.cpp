@@ -197,4 +197,34 @@ auto TcpListener::accept(int timeout_ms, std::string* from) -> std::expected<std
     return std::optional<TcpConnection>{ TcpConnection(static_cast<std::intptr_t>(client)) };
 }
 
+auto own_address() -> std::string {
+    if (!ensure_started()) return "127.0.0.1";
+    in_addr address{};
+    char name[256] = {};
+    addrinfo hints{};
+    hints.ai_family = AF_INET;
+    addrinfo* found = nullptr;
+    if (::gethostname(name, sizeof name) == 0 && ::getaddrinfo(name, nullptr, &hints, &found) == 0 && found) {
+        address = reinterpret_cast<const sockaddr_in*>(found->ai_addr)->sin_addr;
+        ::freeaddrinfo(found);
+    }
+    if (address.s_addr == 0) {
+        if (const Native socket = ::socket(AF_INET, SOCK_DGRAM, 0); socket != kNone) {
+            sockaddr_in remote{};
+            remote.sin_family = AF_INET;
+            remote.sin_port = htons(7);
+            ::inet_pton(AF_INET, "24.105.29.30", &remote.sin_addr);
+            sockaddr_in local{};
+            socklen_t length = sizeof local;
+            if (::connect(socket, reinterpret_cast<const sockaddr*>(&remote), sizeof remote) == 0
+                && ::getsockname(socket, reinterpret_cast<sockaddr*>(&local), &length) == 0)
+                address = local.sin_addr;
+            close_native(socket);
+        }
+    }
+    char text[INET_ADDRSTRLEN] = "0.0.0.0";   // inet_ntoa(0), as game.exe's sprintf of it
+    ::inet_ntop(AF_INET, &address, text, sizeof text);
+    return text;
+}
+
 } // namespace d2d::net

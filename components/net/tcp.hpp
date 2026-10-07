@@ -55,4 +55,9 @@ private:
     std::intptr_t socket_ = -1;
 };
 
+// This machine's IPv4 address as game.exe's TCP/IP screen shows it
+// (FUN_0040df60): the host name's first address, else the one a UDP
+// "connect" to 24.105.29.30:7 picks (nothing is sent), else "0.0.0.0".
+auto own_address() -> std::string;
+
 } // namespace d2d::net

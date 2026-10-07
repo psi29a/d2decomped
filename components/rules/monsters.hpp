@@ -797,17 +797,18 @@ std::vector<std::pair<int, int>> wall_path(int x, int y, int to_x, int to_y, int
 // 0xd: 5 steps, near 1 at a unit, FUN_006498a0); with no point left, the
 // wall pather (type 0xf: 5 steps, 0x28 at a unit). Leading points on its
 // own subtile are dropped as the path is made (FUN_00649970 ->
-// FUN_0064fe40). None at its own subtile or over 100 off.
+// FUN_0064fe40). None at its own subtile or over 100 off. `steps`: the
+// path's (+0x91; a think's pace can set it, FUN_005a6260).
 template <class Blocked>
-std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked) {
+std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, bool to_unit, Blocked&& blocked, int steps = 5) {
     if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return {};
     auto off_own = [&](std::vector<std::pair<int, int>> points) {
         const auto own = std::ranges::find_if(points, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); });
         points.erase(points.begin(), own);
         return points;
     };
-    if (auto toward = off_own(toward_path(x, y, to_x, to_y, 5, to_unit ? 1 : 0, blocked)); !toward.empty()) return toward;
-    return off_own(wall_path(x, y, to_x, to_y, 5, to_unit, blocked));
+    if (auto toward = off_own(toward_path(x, y, to_x, to_y, steps, to_unit ? 1 : 0, blocked)); !toward.empty()) return toward;
+    return off_own(wall_path(x, y, to_x, to_y, steps, to_unit, blocked));
 }
 
 // A player's path (type 7, FUN_00679ed0; +0x91 steps 0x49, FUN_00649d00):
@@ -815,9 +816,10 @@ std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, 
 // and isn't the start. Else, with the target under 18 subtiles off (dx^2 +
 // dy^2 < 325), the search pather when that finds a way; else the toward
 // path.
+// `steps`: the path's +0x91 (a player's 0x49; a merc given type 7, its own).
 template <class Blocked>
-std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, int nearby, bool to_unit, Blocked&& blocked) {
-    auto toward = toward_path(x, y, to_x, to_y, 0x49, nearby, blocked);
+std::vector<std::pair<int, int>> player_path(int x, int y, int to_x, int to_y, int nearby, bool to_unit, Blocked&& blocked, int steps = 0x49) {
+    auto toward = toward_path(x, y, to_x, to_y, steps, nearby, blocked);
     if (!toward.empty() && unit_distance(toward.back().first - to_x, toward.back().second - to_y, 1, 1) <= nearby
         && toward.back() != std::pair(x, y))
         return toward;
@@ -933,6 +935,64 @@ inline NearPick search_near(std::span<const NearFoe> foes, int align, bool need_
         }
     }
     return pick;
+}
+
+// The second-target search of a merc (and of the Vampire): FUN_005ddc30 ->
+// FUN_005dd0b0 mode 6 (FUN_005dcbd0 over the near rooms' units). An enemy
+// (FUN_005dc970: player or monster, neither dying, the candidate not in a
+// town room, FUN_00554200's foe) under 0x31 off (near_distance), in sight
+// (FUN_00622aa0 mask 4, always tested): threat 2 or more a primary, else a
+// secondary, each the nearest, the first found at a tie. FUN_005dc970
+// passes over a monster in state 0x92 (invis) within melee of the searcher
+// (a player in it 80 % of the time unless in melee: the merc's foes are all
+// monsters). The picks (-1 none) and their distances. FUN_005dd510 then
+// takes the primary, else the secondary (merc_target).
+struct SightFoe { int distance = 0, threat = 0; bool enemy = false, blocked = false, invisible = false, in_melee = false; };
+struct SightPick { int first = -1, first_best = 0x7fffffff, second = -1, second_best = 0x7fffffff; };
+inline SightPick search_sight(std::span<const SightFoe> foes) {
+    SightPick pick;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        if (!foe.enemy || (foe.invisible && foe.in_melee) || foe.distance >= 0x31) continue;
+        const bool primary = foe.threat >= 2;
+        if (foe.distance >= (primary ? pick.first_best : pick.second_best) || foe.blocked) continue;
+        (primary ? pick.first : pick.second) = int(i);
+        (primary ? pick.first_best : pick.second_best) = foe.distance;
+    }
+    return pick;
+}
+
+// FUN_005dd510's mode 7 (FUN_005dcc60): with no path to the primary, the
+// nearest other enemy of threat 2 or more under 0x31 off in sight; -1 none.
+inline int search_threat(std::span<const SightFoe> foes, int skip, int& distance) {
+    int best = -1;
+    distance = 0x7fffffff;
+    for (std::size_t i = 0; i < foes.size(); ++i) {
+        const auto& foe = foes[i];
+        if (int(i) == skip || !foe.enemy || (foe.invisible && foe.in_melee) || foe.distance >= 0x31 || foe.threat < 2 || foe.distance >= distance || foe.blocked) continue;
+        best = int(i); distance = foe.distance;
+    }
+    return best;
+}
+
+// FUN_005dd510 for a monster searcher: no secondary, the primary; no
+// primary, the secondary; the secondary under 6 off and no path to the
+// primary (`path_to_primary`: a type 2 path, the toward pather), mode 7's
+// pick when within 0x13, else the secondary; else the primary.
+template <class PathTo>
+int sight_choice(std::span<const SightFoe> foes, const SightPick& pick, PathTo&& path_to_primary, int& distance) {
+    if (pick.second < 0 || pick.first < 0) {
+        distance = pick.first >= 0 ? pick.first_best : pick.second_best;
+        return pick.first >= 0 ? pick.first : pick.second;
+    }
+    if (pick.second_best < 6 && !path_to_primary(pick.first)) {
+        int other_best = 0;
+        if (const int other = search_threat(foes, pick.first, other_best); other >= 0 && other_best <= 0x13) { distance = other_best; return other; }
+        distance = pick.second_best;
+        return pick.second;
+    }
+    distance = pick.first_best;
+    return pick.first;
 }
 
 // A unit's direction 0..63 from (x, y) to (tx, ty), subtiles (FUN_0064fdc0

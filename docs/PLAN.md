@@ -201,9 +201,9 @@ caves (9–16). Next: the rest of Act 1.
 
 ## Open questions
 
-- Launch page: the plan was for `d2d-launcher` to grow one; today it's two
-  binaries (`d2d-launcher` installs, `d2d` runs). Keep it that way unless
-  a launch page earns its place.
+- Launch page: settled 2026-10-07. `d2d-launcher` finds or installs the game,
+  holds the Fullscreen setting, and its Launch button saves `d2d.cfg`, starts
+  `d2d` and closes. There's no separate launch page.
 - Save format: keep 1.14d-compatible or greenfield? Compatible unless it
   hurts.
 - Networking: decided 2026-09-27. Listen server, single player as a

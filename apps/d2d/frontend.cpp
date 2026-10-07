@@ -8,16 +8,41 @@
 #include "world_view.hpp"
 
 #include <d2s.hpp>
+#include <font.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace d2d::client {
+
+// A text record (kind 4, bottom-left x, y): lines centred across `width`,
+// wrapped to it; one line sits centred in `height`.
+// ponytail: wrapped lines run down from the box's top; FUN_004fd060's
+// own placement of several lines isn't traced.
+static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::font::Font& font,
+                          const std::string& line, int x, int y, int width, int height, std::uint8_t shade = 255) {
+    std::vector<std::string> rows{ std::string{} };
+    std::size_t start = 0;
+    while (start < line.size()) {
+        const auto end = std::min(line.find(' ', start), line.size());
+        const std::string word = line.substr(start, end - start);
+        if (!rows.back().empty() && font.measure(rows.back() + " " + word) > width) rows.emplace_back();
+        rows.back() += (rows.back().empty() ? "" : " ") + word;
+        start = end + 1;
+    }
+    const int top = rec_top(y, height), pitch = font.line_height();
+    int row_y = rows.size() == 1 ? top + (height - pitch) / 2 : top;
+    for (const auto& row : rows) {
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, x + (width - font.measure(row)) / 2, row_y, row, shade, shade, shade);
+        row_y += pitch;
+    }
+}
 
 void render_title(std::vector<std::uint8_t>& framebuffer,
                   const Scene& scene,
@@ -238,6 +263,16 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
         }
     }
+    if (select_ui.popup.empty()) return;
+    // FUN_00433380 on a Sky screen: PopUpOK (record 0xde), the message
+    // (0xe0, Font24) and OK (0xe1).
+    blit_dc6_grid(framebuffer, scene.popup_ok, pal, 268, rec_top(350, 176), 2);
+    draw_text_box(framebuffer, scene, scene.font24, select_ui.popup, 268, 300, 264, 100);
+    const auto& ok = select_ui.popup_ok;
+    blit_button_chrome(framebuffer, pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
+    const int label_x = ok.x + (ok.width - scene.font.measure(select_ui.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
+    if (ok.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, select_ui.ok_label, 255, 208, 80);
+    else            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, select_ui.ok_label);
 }
 
 void render_credits(std::vector<std::uint8_t>& framebuffer,
@@ -557,6 +592,85 @@ void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scen
     draw(cinematics.cancel, cinematics.cancel_label, true);
 }
 
+TitleUI other_multiplayer_ui(const Scene& scene) {
+    TitleUI menu;
+    menu.labels.reserve(3);
+    menu.buttons.reserve(3);
+    // ponytail: OPEN BATTLE.NET does nothing; d2d has no Battle.net.
+    for (const auto& [y, tbl_id, fallback, target] : { std::tuple{ 310, 0x13fb, "OPEN BATTLE.NET", Screen::OtherMultiplayer },
+                                                      { 350, 0x13fc, "TCP/IP GAME", Screen::TcpIp },
+                                                      { 568, 0x13ef, "CANCEL", Screen::Title } }) {
+        const auto found = lookup_string(scene, std::uint16_t(tbl_id));
+        menu.labels.push_back(found ? u16_to_latin1(*found) : std::string(fallback));
+        menu.buttons.push_back(Button{ 264, rec_top(y, 35), 272, 35, menu.labels.back().c_str(), &scene.btn_wide,
+                                       target, target != Screen::OtherMultiplayer });
+    }
+    return menu;
+}
+
+TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip) {
+    auto str = [&](std::uint16_t id, const char* fallback) {
+        const auto found = lookup_string(scene, id);
+        return found ? u16_to_latin1(*found) : std::string(fallback);
+    };
+    TcpIpUI tcpip;
+    tcpip.heading = str(0x13fd, "TCP/IP Options");
+    tcpip.ip_label = str(0x1401, "Your IP Address is: ");
+    // FUN_0042ff20: loopback means no network; HOST, JOIN and the label go dark.
+    tcpip.has_ip = own_ip != "127.0.0.1";
+    tcpip.ip = tcpip.has_ip ? own_ip : str(0x1404, "Cannot detect a valid TCP/IP address.");
+    tcpip.host_label = str(0x13fe, "HOST GAME");
+    tcpip.join_label = str(0x13ff, "JOIN GAME");
+    tcpip.cancel_label = str(0x13ef, "CANCEL");
+    tcpip.ok_label = str(0x13ee, "OK");
+    tcpip.host_text = str(0x1402, "");
+    tcpip.join_text = str(0x1403, "");
+    tcpip.prompt = str(0x2b1f, "Enter Host IP Address to Join Game");
+    // ponytail: HOST GAME does nothing; d2d only joins a game.exe host.
+    tcpip.host = Button{ 265, rec_top(206, 35), 272, 35, nullptr, &scene.btn_wide };
+    tcpip.join = Button{ 265, rec_top(264, 35), 272, 35, nullptr, &scene.btn_wide };
+    tcpip.cancel = Button{ 39, rec_top(571, 35), 128, 35, nullptr, &scene.medium_button, Screen::OtherMultiplayer, true };
+    tcpip.box_cancel = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    tcpip.box_ok = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    return tcpip;
+}
+
+void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms) {
+    blit_dc6_grid(framebuffer, scene.tcpip_bg, scene.pal, 0, 0, 4);
+    constexpr std::uint8_t kGrey = 105;
+    auto button = [&](const Button& place, const std::string& label, bool enabled) {
+        if (place.chrome) blit_button_chrome(framebuffer, scene.pal, *place.chrome, place.x, place.y, enabled && place.hovered && place.pressed);
+        const int label_x = place.x + (place.width - scene.font.measure(label)) / 2, label_y = place.y + (place.height - scene.font.line_height()) / 2;
+        if (!enabled)        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label, kGrey, kGrey, kGrey);
+        else if (place.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label, 255, 208, 80);
+        else                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, label);
+    };
+    auto text = [&](const d2d::font::Font& font, const std::string& line, int x, int y, int width, int height, bool enabled = true) {
+        draw_text_box(framebuffer, scene, font, line, x, y, width, height, enabled ? 255 : kGrey);
+    };
+    text(scene.font42, tcpip.heading, 100, 76, 600, 40);
+    text(scene.font, tcpip.ip_label, 270, 156, 272, 40, tcpip.has_ip);
+    text(scene.font, tcpip.ip, 265, 171, 272, 40);
+    button(tcpip.host, tcpip.host_label, tcpip.has_ip);
+    button(tcpip.join, tcpip.join_label, tcpip.has_ip);
+    button(tcpip.cancel, tcpip.cancel_label, true);
+    // The buttons' hover texts (FUN_00430120 / FUN_00430160 show records 0x108 / 0x109).
+    if (!tcpip.box_open && tcpip.has_ip && (tcpip.host.hovered || tcpip.join.hovered))
+        text(scene.font_formal11, tcpip.host.hovered ? tcpip.host_text : tcpip.join_text, 265, 520, 272, 210);
+    if (!tcpip.box_open) return;
+    // The join box: PopUpOKCancel2 (0x10f), its prompt (0x10c), IPAddressBox
+    // (0x10e) and the edit line (0x10d, FontFormal12, from its left edge).
+    blit_dc6_grid(framebuffer, scene.popup_ok_cancel, scene.pal, 268, rec_top(350, 176), 2);
+    text(scene.font, tcpip.prompt, 300, 250, 200, 50);
+    if (scene.ip_box.frames_per_direction() > 0) blit_sprite(framebuffer, scene.ip_box.frame(0, 0), scene.pal, 291, rec_top(270, 26));
+    const int edit_y = rec_top(268, 20) + (20 - scene.font_formal12.line_height()) / 2;
+    const int typed = scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 300, edit_y, tcpip.address);
+    // ponytail: a blinking "|" for the caret, as the name field's.
+    if (((elapsed_ms / 500) & 1) == 0) scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, typed, edit_y, "|");
+    button(tcpip.box_cancel, tcpip.cancel_label, true);
+    button(tcpip.box_ok, tcpip.ok_label, true);
+}
+
 TitleUI title_ui(const Scene& scene) {
     struct Spec {
         int x, y, width, height;
@@ -573,7 +687,8 @@ TitleUI title_ui(const Scene& scene) {
             true, Screen::CharSelect, false},
         {264, 366, 272, 35, 0x13f3, "BATTLE.NET",        &scene.btn_wide2},
         {264, 391, 272, 25, 0,      "GATEWAY: LOCAL",    &scene.btn_narrow},
-        {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &scene.btn_wide},
+        {264, 433, 272, 35, 0x13f4, "OTHER MULTIPLAYER", &scene.btn_wide,
+            true, Screen::OtherMultiplayer, false},
         {264, 528, 135, 25, 0x13f6, "CREDITS",           &scene.btn_short,
             true, Screen::Credits, false},
         {402, 528, 135, 25, 0x13f7, "CINEMATICS",        &scene.btn_short,

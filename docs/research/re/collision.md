@@ -26,13 +26,35 @@ of the near rooms already up count, each clipped to this room's rect
 (`FUN_0064c860`: the old tile's flags off, the new one's on). So a grid
 depends on the order the rooms came up in, as the tiles do.
 
-Bits: 0x01 blocks walking, 0x08 blocks the player; walking units test
-mask 0x1c09 (walls 0x09 plus door 0x400, monster 0x800, player 0x1000 —
-units stamp their own footprints). Outside every room reads 0x27.
-An object's footprint bits (`FUN_006209d0`): 0x400, | 0x04 with
-BlockMissile; 0x8000 for a SubClass 4 non-door; a door 0x806 with
-BlocksVis, else 0x808 with BlockMissile, else 0x400. An item 0x200, a
-warp tile 1.
+Bits: 0x01 blocks walking, 0x08 blocks the player. An object's bits
+(`FUN_006209d0`): 0x400, | 0x04 with BlockMissile; 0x8000 for a SubClass
+4 non-door; a door 0x806 with BlocksVis, else 0x804 with BlockMissile,
+else 0x400 (on in the modes HasCollision says, off as it opens). An item
+0x200, a warp tile 1. Outside every room reads 0x27.
+
+Units stamp their own (`FUN_00649400`, off with `FUN_00649560`; the mover's
+own lifted while it paths, `FUN_00649970`) by pattern (`FUN_0064ea90`):
+
+| pattern | own bits (player 0x80, monster 0x100) | footprint |
+|---|---|---|
+| 1 / 3 | the plus | 0x1000 / 0x2000 on the subtile |
+| 2 / 4 | the SizeX box | 0x1000 / 0x2000 on the plus |
+| 5 | the plus | none |
+
+The pattern (`FUN_006484e0`): MonStats2 SizeX through `DAT_006eb3dc` (0,
+1, 1, 2; over 3: 1); a MonStats npc or inTown (+0xd & 1 / 4) that isn't
+interact (+0xd & 2) goes 1 → 3, 2 → 4 — the mercs and the cow — as does a
+player's pet (unit +0xc4 bit 31: FUN_0056d8d0 for every summon, Revive's
+FUN_005c55c0; FUN_0063e860). Pattern 0 (SizeX 0: the chicken, rats,
+hydras, sentries) stamps nothing and tests its own subtile. A mover
+tests (`FUN_0064d910`) the plus for 1 / 3 / 5 (`FUN_0064d4e0`), its box for
+2 / 4 (`FUN_0064d7c0`), against its mask (path +0x50): a player 0x1c09, a
+monster 0x3c01, opendoors (+0xc & 8) 0x3401, flying (+0xd & 0x40) 0x1804.
+So a player walks through its merc (0x2000) but not a monster or Akara
+(0x1000); an opendoors monster through a BlocksVis door.
+
+In d2d the grid holds tiles and objects (`Level::walk`, u16); units are
+the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
 
 ## Rects and units
 
@@ -125,8 +147,9 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - ponytail: d2d drops a repeated point (the toward pather's cut-short
   subtile); game.exe spends a frame on it. A target that moves re-paths at
   0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
-  FUN_006503f0's 5 subtiles off SP2. The merc's follow distances (the
-  Hireable AI) aren't traced; town NPCs walking up to the player go to a
-  spot, not a unit.
-- Not yet: the tile-entry flag bits, units blocking each other (0x800 /
-  0x1000), doors.
+  FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
+  to a spot, not a unit. The merc's moves carry their own type, pace and
+  steps (merc-ai.md).
+- ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
+  no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
+  d2d pet takes 3 / 4.

@@ -132,7 +132,7 @@ struct Fight {
     const Level* const& level;             // Town's: where the player is
     Character& character;
     UnitState& player;
-    std::optional<UnitState>& merc;
+    std::optional<Monster>& merc;          // the save's mercenary, a monster on the player's side (World's)
     const Npc* const& merc_npc;
     d2d::rules::Rng& rng;
     Loot& loot;
@@ -246,14 +246,43 @@ struct Fight {
     // The player's level in a skill: points, and with item bonuses (Town
     // points these at its SkillBar).
     std::function<int(int)> skill_base, skill_level;
-    // The merc in a fight: its stats (hireling.txt at its level), life,
-    // mode (NU/WL follow, A1 attack, GH, DT) and the monster it's after.
+    // The merc in a fight: its stats (hireling.txt at its level), the
+    // monster it's after and whether it's walking at it. The rest is its
+    // Monster's (World::merc): life, mode (NU / WL / RN follow, A1 attack,
+    // GH, DT), mode_until, struck, its seed (+0x20, the think's rolls),
+    // next_act (its next think), move_pct (a move's pace).
     d2d::rules::MercStats merc_st;
-    int   merc_life = 0;
-    std::string_view merc_mode = "NU";
-    std::uint32_t merc_until = 0;
-    bool  merc_struck = false;
     int   merc_target = -1;
+    bool  merc_chase = false;
+    // Its hireling skills (Skills.txt ids, levels: rules::merc_skill_levels),
+    // the AI control's +0x14 (the attack think's chance growth), the aura it
+    // started (FUN_005701b0: running from then, its effect not built) and
+    // the skill (and level) its attack mode carries (-1: a plain blow).
+    std::array<int, 6> merc_ids{}, merc_levels{};
+    int   merc_growth = 0, merc_aura = -1, merc_skill = -1, merc_skill_level = 0;
+    // An SQ skill's sequence while it plays (Jab: MonSeq seq_act2guardjab,
+    // its MonStats Sk*mode), and the sequence frames already past.
+    const std::vector<GameData::MonSeqFrame>* merc_seq = nullptr;
+    int   merc_seq_done = 0;
+    // A self cast's state on the merc (Frozen Armor, do 18 FUN_005c9480):
+    // the skill, its level, until when. Its aurastats go on its fighter
+    // (skill_armor_percent), melee strikers freeze (merc_buff_events), and
+    // the pick passes it over while it runs (FUN_005e4d30, its state on).
+    struct MercBuff { int skill = -1, level = 0; std::uint32_t until = 0; } merc_buff;
+    void merc_buff_events(Foe& foe, std::uint32_t now_ms);
+    // What the merc's think reads of the player: its mode (2 walk, 3 run, 6
+    // walk in town, 1 else) and footsteps (player data +0xa0 / +0xa8, 20
+    // subtile spots, `footstep_cursor` the next to write), World's to fill.
+    int   owner_mode = 1;
+    std::array<std::pair<int, int>, 20> footsteps{};
+    int   footstep_cursor = 0;
+    std::uint32_t footstep_ms = 0;
+    // A footstep at subtile (x, y): written over the oldest, the cursor on.
+    void footstep(int x, int y, std::uint32_t now_ms) {
+        footsteps[std::size_t(footstep_cursor)] = { x, y };
+        footstep_cursor = footstep_cursor >= 0x13 ? 0 : footstep_cursor + 1;
+        footstep_ms = now_ms;
+    }
     // Potions working: life / mana (8.8 fixed) a millisecond, until when.
     struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
     std::vector<Regen> regen;
@@ -330,6 +359,8 @@ struct Fight {
 
     // What calcs ask of the player (skills.hpp).
     [[nodiscard]] d2d::rules::CalcEnv calc_env();
+    // The merc's: its level, no skills or stats behind it (mercs have no synergies).
+    [[nodiscard]] d2d::rules::CalcEnv merc_calc_env();
     // A swing starts: the skill in use when it's built, paid for from mana
     // (FUN_0056c160's cost); short of mana, a skill with AttackNoMana swings
     // a plain attack instead, any other doesn't swing. Its animation (A1,
@@ -378,6 +409,10 @@ struct Fight {
     // calc4's element conversion aren't applied; stat 325's to-hit on kicks
     // isn't added.
     [[nodiscard]] d2d::rules::Swing swing();
+    // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
+    // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
+    // Dragon Talon's last-kick knockback read the player's state.
+    [[nodiscard]] d2d::rules::Swing skill_swing(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, bool by_player);
 
     // A hit on monster i (the player's or the merc's): blocked, it blocks;
     // otherwise the damage, life/mana leech (the player's), poison and
@@ -422,7 +457,14 @@ struct Fight {
     // guards aren't applied; Corpse Explosion takes its corpse's life from
     // the MonStats roll, not FUN_006538a0's.
     [[nodiscard]] static bool spot_skill(const d2d::rules::Skill& skill);
-    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    // Who casts a skill: where from, at what level, at which monster (-1
+    // none) and point, and whether it's the merc's (its missiles strike with
+    // its damage, attack rating and level).
+    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false; };
+    [[nodiscard]] Caster player_caster(int skill) const;
+    bool casting_merc = false;             // launch() marks what's fired as the merc's
+    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }
+    void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
     // brackets, synergy and the element's mastery (flag 1); Power Strike's
     // lightning, Poison Dagger's poison). Stun is elsewhere.
@@ -520,16 +562,30 @@ struct Fight {
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;
+    // What the merc wears (World::character.merc_items): its items' stats
+    // summed (sockets, set bonuses), the weapon's own, its weapon and shield,
+    // the items' own defence (after their enhanced defence), defence per level.
+    struct MercGear {
+        d2d::rules::StatSum sum{}, weapon_sum{};
+        const d2d::d2s::Item *weapon = nullptr, *shield = nullptr;
+        std::int64_t item_def = 0, per_level = 0;
+    };
+    [[nodiscard]] MercGear merc_gear() const;
+    // Its maximum life with its gear.
+    [[nodiscard]] int merc_max_life() const;
 
-    // The merc's turn: it goes for the nearest monster within 6 cells of the
-    // player that has noticed them (or is within 3 of the merc), strikes in
-    // melee — an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to
-    // 6 cells — and otherwise follows. Hits use its attack rating against
-    // the monster's defense and its damage. Killed, it plays its death and
-    // is gone (the save's merc is dead until resurrected).
-    // ponytail: mercs' skills and the Hireable AI aren't traced; the rogue's
-    // bow is assumed, other mercs fight in melee.
-    void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // The merc's turn. Standing, at its think (MonAI Hireable,
+    // rules::hireable_think) it follows the player, wanders, stands or,
+    // outside town with a foe under 25 off, fights: in reach it strikes —
+    // an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to 6 cells —
+    // else it walks at the foe. A walk or run ends with a think at once
+    // (FUN_005a8030). Hits use its attack rating against the monster's
+    // defense and its damage. Killed, it plays its death and is gone (the
+    // save's merc is dead until resurrected).
+    // ponytail: the attack think (FUN_005e5050) and mercs' skills
+    // (FUN_005e4d30) aren't ported; the target is the nearest live monster
+    // by merc_gap under 0x31, not FUN_005ddc30's threat order.
+    void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);
 
     // The player's combat modes this frame: dead, the death plays out
     // (true once it's over: a Resurrect may respawn); a swing strikes, and
@@ -609,7 +665,8 @@ struct Fight {
     // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
-    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) { fire(skill, now_ms, player_caster(skill.id)); }
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
     // down at its target: its range is the frames to get there.
     [[nodiscard]] static int land_range(const GameData::MissileInfo& missile_info, float dx, float dy);

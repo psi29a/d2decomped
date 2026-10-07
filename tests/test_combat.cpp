@@ -252,11 +252,13 @@ int main() {
     assert(stamina_regen(1000, stamina_max, 1, 50) == 1030 && stamina_regen(stamina_max - 5, stamina_max, 1, 0) == stamina_max);
     // The merc: level from experience, stats from its band.
     Tables merc_tables;
-    merc_tables.hirelings = { { .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
-                       .dmg_min = 2, .dmg_max = 5, .dmg_per_level = 8, .attack_rating = 20, .ar_per_level = 5 },
-                     { .id = 1, .level = 20, .exp_per_level = 100, .hit_points = 500, .dmg_min = 10, .dmg_max = 20 } };
+    merc_tables.hirelings = { { .version = 0, .id = 1, .level = 1, .exp_per_level = 50, .hit_points = 999 },        // classic: not LoD's
+                     { .version = 100, .id = 1, .level = 3, .exp_per_level = 100, .hit_points = 100, .hp_per_level = 10, .def = 10, .def_per_level = 2,
+                       .dmg_min = 2, .dmg_max = 5, .dmg_per_level = 8, .attack_rating = 20, .ar_per_level = 5, .resist = 10, .resist_per_level = 6 },
+                     { .version = 100, .id = 1, .level = 20, .exp_per_level = 100, .hit_points = 500, .dmg_min = 10, .dmg_max = 20 } };
     auto merc = merc_stats(merc_tables, 1, 5 * 100 * 4 * 4);                    // level 4: 1600; level 5 needs 3000
     assert(merc.level == 4 && merc.life == 110 && merc.def == 12 && merc.dmg_min == 3 && merc.dmg_max == 6 && merc.attack_rating == 25);
+    assert(merc.resist == 10 + 6 / 4);
     merc = merc_stats(merc_tables, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
     assert(merc.level == 20 && merc.life == 500 && merc.dmg_min == 10);
     std::puts("ok");

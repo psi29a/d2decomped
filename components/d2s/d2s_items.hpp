@@ -408,4 +408,18 @@ inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables
     return corpse;
 }
 
+// The merc's items (LoD, after the corpse list; PlrSave2.cpp): "jf", then
+// with a hired merc "JM" <u16 count> and its items (what it wears: head,
+// torso, the hands). Empty without the section or a merc.
+inline std::vector<Item> parse_merc_items(std::span<const std::byte> save, const ItemTables& item_tables) {
+    std::vector<Item> items;
+    const std::size_t start = parse_corpse(save, item_tables).end;
+    if (start + 2 > save.size() || save[start] != std::byte{'j'} || save[start + 1] != std::byte{'f'}) return items;
+    if (start + 6 > save.size() || save[start + 2] != std::byte{'J'} || save[start + 3] != std::byte{'M'}) return items;
+    const int count = int(std::uint8_t(save[start + 4])) | int(std::uint8_t(save[start + 5])) << 8;
+    detail::Bits bits{ save, (start + 6) * 8 };
+    for (int i = 0; i < count; ++i) items.push_back(detail::item(bits, item_tables));
+    return items;
+}
+
 }  // namespace d2d::d2s

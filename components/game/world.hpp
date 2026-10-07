@@ -142,7 +142,7 @@ struct World {
     Character character;                       // the character: the World's own (the client's is a copy of the View's)
     const Level* level = nullptr;          // where the player is: the town, the Blood Moor, the Den of Evil
     UnitState player;                      // DS1 cells (x.5 = a cell centre)
-    std::optional<UnitState> merc;          // the save's mercenary, following
+    std::optional<Monster> merc;            // the save's mercenary (Fight::merc_turn)
     const Npc* merc_npc = nullptr;
     std::vector<UnitState> npc_states;     // the level's NPCs as they patrol
     // Other levels' NPCs, kept while the player's away; the neighbours'

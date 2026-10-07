@@ -168,6 +168,7 @@ struct Character {
     std::vector<d2d::d2s::Item> items;   // a loaded save's items
     d2d::d2s::Stats stats;               // ... and attributes
     std::vector<d2d::d2s::Item> corpse;  // ... and its corpse's items (d2s corpse list)
+    std::vector<d2d::d2s::Item> merc_items;   // ... and what its merc wears (d2s "jf" list)
     PanelStats panel;                    // ... and what the char panel computes
     bool expansion = true;               // the save's expansion flag (stash size)
     d2d::d2s::Header header;             // the loaded save's header (quest flags ...)

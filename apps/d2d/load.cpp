@@ -286,7 +286,7 @@ void load_act1_palettes(Scene& scene, const d2d::mpq::Stack& mpqs) {
 }  // namespace
 
 void load_saves(Scene& scene, const fs::path& dir) {
-    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse; };
+    struct Entry { d2d::d2s::Header header; std::vector<d2d::d2s::Item> items; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> corpse, merc; };
     std::vector<Entry> out;
     std::error_code error;
     for (const auto& entry : fs::directory_iterator(dir, error)) {
@@ -301,6 +301,7 @@ void load_saves(Scene& scene, const fs::path& dir) {
                     save_entry.stats = d2d::d2s::parse_stats(bytes, *scene.item_tables);
                     save_entry.items = d2d::d2s::parse_items(bytes, *scene.item_tables);
                     save_entry.corpse = d2d::d2s::parse_corpse(bytes, *scene.item_tables).items;
+                    save_entry.merc = d2d::d2s::parse_merc_items(bytes, *scene.item_tables);
                 }
                 catch (const std::exception& parse_error) {
                     d2d::log::warn("{} items: {}", entry.path().string(), parse_error.what());
@@ -319,11 +320,12 @@ void load_saves(Scene& scene, const fs::path& dir) {
         return std::tie(second.header.last_played, first.header.name)
              < std::tie(first.header.last_played, second.header.name);
     });
-    scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear();
+    scene.saves.clear(); scene.save_items.clear(); scene.save_stats.clear(); scene.save_corpses.clear(); scene.save_mercs.clear();
     for (auto& entry : out) {
         scene.saves.push_back(std::move(entry.header));
         scene.save_items.push_back(std::move(entry.items));
         scene.save_corpses.push_back(std::move(entry.corpse));
+        scene.save_mercs.push_back(std::move(entry.merc));
         scene.save_stats.push_back(entry.stats);
     }
     d2d::log::info("Characters: {} in {}", scene.saves.size(), dir.string());
@@ -386,6 +388,14 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.charselect_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\charselectbox.dc6)"));
         scene.charselect_scroll = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\joingamescrollbars.dc6)"));
         scene.tall_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\TallButtonBlank.dc6)"));
+        scene.tcpip_bg = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\tcpipbckg.dc6)"));
+        scene.ip_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\IPAddressBox.dc6)"));
+        scene.popup_ok_cancel = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOKCancel2.dc6)"));
+        scene.cancel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\CancelButtonBlank.dc6)"));
+        scene.popup_ok = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOK.dc6)"));
+        for (auto [font, name] : { std::pair{ &scene.font42, "font42" }, { &scene.font_formal12, "fontformal12" }, { &scene.font24, "font24" } })
+            *font = d2d::font::Font(mpqs.read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"),
+                                    d2d::dc6::Sprite(mpqs.read(std::string(R"(data\local\FONT\LATIN\)") + name + ".dc6")));
         scene.cursor = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\ohand.dc6)"));
         scene.cursor_buysell = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CURSOR\buysell.dc6)"));
         scene.class_anims = [&] {

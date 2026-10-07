@@ -70,17 +70,23 @@ build/apps/d2d/d2d --data /path/to/your/MPQ-folder
 build/apps/d2d/d2d --join 192.168.1.10   # an original game's TCP/IP host, your LAN only
 ```
 
+You can also join from the menus: Other Multiplayer → TCP/IP Game → Join
+Game, type the host's address, then pick a character. d2d remembers the
+address as `last_tcp_ip` in `d2d.cfg`. Alt+Enter switches between a window
+and borderless fullscreen; `fullscreen = 1` in `d2d.cfg` starts that way.
+
 d2d looks for the game data in this order, and the first hit wins:
 1. `--data` (or `$D2_MPQ_DIR`).
 2. A `d2data.mpq` beside the binary or in the working directory.
 3. `data =` in `d2d.cfg`.
 
 If the first hit is wrong, d2d stops with an error and doesn't try the
-next one. The launcher finds an installed Diablo II and writes `data =`
+next one. The launcher (`d2d-launcher`) finds an installed Diablo II and writes `data =`
 (and `patch =` for a non-1.14d install, pointing at `LODPatch_114d.exe`)
 into `d2d.cfg`. That file lives in `~/Library/Preferences/d2d` on macOS,
 `~/.config/d2d` on Linux, and `Documents\My Games\d2d` on Windows.
-Your install is read in place and never changed.
+Your install is read in place and never changed. Its Fullscreen box sets
+`fullscreen =`. Launch saves the settings, starts d2d and closes the launcher.
 
 ## License
 

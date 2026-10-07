@@ -138,7 +138,7 @@ struct Town {
     // the server's side); the client itself reads only `view`.
     UnitState& player = world.player;
     std::vector<UnitState>& npc_states = world.npc_states;
-    std::optional<UnitState>& merc = world.merc;
+    std::optional<Monster>& merc = world.merc;
     Loot& loot = world.loot;
     Fight& fight = world.fight;
     float& target_x = world.target_x;

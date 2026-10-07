@@ -212,7 +212,7 @@ Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):
 
 In Act 1 the IsDoor objects are OperateFn 8 (MonsterOK on all but 47 and 75) and 229 / 230 (OperateFn 29, not MonsterOK). Most of Act 1's walkers have opendoors: the Fallen, Shamans, skeletons, Corrupt Rogues, Griswold, the Smith, Andariel.
 
-Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its search), through `Fight::open_door` → `World::monster_door` (`rules::door_pick`, `rules::object_reach`, `operate_door`). The 0x800 test is taken as true: the monster's own footprint stamps it (collision.md); what a moving path caches at +0x54 isn't traced. Ties go by the level's object order, not the near rooms' unit lists.
+Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its search), through `Fight::open_door` → `World::monster_door` (`rules::door_pick`, `rules::object_reach`, `operate_door`). The 0x800 test is a BlocksVis door's bit under its test shape (`on_door`; collision.md), read when it thinks, not what a moving path caches at +0x54. Ties go by the level's object order, not the near rooms' unit lists.
 
 ## In d2d
 

@@ -59,12 +59,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y cmake ninja-build build-essential pkg-config \
             libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
-            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev clang-tidy
+            clang-tidy
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake ninja pkgconf sdl3 openal-soft ffmpeg qt stormlib
+        run: brew install cmake ninja sdl3 openal-soft qt stormlib
 
+      # FFmpeg: Linux and macOS build a Bink-only one (apps/d2d/CMakeLists.txt).
       # Windows: prebuilt release binaries rather than compiling anything.
       #   SDL3        - libsdl-org's VC dev zip (ships SDL3Config.cmake)
       #   OpenAL Soft - kcat's bin zip (headers, OpenAL32.lib, soft_oal.dll)
@@ -131,6 +132,15 @@ jobs:
           key: ${{ matrix.os }}
           max-size: 1G
           verbose: 2          # the stats list why a call wasn't cacheable
+
+      # The Bink-only FFmpeg (apps/d2d/CMakeLists.txt): CMake skips building
+      # it when build/ffmpeg-<version and options> is already there.
+      - name: Cache FFmpeg (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: build/ffmpeg-*
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('apps/d2d/CMakeLists.txt') }}
 
       - name: Configure (Linux/macOS)
         if: runner.os != 'Windows'
@@ -224,12 +234,19 @@ jobs:
         shell: pwsh
         run: ctest --test-dir build --output-on-failure -C Release
 
-      # Binaries only for main and tags (pull requests build and test, but
-      # their binaries would only fill the artifact quota): main's kept 14
-      # days, a tag's 90. A full quota (it resets every 6-12 h) doesn't fail
-      # a run whose build, tidy and tests passed; those are earlier steps
-      # and fail the job themselves.
-      - name: Upload binaries
+      # The shipping package (apps/CMakeLists.txt): launcher + d2d + every
+      # library they need; a .dmg, .tar.gz or .zip. Built on every run so a
+      # PR can't break it. Not `cpack`: on the Windows runner that's
+      # Chocolatey's.
+      - name: Package
+        run: cmake --build build --target package
+
+      # Packages only for main and tags (pull requests build them, but
+      # uploading would only fill the artifact quota): main's kept 14 days,
+      # a tag's 90. A full quota (it resets every 6-12 h) doesn't fail a run
+      # whose build, tidy and tests passed; those are earlier steps and fail
+      # the job themselves.
+      - name: Upload package
         if: github.event_name == 'push'
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -237,22 +254,27 @@ jobs:
           name: d2d-${{ matrix.os }}
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
           path: |
-            build/apps/d2d/d2d
-            build/apps/d2d/d2d.exe
-            build/apps/launcher/d2d-launcher
-            build/apps/launcher/d2d-launcher.exe
-            build/apps/launcher/d2d-launcher.app
+            build/d2d-*.dmg
+            build/d2d-*.tar.gz
+            build/d2d-*.zip
+          if-no-files-found: error
+
+      # The dev tools, loose and as built: they use the system's libraries
+      # (Windows: the DLLs staged beside them above).
+      - name: Upload dev tools
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2d-tools-${{ matrix.os }}
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
+          path: |
             build/apps/d2proxy/d2proxy
             build/apps/d2proxy/d2proxy.exe
             build/tools/mpq-cat/mpq-cat
             build/tools/mpq-cat/mpq-cat.exe
             build/tools/drlg-dump/drlg-dump
             build/tools/drlg-dump/drlg-dump.exe
-            build/apps/d2d/*.dll
-            build/apps/launcher/*.dll
-            build/apps/launcher/platforms
-            build/apps/launcher/styles
-            build/apps/launcher/imageformats
-            build/apps/launcher/tls
-            build/apps/launcher/networkinformation
+            build/tools/mpq-cat/*.dll
+            build/tools/drlg-dump/*.dll
           if-no-files-found: warn

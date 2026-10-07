@@ -3,6 +3,7 @@
 // (apps/d2d: SDL, sound, sprites, fonts), so a standalone server links
 // just this library. With the game's MPQs (D2_MPQ_DIR, as test_outdoor)
 // it loads GameData and plays a new character for a second.
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>
@@ -14,6 +15,7 @@
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <montypes.hpp>
 #include <object_ids.hpp>
 #include <protocol.hpp>
 #include <quests.hpp>
@@ -46,6 +48,23 @@ int main() {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    // Collision shapes (FUN_006484e0): the Rogue merc stamps 0x2000 and
+    // opens doors, Akara 0x1000; a player walks through the merc, not back.
+    if (data->mon_npc.size() > 0x10f) {                  // MonStats: the patch's
+        const auto rogue = data->mon_npc[0x10f].shape, akara = data->mon_npc[std::size_t(d2d::rules::monster_ids::kAkara)].shape;
+        assert(rogue.bit() == 0x2000 && rogue.mask == 0x3401 && akara.bit() == 0x1000);
+        UnitState player{ .x = 10.1f, .y = 10.1f }, merc{ .x = 10.3f, .y = 10.1f, .shape = rogue };
+        const Crowd crowd{ { &player, &merc } };
+        assert(!crowd.at(player.x, player.y, &player) && crowd.at(merc.x, merc.y, &merc));
+        assert(!crowd.at(10.5f, 10.1f, &merc));          // two subtiles off: clear of the player's subtile
+        // SizeX 0 (the chicken): no footprint, its own subtile tested; a pet's 1 → 3.
+        const auto chicken_row = std::ranges::find(data->monsters.types, std::string("chicken"), &d2d::rules::MonType::id) - data->monsters.types.begin();
+        const auto chicken = data->mon_npc[std::size_t(chicken_row)].shape;
+        assert(chicken.pattern == 0 && !chicken.stamps() && akara.owned().bit() == 0x2000);
+        UnitState bird{ .x = 10.1f, .y = 10.3f, .shape = chicken };
+        const Crowd yard{ { &player, &bird } };
+        assert(!yard.at(player.x, player.y, &player) && yard.at(bird.x, 10.1f, &bird) && !yard.at(bird.x, bird.y, &bird));
+    }
     // A server's GameData keeps the tiles' walk flags, not their pixels.
     for (const auto& archive : data->town.dt1s)
         for (const auto& tile : archive.tiles()) assert(tile.pixels.empty());

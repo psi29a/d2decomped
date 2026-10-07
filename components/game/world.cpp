@@ -112,7 +112,7 @@ auto World::view() const -> View {
         view.prate = fight.prate;
         view.seq.assign(fight.seq.begin(), fight.seq.end()); view.seq_frame_ms = fight.seq_frame_ms; view.seq_loop = fight.seq_loop;
         view.gfx = fight.gfx();
-        if (merc && merc_npc) view.merc = View::Merc{ *merc, merc_npc, fight.merc_mode };
+        if (merc && merc_npc) view.merc = View::Merc{ merc->unit, merc_npc, merc->mode };
         for (const auto& pet : fight.pets) if (pet.where == level) view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode });
         if (level == fight.mon_level) {
             // What's near the player (D2 sends the units of the rooms round
@@ -211,11 +211,10 @@ static void take_blast(std::int64_t& life, int taken) {
 }
 
 // FUN_00622b50 (mask 0x804): rules::sight_blocked from the unit to the
-// object over the walk grid's missile barrier (0x04).
-// ponytail: other objects' footprints (0x800) aren't a bit of the walk grid.
+// object over the walk grid's missile barrier (0x04) and doors (0x800).
 auto World::blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense) -> int {
     if (level == &game_data->town) return 0;
-    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
     const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
     if (d2d::rules::sight_blocked(subtile(x), subtile(y), size, subtile(object.x), subtile(object.y), object.size_x, wall)) return 0;
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
@@ -360,7 +359,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // over Arg1 isn't traced).
         if (shrine.code == 19) {
             stat_values[kLife] -= stat_values[kLife] * shrine.arg0 / 100;
-            fight.merc_life -= fight.merc_life * shrine.arg0 / 100;
+            merc->hit_points -= merc->hit_points * shrine.arg0 / 100;
             if (fight.mon_level == level)
                 for (auto& monster : fight.monsters)
                     if (monster.alive() && std::abs(monster.unit.x - object.x) < 30 && std::abs(monster.unit.y - object.y) < 30) monster.hit_points -= monster.hit_points * shrine.arg0 / 100;
@@ -410,7 +409,7 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
                 const int sub_x = int(x * 5) - (int(door.x * 5) - door.size_x / 2), sub_y = int(y * 5) - (int(door.y * 5) - door.size_y / 2);
                 return sub_x >= 0 && sub_y >= 0 && sub_x < door.size_x && sub_y < door.size_y;
             };
-            bool occupied = in_door(player.x, player.y) || (merc && in_door(merc->x, merc->y));
+            bool occupied = in_door(player.x, player.y) || (merc && in_door(merc->unit.x, merc->unit.y));
             if (fight.mon_level == level)
                 for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.x, monster.unit.y));
             mode = d2d::rules::door_mode(state.mode, occupied);
@@ -481,9 +480,9 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
             take_blast(character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, player.x, player.y, 2, character.stats.values[kLife], int(character.stats.get(kLevel)),
                                                                                     int(character.stats.get(kDex) + fight.psum[kDex]), fighter.defense),
                                                                               fighter.dr_flat, fighter.dr_pct));
-        if (merc && nearby(merc->x, merc->y, 3) && fight.merc_life > 0) {
+        if (merc && nearby(merc->unit.x, merc->unit.y, 3) && merc->hit_points > 0) {
             const auto merc_fighter = fight.merc_fighter();
-            fight.merc_life -= d2d::rules::blast_taken(blast(barrel, merc->x, merc->y, 2, std::int64_t(fight.merc_life) << 8, fight.merc_st.level, 255, merc_fighter.defense),
+            merc->hit_points -= d2d::rules::blast_taken(blast(barrel, merc->unit.x, merc->unit.y, 2, std::int64_t(merc->hit_points) << 8, fight.merc_st.level, 255, merc_fighter.defense),
                                                        merc_fighter.dr_flat, merc_fighter.dr_pct) >> 8;
         }
         if (fight.mon_level == level)
@@ -592,7 +591,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
 auto World::enter(const Character& entering) -> void {
         character.character_class = entering.character_class; character.name = entering.name;
         character.appearance = entering.appearance; character.items = entering.items; character.stats = entering.stats; character.panel = entering.panel;
-        character.expansion = entering.expansion; character.header = entering.header;
+        character.expansion = entering.expansion; character.header = entering.header; character.merc_items = entering.merc_items;
         // A corpse in the save (its corpse list, FUN_00533850) lies by the
         // camp's start.
         // ponytail: where game.exe puts it isn't traced; the save's x / y
@@ -686,8 +685,11 @@ auto World::spawn_merc() -> void {
         merc.reset();
         const auto& header = character.header;
         if (const auto found = game_data->mercs.find(header.merc_type); header.merc_seed && !header.merc_dead && found != game_data->mercs.end()) {
-            merc = UnitState{ .x = player.x + 1, .y = player.y + 1 };
-            std::tie(merc->x, merc->y) = level->nearest_free(merc->x, merc->y);
+            merc = Monster{};
+            merc->npc = found->second.npc;
+            merc->unit.shape = merc->npc.shape;
+            merc->difficulty = header.active_difficulty();
+            std::tie(merc->unit.x, merc->unit.y) = level->nearest_free(player.x + 1, player.y + 1);
             merc_npc = &found->second.npc;
             fight.merc_joins();
         }
@@ -762,7 +764,7 @@ auto World::cross_level() -> void {
             };
             shift(player);
             target_x -= dx; target_y -= dy;
-            if (merc) shift(*merc);
+            if (merc) shift(merc->unit);
             fight.pets_cross(level, neighbour.level, dx, dy);
             events.push_back(ev::LevelChanged{ level, true });
             const Level* from = level;
@@ -1100,9 +1102,10 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         player.walking = false; player.path.clear();
         target_x = free_x; target_y = free_y;
         if (merc) {
-            merc->path.clear();
-            std::tie(merc->x, merc->y) = level->nearest_free(free_x + 1, free_y + 1);
+            merc->unit.path.clear();
+            std::tie(merc->unit.x, merc->unit.y) = level->nearest_free(free_x + 1, free_y + 1);
         }
+        fight.footstep(int(std::floor(free_x * 5)), int(std::floor(free_y * 5)), now);   // an arrival is a footstep (FUN_00554ea0)
         fight.enter(level);
         fight.rooms_up(*level, player.x, player.y, true);
         std::tie(player.x, player.y) = level->nearest_free(player.x, player.y);   // off what the room just made
@@ -1654,9 +1657,9 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                 std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };
         Crowd crowd;                           // who's in whose way this frame
         crowd.units.push_back(&player);
-        if (merc) crowd.units.push_back(&*merc);
+        if (merc) crowd.units.push_back(&merc->unit);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            if (!level->npcs[i].path.empty() && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
+            if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
         const bool in_moor = level != &game_data->town;     // outside: this level's monsters are about
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         // Dead: the death plays out, then Resurrect respawns in camp; a
@@ -1756,6 +1759,12 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
             const float vel = float(walk * std::max(base + d2d::rules::effective_speed(fight.player_combat.frw, 150) + fight.chill_rate(now_ms), 25)) / 100.f;
             const float before_x = player.x, before_y = player.y;
             player.walking = follow_path(*level, player, cells_per_sec(vel) * elapsed, crowd);
+            // The merc's think reads the player's footsteps (FUN_00580c20): walking or
+            // running, 25 ms on from the last, over 45 (squared) from it.
+            if (const int step_x = int(std::floor(player.x * 5)), step_y = int(std::floor(player.y * 5)); now_ms > fight.footstep_ms + 25) {
+                const auto [last_x, last_y] = fight.footsteps[std::size_t(fight.footstep_cursor == 0 ? 0x13 : fight.footstep_cursor - 1)];
+                if ((step_x - last_x) * (step_x - last_x) + (step_y - last_y) * (step_y - last_y) > 0x2d) fight.footstep(step_x, step_y, now_ms);
+            }
             if (!player.walking) {
                 player.path.clear();
                 // Short of the target with a step made: it paths again from here.
@@ -1776,6 +1785,8 @@ auto World::tick(const std::vector<Command>& cmds, std::uint32_t now_ms, std::ui
                                   || burial.alert(quests(), level->npcs[i].hc_idx) || tower.alert(quests(), level->npcs[i].hc_idx)
                                   || tools.alert(quests(), level->npcs[i].hc_idx, holding_malus(), int(character.stats.get(d2d::d2s::kLevel)))
                                   || cain.alert(quests(), level->npcs[i].hc_idx, carries("bks"));
+        // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
+        fight.owner_mode = !player.walking ? 1 : running && character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
         den_count(now_ms);
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }

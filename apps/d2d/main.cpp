@@ -38,6 +38,7 @@
 #include <log.hpp>
 #include <mpq.hpp>
 #include <screenshot.hpp>
+#include <tcp.hpp>
 #include <userdir.hpp>
 
 #include <CLI/CLI.hpp>
@@ -89,7 +90,9 @@ static int         g_start_cam_y = -1;
 // FUN_0056a090), else a new one — the random one this run started with.
 // ponytail: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
 // means none here.
-static std::string   g_join_host;           // --join: a game.exe TCP/IP host to join
+static std::string   g_join_host;           // the game.exe TCP/IP host char-select joins: --join, or TCP/IP's JOIN GAME
+static std::string   g_cli_join;            // --join's own, what SINGLE PLAYER goes back to
+static std::string   g_last_tcp_ip;         // d2d.cfg last_tcp_ip: the join box's start (game.exe's LastTcpIp)
 static fs::path      g_game_exe;            // --game-exe: its tables (the codec's, read at runtime)
 static bool          g_seed_fixed = false;  // --seed
 static std::uint32_t g_map_seed = 0;
@@ -98,6 +101,25 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
     return g_map_seed;
 }
 static int         g_scale = 1;          // window = game res * g_scale
+static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
+
+// What a failed join shows (tcpip-menu.md, "Join errors"): game.exe's
+// "Cannot Connect to Server" (0x145b) when the host doesn't answer, its
+// message for the host's B4 reason (table 0x70f384, FUN_0044cb60; an
+// expansion character's 0x14 / 0x15 name Baal), else d2d's own words.
+static std::string join_error_text(const Scene& scene, const NetGame::JoinError& error, bool expansion) {
+    static constexpr std::array<std::uint16_t, 29> kRefused = {
+        0x14f5, 0x14f6, 0x14f7, 0x14f8, 0x14f9, 0x14fb, 0x14fa, 0x14ed, 0x14ee, 0x14fc, 0x14fd, 0x14fe, 0x14ff, 0x1500, 0x1501,
+        0x1502, 0x1503, 0x1504, 0x1505, 0x14f0, 0x14f4, 0x14f3, 0x14f2, 0x14f1, 0x14ef, 0x2775, 0x2776, 0x14fa, 0x14fb };
+    std::uint16_t id = 0;
+    if (error.no_connect) id = 0x145b;
+    else if (error.refused >= 0) {
+        const auto reason = std::size_t(error.refused > 0x1c ? 9 : error.refused);
+        id = expansion && reason == 0x14 ? 0x5522 : expansion && reason == 0x15 ? 0x5521 : kRefused[reason];
+    }
+    const auto found = id ? lookup_string(scene, id) : std::nullopt;
+    return found ? u16_to_latin1(*found) : error.what;
+}
 
 static Screen parse_screen(std::string_view text) {
     if (text == "credits")    return Screen::Credits;
@@ -106,6 +128,8 @@ static Screen parse_screen(std::string_view text) {
     if (text == "ingame")     return Screen::InGame;
     if (text == "video")      return Screen::Video;
     if (text == "cinematics") return Screen::Cinematics;
+    if (text == "othermultiplayer") return Screen::OtherMultiplayer;
+    if (text == "tcpip")      return Screen::TcpIp;
     return Screen::Title;
 }
 
@@ -141,7 +165,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::log::info("Initializing SDL... done! SDL {}.{}.{} ({})", SDL_VERSIONNUM_MAJOR(sdl_v),
                    SDL_VERSIONNUM_MINOR(sdl_v), SDL_VERSIONNUM_MICRO(sdl_v), SDL_GetCurrentVideoDriver());
     Window win;
-    if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale)) { SDL_Quit(); return 1; }
+    if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen)) { SDL_Quit(); return 1; }
     d2d::log::info("  Window: {}x{} (scale {}), renderer {}", kScreenWidth * g_scale, kScreenHeight * g_scale, g_scale,
                    SDL_GetRendererName(win.renderer));
     // The title shows while finish_scene loads the rest (only the menus'
@@ -220,6 +244,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Screen last_screen = screen;
     Mouse  mouse;
     TitleUI title = scene ? title_ui(*scene) : TitleUI{};
+    TitleUI other_multiplayer = scene ? other_multiplayer_ui(*scene) : TitleUI{};
+    TcpIpUI tcpip;
 
     // Char-create UI. Positions from RE'd master-table records; labels
     // from string.tbl by ID (0x13ed = EXIT, 0x13ee = OK per record +0x18).
@@ -288,6 +314,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         csu.ok_btn     = Button{ 627, rec_top(572, 35), 128, 35, csu.ok_label.c_str(),
                                  &scene->medium_button,
                                  Screen::InGame, /*do_switch=*/false };
+        csu.popup_ok   = Button{ 351, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
     }
 
     const auto start_ticks = SDL_GetTicks();
@@ -367,7 +394,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
-        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && town.chat_typing); want != text_active) {
+        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && town.chat_typing)
+                           || (screen == Screen::TcpIp && tcpip.box_open); want != text_active) {
             if (want) SDL_StartTextInput(win.window);
             else      SDL_StopTextInput(win.window);
             text_active = want;
@@ -484,13 +512,68 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     video_queue.clear();
                 }
                 for (auto& button : title.buttons) update_button(button, mouse, screen, quit);
+                if (screen == Screen::CharSelect) g_join_host = g_cli_join;   // SINGLE PLAYER
                 render_title(framebuffer, *scene, title.buttons, now_ms);
                 break;
+            case Screen::OtherMultiplayer:
+                for (auto& button : other_multiplayer.buttons) update_button(button, mouse, screen, quit);
+                render_title(framebuffer, *scene, other_multiplayer.buttons, now_ms);
+                break;
+            case Screen::TcpIp: {
+                // docs/research/re/tcpip-menu.md. Esc is the screen's CANCEL,
+                // or the join box's (FUN_004fa450 names each).
+                if (prev_screen != Screen::TcpIp) tcpip = tcpip_ui(*scene, d2d::net::own_address());
+                auto clicked = [&](Button& button) {
+                    Screen stay = screen;
+                    update_button(button, mouse, stay, quit);
+                    return button.hovered && mouse.release_this_frame;
+                };
+                const bool escape = std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end();
+                if (tcpip.box_open) {
+                    // The edit line (record 0x10d) takes up to 255 characters.
+                    for (const char letter : text_this_frame) if (tcpip.address.size() < 255) tcpip.address.push_back(letter);
+                    if (backspace_this_frame && !tcpip.address.empty()) tcpip.address.pop_back();
+                    const bool enter = std::ranges::any_of(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER; });
+                    const bool ok = clicked(tcpip.box_ok) || enter;
+                    if (clicked(tcpip.box_cancel) || escape) tcpip.box_open = false;
+                    else if (ok && !tcpip.address.empty()) {
+                        // FUN_00434790: the address is kept (registry LastTcpIp), then
+                        // char-select joins it (game type 9).
+                        // ponytail: game.exe connects once here to test the host and
+                        // stays on an error; d2d finds out when char-select joins.
+                        g_last_tcp_ip = tcpip.address;
+                        d2d::userdir::save_cfg(g_user_dir / "d2d.cfg", { { "last_tcp_ip", g_last_tcp_ip } });
+                        g_join_host = tcpip.address;
+                        tcpip.box_open = false;
+                        screen = Screen::CharSelect;
+                    }
+                } else {
+                    const bool join = clicked(tcpip.join) && tcpip.has_ip;
+                    clicked(tcpip.host);
+                    update_button(tcpip.cancel, mouse, screen, quit);
+                    if (escape) screen = Screen::OtherMultiplayer;
+                    if (join) { tcpip.box_open = true; tcpip.address = g_last_tcp_ip; }
+                }
+                render_tcpip(framebuffer, *scene, tcpip, now_ms);
+                break;
+            }
             case Screen::Credits:
                 if (mouse.release_this_frame) screen = Screen::Title;
                 render_credits(framebuffer, *scene, now_ms);
                 break;
             case Screen::CharSelect: {
+                if (!csu.popup.empty()) {   // a failed join's popup takes the input until OK
+                    Screen stay = screen;
+                    update_button(csu.popup_ok, mouse, stay, quit);
+                    if ((csu.popup_ok.hovered && mouse.release_this_frame)
+                        || std::ranges::any_of(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_ESCAPE; })) {
+                        csu.popup.clear();
+                        screen = csu.popup_return;
+                    }
+                    render_charselect(framebuffer, *scene, csu, now_ms);
+                    break;
+                }
+                if (std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end()) screen = Screen::Title;
                 const int count = int(scene->saves.size());
                 const int max_scroll = charselect_max_scroll(count);
                 int rows = -mouse.wheel;   // wheel up = scroll toward the top
@@ -554,6 +637,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                    ? scene->save_stats[std::size_t(csu.selected)] : d2d::d2s::Stats{};
                     character.corpse = csu.selected < int(scene->save_corpses.size())
                                     ? scene->save_corpses[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
+                    character.merc_items = csu.selected < int(scene->save_mercs.size())
+                                        ? scene->save_mercs[std::size_t(csu.selected)] : std::vector<d2d::d2s::Item>{};
                     character.panel = panel_stats(*scene, header, character.items, character.stats);
                     character.expansion = header.expansion();
                     character.header = header;
@@ -571,7 +656,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         auto joined = NetGame::join(g_join_host, g_game_exe, std::move(save), log_path, 10000,
                                                     scene->item_tables ? &*scene->item_tables : nullptr, g_autoparty);
                         if (!joined) {
-                            d2d::log::error("join failed: {}", joined.error());
+                            d2d::log::error("join failed: {}", joined.error().what);
+                            csu.popup = join_error_text(*scene, joined.error(), header.expansion());
+                            // A host that didn't answer goes back to TCP/IP, as
+                            // game.exe's test connect does (FUN_00434790, OK -> FUN_0042ffe0).
+                            csu.popup_return = joined.error().no_connect && g_cli_join.empty() ? Screen::TcpIp : Screen::CharSelect;
                             screen = Screen::CharSelect;
                         } else {
                             auto& net = **joined;
@@ -843,7 +932,7 @@ int main(int argc, char** argv) {
                    "Run without opening a window");
     app.add_option("--start-screen", start_screen,
                    "Jump directly to a screen at startup")
-        ->check(CLI::IsMember({"title", "credits", "charselect", "charcreate", "ingame", "video"}));
+        ->check(CLI::IsMember({"title", "credits", "charselect", "charcreate", "ingame", "video", "othermultiplayer", "tcpip"}));
     app.add_option("--start-class", start_class,
                    "Preselect a class index (0..6)")
         ->check(CLI::Range(0, 6));
@@ -951,6 +1040,8 @@ int main(int argc, char** argv) {
     }
     g_user_dir       = user_dir;
     g_join_host      = join_host;
+    g_cli_join       = join_host;
+    g_last_tcp_ip    = cfg["last_tcp_ip"];
     if (!game_exe.empty()) g_game_exe = game_exe;
     else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;
     else g_game_exe = fs::exists(data_dir / "game.exe") ? data_dir / "game.exe" : data_dir / "bin" / "game.exe";
@@ -961,6 +1052,7 @@ int main(int argc, char** argv) {
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
+    g_fullscreen     = cfg["fullscreen"] == "1";
     if (cfg.contains("master_volume")) g_master_volume = std::clamp(std::atoi(cfg["master_volume"].c_str()), 0, 100);
     if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
 

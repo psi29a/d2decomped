@@ -45,6 +45,9 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
 | 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | Nearest free spot 0.6 cells south of the player | slightly | server.hpp `open_portal` |
 | 9 | COF draw effects 0..2 | Driver alpha modes (which of 25 / 50 / 75 % each is, untraced) | Read as a quarter, half, three quarters | only on layers that use them | world.hpp `layer_trans` |
+| 10 | JOIN GAME's address check | Connects once to test the host, and shows "Cannot Connect to Server" there (`FUN_00434790`) | Goes straight to char-select; picking a character finds out, with the same popup and OK back to TCP/IP | yes: the error comes one screen later | main.cpp `Screen::TcpIp`, tcpip-menu.md |
+| 11 | A host's refusal (B4) | Its message in Font42 over the game screen, since the join runs in the game loop (`FUN_0044cb60`) | The same message in the OK popup on char-select | yes | main.cpp `join_error_text`, tcpip-menu.md |
+| 12 | TCP/IP Options' own address | Read again every 5 s (record 0x10b) | Read once as the screen opens | only if the network changes while it's up | main.cpp `Screen::TcpIp` |
 
 About 200 smaller shortcuts are marked `ponytail:` in the code; this table
 holds the ones a player could notice or a test could trip on.
@@ -55,6 +58,8 @@ holds the ones a player could notice or a test could trip on.
 |---|---|
 | `--seed`, `--headless`, `--devctl`, `--no-save`, `--no-video`, `--start-*`, `--toggle` | Scripted tests and development; game.exe's own switches are kept (dropin_goal) |
 | The devctl channel and its `debug` verbs (docs/control_channel.md) | Driving the game in tests |
+| Borderless fullscreen: Alt+Enter, `fullscreen = 1` in d2d.cfg, the launcher's Fullscreen box | game.exe's own display modes and `-w` aren't traced; borderless doesn't change the desktop's resolution |
+| A join that fails for reasons game.exe can't hit (a name a host won't take, a host that never finishes the join, a desync) shows d2d's own words in the OK popup | Say why, instead of only logging it |
 
 ## How to add one
 

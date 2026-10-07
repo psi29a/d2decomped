@@ -146,6 +146,8 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.base_w = std::string(ms2.get(row2, "BaseW"));
     npc.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
+    npc.shape = UnitShape::monster(npc.size_x, (monstats.get(row, "npc") == "1" || monstats.get(row, "inTown") == "1") && monstats.get(row, "interact") != "1",
+                                   monstats.get(row, "flying") == "1", monstats.get(row, "opendoors") == "1");
     npc.light  = std::atoi(std::string(ms2.get(row2, "Light")).c_str());
     npc.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
     npc.trans_lvl = std::atoi(std::string(monstats.get(row, "TransLvl")).c_str());
@@ -530,6 +532,17 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
 
 }  // namespace
 
+int room_of(const Level& level, float x, float y) { return room_holding(room_rects(level), level, x, y); }
+
+std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y) {
+    std::vector<std::pair<const Level*, int>> rooms;
+    const int room = room_holding(room_rects(level), level, x, y);
+    if (room < 0) return rooms;
+    for (const auto& near_room : near_list(game_data, level, room)) rooms.emplace_back(near_room.level, near_room.room);
+    return rooms;
+}
+
+
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y) {
     const int room = room_holding(room_rects(level), level, x, y);
     if (room < 0) return {};
@@ -634,30 +647,21 @@ void stamp_footprints(Level& level) {
 }
 
 void stamp_footprint(Level& level, Npc& npc) {
-    const int walk_width = level.ds1.width() * 5, walk_height = level.ds1.height() * 5;
-    if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
-    if (!npc.path.empty() || npc.quest) return;         // walkers don't hold a spot
-    npc.walls = 0;
-    const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
-    int bit = 0;
-    for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
-        for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit)
-            if (x >= 0 && y >= 0 && x < walk_width && y < walk_height && bit < 32
-                && level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)] & 0x01) npc.walls |= 1u << bit;
-    set_footprint(level, npc, npc.root != "objects" || npc.collision >> mode_index(npc.mode) & 1);
+    if (npc.root != "objects") return;                  // NPCs are units: the Crowd's (ai.hpp)
+    set_footprint(level, npc, npc.collision >> mode_index(npc.mode) & 1);
 }
 
+// An object's rect (FUN_0064d0d0: its spot less half its size, SizeX x
+// SizeY) gets its stamp bits set (FUN_0064cd70) or cleared (FUN_0064cce0).
 void set_footprint(const Level& level, const Npc& npc, bool solid) {
     const int walk_width = level.ds1.width() * 5, walk_height = level.ds1.height() * 5;
-    if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height)) return;
+    if (level.walk.size() != std::size_t(walk_width) * std::size_t(walk_height) || npc.root != "objects") return;
     const int center_x = int(npc.x * 5), center_y = int(npc.y * 5);
-    int bit = 0;
     for (int y = center_y - npc.size_y / 2; y < center_y - npc.size_y / 2 + npc.size_y; ++y)
-        for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x, ++bit) {
+        for (int x = center_x - npc.size_x / 2; x < center_x - npc.size_x / 2 + npc.size_x; ++x) {
             if (x < 0 || y < 0 || x >= walk_width || y >= walk_height) continue;
             auto& cell = level.walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)];
-            if (solid) cell |= 0x01;
-            else if (bit >= 32 || !(npc.walls >> bit & 1)) cell &= std::uint8_t(~0x01);
+            cell = solid ? std::uint16_t(cell | npc.stamp) : std::uint16_t(cell & ~npc.stamp);
         }
 }
 
@@ -720,6 +724,12 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
     npc.object_id = oid;
     npc.door = objects.get(row, "IsDoor") == "1"; npc.monster_ok = objects.get(row, "MonsterOK") == "1";
+    {                                                     // FUN_006209d0
+        const bool blocks_vis = objects.get(row, "BlocksVis") == "1", block_missile = objects.get(row, "BlockMissile") == "1";
+        const int subclass = std::atoi(std::string(objects.get(row, "SubClass")).c_str());
+        npc.stamp = npc.door ? std::uint16_t(blocks_vis ? 0x806 : block_missile ? 0x804 : 0x400)
+                             : std::uint16_t((subclass & 4) ? 0x8000 : block_missile ? 0x404 : 0x400);
+    }
     for (std::size_t mode = 0; mode < 8; ++mode) {
         if (objects.get(row, "HasCollision" + std::to_string(mode)) == "1") npc.collision |= std::uint8_t(1u << mode);
         if (objects.get(row, "Selectable" + std::to_string(mode)) == "1") npc.selectable |= std::uint8_t(1u << mode);

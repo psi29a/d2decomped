@@ -5,6 +5,8 @@
 #include "platform.hpp"
 #include "ui.hpp"
 
+#include <userdir.hpp>
+
 #include <atomic>
 #include <string>
 #include <vector>
@@ -27,6 +29,16 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
         event.key.key == SDLK_Q && (event.key.mod & SDL_KMOD_GUI)) {
         quit = true; return;
     }
+    // Alt+Enter: borderless fullscreen <-> window, kept in d2d.cfg.
+    if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat &&
+        (event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER) && (event.key.mod & SDL_KMOD_ALT)) {
+        if (SDL_Window* window = SDL_GetWindowFromEvent(&event)) {
+            const bool fullscreen = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) == 0;
+            SDL_SetWindowFullscreen(window, fullscreen);
+            d2d::userdir::save_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", { { "fullscreen", fullscreen ? "1" : "0" } });
+        }
+        return;
+    }
     if (event.type == SDL_EVENT_KEY_DOWN) {
         if (event.key.key == SDLK_ESCAPE) {
             // Esc pops one layer up:
@@ -34,11 +46,15 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
             //   CharCreate  -> CharSelect  (the flow you came from)
             //   InGame      -> closes an open panel, else CharSelect (the
             //                  roster; matches D2) — handled in-game
+            //   TcpIp       -> its CANCEL, the join box's first — handled there
+            //   CharSelect  -> a join error's OK, else Title — handled there
             //   everything else -> Title
             switch (current_screen) {
                 case Screen::Title:      quit = true; break;
                 case Screen::CharCreate: current_screen = Screen::CharSelect; break;
-                case Screen::InGame:     keys.push_back(event.key.key); break;
+                case Screen::InGame:
+                case Screen::TcpIp:
+                case Screen::CharSelect: keys.push_back(event.key.key); break;
                 default:                 current_screen = Screen::Title; break;
             }
         } else if (event.key.key == SDLK_BACKSPACE) {
