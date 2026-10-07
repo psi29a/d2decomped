@@ -11,6 +11,5 @@ RUN apt-get update -qq && \
         git python3 findutils \
         libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev \
         qt6-base-dev libgl1-mesa-dev \
-        libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
         clang-tidy && \
     rm -rf /var/lib/apt/lists/*
