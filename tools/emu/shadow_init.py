@@ -80,6 +80,33 @@ def master_init(s):
     return [], [MASK, s["aip3"] + 1, seed.step() & 1], (seed.lo, seed.hi)
 
 
+def ai_ok(s, a):
+    """FUN_005eabf0: may the Warrior's AI use skill a["id"]? One it may have
+    (FUN_005eab20); aitype 4 / 13 (melee kinds) only in melee, the rest only
+    out of it; not an aitype-1 buff it's already in; no target, not aitype 2,
+    4, 5, 11, 12, 13; aitype 2 not with its aurastate on nor the target in
+    its auratargetstate; flags bit 2 with its aurastate on: not when the
+    state's aurastat1 is 3 or more."""
+    sid, row = a["id"], s["rows"].get(a["id"])
+    if not eligible(s, sid): return 0
+    t, st, st2 = row["aitype"], row["state"], row["state2"]
+    if a["melee"] != (t in (4, 13)): return 0
+    if t == 1 and st > 0 and st in a["pet_states"]: return 0
+    if not a["target"] and t in (2, 4, 5, 11, 12, 13): return 0
+    if t == 2 and (st > 0 and st in a["pet_states"] or st2 > 0 and st2 in a["target_states"]): return 0
+    if row["flags"] & 4 and st > 0 and st in a["pet_states"] and a["aura"] is not None and a["aura"] >= 3: return 0
+    return 1
+
+
+def ai_setup(rng, s):
+    sid = rng.choice(s["skills"]) if s["skills"] else 268
+    if 0 <= sid < SKILLS:
+        s["rows"][sid].update(aitype=rng.randint(0, 14), state=rng.choice((0, -1, 5, 9)), state2=rng.choice((0, 5, 9)), flags=rng.choice((0, 4, 0xff)))
+    return {"id": sid, "melee": rng.random() < 0.5, "target": rng.random() < 0.7,
+            "pet_states": {x for x in (5, 9) if rng.random() < 0.4}, "target_states": {x for x in (5, 9) if rng.random() < 0.4},
+            "aura": rng.choice((None, 0, 2, 3, 7))}
+
+
 # --- game.exe ----------------------------------------------------------------
 
 CUR = {}
@@ -112,6 +139,15 @@ def install(e):
         assert reg(UC_X86_REG_ECX) == cur["owner"] and reg(UC_X86_REG_EDX) == cur["s"]["pet_id"]
         return cur["s"]["pet_pettype"]
     e.hook(0x574a20, pettype, 0)
+    def states(e):
+        a = cur["s"].get("ai", {})
+        unit, st = e.arg(0), e.arg(1)
+        if unit == cur["pet"]: return int(st in a["pet_states"])
+        assert unit == cur["target"] and unit
+        return int(st in a["target_states"])
+    e.hook(0x639df0, states, 2)
+    e.hook(0x6256b0, lambda e: 0 if cur["s"]["ai"]["aura"] is None else 0x99, 2)
+    e.hook(0x625d00, lambda e: (e.arg(1) == 7 or (_ for _ in ()).throw(AssertionError)) and cur["s"]["ai"]["aura"], 3)
 
 
 def run_game(e, s, addr):
@@ -122,6 +158,10 @@ def run_game(e, s, addr):
     for sid, row in s["rows"].items():
         if 0 <= sid < SKILLS:
             e.mu.mem_write(table + 0x23c * sid + 0xbc, struct.pack("<Hb", row["summon"], row["pettype"]))
+            e.mu.mem_write(table + 0x23c * sid + 4, bytes([row.get("flags", 0)]))
+            e.mu.mem_write(table + 0x23c * sid + 0x54, struct.pack("<h", 7))
+            e.mu.mem_write(table + 0x23c * sid + 0x80, struct.pack("<hh", row.get("state", 0), row.get("state2", 0)))
+            e.mu.mem_write(table + 0x23c * sid + 0x230, bytes([row.get("aitype", 0)]))
     game, params, ctrl, row, pet, owner = (alloc(n) for n in (0x200, 0x40, 0x40, 0x200, 0x100, 0x100))
     e.w32(pet + 4, s["pet_cls"]); e.w32(pet + 0xc, s["pet_id"]); e.w32(pet + 0x20, s["seed"][0]); e.w32(pet + 0x24, s["seed"][1])
     e.w32(owner, s["owner_type"])
@@ -131,6 +171,12 @@ def run_game(e, s, addr):
     for k in range(3): e.w32(ctrl + 0x14 + 4 * k, 0x5a5a5a5a)
     e.w32(params, ctrl); e.w32(params + 7 * 4, row)
     CUR.update(s=s, log=[], pet=pet, owner=owner)
+    if addr == 0x5eabf0:
+        a = s["ai"]
+        target = alloc(0x40) if a["target"] else 0
+        CUR.update(target=target)
+        e.w32(params + 0x18, int(a["melee"])); e.w32(params + 8, target)
+        return e.call(addr, pet, a["id"] & MASK, params, ecx=game, edx=owner)
     e.call(addr, params, ecx=game, edx=pet)
     return CUR["log"], [e.r32(ctrl + 0x14 + 4 * k) for k in range(3)], (e.r32(pet + 0x20), e.r32(pet + 0x24))
 
@@ -146,7 +192,12 @@ def dump_case(s, log, ctrl, master):
         nums += [sid, r["summon"] - (0x10000 if r["summon"] >= 0x8000 else 0) if 0 <= sid < SKILLS else 0, r["pettype"] if 0 <= sid < SKILLS else -1, -1 if hard is None else hard]
     gives = [v for item in log if item[0] == "give" for v in item[1:]]
     sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
-    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2]))
+    a = s["ai"]
+    row = s["rows"].get(a["id"], {})
+    st, st2 = row.get("state", 0), row.get("state2", 0)
+    ai = [int(eligible(s, a["id"])), row.get("aitype", 0), int(a["melee"]), int(a["target"]), int(st > 0 and st in a["pet_states"]),
+          int(a["target"] and st2 > 0 and st2 in a["target_states"]), int(bool(row.get("flags", 0) & 4)), -1 if a["aura"] is None else a["aura"], ai_ok(s, a)]
+    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2])) + " | " + " ".join(map(str, ai))
 
 
 def main():
@@ -156,7 +207,7 @@ def main():
     dumped = [] if "--dump" in sys.argv else None
     e = emu.Emu()
     install(e)
-    mark, bad, gave = e.brk, 0, 0
+    mark, bad, gave, usable = e.brk, 0, 0, 0
     for case in range(cases):
         e.brk = mark
         s = setup(rng)
@@ -166,6 +217,12 @@ def main():
         if (log, ctrl) != (want[0], [v & MASK for v in want[1]]):
             bad += 1
             if bad <= 5: print(f"warrior case {case}:\n  game {log} {ctrl}\n  port {want}")
+        e.brk = mark
+        s["ai"] = ai_setup(rng, s)
+        if run_game(e, s, 0x5eabf0) != ai_ok(s, s["ai"]):
+            bad += 1
+            if bad <= 5: print(f"ai_ok case {case}: game {run_game(e, s, 0x5eabf0)} port {ai_ok(s, s['ai'])} {s['ai']} {s['rows'].get(s['ai']['id'])}")
+        usable += ai_ok(s, s["ai"])
         e.brk = mark
         got = run_game(e, s, 0x5ecb70)
         if dumped is not None and got == master_init(s) and (log, ctrl) == (want[0], want[1]) and len(s["skills"]) <= 6 \
@@ -177,7 +234,7 @@ def main():
     if dumped is not None:
         with open(sys.argv[sys.argv.index("--dump") + 1], "w") as f:
             f.write("// tools/emu/shadow_init.py --dump: game.exe's own Shadow inits (see the script).\nR\"(\n" + "\n".join(dumped) + "\n)\"\n")
-    print(f"ok: {cases} cases each ({gave} skills given)" if not bad else f"{bad} differ")
+    print(f"ok: {cases} cases each ({gave} skills given, {usable} usable by the AI)" if not bad else f"{bad} differ")
     return 1 if bad else 0
 
 

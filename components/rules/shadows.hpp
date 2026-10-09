@@ -38,6 +38,21 @@ inline int shadow_skill_level(int hard_points, int summoned_level) { return std:
 // skill at each think: +0x1c / 3 + the owner's level in it (bonuses on) / 2.
 inline int shadow_hand_level(int summoned_level, int level) { return std::max(summoned_level / 3 + level / 2, 1); }
 
+// FUN_005eabf0: may the Warrior's AI use a skill it may have? Aitype 4 / 13
+// only in melee (the driver's [6]), the rest only out of it; not an aitype 1
+// buff whose aurastate it's in; with no target (the driver's [2]) not
+// aitype 2, 4, 5, 11, 12 or 13; aitype 2 not in its aurastate nor at a
+// target in its auratargetstate; with Skills.txt flags bit 2 and its
+// aurastate on, not once that state's aurastat1 (aura_value) is 3.
+inline bool shadow_ai_may_use(bool may_have, int aitype, bool melee, bool target, bool in_state, bool target_in_state2, bool aura,
+                              std::optional<int> aura_value) {
+    if (!may_have || melee != (aitype == 4 || aitype == 13)) return false;
+    if (aitype == 1 && in_state) return false;
+    if (!target && (aitype == 2 || aitype == 4 || aitype == 5 || aitype == 11 || aitype == 12 || aitype == 13)) return false;
+    if (aitype == 2 && (in_state || target_in_state2)) return false;
+    return !(aura && in_state && aura_value && *aura_value >= 3);
+}
+
 struct ShadowGift {
     int skill = 0, level = 0;
 };
@@ -147,7 +162,7 @@ struct ShadowSkillRow {
 // What the think reads. units[0] is the pet. `rows` by skill id (absent:
 // past Skills.txt). `groups`: States.txt group by state. `fixed`: MonStats
 // +0x56..+0x60 (aip1 N / NM / H, aip2 N / NM / H), `aip3` by difficulty.
-// `life` %; `right` it has a right skill (FUN_00620190); `low`
+// `life` %; `left` it has a left skill (FUN_00620190); `low`
 // FUN_0063a2b0; `blocked` FUN_00622aa0 mask 4; `aura_value` its aurastat
 // (FUN_006256b0 / FUN_00625d00; none: no list); `town` the pet's room.
 struct ShadowMasterScene {
@@ -161,7 +176,7 @@ struct ShadowMasterScene {
     int aip3 = 0;
     ShadowScan scan;
     int life = 100;
-    bool right = false, low = false, blocked = false, town = false;
+    bool left = false, low = false, blocked = false, town = false;
     std::optional<int> aura_value;
 };
 
@@ -222,7 +237,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
                 if (seed.next() % 100 >= 0x3c) continue;
                 const auto* handle = listed(skill.id);                     // FUN_006439b0: its first entry
                 if (handle->kind == 1 && !melee ? world.approach(-1) : world.skill(handle->mode, skill.id, -1)) return;
-            } else if (row->aitype == 6 && !scene.right && seed.next() % 100 < 0x14)
+            } else if (row->aitype == 6 && !scene.left && seed.next() % 100 < 0x14)
                 world.set_left(skill.id);
         }
     int helper = -1;
@@ -323,7 +338,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
             got = roll() + score + (row->aitype == 11 ? scan.all * 3 : 0);
             break;
         case 6:
-            if (seed(100) < (scene.right ? 6 : 0x14)) world.set_left(skill.id);
+            if (seed(100) < (scene.left ? 6 : 0x14)) world.set_left(skill.id);
             continue;
         case 7: {
             const int draw = roll();

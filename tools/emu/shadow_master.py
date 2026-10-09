@@ -11,7 +11,7 @@ asks: type, spot, owner (FUN_0058f0d0), target (FUN_00553540), dying
 (FUN_005541b0), foe (FUN_00554200), in melee (FUN_00622c40), states
 (FUN_00639df0), resists (FUN_00625480), FUN_005eb650; the pet's skills
 (a list at +0xa8: id, level, kind, mode), its life % (FUN_00621f20), its
-right skill (FUN_00620190), FUN_0063a2b0, the line to its target
+left skill (FUN_00620190), FUN_0063a2b0, the line to its target
 (FUN_00622aa0), its aura stat (FUN_006256b0 / FUN_00625d00) and the unit
 scan's results (FUN_005dd0b0 with FUN_005eb6d0). Stands, casts, runs,
 walks, follow-or-fight (FUN_005e45d0, answered from the setup) and left
@@ -74,7 +74,7 @@ def setup(rng):
             "scan": {"near": scan[0], "near_d": rng.choice((0, 10, 30, 100, 600)), "count": rng.choice((0, 2, 3, 4, 8, 16)),
                      "onear": scan[1], "ocount": rng.choice((0, 2, 4, 6)), "all": rng.choice((0, 1, 3, 8)),
                      "kin": rng.choice((0, 2, 6, 10)), "help": scan[2]},
-            "life": rng.choice((10, 40, 47, 60, 70, 100)), "right": rng.random() < 0.5, "low": rng.random() < 0.5,
+            "life": rng.choice((10, 40, 47, 60, 70, 100)), "left": rng.random() < 0.5, "low": rng.random() < 0.5,
             "line": rng.random() < 0.6, "aura": rng.choice((None, 0, 1, 2, 3, 5)), "town": rng.random() < 0.1,
             "decide": [rng.random() < 0.1 for _ in range(4)], "casts": [rng.random() < 0.6 for _ in range(40)],
             "moves": [rng.random() < 0.6 for _ in range(4)],
@@ -146,7 +146,7 @@ class Port:
                     if self.skill_of(sk["id"])["kind"] == 1 and not melee: ok = self.approach(None)
                     else: ok = self.cast_raw(sk["id"], None)
                     if ok: return
-                elif row["aitype"] == 6 and not s["right"]:
+                elif row["aitype"] == 6 and not s["left"]:
                     if self.seed.step() % 100 < 0x14: self.out.append(("left", sk["id"]))
         helper = None
         if owner:
@@ -233,7 +233,7 @@ class Port:
                 got = roll() + score + (sc["all"] * 3 if kind == 11 else 0)
             elif kind == 6:
                 r = self.seed.rand(100)
-                if r < (6 if s["right"] else 0x14): self.out.append(("left", sid))
+                if r < (6 if s["left"] else 0x14): self.out.append(("left", sid))
                 continue
             elif kind == 7:
                 r = roll()
@@ -294,7 +294,7 @@ def dump_think(s, want):
     nums += [s["p"][o] for o in (0x56, 0x58, 0x5a, 0x5c, 0x5e, 0x60)] + [s["aip3"]]
     sc = s["scan"]
     nums += [IDX(sc["near"]), sc["near_d"], sc["count"], IDX(sc["onear"]), sc["ocount"], sc["all"], sc["kin"], IDX(sc["help"])]
-    nums += [s["life"], int(s["right"]), int(s["low"]), int(s["line"]), -1 if s["aura"] is None else s["aura"], int(s["town"])]
+    nums += [s["life"], int(s["left"]), int(s["low"]), int(s["line"]), -1 if s["aura"] is None else s["aura"], int(s["town"])]
     nums += [v for v in s["ctrl"]] + list(s["seed"])
     nums += [*map(int, s["decide"]), *map(int, s["casts"]), *map(int, s["moves"])]
     log = []
@@ -364,7 +364,7 @@ def install(e):
     e.hook(0x5deb60, lambda e: out(("away", e.arg(2), e.arg(3), e.arg(5))) or int(cur["moves"].pop(0)), 6)
     e.hook(0x5a6260, lambda e: 0, 2)
     e.hook(0x5de080, lambda e: out(("stand", e.arg(0))), 1)
-    e.hook(0x620190, lambda e: int(cur["s"]["right"]), 1)
+    e.hook(0x620190, lambda e: int(cur["s"]["left"]), 1)
     e.hook(0x643bc0, lambda e: out(("left", e.arg(1))) or 0, 3)
     e.hook(0x620bb0, lambda e: 0x77, 1)
     e.hook(0x61ab00, lambda e: int(cur["s"]["town"]), 1)

@@ -450,9 +450,9 @@ def shadow_warrior(p):
     if t and s["left"] is not None and s["right"] is not None:
         has = {s["left"], s["right"]} | ({0} if s["pet_attack"] else set())
         handle = lambda sid: ("h", sid) if sid in has else None
-        pl, pr = handle(s["left"]), handle(s["right"])
+        pl, pr = handle(s["left"]), handle(s["right"])                # FUN_00620190 / FUN_006201d0: the owner's left / right
         if pl and pr:
-            pick = pr if p.seed.rand(2) else pl
+            pick = pl if p.seed.rand(2) else pr
             pid = pick[1]
             k = max(p.ctrl[2], 1)
             chance = p.aip(2) - 2 * k
@@ -460,7 +460,7 @@ def shadow_warrior(p):
             if melee and p.seed.rand(100) < chance:
                 pick, pid = handle(0), 0
             if not usable(p, pick, pid, melee):
-                pick = pl if pick == pr else pr
+                pick = pr if pick == pl else pl
                 if not usable(p, pick, pick[1], melee):
                     pick = handle(0)
                     if not pick:
@@ -606,8 +606,8 @@ def install(e):
     e.hook(0x58ee80, ends, 0)
     e.hook(0x554ea0, lambda e: out(("teleport",)) or int(cur["s"]["teleport_ok"]), 5)
     # The Shadows' skills: owner handles 0x10 (left) / 0x20 (right), the pet's 0x1000 + id.
-    e.hook(0x6201d0, lambda e: 0x10 if cur["s"]["left"] is not None else 0, 1)
-    e.hook(0x620190, lambda e: 0x20 if cur["s"]["right"] is not None else 0, 1)
+    e.hook(0x620190, lambda e: 0x10 if cur["s"]["left"] is not None else 0, 1)       # the left skill (skill list +8)
+    e.hook(0x6201d0, lambda e: 0x20 if cur["s"]["right"] is not None else 0, 1)      # the right (+0xc)
     def skill_id(e):
         h = e.arg(0)
         return cur["s"]["left"] if h == 0x10 else cur["s"]["right"] if h == 0x20 else h - 0x1000

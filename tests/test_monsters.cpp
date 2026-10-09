@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -674,6 +675,13 @@ int main() {
                     const auto master = d2d::rules::shadow_master_init(aip3, seed);
                     for (const int value : master) assert(value == read());
                     assert(seed.low == std::uint32_t(read()) && seed.high == std::uint32_t(read()));
+                    fields >> bar;
+                    const bool may_have = read() != 0;
+                    const int aitype = int(read());
+                    const bool melee = read() != 0, target = read() != 0, in_state = read() != 0, target_in_state2 = read() != 0, aura = read() != 0;
+                    const int aura_value = int(read());
+                    assert(d2d::rules::shadow_ai_may_use(may_have, aitype, melee, target, in_state, target_in_state2, aura,
+                                                         aura_value < 0 ? std::nullopt : std::optional<int>(aura_value)) == (read() != 0));
                     ++checked;
                 }
                 assert(checked > 40);
@@ -727,7 +735,7 @@ int main() {
                     auto& scan = scene.scan;
                     scan.closest = int(read()); scan.closest_distance = int(read()); scan.close_count = int(read());
                     scan.owner_closest = int(read()); scan.owner_close_count = int(read()); scan.all = int(read()); scan.traps = int(read()); scan.worth = int(read());
-                    scene.life = int(read()); scene.right = read() != 0; scene.low = read() != 0; scene.blocked = read() != 0;
+                    scene.life = int(read()); scene.left = read() != 0; scene.low = read() != 0; scene.blocked = read() != 0;
                     if (const int aura = int(read()); aura >= 0) scene.aura_value = aura;
                     scene.town = read() != 0;
                     std::array<int, 3> ctrl{};

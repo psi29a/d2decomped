@@ -265,9 +265,9 @@ inline bool traced_pet_ai(std::string_view ai_name) {
 // (`nearby`, its id) and blast radius (FUN_004cc7c0); MonStats aip1..5 for
 // the difficulty, Skill1 / 2, Sk1mode / 2, Velocity, Run; Blade Sentinel's
 // two ends (FUN_0058ee80 +0xc / +0x14). The Shadows: the owner's left /
-// right skill (FUN_006201d0 / 0190, -1 none) and class, the pet has Attack;
+// right skill (FUN_00620190 / FUN_006201d0, -1 none) and class, the pet has Attack;
 // per skill id its class (FUN_00645040, 7 none), AI use (FUN_005eabf0),
-// mana (FUN_006459f0), kind (FUN_00645460) and mode; MonStats aip8 (N) / (H)
+// mana (FUN_006459f0), kind (FUN_00645460) and mode; MonStats aip8 (NM) / (H)
 // (row +0x82 / +0x84, whatever the difficulty).
 struct ShadowSkill {
     int id = 0, cls = 7;
@@ -785,7 +785,7 @@ void blade_sentinel_think(PetBrain<World>& brain) {
 // FUN_005ead50: may the Shadow use skill `id`? Its class the owner's, its
 // AI type allows it (FUN_005eabf0), then Attack always; else a mana roll
 // (mana x 160 / 100 in 100 fails), +0x14 its next frame, and a roll under
-// the +0x18 load (kept between aip8 (N) and aip8 (H) x 32), which then
+// the +0x18 load (kept between aip8 (NM) and aip8 (H) x 32), which then
 // grows by the skill's mana.
 template <class World>
 bool shadow_may_use(PetBrain<World>& brain, int id) {
@@ -824,11 +824,11 @@ void shadow_warrior_think(PetBrain<World>& brain) {
     if (brain.decide(foe, melee, false, 6)) return;
     if (foe == PetUnit::none || scene.left < 0 || scene.right < 0) { brain.stand(0x19); return; }
     const bool has_attack = scene.pet_attack || scene.left == 0 || scene.right == 0;
-    int id = brain.seed(2) ? scene.right : scene.left;
+    int id = brain.seed(2) ? scene.left : scene.right;
     const int chance = std::clamp(brain.aip(2) - 2 * std::max(brain.ctrl[2], 1), 5, 100);
     if (melee && brain.seed(100) < chance) id = 0;
     if (!((id != 0 || has_attack) && shadow_may_use(brain, id))) {
-        id = id == scene.right ? scene.left : scene.right;
+        id = id == scene.left ? scene.right : scene.left;
         if (!shadow_may_use(brain, id)) id = 0;                   // FUN_00647280 gives it Attack if need be
     }
     const auto& skill = scene.skill_of(id);

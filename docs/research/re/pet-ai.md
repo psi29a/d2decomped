@@ -204,16 +204,17 @@ Distances: `FUN_005dc380` (gap, the first unit's size) and `FUN_006416d0`
   within 16 of the owner, else follow.
 - **ShadowWarrior** (`0x5eafa0`): no owner, stand 100. +0x18 (the mana
   load) drops by aip4 + 1, back to 0 under 0 or over aip8(H) × 64 (MonStats
-  +0x84; aip8(N) is +0x82, both read whatever the difficulty; shadowwarrior
+  +0x84; aip8(NM) is +0x82, both read whatever the difficulty; shadowwarrior
   has 5 / 64). The driver's target unless over aip1 off, or the owner over
   aip2 off; decide (reach 6). With a target and an owner with both a left
-  and a right skill (`FUN_006201d0` / `0190`): one at random; in melee
+  and a right skill (`FUN_00620190` / `FUN_006201d0`: the skill list's +8 /
+  +0xc): one at random (rand(2) set: the left); in melee
   rand(100) under aip3 − 2 × +0x1c (5..100) takes Attack instead. Not
   usable (`FUN_005ead50`), the other; not that either, Attack (given by
   `FUN_00647280` if missing). `FUN_005ead50`: the skill's class
   (`FUN_00645040`) the owner's and its AI type allowing it
   (`FUN_005eabf0`); Attack then always; else rand(100) over 100 − mana ×
-  160 / 100 fails, the frame before +0x14 fails, +0x18 held in aip8(N)
+  160 / 100 fails, the frame before +0x14 fails, +0x18 held in aip8(NM)
   (1..128) .. aip8(H) × 32 (1..256), rand(+0x18) over rand(100) passes, and
   +0x18 grows by (320 − +0x1c) × mana / (+0x1c + 100). A missile kind
   (`FUN_00645460` 1) out of melee runs at the target (`FUN_005ded20`); else
@@ -267,7 +268,7 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
 4. The driver's target over P5e off, or none: each skill it has, by
    aitype — 1 with an aurastate it isn't in (one of its State group on:
    only rand(100) < 4), 60 in 100: cast it at nothing (a kind-1 skill out
-   of melee walks instead, `FUN_005ded00(0, 4)`); 6 with no right skill
+   of melee walks instead, `FUN_005ded00(0, 4)`); 6 with no left skill
    (`FUN_00620190`), 20 in 100 it becomes the left skill (`FUN_00643bc0`).
 5. With an owner: the owner's target, if not dying and a foe
    (`FUN_00554200`), becomes the target (the helper). Within 12 of the
@@ -299,7 +300,7 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
    - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); no srvmissile
      and a srvmissilea whose Range − 1 the target is past: dropped; −5 each
      if near, within 5, or `FUN_0063a2b0`; + rand(P5c); 11 + all × 3.
-   - 6: rand(100) under 20 (6 with a right skill): it becomes the left skill.
+   - 6: rand(100) under 20 (6 with a left skill): it becomes the left skill.
    - 7: life over 66 %: dropped; + rand(P5c) + 10 (+20 under 45 %), at no
      unit (bug #17). 8: likewise ×2 (×4 under 45 %), at itself.
    - 13: + P58; −5 when P5a > 0 and `FUN_0063a2b0` says no, else + the sum.
