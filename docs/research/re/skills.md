@@ -477,6 +477,17 @@ lines (missile names aren't passed in). What it does:
   (`ln12`: 50 + 10 per level), result flags 9, over an area of
   `aurarangecalc` (par3 = 6 subtiles) around the target (FUN_0056bad0).
 
+### Dragon Flight (srvdofunc 52)
+- Do (FUN_005d7850) on each action event, by the event count (unit
+  +0x38 >> 8, bit 0): the first teleports to the skill's spot
+  (FUN_0056d2c0, FUN_00554ea0; not into collision 0x804 where the room
+  asks); the next kicks the unit's target (FUN_00553540): to hit with toht
+  + stat 325 (FUN_0057ec10), on a hit the kick damage (FUN_005d54b0) with
+  ED `ln12` (FUN_004e6ca0), HitClass +0x1a5 (0x80 when 0); then the
+  charges are released (FUN_005d5220), hit or not. No knockback.
+- d2d: both on the one action frame (`Fight::spot`, and `shadow_cast` for
+  a Shadow beside its target).
+
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,
   0xffff = none, 0x8000 = assigned to the left button), +0x78 left skill,

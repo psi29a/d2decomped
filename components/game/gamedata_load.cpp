@@ -695,6 +695,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
+            state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
+            state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
             state.item_type = std::string(states_table.get(row, "itemtype"));
             const std::string trans(states_table.get(row, "itemtrans"));
             for (std::size_t colour = 0; colour < game_data.item_colours.codes.size(); ++colour) if (!trans.empty() && game_data.item_colours.codes[colour] == trans) state.item_colour = int(colour);

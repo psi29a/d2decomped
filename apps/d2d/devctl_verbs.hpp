@@ -421,10 +421,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura
             std::string out;
             for (const auto& pet : town.fight.pets)
-                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={} at={:.1f},{:.1f} {}\n",
+                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={} at={:.1f},{:.1f} {} walk={} path={} goal={:.1f},{:.1f} target={} cast={} ctrl={},{},{}\n",
                                    pet.monster.npc.name, pet.monster.stats.level, pet.monster.hit_points, pet.monster.stats.hit_points, pet.monster.stats.a1_min, pet.monster.stats.a1_max, pet.monster.stats.to_hit, pet.monster.stats.armor_class,
                                    pet.res[0], pet.res[1], pet.res[2], pet.res[3], pet.fire_lo, pet.fire_hi, pet.ranged, pet.ranged_level, pet.aura,
-                                   pet.aura_level, pet.where == town.level, pet.monster.unit.x, pet.monster.unit.y, pet.monster.mode);
+                                   pet.aura_level, pet.where == town.level, pet.monster.unit.x, pet.monster.unit.y, pet.monster.mode,
+                                   pet.monster.unit.walking, pet.monster.unit.path.size(), pet.monster.unit.goal_x, pet.monster.unit.goal_y, pet.target, pet.cast,
+                                   pet.ctrl[0], pet.ctrl[1], pet.ctrl[2]);
             return out + "ok\n";
         }
         if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable

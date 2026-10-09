@@ -838,7 +838,7 @@ struct Fight {
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void shadow_give(Pet& pet, int skill, int lvl) const;
-    void shadow_cast(Pet& pet, std::uint32_t now_ms);
+    void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.

@@ -497,12 +497,14 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
             swing.kick = true;
             return swing;
         }
-        if (skill->srvstfunc == ServerStartFunction::kDragonTalon) {
+        if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvdofunc == ServerDoFunction::kDragonFlight) {
+            // Dragon Flight's kick (do 52, FUN_005d7850) builds as a Dragon
+            // Talon kick (FUN_005d54b0, ED ln12), without its knockback.
             swing.kick = true;
             swing.ed_pct = d2d::rules::calc_ln(skill->par[0], skill->par[1], lvl);
             swing.skill_lo = d2d::rules::skill_phys(skill_tables, *skill, env, lvl, false);
             swing.skill_hi = d2d::rules::skill_phys(skill_tables, *skill, env, lvl, true);
-            swing.knockback = !by_player || kicks_left == 0;
+            swing.knockback = skill->srvdofunc != ServerDoFunction::kDragonFlight && (!by_player || kicks_left == 0);
         } else if (skill->srvdofunc == ServerDoFunction::kSmite) {                    // Smite (FUN_005ce9f0): calc1 ED, calc2 stun
             swing.ar_pct = 0;
             swing.smite = true;
@@ -810,11 +812,11 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                         blow.knockback = true;
                         land(monster_index, blow, true, now_ms);
                     });
-                if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
-                    d2d::rules::Swing swing;
-                    swing.kick = true;
-                    land(std::size_t(tgt), d2d::rules::player_blow(pf_kick, target_of(std::size_t(tgt)), int(character.stats.get(d2d::d2s::kLevel)), rng, swing),
+                if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {             // the kick, then its charges released, hit or not (FUN_005d5220)
+                    land(std::size_t(tgt), d2d::rules::player_blow(pf_kick, target_of(std::size_t(tgt)), int(character.stats.get(d2d::d2s::kLevel)), rng,
+                                                                   skill_swing(skill, lvl, env, true)),
                          true, now_ms);
+                    release(std::size_t(tgt), now_ms);
                 }
                 break;
             }
@@ -2849,7 +2851,16 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
             if (pet.chase && (pet.target < 0 || std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) <= kMeleeReach)) {
                 unit.walking = false; unit.path.clear();
             } else {
-                const int velocity = monster.mode == "RN" ? type_info.run : type_info.velocity;
+                int velocity = monster.mode == "RN" ? type_info.run : type_info.velocity;
+                // In a state that looks like a player class (States gfxtype 2:
+                // the Shadows' "shadowwarrior", class 6) it moves as that class
+                // (FUN_00645270 -> FUN_00621360: CharStats WalkVelocity /
+                // RunVelocity); a Shadow's MonStats Velocity is 0.
+                if (const auto* summoning = game_data->skills.get(pet.skill); summoning && !summoning->aurastate.empty())
+                    if (const auto state = game_data->states.find(summoning->aurastate); state != game_data->states.end() && state->second.gfx_type == 2) {
+                        const auto cls = std::size_t(std::clamp(state->second.gfx_class, 0, 6));
+                        velocity = monster.mode == "RN" ? game_data->run_velocity[cls] : game_data->walk_velocity[cls];
+                    }
                 const float pace = float(std::max(100 + monster.move_pct, 10)) * float(100 + pet.speed_pct) / 10000;
                 if (walk_on(*level, unit, cells_per_sec(float(velocity)) * pace * elapsed, crowd)) return true;
             }
@@ -3357,10 +3368,11 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
 // and the claws and kicks as its owner's blow (it has the owner's gear) with
 // the skill's swing; a missile skill fired from it (Blade Fury, Fire Blast,
 // Shock Web, ...); Psychic Hammer and Mind Blast at its target.
-// ponytail: charge-ups hold no charges on a Shadow, Dragon Flight doesn't
-// leap, and buffs (Burst of Speed, Fade, Cloak, Venom, Blade Shield),
+// Dragon Flight puts it beside the target and kicks.
+// ponytail: charge-ups hold no charges on a Shadow; Dragon Flight's two
+// events (the flight, then the kick) land on one frame; buffs (Burst of Speed, Fade, Cloak, Venom, Blade Shield),
 // traps and summons do nothing yet.
-auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms) -> void {
+auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
         const auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
         if (!skill) return;
@@ -3371,6 +3383,15 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms) -> void {
         const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false };
         if (skill->id != 0 && missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
+        if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, then the kick (as the owner's)
+            if (level == &game_data->town) return;
+            auto& unit = pet.monster.unit;
+            std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, foe.x, foe.y);
+            unit.path.clear(); unit.walking = false;
+            land(std::size_t(target), d2d::rules::player_blow(pf_kick, target_of(std::size_t(target)), monster.stats.level, rng, skill_swing(*skill, lvl, calc_env(), false)),
+                 false, now_ms);
+            return;
+        }
         if (target < 0 || (skill->id != 0 && skill_kind(*skill) != 1)) return;
         if (std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > kMeleeReach + 0.3f) return;
         const auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
@@ -3378,7 +3399,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms) -> void {
     }
 
 auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
-        if (pet.mirror) { shadow_cast(pet, now_ms); return; }
+        if (pet.mirror) { shadow_cast(pet, now_ms, crowd); return; }
         auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
         const int target = pet.target;
