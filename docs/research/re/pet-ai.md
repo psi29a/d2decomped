@@ -22,10 +22,12 @@ FUN_0058f0d0). Their MonStats AI picks a row of the AI table at `0x73ca20`
 
 Traced and built: NecroPet (below, `necropet_think`) and Hydra, Totem,
 Vines, CycleOfLife, AssassinSentry, DeathSentry, BladeCreeper, Raven,
-DruidWolf, DruidBear (`components/rules/pets.hpp`, "The other thinks").
-InvisoPet, 7TIllusion and Buffy aren't any player skill's summon. Not
-traced yet: ShadowWarrior (`0x5eafa0`, init `0x5eb490`) and ShadowMaster
-(`0x5eb970`, init `0x5ecb70`): they copy and score the owner's skills.
+DruidWolf, DruidBear, ShadowWarrior's think (`components/rules/pets.hpp`,
+"The other thinks"). InvisoPet, 7TIllusion and Buffy aren't any player
+skill's summon. Not traced yet: ShadowWarrior's init (`0x5eb490`) and
+ShadowMaster (`0x5eb970`, init `0x5ecb70`), which scores the skills it has.
+d2d's Shadows still run the untraced chase (`Fight`'s pet loop), so the
+think runs only in the tests.
 
 ## NecroPet (FUN_005e4cf0)
 
@@ -203,10 +205,28 @@ Distances: `FUN_005dc380` (gap, the first unit's size) and `FUN_006416d0`
   40 steps); in melee rand(100) under aip3 Skill1 as a sequence
   (`FUN_005de000`, mode 0xe), else a swing and wait aip1. Else stand 15
   within 16 of the owner, else follow.
+- **ShadowWarrior** (`0x5eafa0`): no owner, stand 100. +0x18 (the mana
+  load) drops by aip4 + 1, back to 0 under 0 or over aip8(H) × 64 (MonStats
+  +0x84; aip8(N) is +0x82, both read whatever the difficulty; shadowwarrior
+  has 5 / 64). The driver's target unless over aip1 off, or the owner over
+  aip2 off; decide (reach 6). With a target and an owner with both a left
+  and a right skill (`FUN_006201d0` / `0190`): one at random; in melee
+  rand(100) under aip3 − 2 × +0x1c (5..100) takes Attack instead. Not
+  usable (`FUN_005ead50`), the other; not that either, Attack (given by
+  `FUN_00647280` if missing). `FUN_005ead50`: the skill's class
+  (`FUN_00645040`) the owner's and its AI type allowing it
+  (`FUN_005eabf0`); Attack then always; else rand(100) over 100 − mana ×
+  160 / 100 fails, the frame before +0x14 fails, +0x18 held in aip8(N)
+  (1..128) .. aip8(H) × 32 (1..256), rand(+0x18) over rand(100) passes, and
+  +0x18 grows by (320 − +0x1c) × mana / (+0x1c + 100). A missile kind
+  (`FUN_00645460` 1) out of melee runs at the target (`FUN_005ded20`); else
+  the skill in its mode (`FUN_00644360`) and +0x14 = frame + calc / 3 + 18.
+  Else stand 25.
 
 Checked: `tools/emu/pet_ais.py` runs each in game.exe with the follow /
 decide answers, searches, gaps and skills from random setups and every
 move down to `FUN_005a7c20`: 1 500 cases each, all equal (log, AI control,
 seed). Its `--dump` writes `tests/pet_ais_cases.inc`, which
-`tests/test_monsters.cpp` replays through the C++ (128 cases). d2d runs
+`tests/test_monsters.cpp` replays through the C++ (up to 16 an AI: the
+literal stays under 64 KB). d2d runs
 them in `Fight::pet_think_turn` / `pet_cast`.

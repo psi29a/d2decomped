@@ -2926,8 +2926,8 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
 // search's are that foe too.
 // ponytail: `foe2` is the mode 5 foe, not FUN_005ddc30's; no unit is ever
 // poisoned (state 2), slowed (0x3c) or in Fenris's rage (0x8a); the
-// owner's life / mana are whole points; Blade Sentinel and the Shadows
-// aren't summoned, so their thinks don't run.
+// owner's life / mana are whole points; Blade Sentinel isn't summoned and
+// the Shadows still run the untraced chase, so their thinks don't run.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
         auto& monster = pet.monster;

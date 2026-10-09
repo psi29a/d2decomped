@@ -412,11 +412,75 @@ def blade_creeper(p):
     if not (p.about("owner", 5) if s["owner"] else p.about("pet", 2)): p.stand(5)     # FUN_005df530 with no unit: FUN_005de200(2)
 
 
+def usable(p, h, sid, melee):
+    """FUN_005ead50: may the Shadow use skill `sid` (its handle `h`)? Its owner's class's,
+    Skills.txt's AI type allows it (FUN_005eabf0), Attack always; else a mana roll, the
+    +0x14 frame, and a roll against the +0x18 load, which grows by the skill's mana."""
+    s = p.s
+    if h is None or not s["owner"]: return 0
+    if s["skill_class"].get(sid, 7) != s["owner_class"]: return 0
+    if not s["aiok"].get(sid, False): return 0
+    if sid == 0: return 1
+    mana = s["mana"].get(sid, 0)
+    if p.seed.rand(100) > 100 - int(mana * 0xa0 / 100): return 0
+    if s["frame"] < p.ctrl[0]: return 0
+    x82, x84 = p.row["x82"], p.row["x84"]
+    lo = 1 if x82 < 2 else x82 if x82 < 0x80 else 0x80
+    hi = 0x100 if x84 > 0xff else x84 if x84 > 1 else 1
+    if p.ctrl[1] < lo or hi * 0x20 < p.ctrl[1]: p.ctrl[1] = lo
+    a = p.seed.rand(p.ctrl[1])
+    if p.seed.rand(100) < a: return 0
+    p.ctrl[1] += int((0x140 - p.ctrl[2]) * mana / (p.ctrl[2] + 100))
+    return 1
+
+
+def shadow_warrior(p):
+    """FUN_005eafa0 (MonAI 105 ShadowWarrior)."""
+    s = p.s
+    if not s["owner"]:
+        p.stand(100); return
+    x84 = p.row["x84"]
+    n = 1 if x84 < 2 else min(x84, 0x100)
+    p.ctrl[1] += -1 - p.aip(3)
+    if p.ctrl[1] < 0 or n * 0x40 < p.ctrl[1]: p.ctrl[1] = 0
+    d = p.dist("pet", "owner")
+    t, melee = ("foe2" if s["param"][2] else None), s["param"][6]
+    if p.aip(0) < s["param"][5] or p.aip(1) < d: t = None
+    if p.decide(t, melee, 0, 6): return
+    if t and s["left"] is not None and s["right"] is not None:
+        has = {s["left"], s["right"]} | ({0} if s["pet_attack"] else set())
+        handle = lambda sid: ("h", sid) if sid in has else None
+        pl, pr = handle(s["left"]), handle(s["right"])
+        if pl and pr:
+            pick = pr if p.seed.rand(2) else pl
+            pid = pick[1]
+            k = max(p.ctrl[2], 1)
+            chance = p.aip(2) - 2 * k
+            chance = 5 if chance <= 5 else min(chance, 100)
+            if melee and p.seed.rand(100) < chance:
+                pick, pid = handle(0), 0
+            if not usable(p, pick, pid, melee):
+                pick = pl if pick == pr else pr
+                if not usable(p, pick, pick[1], melee):
+                    pick = handle(0)
+                    if not pick:
+                        has.add(0); pick = handle(0)
+            if pick:
+                pid = pick[1]
+                if s["kind"].get(pid, 0) != 1 or melee:
+                    p.skill(s["smode"].get(pid, 0), pid, t)
+                    p.ctrl[0] = int(s["skillcalc"] / 3) + 0x12 + s["frame"]
+                    return
+                p.run_at(t); return
+    p.stand(0x19)
+
+
 SKILLS = 400
 AIS = {"hydra": (0x5e9e60, hydra, 351), "totem": (0x5ed9e0, totem, 424), "vines": (0x5ec6c0, vines, 425),
        "carrion": (0x5ec8c0, cycle, 0x1aa), "solar": (0x5ec8c0, cycle, 0x1ab),
        "sentry": (0x5ea3d0, sentry, 412), "deathsentry": (0x5ea980, death_sentry, 416), "bladecreeper": (0x5ea540, blade_creeper, 413),
-       "raven": (0x5ecc10, raven, 419), "bear": (0x5ed730, druid_bear, 428), "spiritwolf": (0x5ecee0, spirit_wolf, 420), "fenris": (0x5ed2a0, fenris, 421)}
+       "raven": (0x5ecc10, raven, 419), "bear": (0x5ed730, druid_bear, 428), "spiritwolf": (0x5ecee0, spirit_wolf, 420), "fenris": (0x5ed2a0, fenris, 421),
+       "shadowwarrior": (0x5eafa0, shadow_warrior, 417)}
 
 
 # --- the setups and the harness ----------------------------------------------
@@ -449,7 +513,8 @@ def setup(rng, cls):
     s["row"] = {"aip": [rng.choice((0, rng.randint(0, 100))) for _ in range(5)],
                 "skill1": rng.choice((-1, rng.randint(0, 400))), "skill2": rng.choice((-1, rng.randint(0, 400))),
                 "mode1": rng.randint(0, 15), "mode2": rng.randint(0, 15),
-                "velocity": rng.choice((0, 5, 6, 8, 10)), "run": rng.choice((0, 6, 9, 10, 20))}
+                "velocity": rng.choice((0, 5, 6, 8, 10)), "run": rng.choice((0, 6, 9, 10, 20)),
+                "x82": rng.choice((0, 1, 2, 10, 60, 200)), "x84": rng.choice((0, 1, 2, 10, 60, 300))}
     s["ctrl"] = [rng.choice((-1, 0, 1, rng.randint(0, 6000))) for _ in range(3)]
     s["param"] = {2: rng.random() < 0.6, 5: rng.randint(0, 40), 6: rng.random() < 0.4}
     s["follow"] = [rng.random() < 0.5 for _ in range(8)]
@@ -461,6 +526,17 @@ def setup(rng, cls):
     s["corpse_id"] = 5
     s["radius"] = rng.randint(0, 40)
     s["ends"] = None if rng.random() < 0.1 else tuple((px + rng.randint(-20, 20), py + rng.randint(-20, 20)) for _ in range(2))
+    ids = [0, rng.randint(1, 60), rng.randint(1, 60), rng.randint(1, 60)]
+    s["ids"] = ids
+    s["left"] = rng.choice(ids[1:] + [0, None])
+    s["right"] = rng.choice(ids[1:] + [0, None])
+    s["pet_attack"] = rng.random() < 0.7
+    s["owner_class"] = rng.randint(0, 6)
+    s["skill_class"] = {i: rng.choice((s["owner_class"], s["owner_class"], 7, rng.randint(0, 6))) for i in ids}
+    s["aiok"] = {i: rng.random() < 0.7 for i in ids}
+    s["mana"] = {i: rng.choice((0, 2, 5, 10, 30, 70)) for i in ids}
+    s["kind"] = {i: rng.choice((0, 1, 1, 2)) for i in ids}
+    s["smode"] = {i: rng.randint(0, 15) for i in ids}
     s["fails"] = rng.random()
     s["seed"] = (rng.getrandbits(32), rng.getrandbits(32))
     return s
@@ -516,7 +592,7 @@ def install(e):
     e.hook(0x6439f0, lambda e: 1, 0)
     e.hook(0x6442a0, lambda e: cur["s"]["skilllvl"], 3)
     e.hook(0x646ca0, lambda e: cur["s"]["skillcalc"], 4)
-    e.hook(0x644360, lambda e: cur["s"]["skillmode"], 1)
+    e.hook(0x644360, lambda e: cur["s"]["smode"].get(e.arg(0) - 0x1000, 0) if e.arg(0) >= 0x1000 else cur["s"]["skillmode"], 1)
     e.hook(0x56e390, lambda e: unit("near") if cur["s"]["corpse"] else 0, 2)
     e.hook(0x4cc7c0, lambda e: cur["s"]["radius"], 0)
     e.hook(0x56ede0, lambda e: 0, 5)
@@ -529,6 +605,26 @@ def install(e):
         return blk
     e.hook(0x58ee80, ends, 0)
     e.hook(0x554ea0, lambda e: out(("teleport",)) or int(cur["s"]["teleport_ok"]), 5)
+    # The Shadows' skills: owner handles 0x10 (left) / 0x20 (right), the pet's 0x1000 + id.
+    e.hook(0x6201d0, lambda e: 0x10 if cur["s"]["left"] is not None else 0, 1)
+    e.hook(0x620190, lambda e: 0x20 if cur["s"]["right"] is not None else 0, 1)
+    def skill_id(e):
+        h = e.arg(0)
+        return cur["s"]["left"] if h == 0x10 else cur["s"]["right"] if h == 0x20 else h - 0x1000
+    e.hook(0x643ce0, skill_id, 3)
+    def add_skill(e):
+        if e.arg(0) == cur["units"]["pet"]: cur["has"].add(e.arg(1))
+        return 0
+    e.hook(0x647280, add_skill, 6)
+    def pet_skill(e):
+        sid = e.mu.reg_read(UC_X86_REG_EDX)
+        return 0x1000 + sid if sid in cur["has"] else 0
+    e.hook(0x6439b0, pet_skill, 1)
+    e.hook(0x645460, lambda e: cur["s"]["kind"].get(e.arg(1) - 0x1000, 0), 2)
+    e.hook(0x645040, lambda e: cur["s"]["skill_class"].get(e.arg(0), 7), 1)
+    e.hook(0x5eabf0, lambda e: int(cur["s"]["aiok"].get(e.arg(1), False)), 3)
+    e.hook(0x6459f0, lambda e: cur["s"]["mana"].get(e.arg(0), 0), 2)
+    e.hook(0x45c4b0, lambda e: cur["blank"], 0)
     e.hook(0x4efcb0, lambda e: cur["s"]["skillcalc"], 0)
     e.hook(0x5a61f0, lambda e: cur["ctx"].update(type=0, pct=0, steps=0), 0)
     e.hook(0x5dd230, lambda e: out(("unreachable",)), 1)
@@ -585,7 +681,9 @@ def run_game(e, s, addr, rng_moves):
     e.w32(params, ctrl); e.w32(params + 7 * 4, row)
     if s["param"][2]: e.w32(params + 8, units["foe2"])
     e.w32(params + 20, s["param"][5]); e.w32(params + 24, int(s["param"][6]))
-    CUR.update(s=s, out=[], ctx={"type": 0, "pct": 0, "steps": 0}, units=units, names=names, room=room, moves=rng_moves,
+    e.w32(units["owner"] + 4, s["owner_class"])
+    e.mu.mem_write(row + 0x82, struct.pack("<hh", r["x82"], r["x84"]))
+    CUR.update(blank=alloc(0x200), has={0} if s["pet_attack"] else set(), s=s, out=[], ctx={"type": 0, "pct": 0, "steps": 0}, units=units, names=names, room=room, moves=rng_moves,
                follow=list(s["follow"]), decide=list(s["decide"]))
     e.call(addr, params, ecx=game, edx=pet)
     return CUR["out"], [e.r32(ctrl + 0x14 + 4 * k) for k in range(3)], (e.r32(pet + 0x20), e.r32(pet + 0x24))
@@ -636,6 +734,9 @@ def dump_case(ai, s, out, ctrl, seed):
     nums += r["aip"] + [r["skill1"], r["skill2"], r["mode1"], r["mode2"], r["velocity"], r["run"]]
     nums += [int(s["corpse"])]
     nums += [int(bool(s["ends"]))] + ([c for pt in s["ends"] for c in pt] if s["ends"] else [0, 0, 0, 0])
+    none = lambda v: -1 if v is None else v
+    nums += [none(s["left"]), none(s["right"]), s["owner_class"], int(s["pet_attack"]), r["x82"], r["x84"]]
+    nums += [c for i in s["ids"] for c in (i, s["skill_class"][i], int(s["aiok"][i]), s["mana"][i], s["kind"][i], s["smode"][i])]
     nums += [sx(v & MASK) for v in s["ctrl"]] + list(s["seed"])
     tail = act[:1] + [str(v) for v in act[1:]] + [str(sx(v)) for v in ctrl] + [str(v) for v in seed]
     return " ".join(map(str, nums)) + " | " + " ; ".join(calls) + " | " + " ".join(map(str, tail))
@@ -654,7 +755,7 @@ def check(e, ai, cases, rng, dumped=None):
         want = (p.out, [v & MASK for v in p.ctrl], (p.seed.lo, p.seed.hi))
         kind = got[0][-1][0] if got[0] else "-"
         kinds[kind] = kinds.get(kind, 0) + 1
-        if dumped is not None and got == want and len(dumped.setdefault(ai, {})) < 30:
+        if dumped is not None and got == want and len(dumped.setdefault(ai, {})) < 16:
             key = (tuple(x[0] for x in p.out), tuple(x[3] for x in p.out if x[0] == "move"))
             if key not in dumped[ai]: dumped[ai][key] = dump_case(ai, s, p.out, want[1], want[2])
         if got != want:

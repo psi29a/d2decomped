@@ -577,6 +577,9 @@ int main() {
                     if (const bool corpse = read() != 0; which == 6) scene.nearby = corpse;   // the Death Sentry's corpse is its `nearby`
                     scene.ends = read() != 0;
                     for (auto& [x, y] : scene.end) { x = read(); y = read(); }
+                    scene.left = read(); scene.right = read(); scene.owner_class = read(); scene.pet_attack = read() != 0;
+                    scene.aip8_nightmare = read(); scene.aip8_hell = read();
+                    for (auto& skill : scene.skills) { skill.id = read(); skill.cls = read(); skill.ai_ok = read() != 0; skill.mana = read(); skill.kind = read(); skill.mode = read(); }
                     std::array<int, 3> ctrl{};
                     for (auto& value : ctrl) value = read();
                     d2d::rules::Rng seed;
@@ -598,6 +601,7 @@ int main() {
                     case 8: d2d::rules::raven_think(brain); break;
                     case 9: d2d::rules::druid_bear_think(brain); break;
                     case 10: d2d::rules::spirit_wolf_think(brain); break;
+                    case 12: d2d::rules::shadow_warrior_think(brain); break;
                     default: d2d::rules::fenris_think(brain); break;
                     }
                     assert(world.next == world.calls.size());

@@ -264,7 +264,16 @@ inline bool traced_pet_ai(std::string_view ai_name) {
 // frames, radius), level, mode (FUN_00644360); the Death Sentry's corpse
 // (`nearby`, its id) and blast radius (FUN_004cc7c0); MonStats aip1..5 for
 // the difficulty, Skill1 / 2, Sk1mode / 2, Velocity, Run; Blade Sentinel's
-// two ends (FUN_0058ee80 +0xc / +0x14).
+// two ends (FUN_0058ee80 +0xc / +0x14). The Shadows: the owner's left /
+// right skill (FUN_006201d0 / 0190, -1 none) and class, the pet has Attack;
+// per skill id its class (FUN_00645040, 7 none), AI use (FUN_005eabf0),
+// mana (FUN_006459f0), kind (FUN_00645460) and mode; MonStats aip8 (N) / (H)
+// (row +0x82 / +0x84, whatever the difficulty).
+struct ShadowSkill {
+    int id = 0, cls = 7;
+    bool ai_ok = false;
+    int mana = 0, kind = 0, mode = 0;
+};
 struct PetScene {
     int cls = 0;
     bool owner = true;
@@ -286,6 +295,15 @@ struct PetScene {
     int skill1 = -1, skill2 = -1, mode1 = 0, mode2 = 0, velocity = 0, run = 0;
     bool ends = false;
     std::array<std::pair<int, int>, 2> end{};
+    int left = -1, right = -1, owner_class = 0;
+    bool pet_attack = false;
+    int aip8_nightmare = 0, aip8_hell = 0;
+    std::array<ShadowSkill, 4> skills{};
+    [[nodiscard]] const ShadowSkill& skill_of(int id) const {
+        static constexpr ShadowSkill kNone;
+        const auto found = std::ranges::find(skills, id, &ShadowSkill::id);
+        return found == skills.end() ? kNone : *found;
+    }
 };
 
 // How many rows Skills.txt has (a skill id past it counts as none).
@@ -762,6 +780,61 @@ void blade_sentinel_think(PetBrain<World>& brain) {
     brain.ctrl[1] = brain.ctrl[1] == 0 ? 1 : 0;
     if (brain.set_out(second.first, second.second)) return;
     if (!(scene.owner ? brain.wander(PetUnit::owner, 5) : brain.wander(PetUnit::pet, 2))) brain.stand(5);   // no owner: FUN_005de200(2)
+}
+
+// FUN_005ead50: may the Shadow use skill `id`? Its class the owner's, its
+// AI type allows it (FUN_005eabf0), then Attack always; else a mana roll
+// (mana x 160 / 100 in 100 fails), +0x14 its next frame, and a roll under
+// the +0x18 load (kept between aip8 (N) and aip8 (H) x 32), which then
+// grows by the skill's mana.
+template <class World>
+bool shadow_may_use(PetBrain<World>& brain, int id) {
+    const auto& scene = brain.scene;
+    const auto& skill = scene.skill_of(id);
+    if (skill.cls != scene.owner_class || !skill.ai_ok) return false;
+    if (id == 0) return true;
+    if (brain.seed(100) > 100 - skill.mana * 0xa0 / 100) return false;
+    if (scene.frame < brain.ctrl[0]) return false;
+    const int least = scene.aip8_nightmare < 2 ? 1 : std::min(scene.aip8_nightmare, 0x80);
+    const int ceiling = std::clamp(scene.aip8_hell, 1, 0x100);
+    if (brain.ctrl[1] < least || ceiling * 0x20 < brain.ctrl[1]) brain.ctrl[1] = least;
+    if (const int load = brain.seed(brain.ctrl[1]); brain.seed(100) < load) return false;
+    brain.ctrl[1] += (0x140 - brain.ctrl[2]) * skill.mana / (brain.ctrl[2] + 100);
+    return true;
+}
+
+// MonAI 105 ShadowWarrior (FUN_005eafa0). +0x18 drops by aip4 + 1 a think
+// (back to 0 under 0 or over aip8 (H) x 64). The AI driver's target, if
+// within aip1 and the owner within aip2, else none, goes to decide (reach
+// 6). Then, the owner with both a left and a right skill: one at random,
+// Attack (aip3 - 2 x +0x1c, 5..100, in 100) in melee; not usable, the
+// other, then Attack. A missile kind (1) out of melee runs at the foe, else
+// the skill in its mode and +0x14 the frame its calc / 3 + 18 on. Else
+// stand 25; no owner, stand 100.
+template <class World>
+void shadow_warrior_think(PetBrain<World>& brain) {
+    const auto& scene = brain.scene;
+    if (!scene.owner) { brain.stand(100); return; }
+    const int most = scene.aip8_hell < 2 ? 1 : std::min(scene.aip8_hell, 0x100);
+    brain.ctrl[1] += -1 - brain.aip(3);
+    if (brain.ctrl[1] < 0 || most * 0x40 < brain.ctrl[1]) brain.ctrl[1] = 0;
+    const bool melee = scene.driver_melee;
+    PetUnit foe = scene.driver ? PetUnit::foe2 : PetUnit::none;
+    if (brain.aip(0) < scene.driver_distance || brain.aip(1) < brain.distance(PetUnit::pet, PetUnit::owner)) foe = PetUnit::none;
+    if (brain.decide(foe, melee, false, 6)) return;
+    if (foe == PetUnit::none || scene.left < 0 || scene.right < 0) { brain.stand(0x19); return; }
+    const bool has_attack = scene.pet_attack || scene.left == 0 || scene.right == 0;
+    int id = brain.seed(2) ? scene.right : scene.left;
+    const int chance = std::clamp(brain.aip(2) - 2 * std::max(brain.ctrl[2], 1), 5, 100);
+    if (melee && brain.seed(100) < chance) id = 0;
+    if (!((id != 0 || has_attack) && shadow_may_use(brain, id))) {
+        id = id == scene.right ? scene.left : scene.right;
+        if (!shadow_may_use(brain, id)) id = 0;                   // FUN_00647280 gives it Attack if need be
+    }
+    const auto& skill = scene.skill_of(id);
+    if (skill.kind == 1 && !melee) { brain.run_at(foe); return; }
+    brain.skill(skill.mode, id, foe);
+    brain.ctrl[0] = scene.skill_calc / 3 + 0x12 + scene.frame;
 }
 
 // FUN_005dc640: a clear line from the pet to its foe. Lines (sight_blocked
