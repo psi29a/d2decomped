@@ -743,7 +743,8 @@ int main() {
                     auto& scan = scene.scan;
                     scan.closest = int(read()); scan.closest_distance = int(read()); scan.close_count = int(read());
                     scan.owner_closest = int(read()); scan.owner_close_count = int(read()); scan.all = int(read()); scan.traps = int(read()); scan.worth = int(read());
-                    scene.life = int(read()); scene.left = read() != 0; scene.low = read() != 0; scene.blocked = read() != 0;
+                    scene.life = int(read()); scene.left = read() != 0; scene.low = read() != 0;
+                    if (read() != 0) for (auto& unit : scene.units) unit.blocked = true;
                     if (const int charges = int(read()); charges >= 0) scene.charges = charges;
                     scene.town = read() != 0;
                     std::array<int, 3> ctrl{};

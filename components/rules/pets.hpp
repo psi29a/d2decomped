@@ -244,7 +244,8 @@ PetAct necropet_think(const PetView& view, Rng& seed, LevelAt&& level_at, TryMov
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).
 inline bool traced_pet_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 9> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear" };
+    static constexpr std::array<std::string_view, 11> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear",
+                                                               "ShadowWarrior", "ShadowMaster" };
     return std::ranges::contains(kTraced, ai_name);
 }
 

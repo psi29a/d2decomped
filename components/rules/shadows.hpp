@@ -85,14 +85,15 @@ inline std::array<int, 3> shadow_master_init(int aip3, Rng& seed) { return { -1,
 
 // A unit as the Shadow Master sees it (subtiles). `target`: its own target
 // (FUN_00553540), `owner` (FUN_0058f0d0), both unit indexes or -1. `foe`:
-// FUN_00554200 from the pet; `melee` FUN_00622c40 from the pet; `worth`
+// FUN_00554200 from the pet; `melee` FUN_00622c40 from the pet; `blocked`
+// the line from the pet cut (FUN_00622aa0 mask 4, sight_blocked); `worth`
 // FUN_005eb650 (shadow_worth); `side` FUN_00650d70 (the pet's side),
 // `monster_id` its MonStats id (FUN_00463860). `resist` by EType (none =
 // damage, fire, light, magic, cold, poison); `monster_level` MonStats
 // +0xa0 by difficulty.
 struct ShadowUnit {
     int type = 1, x = 0, y = 0;
-    bool targetable = true, dying = false, foe = true, melee = false, worth = false, side = false;
+    bool targetable = true, dying = false, foe = true, melee = false, worth = false, side = false, blocked = false;
     int target = -1, owner = -1, monster_level = 0, monster_id = -1;
     std::vector<int> states;
     std::array<int, 6> resist{};
@@ -164,7 +165,7 @@ struct ShadowSkillRow {
 // past Skills.txt). `groups`: States.txt group by state. `fixed`: MonStats
 // +0x56..+0x60 (aip1 N / NM / H, aip2 N / NM / H), `aip3` by difficulty.
 // `life` %; `left` it has a left skill (FUN_00620190); `low`
-// FUN_0063a2b0; `blocked` FUN_00622aa0 mask 4; `charges` its aurastate's aurastat1
+// FUN_0063a2b0; `charges` its aurastate's aurastat1
 // (FUN_006256b0 / FUN_00625d00; none: no list); `town` the pet's room.
 struct ShadowMasterScene {
     std::vector<ShadowUnit> units;
@@ -177,7 +178,7 @@ struct ShadowMasterScene {
     int aip3 = 0;
     ShadowScan scan;
     int life = 100;
-    bool left = false, low = false, blocked = false, town = false;
+    bool left = false, low = false, town = false;
     std::optional<int> charges;
 };
 
@@ -260,7 +261,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         }
     }
     const int life = scene.life, distance = apart(0, target);
-    const bool low = fixed[2] > 0 && scene.low, clear = !scene.blocked;
+    const bool low = fixed[2] > 0 && scene.low, clear = !units[std::size_t(target)].blocked;
     if (scan.close_count > 3 && seed(0x20) < 2 * scan.close_count) {
         if (owner >= 0 && apart(0, owner) > 0x24) { world.run(owner); return; }
         const auto& pet = units[0];

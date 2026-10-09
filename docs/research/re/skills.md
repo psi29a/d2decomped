@@ -757,8 +757,7 @@ lines (missile names aren't passed in). What it does:
   (`update_fighters`), `pets_cross` (pets follow the player over a level
   edge; traps stay), devctl `debug pets`. Not traced / not built: the pet
   AI functions but NecroPet's (DruidWolf, Totem, ...; pet-ai.md), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
-  Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, the Shadow
-  Warrior's own skills (it swings the owner's blow), Decoy's and the
+  Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, Decoy's and the
   Shadow's look (drawn as their rows), Raven's hit count (Param5).
 
 ### Missile hit functions and spot spells (phase 6, part 3)

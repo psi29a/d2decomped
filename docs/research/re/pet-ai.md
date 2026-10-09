@@ -352,8 +352,23 @@ Blade Shield; 2 Cloak of Shadows; 3 the sentries, Shadow Warrior / Master;
 Sentinel, Blade Fury; 10 Claw Mastery, Weapon Block (never scored); 11
 Shock Field (Shock Web), Mind Blast; 12 Cobra Strike; 13 Dragon Flight.
 
-Checked: `tools/emu/shadow_init.py` (both inits, 2 000 cases),
+Checked: `tools/emu/shadow_init.py` (both inits and `FUN_005eabf0`, 3 000 cases),
 `tools/emu/shadow_master.py` (the think with the cast, group test, walk
 away and distances native, 5 000 cases, every aitype scored; the scan
 callback with `FUN_005eb650` native, 2 000 cases), all equal.
+
+### In d2d
+
+`Fight::summon_one` builds a Shadow's skill list (`Pet::skill_list`: the
+MonStats skills, then `shadow_warrior_init` or `shadow_master_init`).
+`Fight::pet_think_turn` runs `shadow_warrior_think` on a PetScene with the
+owner's left / right skills (d2s header), giving them each think, and
+`shadow_master_think` on the units round the pet (the monsters within 64
+subtiles of it or its owner, its fellow pets), its world turned into a
+PetAct. `Fight::shadow_cast` does the skill on the action frame: Attack and
+the claws / kicks as the owner's blow with the skill's swing, missile
+skills through `fire`, Psychic Hammer and Mind Blast through `spot`.
+Not built: states on any unit (aurastates, charges, `FUN_0063a2b0`), so
+buffs and charge-ups count as never on; buffs, traps, summons and Dragon
+Flight's leap do nothing when cast; MonStats +0xa0 (aitype 12's floor).
 
