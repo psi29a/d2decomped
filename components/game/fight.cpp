@@ -3150,21 +3150,23 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 return took;
             }
             bool teleport() { teleport_to(); return true; }
+            std::function<void()> give;
+            void give_hands() { give(); }
             [[nodiscard]] d2d::rules::PetAct followed() const { return last; }
         };
         World world{ move_pet, view, monster.seed, level_under, [&] { std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, player.x, player.y); }, {} };
         const auto& ai_name = type_info.ai_name;
-        // The Shadow Warrior: the owner's left / right skills (given each
-        // think at FUN_005eaf00's level), its class, and what Attack and
-        // each hand are to its AI (FUN_005ead50 / FUN_005eabf0).
-        // ponytail: the hands are given before the think, not after its
-        // follow-or-fight test.
+        // The Shadow Warrior: the owner's left / right skills (given when its
+        // think gets that far, at FUN_005eaf00's level: give_hands), its
+        // class, and what Attack and each hand are to its AI (FUN_005ead50 /
+        // FUN_005eabf0) once given.
+        std::function<void()> give_hands = [] {};
         if (ai_name == "ShadowWarrior") {
             const auto hand = [&](std::uint32_t id) { return game_data->skills.get(int(id)) ? int(id) : -1; };
             scene.left = hand(character.header.left_skill); scene.right = hand(character.header.right_skill);
             scene.owner_class = std::clamp(character.character_class, 0, 6);
-            if (scene.driver && scene.left >= 0 && scene.right >= 0)
-                for (const int id : { scene.left, scene.right }) shadow_give(pet, id, d2d::rules::shadow_hand_level(pet.ctrl[2], skill_level ? skill_level(id) : 1));
+            const auto hand_level = [&](int id) { return d2d::rules::shadow_hand_level(pet.ctrl[2], skill_level ? skill_level(id) : 1); };
+            give_hands = [this, &pet, hand_level, left = scene.left, right = scene.right] { for (const int id : { left, right }) shadow_give(pet, id, hand_level(id)); };
             scene.pet_attack = std::ranges::contains(pet.skill_list, 0, &d2d::rules::ShadowListed::id);
             scene.aip8_nightmare = type_info.diff[1].aip[7]; scene.aip8_hell = type_info.diff[2].aip[7];
             const std::array<int, 3> hands{ 0, scene.left, scene.right };
@@ -3173,8 +3175,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 entry = { .id = hands[k] };
                 const auto* row = game_data->skills.get(hands[k]);
                 const auto listed = std::ranges::find(pet.skill_list, hands[k], &d2d::rules::ShadowListed::id);
-                if (!row || listed == pet.skill_list.end()) continue;
-                const int lvl = std::max(listed->level, 1);
+                const bool given = k > 0;                                    // a hand: as it will be once given
+                if (!row || (!given && listed == pet.skill_list.end())) continue;
+                const int lvl = std::max(given ? hand_level(hands[k]) : listed->level, 1);
                 entry.cls = skill_class(*row);
                 const auto held = std::ranges::find(pet.charges, hands[k], &Charge::skill);
                 const bool buffed = std::ranges::contains(pet.buffs, hands[k], &SelfState::skill);
@@ -3182,15 +3185,17 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 bool target_in = false;                                      // the driver's target in its auratargetstate (its curse / cry's)
                 if (found >= 0 && !row->auratarget.empty())
                     for (const auto* effect : { &monsters[std::size_t(found)].curse, &monsters[std::size_t(found)].cry })
-                        if (const auto* on = game_data->skills.get(effect->skill); on && on->auratarget == row->auratarget && now_ms < effect->until) target_in = true;
+                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && effect_skill->auratarget == row->auratarget && now_ms < effect->until) target_in = true;
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
                                                             charged, target_in, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
-                entry.kind = listed->kind; entry.mode = listed->mode;
+                entry.kind = listed != pet.skill_list.end() ? listed->kind : skill_kind(*row);
+                entry.mode = listed != pet.skill_list.end() ? listed->mode : monster_mode(row->monanim);
                 entry.delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl);
             }
             scene.skills[3] = { .id = -2 };
         }
+        world.give = give_hands;
         d2d::rules::PetBrain brain(scene, monster.seed, pet.ctrl, world);
         // The Shadow Master (shadows.hpp) on the units round it: the pet, its
         // owner, the monsters within 64 subtiles of either, its fellow pets
@@ -3256,9 +3261,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
                 if (monster_of[k] >= 0)
                     for (const auto* effect : { &monsters[std::size_t(monster_of[k])].curse, &monsters[std::size_t(monster_of[k])].cry })
-                        if (const auto* on = game_data->skills.get(effect->skill); on && !on->auratarget.empty() && now_ms < effect->until)
+                        if (const auto* effect_skill = game_data->skills.get(effect->skill); effect_skill && !effect_skill->auratarget.empty() && now_ms < effect->until)
                             for (const auto& [id, row] : master.rows)
-                                if (const auto* listed_row = game_data->skills.get(id); row.state2 > 0 && listed_row && listed_row->auratarget == on->auratarget) units[k].states.push_back(row.state2);
+                                if (const auto* listed_row = game_data->skills.get(id); row.state2 > 0 && listed_row && listed_row->auratarget == effect_skill->auratarget) units[k].states.push_back(row.state2);
             for (const auto& buff : pet.buffs)                              // its self states' aurastates on it
                 if (const auto row = master.rows.find(buff.skill); row != master.rows.end() && row->second.state > 0) units[0].states.push_back(row->second.state);
             for (const auto& held : pet.charges)                            // a charge-up's aurastate on it, its count the aurastat

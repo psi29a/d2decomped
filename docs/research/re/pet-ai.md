@@ -362,7 +362,8 @@ callback with `FUN_005eb650` native, 2 000 cases), all equal.
 `Fight::summon_one` builds a Shadow's skill list (`Pet::skill_list`: the
 MonStats skills, then `shadow_warrior_init` or `shadow_master_init`).
 `Fight::pet_think_turn` runs `shadow_warrior_think` on a PetScene with the
-owner's left / right skills (d2s header), giving them each think, and
+owner's left / right skills (d2s header), given as its think reaches
+`FUN_005eaf00` (`give_hands`), and
 `shadow_master_think` on the units round the pet (the monsters within 64
 subtiles of it or its owner, its fellow pets), its world turned into a
 PetAct. `Fight::shadow_cast` does the skill on the action frame: Attack and

@@ -550,6 +550,7 @@ int main() {
                         return want[4] != 0;
                     }
                     bool teleport() { return call('t')[0] != 0; }
+                    void give_hands() {}
                     [[nodiscard]] PetAct followed() const { return { .kind = PetAct::Kind::stand, .frames = -7 }; }
                 };
                 std::istringstream lines{ std::string(kCases) };

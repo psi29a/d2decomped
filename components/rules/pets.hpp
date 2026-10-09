@@ -313,7 +313,8 @@ inline constexpr int kSkillRows = 400;
 // A think on a PetScene. `world` answers: try_move(move) (a path found),
 // follow(mode, run, pct, reach) (FUN_005e3ea0) and decide(foe, melee,
 // stay, reach) (FUN_005e45d0, foe a PetUnit) — on true their act is
-// world.followed() — and teleport() (FUN_00554ea0 into the owner's room).
+// world.followed() — and teleport() (FUN_00554ea0 into the owner's room);
+// the Shadow Warrior's give_hands() (it takes the owner's left / right).
 // `ctrl`: the AI control's +0x14 / +0x18 / +0x1c, kept between thinks.
 template <class World>
 class PetBrain {
@@ -824,6 +825,7 @@ void shadow_warrior_think(PetBrain<World>& brain) {
     if (brain.aip(0) < scene.driver_distance || brain.aip(1) < brain.distance(PetUnit::pet, PetUnit::owner)) foe = PetUnit::none;
     if (brain.decide(foe, melee, false, 6)) return;
     if (foe == PetUnit::none || scene.left < 0 || scene.right < 0) { brain.stand(0x19); return; }
+    brain.world.give_hands();                                     // FUN_005eaf00 / FUN_00647280: the owner's hands, each think
     const bool has_attack = scene.pet_attack || scene.left == 0 || scene.right == 0;
     int id = brain.seed(2) ? scene.left : scene.right;
     const int chance = std::clamp(brain.aip(2) - 2 * std::max(brain.ctrl[2], 1), 5, 100);
