@@ -913,7 +913,12 @@ lines (missile names aren't passed in). What it does:
   event (FUN_005417d0(5, FUN_004efc80 + frame)). **44** (FUN_005d6020,
   Blade Sentinel): a trap monster (FUN_005d5e10) sent to the point and
   back (FUN_00554ea0). **54** (FUN_005d7e10 -> FUN_005d7ce0, Blade
-  Shield): its events while the state lasts. **125** (FUN_005d1170, Wake
+  Shield): a periodic skill, struck every perdelay (par3: 25) frames while
+  the state lasts: every unit within aurarange (par4) passing aurafilter
+  (FUN_0056b7e0, each by FUN_005d7c40) takes a hit at the skill's to-hit
+  (FUN_006449f0, unless HitFlags bit 1), its MinDam..MaxDam (FUN_0056e170)
+  and element (FUN_0056e0c0), plus the weapon's at SrcDam (FUN_0057b7d0,
+  32 / 128), HitClass +0x1a5. **125** (FUN_005d1170, Wake
   of Fire's shot): its maker row toward the target. **95**
   (FUN_005cc4e0, Inferno Sentry's shot): one flame a frame, its reach
   from the monster's own bytes (+0x9a / +0x9b), for calc3 frames.
@@ -927,7 +932,7 @@ lines (missile names aren't passed in). What it does:
   `debug unbuilt` (lists none). Not traced / not built: the shapeshifted
   look (the Druid keeps his) and the werebeast skills' form requirement,
   Rabies' spread, the walls' time (24 s published) and makers' pace,
-  Armageddon / Hurricane / Blade Shield paces, Blade Sentinel as a
+  Armageddon / Hurricane paces, Blade Sentinel as a
   monster, Double Throw's toht, Vine Attack / the cyclers (the vines'
   published behaviour).
 

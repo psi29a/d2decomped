@@ -215,6 +215,7 @@ struct Fight {
         std::vector<Charge> charges;               // a Shadow's charge-ups' charges (as the player's)
         std::vector<SelfState> buffs;              // a Shadow's self states (Burst of Speed, Fade, Venom, Cloak, Blade Shield)
         std::unordered_map<int, int> buff_stats;   // their aurastats summed (pet_buffs)
+        std::uint32_t blade_next = 0;              // its Blade Shield's next strike
     };
     // What a Shadow summons while the pets take their turns (traps, Blade
     // Sentinel), made once they're done.
@@ -253,6 +254,7 @@ struct Fight {
     int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
     std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
     std::uint32_t storm_frame = 0;                 // the last frame buff_tick ran its paced strikes
+    std::uint32_t blade_next = 0;                  // Blade Shield's next strike
     std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
     // What worn items (and passives) put on the maxima (256ths): the
     // character's own, as a save keeps them, are the maxima less these.
@@ -817,6 +819,7 @@ struct Fight {
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
+    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, std::uint32_t now_ms);
     void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill

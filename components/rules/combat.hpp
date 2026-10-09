@@ -306,6 +306,10 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     const auto roll = [&](int chance) { return chance > 0 && rng(100) < chance; };
     if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
     damage = damage * swing.srcdam / 128;
+    // A skill's own damage beside the weapon's SrcDam share (Blade Shield:
+    // FUN_0056e170 then FUN_0057b7d0); kicks and Smite took theirs above.
+    if (!swing.kick && !swing.smite && swing.skill_hi > 0)
+        damage += swing.skill_hi > swing.skill_lo ? swing.skill_lo + rng(swing.skill_hi - swing.skill_lo) : swing.skill_lo;
     // Conversion, last in the build (FUN_0057b7d0, record +0x65 / +0x68):
     // pct % of the physical moves to the element, calc2's add comes after;
     // cold chills and poison runs at least 50 ticks, poison an eighth of

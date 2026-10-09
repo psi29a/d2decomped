@@ -1026,11 +1026,10 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         // Armageddon / Hurricane (do 124, FUN_005c8190: the state and its
         // timer event, FUN_005417d0(5, ...)): Armageddon drops its control
         // row (hit 56) on a spot within aurarange every 5 frames; Hurricane
-        // strikes what's within aurarange with its cold once a second. Blade
-        // Shield (do 54, FUN_005d7e10 -> FUN_005d7ce0) strikes one monster
-        // within aurarange every 10 frames.
+        // strikes what's within aurarange with its cold once a second.
         // ponytail: the timer's period (FUN_004efc80) and the events aren't
         // traced: the paces are by eye (level 24 / 30 skills: past Act 1).
+        // Blade Shield: blade_shield, every perdelay frames.
         if (const auto* armageddon = state_of("armageddon"); armageddon && (now_ms / 40) % 5 == 0 && now_ms / 40 != storm_frame) {
             const auto* skill = game_data->skills.get(armageddon->skill);
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
@@ -1039,17 +1038,19 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
                        0, 0, found->second.range, now_ms);
             }
         }
-        for (const char* name : { "hurricane", "bladeshield" })
-            if (const auto* state = state_of(name); state && now_ms / 40 != storm_frame && (now_ms / 40) % (name[0] == 'h' ? 25 : 10) == 0) {
-                const auto* skill = game_data->skills.get(state->skill);
-                const auto damage = d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), state->level);
-                const int radius = std::max(calc(*skill, skill->aurarange, state->level), 1);
-                for (std::size_t j = 0; j < monsters.size(); ++j)
-                    if (monsters[j].alive() && std::hypot(monsters[j].unit.x - player.x, monsters[j].unit.y - player.y) * 5 <= float(radius)) {
-                        land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), rng), true, now_ms);
-                        if (name[0] == 'b') break;
-                    }
-            }
+        if (const auto* state = state_of("hurricane"); state && now_ms / 40 != storm_frame && (now_ms / 40) % 25 == 0) {
+            const auto* skill = game_data->skills.get(state->skill);
+            const auto damage = d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), state->level);
+            const int radius = std::max(calc(*skill, skill->aurarange, state->level), 1);
+            for (std::size_t j = 0; j < monsters.size(); ++j)
+                if (monsters[j].alive() && std::hypot(monsters[j].unit.x - player.x, monsters[j].unit.y - player.y) * 5 <= float(radius))
+                    land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), rng), true, now_ms);
+        }
+        if (const auto* state = state_of("bladeshield"); state && now_ms >= blade_next) {
+            const auto* skill = game_data->skills.get(state->skill);
+            blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, state->level), 1)) * 40;
+            blade_shield(*skill, state->level, player.x, player.y, player_combat, true, now_ms);
+        }
         storm_frame = now_ms / 40;
         if (const auto* thunderstorm = state_of("thunderstorm"); thunderstorm && now_ms >= storm_next) {
             storm_next = now_ms + 1600;
@@ -2733,6 +2734,11 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             auto& unit = monster.unit;
             if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0) pet_buffs(pet);
             if (!monster.alive() || pet.where != level) continue;
+            for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
+                if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
+                    pet.blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, buff.level), 1)) * 40;
+                    blade_shield(*skill, buff.level, unit.x, unit.y, player_combat, false, now_ms);
+                }
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
@@ -3377,6 +3383,24 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // Teleport, Fenris eating a corpse, the Grizzly's Maul (a blow).
 // ponytail: Vine Attack and the cyclers (do 130, st 63) and Fenris's rage
 // as their published effects, not traced.
+// Blade Shield's strike (do 54, a periodic skill every perdelay frames:
+// FUN_005d7e10 -> FUN_005d7ce0, each unit by FUN_005d7c40): every monster
+// within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
+// its own damage (FUN_0056e170, MinDam..MaxDam by level) and the weapon's
+// at SrcDam (FUN_0057b7d0, 32 / 128).
+auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, std::uint32_t now_ms) -> void {
+        const auto env = calc_env();
+        d2d::rules::Swing swing;
+        swing.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, env, lvl);
+        swing.srcdam = skill.srcdam;
+        swing.skill_lo = d2d::rules::skill_phys(game_data->skills, skill, env, lvl, false);
+        swing.skill_hi = d2d::rules::skill_phys(game_data->skills, skill, env, lvl, true);
+        const int radius = std::max(calc(skill, skill.aurarange, lvl), 1);
+        for (std::size_t j = 0; j < monsters.size(); ++j)
+            if (monsters[j].alive() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(radius))
+                land(j, d2d::rules::player_blow(fighter, target_of(j), int(character.stats.get(d2d::d2s::kLevel)), rng, swing), by_player, now_ms);
+    }
+
 // What a Shadow's self states give it: their aurastats at their levels,
 // summed again as one starts or ends.
 auto Fight::pet_buffs(Pet& pet) -> void {
@@ -3405,7 +3429,7 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
 // finishers release them, as the player's.
 // Its self states, traps and Blade Sentinel as the player's.
 // ponytail: Dragon Flight's two events (the flight, then the kick) land
-// on one frame; Blade Shield's blades aren't built (nor the player's).
+// on one frame.
 auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
         const auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
