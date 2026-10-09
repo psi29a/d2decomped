@@ -11,7 +11,7 @@ asks: type, spot, owner (FUN_0058f0d0), target (FUN_00553540), dying
 (FUN_005541b0), foe (FUN_00554200), in melee (FUN_00622c40), states
 (FUN_00639df0), resists (FUN_00625480), FUN_005eb650; the pet's skills
 (a list at +0xa8: id, level, kind, mode), its life % (FUN_00621f20), its
-left skill (FUN_00620190), FUN_0063a2b0, the line to its target
+left skill (FUN_00620190), FUN_0063a2b0 (holding charges: a progressive_* state), the line to its target
 (FUN_00622aa0), its aura stat (FUN_006256b0 / FUN_00625d00) and the unit
 scan's results (FUN_005dd0b0 with FUN_005eb6d0). Stands, casts, runs,
 walks, follow-or-fight (FUN_005e45d0, answered from the setup) and left

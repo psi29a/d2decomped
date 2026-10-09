@@ -312,16 +312,16 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
      progressive skill (Skills.txt flags bit 2, a charge-up) in its
      aurastate: the state's aurastat1, its charges (`FUN_006256b0` /
      `FUN_00625d00`), adds to a running sum and 3+ drops it. 4: + P5a with that flag, else −10 when P5a > 0 and
-     `FUN_0063a2b0` says no, else + sum × 4 + 3. 12: only at a monster whose
+     it holds no charges (`FUN_0063a2b0`), else + sum × 4 + 3. 12: only at a monster whose
      MonStats Drain (+0xa0) by difficulty is 25+; + 8 under 75 % life, + 12 more
      under 50 %. + rand(P5c).
    - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); no srvmissile
      and a srvmissilea whose Range − 1 the target is past: dropped; −5 each
-     if near, within 5, or `FUN_0063a2b0`; + rand(P5c); 11 + all × 3.
+     if near, within 5, or holding charges (`FUN_0063a2b0`); + rand(P5c); 11 + all × 3.
    - 6: rand(100) under 20 (6 with a left skill): it becomes the left skill.
    - 7: life over 66 %: dropped; + rand(P5c) + 10 (+20 under 45 %), at no
      unit (bug #17). 8: likewise ×2 (×4 under 45 %), at itself.
-   - 13: + P58; −5 when P5a > 0 and `FUN_0063a2b0` says no, else + the sum.
+   - 13: + P58; −5 when P5a > 0 and it holds no charges (`FUN_0063a2b0`), else + the sum.
      Under 50 % life or over 3 foes near, with the owner's closest foe and
      under 4 near the owner and that foe over 5 off: +20 at it. Else under
      5 off dropped, over 18 off +10. + rand(P5c).
@@ -381,6 +381,8 @@ Shield: `Pet::buffs`, auralen frames) give it their aurastats (speed,
 resists, Venom's poison on its blows; Cloak blinds the monsters round it)
 and the AIs see them; its traps and Blade Sentinel are laid at its target
 after the pets' turn (`Fight::pet_summons`).
-Not built: other states on other units for the AIs (`FUN_0063a2b0`, a
-target's auratargetstate); Blade Shield's blades (nor the player's).
+`FUN_0063a2b0` (`charged`) is "in a state of the data +0xdc mask": States
+pgsv, the six progressive_* states, so the Shadow holds charges. A
+monster's states for the AIs are its curse / cry (their auratargetstate).
+Blade Shield strikes as skills.md do 54 says, from the Shadow.
 

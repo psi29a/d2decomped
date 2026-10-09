@@ -3158,8 +3158,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // think at FUN_005eaf00's level), its class, and what Attack and
         // each hand are to its AI (FUN_005ead50 / FUN_005eabf0).
         // ponytail: the hands are given before the think, not after its
-        // follow-or-fight test; no unit is ever in a state, so no aurastate
-        // or charges count.
+        // follow-or-fight test.
         if (ai_name == "ShadowWarrior") {
             const auto hand = [&](std::uint32_t id) { return game_data->skills.get(int(id)) ? int(id) : -1; };
             scene.left = hand(character.header.left_skill); scene.right = hand(character.header.right_skill);
@@ -3180,8 +3179,12 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 const auto held = std::ranges::find(pet.charges, hands[k], &Charge::skill);
                 const bool buffed = std::ranges::contains(pet.buffs, hands[k], &SelfState::skill);
                 const bool charged = !row->aurastate.empty() && (held != pet.charges.end() || buffed);   // in its aurastate: a buff on, or a charge-up's charges
+                bool target_in = false;                                      // the driver's target in its auratargetstate (its curse / cry's)
+                if (found >= 0 && !row->auratarget.empty())
+                    for (const auto* effect : { &monsters[std::size_t(found)].curse, &monsters[std::size_t(found)].cry })
+                        if (const auto* on = game_data->skills.get(effect->skill); on && on->auratarget == row->auratarget && now_ms < effect->until) target_in = true;
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
-                                                            charged, false, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
+                                                            charged, target_in, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
                 entry.kind = listed->kind; entry.mode = listed->mode;
                 entry.delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl);
@@ -3192,8 +3195,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // The Shadow Master (shadows.hpp) on the units round it: the pet, its
         // owner, the monsters within 64 subtiles of either, its fellow pets
         // (the traps it counts). Its world turns what it does into a PetAct.
-        // ponytail: units by that radius, not FUN_005dd0b0's rooms; no state
-        // on any unit but a charge-up's (buffs, FUN_0063a2b0).
+        // A monster's states are its curse / cry (their auratargetstates).
+        // ponytail: units by that radius, not FUN_005dd0b0's rooms.
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
@@ -3244,12 +3247,18 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                     static constexpr std::array<int, 7> kEType{ 0, 1, 2, 4, 5, 3, 6 };   // d2d's etype (-1 none, fire, light, cold, poison, magic, stun) as EType
                     master.rows[listed.id] = { .aitype = row->aitype, .bonus = row->aibonus, .reqlevel = row->reqlevel,
                                                .etype = kEType[std::size_t(std::clamp(row->etype + 1, 0, 6))],
-                                               .state = row->aurastate.empty() ? 0 : 1000 + row->id, .state2 = row->auratarget.empty() ? 0 : 1,
+                                               .state = row->aurastate.empty() ? 0 : 1000 + row->id, .state2 = row->auratarget.empty() ? 0 : 2000 + row->id,
                                                .progressive = row->progressive,
                                                .srvmissile = row->srvmissile.empty() ? -1 : 0, .missile = row->srvmissilea.empty() ? -1 : 0,
                                                .missile_range = missile == game_data->missiles.end() ? -1 : missile->second.range,
                                                .repeat = row->srvdofunc == ServerDoFunction::kBreath };
                 }
+            for (std::size_t k = 2; k < units.size(); ++k)                  // a monster in a skill's auratargetstate: its curse or cry's
+                if (monster_of[k] >= 0)
+                    for (const auto* effect : { &monsters[std::size_t(monster_of[k])].curse, &monsters[std::size_t(monster_of[k])].cry })
+                        if (const auto* on = game_data->skills.get(effect->skill); on && !on->auratarget.empty() && now_ms < effect->until)
+                            for (const auto& [id, row] : master.rows)
+                                if (const auto* listed_row = game_data->skills.get(id); row.state2 > 0 && listed_row && listed_row->auratarget == on->auratarget) units[k].states.push_back(row.state2);
             for (const auto& buff : pet.buffs)                              // its self states' aurastates on it
                 if (const auto row = master.rows.find(buff.skill); row != master.rows.end() && row->second.state > 0) units[0].states.push_back(row->second.state);
             for (const auto& held : pet.charges)                            // a charge-up's aurastate on it, its count the aurastat
@@ -3263,6 +3272,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             master.life = monster.hit_points * 100 / std::max(monster.stats.hit_points, 1);
             master.left = pet.left_skill >= 0;
             master.town = town;
+            master.charged = !pet.charges.empty();                         // FUN_0063a2b0: a progressive_* state on it
             d2d::rules::PetAct out;
             const auto aim = [&](int target) {
                 index[3] = target >= 0 ? monster_of[std::size_t(target)] : -1;

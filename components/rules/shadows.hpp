@@ -167,8 +167,9 @@ struct ShadowSkillRow {
 // What the think reads. units[0] is the pet. `rows` by skill id (absent:
 // past Skills.txt). `groups`: States.txt group by state. `fixed`: MonStats
 // +0x56..+0x60 (aip1 N / NM / H, aip2 N / NM / H), `aip3` by difficulty.
-// `life` %; `left` it has a left skill (FUN_00620190); `low`
-// FUN_0063a2b0; `town` the pet's room.
+// `life` %; `left` it has a left skill (FUN_00620190); `charged` it holds
+// charges (FUN_0063a2b0: a state of States pgsv, the progressive_* ones);
+// `town` the pet's room.
 struct ShadowMasterScene {
     std::vector<ShadowUnit> units;
     int owner = -1, driver = -1, driver_distance = 0;
@@ -180,7 +181,7 @@ struct ShadowMasterScene {
     int aip3 = 0;
     ShadowScan scan;
     int life = 100;
-    bool left = false, low = false, town = false;
+    bool left = false, charged = false, town = false;
 };
 
 // FUN_005eb970 (ShadowMaster). `world`: decide(foe, melee) (FUN_005e45d0,
@@ -262,7 +263,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         }
     }
     const int life = scene.life, distance = apart(0, target);
-    const bool low = fixed[2] > 0 && scene.low, clear = !units[std::size_t(target)].blocked;
+    const bool holding = fixed[2] > 0 && scene.charged, clear = !units[std::size_t(target)].blocked;
     if (scan.close_count > 3 && seed(0x20) < 2 * scan.close_count) {
         if (owner >= 0 && apart(0, owner) > 0x24) { world.run(owner); return; }
         const auto& pet = units[0];
@@ -321,7 +322,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
                 if (row->progressive) {
                     if (charged()) continue;
                     score += fixed[2];
-                } else if (fixed[2] > 0 && !low) score -= 10;
+                } else if (fixed[2] > 0 && !holding) score -= 10;
                 else score += charge_sum * 4 + 3;
                 got = roll() + score;
             } else {
@@ -337,7 +338,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
             if (row->srvmissile < 0 && row->missile >= 0 && row->missile_range >= 0 && distance >= (row->missile_range - 1) * (row->missile_range - 1)) continue;
             if (close_in) score -= 5;
             if (distance <= 0x19) score -= 5;
-            if (low) score -= 5;
+            if (holding) score -= 5;
             got = roll() + score + (row->aitype == 11 ? scan.all * 3 : 0);
             break;
         case 6:
@@ -360,7 +361,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         }
         case 13:
             score += fixed[1];
-            score += fixed[2] > 0 && !low ? -5 : charge_sum;
+            score += fixed[2] > 0 && !holding ? -5 : charge_sum;
             if ((life < 0x32 || scan.close_count > 3) && scan.owner_closest >= 0 && scan.owner_close_count < 4 && apart(0, scan.owner_closest) > 0x19) {
                 score += 0x14;
                 who = scan.owner_closest;
