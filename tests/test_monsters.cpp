@@ -5,6 +5,7 @@
 #include <merc.hpp>
 #include <missiles.hpp>
 #include <pets.hpp>
+#include <shadows.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
@@ -630,6 +631,153 @@ int main() {
                     ++checked;
                 }
                 assert(checked > 100);
+            }
+            // The Shadows (tools/emu/shadow_init.py / shadow_master.py --dump:
+            // game.exe's own runs): the Warrior's init and the Master's, then the
+            // Master's think (the log of what it asks and does), then its scan.
+            {
+                static constexpr std::string_view kInits =
+#include "shadow_init_cases.inc"
+                    ;
+                std::istringstream lines{ std::string(kInits) };
+                int checked = 0;
+                for (std::string line; std::getline(lines, line);) {
+                    if (line.empty() || line.find('|') == std::string::npos) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { long long value = 0; fields >> value; return value; };
+                    const bool owner = read() != 0;
+                    const int owner_type = int(read()), summoned = int(read()), summon_level = int(read()), pet_class = int(read()), pet_type = int(read());
+                    const bool has_attack = read() != 0;
+                    const int aip3 = int(read());
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(read()); seed.high = std::uint32_t(read());
+                    struct Row { int id, summon, pet_type, hard; };
+                    std::vector<Row> rows(static_cast<std::size_t>(read()));
+                    std::vector<int> ids;
+                    for (auto& row : rows) { row.id = int(read()); row.summon = int(read()); row.pet_type = int(read()); row.hard = int(read()); ids.push_back(row.id); }
+                    std::string bar;
+                    fields >> bar;
+                    std::array<int, 3> ctrl{ 7, 7, 7 };
+                    const auto gifts = d2d::rules::shadow_warrior_init(ctrl, owner && owner_type == 0, summoned ? summon_level : -1, has_attack, ids,
+                        [&](int id) {
+                            const auto& row = *std::ranges::find(rows, id, &Row::id);
+                            return id >= 0 && id < 400 && d2d::rules::shadow_may_have(row.summon, row.pet_type, pet_class, pet_type, 20);
+                        },
+                        [&](int id) { return std::ranges::find(rows, id, &Row::id)->hard; });
+                    std::vector<int> want;
+                    for (std::string token; fields >> token && token != "|";) want.push_back(std::stoi(token));
+                    std::vector<int> got;
+                    for (const auto& gift : gifts) { got.push_back(gift.skill); got.push_back(gift.level); }
+                    assert(got == want);
+                    for (const int value : ctrl) assert(value == read());
+                    fields >> bar;
+                    const auto master = d2d::rules::shadow_master_init(aip3, seed);
+                    for (const int value : master) assert(value == read());
+                    assert(seed.low == std::uint32_t(read()) && seed.high == std::uint32_t(read()));
+                    ++checked;
+                }
+                assert(checked > 40);
+                static constexpr std::array<std::string_view, 3> kMaster{
+#include "shadow_master_cases.inc"
+                };
+                struct World {
+                    std::vector<int> decides, casts, moves;
+                    std::string log;
+                    void note(const std::string& text) { log += (log.empty() ? "" : " ; ") + text; }
+                    static bool pop(std::vector<int>& answers) { const bool answer = answers.front() != 0; answers.erase(answers.begin()); return answer; }
+                    bool decide(int foe, bool melee) { note("decide " + std::to_string(foe) + " " + std::to_string(int(melee))); return pop(decides); }
+                    bool skill(int mode, int id, int target) { note("skill " + std::to_string(mode) + " " + std::to_string(id) + " " + std::to_string(target)); return pop(casts); }
+                    bool approach(int target) { note("approach " + std::to_string(target)); return pop(moves); }
+                    bool away(int x, int y) { note("away " + std::to_string(x) + " " + std::to_string(y)); return pop(moves); }
+                    void run(int unit) { note("run " + std::to_string(unit)); }
+                    void set_left(int id) { note("left " + std::to_string(id)); }
+                    void stand(int frames) { note("stand " + std::to_string(frames)); }
+                };
+                std::istringstream thinks{ std::string(kMaster[0]) + std::string(kMaster[1]) };
+                checked = 0;
+                for (std::string line; std::getline(thinks, line);) {
+                    if (line.empty()) continue;
+                    const auto bar = line.find('|'), bar2 = line.rfind('|');
+                    std::istringstream fields(line.substr(0, bar));
+                    auto read = [&] { long long value = 0; fields >> value; return value; };
+                    d2d::rules::ShadowMasterScene scene;
+                    scene.has_list = read() != 0; scene.owner = int(read()); scene.driver = int(read()); scene.driver_melee = read() != 0; scene.driver_distance = int(read());
+                    scene.units.resize(8);
+                    for (auto& unit : scene.units) {
+                        unit.type = int(read()); unit.x = int(read()); unit.y = int(read());
+                        unit.targetable = read() != 0; unit.dying = read() != 0; unit.foe = read() != 0; unit.melee = read() != 0; unit.worth = read() != 0;
+                        unit.target = int(read()); unit.owner = int(read()); unit.monster_level = int(read());
+                        unit.states.resize(std::size_t(read()));
+                        for (auto& state : unit.states) state = int(read());
+                        for (auto& resist : unit.resist) resist = int(read());
+                    }
+                    scene.groups.resize(std::size_t(read()));
+                    for (auto& group : scene.groups) group = int(read());
+                    scene.skills.resize(std::size_t(read()));
+                    for (auto& skill : scene.skills) { skill.id = int(read()); skill.level = int(read()); skill.kind = int(read()); skill.mode = int(read()); }
+                    for (auto rows = read(); rows-- > 0;) {
+                        const int id = int(read());
+                        auto& row = scene.rows[id];
+                        row.aitype = int(read()); row.bonus = int(read()); row.reqlevel = int(read()); row.etype = int(read());
+                        row.state = int(read()); row.state2 = int(read()); row.aura = read() != 0;
+                        row.srvmissile = int(read()); row.missile = int(read()); row.missile_range = int(read()); row.repeat = read() != 0;
+                    }
+                    for (auto& value : scene.fixed) value = int(read());
+                    scene.aip3 = int(read());
+                    auto& scan = scene.scan;
+                    scan.closest = int(read()); scan.closest_distance = int(read()); scan.close_count = int(read());
+                    scan.owner_closest = int(read()); scan.owner_close_count = int(read()); scan.all = int(read()); scan.traps = int(read()); scan.worth = int(read());
+                    scene.life = int(read()); scene.right = read() != 0; scene.low = read() != 0; scene.blocked = read() != 0;
+                    if (const int aura = int(read()); aura >= 0) scene.aura_value = aura;
+                    scene.town = read() != 0;
+                    std::array<int, 3> ctrl{};
+                    for (auto& value : ctrl) value = int(read());
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(read()); seed.high = std::uint32_t(read());
+                    World world;
+                    for (int k = 0; k < 4; ++k) world.decides.push_back(int(read()));
+                    for (int k = 0; k < 40; ++k) world.casts.push_back(int(read()));
+                    for (int k = 0; k < 4; ++k) world.moves.push_back(int(read()));
+                    d2d::rules::shadow_master_think(scene, seed, ctrl, world);
+                    std::string want = line.substr(bar + 1, bar2 - bar - 1);
+                    want = want.substr(want.find_first_not_of(' '));
+                    want = want.substr(0, want.find_last_not_of(' ') + 1);
+                    assert(world.log == want);
+                    std::istringstream tail(line.substr(bar2 + 1));
+                    for (const int value : ctrl) { int expected = 0; tail >> expected; assert(value == expected); }
+                    std::uint32_t low = 0, high = 0;
+                    tail >> low >> high;
+                    assert(seed.low == low && seed.high == high);
+                    ++checked;
+                }
+                assert(checked > 80);
+                std::istringstream scans{ std::string(kMaster[2]) };
+                checked = 0;
+                for (std::string line; std::getline(scans, line);) {
+                    if (line.empty()) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { int value = 0; fields >> value; return value; };
+                    const bool owner = read() != 0;
+                    d2d::rules::ShadowUnit owner_unit{ .type = 0, .x = read(), .y = read(), .targetable = false, .foe = false };
+                    std::vector<d2d::rules::ShadowUnit> units(static_cast<std::size_t>(read()));
+                    int pet = -1;
+                    for (int index = 0; index < int(units.size()); ++index) {
+                        auto& unit = units[std::size_t(index)];
+                        unit.type = read(); unit.x = read(); unit.y = read();
+                        unit.targetable = read() != 0; unit.dying = read() != 0; unit.foe = read() != 0; unit.side = read() != 0;
+                        unit.monster_id = read(); unit.worth = read() != 0;
+                        if (unit.type < 0) { pet = index; unit = { .x = 5000, .y = 5000 }; }
+                    }
+                    units.push_back(owner_unit);
+                    const auto scan = d2d::rules::shadow_scan(units, pet, owner ? int(units.size()) - 1 : -1);
+                    std::string bar;
+                    fields >> bar;
+                    assert(scan.closest == read() && scan.closest_distance == read() && scan.close_count == read());
+                    assert(scan.owner_closest == read() && scan.owner_closest_distance == read() && scan.owner_close_count == read());
+                    assert(scan.all == read() && scan.traps == read() && scan.worth == read());
+                    ++checked;
+                }
+                assert(checked > 30);
             }
             // The merc's attack think and skill pick (FUN_005e5050 / FUN_005e4d30;
             // tools/emu/merc_attack.py --dump, game.exe's own hireling rows):

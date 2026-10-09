@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The Shadow Master's think (FUN_005eb970, docs/research/re/pet-ai.md) against a port.
 
-    uv run python shadow_master.py [cases] [seed]
+    uv run python shadow_master.py [cases] [seed] [--dump out.inc]
 
 The think runs natively in game.exe on random setups, with its cast
 (FUN_005eb8b0), its state-group test (FUN_005eb7f0), the walk away
@@ -143,7 +143,7 @@ class Port:
                     if st <= 0 or self.has("pet", st): continue
                     if self.group_mate("pet", st) and self.seed.rand(100) >= 4: continue
                     if self.seed.step() % 100 >= 0x3c: continue
-                    if sk["kind"] == 1 and not melee: ok = self.approach(None)
+                    if self.skill_of(sk["id"])["kind"] == 1 and not melee: ok = self.approach(None)
                     else: ok = self.cast_raw(sk["id"], None)
                     if ok: return
                 elif row["aitype"] == 6 and not s["right"]:
@@ -269,6 +269,58 @@ class Port:
         self.stand(0xf)
 
 
+# --- tests/shadow_master_cases.inc ---------------------------------------------
+
+IDX = lambda n: -1 if n is None else NAMES.index(n)
+RES_ORDER = (0x24, 0x27, 0x29, 0x25, 0x2b, 0x2d)                         # by EType 0..5
+
+
+def dump_think(s, want):
+    """One line: the scene, the answers, then | the log | AI control and seed."""
+    u = s["units"]
+    nums = [int(s["has_list"]), IDX(u["pet"]["owner"]), IDX(s["driver"]), int(s["driver_melee"]), s["driver_dist"]]
+    for n in NAMES:
+        x = u[n]
+        nums += [x["type"], *x["pos"], int(x["targetable"]), int(x["dying"]), int(x["foe"]), int(x["melee"]), int(x["valid"]),
+                 IDX(x["target"]), IDX(x["owner"]), x["mlevel"], len(x["states"]), *sorted(x["states"]), *(x["res"][k] for k in RES_ORDER)]
+    nums += [len(s["groups"]), *s["groups"]]
+    nums += [len(s["skills"])] + [v for k in s["skills"] for v in (k["id"], k["level"], k["kind"], k["mode"])]
+    rows = {sid: r for sid, r in s["rows"].items() if 0 <= sid < SKILLS}
+    nums += [len(rows)]
+    for sid, r in rows.items():
+        rng_ = s["ranges"][r["missile"]] if 0 <= r["missile"] < MISSILES else -1
+        nums += [sid, r["aitype"], r["bonus"], r["rank"], r["elem"], r["state"], r["state2"], int(bool(r["flags"] & 4)),
+                 r["srvmissile"], r["missile"], rng_, int(r["dofunc"] == 0x13)]
+    nums += [s["p"][o] for o in (0x56, 0x58, 0x5a, 0x5c, 0x5e, 0x60)] + [s["aip3"]]
+    sc = s["scan"]
+    nums += [IDX(sc["near"]), sc["near_d"], sc["count"], IDX(sc["onear"]), sc["ocount"], sc["all"], sc["kin"], IDX(sc["help"])]
+    nums += [s["life"], int(s["right"]), int(s["low"]), int(s["line"]), -1 if s["aura"] is None else s["aura"], int(s["town"])]
+    nums += [v for v in s["ctrl"]] + list(s["seed"])
+    nums += [*map(int, s["decide"]), *map(int, s["casts"]), *map(int, s["moves"])]
+    log = []
+    for item in want[0]:
+        k = item[0]
+        if k in ("decide",): log.append(f"decide {IDX(item[1])} {item[2]}")
+        elif k == "skill": log.append(f"skill {item[1]} {item[2]} {IDX(item[3])}")
+        elif k in ("approach", "run"): log.append(f"{k} {IDX(item[1])}")
+        elif k == "away": log.append(f"away {item[1]} {item[2]}")
+        else: log.append(f"{k} {item[1]}")
+    sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
+    tail = [sx(v) for v in want[1]] + list(want[2])
+    return " ".join(map(str, nums)) + " | " + " ; ".join(log) + " | " + " ".join(map(str, tail))
+
+
+def dump_scan(s, want):
+    """One line: owner (0 / 1) and its spot, the units (the pet's slot: type -1), then | the scan."""
+    nums = [int(s["owner"]), *s["owner_pos"], len(s["units"])]
+    for u in s["units"]:
+        if u is None: nums += [-1, 5000, 5000, 0, 0, 0, 0, 0, 0]; continue
+        nums += [u["type"], *u["pos"], int(u["targetable"]), int(u["dying"]), int(u["foe"]), int(u["side"]), u["mid"], int(valid(u))]
+    none = lambda v: -1 if v is None else v
+    out = [none(want[1]), want[2], want[3], none(want[4]), want[5], want[6], want[7], want[8], none(want[9])]
+    return " ".join(map(str, nums)) + " | " + " ".join(map(str, out))
+
+
 # --- game.exe ----------------------------------------------------------------
 
 CUR = {}
@@ -391,11 +443,13 @@ def scan_setup(rng):
         units.append({"type": rng.choice((1, 1, 1, 0, 3)), "dying": rng.random() < 0.1, "side": rng.random() < 0.3,
                       "mid": rng.choice((0x19a, 0x19b, 0x19c, 0x19d, 0x19e, 0x19f, 0x1a0, 0x1a5, rng.randint(0, MONSTATS - 1))),
                       "targetable": rng.random() < 0.85, "foe": rng.random() < 0.8,
-                      "pos": (5000 + rng.randint(-35, 35), 5000 + rng.randint(-35, 35)),
+                      "pos": (5000 + rng.randint(-35, 35), 5000 + rng.randint(-35, 35)) if rng.random() < 0.6 else
+                             (5000 + rng.choice((6, 8, 10, 0, -32, 32, 7)), 5000 + rng.choice((8, 6, 0, 32, -1, 1))),
                       "f0c": rng.choice((0, 0x40, 0x80, 0xc0)), "f0d": rng.choice((0x80, 0x80, 0x81, 0, 1)), "f16": rng.choice((0, 0, 2, 4, 8, 1, 0x10))})
     units.append(None)                                                    # the pet itself
     rng.shuffle(units)
-    return {"units": units, "owner": rng.random() < 0.8, "pet_pos": (5000, 5000), "owner_pos": (5000 + rng.randint(-20, 20), 5000 + rng.randint(-20, 20))}
+    return {"units": units, "owner": rng.random() < 0.8, "pet_pos": (5000, 5000),
+            "owner_pos": rng.choice(((5000 + rng.randint(-20, 20), 5000 + rng.randint(-20, 20)), (5000, 5000), (4994, 4992), (5010, 5000)))}
 
 
 def valid(u):                                                             # FUN_005eb650
@@ -411,7 +465,7 @@ def scan_port(s):
     within 32 of the pet, [8] the pet's side's traps (MonStats 0x19a..0x1a0
     but 0x19e), [9] the last foe within 32 worth chasing (FUN_005eb650)."""
     big = 0x7fffffff
-    st = ["owner" if s["owner"] else 0, 0, big, 0, 0, big, 0, 0, 0, 0]
+    st = ["owner" if s["owner"] else 0, None, big, 0, None, big, 0, 0, 0, None]
     d2 = lambda a, b: (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
     for k, u in enumerate(s["units"]):
         if u is None or u["dying"]: continue
@@ -431,7 +485,7 @@ def scan_port(s):
     return st
 
 
-def scan_check(e, cases, rng):
+def scan_check(e, cases, rng, dumped=None):
     def alloc(n): a = e.alloc(n); e.mu.mem_write(a, bytes(n)); return a
     cur = {}
     e.hook(0x5541b0, lambda e: int(cur["u"][e.mu.reg_read(UC_X86_REG_ECX)]["dying"]), 0)
@@ -467,8 +521,10 @@ def scan_check(e, cases, rng):
         for u in ptrs: e.call(0x5eb6d0, u, st, ecx=0x1234, edx=pet)
         got = [e.r32(st + 4 * k) for k in range(10)]
         index = {u: k for k, u in enumerate(ptrs)}
-        got = ["owner" if got[0] else 0, index.get(got[1], 0) if got[1] else 0] + got[2:4] + [index.get(got[4], 0) if got[4] else 0] + got[5:9] + [index.get(got[9], 0) if got[9] else 0]
+        at = lambda v: index[v] if v else None
+        got = ["owner" if got[0] else 0, at(got[1])] + got[2:4] + [at(got[4])] + got[5:9] + [at(got[9])]
         want = scan_port(s)
+        if dumped is not None and got == want and len(dumped) < 80: dumped.append(dump_scan(s, want))
         if got != want:
             bad += 1
             if bad <= 3: print(f"scan case {case}:\n  game {got}\n  port {want}\n  {s}")
@@ -477,11 +533,13 @@ def scan_check(e, cases, rng):
 
 
 def main():
-    cases = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
-    rng = random.Random(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
+    args = [a for a in sys.argv[1:] if not a.startswith("--") and not a.endswith(".inc")]
+    cases = int(args[0]) if args else 2000
+    rng = random.Random(int(args[1]) if len(args) > 1 else 1)
     e = emu.Emu()
     install(e)
     mark, bad, kinds = e.brk, 0, {}
+    dumped, size = ([], 0) if "--dump" in sys.argv else (None, 0)
     for case in range(cases):
         e.brk = mark
         s = setup(rng)
@@ -490,13 +548,25 @@ def main():
         port.think()
         want = (port.out, [v & MASK for v in port.ctrl], (port.seed.lo, port.seed.hi))
         kind = got[0][-1][0] if got[0] else "-"
+        if dumped is not None and got == want and (len(got[0]) > 1 or case % 9 == 0):
+            line = dump_think(s, want)
+            if size + len(line) < 2 * 60000: dumped.append(line); size += len(line)
         kinds[kind] = kinds.get(kind, 0) + 1
         if got != want:
             bad += 1
             if bad <= 3:
                 print(f"case {case}:\n  game {got}\n  port {want}")
     print("scored by aitype:", dict(sorted(COVER.items())))
-    bad += scan_check(emu.Emu(), cases, rng)
+    scans = [] if dumped is not None else None
+    bad += scan_check(emu.Emu(), cases, rng, scans)
+    if dumped is not None:
+        with open(sys.argv[sys.argv.index("--dump") + 1], "w") as f:
+            f.write("// tools/emu/shadow_master.py --dump: game.exe's own Shadow Master thinks, then scans (see the script).\nR\"(\n")
+            half = [[], []]                                               # two literals, each under 64 KB
+            for line in dumped:
+                for chunk in half:
+                    if sum(map(len, chunk)) + len(line) < 60000: chunk.append(line); break
+            f.write("\n)\"\n,\nR\"(\n".join("\n".join(c) for c in half) + "\n)\"\n,\nR\"(\n" + "\n".join(scans) + "\n)\"\n")
     print(f"ok: {cases} cases, {kinds}" if not bad else f"{bad} of {cases} differ, {kinds}")
     return 1 if bad else 0
 

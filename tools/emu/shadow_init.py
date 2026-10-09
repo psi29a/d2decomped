@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The Shadows' inits (docs/research/re/pet-ai.md) against ports.
 
-    uv run python shadow_init.py [cases] [seed]
+    uv run python shadow_init.py [cases] [seed] [--dump out.inc]
 
 FUN_005eb490 (ShadowWarrior) runs natively in game.exe on random setups,
 its eligibility (FUN_005eab20) and levels (FUN_005eb420) too, the skill
@@ -135,9 +135,25 @@ def run_game(e, s, addr):
     return CUR["log"], [e.r32(ctrl + 0x14 + 4 * k) for k in range(3)], (e.r32(pet + 0x20), e.r32(pet + 0x24))
 
 
+def dump_case(s, log, ctrl, master):
+    """One line: owner, its type, summoned, the level, pet class / pettype, has Attack, aip3, seed,
+    the skills (id summon pettype hard), | what's given (id level) ..., | AI control | the Master's."""
+    nums = [int(s["owner"]), s["owner_type"], int(s["summoned"]), s["summon_level"], s["pet_cls"], s["pet_pettype"], int(s["attack"]),
+            s["aip3"], *s["seed"], len(s["skills"])]
+    for sid in s["skills"]:
+        r = s["rows"][sid]
+        hard = s["hard"].get(sid)
+        nums += [sid, r["summon"] - (0x10000 if r["summon"] >= 0x8000 else 0) if 0 <= sid < SKILLS else 0, r["pettype"] if 0 <= sid < SKILLS else -1, -1 if hard is None else hard]
+    gives = [v for item in log if item[0] == "give" for v in item[1:]]
+    sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
+    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2]))
+
+
 def main():
-    cases = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
-    rng = random.Random(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
+    args = [a for a in sys.argv[1:] if not a.startswith("--") and not a.endswith(".inc")]
+    cases = int(args[0]) if args else 2000
+    rng = random.Random(int(args[1]) if len(args) > 1 else 1)
+    dumped = [] if "--dump" in sys.argv else None
     e = emu.Emu()
     install(e)
     mark, bad, gave = e.brk, 0, 0
@@ -152,9 +168,15 @@ def main():
             if bad <= 5: print(f"warrior case {case}:\n  game {log} {ctrl}\n  port {want}")
         e.brk = mark
         got = run_game(e, s, 0x5ecb70)
+        if dumped is not None and got == master_init(s) and (log, ctrl) == (want[0], want[1]) and len(s["skills"]) <= 6 \
+                and (len(dumped) < 40 and case % 4 == 0 or len(dumped) < 100 and any(item[0] == "give" and item[2] == 0x18 for item in log)):
+            dumped.append(dump_case(s, log, ctrl, got))
         if got != master_init(s):
             bad += 1
             if bad <= 5: print(f"master case {case}:\n  game {got}\n  port {master_init(s)}")
+    if dumped is not None:
+        with open(sys.argv[sys.argv.index("--dump") + 1], "w") as f:
+            f.write("// tools/emu/shadow_init.py --dump: game.exe's own Shadow inits (see the script).\nR\"(\n" + "\n".join(dumped) + "\n)\"\n")
     print(f"ok: {cases} cases each ({gave} skills given)" if not bad else f"{bad} differ")
     return 1 if bad else 0
 
