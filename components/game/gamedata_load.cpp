@@ -187,14 +187,14 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
         type_info.no_ratio = text("noRatio") == "1";
-        type_info.boss_column = text("boss") == "1";
+        type_info.boss_column = text("boss") == "1"; type_info.prime_evil = text("primeevil") == "1";
         type_info.tc_fixed = type_info.no_ratio || type_info.boss_column;
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
-        for (std::size_t skill = 0; skill < 4; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
+        for (std::size_t skill = 0; skill < type_info.skill.size(); ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
                                                    type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }
         type_info.trans_lvl = num(text("TransLvl"));
         type_info.spawn = text("spawn"); type_info.spawn_mode = text("spawnmode"); type_info.spawn_x = num(text("spawnx")); type_info.spawn_y = num(text("spawny"));
@@ -449,7 +449,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
         skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
-        skill_row.anim = text("anim"); skill_row.range = text("range");
+        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.monanim = text("monanim");
+        skill_row.aitype = number("aitype"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay");
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");

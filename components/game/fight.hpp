@@ -15,6 +15,7 @@
 #include <d2s_items.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
+#include <shadows.hpp>
 #include <skills.hpp>
 
 #include <algorithm>
@@ -205,6 +206,10 @@ struct Fight {
         std::array<int, 3> ctrl{};                 // its AI control's +0x14 / +0x18 / +0x1c (rules::PetBrain)
         int cast = -1;                             // the skill its attack mode does (a traced think's), -1 a swing
         float cast_x = 0, cast_y = 0;              // a skill at a spot (a wolf's Teleport)
+        // A Shadow's skills in its list's order (pet-ai.md "Their skill lists")
+        // and the Shadow Master's left skill (FUN_00643bc0; -1 none).
+        std::vector<d2d::rules::ShadowListed> skill_list;
+        int left_skill = -1;
     };
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
@@ -832,6 +837,8 @@ struct Fight {
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
+    void shadow_give(Pet& pet, int skill, int lvl) const;
+    void shadow_cast(Pet& pet, std::uint32_t now_ms);
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.

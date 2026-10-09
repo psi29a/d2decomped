@@ -267,12 +267,12 @@ inline bool traced_pet_ai(std::string_view ai_name) {
 // two ends (FUN_0058ee80 +0xc / +0x14). The Shadows: the owner's left /
 // right skill (FUN_00620190 / FUN_006201d0, -1 none) and class, the pet has Attack;
 // per skill id its class (FUN_00645040, 7 none), AI use (FUN_005eabf0),
-// mana (FUN_006459f0), kind (FUN_00645460) and mode; MonStats aip8 (NM) / (H)
+// mana (FUN_006459f0), kind (FUN_00645460), mode and delay; MonStats aip8 (NM) / (H)
 // (row +0x82 / +0x84, whatever the difficulty).
 struct ShadowSkill {
     int id = 0, cls = 7;
     bool ai_ok = false;
-    int mana = 0, kind = 0, mode = 0;
+    int mana = 0, kind = 0, mode = 0, delay = 0;      // delay: Skills.txt delay at its level (+0x190)
 };
 struct PetScene {
     int cls = 0;
@@ -834,7 +834,7 @@ void shadow_warrior_think(PetBrain<World>& brain) {
     const auto& skill = scene.skill_of(id);
     if (skill.kind == 1 && !melee) { brain.run_at(foe); return; }
     brain.skill(skill.mode, id, foe);
-    brain.ctrl[0] = scene.skill_calc / 3 + 0x12 + scene.frame;
+    brain.ctrl[0] = skill.delay / 3 + 0x12 + scene.frame;
 }
 
 // FUN_005dc640: a clear line from the pet to its foe. Lines (sight_blocked

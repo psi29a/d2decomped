@@ -23,6 +23,7 @@ struct MonType {
     int tc_quest_id = 0, tc_quest_cp = 0;
     bool tc_fixed = false;                      // noRatio or boss (MonStats +0xc & 0x44): its TC never moves on by level
     bool boss_column = false;                   // boss (+0xc & 0x40, FUN_0063e9f0): can't be stunned (FUN_0057aae0)
+    bool prime_evil = false;                    // primeevil (+0xc & 0x80, FUN_0063edc0)
     bool no_ratio = false;                      // noRatio (+0xc & 4): stats as written, not MonLvl percentages (FUN_006538a0)
     int base = -1;                              // BaseId row (19: fallen1, 91: scarab1)
     int min_grp = 0, max_grp = 0, party_min = 0, party_max = 0, sparse = 0, rarity = 0;
@@ -33,9 +34,9 @@ struct MonType {
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     std::string miss_a1, miss_a2;               // MissA1 / MissA2: what an A1 / A2 attack fires (sk_archer1: skbowarrow1, quillrat1: spike1)
-    std::array<std::string, 4> skill;           // Skill1..4 (Skills.txt names; "" none): the MonAI thinks' skills
-    std::array<std::string, 4> sk_mode;         // Sk1mode..4: a mode token, or a MonSeq sequence (seq_nestlay)
-    std::array<int, 4> sk_lvl{};                // Sk1lvl..4 (record +0x198)
+    std::array<std::string, 8> skill;           // Skill1..8 (Skills.txt names; "" none): the MonAI thinks' skills
+    std::array<std::string, 8> sk_mode;         // Sk1mode..8: a mode token, or a MonSeq sequence (seq_nestlay)
+    std::array<int, 8> sk_lvl{};                // Sk1lvl..8 (record +0x198)
     int trans_lvl = 0;                          // TransLvl (record byte +0x4b, FUN_006510c0): which of a skill missile's variants (shafire1..5)
     std::string spawn, spawn_mode;              // spawn / spawnmode: what Nest lays (crownest1: foulcrow1, NU)
     int spawn_x = 0, spawn_y = 0;               // spawnx / spawny: where, off the layer (subtiles)

@@ -237,6 +237,24 @@ MonStats aip slots by fixed offset as well as by difficulty: +0x56..+0x60
 are aip1 (N, NM, H) and aip2 (N, NM, H), +0x80 aip8 (N) is the summoning
 skill (268 Shadow Warrior, 279 Shadow Master), +0x82 / +0x84 aip8 (NM / H).
 
+### Their skill lists
+
+A new monster (`FUN_004ae8d0`, Monster.cpp) gets each MonStats Skill1..8
+(+0x170) with Sk*lvl (+0x198) above 0 at Sk*lvl + DifficultyLevels
+MonsterSkillBonus (row +0x10, `FUN_00611d30`), its mode Sk*mode (+0x180,
+`FUN_00644340`). Both Shadows' rows list Fists of Fire, Blade Fury, Blades
+of Ice, Dragon Claw, Dragon Flight, Claws of Thunder (their seq_sw*
+sequences) and Attack (A2), at level 1. A skill joins the list's tail
+(`FUN_00647110`, mode: Skills.txt monanim +0x11 for a monster, anim +0x10
+for a player); giving one it has sets its level (+0x28, `FUN_00647280`).
+The Shadow Master gets nothing more: its init (`FUN_005ecb70`) gives no
+skills, nor does do 49 (`FUN_005d6e70`: stats `FUN_005d6cf0`, gear
+`FUN_005d6b60`), nor Skills.txt (no sumskill). MonAI 143
+ShadowMasterNoInit runs its think with no init (no monster uses it).
+A handle's kind (`FUN_00645460`) is Skills.txt range (+0x14: none 0, h2h
+1, rng 2, both 3, which counts 2 with a missile weapon and 1 else); its
+mode `FUN_00644360` (+8).
+
 ### ShadowWarrior's init (FUN_005eb490)
 
 AI control 0, 0, 1. With an owner that is a player: +0x1c its level, with
@@ -290,10 +308,10 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
      near; + rand(P5c).
    - 3: −2 × the side's traps when over 5; −7 if near; −10 under 3 foes;
      + all × 3 − 9 + rand(P5c).
-   - 4 / 12: −10 past P56² off; + P58; +10 in melee or within 5. With
-     Skills.txt flags bit 2 and in its aurastate, the state's aurastat1
-     value (`FUN_006256b0` / `FUN_00625d00`) adds to a running sum and 3+
-     drops it. 4: + P5a with that flag, else −10 when P5a > 0 and
+   - 4 / 12: −10 past P56² off; + P58; +10 in melee or within 5. A
+     progressive skill (Skills.txt flags bit 2, a charge-up) in its
+     aurastate: the state's aurastat1, its charges (`FUN_006256b0` /
+     `FUN_00625d00`), adds to a running sum and 3+ drops it. 4: + P5a with that flag, else −10 when P5a > 0 and
      `FUN_0063a2b0` says no, else + sum × 4 + 3. 12: only at a monster whose
      MonStats +0xa0 by difficulty is 25+; + 8 under 75 % life, + 12 more
      under 50 %. + rand(P5c).
@@ -326,7 +344,7 @@ and the closest is [4] / [5]; within 1024 of the pet count [7], ≤ 100 [3],
 the closest [1] / [2], and one worth chasing is [9] (the last).
 **Worth chasing (FUN_005eb650):** a monster, not dying, whose MonStats
 flags aren't npc but are killable, and boss, primeevil, or a
-champion / unique / minion (monster data +0x16 & 0xe).
+superunique / champion / unique (monster data +0x16 & 0xe).
 
 The Assassin's skills' aitypes: 1 Quickness (Burst of Speed), Fade, Venom,
 Blade Shield; 2 Cloak of Shadows; 3 the sentries, Shadow Warrior / Master;

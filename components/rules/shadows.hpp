@@ -42,15 +42,16 @@ inline int shadow_hand_level(int summoned_level, int level) { return std::max(su
 // only in melee (the driver's [6]), the rest only out of it; not an aitype 1
 // buff whose aurastate it's in; with no target (the driver's [2]) not
 // aitype 2, 4, 5, 11, 12 or 13; aitype 2 not in its aurastate nor at a
-// target in its auratargetstate; with Skills.txt flags bit 2 and its
-// aurastate on, not once that state's aurastat1 (aura_value) is 3.
-inline bool shadow_ai_may_use(bool may_have, int aitype, bool melee, bool target, bool in_state, bool target_in_state2, bool aura,
-                              std::optional<int> aura_value) {
+// target in its auratargetstate; a progressive skill (Skills.txt flags
+// bit 2: a charge-up) with its aurastate on, not once that state's
+// aurastat1 (its charges) is 3.
+inline bool shadow_ai_may_use(bool may_have, int aitype, bool melee, bool target, bool in_state, bool target_in_state2, bool progressive,
+                              std::optional<int> charges) {
     if (!may_have || melee != (aitype == 4 || aitype == 13)) return false;
     if (aitype == 1 && in_state) return false;
     if (!target && (aitype == 2 || aitype == 4 || aitype == 5 || aitype == 11 || aitype == 12 || aitype == 13)) return false;
     if (aitype == 2 && (in_state || target_in_state2)) return false;
-    return !(aura && in_state && aura_value && *aura_value >= 3);
+    return !(progressive && in_state && charges && *charges >= 3);
 }
 
 struct ShadowGift {
@@ -99,7 +100,7 @@ struct ShadowUnit {
 };
 
 // FUN_005eb650: worth chasing — a monster, not dying, MonStats not npc but
-// killable, and boss or primeevil or a champion / unique / minion (monster
+// killable, and boss or primeevil or a superunique / champion / unique (monster
 // data +0x16 & 0xe).
 inline bool shadow_worth(bool monster, bool dying, bool npc, bool killable, bool boss, bool prime_evil, bool special) {
     return monster && !dying && !npc && killable && (boss || prime_evil || special);
@@ -150,11 +151,11 @@ struct ShadowListed {
 };
 
 // Its Skills.txt row: aitype, aibonus, reqlevel, EType, aurastate,
-// auratargetstate, flags bit 2 (`aura`), srvmissile, srvmissilea and that
+// auratargetstate, flags bit 2 (`progressive`), srvmissile, srvmissilea and that
 // missile's Range (-1: no row), srvdofunc 19 (`repeat`).
 struct ShadowSkillRow {
     int aitype = 0, bonus = 0, reqlevel = 0, etype = 0, state = 0, state2 = 0;
-    bool aura = false;
+    bool progressive = false;
     int srvmissile = -1, missile = -1, missile_range = -1;
     bool repeat = false;
 };
@@ -163,7 +164,7 @@ struct ShadowSkillRow {
 // past Skills.txt). `groups`: States.txt group by state. `fixed`: MonStats
 // +0x56..+0x60 (aip1 N / NM / H, aip2 N / NM / H), `aip3` by difficulty.
 // `life` %; `left` it has a left skill (FUN_00620190); `low`
-// FUN_0063a2b0; `blocked` FUN_00622aa0 mask 4; `aura_value` its aurastat
+// FUN_0063a2b0; `blocked` FUN_00622aa0 mask 4; `charges` its aurastate's aurastat1
 // (FUN_006256b0 / FUN_00625d00; none: no list); `town` the pet's room.
 struct ShadowMasterScene {
     std::vector<ShadowUnit> units;
@@ -177,7 +178,7 @@ struct ShadowMasterScene {
     ShadowScan scan;
     int life = 100;
     bool left = false, low = false, blocked = false, town = false;
-    std::optional<int> aura_value;
+    std::optional<int> charges;
 };
 
 // FUN_005eb970 (ShadowMaster). `world`: decide(foe, melee) (FUN_005e45d0,
@@ -271,7 +272,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         int unit = -1, skill = 0, score = 0;
     };
     std::vector<Entry> entries{ { target, 0, 0 } };
-    int aura_sum = 0;
+    int charge_sum = 0;
     for (const auto& skill : scene.skills) {
         const auto* row = row_of(skill.id);
         if (!row) continue;
@@ -282,10 +283,10 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         const int state = row->state;
         int who = target, got = 0;
         auto roll = [&] { return seed(fixed[3]); };
-        auto aura_full = [&] {                                           // the running aurastat sum; 3+ drops the skill
-            if (!row->aura || state <= 0 || !units[0].in(state) || !scene.aura_value) return false;
-            aura_sum += *scene.aura_value;
-            return *scene.aura_value >= 3;
+        auto charged = [&] {                                             // a charge-up's charges, summed; 3 drops the skill
+            if (!row->progressive || state <= 0 || !units[0].in(state) || !scene.charges) return false;
+            charge_sum += *scene.charges;
+            return *scene.charges >= 3;
         };
         const bool close_in = scan.closest_distance <= 0x19;
         switch (row->aitype) {
@@ -315,14 +316,14 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
             score += fixed[1];
             if (melee || distance <= 0x19) score += 10;
             if (row->aitype == 4) {
-                if (row->aura) {
-                    if (aura_full()) continue;
+                if (row->progressive) {
+                    if (charged()) continue;
                     score += fixed[2];
                 } else if (fixed[2] > 0 && !low) score -= 10;
-                else score += aura_sum * 4 + 3;
+                else score += charge_sum * 4 + 3;
                 got = roll() + score;
             } else {
-                if (aura_full()) continue;
+                if (charged()) continue;
                 got = roll() + score;
                 if (life < 0x4b) got += 8;
                 if (life < 0x32) got += 0xc;
@@ -357,7 +358,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         }
         case 13:
             score += fixed[1];
-            score += fixed[2] > 0 && !low ? -5 : aura_sum;
+            score += fixed[2] > 0 && !low ? -5 : charge_sum;
             if ((life < 0x32 || scan.close_count > 3) && scan.owner_closest >= 0 && scan.owner_close_count < 4 && apart(0, scan.owner_closest) > 0x19) {
                 score += 0x14;
                 who = scan.owner_closest;

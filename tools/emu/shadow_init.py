@@ -85,8 +85,8 @@ def ai_ok(s, a):
     (FUN_005eab20); aitype 4 / 13 (melee kinds) only in melee, the rest only
     out of it; not an aitype-1 buff it's already in; no target, not aitype 2,
     4, 5, 11, 12, 13; aitype 2 not with its aurastate on nor the target in
-    its auratargetstate; flags bit 2 with its aurastate on: not when the
-    state's aurastat1 is 3 or more."""
+    its auratargetstate; a progressive skill (flags bit 2, a charge-up) in its aurastate: not when the
+    state's aurastat1 (its charges) is 3 or more."""
     sid, row = a["id"], s["rows"].get(a["id"])
     if not eligible(s, sid): return 0
     t, st, st2 = row["aitype"], row["state"], row["state2"]

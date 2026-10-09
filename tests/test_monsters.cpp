@@ -581,7 +581,7 @@ int main() {
                     for (auto& [x, y] : scene.end) { x = read(); y = read(); }
                     scene.left = read(); scene.right = read(); scene.owner_class = read(); scene.pet_attack = read() != 0;
                     scene.aip8_nightmare = read(); scene.aip8_hell = read();
-                    for (auto& skill : scene.skills) { skill.id = read(); skill.cls = read(); skill.ai_ok = read() != 0; skill.mana = read(); skill.kind = read(); skill.mode = read(); }
+                    for (auto& skill : scene.skills) { skill.id = read(); skill.cls = read(); skill.ai_ok = read() != 0; skill.mana = read(); skill.kind = read(); skill.mode = read(); skill.delay = scene.skill_calc; }
                     std::array<int, 3> ctrl{};
                     for (auto& value : ctrl) value = read();
                     d2d::rules::Rng seed;
@@ -686,10 +686,10 @@ int main() {
                     auto read = [&] { int value = 0; fields >> value; return value; };
                     const bool may_have = read() != 0;
                     const int aitype = read();
-                    const bool melee = read() != 0, target = read() != 0, in_state = read() != 0, target_in_state2 = read() != 0, aura = read() != 0;
-                    const int aura_value = read();
-                    assert(d2d::rules::shadow_ai_may_use(may_have, aitype, melee, target, in_state, target_in_state2, aura,
-                                                         aura_value < 0 ? std::nullopt : std::optional<int>(aura_value)) == (read() != 0));
+                    const bool melee = read() != 0, target = read() != 0, in_state = read() != 0, target_in_state2 = read() != 0, progressive = read() != 0;
+                    const int charges = read();
+                    assert(d2d::rules::shadow_ai_may_use(may_have, aitype, melee, target, in_state, target_in_state2, progressive,
+                                                         charges < 0 ? std::nullopt : std::optional<int>(charges)) == (read() != 0));
                     ++checked;
                 }
                 assert(checked > 300);
@@ -735,7 +735,7 @@ int main() {
                         const int id = int(read());
                         auto& row = scene.rows[id];
                         row.aitype = int(read()); row.bonus = int(read()); row.reqlevel = int(read()); row.etype = int(read());
-                        row.state = int(read()); row.state2 = int(read()); row.aura = read() != 0;
+                        row.state = int(read()); row.state2 = int(read()); row.progressive = read() != 0;
                         row.srvmissile = int(read()); row.missile = int(read()); row.missile_range = int(read()); row.repeat = read() != 0;
                     }
                     for (auto& value : scene.fixed) value = int(read());
@@ -744,7 +744,7 @@ int main() {
                     scan.closest = int(read()); scan.closest_distance = int(read()); scan.close_count = int(read());
                     scan.owner_closest = int(read()); scan.owner_close_count = int(read()); scan.all = int(read()); scan.traps = int(read()); scan.worth = int(read());
                     scene.life = int(read()); scene.left = read() != 0; scene.low = read() != 0; scene.blocked = read() != 0;
-                    if (const int aura = int(read()); aura >= 0) scene.aura_value = aura;
+                    if (const int charges = int(read()); charges >= 0) scene.charges = charges;
                     scene.town = read() != 0;
                     std::array<int, 3> ctrl{};
                     for (auto& value : ctrl) value = int(read());
