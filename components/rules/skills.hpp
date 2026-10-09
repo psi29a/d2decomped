@@ -363,6 +363,7 @@ struct Skill {
     std::string anim, range;               // anim (A1, SC, KK, ...), range (h2h, rng, both, none)
     std::string monanim;                   // +0x11: a monster's mode for it (FUN_00647110; xx: SQ)
     int aitype = 0, aibonus = 0;           // +0x230 / +0x232: how the Shadows' AIs score it (pet-ai.md)
+    bool progressive = false;              // flags +4 bit 2: a charge-up
     Calc delay;                            // +0x190: frames before it may be used again
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
     bool attack_no_mana = false;

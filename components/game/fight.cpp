@@ -1086,22 +1086,24 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
         }
     }
 
-auto Fight::charge(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
-        const int lvl = skill_level ? skill_level(skill.id) : 1;
-        auto found = std::ranges::find(charges, skill.id, &Charge::skill);
-        if (found == charges.end()) found = charges.insert(charges.end(), Charge{ skill.id });
+auto Fight::charge(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void { charge(charges, skill, skill_level ? skill_level(skill.id) : 1, now_ms); }
+
+// A charge on `held` (the player's, or a Shadow's), at most 3, auralen on.
+auto Fight::charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) -> void {
+        auto found = std::ranges::find(held, skill.id, &Charge::skill);
+        if (found == held.end()) found = held.insert(held.end(), Charge{ skill.id });
         found->level = std::max(found->level, lvl);
         found->count = std::min(found->count + 1, 3);
         const auto env = calc_env();
         found->until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill.auralen, env, skill.id, lvl), 1)) * 40;
     }
 
-auto Fight::add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) -> void {
+auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels) -> void {
         const auto env = calc_env();
-        for (const auto& charge : charges) {
+        for (const auto& charge : held) {
             const auto* skill = game_data->skills.get(charge.skill);
             if (!skill) continue;
-            const int lvl = std::max(charge.level, skill_level ? skill_level(charge.skill) : 0);
+            const int lvl = std::max(charge.level, player_levels && skill_level ? skill_level(charge.skill) : 0);
             const auto bonus = d2d::rules::charge_bonus(game_data->skills, *skill, env, lvl, charge.count);
             swing.ed_pct += bonus.ed_pct;
             fighter.life_steal += bonus.life_steal;
@@ -1120,14 +1122,14 @@ auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl) -> d2
         return damage;
     }
 
-auto Fight::release(std::size_t monster_index, std::uint32_t now_ms) -> void {
+auto Fight::release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels) -> void {
         const float target_x = monsters[monster_index].unit.x, target_y = monsters[monster_index].unit.y;
-        const auto held = charges;
-        charges.clear();
-        for (const auto& charge : held) {
+        const auto released = held;
+        held.clear();
+        for (const auto& charge : released) {
             const auto* skill = game_data->skills.get(charge.skill);
             if (!skill) continue;
-            const int lvl = std::max(charge.level, skill_level ? skill_level(skill->id) : 0);
+            const int lvl = std::max(charge.level, player_levels && skill_level ? skill_level(skill->id) : 0);
             const int count = std::clamp(charge.count, 1, 3);
             for (int k = skill->prgstack ? 1 : count; k <= count; ++k) prg(*skill, skill->prgfunc[std::size_t(k - 1)], k, lvl, target_x, target_y, now_ms);
         }
@@ -2847,8 +2849,15 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
         auto& unit = monster.unit;
         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
         if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) { pet.target = -1; pet.chase = false; }
+        // A walk at its foe ends in melee as its think tests it (FUN_00622c40:
+        // the units' distance within MonStats2 MeleeRng + 1).
+        const auto in_melee = [&](const Monster& foe) {
+            const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+            return d2d::rules::unit_distance(sub(foe.unit.x) - sub(unit.x), sub(foe.unit.y) - sub(unit.y), std::max(type_info.size, 1),
+                                             game_data->monsters.types[std::size_t(foe.type)].size) <= type_info.melee_rng + 1;
+        };
         if (unit.walking) {
-            if (pet.chase && (pet.target < 0 || std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) <= kMeleeReach)) {
+            if (pet.chase && (pet.target < 0 || in_melee(monsters[std::size_t(pet.target)]))) {
                 unit.walking = false; unit.path.clear();
             } else {
                 int velocity = monster.mode == "RN" ? type_info.run : type_info.velocity;
@@ -3160,8 +3169,10 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 if (!row || listed == pet.skill_list.end()) continue;
                 const int lvl = std::max(listed->level, 1);
                 entry.cls = skill_class(*row);
+                const auto held = std::ranges::find(pet.charges, hands[k], &Charge::skill);
+                const bool charged = !row->aurastate.empty() && held != pet.charges.end();   // its aurastate: a charge-up's charges
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
-                                                            false, false, false, std::nullopt);
+                                                            charged, false, row->progressive, charged ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
                 entry.kind = listed->kind; entry.mode = listed->mode;
                 entry.delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl);
@@ -3224,10 +3235,16 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                     static constexpr std::array<int, 7> kEType{ 0, 1, 2, 4, 5, 3, 6 };   // d2d's etype (-1 none, fire, light, cold, poison, magic, stun) as EType
                     master.rows[listed.id] = { .aitype = row->aitype, .bonus = row->aibonus, .reqlevel = row->reqlevel,
                                                .etype = kEType[std::size_t(std::clamp(row->etype + 1, 0, 6))],
-                                               .state = row->aurastate.empty() ? 0 : 1, .state2 = row->auratarget.empty() ? 0 : 1,
+                                               .state = row->aurastate.empty() ? 0 : 1000 + row->id, .state2 = row->auratarget.empty() ? 0 : 1,
+                                               .progressive = row->progressive,
                                                .srvmissile = row->srvmissile.empty() ? -1 : 0, .missile = row->srvmissilea.empty() ? -1 : 0,
                                                .missile_range = missile == game_data->missiles.end() ? -1 : missile->second.range,
                                                .repeat = row->srvdofunc == ServerDoFunction::kBreath };
+                }
+            for (const auto& held : pet.charges)                            // a charge-up's aurastate on it, its count the aurastat
+                if (const auto row = master.rows.find(held.skill); row != master.rows.end() && row->second.state > 0) {
+                    units[0].states.push_back(row->second.state);
+                    row->second.charges = held.count;
                 }
             for (std::size_t k = 0; k < 3; ++k) { master.fixed[k] = type_info.diff[k].aip[0]; master.fixed[k + 3] = type_info.diff[k].aip[1]; }
             master.aip3 = per_difficulty.aip[2];
@@ -3368,8 +3385,9 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
 // and the claws and kicks as its owner's blow (it has the owner's gear) with
 // the skill's swing; a missile skill fired from it (Blade Fury, Fire Blast,
 // Shock Web, ...); Psychic Hammer and Mind Blast at its target.
-// Dragon Flight puts it beside the target and kicks.
-// ponytail: charge-ups hold no charges on a Shadow; Dragon Flight's two
+// Dragon Flight puts it beside the target and kicks. Charge-ups charge it,
+// finishers release them, as the player's.
+// ponytail: Dragon Flight's two
 // events (the flight, then the kick) land on one frame; buffs (Burst of Speed, Fade, Cloak, Venom, Blade Shield),
 // traps and summons do nothing yet.
 auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
@@ -3383,19 +3401,31 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false };
         if (skill->id != 0 && missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
+        std::erase_if(pet.charges, [&](const Charge& charge) { return now_ms >= charge.until; });
         if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, then the kick (as the owner's)
             if (level == &game_data->town) return;
             auto& unit = pet.monster.unit;
             std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, foe.x, foe.y);
             unit.path.clear(); unit.walking = false;
-            land(std::size_t(target), d2d::rules::player_blow(pf_kick, target_of(std::size_t(target)), monster.stats.level, rng, skill_swing(*skill, lvl, calc_env(), false)),
-                 false, now_ms);
+            auto fighter = pf_kick;
+            auto swing = skill_swing(*skill, lvl, calc_env(), false);
+            add_charges(pet.charges, fighter, swing, false);
+            land(std::size_t(target), d2d::rules::player_blow(fighter, target_of(std::size_t(target)), monster.stats.level, rng, swing), false, now_ms);
+            release(pet.charges, std::size_t(target), now_ms, false);
             return;
         }
         if (target < 0 || (skill->id != 0 && skill_kind(*skill) != 1)) return;
         if (std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > kMeleeReach + 0.3f) return;
-        const auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
-        land(std::size_t(target), d2d::rules::player_blow(player_combat, target_of(std::size_t(target)), monster.stats.level, rng, swing), false, now_ms);
+        // As the player's hit: a charge-up's hit adds a charge, a finisher
+        // takes the charges' bonus and releases them on a hit.
+        auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
+        auto fighter = swing.kick ? pf_kick : player_combat;
+        const bool finishing = finisher(skill);
+        if (finishing) add_charges(pet.charges, fighter, swing, false);
+        const auto blow = d2d::rules::player_blow(fighter, target_of(std::size_t(target)), monster.stats.level, rng, swing);
+        land(std::size_t(target), blow, false, now_ms);
+        if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms);
+        if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false);
     }
 
 auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {

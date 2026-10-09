@@ -153,20 +153,22 @@ struct ShadowListed {
 
 // Its Skills.txt row: aitype, aibonus, reqlevel, EType, aurastate,
 // auratargetstate, flags bit 2 (`progressive`), srvmissile, srvmissilea and that
-// missile's Range (-1: no row), srvdofunc 19 (`repeat`).
+// missile's Range (-1: no row), srvdofunc 19 (`repeat`); `charges` its
+// aurastate's aurastat1 on the pet (FUN_006256b0 / FUN_00625d00; none: no
+// list).
 struct ShadowSkillRow {
     int aitype = 0, bonus = 0, reqlevel = 0, etype = 0, state = 0, state2 = 0;
     bool progressive = false;
     int srvmissile = -1, missile = -1, missile_range = -1;
     bool repeat = false;
+    std::optional<int> charges;
 };
 
 // What the think reads. units[0] is the pet. `rows` by skill id (absent:
 // past Skills.txt). `groups`: States.txt group by state. `fixed`: MonStats
 // +0x56..+0x60 (aip1 N / NM / H, aip2 N / NM / H), `aip3` by difficulty.
 // `life` %; `left` it has a left skill (FUN_00620190); `low`
-// FUN_0063a2b0; `charges` its aurastate's aurastat1
-// (FUN_006256b0 / FUN_00625d00; none: no list); `town` the pet's room.
+// FUN_0063a2b0; `town` the pet's room.
 struct ShadowMasterScene {
     std::vector<ShadowUnit> units;
     int owner = -1, driver = -1, driver_distance = 0;
@@ -179,7 +181,6 @@ struct ShadowMasterScene {
     ShadowScan scan;
     int life = 100;
     bool left = false, low = false, town = false;
-    std::optional<int> charges;
 };
 
 // FUN_005eb970 (ShadowMaster). `world`: decide(foe, melee) (FUN_005e45d0,
@@ -285,9 +286,9 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
         int who = target, got = 0;
         auto roll = [&] { return seed(fixed[3]); };
         auto charged = [&] {                                             // a charge-up's charges, summed; 3 drops the skill
-            if (!row->progressive || state <= 0 || !units[0].in(state) || !scene.charges) return false;
-            charge_sum += *scene.charges;
-            return *scene.charges >= 3;
+            if (!row->progressive || state <= 0 || !units[0].in(state) || !row->charges) return false;
+            charge_sum += *row->charges;
+            return *row->charges >= 3;
         };
         const bool close_in = scan.closest_distance <= 0x19;
         switch (row->aitype) {

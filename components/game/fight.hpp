@@ -187,6 +187,7 @@ struct Fight {
     // monster it's after.
     // A trap (do 45) shoots instead: its skill (a monster skill whose
     // missile carries the player's), at its level, `shots` times.
+    struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
     struct Pet {
         Monster monster; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;
         // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
@@ -210,6 +211,7 @@ struct Fight {
         // and the Shadow Master's left skill (FUN_00643bc0; -1 none).
         std::vector<d2d::rules::ShadowListed> skill_list;
         int left_skill = -1;
+        std::vector<Charge> charges;               // a Shadow's charge-ups' charges (as the player's)
     };
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
@@ -236,7 +238,6 @@ struct Fight {
     // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
     // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
     // until auralencalc ticks after the last one.
-    struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };
     std::vector<Charge> charges;
     // Self states from a swing (aurastate): Concentrate's lasts while its
     // swing does (made with no length; its removal isn't traced), Berserk's
@@ -516,10 +517,12 @@ struct Fight {
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
     // ticks more (FUN_005d3320).
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
     // at the higher of the stored level and today's).
     // ponytail: aurastat2's progressive_tohit (par4) isn't given.
-    void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing);
+    void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(charges, fighter, swing, true); }
+    void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl, the weapon at its
     // SrcDamage.
     [[nodiscard]] static d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl);
@@ -538,7 +541,8 @@ struct Fight {
     // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
     // (Royal Strike, level 30, past Act 1; Fists of Fire's first) are
     // logged once; 39's points come from d2d's rng.
-    void release(std::size_t monster_index, std::uint32_t now_ms);
+    void release(std::size_t monster_index, std::uint32_t now_ms) { release(charges, monster_index, now_ms, true); }
+    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of

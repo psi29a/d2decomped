@@ -367,8 +367,16 @@ owner's left / right skills (d2s header), giving them each think, and
 subtiles of it or its owner, its fellow pets), its world turned into a
 PetAct. `Fight::shadow_cast` does the skill on the action frame: Attack and
 the claws / kicks as the owner's blow with the skill's swing, missile
-skills through `fire`, Psychic Hammer and Mind Blast through `spot`.
-Not built: states on any unit (aurastates, charges, `FUN_0063a2b0`), so
-buffs and charge-ups count as never on; buffs, traps, summons and Dragon
-Flight's leap do nothing when cast; MonStats +0xa0 (aitype 12's floor).
+skills through `fire`, Psychic Hammer and Mind Blast through `spot`,
+Dragon Flight beside the target then its kick (skills.md "Dragon
+Flight"). Charge-ups charge the Shadow (`Pet::charges`, as the player's),
+finishers take their bonus and release them; the AIs see a charge-up's
+aurastate on it with its count. A Shadow moves as an Assassin: its state
+`shadowwarrior` (States gfxtype 2, gfxclass 6) makes `FUN_00645270` read
+it as player class 6, so CharStats Walk / RunVelocity (its MonStats
+Velocity is 0). A pet's walk at its foe ends in melee as its think tests
+it (`FUN_00622c40`: MeleeRng + 1).
+Not built: other states on any unit (buffs, `FUN_0063a2b0`); buffs,
+traps and summons cast by a Shadow do nothing; MonStats +0xa0 (aitype
+12's floor).
 
