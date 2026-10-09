@@ -637,10 +637,10 @@ int main() {
             // game.exe's own runs): the Warrior's init and the Master's, then the
             // Master's think (the log of what it asks and does), then its scan.
             {
-                static constexpr std::string_view kInits =
+                static constexpr std::array<std::string_view, 2> kInits{
 #include "shadow_init_cases.inc"
-                    ;
-                std::istringstream lines{ std::string(kInits) };
+                };
+                std::istringstream lines{ std::string(kInits[0]) };
                 int checked = 0;
                 for (std::string line; std::getline(lines, line);) {
                     if (line.empty() || line.find('|') == std::string::npos) continue;
@@ -675,16 +675,24 @@ int main() {
                     const auto master = d2d::rules::shadow_master_init(aip3, seed);
                     for (const int value : master) assert(value == read());
                     assert(seed.low == std::uint32_t(read()) && seed.high == std::uint32_t(read()));
-                    fields >> bar;
+                    ++checked;
+                }
+                assert(checked > 40);
+                std::istringstream uses{ std::string(kInits[1]) };
+                checked = 0;
+                for (std::string line; std::getline(uses, line);) {
+                    if (line.empty()) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { int value = 0; fields >> value; return value; };
                     const bool may_have = read() != 0;
-                    const int aitype = int(read());
+                    const int aitype = read();
                     const bool melee = read() != 0, target = read() != 0, in_state = read() != 0, target_in_state2 = read() != 0, aura = read() != 0;
-                    const int aura_value = int(read());
+                    const int aura_value = read();
                     assert(d2d::rules::shadow_ai_may_use(may_have, aitype, melee, target, in_state, target_in_state2, aura,
                                                          aura_value < 0 ? std::nullopt : std::optional<int>(aura_value)) == (read() != 0));
                     ++checked;
                 }
-                assert(checked > 40);
+                assert(checked > 300);
                 static constexpr std::array<std::string_view, 3> kMaster{
 #include "shadow_master_cases.inc"
                 };

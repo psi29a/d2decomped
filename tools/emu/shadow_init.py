@@ -192,12 +192,17 @@ def dump_case(s, log, ctrl, master):
         nums += [sid, r["summon"] - (0x10000 if r["summon"] >= 0x8000 else 0) if 0 <= sid < SKILLS else 0, r["pettype"] if 0 <= sid < SKILLS else -1, -1 if hard is None else hard]
     gives = [v for item in log if item[0] == "give" for v in item[1:]]
     sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
+    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2]))
+
+
+def dump_ai(s):
+    """One line for FUN_005eabf0: may have, aitype, melee, target, in its aurastate, the target in its
+    auratargetstate, flags bit 2, the aurastat (-1 none), what game.exe said."""
     a = s["ai"]
     row = s["rows"].get(a["id"], {})
     st, st2 = row.get("state", 0), row.get("state2", 0)
-    ai = [int(eligible(s, a["id"])), row.get("aitype", 0), int(a["melee"]), int(a["target"]), int(st > 0 and st in a["pet_states"]),
-          int(a["target"] and st2 > 0 and st2 in a["target_states"]), int(bool(row.get("flags", 0) & 4)), -1 if a["aura"] is None else a["aura"], ai_ok(s, a)]
-    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2])) + " | " + " ".join(map(str, ai))
+    return " ".join(map(str, [int(eligible(s, a["id"])), row.get("aitype", 0), int(a["melee"]), int(a["target"]), int(st > 0 and st in a["pet_states"]),
+                              int(a["target"] and st2 > 0 and st2 in a["target_states"]), int(bool(row.get("flags", 0) & 4)), -1 if a["aura"] is None else a["aura"], ai_ok(s, a)]))
 
 
 def main():
@@ -205,6 +210,7 @@ def main():
     cases = int(args[0]) if args else 2000
     rng = random.Random(int(args[1]) if len(args) > 1 else 1)
     dumped = [] if "--dump" in sys.argv else None
+    ais = []
     e = emu.Emu()
     install(e)
     mark, bad, gave, usable = e.brk, 0, 0, 0
@@ -223,6 +229,7 @@ def main():
             bad += 1
             if bad <= 5: print(f"ai_ok case {case}: game {run_game(e, s, 0x5eabf0)} port {ai_ok(s, s['ai'])} {s['ai']} {s['rows'].get(s['ai']['id'])}")
         usable += ai_ok(s, s["ai"])
+        if dumped is not None and len(ais) < 400 and eligible(s, s["ai"]["id"]): ais.append(dump_ai(s))
         e.brk = mark
         got = run_game(e, s, 0x5ecb70)
         if dumped is not None and got == master_init(s) and (log, ctrl) == (want[0], want[1]) and len(s["skills"]) <= 6 \
@@ -233,7 +240,8 @@ def main():
             if bad <= 5: print(f"master case {case}:\n  game {got}\n  port {master_init(s)}")
     if dumped is not None:
         with open(sys.argv[sys.argv.index("--dump") + 1], "w") as f:
-            f.write("// tools/emu/shadow_init.py --dump: game.exe's own Shadow inits (see the script).\nR\"(\n" + "\n".join(dumped) + "\n)\"\n")
+            f.write("// tools/emu/shadow_init.py --dump: game.exe's own Shadow inits, then FUN_005eabf0 (see the script).\nR\"(\n"
+                    + "\n".join(dumped) + "\n)\"\n,\nR\"(\n" + "\n".join(ais) + "\n)\"\n")
     print(f"ok: {cases} cases each ({gave} skills given, {usable} usable by the AI)" if not bad else f"{bad} differ")
     return 1 if bad else 0
 
