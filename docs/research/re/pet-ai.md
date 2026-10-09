@@ -22,12 +22,9 @@ FUN_0058f0d0). Their MonStats AI picks a row of the AI table at `0x73ca20`
 
 Traced and built: NecroPet (below, `necropet_think`) and Hydra, Totem,
 Vines, CycleOfLife, AssassinSentry, DeathSentry, BladeCreeper, Raven,
-DruidWolf, DruidBear, ShadowWarrior's think (`components/rules/pets.hpp`,
-"The other thinks"). InvisoPet, 7TIllusion and Buffy aren't any player
-skill's summon. Not traced yet: ShadowWarrior's init (`0x5eb490`) and
-ShadowMaster (`0x5eb970`, init `0x5ecb70`), which scores the skills it has.
-d2d's Shadows still run the untraced chase (`Fight`'s pet loop), so the
-think runs only in the tests.
+DruidWolf, DruidBear, ShadowWarrior and ShadowMaster with their inits
+(`components/rules/pets.hpp`, "The other thinks" and "The Shadows").
+InvisoPet, 7TIllusion and Buffy aren't any player skill's summon.
 
 ## NecroPet (FUN_005e4cf0)
 
@@ -230,3 +227,114 @@ seed). Its `--dump` writes `tests/pet_ais_cases.inc`, which
 `tests/test_monsters.cpp` replays through the C++ (up to 16 an AI: the
 literal stays under 64 KB). d2d runs
 them in `Fight::pet_think_turn` / `pet_cast`.
+
+## The Shadows
+
+AI table rows 105 / 106 (`0x73ca20`): ShadowWarrior think `0x5eafa0`, init
+`0x5eb490`; ShadowMaster think `0x5eb970`, init `0x5ecb70`. Both read
+MonStats aip slots by fixed offset as well as by difficulty: +0x56..+0x60
+are aip1 (N, NM, H) and aip2 (N, NM, H), +0x80 aip8 (N) is the summoning
+skill (268 Shadow Warrior, 279 Shadow Master), +0x82 / +0x84 aip8 (NM / H).
+
+### ShadowWarrior's init (FUN_005eb490)
+
+AI control 0, 0, 1. With an owner that is a player: +0x1c its level, with
+bonuses, in the skill aip8 (N) names (`FUN_006439f0`, `FUN_006442a0(.., 1)`).
+Attack (given at level 1 if missing, `FUN_00647280`) goes on both hands
+(`FUN_00643bc0` / `c50`). Then each skill of the owner's class
+(`FUN_00451f60`, `FUN_00646140` / `FUN_006460f0`) it may have
+(`FUN_005eab20`: no Skills.txt `summon`, or one that isn't this monster and
+whose `pettype` isn't this pet's, `FUN_00574a20`) at the owner's hard points
+/ 2 + +0x1c / 2, 1..24 (`FUN_005eb420`; none counts 1). Each think it gives
+itself the owner's left and right skills again at +0x1c / 3 + their level
+with bonuses / 2, at least 1 (`FUN_005eaf00`).
+
+### ShadowMaster's init (FUN_005ecb70)
+
++0x14 −1, +0x18 aip3 + 1, +0x1c a seed step's low bit.
+
+### ShadowMaster's think (FUN_005eb970)
+
+Its row's P56..P60 below are the fixed aip slots above; "rand(P5c)" is
+rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
+/ [5] / [6]; distances are squared subtiles (`FUN_005b0bd0`).
+
+1. No skill list (+0xa8): stand 100.
+2. Over P60 from its owner: decide (no foe, reach 6).
+3. +0x14 above 0 (a repeat): the pet's own target (`FUN_00553540`) if any,
+   else the driver's; none clears +0x14 / +0x18; else +0x14 − 1 and cast
+   +0x18 at it (the cast below).
+4. The driver's target over P5e off, or none: each skill it has, by
+   aitype — 1 with an aurastate it isn't in (one of its State group on:
+   only rand(100) < 4), 60 in 100: cast it at nothing (a kind-1 skill out
+   of melee walks instead, `FUN_005ded00(0, 4)`); 6 with no right skill
+   (`FUN_00620190`), 20 in 100 it becomes the left skill (`FUN_00643bc0`).
+5. With an owner: the owner's target, if not dying and a foe
+   (`FUN_00554200`), becomes the target (the helper). Within 12 of the
+   owner: decide on the target. No target: stand 25.
+6. In melee, rand(100) under aip3 − 2 × max(+0x1c, 1) (5..100): Attack.
+7. The scan (`FUN_005dd0b0` mode 1, `FUN_005eb6d0` on each unit; below).
+   Out of melee the target becomes the helper, else the closest foe to the
+   owner, else the last one worth chasing within 32. Not worth chasing
+   (`FUN_005eb650`, below): its owner instead when not dying and within 32.
+8. Over 3 foes within 10 and rand(32) < 2 × that: over 6 from the owner,
+   run to it; else 8 away from the target (`FUN_005df140`, path type 0xf).
+9. Each skill scores aibonus + reqlevel / 4 + its level − (the target's
+   resist to its EType: none 36 damage, fire 39, light 41, magic 37, cold /
+   12 43, poison 45) / 10, then by aitype (near: the closest foe's
+   squared distance ≤ 25; `all`: foes within 32; d²: to the target):
+   - 1 (with its aurastate on, or none): −6 if near; −10 with another of
+     its State group on, else +10; + rand(P5c); at itself.
+   - 2 (not in its aurastate, the target not in auratargetstate): −10 if
+     near; + rand(P5c).
+   - 3: −2 × the side's traps when over 5; −7 if near; −10 under 3 foes;
+     + all × 3 − 9 + rand(P5c).
+   - 4 / 12: −10 past P56² off; + P58; +10 in melee or within 5. With
+     Skills.txt flags bit 2 and in its aurastate, the state's aurastat1
+     value (`FUN_006256b0` / `FUN_00625d00`) adds to a running sum and 3+
+     drops it. 4: + P5a with that flag, else −10 when P5a > 0 and
+     `FUN_0063a2b0` says no, else + sum × 4 + 3. 12: only at a monster whose
+     MonStats +0xa0 by difficulty is 25+; + 8 under 75 % life, + 12 more
+     under 50 %. + rand(P5c).
+   - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); no srvmissile
+     and a srvmissilea whose Range − 1 the target is past: dropped; −5 each
+     if near, within 5, or `FUN_0063a2b0`; + rand(P5c); 11 + all × 3.
+   - 6: rand(100) under 20 (6 with a right skill): it becomes the left skill.
+   - 7: life over 66 %: dropped; + rand(P5c) + 10 (+20 under 45 %), at no
+     unit (bug #17). 8: likewise ×2 (×4 under 45 %), at itself.
+   - 13: + P58; −5 when P5a > 0 and `FUN_0063a2b0` says no, else + the sum.
+     Under 50 % life or over 3 foes near, with the owner's closest foe and
+     under 4 near the owner and that foe over 5 off: +20 at it. Else under
+     5 off dropped, over 18 off +10. + rand(P5c).
+   - else nothing.
+   A skill joins the list only beating the last one's score (the list
+   starts with Attack at the target, score 0).
+10. From the last: a seed step whose low 2 bits aren't 0 tries it (melee by
+    `FUN_00622c40`). Cast (`FUN_005eb8b0`): not at its owner or itself;
+    it has the skill (`FUN_006439b0`); a unit target must be targetable
+    (+0xc4 bit 2) and the pet out of town; kind 1 out of melee walks at it
+    (`FUN_005ded00(target, 4)`), else the skill in its mode. A srvdofunc 19
+    skill (the channelled Inferno, Arctic Blast) cast is repeated: +0x18 it,
+    +0x14 25.
+11. Attack at the target, else stand 15.
+
+**The scan (FUN_005eb6d0)**, skipping itself and the dying: its side's
+traps (`FUN_00650d70`, MonStats id 0x19a..0x1a0 but 0x19e) count [8].
+Else targetable foes: by squared distance to the owner, ≤ 100 count [6]
+and the closest is [4] / [5]; within 1024 of the pet count [7], ≤ 100 [3],
+the closest [1] / [2], and one worth chasing is [9] (the last).
+**Worth chasing (FUN_005eb650):** a monster, not dying, whose MonStats
+flags aren't npc but are killable, and boss, primeevil, or a
+champion / unique / minion (monster data +0x16 & 0xe).
+
+The Assassin's skills' aitypes: 1 Quickness (Burst of Speed), Fade, Venom,
+Blade Shield; 2 Cloak of Shadows; 3 the sentries, Shadow Warrior / Master;
+4 the claws and kicks; 5 Fire Trauma (Fire Blast), Psychic Hammer, Blade
+Sentinel, Blade Fury; 10 Claw Mastery, Weapon Block (never scored); 11
+Shock Field (Shock Web), Mind Blast; 12 Cobra Strike; 13 Dragon Flight.
+
+Checked: `tools/emu/shadow_init.py` (both inits, 2 000 cases),
+`tools/emu/shadow_master.py` (the think with the cast, group test, walk
+away and distances native, 5 000 cases, every aitype scored; the scan
+callback with `FUN_005eb650` native, 2 000 cases), all equal.
+
