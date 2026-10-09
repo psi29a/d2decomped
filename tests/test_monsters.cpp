@@ -722,7 +722,7 @@ int main() {
                     for (auto& unit : scene.units) {
                         unit.type = int(read()); unit.x = int(read()); unit.y = int(read());
                         unit.targetable = read() != 0; unit.dying = read() != 0; unit.foe = read() != 0; unit.melee = read() != 0; unit.worth = read() != 0;
-                        unit.target = int(read()); unit.owner = int(read()); unit.monster_level = int(read());
+                        unit.target = int(read()); unit.owner = int(read()); unit.drain = int(read());
                         unit.states.resize(std::size_t(read()));
                         for (auto& state : unit.states) state = int(read());
                         for (auto& resist : unit.resist) resist = int(read());

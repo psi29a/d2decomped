@@ -89,12 +89,12 @@ inline std::array<int, 3> shadow_master_init(int aip3, Rng& seed) { return { -1,
 // the line from the pet cut (FUN_00622aa0 mask 4, sight_blocked); `worth`
 // FUN_005eb650 (shadow_worth); `side` FUN_00650d70 (the pet's side),
 // `monster_id` its MonStats id (FUN_00463860). `resist` by EType (none =
-// damage, fire, light, magic, cold, poison); `monster_level` MonStats
-// +0xa0 by difficulty.
+// damage, fire, light, magic, cold, poison); `drain` MonStats Drain by
+// difficulty (+0xa0: how much leech works on it).
 struct ShadowUnit {
     int type = 1, x = 0, y = 0;
     bool targetable = true, dying = false, foe = true, melee = false, worth = false, side = false, blocked = false;
-    int target = -1, owner = -1, monster_level = 0, monster_id = -1;
+    int target = -1, owner = -1, drain = 0, monster_id = -1;
     std::vector<int> states;
     std::array<int, 6> resist{};
     [[nodiscard]] bool in(int state) const { return std::ranges::find(states, state) != states.end(); }
@@ -313,7 +313,7 @@ void shadow_master_think(const ShadowMasterScene& scene, Rng& seed, std::array<i
             break;
         case 4:
         case 12:
-            if (row->aitype == 12 && foe.type == 1 && foe.monster_level < 0x19) continue;
+            if (row->aitype == 12 && foe.type == 1 && foe.drain < 0x19) continue;      // a leech (Cobra Strike) only where 25 % works
             if (distance > fixed[0] * fixed[0]) score -= 10;
             score += fixed[1];
             if (melee || distance <= 0x19) score += 10;

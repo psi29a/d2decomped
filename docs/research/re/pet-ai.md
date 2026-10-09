@@ -313,7 +313,7 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
      aurastate: the state's aurastat1, its charges (`FUN_006256b0` /
      `FUN_00625d00`), adds to a running sum and 3+ drops it. 4: + P5a with that flag, else −10 when P5a > 0 and
      `FUN_0063a2b0` says no, else + sum × 4 + 3. 12: only at a monster whose
-     MonStats +0xa0 by difficulty is 25+; + 8 under 75 % life, + 12 more
+     MonStats Drain (+0xa0) by difficulty is 25+; + 8 under 75 % life, + 12 more
      under 50 %. + rand(P5c).
    - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); no srvmissile
      and a srvmissilea whose Range − 1 the target is past: dropped; −5 each
@@ -377,6 +377,5 @@ it as player class 6, so CharStats Walk / RunVelocity (its MonStats
 Velocity is 0). A pet's walk at its foe ends in melee as its think tests
 it (`FUN_00622c40`: MeleeRng + 1).
 Not built: other states on any unit (buffs, `FUN_0063a2b0`); buffs,
-traps and summons cast by a Shadow do nothing; MonStats +0xa0 (aitype
-12's floor).
+traps and summons cast by a Shadow do nothing.
 

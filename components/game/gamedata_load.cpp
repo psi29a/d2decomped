@@ -226,7 +226,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.tc_champion[std::size_t(difficulty)] = text("TreasureClass2" + x);
             type_info.tc_unique[std::size_t(difficulty)] = text("TreasureClass3" + x);
             type_info.tc_quest[std::size_t(difficulty)] = text("TreasureClass4" + x);
-            per_difficulty.drain = text("Drain" + x).empty() ? 100 : num(text("Drain" + x));
+            per_difficulty.drain = num(text("Drain" + x));   // empty: 0, no leech (FUN_0057c420 stops at 0)
             per_difficulty.cold_effect = num(text("coldeffect" + x));
             for (int element = 0; element < 3; ++element) {
                 const std::string element_prefix = "El" + std::to_string(element + 1);

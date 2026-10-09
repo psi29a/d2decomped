@@ -3184,8 +3184,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         // owner, the monsters within 64 subtiles of either, its fellow pets
         // (the traps it counts). Its world turns what it does into a PetAct.
         // ponytail: units by that radius, not FUN_005dd0b0's rooms; no state
-        // on any unit (aurastates, charges, FUN_0063a2b0); MonStats +0xa0
-        // (aitype 12's floor) unread: no Master skill has that aitype.
+        // on any unit but a charge-up's (buffs, FUN_0063a2b0).
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
@@ -3209,6 +3208,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                   .blocked = d2d::rules::sight_blocked(pet_x, pet_y, size, other_x, other_y, other_type.size, wall),
                                   .monster_id = other_type.base >= 0 ? other_type.base : other.type };
                 entry.resist = { foe.res[0], foe.res[2], foe.res[3], foe.res[1], foe.res[4], foe.res[5] };   // by EType: none, fire, light, magic, cold, poison
+                entry.drain = foe.drain;
                 units.push_back(entry);
                 monster_of.push_back(int(i));
             }
