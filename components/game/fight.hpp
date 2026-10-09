@@ -188,6 +188,7 @@ struct Fight {
     // A trap (do 45) shoots instead: its skill (a monster skill whose
     // missile carries the player's), at its level, `shots` times.
     struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
+    struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     struct Pet {
         Monster monster; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;
         // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
@@ -212,7 +213,13 @@ struct Fight {
         std::vector<d2d::rules::ShadowListed> skill_list;
         int left_skill = -1;
         std::vector<Charge> charges;               // a Shadow's charge-ups' charges (as the player's)
+        std::vector<SelfState> buffs;              // a Shadow's self states (Burst of Speed, Fade, Venom, Cloak, Blade Shield)
+        std::unordered_map<int, int> buff_stats;   // their aurastats summed (pet_buffs)
     };
+    // What a Shadow summons while the pets take their turns (traps, Blade
+    // Sentinel), made once they're done.
+    struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; };
+    std::vector<PetSummon> pet_summons;
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
@@ -242,7 +249,6 @@ struct Fight {
     // Self states from a swing (aurastate): Concentrate's lasts while its
     // swing does (made with no length; its removal isn't traced), Berserk's
     // calc2 ticks (FUN_005d97f0, 10 when that's 0).
-    struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     std::vector<SelfState> self_states;
     int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
     std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
@@ -807,7 +813,10 @@ struct Fight {
     // ponytail: the variant is rolled at the raise; where game.exe sets it
     // isn't traced.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
-    void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, cast_x, cast_y, now_ms); }
+    void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
+    [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
+    void pet_buffs(Pet& pet);
     void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill

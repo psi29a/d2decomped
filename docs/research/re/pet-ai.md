@@ -376,6 +376,11 @@ aurastate on it with its count. A Shadow moves as an Assassin: its state
 it as player class 6, so CharStats Walk / RunVelocity (its MonStats
 Velocity is 0). A pet's walk at its foe ends in melee as its think tests
 it (`FUN_00622c40`: MeleeRng + 1).
-Not built: other states on any unit (buffs, `FUN_0063a2b0`); buffs,
-traps and summons cast by a Shadow do nothing.
+Its self states (Burst of Speed, Fade, Venom, Cloak of Shadows, Blade
+Shield: `Pet::buffs`, auralen frames) give it their aurastats (speed,
+resists, Venom's poison on its blows; Cloak blinds the monsters round it)
+and the AIs see them; its traps and Blade Sentinel are laid at its target
+after the pets' turn (`Fight::pet_summons`).
+Not built: other states on other units for the AIs (`FUN_0063a2b0`, a
+target's auratargetstate); Blade Shield's blades (nor the player's).
 

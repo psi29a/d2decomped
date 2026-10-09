@@ -421,7 +421,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura
             std::string out;
             for (const auto& pet : town.fight.pets)
-                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={} at={:.1f},{:.1f} {} walk={} path={} goal={:.1f},{:.1f} target={} cast={} ctrl={},{},{} charges={}\n",
+                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={} at={:.1f},{:.1f} {} walk={} path={} goal={:.1f},{:.1f} target={} cast={} ctrl={},{},{} charges={} buffs={}\n",
                                    pet.monster.npc.name, pet.monster.stats.level, pet.monster.hit_points, pet.monster.stats.hit_points, pet.monster.stats.a1_min, pet.monster.stats.a1_max, pet.monster.stats.to_hit, pet.monster.stats.armor_class,
                                    pet.res[0], pet.res[1], pet.res[2], pet.res[3], pet.fire_lo, pet.fire_hi, pet.ranged, pet.ranged_level, pet.aura,
                                    pet.aura_level, pet.where == town.level, pet.monster.unit.x, pet.monster.unit.y, pet.monster.mode,
@@ -430,6 +430,10 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                                        std::string held;
                                        for (const auto& charge : pet.charges) held += std::format("{}{}:{}", held.empty() ? "" : ",", charge.skill, charge.count);
                                        return held.empty() ? std::string("-") : held;
+                                   }(), [&] {
+                                       std::string active;
+                                       for (const auto& buff : pet.buffs) active += std::format("{}{}", active.empty() ? "" : ",", buff.skill);
+                                       return active.empty() ? std::string("-") : active;
                                    }());
             return out + "ok\n";
         }

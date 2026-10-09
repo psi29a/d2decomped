@@ -2470,13 +2470,11 @@ auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> c
         return name.empty() || found == game_data->missiles.end() ? nullptr : &found->second;
     }
 
-auto Fight::summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
+auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms) -> void {
         int type = game_data->monsters.row(skill.summon);
         const auto env = calc_env();
-        const int lvl = skill_level ? skill_level(skill.id) : 1;
-        float x = cast_x, y = cast_y;
         if (skill.target_corpse) {
-            const int corpse = corpse_near(cast_x, cast_y);
+            const int corpse = corpse_near(x, y);
             if (corpse < 0) return;
             monsters[std::size_t(corpse)].corpse_used = true;
             x = monsters[std::size_t(corpse)].unit.x; y = monsters[std::size_t(corpse)].unit.y;
@@ -2686,7 +2684,8 @@ auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> voi
 
 auto Fight::pet_foe(const Pet& pet) const -> Foe {
         auto fighter = d2d::rules::simple_fighter(pet.monster.stats.a1_min, pet.monster.stats.a1_max, pet.monster.stats.to_hit, pet.monster.stats.armor_class);
-        for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(pet.res[k], 95);
+        static constexpr std::array<int, 4> kResists{ d2d::d2s::kFireResist, d2d::d2s::kLightningResist, d2d::d2s::kColdResist, d2d::d2s::kPoisonResist };
+        for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(pet.res[k] + pet_buff_stat(pet, kResists[k]), 95);   // Fade's on a Shadow
         fighter.thorns_pct = pet.thorns;                             // Iron Golem's thorns
         const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
@@ -2727,9 +2726,12 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         std::erase_if(pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until; });
         const auto save_class = std::size_t(std::max(character.character_class, 0));
+        for (const auto& made : std::exchange(pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
+            if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
         for (auto& pet : pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;
+            if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0) pet_buffs(pet);
             if (!monster.alive() || pet.where != level) continue;
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
@@ -2870,7 +2872,7 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
                         const auto cls = std::size_t(std::clamp(state->second.gfx_class, 0, 6));
                         velocity = monster.mode == "RN" ? game_data->run_velocity[cls] : game_data->walk_velocity[cls];
                     }
-                const float pace = float(std::max(100 + monster.move_pct, 10)) * float(100 + pet.speed_pct) / 10000;
+                const float pace = float(std::max(100 + monster.move_pct, 10)) * float(100 + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent)) / 10000;   // Burst of Speed's on a Shadow
                 if (walk_on(*level, unit, cells_per_sec(float(velocity)) * pace * elapsed, crowd)) return true;
             }
             pet.chase = false;
@@ -3170,9 +3172,10 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 const int lvl = std::max(listed->level, 1);
                 entry.cls = skill_class(*row);
                 const auto held = std::ranges::find(pet.charges, hands[k], &Charge::skill);
-                const bool charged = !row->aurastate.empty() && held != pet.charges.end();   // its aurastate: a charge-up's charges
+                const bool buffed = std::ranges::contains(pet.buffs, hands[k], &SelfState::skill);
+                const bool charged = !row->aurastate.empty() && (held != pet.charges.end() || buffed);   // in its aurastate: a buff on, or a charge-up's charges
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
-                                                            charged, false, row->progressive, charged ? std::optional<int>(held->count) : std::nullopt);
+                                                            charged, false, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
                 entry.kind = listed->kind; entry.mode = listed->mode;
                 entry.delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl);
@@ -3241,6 +3244,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                                .missile_range = missile == game_data->missiles.end() ? -1 : missile->second.range,
                                                .repeat = row->srvdofunc == ServerDoFunction::kBreath };
                 }
+            for (const auto& buff : pet.buffs)                              // its self states' aurastates on it
+                if (const auto row = master.rows.find(buff.skill); row != master.rows.end() && row->second.state > 0) units[0].states.push_back(row->second.state);
             for (const auto& held : pet.charges)                            // a charge-up's aurastate on it, its count the aurastat
                 if (const auto row = master.rows.find(held.skill); row != master.rows.end() && row->second.state > 0) {
                     units[0].states.push_back(row->second.state);
@@ -3372,6 +3377,17 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // Teleport, Fenris eating a corpse, the Grizzly's Maul (a blow).
 // ponytail: Vine Attack and the cyclers (do 130, st 63) and Fenris's rage
 // as their published effects, not traced.
+// What a Shadow's self states give it: their aurastats at their levels,
+// summed again as one starts or ends.
+auto Fight::pet_buffs(Pet& pet) -> void {
+        pet.buff_stats.clear();
+        const auto env = calc_env();
+        for (const auto& buff : pet.buffs)
+            if (const auto* skill = game_data->skills.get(buff.skill))
+                for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+                    if (skill->aurastat[k] >= 0) pet.buff_stats[skill->aurastat[k]] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, buff.level);
+    }
+
 // FUN_00647280 on a Shadow: a skill it has takes the new level; else it
 // joins the list's tail with its monanim mode and kind (FUN_00647110).
 auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
@@ -3387,9 +3403,9 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
 // Shock Web, ...); Psychic Hammer and Mind Blast at its target.
 // Dragon Flight puts it beside the target and kicks. Charge-ups charge it,
 // finishers release them, as the player's.
-// ponytail: Dragon Flight's two
-// events (the flight, then the kick) land on one frame; buffs (Burst of Speed, Fade, Cloak, Venom, Blade Shield),
-// traps and summons do nothing yet.
+// Its self states, traps and Blade Sentinel as the player's.
+// ponytail: Dragon Flight's two events (the flight, then the kick) land
+// on one frame; Blade Shield's blades aren't built (nor the player's).
 auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
         const auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
@@ -3399,6 +3415,27 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         const int target = pet.target >= 0 && monsters[std::size_t(pet.target)].alive() ? pet.target : -1;
         const auto& foe = target >= 0 ? monsters[std::size_t(target)].unit : monster.unit;
         const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false };
+        // Its self states (do 18 Burst of Speed / Fade / Venom, 47 Cloak of
+        // Shadows, 54 Blade Shield): auralen frames on it; Cloak blinds the
+        // monsters within its aurarange (their cry, as the player's).
+        if (skill->srvdofunc == ServerDoFunction::kSelfState || skill->srvdofunc == ServerDoFunction::kCloakOfShadows || skill->srvdofunc == ServerDoFunction::kBladeShield) {
+            const int len = calc(*skill, skill->auralen, lvl);
+            const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
+            std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill->id; });
+            pet.buffs.push_back({ skill->id, lvl, until });
+            pet_buffs(pet);
+            if (skill->srvdofunc == ServerDoFunction::kCloakOfShadows)
+                for (auto& other : monsters)
+                    if (other.alive() && std::hypot(other.unit.x - monster.unit.x, other.unit.y - monster.unit.y) * 5 <= float(calc(*skill, skill->aurarange, lvl)))
+                        other.cry = { skill->id, lvl, until };
+            return;
+        }
+        // Its traps and Blade Sentinel (do 45 / 44): laid at its target (else
+        // where it stands) once the pets have had their turns.
+        if (skill->srvdofunc == ServerDoFunction::kTrap || skill->srvdofunc == ServerDoFunction::kBladeSentinel) {
+            pet_summons.push_back({ skill->id, lvl, foe.x, foe.y });
+            return;
+        }
         if (skill->id != 0 && missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
         std::erase_if(pet.charges, [&](const Charge& charge) { return now_ms >= charge.until; });
@@ -3420,6 +3457,11 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         // takes the charges' bonus and releases them on a hit.
         auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
         auto fighter = swing.kick ? pf_kick : player_combat;
+        if (const int length = pet_buff_stat(pet, d2d::d2s::kPoisonLength); length > 0) {   // Venom: its poison on the blow
+            auto& [low, high] = fighter.elem[3];
+            low += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage) * length / 256; high += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage) * length / 256;
+            fighter.poison_len = std::max(fighter.poison_len, length);
+        }
         const bool finishing = finisher(skill);
         if (finishing) add_charges(pet.charges, fighter, swing, false);
         const auto blow = d2d::rules::player_blow(fighter, target_of(std::size_t(target)), monster.stats.level, rng, swing);
