@@ -712,7 +712,9 @@ auto World::swap_npcs(const Level* from) -> void {
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)   // camp Cain (FUN_00592960)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest)
-                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::monster_ids::kCain ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0) : !cain.camp_cain;
+                npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::monster_ids::kCain && level->id == d2d::rules::CainQuest::kTristram
+                                           ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0)   // Tristram's Cain: only while he walks out
+                                           : !cain.camp_cain;                                     // the camp's: once he's come (FUN_00592960)
         // The stones come up (FUN_005935e0): the portal again, the stones lit.
         if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
             for (std::size_t i = 0; i < level->npcs.size(); ++i) {
