@@ -191,6 +191,7 @@ struct Town {
     bool  stash_open = false;
     std::optional<d2d::d2s::Item> held;   // the item on the cursor (the View's)
     int identify_with = -1;               // a right-clicked Scroll / Tome of Identify's id: the next click picks the item
+    int imbue_with = -1;                  // Charsi's Imbue chosen (her NPC index): the next item click takes it up and imbues it
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes

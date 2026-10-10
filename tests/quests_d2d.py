@@ -263,10 +263,17 @@ try:
     talk_until("Charsi", lambda: bits(3) & 0x2, "the imbue isn't due")
     weapon = re.search(r"^\[(\w+) loc=1 slot=4 .* id=(\d+) ", cmd("items"), re.M)
     assert weapon, "no weapon worn"
-    cmd(f"debug hold {weapon.group(2)}")
     open_menu("Charsi")
-    menu_pick("imbue")
+    menu_pick("imbue")                                # the inventory opens; the next item click imbues it
+    x, y = cmd(f"debug itemat {weapon.group(2)}").split()[1:3]
+    cmd(f"click {x} {y}")
     until("Charsi imbued", lambda: bits(3) & 1)
+    assert "Charsi imbued the " + weapon.group(1) in open(log_path).read(), "not the axe"
+    for col in range(10):                             # back into the pack, as a player would place it
+        cmd(f"cmd grid {col} 0")
+        time.sleep(0.3)
+        if state()["held"] == "-": break
+    assert state()["held"] == "-", "the axe found no room"
     print("OK: Tools of the Trade")
 
     # Sisters to the Slaughter (quest 6): Cain sends the player; Andariel; Warriv east.

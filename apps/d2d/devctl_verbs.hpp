@@ -403,14 +403,19 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 if (monsters[i].alive() && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
             return std::string("ok\n");
         }
-        if (args.size() >= 3 && args[1] == "hold") {        // carried item <id> onto the cursor (quest tests: Charsi's imbue takes the held item)
-            auto& items = town.world.character.items;
-            const auto found = std::ranges::find(items, std::atoi(args[2].c_str()), &d2d::d2s::Item::id);
-            if (found == items.end() || town.world.held) return std::string("err no such item, or a hand full\n");
-            town.world.held = *found;
-            items.erase(found);
-            town.held = town.world.held;
-            return std::string("ok\n");
+        if (args.size() >= 3 && args[1] == "itemat" && scene) {   // where carried item <id> sits on screen with the inventory open: its box's middle
+            const auto found = std::ranges::find(town.world.character.items, std::atoi(args[2].c_str()), &d2d::d2s::Item::id);
+            if (found == town.world.character.items.end()) return std::string("err no such item\n");
+            const auto& layout = scene->inv_layout[std::size_t(std::clamp(town.world.character.character_class, 0, 6))];
+            std::array<int, 4> rect{};
+            if (found->location == d2d::d2s::item_location::kStored && found->panel == d2d::d2s::item_panel::kInventory) {
+                const auto info = scene->rules.item_info.find(found->code);
+                const int width = info != scene->rules.item_info.end() ? info->second.width : 1, height = info != scene->rules.item_info.end() ? info->second.height : 1;
+                rect = { layout.grid_x + found->column * layout.box_w, layout.grid_y + found->row * layout.box_h, width * layout.box_w, height * layout.box_h };
+            } else if (found->location == d2d::d2s::item_location::kEquipped && found->slot >= d2d::d2s::body_location::kFirst && found->slot <= d2d::d2s::body_location::kLast) {
+                rect = layout.slots[std::size_t(found->slot)];
+            } else return std::string("err not in the inventory panel\n");
+            return std::format("ok {} {}\n", rect[0] + rect[2] / 2, rect[1] + rect[3] / 2);
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
             std::erase_if(town.world.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });

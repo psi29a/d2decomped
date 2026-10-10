@@ -863,6 +863,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             identify_with = -1;
             item_click = true;
         }
+        // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
+        if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {
+            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+            if (click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd)) {
+                net.send(*click.cmd);
+                net.send(cmd::Imbue{ imbue_with });
+            }
+            imbue_with = -1;
+            item_click = true;
+        }
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
@@ -883,7 +894,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
-            if (identify_with >= 0) identify_with = -1;                       // a right-click drops the pick
+            if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too
+            else if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
             else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) identify_with = used->id;
             else if (to_cursor) net.send(cmd::UseItem{ to_cursor->item });
         }
@@ -1094,9 +1106,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kResurrectMerc) {
                 net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {
-                // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
-                // the item in hand.
-                net.send(cmd::Imbue{ who });
+                // 0x4b35b0: the menu closes and the inventory opens (UI mode
+                // 7, 0x7c0c6b); the server imbues the item in hand (C->S
+                // 0x38 kind 0). An item already in hand goes at once.
+                // unverified (source: the identify pick's pattern): the
+                // next click on an item takes it up and imbues it; the
+                // panel's own click path (0x4c0620 / 0x4c01e0) isn't traced.
+                if (held) net.send(cmd::Imbue{ who });
+                else { imbue_with = who; inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), frame_ms);
                 net.send(cmd::QuestMessage{ who, npc_menu_arg });

@@ -69,7 +69,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y); past the edge next to another level, the next frame crosses into it. |
 | `debug presets`            | `<i>\t<object id>\t<x>\t<y>\t<hidden>\t<name>` per object / NPC the level placed, `ok` | Hidden (quest-gated) ones too; `i` for `cmd interact`. |
-| `debug hold <id>`          | `ok` / `err ...`       | Lift carried item `id` (see `items`) onto the cursor. |
+| `debug itemat <id>`        | `ok <x> <y>` / `err ...` | Carried item `id`'s box middle on screen, the inventory panel open (a click there picks it). |
 | `debug goto <level>`        | `ok <x> <y>` / `err no such level` | Arrive on Levels.txt id `level` at a free cell by its middle (quest tests). |
 | `debug warps`               | `<i>\t<x>\t<y>\t<to>` per warp, `ok` | The level's warps (cave mouths, stairs): cell and the Levels.txt Id they lead to. |
 | `debug objects`             | `<i>\t<x>\t<y>\t<shrine\|chest>\t<row\|trap>\t<locked\|->\t<mode>` per object, `ok` | The level's shrines (Shrines.txt row) and chests (trap type 0..8, locked), and their mode now. |

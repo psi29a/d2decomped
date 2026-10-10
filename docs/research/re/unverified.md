@@ -27,6 +27,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | .d2s item bitstream layout | components/d2s/d2s_items.hpp | the community d2s spec | 19 real saves: every list ends on the next "JM" | the item (de)serializer |
 | PL2 layout past the base palette | docs/research/formats/pl2.md | OpenDiablo2's d2pl2 | probing menu1/Pal.PL2 | the PL2 loader |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
+| Charsi's Imbue pick: after the menu, the next item click takes the item up and imbues it | apps/d2d/town.cpp `imbue_with` | the identify pick's pattern | 0x4b35b0 opens the inventory in UI mode 7; the server imbues the cursor item (act1-end.md) | the panel's click path, 0x4c0620 / 0x4c01e0 |
 
 ## Traced
 
