@@ -127,6 +127,10 @@ struct Special {
 };
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };
+// Sets.txt row: its partial bonuses PCode2a, 2b, 3a .. 5b (8, code empty
+// when unused), its full bonuses FCode1..8, and how many SetItems rows
+// belong to it (the record's +0xc).
+struct SetBonus { std::vector<Mod> partial, full; int pieces = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
 struct GambleRates { int rare = 10000, set = 100, unique = 50; };
 
@@ -197,6 +201,7 @@ struct Tables {
     std::vector<std::pair<int, int>> skill_levels;         // Skills.txt reqlevel, maxlvl by Id (FUN_00644710 / FUN_004aa8b0)
     std::array<int, 7> class_first_skill{};                // per class its first skill Id (FUN_006460f0)
     std::vector<Special> uniques, sets;
+    std::vector<SetBonus> set_bonuses;                    // by Sets.txt row
     std::unordered_map<std::string, std::vector<PropFunc>> properties;
     std::unordered_map<std::string, int> skill_id;         // Skills.txt skill name -> Id
     int rare_prefixes = 0, rare_suffixes = 0;              // RarePrefix / RareSuffix rows

@@ -202,8 +202,11 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   and a set piece's bonus lists that are on (list i with i + 2 pieces of
   its set worn). The Fighter, the char panel, +skills (`skill_level`), the
   equip check (`wearer`) and magic / gold find (stat 0x50 FUN_005585d0 /
-  0x4f FUN_005589a0, drops.md) all read them. Sets.txt's partial / full
-  bonuses aren't added. An add func 1 list (keyed to another piece)
+  0x4f FUN_005589a0, drops.md) all read them. Sets.txt's bonuses join
+  them (`set_props`, FUN_00663b40 → FUN_00660120): with n distinct pieces
+  of a set worn (a popcount of its piece mask, 0x6eda40), the partial
+  PCode2a, 2b .. na, nb, at most (pieces − 1)'s; with every piece worn the
+  full FCode1..8 too (pieces: the Sets record's +0xc). An add func 1 list (keyed to another piece)
   counts pieces.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
   DamageRegen), the weapon swap, champions/uniques.

@@ -1159,6 +1159,27 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        if (const auto sets_table = txt("Sets"); sets_table.size() > 0) {
+            for (std::size_t row = 0; row < sets_table.size(); ++row) {
+                auto mod = [&](const std::string& code, const std::string& param, const std::string& low, const std::string& high) {
+                    return d2d::rules::Mod{ std::string(sets_table.get(row, code)), std::string(sets_table.get(row, param)),
+                                            num(sets_table.get(row, low)), num(sets_table.get(row, high)) };
+                };
+                d2d::rules::SetBonus bonus;
+                for (int count = 2; count <= 5; ++count)
+                    for (const char* side : { "a", "b" }) {
+                        const auto suffix = std::to_string(count) + side;
+                        bonus.partial.push_back(mod("PCode" + suffix, "PParam" + suffix, "PMin" + suffix, "PMax" + suffix));
+                    }
+                for (int index = 1; index <= 8; ++index) {
+                    const auto suffix = std::to_string(index);
+                    bonus.full.push_back(mod("FCode" + suffix, "FParam" + suffix, "FMin" + suffix, "FMax" + suffix));
+                }
+                game_data.rules.set_bonuses.push_back(std::move(bonus));
+            }
+            for (const auto& set_item : game_data.rules.sets)
+                if (set_item.set >= 0 && std::size_t(set_item.set) < game_data.rules.set_bonuses.size()) ++game_data.rules.set_bonuses[std::size_t(set_item.set)].pieces;
+        }
         game_data.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
         game_data.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
         game_data.rules.gamble = keys("gamble", "code", false);

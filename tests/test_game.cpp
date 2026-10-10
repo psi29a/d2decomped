@@ -360,5 +360,28 @@ int main() {
         }
         std::printf("OK: %d imbued rares round-trip their save form\n", checked);
     }
+    // Sets.txt (FUN_00660120): Hsarus' Defense (row 1, 3 pieces) — two worn
+    // give its partial thorns 5, all three its full bonuses (lightning 25).
+    if (data->rules.set_bonuses.size() > 1 && data->rules.set_bonuses[1].pieces == 3) {
+        std::vector<d2d::d2s::Item> worn;
+        for (std::size_t row = 0; row < data->rules.sets.size() && worn.size() < 3; ++row)
+            if (data->rules.sets[row].set == 1) {
+                d2d::d2s::Item piece;
+                piece.code = data->rules.sets[row].code; piece.quality = 5; piece.set_id = int(row);
+                piece.location = d2d::d2s::item_location::kEquipped; piece.slot = std::uint8_t(d2d::d2s::body_location::kHead + int(worn.size()));
+                worn.push_back(piece);
+            }
+        auto total = [&](int stat) {
+            std::int64_t sum = 0;
+            for (const auto& prop : set_props(*data, worn)) if (prop.stat == stat) sum += prop.value;
+            return sum;
+        };
+        assert(total(41) == 25 && total(78) == 5);
+        worn.pop_back();
+        assert(total(41) == 0 && total(78) == 5);
+        worn.pop_back();
+        assert(set_props(*data, worn).empty());
+        std::printf("OK: Sets.txt partial and full bonuses\n");
+    }
     return 0;
 }
