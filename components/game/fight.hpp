@@ -336,8 +336,17 @@ struct Fight {
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
     // ponytail: the doubling rolls d2d's rng, not the player's own seed
-    // (it matters once machines share a game: networking); no shift-click to feed the merc (FUN_00562390: hpot, apot, wpot).
+    // (it matters once machines share a game: networking).
     void drink(int col, std::uint32_t now_ms);
+    // Shift with the key: the merc drinks it (FUN_00562390 with the merc
+    // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
+    // counts as hpot; anything else stays in the belt). A healing potion
+    // heals it over its length, a rejuvenation its % at once.
+    // ponytail: no class bonus or doubling for it; antidote / thawing are
+    // spent and do nothing (the merc's poison and chill aren't kept).
+    void feed_merc(int col, std::uint32_t now_ms);
+    double merc_heal_rate = 0, merc_heal_acc = 0;  // the merc's healthpot: life per ms, its fraction
+    std::uint32_t merc_heal_until = 0;
     void drink_item(int id, std::uint32_t now_ms);
     void potion(const std::string& code, std::uint32_t now_ms);
     // Potions and poison, then the steady regeneration: replenish life

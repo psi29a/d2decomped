@@ -1473,7 +1473,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* use_belt = std::get_if<cmd::UseBelt>(&command)) {
-            if (use_belt->slot >= 0 && use_belt->slot < 4 && !fight.dead()) fight.drink(use_belt->slot, now_ms);
+            if (use_belt->slot >= 0 && use_belt->slot < 4 && !fight.dead()) { if (use_belt->merc) fight.feed_merc(use_belt->slot, now_ms); else fight.drink(use_belt->slot, now_ms); }
             return;
         }
         // The cursor (cursor.hpp works out which from a click).

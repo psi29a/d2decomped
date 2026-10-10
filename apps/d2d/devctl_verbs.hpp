@@ -104,7 +104,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "stat" && verb_args.size() >= 3) town.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
         else if (verb == "skillpt" && verb_args.size() >= 3) town.send(cmd::SkillPoint{ int_arg(2, 0) });
         else if (verb == "select" && verb_args.size() >= 4) town.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
-        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0) });
+        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0), verb_args.size() >= 4 && verb_args[3] == "merc" });
         else if (verb == "waypoint" && verb_args.size() >= 4) town.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "goeast" && verb_args.size() >= 3) town.send(cmd::GoEast{ int_arg(2) });
         else if (verb == "imbue" && verb_args.size() >= 3) town.send(cmd::Imbue{ int_arg(2) });

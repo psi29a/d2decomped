@@ -111,6 +111,27 @@ auto Fight::drink(int col, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_belt(game_data->rules, character.items, col), now_ms);
     }
 
+auto Fight::feed_merc(int col, std::uint32_t now_ms) -> void {
+        using namespace d2d::d2s;
+        if (dead() || !merc || merc->hit_points <= 0) return;
+        const auto& tables = game_data->rules;
+        const auto bottle = std::ranges::find_if(character.items, [&](const Item& item) { return item.location == item_location::kBelt && item.column == col; });
+        if (bottle == character.items.end() || !tables.item_info.contains(bottle->code)) return;
+        const auto& type = tables.item_info.at(bottle->code).type;
+        if (!d2d::rules::type_is(tables, type, "hpot") && !d2d::rules::type_is(tables, type, "apot") && !d2d::rules::type_is(tables, type, "wpot")) return;
+        const std::string code = d2d::rules::drink_belt(tables, character.items, col);
+        if (code.empty()) return;
+        const auto& potion = tables.potions.at(code);
+        if (potion.percent) merc->hit_points = std::min(merc_max_life(), merc->hit_points + merc_max_life() * potion.life / 100);
+        else if (potion.life > 0) {
+            const int len = std::max(potion.ticks, 1);
+            const double left = merc_heal_until > now_ms ? merc_heal_rate * double(merc_heal_until - now_ms) : 0;
+            merc_heal_until = std::max(merc_heal_until, now_ms) + std::uint32_t(len) * 40;
+            merc_heal_rate = (left + potion.life) / double(merc_heal_until - now_ms);
+        }
+        cues.cue("item_potion_drink", now_ms, merc->unit.x, merc->unit.y);
+    }
+
 auto Fight::drink_item(int id, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_item(game_data->rules, character.items, id), now_ms);
     }
@@ -165,6 +186,12 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         mana += double(d2d::rules::mana_per_frame(character.stats.values[kMaxMana], gains.mana_regen, player_combat.mana_regen, int(psum[kManaRecovery])))
               * double(now_ms / 40 - last_ms / 40);
         regen_acc_life += life; regen_acc_mana += mana;
+        if (merc && merc->hit_points > 0 && last_ms < merc_heal_until) {   // the merc's healthpot
+            merc_heal_acc += merc_heal_rate * double(std::min(now_ms, merc_heal_until) - last_ms);
+            const int gain = int(merc_heal_acc);
+            merc_heal_acc -= gain;
+            merc->hit_points = std::min(merc_max_life(), merc->hit_points + gain);
+        }
         const auto life_gain = std::int64_t(regen_acc_life), mana_gain = std::int64_t(regen_acc_mana);
         regen_acc_life -= double(life_gain); regen_acc_mana -= double(mana_gain);
         auto& life_stat = character.stats.values[kLife];

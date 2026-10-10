@@ -195,6 +195,11 @@ try:
     talk("Kashya")
     assert bits(2) & 1 and not bits(2) & 2, f"quest 2 not done: {bits(2):#x}"
     assert state()["merc"] != "-", "Kashya's rogue didn't join"
+    # Shift + a belt key: the merc drinks it (FUN_00562390).
+    belt = lambda: sum(1 for l in cmd("items").splitlines() if " loc=2 " in l)
+    before = belt()
+    cmd("cmd belt 0 merc")
+    until("the merc drinks a belt potion", lambda: belt() == before - 1)
     print("OK: Sisters' Burial Grounds")
 
     # The Search for Cain (quest 4).

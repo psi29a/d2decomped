@@ -737,7 +737,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (key == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (key == SDLK_Q) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead) { send(cmd::Resurrect{}); continue; }
-            if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1) });
+            if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1), (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
