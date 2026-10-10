@@ -679,6 +679,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kDragonTail) dragon_tail(*skill, target, blow.phys, now_ms);
         if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kStackingStrike)) frenzy(*skill, now_ms);   // Feral Rage / Maul stack as Frenzy
         if (blow.hit && skill && skill->srvstfunc == ServerStartFunction::kImpale) impale_wear(*skill);
+        if (blow.hit) wear_weapon();
         if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kChargedStrike || skill->srvdofunc == ServerDoFunction::kLightningStrike)) strike_bolts(*skill, target, now_ms);
         // Conversion (do 79): at calc1 % the monster turns for auralen frames.
         // ponytail: it doesn't fight for the player; it stops seeing the
@@ -1903,20 +1904,90 @@ auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
     }
 
 auto Fight::spend_ammo() -> void {
-        if (const int index = ammo_index(); index >= 0) --character.items[std::size_t(index)].quantity;
+        const int index = ammo_index();
+        if (index < 0) return;
+        if (--character.items[std::size_t(index)].quantity <= 0) out_of_ammo(std::size_t(index));
+    }
+
+auto Fight::out_of_ammo(std::size_t index) -> void {
+        using namespace d2d::d2s;
+        auto& item = character.items[index];
+        item.quantity = 0;
+        const auto info = game_data->rules.item_info.find(item.code);
+        if (info != game_data->rules.item_info.end() && info->second.kind == 2 && item.quality >= 4 && item.quality <= 9) {
+            item.flags |= 0x100u;
+            item.durability = 0;
+            return;
+        }
+        const std::string code = item.code;
+        const auto slot = item.slot;
+        character.items.erase(character.items.begin() + std::ptrdiff_t(index));
+        const auto next = std::ranges::find_if(character.items, [&](const Item& other) {
+            return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
+        if (next != character.items.end()) { next->location = item_location::kEquipped; next->slot = slot; next->panel = 0; }
+    }
+
+auto Fight::wear(std::size_t index) -> void {
+        using namespace d2d::d2s;
+        auto& item = character.items[index];
+        const auto& tables = game_data->rules;
+        const auto info = tables.item_info.find(item.code);
+        if (info == tables.item_info.end()) return;
+        const bool armor = d2d::rules::type_is(tables, info->second.type, "armo"), weapon = d2d::rules::type_is(tables, info->second.type, "weap");
+        if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(item) || d2d::rules::broken(item)) return;
+        const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
+        if (int(rng(100)) >= chance) return;
+        if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
+        if (armor) { item.flags |= 0x100u; item.durability = 0; return; }
+        const auto base = tables.item_base.find(item.code);
+        if (base == tables.item_base.end() || !base->second.stackable) { item.durability = 0; return; }
+        if (item.quantity < 2) { out_of_ammo(index); return; }
+        --item.quantity;
+        item.durability = d2d::rules::max_durability(item);
+    }
+
+auto Fight::wear_weapon() -> void {
+        using namespace d2d::d2s;
+        for (std::size_t i = 0; i < character.items.size(); ++i)
+            if (character.items[i].location == item_location::kEquipped && (character.items[i].slot == body_location::kRightArm || character.items[i].slot == body_location::kLeftArm)
+                && game_data->rules.item_info.contains(character.items[i].code) && game_data->rules.item_info.at(character.items[i].code).kind == 2) { wear(i); return; }
+    }
+
+auto Fight::wear_armor() -> void {
+        using namespace d2d::d2s;
+        static constexpr std::array<std::pair<int, int>, 7> kSlots{ { { body_location::kHead, 3 }, { body_location::kTorso, 5 }, { body_location::kRightArm, 4 },
+            { body_location::kLeftArm, 4 }, { body_location::kBelt, 2 }, { body_location::kFeet, 2 }, { body_location::kGloves, 2 } } };
+        std::array<int, 7> worn{};
+        int total = 0;
+        for (std::size_t k = 0; k < kSlots.size(); ++k) {
+            worn[k] = -1;
+            for (std::size_t i = 0; i < character.items.size(); ++i)
+                if (const auto& item = character.items[i]; item.location == item_location::kEquipped && item.slot == kSlots[k].first && game_data->rules.item_info.contains(item.code)
+                    && d2d::rules::type_is(game_data->rules, game_data->rules.item_info.at(item.code).type, "armo")) { worn[k] = int(i); total += kSlots[k].second; }
+        }
+        if (total <= 0) return;
+        auto k = std::size_t(rng(int(kSlots.size())));
+        int pick = rng(total);
+        for (;; k = (k + 1) % kSlots.size()) {
+            if (worn[k] < 0) continue;
+            if (pick < kSlots[k].second) { wear(std::size_t(worn[k])); return; }
+            pick -= kSlots[k].second;
+        }
     }
 
 auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
         if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
-        for (auto& item : character.items)
-            if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
-                && game_data->rules.item_info.at(item.code).kind == 2) {
+        for (std::size_t i = 0; i < character.items.size(); ++i)
+            if (auto& item = character.items[i]; item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
+                && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
-                if (found != game_data->rules.item_base.end() && found->second.stackable) item.quantity = std::max(int(item.quantity) - 1, 0);
-                else if (item.max_durability > 0 && !d2d::rules::indestructible(item))
-                    item.durability = std::max(int(item.durability) - d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl), 0);
+                if (found != game_data->rules.item_base.end() && found->second.stackable) { if (--item.quantity <= 0) out_of_ammo(i); }
+                else if (item.max_durability > 0 && !d2d::rules::indestructible(item)) {
+                    item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
+                    if (item.durability <= 0) { item.durability = 0; item.flags |= 0x100u; }   // FUN_0055f850: it breaks
+                }
                 return;
             }
     }
@@ -3831,6 +3902,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 d2d::log::info("mana burn: -{} mana", foe.mana_burn);
             }
             if (foe.blocked && pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
+            for (int landed = 0; landed < foe.hits; ++landed) wear_armor();
             foe.damage = absorb(foe.damage);
             foe.damage += int(self_hurt >> 8);
             self_hurt &= 255;

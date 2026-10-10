@@ -76,7 +76,7 @@ inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, con
     for (const auto& item : items) {
         const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
         const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if (!worn && !charm) continue;
+        if ((!worn && !charm) || d2d::rules::broken(item)) continue;
         out.insert(out.end(), item.props.begin(), item.props.end());
         for (const auto& socketed : item.socketed_items) {
             const auto filled = socket_props(game_data, item, socketed);
@@ -120,7 +120,7 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
         const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory
                         && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if (!worn && !charm) continue;
+        if ((!worn && !charm) || d2d::rules::broken(item)) continue;
         add(item.props);
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
         const auto bonus = set_bonus_props(game_data, items, item);

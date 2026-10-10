@@ -375,15 +375,29 @@ inline bool indestructible(const d2d::d2s::Item& item) {
     return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; });
 }
 
+// A broken item (item flag 0x100, set by FUN_0055f850): its stats and
+// defense are off until a repair (FUN_0055f900) clears it.
+inline bool broken(const d2d::d2s::Item& item) { return (item.flags & 0x100) != 0; }
+// A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
+// FUN_006289f0) and throwable (FUN_0062ba80) — every stacking weapon.
+inline bool restocks(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    return base != tables.item_base.end() && base->second.stackable && info != tables.item_info.end() && info->second.kind == 2;
+}
+
 // Repair cost at the NPC (FUN_0062efb0 mode 3): the buy base with its
 // quality extras, times missing / max durability, times npc.txt rep mult
 // and the quest rep mults / 1024; 0 when there's nothing to repair.
-// Ethereal items can't be repaired.
+// A stack that restocks pays for its missing quantity instead (its base
+// a unit's, its durability free). Ethereal items can't be repaired.
 // ponytail: no charge recharging or socket terms.
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
-    if (item.max_durability <= 0 || item.durability >= max || item.ethereal || indestructible(item)) return 0;
+    const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
+    const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
+    if (item.ethereal || (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item))) return 0;
     const int base = found != tables.item_base.end() ? found->second.cost : 0;
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
@@ -401,7 +415,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
             break;
         default: break;
     }
-    long long cost = (max - item.durability) * x / max;
+    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : (max - item.durability) * x / max;
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
         cost = cost * prices.rep / 1024;
@@ -421,7 +435,9 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
+    if (restocks(tables, item)) item.quantity = tables.item_base.at(item.code).max_stack;
     item.durability = max_durability(item);
+    item.flags &= ~0x100u;
     return true;
 }
 

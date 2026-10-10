@@ -649,9 +649,8 @@ struct Fight {
     void other_target();
     // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
-    // its quantity (stat 70, FUN_0056c3f0) instead.
-    // ponytail: at 0 durability it should break (FUN_0055f850); it just
-    // stays at 0.
+    // its quantity (stat 70, FUN_0056c3f0) instead. At 0 durability the
+    // weapon breaks (FUN_0055f850).
     void impale_wear(const d2d::rules::Skill& skill);
     // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
     // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
@@ -670,6 +669,23 @@ struct Fight {
     // (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
     [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
     void spend_ammo();
+    // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
+    // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
+    // the inventory's next of its code (not broken) takes its slot.
+    // ponytail: the slot takes it without FUN_00562a30's requirement check.
+    void out_of_ammo(std::size_t index);
+    // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
+    // weapon when the player hits, one worn armour when the player is hit —
+    // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
+    // / gloves 2) among the slots holding armour.
+    // ponytail: the rolls take d2d's rng, not the unit's seed.
+    void wear_weapon();
+    void wear_armor();
+    // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
+    // other weapon 4 % to lose 1 durability. At 0 armour breaks; a stack
+    // loses one of its quantity and comes back whole (its last: out of ammo);
+    // any other weapon stays at 0.
+    void wear(std::size_t index);
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
     // -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,
