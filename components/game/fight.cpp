@@ -1959,19 +1959,19 @@ auto Fight::wear_armor() -> void {
             { body_location::kLeftArm, 4 }, { body_location::kBelt, 2 }, { body_location::kFeet, 2 }, { body_location::kGloves, 2 } } };
         std::array<int, 7> worn{};
         int total = 0;
-        for (std::size_t k = 0; k < kSlots.size(); ++k) {
-            worn[k] = -1;
+        for (std::size_t slot_index = 0; slot_index < kSlots.size(); ++slot_index) {
+            worn[slot_index] = -1;
             for (std::size_t i = 0; i < character.items.size(); ++i)
-                if (const auto& item = character.items[i]; item.location == item_location::kEquipped && item.slot == kSlots[k].first && game_data->rules.item_info.contains(item.code)
-                    && d2d::rules::type_is(game_data->rules, game_data->rules.item_info.at(item.code).type, "armo")) { worn[k] = int(i); total += kSlots[k].second; }
+                if (const auto& item = character.items[i]; item.location == item_location::kEquipped && item.slot == kSlots[slot_index].first && game_data->rules.item_info.contains(item.code)
+                    && d2d::rules::type_is(game_data->rules, game_data->rules.item_info.at(item.code).type, "armo")) { worn[slot_index] = int(i); total += kSlots[slot_index].second; }
         }
         if (total <= 0) return;
-        auto k = std::size_t(rng(int(kSlots.size())));
+        auto slot_index = std::size_t(rng(int(kSlots.size())));
         int pick = rng(total);
-        for (;; k = (k + 1) % kSlots.size()) {
-            if (worn[k] < 0) continue;
-            if (pick < kSlots[k].second) { wear(std::size_t(worn[k])); return; }
-            pick -= kSlots[k].second;
+        for (;; slot_index = (slot_index + 1) % kSlots.size()) {
+            if (worn[slot_index] < 0) continue;
+            if (pick < kSlots[slot_index].second) { wear(std::size_t(worn[slot_index])); return; }
+            pick -= kSlots[slot_index].second;
         }
     }
 
