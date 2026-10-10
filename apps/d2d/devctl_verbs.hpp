@@ -173,6 +173,24 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.set_waypoint(std::atoi(args[2].c_str()));
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "presets" && town.level) {   // every object / NPC the level placed: index, objects.txt id, cell, hidden, name
+            std::string out;
+            for (std::size_t i = 0; i < town.level->npcs.size(); ++i) {
+                const auto& npc = town.level->npcs[i];
+                if (npc.object_id == 0 && npc.name.empty()) continue;
+                out += std::format("{}\t{}\t{:.1f}\t{:.1f}\t{}\t{}\n", i, npc.object_id, npc.x, npc.y, i < town.npc_states.size() && town.npc_states[i].hidden ? 1 : 0, npc.name);
+            }
+            for (const auto& room : town.level->rooms)                // preset rooms (not laid yet too): LvlPrest def, its middle
+                if (room.kind == 2) out += std::format("room\t{}\t{}\t{}\n", room.def, room.x + room.width / 2, room.y + room.height / 2);
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "goto" && town.world.game_data) {   // arrive on level id, at a free spot by its middle (quest tests)
+            const auto* destination = town.world.game_data->level(std::atoi(args[2].c_str()));
+            if (!destination || destination->ds1.width() == 0) return std::string("err no such level\n");
+            const auto [spot_x, spot_y] = destination->nearest_free(float(destination->ds1.width()) / 2, float(destination->ds1.height()) / 2);
+            town.world.arrive(destination, spot_x, spot_y, "debug goto");
+            return std::format("ok {:.1f} {:.1f}\n", spot_x, spot_y);
+        }
         if (args.size() >= 4 && args[1] == "warp") {       // put the player at cell (x, y)
             town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
             town.player.y = town.target_y = std::strtof(args[3].c_str(), nullptr);
@@ -346,6 +364,16 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 return std::format("ok bits={:#06x} den={} skillpts={}\n", quest_bits[std::size_t(bit >> 3)] | quest_bits[std::size_t(bit >> 3) + 1] << 8,
                                    town.world.den.state, town.world.character.stats.get(d2d::d2s::kSkillPts));
             header.quests[std::size_t(header.active_difficulty())][std::size_t(bit >> 3)] |= std::uint8_t(1 << (bit & 7));
+            switch (quest) {                                // as a new game would see it (FUN_00546270): its join, then the chain from quest 1
+            case 1: town.world.den.join(quest_bits); break;
+            case 2: town.world.burial.join(quest_bits); break;
+            case 3: town.world.tools.join(quest_bits); break;
+            case 4: town.world.cain.join(quest_bits, false, false); break;
+            case 5: town.world.tower.join(quest_bits); break;
+            case 6: town.world.andy.join(quest_bits); break;
+            default: break;
+            }
+            if (quest >= 1 && quest <= 6) town.world.chain(1);
             for (std::size_t i = 0; i < town.level->npcs.size() && i < town.npc_states.size(); ++i)
                 if (const int gated_quest = town.level->npcs[i].quest)
                     town.npc_states[i].hidden = !header.quest_flag(header.active_difficulty(), gated_quest, 0);
