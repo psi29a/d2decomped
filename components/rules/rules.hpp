@@ -728,7 +728,8 @@ inline void respec(d2d::d2s::Stats& stats, const std::array<int, 4>& base, const
 // Can skill i (0..29 of class cls) take a point: a level to go, the
 // character level, and every prerequisite learned? (FUN_004ac200 greys
 // out the icons that can't.)
-// ponytail: base levels; +skills from items don't count toward anything.
+// ponytail: the base levels (points spent); whether FUN_004ac200 counts
+// item +skills here isn't traced (skill_level adds them elsewhere).
 inline bool can_learn(const Tables& tables, int cls, int skill_index, const std::array<std::uint8_t, 30>& levels, int clvl) {
     if (cls < 0 || cls > 6 || skill_index < 0 || std::size_t(skill_index) >= tables.class_skills[std::size_t(cls)].size()) return false;
     const auto& class_skill = tables.class_skills[std::size_t(cls)][std::size_t(skill_index)];

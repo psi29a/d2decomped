@@ -99,10 +99,9 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
 }
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
-// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
-// each Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's).
-// ponytail: whether Dragon Flight's kick (do 52) releases isn't traced;
-// here it doesn't (a level 24 skill: past Act 1).
+// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, each
+// Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's). Dragon
+// Flight's kick (do 52, FUN_005d7850) releases too, in its own path.
 inline bool finisher(const d2d::rules::Skill* skill) {
     return !skill || skill->id == 0 || skill->srvdofunc == ServerDoFunction::kDragonTalon || skill->srvdofunc == ServerDoFunction::kDragonTail || skill->srvdofunc == ServerDoFunction::kDragonClaw;
 }
@@ -620,16 +619,13 @@ struct Fight {
     [[nodiscard]] int merc_max_life() const;
 
     // The merc's turn. Standing, at its think (MonAI Hireable,
-    // rules::hireable_think) it follows the player, wanders, stands or,
-    // outside town with a foe under 25 off, fights: in reach it strikes —
-    // an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to 6 cells —
-    // else it walks at the foe. A walk or run ends with a think at once
-    // (FUN_005a8030). Hits use its attack rating against the monster's
-    // defense and its damage. Killed, it plays its death and is gone (the
-    // save's merc is dead until resurrected).
-    // ponytail: the attack think (FUN_005e5050) and mercs' skills
-    // (FUN_005e4d30) aren't ported; the target is the nearest live monster
-    // by merc_gap under 0x31, not FUN_005ddc30's threat order.
+    // rules::hireable_think) it follows the player, wanders, stands or
+    // fights the foe its search finds (FUN_005ddc30): the attack think and
+    // its skill pick (rules::merc_attack, FUN_005e5050 / FUN_005e4d30). A
+    // walk or run ends with a think at once (FUN_005a8030). Hits use its
+    // attack rating against the monster's defense and its damage. Killed,
+    // it plays its death and is gone (the save's merc is dead until
+    // resurrected).
     void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);
 
     // The player's combat modes this frame: dead, the death plays out
@@ -903,8 +899,9 @@ struct Fight {
     // pet), strikes it in reach on its A1's action frame (its damage and
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
-    // ponytail: every pet fights in melee with A1; the Hireable-style
-    // think isn't game.exe's pet AI (not traced).
+    // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
+    // ponytail: an untraced pet fights in melee with A1 on this
+    // Hireable-style think (none of Act 1's summons is untraced).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
