@@ -421,6 +421,17 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             std::erase_if(town.world.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
             return std::string("ok\n");
         }
+        if (args.size() >= 4 && args[1] == "equip" && scene) {   // a normal <code> in body slot <n>, replacing what's there (tests)
+            auto& items = town.world.character.items;
+            const int slot = std::atoi(args[3].c_str());
+            std::erase_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
+            auto seed = town.world.rng;
+            auto item = d2d::rules::generate_item(scene->rules, args[2], 1, 2, town.world.rng, &seed);
+            item.location = d2d::d2s::item_location::kEquipped;
+            item.slot = std::uint8_t(slot);
+            items.push_back(item);
+            return std::format("ok quantity={}\n", item.quantity);
+        }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
             for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kEquipped) item.durability = d2d::rules::max_durability(item) / 2;
             return std::string("ok\n");

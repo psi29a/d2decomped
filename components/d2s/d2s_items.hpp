@@ -181,6 +181,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kBoneArmor = 132,
               kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
+              kItemMagicArrow = 157, kItemExplosiveArrow = 158,
               kThrowMinDamage = 159, kThrowMaxDamage = 160,
               kSkillArmorPercent = 171, kArmorOverridePercent = 182,
               kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left

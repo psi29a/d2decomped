@@ -91,6 +91,12 @@ inline bool self_cast(const d2d::rules::Skill& skill) {
             || (skill.srvdofunc == ServerDoFunction::kSelfStateWithMissile && skill.name == "Blaze") || skill.srvdofunc == ServerDoFunction::kShapeShift
             || skill.srvdofunc == ServerDoFunction::kStormAroundCaster || skill.srvdofunc == ServerDoFunction::kBladeShield);
 }
+// A throwable (FUN_0062ba80, ItemTypes Throwable): a stacking weapon with
+// a weapons.txt missiletype (javelins, throwing knives / axes, potions).
+inline bool throwable(const GameData& game_data, const std::string& code) {
+    const auto found = game_data.rules.item_base.find(code);
+    return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
+}
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
@@ -103,7 +109,8 @@ inline bool finisher(const d2d::rules::Skill* skill) {
 
 // The character's level in a skill (the World's for the fight, the skill
 // bar's for show): points (a class skill's from the save's skill bytes in
-// Skills.txt order; Attack, and a tome's skill with the tome carried, 1),
+// Skills.txt order; Attack, Throw with a throwable in hand, and a tome's
+// skill with the tome carried, 1),
 // then with what the gear gives (gear_props: worn, socketed, set bonuses,
 // charms) and `extra` (the skill shrine's +all skills) — only on skills
 // that have points.
@@ -114,6 +121,11 @@ inline int skill_base_level(const GameData& game_data, const Character& characte
     if (id == 0) return 1;
     const auto* skill = game_data.skills.get(id);
     if (!skill) return 0;
+    // ponytail: Throw's level while no throwable is held stands in for the
+    // picker's weapon check (FUN_004d9fc0), unverified.
+    if (skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow)
+        return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped
+            && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && throwable(game_data, item.code); }) ? 1 : 0;
     const char* tome = skill->name == "Book of Townportal" ? "tbk" : skill->name == "Book of Identify" ? "ibk" : nullptr;
     return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; }) ? 1 : 0;
 }
@@ -641,6 +653,23 @@ struct Fight {
     // ponytail: at 0 durability it should break (FUN_0055f850); it just
     // stays at 0.
     void impale_wear(const d2d::rules::Skill& skill);
+    // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
+    // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
+    // throwable in either hand (right first), else the weapon itself when
+    // it's a throwable. Its index in the items with some left, or -1.
+    // ponytail: an empty quiver stays at 0 (FUN_00580310's part isn't
+    // traced).
+    [[nodiscard]] int ammo_index() const;
+    // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
+    // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
+    // for any other weapon. The plain attack (do 1, FUN_0056f070) fires it
+    // from where the player stands.
+    [[nodiscard]] const GameData::MissileInfo* weapon_missile() const;
+    // Whether the shot takes ammo: the plain attack's (not a magic arrow:
+    // FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
+    // (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
+    [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
+    void spend_ammo();
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
     // -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,
@@ -659,7 +688,7 @@ struct Fight {
     // attack's speed for the bow skills, else SC with FCR); the missiles
     // leave on the action frame (fire).
     // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
-    // (+400) isn't kept; no ammo is used up.
+    // (+400) isn't kept.
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
@@ -689,7 +718,10 @@ struct Fight {
     // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
-    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) { fire(skill, now_ms, player_caster(skill.id)); }
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) {   // the player's: its ammo spent first
+        if (needs_ammo(skill)) spend_ammo();
+        fire(skill, now_ms, player_caster(skill.id));
+    }
     void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
     // down at its target: its range is the frames to get there.

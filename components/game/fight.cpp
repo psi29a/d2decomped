@@ -626,6 +626,10 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             if (!pstruck && now_ms >= player.mode_ms + std::uint32_t(float(player_anim(pmode).action_ms()) / prate)) { pstruck = true; fire(*skill, now_ms); }
             return;
         }
+        if (const auto* skill = game_data->skills.get(swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
+            if (!pstruck && now_ms >= player.mode_ms + std::uint32_t(float(player_anim(pmode).action_ms()) / prate)) { pstruck = true; spot(*skill, now_ms); }
+            return;
+        }
         if (!seq.empty()) {
             const int due = seq_events(now_ms);
             while (seq_struck < due) {
@@ -739,7 +743,7 @@ auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
             ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,
             ServerDoFunction::kConfuse, ServerDoFunction::kAttract, ServerDoFunction::kTaunt, ServerDoFunction::kFindPotion,
             ServerDoFunction::kFindItem, ServerDoFunction::kLeap, ServerDoFunction::kTelekinesis, ServerDoFunction::kDragonFlight,
-            ServerDoFunction::kDoubleThrow }, skill.srvdofunc);
+            ServerDoFunction::kDoubleThrow, ServerDoFunction::kThrow }, skill.srvdofunc);
     }
 
 auto Fight::player_caster(int skill) const -> Caster {
@@ -879,6 +883,19 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // flies at the target as its missile (weapons.txt missiletype),
             // with calc1 damage % (stat 25).
             // ponytail: toht (stat 19) isn't added; no ammo is spent.
+            // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
+            // missile (weapons.txt missiletype) and one of it is spent.
+            // ponytail: FUN_0056c600's to-hit / damage % from the skill aren't
+            // added; the shot's damage is the attack's, not the weapon's
+            // throw damage (minmisdam..).
+            case ServerDoFunction::kThrow:
+                if (const int index = ammo_index(); index >= 0)
+                    if (const auto found_thrown = game_data->thrown.find(character.items[std::size_t(index)].code); found_thrown != game_data->thrown.end())
+                        if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end()) {
+                            launch(found->second, skill, lvl, player.x, player.y, cast_x - player.x, cast_y - player.y, found->second.range + found->second.lev_range * lvl, now_ms);
+                            spend_ammo();
+                        }
+                break;
             case ServerDoFunction::kDoubleThrow:
                 for (const auto& item : character.items)
                     if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
@@ -1515,7 +1532,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 auto& target = monsters[std::size_t(merc_target)];
                 const auto* skill = merc_skill >= 0 ? game_data->skills.get(merc_skill) : nullptr;
                 const Caster caster{ unit.x, unit.y, std::max(merc_skill_level, 1), merc_target, target.unit.x, target.unit.y, true };
-                if (skill && missile_skill(*skill)) fire(*skill, now_ms, caster);
+                if (skill && skill->srvdofunc != ServerDoFunction::kAttack && missile_skill(*skill)) fire(*skill, now_ms, caster);
                 else if (skill && spot_skill(*skill)) spot(*skill, now_ms, caster);
                 else if (skill && self_cast(*skill)) {                    // Frozen Armor: its state on the merc for auralen frames
                     const int length = d2d::rules::eval_calc(game_data->skills, skill->auralen, merc_calc_env(), skill->id, caster.level);
@@ -1834,6 +1851,61 @@ auto Fight::other_target() -> void {
         player.dir = direction16(monsters[std::size_t(attack_mon)].unit.x - player.x, monsters[std::size_t(attack_mon)].unit.y - player.y);
     }
 
+auto Fight::ammo_index() const -> int {
+        using namespace d2d::d2s;
+        const auto& tables = game_data->rules;
+        auto arm = [&](int slot) -> int {
+            for (std::size_t i = 0; i < character.items.size(); ++i)
+                if (character.items[i].location == item_location::kEquipped && character.items[i].slot == slot) return int(i);
+            return -1;
+        };
+        const int right = arm(body_location::kRightArm), left = arm(body_location::kLeftArm);
+        auto type_of = [&](int index) -> std::string {
+            const auto found = index >= 0 ? tables.item_info.find(character.items[std::size_t(index)].code) : tables.item_info.end();
+            return found != tables.item_info.end() ? found->second.type : std::string{};
+        };
+        auto bow = [&](int index) { return d2d::rules::type_is(tables, type_of(index), "bow") || d2d::rules::type_is(tables, type_of(index), "xbow"); };
+        auto ammo = [&](int index) { return index >= 0 && (d2d::rules::type_is(tables, type_of(index), "misl") || throwable(*game_data, character.items[std::size_t(index)].code)); };
+        int found = -1;
+        if (bow(right) || bow(left)) found = ammo(right) && !bow(right) ? right : ammo(left) && !bow(left) ? left : -1;
+        else found = right >= 0 && throwable(*game_data, character.items[std::size_t(right)].code) ? right
+                   : left >= 0 && throwable(*game_data, character.items[std::size_t(left)].code) ? left : -1;
+        return found >= 0 && character.items[std::size_t(found)].quantity > 0 ? found : -1;
+    }
+
+auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
+        using namespace d2d::d2s;
+        const auto& tables = game_data->rules;
+        bool crossbow = false, bow = false;
+        for (const auto& item : character.items)
+            if (item.location == item_location::kEquipped && (item.slot == body_location::kRightArm || item.slot == body_location::kLeftArm))
+                if (const auto found = tables.item_info.find(item.code); found != tables.item_info.end()) {
+                    crossbow = crossbow || d2d::rules::type_is(tables, found->second.type, "xbow");
+                    bow = bow || d2d::rules::type_is(tables, found->second.type, "bow");
+                }
+        if (!bow && !crossbow) return nullptr;
+        int magic = 0, exploding = 0;
+        for (const auto& prop : gear_props(*game_data, character.items)) {
+            if (prop.stat == kItemMagicArrow) magic += prop.value;
+            if (prop.stat == kItemExplosiveArrow) exploding += prop.value;
+        }
+        const char* name = magic > 0 ? "magicarrow" : exploding > 0 ? "explodingarrow" : crossbow ? "bolt" : "arrow";
+        const auto found = game_data->missiles.find(name);
+        return found != game_data->missiles.end() ? &found->second : nullptr;
+    }
+
+auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
+        if (skill.srvdofunc == ServerDoFunction::kAttack) {
+            const auto* shot = weapon_missile();
+            return shot && shot != &game_data->missiles.at("magicarrow");
+        }
+        return skill.decquant || skill.srvdofunc == ServerDoFunction::kThrow || skill.srvstfunc == ServerStartFunction::kCheckAmmo;
+    }
+
+auto Fight::spend_ammo() -> void {
+        if (const int index = ammo_index(); index >= 0) --character.items[std::size_t(index)].quantity;
+    }
+
 auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
@@ -1858,6 +1930,7 @@ auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const
             ServerDoFunction::kMonsterBreath };
         static constexpr ServerStartFunction kSt[] = { ServerStartFunction::kNone, ServerStartFunction::kCheckAmmo, ServerStartFunction::kStrafe,
             ServerStartFunction::kCheckMana, ServerStartFunction::kBladeFury, ServerStartFunction::kTargetCorpse };
+        if (skill.srvdofunc == ServerDoFunction::kAttack) return weapon_missile();
         const bool plain = (skill.srvstfunc == ServerStartFunction::kNone || skill.srvstfunc == ServerStartFunction::kCheckAmmo) && skill.srvdofunc == ServerDoFunction::kNone;
         const bool multi = std::ranges::contains(kSt, skill.srvstfunc) && std::ranges::contains(kDo, skill.srvdofunc);
         const auto& name = plain ? skill.srvmissile : skill.srvmissilea;
@@ -1877,7 +1950,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         const int lvl = skill_level ? skill_level(skill) : 0;
         const int cost = d2d::rules::mana_cost(*skill_row, lvl);
         if (lvl > 0 && character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || character.stats.values[kMana] < cost) { attack_mon = -1; return false; }
+        if (lvl <= 0 || character.stats.values[kMana] < cost || (needs_ammo(*skill_row) && ammo_index() < 0)) { attack_mon = -1; return false; }
         character.stats.values[kMana] -= cost;
         swing_skill = skill;
         cast_x = target_x; cast_y = target_y;

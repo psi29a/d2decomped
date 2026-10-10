@@ -28,6 +28,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | PL2 layout past the base palette | docs/research/formats/pl2.md | OpenDiablo2's d2pl2 | probing menu1/Pal.PL2 | the PL2 loader |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
 | Charsi's Imbue pick: after the menu, the next item click takes the item up and imbues it | apps/d2d/town.cpp `imbue_with` | the identify pick's pattern | 0x4b35b0 opens the inventory in UI mode 7; the server imbues the cursor item (act1-end.md) | the panel's click path, 0x4c0620 / 0x4c01e0 |
+| Throw has level 1 only while a throwable is held (the picker offers it then) | components/game/fight.hpp `skill_base_level` | the D2 picker's look | every player has Throw (Skills.txt general); `FUN_004d9fc0` greys what the weapon can't use | `FUN_004d9fc0`, the start skills a new character gets |
 
 ## Traced
 

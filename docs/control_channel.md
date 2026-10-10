@@ -44,6 +44,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
 | `debug statpts <n>` / `debug skillpts <n>` | `ok`    | Set the in-game character's unspent stat / skill points. |
+| `debug equip <code> <slot>` | `ok quantity=<n>`      | A normal `<code>` (rolled as a drop) worn in body slot `<slot>`, replacing what's there (shot / ammo tests). |
 | `debug wear`                | `ok`                   | Halve the durability of everything worn (repair tests). |
 | `debug unid`                | `ok <count>`           | Unidentify every carried item (Cain tests). |
 | `debug clearinv`            | `ok`                   | Empty the inventory grid (tests that need room, whatever the save carries). |

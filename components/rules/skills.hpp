@@ -255,6 +255,7 @@ enum class ServerDoFunction : int {
     kNone = 0,
     kAttack = 1,                   // FUN_0056f070: the plain attack
     kResolveHit = 2,               // FUN_0056f1f0: the skill's states, then the record its start built
+    kThrow = 3,                    // FUN_0056f460: the throwable in hand flies as its missile
     kStateAroundCaster = 6,        // FUN_005db1c0: Inner Sight, Slow Missiles
     kJab = 7,                      // FUN_005db2d0
     kMissileFan = 8,               // FUN_005db410: Multiple Shot, Teeth, Shock Wave
@@ -366,6 +367,7 @@ struct Skill {
     bool progressive = false;              // flags +4 bit 2: a charge-up
     Calc delay;                            // +0x190: frames before it may be used again
     bool leftskill = false, passive = false, aura = false, use_attack_rate = false, in_town = false;
+    bool decquant = false;                 // decquant: a shot spends one ammo (FUN_0056f7f0 -> FUN_0056c3f0)
     bool attack_no_mana = false;
     int reqlevel = 1, maxlvl = 20;
     int mana = 0, lvlmana = 0, manashift = 8, minmana = 0;

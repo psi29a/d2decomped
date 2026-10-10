@@ -531,6 +531,24 @@ lines (missile names aren't passed in). What it does:
   the throw masteries for thrown weapons, Summon Resist for summons,
   Increased Stamina (no stamina yet), the +0x80 state check.
 
+### Shots and ammo
+- **The plain attack** (do 1, `FUN_0056f070`): with a bow or crossbow
+  (the unit's weapon class 1 / 7, `FUN_0064f460`) it fires the weapon's
+  missile (`FUN_00645f00`): magicarrow (Id 27) with stat 157, explodingarrow
+  (41) with stat 158, else arrow (0) / bolt (31). It spends ammo unless
+  the missile is magicarrow.
+- **Throw** (do 3, `FUN_0056f460`): the throwable in hand (ItemTypes
+  Throwable, `FUN_0062ba80`, or stat 125) flies as its weapons.txt
+  missiletype, spending one; `FUN_0056c600` then adds the skill's to-hit
+  (stat 19) and damage % (stat 25).
+- **A skill's do** (`FUN_0056f7f0`) spends one when Skills.txt
+  `decquant` is set; srvstfunc 4 (`FUN_005da8b0`) refuses the skill
+  without ammo (`FUN_0056c4e0`).
+- **The ammo** (`FUN_0056c4e0` / `FUN_0056c3f0`, players only): with a
+  bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
+  else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
+  takes 1 off its quantity (stat 70); at 0 there's none.
+
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
   skill has a **srvmissile** (+0x46), launches it — FUN_0056ecb0 (flags
