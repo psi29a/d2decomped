@@ -62,8 +62,8 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug passives`          | `ok <stat>=<value>[/<itype>] ...` | The passive skills' stats on the character (FUN_00646d60), with the weapon type a mastery needs. |
 | `debug charges <id> <n>`  | `ok`                   | Hold n (1..3) charges of charge-up skill id (release tests). |
 | `debug release`           | `ok <missiles>` / `err no monster` | Release the held charges on the nearest live monster (FUN_005d5220). |
-| `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
-| `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N` | Quest q's 16 flag bits; `reset` clears them and restarts the game's Den of Evil. |
+| `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel), then run its join and the chain from quest 1 as a new game would. |
+| `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N states=<den>,<burial>,<tools>,<cain>,<tower>,<andy>` | Quest q's 16 flag bits and every Act 1 quest record's state; `reset` clears the bits and restarts the game's Den of Evil. |
 | `debug boss <mod>...`       | `ok #<id> <name> aura=<skill> lvl=<n>` | The nearest plain monster becomes a unique with those MonUMod ids (7 cursed, 26 teleport, 30 aura ...). |
 | `debug kill [n]`            | `ok`                   | Kill the level's monsters but n, as kills (experience, drops, quest deaths; for quest tests). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |

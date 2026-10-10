@@ -2134,7 +2134,8 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             if (const auto found = game_data->missiles.find(skill.srvmissileb); found != game_data->missiles.end())
                 launch(found->second, skill, lvl, around_x, around_y, 0, 0, found->second.range + found->second.lev_range * lvl, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kBreath || skill.srvdofunc == ServerDoFunction::kBladeFury) {
-            channel = skill.id;
+            if (caster.merc || caster.pet) send(dx, dy, range);            // one a cast: the channel is the player's (missile_tick)
+            else channel = skill.id;
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             auto& missile = send(dx, dy, range);
             missile.target_x = caster.x; missile.target_y = caster.y;
@@ -3460,36 +3461,35 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 std::function<bool(int)> approach;
                 std::function<bool(int, int)> away;
                 std::function<void(int)> run, set_left, stand;
-            } master_world{
-                [&](int foe, bool melee) {
-                    const bool took = world.decide(foe >= 0 ? PetUnit::foe : PetUnit::none, melee, false, 6);
-                    if (took) out = world.followed();
-                    return took;
-                },
-                [&](int mode, int id, int target) {
-                    out = { .kind = d2d::rules::PetAct::Kind::skill, .unit = aim(target), .skill = id, .mode = mode };
-                    return true;
-                },
-                [&](int target) {                                               // FUN_005ded00(target, 4): a walk at it
-                    if (aim(target) == PetUnit::none) return false;
-                    const d2d::rules::MercMove move{ .unit = int(PetUnit::foe) };
-                    if (!move_pet(move)) return false;
-                    out = { .kind = d2d::rules::PetAct::Kind::chase, .move = move, .unit = PetUnit::foe };
-                    return true;
-                },
-                [&](int x, int y) {                                             // FUN_005df140: 8 away, path type 0xf
-                    const d2d::rules::MercMove move{ .x = x, .y = y, .type = 0xf, .steps = 8 };
-                    if (!move_pet(move)) return false;
-                    out = { .kind = d2d::rules::PetAct::Kind::moved, .move = move };
-                    return true;
-                },
-                [&](int) {                                                      // FUN_005ded20: a run at the owner
-                    const d2d::rules::MercMove move{ .mode = d2d::rules::kMonsterRun, .unit = int(PetUnit::owner) };
-                    if (move_pet(move)) out = { .kind = d2d::rules::PetAct::Kind::chase, .move = move, .unit = PetUnit::owner };
-                },
-                [&](int id) { pet.left_skill = id; },
-                [&](int frames) { out = { .kind = d2d::rules::PetAct::Kind::stand, .frames = frames }; },
+            } master_world;   // assigned one by one: MSVC can't take these lambdas in a braced init (C2011)
+            master_world.decide = [&](int foe, bool melee) {
+                const bool took = world.decide(foe >= 0 ? PetUnit::foe : PetUnit::none, melee, false, 6);
+                if (took) out = world.followed();
+                return took;
             };
+            master_world.skill = [&](int mode, int id, int target) {
+                out = { .kind = d2d::rules::PetAct::Kind::skill, .unit = aim(target), .skill = id, .mode = mode };
+                return true;
+            };
+            master_world.approach = [&](int target) {                                               // FUN_005ded00(target, 4): a walk at it
+                if (aim(target) == PetUnit::none) return false;
+                const d2d::rules::MercMove move{ .unit = int(PetUnit::foe) };
+                if (!move_pet(move)) return false;
+                out = { .kind = d2d::rules::PetAct::Kind::chase, .move = move, .unit = PetUnit::foe };
+                return true;
+            };
+            master_world.away = [&](int x, int y) {                                             // FUN_005df140: 8 away, path type 0xf
+                const d2d::rules::MercMove move{ .x = x, .y = y, .type = 0xf, .steps = 8 };
+                if (!move_pet(move)) return false;
+                out = { .kind = d2d::rules::PetAct::Kind::moved, .move = move };
+                return true;
+            };
+            master_world.run = [&](int) {                                                      // FUN_005ded20: a run at the owner
+                const d2d::rules::MercMove move{ .mode = d2d::rules::kMonsterRun, .unit = int(PetUnit::owner) };
+                if (move_pet(move)) out = { .kind = d2d::rules::PetAct::Kind::chase, .move = move, .unit = PetUnit::owner };
+            };
+            master_world.set_left = [&](int id) { pet.left_skill = id; };
+            master_world.stand = [&](int frames) { out = { .kind = d2d::rules::PetAct::Kind::stand, .frames = frames }; };
             d2d::rules::shadow_master_think(master, monster.seed, pet.ctrl, master_world);
             return out;
         };
@@ -3624,7 +3624,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         const int lvl = std::max(listed == pet.skill_list.end() ? 1 : listed->level, 1);
         const int target = pet.target >= 0 && monsters[std::size_t(pet.target)].alive() ? pet.target : -1;
         const auto& foe = target >= 0 ? monsters[std::size_t(target)].unit : monster.unit;
-        const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false };
+        const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false, true };
         // Its self states (do 18 Burst of Speed / Fade / Venom, 47 Cloak of
         // Shadows, 54 Blade Shield): auralen frames on it; Cloak blinds the
         // monsters within its aurarange (their cry, as the player's).

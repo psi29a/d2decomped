@@ -315,8 +315,9 @@ rand(aip2 (N)). The driver's target, distance and melee are AI params [2]
      it holds no charges (`FUN_0063a2b0`), else + sum × 4 + 3. 12: only at a monster whose
      MonStats Drain (+0xa0) by difficulty is 25+; + 8 under 75 % life, + 12 more
      under 50 %. + rand(P5c).
-   - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); no srvmissile
-     and a srvmissilea whose Range − 1 the target is past: dropped; −5 each
+   - 5 / 11: only with a clear line (`FUN_00622aa0` mask 4); dropped when
+     there's no srvmissile, a srvmissilea with Range ≥ 0, and the target's
+     squared distance is at least (Range − 1)²; −5 each
      if near, within 5, or holding charges (`FUN_0063a2b0`); + rand(P5c); 11 + all × 3.
    - 6: rand(100) under 20 (6 with a left skill): it becomes the left skill.
    - 7: life over 66 %: dropped; + rand(P5c) + 10 (+20 under 45 %), at no

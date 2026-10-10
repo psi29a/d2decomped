@@ -13,7 +13,14 @@ each quest's flag bits
 level's monsters go by `debug kill`. Skips without the MPQs or the 1.14d
 patch (the quest objects' tables).
 """
-import os, platform, re, socket, subprocess, sys, tempfile, time
+import os
+import platform
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import time
 
 d2d = sys.argv[1]
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")
@@ -31,7 +38,14 @@ sock_path = os.path.join(tempfile.gettempdir(), f"d2d_quests_{os.getpid()}.sock"
 log_path = os.path.join(home, "d2d.log")
 env = dict(os.environ, HOME=home)
 env.pop("D2_MPQ_DIR", None)
-log = open(log_path, "w")
+log = open(log_path, "w")  # noqa: SIM115 - d2d writes to it for the whole run
+
+
+def log_text():
+    with open(log_path) as text:
+        return text.read()
+
+
 proc = subprocess.Popen([d2d, "--headless", "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "ingame",
                          "--start-class", "0", "--start-name", "Quester", "--no-save", "--no-video"], env=env, stdout=log, stderr=log)
 
@@ -196,7 +210,8 @@ try:
     assert bits(2) & 1 and not bits(2) & 2, f"quest 2 not done: {bits(2):#x}"
     assert state()["merc"] != "-", "Kashya's rogue didn't join"
     # Shift + a belt key: the merc drinks it (FUN_00562390).
-    belt = lambda: sum(1 for l in cmd("items").splitlines() if " loc=2 " in l)
+    def belt():
+        return sum(1 for line in cmd("items").splitlines() if " loc=2 " in line)
     before = belt()
     cmd("cmd belt 0 merc")
     until("the merc drinks a belt potion", lambda: belt() == before - 1)
@@ -219,7 +234,7 @@ try:
     warp_to_room(160)                                # Act 1 - Cairn Stones
     stones = {o[1]: o[0] for o in presets()[0] if 17 <= o[1] <= 21}
     operate(stones[17])                              # draws the order
-    order = re.findall(r"the stones' order (\d+) (\d+) (\d+) (\d+) (\d+)", open(log_path).read())
+    order = re.findall(r"the stones' order (\d+) (\d+) (\d+) (\d+) (\d+)", log_text())
     assert order, "no stone order"
     for stone in order[-1]:
         operate(stones[int(stone)], 3)
@@ -228,12 +243,12 @@ try:
     until("Tristram", lambda: level() == 38, 30)
     cmd("debug kill")
     gibbet = object_index(26)
-    gibbet_at = [o for o in presets()[0] if o[0] == gibbet][0]
+    gibbet_at = next(o for o in presets()[0] if o[0] == gibbet)
     cmd(f"debug warp {gibbet_at[2] + 1.2} {gibbet_at[3] + 1.1}")
     cmd("debug kill")
     operate(gibbet)
     until("Cain's rescue counts", lambda: bits(4) & 0x2002 == 0x2002, 30)
-    until("Cain walks into his portal", lambda: "Cain has gone to the camp" in open(log_path).read(), 60)   # leaving first, he stays (the level stops)
+    until("Cain walks into his portal", lambda: "Cain has gone to the camp" in log_text(), 60)   # leaving first, he stays (the level stops)
     go(1)
     talk("Akara")
     assert bits(4) & 1 and not bits(4) & 2, f"quest 4 not done: {bits(4):#x}"
@@ -248,7 +263,7 @@ try:
     until("quest 5 given", lambda: bits(5) & 0x4)
     go(25)
     until("the Countess's death counts", lambda: bits(5) & 1, 30)
-    assert re.search(r"^r\d\d\t", cmd("ground"), re.M), "the Countess dropped no rune"
+    assert re.search(r"^r\d\d\t", cmd("ground"), re.MULTILINE), "the Countess dropped no rune"
     print("OK: The Forgotten Tower")
 
     # Tools of the Trade (quest 3): Charsi gives it from character level 8.
@@ -266,18 +281,19 @@ try:
     until("the malus carried", lambda: "hdm" in cmd("items"))
     go(1)
     talk_until("Charsi", lambda: bits(3) & 0x2, "the imbue isn't due")
-    weapon = re.search(r"^\[(\w+) loc=1 slot=4 .* id=(\d+) ", cmd("items"), re.M)
+    weapon = re.search(r"^\[(\w+) loc=1 slot=4 .* id=(\d+) ", cmd("items"), re.MULTILINE)
     assert weapon, "no weapon worn"
     open_menu("Charsi")
     menu_pick("imbue")                                # the inventory opens; the next item click imbues it
     x, y = cmd(f"debug itemat {weapon.group(2)}").split()[1:3]
     cmd(f"click {x} {y}")
     until("Charsi imbued", lambda: bits(3) & 1)
-    assert "Charsi imbued the " + weapon.group(1) in open(log_path).read(), "not the axe"
+    assert "Charsi imbued the " + weapon.group(1) in log_text(), "not the axe"
     for col in range(10):                             # back into the pack, as a player would place it
         cmd(f"cmd grid {col} 0")
         time.sleep(0.3)
-        if state()["held"] == "-": break
+        if state()["held"] == "-":
+            break
     assert state()["held"] == "-", "the axe found no room"
     print("OK: Tools of the Trade")
 

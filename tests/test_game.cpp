@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
@@ -371,6 +372,12 @@ int main() {
             try {
                 const auto back = d2d::d2s::detail::item(bits, *data->item_tables);
                 assert(back.code == "hax" && back.quality == 6);
+                std::map<std::pair<int, int>, std::int64_t> sent, read;   // what's saved, summed by (stat, param)
+                for (const auto& prop : imbued.props)
+                    if (prop.stat >= 0 && std::size_t(prop.stat) < data->item_tables->stats.size() && data->item_tables->stats[std::size_t(prop.stat)].save_bits)
+                        sent[{ prop.stat, prop.param }] += prop.value;
+                for (const auto& prop : back.props) read[{ prop.stat, prop.param }] += prop.value;
+                assert(read == sent);
             } catch (const std::exception& error) {
                 std::printf("imbue seed %u: %s; props:", seed, error.what());
                 for (const auto& prop : imbued.props) std::printf(" %d:%d:%d", prop.stat, prop.param, prop.value);

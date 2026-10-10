@@ -501,7 +501,7 @@ struct Fight {
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with
     // its damage, attack rating and level).
-    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false; };
+    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; };   // pet: a summon's cast
     [[nodiscard]] Caster player_caster(int skill) const;
     bool casting_merc = false;             // launch() marks what's fired as the merc's
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }

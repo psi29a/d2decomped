@@ -1734,7 +1734,8 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
     }
 
 
-// Chat text broken at spaces into lines no wider than `width`.
+// Chat text broken at spaces into lines no wider than `width` (a longer
+// word by characters).
 // ponytail: FUN_00502970 (the edit box's wrap) taken to break as the chat
 // lines' does.
 auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
@@ -1747,6 +1748,14 @@ auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<st
         const auto joined = wrapped.back().empty() ? word : wrapped.back() + " " + word;
         if (!wrapped.back().empty() && font.measure(joined) > width) wrapped.push_back(word);
         else wrapped.back() = joined;
+        while (wrapped.back().size() > 1 && font.measure(wrapped.back()) > width) {   // a word wider than the box: cut by characters
+            auto& line = wrapped.back();
+            std::size_t fits = 1;
+            while (fits + 1 < line.size() && font.measure(line.substr(0, fits + 1)) <= width) ++fits;
+            std::string rest = line.substr(fits);
+            line.resize(fits);
+            wrapped.push_back(std::move(rest));
+        }
         start = end + 1;
     }
     return wrapped;
