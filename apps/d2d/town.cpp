@@ -1501,6 +1501,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || frame_ms - world_ms > 1000) world_ms = frame_ms - std::min<std::uint32_t>(frame_ms - last_ms, kTickMs);
+        // A local game pauses under the game menu (FUN_0044efa0: game mode
+        // 0 / 1, UI 9 or 0xb up, the player in a room): it draws and plays
+        // sounds, the server's frame (FUN_0052fc20) doesn't run.
+        if (!net_game && game_menu.open) world_ms = frame_ms;
         bool ticked = false;
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {
             prev_x = view.player.x; prev_y = view.player.y;

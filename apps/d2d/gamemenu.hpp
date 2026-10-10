@@ -20,7 +20,7 @@ std::vector<std::string_view> game_menu_images();
 // The menus (FUN_0047e3d0 draws, the input table at 0x6d6034 drives):
 // 0 main, 1 options, 2 sound, 3 video, 4 automap. Opening one selects its
 // last item (FUN_0047e090).
-// ponytail: single player doesn't pause under it; video and automap
+// ponytail: video and automap
 // options are kept, not applied; 3D sound, EAX, 3D bias and perspective
 // are off as on a machine without a 3D provider or Glide.
 struct GameMenu {
