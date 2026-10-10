@@ -361,8 +361,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 town.world.den_left = -1;
             }
             if (args.size() >= 4)                          // show / reset: its 16 bits, the Den's state
-                return std::format("ok bits={:#06x} den={} skillpts={}\n", quest_bits[std::size_t(bit >> 3)] | quest_bits[std::size_t(bit >> 3) + 1] << 8,
-                                   town.world.den.state, town.world.character.stats.get(d2d::d2s::kSkillPts));
+                return std::format("ok bits={:#06x} den={} skillpts={} states={},{},{},{},{},{}\n", quest_bits[std::size_t(bit >> 3)] | quest_bits[std::size_t(bit >> 3) + 1] << 8,
+                                   town.world.den.state, town.world.character.stats.get(d2d::d2s::kSkillPts), town.world.den.state, town.world.burial.state,
+                                   town.world.tools.state, town.world.cain.state, town.world.tower.state, town.world.andy.state);
             header.quests[std::size_t(header.active_difficulty())][std::size_t(bit >> 3)] |= std::uint8_t(1 << (bit & 7));
             switch (quest) {                                // as a new game would see it (FUN_00546270): its join, then the chain from quest 1
             case 1: town.world.den.join(quest_bits); break;
@@ -400,6 +401,15 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             auto& monsters = town.world.fight.monsters;
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (monsters[i].alive() && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
+            return std::string("ok\n");
+        }
+        if (args.size() >= 3 && args[1] == "hold") {        // carried item <id> onto the cursor (quest tests: Charsi's imbue takes the held item)
+            auto& items = town.world.character.items;
+            const auto found = std::ranges::find(items, std::atoi(args[2].c_str()), &d2d::d2s::Item::id);
+            if (found == items.end() || town.world.held) return std::string("err no such item, or a hand full\n");
+            town.world.held = *found;
+            items.erase(found);
+            town.held = town.world.held;
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)

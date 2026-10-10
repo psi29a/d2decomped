@@ -4,10 +4,11 @@
 
 Usage: quests_d2d.py <path-to-d2d>
 
-A new Amazon (made sturdy: 400 Vitality) plays Sisters' Burial Grounds,
-The Search for Cain and The Forgotten Tower through the World: the NPC
-talks, the quest objects (Tree of Inifuss, Cairn Stones, Cain's Gibbet,
-the Moldy Tome), the kills, the rewards, checking each quest's flag bits
+A new Amazon (made sturdy: 400 Vitality) plays Act 1's six quests
+through the World: the NPC talks, the quest objects (Tree of Inifuss,
+Cairn Stones, Cain's Gibbet, the Moldy Tome, the Malus), the kills, the
+rewards (Charsi's imbue on the held item), Warriv's way east, checking
+each quest's flag bits
 (docs/research/re/quests.md, act1-end.md). Travel is `debug goto`; each
 level's monsters go by `debug kill`. Skips without the MPQs or the 1.14d
 patch (the quest objects' tables).
@@ -100,10 +101,63 @@ def object_index(object_id):
 
 def talk(name):
     """Walk up to a camp NPC, talk, close the talk (a quest given counts as it closes)."""
-    npc = [l.split("\t") for l in cmd("npcs").splitlines() if l.startswith(name + "\t")]
-    assert npc, f"{name} not in camp"
+    npc = [l.split("\t") for l in cmd("npcs").splitlines() if l.split("\t")[0].endswith(name)]
+    assert npc, f"{name} not in camp: {[l for l in cmd('debug presets').splitlines() if 'Cain' in l]} level {level()}"
     cmd(f"debug warp {float(npc[0][5]) + 0.9} {float(npc[0][6]) + 0.7}")
     cmd(f"cmd interact {npc[0][4]}")
+    until(f"{name} speaks", lambda: state()["speech"] != "0")
+    cmd("key Escape")
+    until(f"{name}'s talk closes", lambda: state()["speech"] == "0")
+
+
+def talk_until(name, test, what):
+    """Talk to `name` until `test` holds: one greeting plays a talk (FUN_004a10e0, the first
+    kind-0 message), so an NPC with several quests' lines takes a talk each."""
+    for _ in range(4):
+        talk(name)
+        if test(): return
+    raise AssertionError(f"{name}: {what}: {cmd('debug quest 3 show')}")
+
+
+def sweep(width, height):
+    """Walk the level a room at a time (its rooms come up as the player nears), killing as they do."""
+    for y in range(4, height, 8):
+        for x in range(4, width, 8):
+            cmd(f"debug warp {x} {y}")
+            time.sleep(0.25)
+            cmd("debug kill")
+
+
+def menu_pick(text):
+    line = [l.split("\t") for l in cmd("menu").splitlines() if l.startswith(text + "\t")]
+    assert line, f"no {text!r} in the menu: {cmd('menu')!r}"
+    cmd(f"click {line[0][1]} {line[0][2]}")
+
+
+def open_menu(name):
+    npc = [l.split("\t") for l in cmd("npcs").splitlines() if l.split("\t")[0].endswith(name)]
+    cmd(f"debug warp {float(npc[0][5]) + 0.9} {float(npc[0][6]) + 0.7}")
+    cmd(f"cmd interact {npc[0][4]}")
+    until(f"{name}'s menu", lambda: state()["menu"] != "0" or state()["speech"] != "0")
+    if state()["speech"] != "0":
+        cmd("key Escape")
+        until(f"{name}'s talk closes", lambda: state()["speech"] == "0")
+        cmd(f"cmd interact {npc[0][4]}")
+        until(f"{name}'s menu", lambda: state()["menu"] != "0")
+
+
+def topic(name):
+    """A quest topic (kind 2) under the NPC's Talk: heard as it plays."""
+    open_menu(name)
+    first = cmd("menu")
+    menu_pick("talk")
+    try:
+        until(f"{name}'s talk submenu", lambda: any(l.startswith(("introduction\t", "gossip\t")) for l in cmd("menu").splitlines()))
+    except AssertionError:
+        raise AssertionError(f"{name}: no talk submenu; menu was {first!r}, now {cmd('menu')!r}, {cmd('debug quest 6 show')}")
+    topics = [l.split("\t") for l in cmd("menu").splitlines()[1:] if l.split("\t")[0] not in ("talk", "introduction", "gossip", "cancel", "ok")]
+    assert topics, f"{name} has no quest topic: {cmd('menu')!r}"
+    cmd(f"click {topics[0][1]} {topics[0][2]}")
     until(f"{name} speaks", lambda: state()["speech"] != "0")
     cmd("key Escape")
     until(f"{name}'s talk closes", lambda: state()["speech"] == "0")
@@ -120,8 +174,19 @@ try:
     cmd("cmd stat 3 400")
     until("the vitality", lambda: int(state()["life"].split("/")[1]) > 1000)
 
+    # The Den of Evil (quest 1).
+    talk("Akara")
+    assert bits(1) & 0x4, f"Akara didn't give the Den: {bits(1):#x}"
+    go(8)
+    sweep(48, 48)
+    until("the Den cleared", lambda: bits(1) & 0x2002 == 0x2002)
+    go(1)
+    points = int(state()["skillpts"])
+    talk("Akara")
+    assert bits(1) & 1 and int(state()["skillpts"]) == points + 1, f"Den not rewarded: {bits(1):#x}"
+    print("OK: The Den of Evil")
+
     # Sisters' Burial Grounds (quest 2): the chain opens it once the Den's done.
-    cmd("debug quest 1")
     talk("Kashya")
     assert bits(2) & 0x4, f"Kashya didn't give quest 2: {bits(2):#x}"
     go(17)
@@ -163,6 +228,7 @@ try:
     cmd("debug kill")
     operate(gibbet)
     until("Cain's rescue counts", lambda: bits(4) & 0x2002 == 0x2002, 30)
+    until("Cain walks into his portal", lambda: "Cain has gone to the camp" in open(log_path).read(), 60)   # leaving first, he stays (the level stops)
     go(1)
     talk("Akara")
     assert bits(4) & 1 and not bits(4) & 2, f"quest 4 not done: {bits(4):#x}"
@@ -179,6 +245,43 @@ try:
     until("the Countess's death counts", lambda: bits(5) & 1, 30)
     assert re.search(r"^r\d\d\t", cmd("ground"), re.M), "the Countess dropped no rune"
     print("OK: The Forgotten Tower")
+
+    # Tools of the Trade (quest 3): Charsi gives it from character level 8.
+    go(1)
+    cmd("debug stat 12 8")
+    talk_until("Charsi", lambda: bits(3) & 0x4, "didn't give quest 3")
+    go(28)
+    forge = [r for r in presets()[1] if 202 <= r[0] <= 205]   # Act 1 - Barracks Forge W / E / S / N
+    assert forge, "no Barracks Forge"
+    warp_to_room(forge[0][0])
+    operate(object_index(108))                        # the Malus's stand
+    malus = [l.split("\t") for l in cmd("ground").splitlines() if l.startswith("hdm\t")]
+    assert malus, "no Horadric Malus"
+    cmd(f"cmd pickup {malus[0][4].lstrip('#')}")
+    until("the malus carried", lambda: "hdm" in cmd("items"))
+    go(1)
+    talk_until("Charsi", lambda: bits(3) & 0x2, "the imbue isn't due")
+    weapon = re.search(r"^\[(\w+) loc=1 slot=4 .* id=(\d+) ", cmd("items"), re.M)
+    assert weapon, "no weapon worn"
+    cmd(f"debug hold {weapon.group(2)}")
+    open_menu("Charsi")
+    menu_pick("imbue")
+    until("Charsi imbued", lambda: bits(3) & 1)
+    print("OK: Tools of the Trade")
+
+    # Sisters to the Slaughter (quest 6): Cain sends the player; Andariel; Warriv east.
+    # (Camp Cain stays through camp arrivals: the last one came from the Barracks.)
+    if os.environ.get("QUESTS_STOP") == "6":                # debugging: leave d2d up at this point
+        print("STOP", sock_path, log_path, flush=True)
+        time.sleep(1800)
+    topic("Cain")
+    assert bits(6) & 0x4, f"Cain didn't give quest 6: {cmd('debug quest 6 show')}"
+    go(37)
+    until("Andariel's death counts", lambda: bits(6) & 0x2, 30)
+    go(1)
+    open_menu("Warriv")
+    assert any(l.split("\t")[0].lower().startswith(("go east", "east")) for l in cmd("menu").splitlines()), f"no way east: {cmd('menu')!r}"
+    print("OK: Sisters to the Slaughter (Warriv offers the way east)")
     cmd("quit")
 finally:
     if proc.poll() is None:
