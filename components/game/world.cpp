@@ -609,6 +609,8 @@ auto World::enter(const Character& entering) -> void {
             character.stats.values[cur] = character.stats.values[max];
         held.reset();
         store = {};
+        stocks.clear();
+        hire_offers.clear();
         level = &game_data->town;                     // a game starts in the camp (set_map_seed may have rebuilt it)
         other_npcs.clear();
         npc_states = npc_start(*level);
@@ -839,8 +841,7 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
 // merc, free — none if there's a merc already (LoD: even a dead one).
 // The offer leaves the list (packet 0x50 subtype 2).
 // ponytail: an unopened list is rolled here (game.exe: the client asks
-// for it as her menu opens: waits for networking); an emptied one isn't
-// regenerated (FUN_00577010).
+// for it as her menu opens: waits for networking).
 auto World::kashya_merc() -> void {
         const auto& header = character.header;
         if (header.merc_seed && (character.expansion || !header.merc_dead)) return;
@@ -1234,7 +1235,9 @@ auto World::deal(const Command& command) -> bool {
         const int clvl = int(character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
-            store = trade->gamble ? d2d::rules::open_gamble(tables, level->npcs[std::size_t(trade->npc)].id, clvl) : open_store(*game_data, *level, trade->npc, rng);
+            if (trade->gamble) store = d2d::rules::open_gamble(tables, level->npcs[std::size_t(trade->npc)].id, clvl);
+            else if (const auto kept = stocks.find(trade->npc); kept != stocks.end()) { store = kept->second; store.mode = 0; store.tab = 0; store.pressed = {}; }
+            else store = open_store(*game_data, *level, trade->npc, rng);
             store.npc = trade->npc;
             store.header = character.header;
             events.push_back(ev::OpenUI{ ev::OpenUI::trade, trade->npc });
@@ -1242,9 +1245,9 @@ auto World::deal(const Command& command) -> bool {
         }
         if (const auto* hire = std::get_if<cmd::OpenHire>(&command)) {
             // ponytail: the server's offer count isn't traced; five.
-            hire_offers.clear();
-            for (int k = 0; k < 5; ++k)
-                if (auto offer = d2d::rules::merc_offer(tables, character.expansion, 0, character.header.active_difficulty(), clvl, rng)) hire_offers.push_back(*offer);
+            if (hire_offers.empty())
+                for (int k = 0; k < 5; ++k)
+                    if (auto offer = d2d::rules::merc_offer(tables, character.expansion, 0, character.header.active_difficulty(), clvl, rng)) hire_offers.push_back(*offer);
             events.push_back(ev::OpenUI{ ev::OpenUI::hire, hire->npc });
             return true;
         }
@@ -1273,12 +1276,11 @@ auto World::deal(const Command& command) -> bool {
             return true;
         }
         // Cain's identify (FUN_00578460): 100 gold an item, all at once, unless
-        // quest 4's done or its reward's due. ponytail: the purse only.
+        // quest 4's done or its reward's due; paid purse first, then the stash
+        // (FUN_00576d90).
         if (std::holds_alternative<cmd::Identify>(command)) {
-            auto& gold = character.stats.values[d2d::d2s::kGold];
             const int fee = d2d::rules::qbit(quests(), 4, 0) || d2d::rules::qbit(quests(), 4, 1) ? 0 : d2d::rules::unidentified(character.items) * 100;
-            if (gold < fee) return true;
-            gold -= fee;
+            if (!d2d::rules::pay(character.stats, fee)) return true;
             d2d::rules::identify_all(character.items);
             return true;
         }
@@ -1297,8 +1299,10 @@ auto World::deal(const Command& command) -> bool {
             return true;
         }
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
-            if (hire->offer >= 0 && std::size_t(hire->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(hire->offer)], character.header, character.stats))
+            if (hire->offer >= 0 && std::size_t(hire->offer) < hire_offers.size() && d2d::rules::hire(hire_offers[std::size_t(hire->offer)], character.header, character.stats)) {
+                hire_offers.erase(hire_offers.begin() + hire->offer);   // packet 0x50 subtype 2; an empty list rolls anew (FUN_00577010)
                 spawn_merc();
+            }
             return true;
         }
         // A hire NPC brings the dead merc back (FUN_00579c00): paid, full
@@ -1507,7 +1511,10 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (held && to_belt->box >= 0 && to_belt->box < belt.boxes) d2d::rules::put_in_belt(tables, character.items, held, to_belt->box, belt.boxes);
             return;
         }
-        if (deal(command)) return;
+        if (deal(command)) {
+            if (store.npc >= 0 && !store.gamble) stocks[store.npc] = store;   // what the trade left in the vendor's stock
+            return;
+        }
         if (fight.pmode >= 0) return;
         const bool in_moor = level != &game_data->town;
         auto walk_to = [&](float x, float y, bool fresh) {

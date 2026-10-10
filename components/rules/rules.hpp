@@ -432,6 +432,16 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     return int(price_reduced(cost, reduced));
 }
 
+// Paying (FUN_00576d90): the purse first, then the stash; nothing taken
+// and false when both together fall short.
+inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
+    const auto from_purse = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
+    stats.values[d2d::d2s::kGold] -= from_purse;
+    stats.values[d2d::d2s::kGoldBank] -= cost - from_purse;
+    return true;
+}
+
 // Repairs item i (gold first from the inventory, then the stash, as a
 // buy). False if it's whole or you can't pay.
 inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {

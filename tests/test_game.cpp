@@ -160,6 +160,27 @@ int main() {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+    {   // A vendor's stock and Kashya's hire list last the game, not one opening.
+        const auto& npcs = world.level->npcs;
+        const auto index_of = [&](int hc_idx) { return int(std::ranges::find(npcs, hc_idx, &Npc::hc_idx) - npcs.begin()); };
+        const int charsi = index_of(d2d::rules::monster_ids::kCharsi), kashya = index_of(d2d::rules::monster_ids::kKashya);
+        auto codes = [&] {
+            std::vector<std::string> out;
+            for (const auto& tab : world.store.tabs) for (const auto& item : tab) out.push_back(item.code + std::to_string(item.id));
+            return out;
+        };
+        world.apply(d2d::game::cmd::OpenTrade{ charsi }, 27 * kTickMs);
+        const auto first = codes();
+        world.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+        world.apply(d2d::game::cmd::OpenTrade{ charsi }, 27 * kTickMs);
+        assert(!first.empty() && codes() == first);
+        world.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+        world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
+        const auto offers = world.hire_offers;
+        world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
+        assert(!offers.empty() && world.hire_offers.size() == offers.size() && world.hire_offers.front().seed == offers.front().seed);
+        std::printf("OK: Charsi's stock and Kashya's offers outlast their windows\n");
+    }
     {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
         auto seed = world.fight.spawning.game;
         d2d::rules::Rng unit{ seed.next() };

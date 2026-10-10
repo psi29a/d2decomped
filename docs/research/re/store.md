@@ -84,7 +84,13 @@ The base y is 539 (= 60 + 255 + 224):
 - Stock:
   - each listed item Min..Max times, plus PermStoreItems once;
   - packed first-fit: armour → tab 0, weapons → 1 (spilling into 2),
-    misc → 3.
+    misc → 3;
+  - rolled at the first opening and kept for the game (the vendor's own
+    inventory on the server), what a trade leaves in it included.
+- Kashya's hire list (`FUN_00576070`) is rolled once; a hired offer leaves
+  it, and an empty list is rolled anew (`FUN_00577010`).
+- Cain's identify fee and other payments take the purse first, then the
+  stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
   your own items while it is open), per FUN_0062efb0:
   1. base = the item's cost column (armor/weapons/misc.txt);
