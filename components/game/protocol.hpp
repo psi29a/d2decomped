@@ -42,7 +42,7 @@ struct SkillPoint { int skill = 0; };
 // 0x3c: put a skill on the left or right button (a right-button aura runs).
 struct SelectSkill { int skill = 0; bool left = false; };
 // 0x26: use (drink) the belt's column `slot`.
-struct UseBelt { int slot = 0; };
+struct UseBelt { int slot = 0; bool merc = false; };   // merc: shift held, the merc drinks it (FUN_00562390)
 // The cursor (the item in hand is the server's): 0x19 / 0x1c / 0x24, an
 // item (by unit id) from the grid, the body or the belt into the hand;
 // 0x18 the hand's item into a grid (panel 1 inventory, 4 cube, 5 stash)
@@ -195,7 +195,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(opcode::kStatPoint).i32(message.stat).i32(message.count);
         else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(opcode::kSkillPoint).i32(message.skill);
         else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(opcode::kSelectSkill).i32(message.skill).u8(message.left);
-        else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(opcode::kUseBelt).i32(message.slot);
+        else if constexpr (std::is_same_v<T, cmd::UseBelt>) out.u8(opcode::kUseBelt).i32(message.slot).u8(message.merc);
         else if constexpr (std::is_same_v<T, cmd::UseItem>) out.u8(opcode::kUseItem).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::ToCursor>) out.u8(opcode::kToCursor).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Drop>) out.u8(opcode::kDrop).i32(message.item);
@@ -242,7 +242,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kStatPoint: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
         case opcode::kSkillPoint: command = cmd::SkillPoint{ i32() }; break;
         case opcode::kSelectSkill: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
-        case opcode::kUseBelt: command = cmd::UseBelt{ i32() }; break;
+        case opcode::kUseBelt: { const int slot = i32(); command = cmd::UseBelt{ slot, byte() != 0 }; break; }
         case opcode::kUseItem: command = cmd::UseItem{ i32() }; break;
         case opcode::kToCursor: command = cmd::ToCursor{ i32() }; break;
         case opcode::kDrop: command = cmd::Drop{ i32() }; break;

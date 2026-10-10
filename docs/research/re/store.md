@@ -84,7 +84,13 @@ The base y is 539 (= 60 + 255 + 224):
 - Stock:
   - each listed item Min..Max times, plus PermStoreItems once;
   - packed first-fit: armour → tab 0, weapons → 1 (spilling into 2),
-    misc → 3.
+    misc → 3;
+  - rolled at the first opening and kept for the game (the vendor's own
+    inventory on the server), what a trade leaves in it included.
+- Kashya's hire list (`FUN_00576070`) is rolled once; a hired offer leaves
+  it, and an empty list is rolled anew (`FUN_00577010`).
+- Cain's identify fee and other payments take the purse first, then the
+  stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
   your own items while it is open), per FUN_0062efb0:
   1. base = the item's cost column (armor/weapons/misc.txt);
@@ -127,11 +133,37 @@ The price function computes buy, sell and repair together. Repair:
 
 1. base = the buy base with its quality extras (no ethereal ¼);
 2. nothing for items with no durability, whole ones, ethereal ones
-   (FUN_0062ba80) or indestructible ones;
+   or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
+   Throwable) skips the durability term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;
+   a stacking throwable (ItemsTxt +0x132 stackable, FUN_006289f0) pays
+   per unit instead: base / max stack × the missing quantity;
 4. × npc.txt rep mult and the quest rep mults / 1024; minimum 1;
 5. plus the charge recharge cost (FUN_00628d30) — not in d2d yet.
+
+The repair itself (`FUN_005761c0`): a stacking throwable's quantity back
+to its max stack (`FUN_006295b0`); a broken item (flag 0x100) unbroken
+(`FUN_0055f900`), else its durability to max.
+
+## Wear (`FUN_0057d4f0` → `FUN_0057d3d0` → `FUN_00559e30`)
+
+Each landed hit: a player attacker wears its weapon; a player defender
+wears one armour piece, picked by weight from the table at 0x732b90
+(7 pairs: head 3, torso 5, right / left arm 4, belt 2, feet 2, gloves 2)
+among the slots holding armour (ItemTypes 50): a random start slot, a
+random point in the total weight, walked round the slots.
+
+`FUN_00559e30` on an armour (50) or weapon (45) with durability: a roll
+on the unit's seed under 10 (armour, a throwable) or 4 (other weapons)
+takes 1 durability. At 0: armour breaks (`FUN_0055f850`: flag 0x100, its
+stats off the owner); a stack loses one of its quantity and comes back
+whole, its last running out as ammo does; any other weapon stays at 0.
+
+Ammo run out (`FUN_00580310` → `FUN_00580030`): a magic or better weapon
+(quality 4..9, `FUN_0062a0f0`) breaks and stays in hand; anything else
+is destroyed and the inventory's next of the same class (not broken)
+moves into the slot (`FUN_00562a30`).
 
 Buttons at repair vendors: repair (frame 6) toggles like buy/sell and a
 click repairs the worn or carried item; repair all (18) repairs every

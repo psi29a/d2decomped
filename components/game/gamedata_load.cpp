@@ -187,14 +187,14 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.sparse = num(text("sparsePopulate")); type_info.rarity = num(text("Rarity"));
         type_info.tc_quest_id = num(text("TCQuestId")); type_info.tc_quest_cp = num(text("TCQuestCP"));
         type_info.no_ratio = text("noRatio") == "1";
-        type_info.boss_column = text("boss") == "1";
+        type_info.boss_column = text("boss") == "1"; type_info.prime_evil = text("primeevil") == "1";
         type_info.tc_fixed = type_info.no_ratio || type_info.boss_column;
         type_info.minion = { row(text("minion1")), row(text("minion2")) };
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2");
-        for (std::size_t skill = 0; skill < 4; ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
+        for (std::size_t skill = 0; skill < type_info.skill.size(); ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
                                                    type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }
         type_info.trans_lvl = num(text("TransLvl"));
         type_info.spawn = text("spawn"); type_info.spawn_mode = text("spawnmode"); type_info.spawn_x = num(text("spawnx")); type_info.spawn_y = num(text("spawny"));
@@ -226,7 +226,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.tc_champion[std::size_t(difficulty)] = text("TreasureClass2" + x);
             type_info.tc_unique[std::size_t(difficulty)] = text("TreasureClass3" + x);
             type_info.tc_quest[std::size_t(difficulty)] = text("TreasureClass4" + x);
-            per_difficulty.drain = text("Drain" + x).empty() ? 100 : num(text("Drain" + x));
+            per_difficulty.drain = num(text("Drain" + x));   // empty: 0, no leech (FUN_0057c420 stops at 0)
             per_difficulty.cold_effect = num(text("coldeffect" + x));
             for (int element = 0; element < 3; ++element) {
                 const std::string element_prefix = "El" + std::to_string(element + 1);
@@ -449,7 +449,8 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
         skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
-        skill_row.anim = text("anim"); skill_row.range = text("range");
+        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.monanim = text("monanim");
+        skill_row.aitype = number("aitype"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
@@ -458,7 +459,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 4; ++i) skill_row.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) skill_row.par[std::size_t(i)] = number("Param" + std::to_string(i + 1));
         skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
-        skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay");
+        skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
         skill_row.summon = text("summon"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.target_corpse = text("TargetCorpse") == "1";
         for (int i = 0; i < 5; ++i) {
             skill_row.sumskill[std::size_t(i)] = text("sumskill" + std::to_string(i + 1));
@@ -694,6 +695,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
+            state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
+            state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
             state.item_type = std::string(states_table.get(row, "itemtype"));
             const std::string trans(states_table.get(row, "itemtrans"));
             for (std::size_t colour = 0; colour < game_data.item_colours.codes.size(); ++colour) if (!trans.empty() && game_data.item_colours.codes[colour] == trans) state.item_colour = int(colour);
@@ -1156,6 +1159,27 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        if (const auto sets_table = txt("Sets"); sets_table.size() > 0) {
+            for (std::size_t row = 0; row < sets_table.size(); ++row) {
+                auto mod = [&](const std::string& code, const std::string& param, const std::string& low, const std::string& high) {
+                    return d2d::rules::Mod{ std::string(sets_table.get(row, code)), std::string(sets_table.get(row, param)),
+                                            num(sets_table.get(row, low)), num(sets_table.get(row, high)) };
+                };
+                d2d::rules::SetBonus bonus;
+                for (int count = 2; count <= 5; ++count)
+                    for (const char* side : { "a", "b" }) {
+                        const auto suffix = std::to_string(count) + side;
+                        bonus.partial.push_back(mod("PCode" + suffix, "PParam" + suffix, "PMin" + suffix, "PMax" + suffix));
+                    }
+                for (int index = 1; index <= 8; ++index) {
+                    const auto suffix = std::to_string(index);
+                    bonus.full.push_back(mod("FCode" + suffix, "FParam" + suffix, "FMin" + suffix, "FMax" + suffix));
+                }
+                game_data.rules.set_bonuses.push_back(std::move(bonus));
+            }
+            for (const auto& set_item : game_data.rules.sets)
+                if (set_item.set >= 0 && std::size_t(set_item.set) < game_data.rules.set_bonuses.size()) ++game_data.rules.set_bonuses[std::size_t(set_item.set)].pieces;
+        }
         game_data.rules.rare_prefixes = int(keys("RarePrefix", "name", false).size());
         game_data.rules.rare_suffixes = int(keys("RareSuffix", "name", false).size());
         game_data.rules.gamble = keys("gamble", "code", false);

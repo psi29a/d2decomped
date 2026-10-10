@@ -36,7 +36,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
 | `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `save`                      | `ok` / `err <why>`     | Save the character now (character_store.hpp), as leaving the game does. |
-| `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <unit>`, `resurrect`, `stat <stat> [n]`, `skillpt <index>`, `select <skill> <left>`, `belt <slot>`. What a remote client would send. |
+| `cmd <what> ...`            | `ok`                   | A command straight to the World, applied at its next tick (apps/d2d/protocol.hpp): `move <x> <y>`, `skill <id> <x> <y> [unit] [left]`, `interact <npc>`, `pickup <unit>`, `resurrect`, `stat <stat> [n]`, `skillpt <index>`, `select <skill> <left>`, `belt <slot> [merc]` (merc: the merc drinks it, shift held). What a remote client would send. |
 | `npcs`                      | `<name>\t<x>\t<y>\t<menu 0/1>\t<index>\t<cell x>\t<cell y>` per named NPC/object, then `ok` | Feet on screen in game pixels; menu = has an NPC menu; index for `cmd interact`. |
 | `monsters`                  | `<id>\t<x>\t<y>\t<sx>\t<sy>\t<hp>/<max>\t<mode>\t<boss>\t<mods>\tlvl<n>\t<name>\t#<unit>` per monster of the current outdoor level, then `ok` | Cells, feet on screen (while there), life, animation mode; champion / unique / superunique / minion (or -), MonUMod ids, level, name, unit id (what `cmd skill` takes). |
 | `ground`                    | `<code>\t<label>\t<sx>\t<sy>\t#<unit>` per item on the level's ground, then `ok` | Loot: gold is `gld`; feet on screen; unit id (what `cmd pickup` takes). |
@@ -44,6 +44,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
 | `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
 | `debug statpts <n>` / `debug skillpts <n>` | `ok`    | Set the in-game character's unspent stat / skill points. |
+| `debug equip <code> <slot>` | `ok quantity=<n>`      | A normal `<code>` (rolled as a drop) worn in body slot `<slot>`, replacing what's there (shot / ammo tests). |
 | `debug wear`                | `ok`                   | Halve the durability of everything worn (repair tests). |
 | `debug unid`                | `ok <count>`           | Unidentify every carried item (Cain tests). |
 | `debug clearinv`            | `ok`                   | Empty the inventory grid (tests that need room, whatever the save carries). |
@@ -61,18 +62,22 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug passives`          | `ok <stat>=<value>[/<itype>] ...` | The passive skills' stats on the character (FUN_00646d60), with the weapon type a mastery needs. |
 | `debug charges <id> <n>`  | `ok`                   | Hold n (1..3) charges of charge-up skill id (release tests). |
 | `debug release`           | `ok <missiles>` / `err no monster` | Release the held charges on the nearest live monster (FUN_005d5220). |
-| `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel). |
-| `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N` | Quest q's 16 flag bits; `reset` clears them and restarts the game's Den of Evil. |
+| `debug quest <q>`           | `ok`                   | Mark quest q done on the active difficulty (Act 1: 1 Den of Evil .. 6 Andariel), then run its join and the chain from quest 1 as a new game would. |
+| `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N states=<den>,<burial>,<tools>,<cain>,<tower>,<andy>` | Quest q's 16 flag bits and every Act 1 quest record's state; `reset` clears the bits and restarts the game's Den of Evil. |
 | `debug boss <mod>...`       | `ok #<id> <name> aura=<skill> lvl=<n>` | The nearest plain monster becomes a unique with those MonUMod ids (7 cursed, 26 teleport, 30 aura ...). |
-| `debug kill [n]`            | `ok`                   | Kill the level's monsters but n (no experience; for quest tests). |
+| `debug kill [n]`            | `ok`                   | Kill the level's monsters but n, as kills (experience, drops, quest deaths; for quest tests). |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y); past the edge next to another level, the next frame crosses into it. |
+| `debug presets`            | `<i>\t<object id>\t<x>\t<y>\t<hidden>\t<name>` per object / NPC the level placed, `ok` | Hidden (quest-gated) ones too; `i` for `cmd interact`. |
+| `debug itemat <id>`        | `ok <x> <y>` / `err ...` | Carried item `id`'s box middle on screen, the inventory panel open (a click there picks it). |
+| `debug goto <level>`        | `ok <x> <y>` / `err no such level` | Arrive on Levels.txt id `level` at a free cell by its middle (quest tests). |
 | `debug warps`               | `<i>\t<x>\t<y>\t<to>` per warp, `ok` | The level's warps (cave mouths, stairs): cell and the Levels.txt Id they lead to. |
 | `debug objects`             | `<i>\t<x>\t<y>\t<shrine\|chest>\t<row\|trap>\t<locked\|->\t<mode>` per object, `ok` | The level's shrines (Shrines.txt row) and chests (trap type 0..8, locked), and their mode now. |
 | `debug portals`             | `<which>\t<level>\t<x>\t<y>` per open portal, `ok` | The player's portals: 0 where it was cast, 1 its twin in camp (cells). |
 | `debug net`                 | `host <x> <y> local <x> <y> apart <d> units <n> trade <state>`, then `player\t<id>\t<name>\t<x>\t<y>` per other player, `ok` | A joined game: where the host has the player and where d2d does (act subtiles), how far apart, how many host units d2d knows, the trade's state; the other players (cells). |
 | `debug chat <text>`        | `ok` | Shows a chat line as if it came from the host ("name: message"), to look at it; no one is told. |
+| `debug typing [text]`      | `ok` | Opens the chat edit box holding `text`, to look at it; nothing is sent. |
 | `debug tradestate <n>`      | `ok` | A joined game: sets the trade's state (0 none, 1 asked, 2 asked of us, 3 open, 5 they accepted, 7 we did) to look at its box or window; the host isn't told. |
 | `debug operate <i> [n]`     | `ok life=… mana=… boost=<row>` | Operate shrine / chest i (town.hpp operate) without walking to it; `n` plays that Shrines.txt row / chest trap type instead. |
 | `debug enter <i>`           | `ok` / `err no such warp` | Stand by warp i as if it was clicked; the next frame takes it (`debug level` shows where). |

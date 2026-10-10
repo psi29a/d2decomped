@@ -128,7 +128,8 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
 // more than 12 behind (a warp), or stuck for 1.5 s (no route), it's put
 // next to the player.
-// ponytail: the pets' AIs aren't traced (the merc's is: rules::hireable_think).
+// The traced pet AIs (rules::traced_pet_ai, NecroPet's necropet_think)
+// think for themselves; this is the follow the untraced ones fall back on.
 void pet_follow(const Level& level, UnitState& unit, float player_x, float player_y, float speed, std::uint32_t now_ms, float elapsed,
                  const Crowd& crowd = {});
 
@@ -258,6 +259,7 @@ struct Foe {
     bool blocked = false;                     // blocked a hit this frame
     std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Frozen / Shiver Armor)
     int missile_hits = 0;                     // missiles that reached it this frame (Chilling Armor)
+    int hits = 0;                             // hits that landed this frame (each wears its armour)
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     int amplify = 0;                          // Amplify Damage cast on it this frame (a Cursed boss): its level
     bool pet = false;                         // the merc, a summon: in the player's list
@@ -267,6 +269,7 @@ struct Foe {
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
+        hits += taken.hit ? 1 : 0;
         damage += taken.damage;
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);

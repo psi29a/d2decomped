@@ -126,9 +126,17 @@ them times master/100.
   - press `0x499621` plays sound 4; release `0x499a82` toggles the
     mini-panel.
 
+## The pause
+
+A local game pauses under the menu: the client's frame (`FUN_0044efa0`)
+in game mode 0 / 1 (`DAT_007a0610`, single player), with UI 9 (this
+menu) or 0xb (Configure Controls) up and the player in a room
+(`FUN_004646a0`), only draws (`DAT_007a0484`) and plays sounds
+(`FUN_00482c20`); the server's frame (`FUN_0052fc20`) doesn't run. d2d:
+the World doesn't tick while the menu is open without a host.
+
 ## d2d's ceilings
 
-- The game doesn't pause under the menu (single player game.exe does).
 - Video and Automap options are drawn and change, but nothing applies
   them. The 3D sound rows are greyed out. Resolution and AutoMapMode are
   greyed out because d2d is 800x600 with the full map.

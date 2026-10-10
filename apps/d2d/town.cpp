@@ -737,7 +737,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (key == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (key == SDLK_Q) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead) { send(cmd::Resurrect{}); continue; }
-            if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1) });
+            if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1), (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
@@ -863,6 +863,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             identify_with = -1;
             item_click = true;
         }
+        // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
+        if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {
+            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+            if (click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd)) {
+                net.send(*click.cmd);
+                net.send(cmd::Imbue{ imbue_with });
+            }
+            imbue_with = -1;
+            item_click = true;
+        }
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
@@ -883,7 +894,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
-            if (identify_with >= 0) identify_with = -1;                       // a right-click drops the pick
+            if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too
+            else if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
             else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) identify_with = used->id;
             else if (to_cursor) net.send(cmd::UseItem{ to_cursor->item });
         }
@@ -1094,9 +1106,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kResurrectMerc) {
                 net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {
-                // ponytail: no item panel (0x4b35b0 -> 0x4c0620); it takes
-                // the item in hand.
-                net.send(cmd::Imbue{ who });
+                // 0x4b35b0: the menu closes and the inventory opens (UI mode
+                // 7, 0x7c0c6b); the server imbues the item in hand (C->S
+                // 0x38 kind 0). An item already in hand goes at once.
+                // unverified (source: the identify pick's pattern): the
+                // next click on an item takes it up and imbues it; the
+                // panel's own click path (0x4c0620 / 0x4c01e0) isn't traced.
+                if (held) net.send(cmd::Imbue{ who });
+                else { imbue_with = who; inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
             } else if (action == NpcMenuState::kQuest) {
                 speech = start_speech(*scene, who, std::uint16_t(npc_menu_arg), frame_ms);
                 net.send(cmd::QuestMessage{ who, npc_menu_arg });
@@ -1484,6 +1501,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).
         if (world_ms == 0 || frame_ms - world_ms > 1000) world_ms = frame_ms - std::min<std::uint32_t>(frame_ms - last_ms, kTickMs);
+        // A local game pauses under the game menu (FUN_0044efa0: game mode
+        // 0 / 1, UI 9 or 0xb up, the player in a room): it draws and plays
+        // sounds, the server's frame (FUN_0052fc20) doesn't run.
+        if (!net_game && game_menu.open) world_ms = frame_ms;
         bool ticked = false;
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {
             prev_x = view.player.x; prev_y = view.player.y;
@@ -1713,9 +1734,11 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
     }
 
 
-// A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
-// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
-auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
+// Chat text broken at spaces into lines no wider than `width` (a longer
+// word by characters).
+// ponytail: FUN_00502970 (the edit box's wrap) taken to break as the chat
+// lines' does.
+auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<std::string> {
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     std::vector<std::string> wrapped{ std::string{} };
     std::size_t start = 0;
@@ -1723,10 +1746,25 @@ auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> vo
         const auto end = std::min(text.find(' ', start), text.size());
         const auto word = text.substr(start, end - start);
         const auto joined = wrapped.back().empty() ? word : wrapped.back() + " " + word;
-        if (!wrapped.back().empty() && font.measure(joined) > int(kScreenWidth) - 70) wrapped.push_back(word);
+        if (!wrapped.back().empty() && font.measure(joined) > width) wrapped.push_back(word);
         else wrapped.back() = joined;
+        while (wrapped.back().size() > 1 && font.measure(wrapped.back()) > width) {   // a word wider than the box: cut by characters
+            auto& line = wrapped.back();
+            std::size_t fits = 1;
+            while (fits + 1 < line.size() && font.measure(line.substr(0, fits + 1)) <= width) ++fits;
+            std::string rest = line.substr(fits);
+            line.resize(fits);
+            wrapped.push_back(std::move(rest));
+        }
         start = end + 1;
     }
+    return wrapped;
+}
+
+// A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
+// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
+auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
+    auto wrapped = wrap_chat(text, int(kScreenWidth) - 70);
     wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
     for (auto& line : wrapped) {
         chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold });
@@ -1739,9 +1777,11 @@ auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> vo
 // right half's when only a left panel is open, FUN_0045ae90 2 (?)),
 // baselines 20 + 15 a line, each on a dark box from x - 5, 14 up,
 // 16 high, the text's width + 10 (FUN_0046efd0 colour 0, mode 1).
-// The line being typed sits below them.
-// ponytail: the typed line's place and look are d2d's: game.exe's edit
-// box isn't traced. Colours 6 / 7 (black, tan) are drawn white.
+// The edit box (FUN_0047b720, UI\chat.cpp): a dark box at x 0x7f, y H - 0x67,
+// W - 0xff wide, 0x2f high; the typed text wrapped to W - 0x109, white, at
+// x 0x83 on baselines H - 0x58 + 15 a line, the first 3 lines only; the
+// caret, string 0xd4c "_", after the last line drawn, on 500 ms and off
+// 100 (FUN_0047b450). Colours 6 / 7 (black, tan) are drawn white.
 auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void {
     if (chat_lines.empty() && !chat_typing) return;
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
@@ -1750,14 +1790,16 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     int baseline = portraits_shown ? 0x5f : 20;   // ponytail: taken as below the portraits (UI flag 0x13 (?))
     static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
                                                                           { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
-    auto line = [&](const std::string& text, int colour, std::size_t gold) {
-        const int width = font.measure(text);
-        for (int y = std::max(baseline - 14, 0); y < std::min(baseline + 2, int(kScreenHeight)); ++y)
-            for (int column = std::max(x - 5, 0); column < std::min(x + width + 5, int(kScreenWidth)); ++column)
+    auto darken = [&](int left, int top, int width, int height) {   // FUN_0046efd0 colour 0, mode 1
+        for (int y = std::max(top, 0); y < std::min(top + height, int(kScreenHeight)); ++y)
+            for (int column = std::max(left, 0); column < std::min(left + width, int(kScreenWidth)); ++column)
                 for (int channel = 0; channel < 3; ++channel) {
                     auto& value = framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(column)) * 4 + std::size_t(channel)];
                     value = std::uint8_t(value / 2);
                 }
+    };
+    auto line = [&](const std::string& text, int colour, std::size_t gold) {
+        darken(x - 5, baseline - 14, font.measure(text) + 10, 16);
         const auto& rgb = kRgb[std::size_t(colour >= 0 && colour < 10 ? colour : 0)];
         const std::string name = text.substr(0, gold), rest = text.substr(name.size());
         const int top = baseline - font.line_height() + 1;
@@ -1766,7 +1808,15 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
         baseline += 15;
     };
     for (const auto& shown : chat_lines) line(shown.text, shown.colour, shown.gold);
-    if (chat_typing) line(*chat_typing + "_", 0, 0);
+    if (!chat_typing) return;
+    constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
+    darken(0x7f, kHeight - 0x67, kWidth - 0xff, 0x2f);
+    const auto lines = chat_typing->empty() ? std::vector<std::string>{ std::string{} } : wrap_chat(*chat_typing, kWidth - 0x109);
+    const auto shown = std::min<std::size_t>(lines.size(), 3);
+    for (std::size_t i = 0; i < shown; ++i)
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83, kHeight - 0x58 + 15 * int(i) - font.line_height() + 1, lines[i], 255, 255, 255);
+    if (now_ms % 600 < 500)   // ponytail: blinks on the clock, not from when typing began
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83 + font.measure(lines[shown - 1]), kHeight - 0x58 + 15 * int(shown - 1) - font.line_height() + 1, "_", 255, 255, 255);
 }
 
 // An event message's line (FUN_0049eb10, by +1; the strings by id), or

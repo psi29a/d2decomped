@@ -15,6 +15,7 @@
 #include <d2s_items.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
+#include <shadows.hpp>
 #include <skills.hpp>
 
 #include <algorithm>
@@ -90,19 +91,25 @@ inline bool self_cast(const d2d::rules::Skill& skill) {
             || (skill.srvdofunc == ServerDoFunction::kSelfStateWithMissile && skill.name == "Blaze") || skill.srvdofunc == ServerDoFunction::kShapeShift
             || skill.srvdofunc == ServerDoFunction::kStormAroundCaster || skill.srvdofunc == ServerDoFunction::kBladeShield);
 }
+// A throwable (FUN_0062ba80, ItemTypes Throwable): a stacking weapon with
+// a weapons.txt missiletype (javelins, throwing knives / axes, potions).
+inline bool throwable(const GameData& game_data, const std::string& code) {
+    const auto found = game_data.rules.item_base.find(code);
+    return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
+}
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
-// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, and
-// each Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's).
-// ponytail: whether Dragon Flight's kick (do 52) releases isn't traced;
-// here it doesn't (a level 24 skill: past Act 1).
+// srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, each
+// Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's). Dragon
+// Flight's kick (do 52, FUN_005d7850) releases too, in its own path.
 inline bool finisher(const d2d::rules::Skill* skill) {
     return !skill || skill->id == 0 || skill->srvdofunc == ServerDoFunction::kDragonTalon || skill->srvdofunc == ServerDoFunction::kDragonTail || skill->srvdofunc == ServerDoFunction::kDragonClaw;
 }
 
 // The character's level in a skill (the World's for the fight, the skill
 // bar's for show): points (a class skill's from the save's skill bytes in
-// Skills.txt order; Attack, and a tome's skill with the tome carried, 1),
+// Skills.txt order; Attack, Throw with a throwable in hand, and a tome's
+// skill with the tome carried, 1),
 // then with what the gear gives (gear_props: worn, socketed, set bonuses,
 // charms) and `extra` (the skill shrine's +all skills) — only on skills
 // that have points.
@@ -113,6 +120,11 @@ inline int skill_base_level(const GameData& game_data, const Character& characte
     if (id == 0) return 1;
     const auto* skill = game_data.skills.get(id);
     if (!skill) return 0;
+    // ponytail: Throw's level while no throwable is held stands in for the
+    // picker's weapon check (FUN_004d9fc0), unverified.
+    if (skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow)
+        return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped
+            && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && throwable(game_data, item.code); }) ? 1 : 0;
     const char* tome = skill->name == "Book of Townportal" ? "tbk" : skill->name == "Book of Identify" ? "ibk" : nullptr;
     return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; }) ? 1 : 0;
 }
@@ -186,6 +198,8 @@ struct Fight {
     // monster it's after.
     // A trap (do 45) shoots instead: its skill (a monster skill whose
     // missile carries the player's), at its level, `shots` times.
+    struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
+    struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     struct Pet {
         Monster monster; int skill = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;
         // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
@@ -201,7 +215,23 @@ struct Fight {
         int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
         int hits = 0;                              // a Raven's attacks left (0: no count)
         bool idle = false, mirror = false;         // Decoy stands; a Shadow Warrior swings the owner's blow
+        bool chase = false;                        // walking at its target (FUN_005ded40)
+        std::array<int, 3> ctrl{};                 // its AI control's +0x14 / +0x18 / +0x1c (rules::PetBrain)
+        int cast = -1;                             // the skill its attack mode does (a traced think's), -1 a swing
+        float cast_x = 0, cast_y = 0;              // a skill at a spot (a wolf's Teleport)
+        // A Shadow's skills in its list's order (pet-ai.md "Their skill lists")
+        // and the Shadow Master's left skill (FUN_00643bc0; -1 none).
+        std::vector<d2d::rules::ShadowListed> skill_list;
+        int left_skill = -1;
+        std::vector<Charge> charges;               // a Shadow's charge-ups' charges (as the player's)
+        std::vector<SelfState> buffs;              // a Shadow's self states (Burst of Speed, Fade, Venom, Cloak, Blade Shield)
+        std::unordered_map<int, int> buff_stats;   // their aurastats summed (pet_buffs)
+        std::uint32_t blade_next = 0;              // its Blade Shield's next strike
     };
+    // What a Shadow summons while the pets take their turns (traps, Blade
+    // Sentinel), made once they're done.
+    struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; };
+    std::vector<PetSummon> pet_summons;
     std::vector<Pet> pets;
     std::uint32_t aura_next = 0;           // its next pulse
     // The skill the player attacks with (Skills.txt id; 0 Attack), the one
@@ -227,16 +257,15 @@ struct Fight {
     // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
     // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
     // until auralencalc ticks after the last one.
-    struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };
     std::vector<Charge> charges;
     // Self states from a swing (aurastate): Concentrate's lasts while its
     // swing does (made with no length; its removal isn't traced), Berserk's
     // calc2 ticks (FUN_005d97f0, 10 when that's 0).
-    struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
     std::vector<SelfState> self_states;
     int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
     std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
     std::uint32_t storm_frame = 0;                 // the last frame buff_tick ran its paced strikes
+    std::uint32_t blade_next = 0;                  // Blade Shield's next strike
     std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
     // What worn items (and passives) put on the maxima (256ths): the
     // character's own, as a save keeps them, are the maxima less these.
@@ -277,6 +306,9 @@ struct Fight {
     std::array<std::pair<int, int>, 20> footsteps{};
     int   footstep_cursor = 0;
     std::uint32_t footstep_ms = 0;
+    // Where the player last arrived through a warp (player data +0x148 /
+    // +0x14c, FUN_00554ea0; subtiles): a pet near it steps out of the crowd.
+    std::pair<int, int> warp_spot{};
     // A footstep at subtile (x, y): written over the oldest, the cursor on.
     void footstep(int x, int y, std::uint32_t now_ms) {
         footsteps[std::size_t(footstep_cursor)] = { x, y };
@@ -303,8 +335,17 @@ struct Fight {
     // what's left of the last one; a rejuvenation its percentages at once
     // (FUN_005beac0, no bonus).
     // ponytail: the doubling rolls d2d's rng, not the player's own seed
-    // (it matters once machines share a game: networking); no shift-click to feed the merc (FUN_00562390: hpot, apot, wpot).
+    // (it matters once machines share a game: networking).
     void drink(int col, std::uint32_t now_ms);
+    // Shift with the key: the merc drinks it (FUN_00562390 with the merc
+    // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
+    // counts as hpot; anything else stays in the belt). A healing potion
+    // heals it over its length, a rejuvenation its % at once.
+    // ponytail: no class bonus or doubling for it; antidote / thawing are
+    // spent and do nothing (the merc's poison and chill aren't kept).
+    void feed_merc(int col, std::uint32_t now_ms);
+    double merc_heal_rate = 0, merc_heal_acc = 0;  // the merc's healthpot: life per ms, its fraction
+    std::uint32_t merc_heal_until = 0;
     void drink_item(int id, std::uint32_t now_ms);
     void potion(const std::string& code, std::uint32_t now_ms);
     // Potions and poison, then the steady regeneration: replenish life
@@ -460,7 +501,7 @@ struct Fight {
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with
     // its damage, attack rating and level).
-    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false; };
+    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; };   // pet: a summon's cast
     [[nodiscard]] Caster player_caster(int skill) const;
     bool casting_merc = false;             // launch() marks what's fired as the merc's
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }
@@ -504,10 +545,12 @@ struct Fight {
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
     // ticks more (FUN_005d3320).
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
     // at the higher of the stored level and today's).
     // ponytail: aurastat2's progressive_tohit (par4) isn't given.
-    void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing);
+    void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(charges, fighter, swing, true); }
+    void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl, the weapon at its
     // SrcDamage.
     [[nodiscard]] static d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl);
@@ -526,7 +569,8 @@ struct Fight {
     // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
     // (Royal Strike, level 30, past Act 1; Fists of Fire's first) are
     // logged once; 39's points come from d2d's rng.
-    void release(std::size_t monster_index, std::uint32_t now_ms);
+    void release(std::size_t monster_index, std::uint32_t now_ms) { release(charges, monster_index, now_ms, true); }
+    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
@@ -575,16 +619,13 @@ struct Fight {
     [[nodiscard]] int merc_max_life() const;
 
     // The merc's turn. Standing, at its think (MonAI Hireable,
-    // rules::hireable_think) it follows the player, wanders, stands or,
-    // outside town with a foe under 25 off, fights: in reach it strikes —
-    // an Act 1 rogue shoots arrows (Missiles.txt arrow) from up to 6 cells —
-    // else it walks at the foe. A walk or run ends with a think at once
-    // (FUN_005a8030). Hits use its attack rating against the monster's
-    // defense and its damage. Killed, it plays its death and is gone (the
-    // save's merc is dead until resurrected).
-    // ponytail: the attack think (FUN_005e5050) and mercs' skills
-    // (FUN_005e4d30) aren't ported; the target is the nearest live monster
-    // by merc_gap under 0x31, not FUN_005ddc30's threat order.
+    // rules::hireable_think) it follows the player, wanders, stands or
+    // fights the foe its search finds (FUN_005ddc30): the attack think and
+    // its skill pick (rules::merc_attack, FUN_005e5050 / FUN_005e4d30). A
+    // walk or run ends with a think at once (FUN_005a8030). Hits use its
+    // attack rating against the monster's defense and its damage. Killed,
+    // it plays its death and is gone (the save's merc is dead until
+    // resurrected).
     void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);
 
     // The player's combat modes this frame: dead, the death plays out
@@ -613,10 +654,43 @@ struct Fight {
     void other_target();
     // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
-    // its quantity (stat 70, FUN_0056c3f0) instead.
-    // ponytail: at 0 durability it should break (FUN_0055f850); it just
-    // stays at 0.
+    // its quantity (stat 70, FUN_0056c3f0) instead. At 0 durability the
+    // weapon breaks (FUN_0055f850).
     void impale_wear(const d2d::rules::Skill& skill);
+    // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
+    // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
+    // throwable in either hand (right first), else the weapon itself when
+    // it's a throwable. Its index in the items with some left, or -1.
+    // ponytail: an empty quiver stays at 0 (FUN_00580310's part isn't
+    // traced).
+    [[nodiscard]] int ammo_index() const;
+    // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
+    // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
+    // for any other weapon. The plain attack (do 1, FUN_0056f070) fires it
+    // from where the player stands.
+    [[nodiscard]] const GameData::MissileInfo* weapon_missile() const;
+    // Whether the shot takes ammo: the plain attack's (not a magic arrow:
+    // FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
+    // (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
+    [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
+    void spend_ammo();
+    // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
+    // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
+    // the inventory's next of its code (not broken) takes its slot.
+    // ponytail: the slot takes it without FUN_00562a30's requirement check.
+    void out_of_ammo(std::size_t index);
+    // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
+    // weapon when the player hits, one worn armour when the player is hit —
+    // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
+    // / gloves 2) among the slots holding armour.
+    // ponytail: the rolls take d2d's rng, not the unit's seed.
+    void wear_weapon();
+    void wear_armor();
+    // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
+    // other weapon 4 % to lose 1 durability. At 0 armour breaks; a stack
+    // loses one of its quantity and comes back whole (its last: out of ammo);
+    // any other weapon stays at 0.
+    void wear(std::size_t index);
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
     // -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,
@@ -635,7 +709,7 @@ struct Fight {
     // attack's speed for the bow skills, else SC with FCR); the missiles
     // leave on the action frame (fire).
     // ponytail: the sequence skills (Lightning's SQ) cast as SC; the delay
-    // (+400) isn't kept; no ammo is used up.
+    // (+400) isn't kept.
     bool cast_missile(int skill, float target_x, float target_y, std::uint32_t now_ms);
     // A skill missile of row `mi` from (x, y) toward (x + dx, y + dy) for
     // `range` ticks (0 velocity: it stays put).
@@ -665,7 +739,10 @@ struct Fight {
     // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
-    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) { fire(skill, now_ms, player_caster(skill.id)); }
+    void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) {   // the player's: its ammo spent first
+        if (needs_ammo(skill)) spend_ammo();
+        fire(skill, now_ms, player_caster(skill.id));
+    }
     void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // A lobbed row that lands (hit function 36: Fire Blast, Shock Web) comes
     // down at its target: its range is the frames to get there.
@@ -791,7 +868,11 @@ struct Fight {
     // ponytail: the variant is rolled at the raise; where game.exe sets it
     // isn't traced.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
-    void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, cast_x, cast_y, now_ms); }
+    void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
+    [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
+    void pet_buffs(Pet& pet);
+    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, std::uint32_t now_ms);
     void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
@@ -818,9 +899,17 @@ struct Fight {
     // pet), strikes it in reach on its A1's action frame (its damage and
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
-    // ponytail: every pet fights in melee with A1; the Hireable-style
-    // think isn't game.exe's pet AI (not traced).
+    // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
+    // ponytail: an untraced pet fights in melee with A1 on this
+    // Hireable-style think (none of Act 1's summons is untraced).
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
+    void shadow_give(Pet& pet, int skill, int lvl) const;
+    void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
+    void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part

@@ -104,7 +104,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         else if (verb == "stat" && verb_args.size() >= 3) town.send(cmd::StatPoint{ int_arg(2, 0), int_arg(3, 1) });
         else if (verb == "skillpt" && verb_args.size() >= 3) town.send(cmd::SkillPoint{ int_arg(2, 0) });
         else if (verb == "select" && verb_args.size() >= 4) town.send(cmd::SelectSkill{ int_arg(2, 0), int_arg(3, 0) != 0 });
-        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0) });
+        else if (verb == "belt" && verb_args.size() >= 3) town.send(cmd::UseBelt{ int_arg(2, 0), verb_args.size() >= 4 && verb_args[3] == "merc" });
         else if (verb == "waypoint" && verb_args.size() >= 4) town.send(cmd::Waypoint{ int_arg(2), int_arg(3, 0) });
         else if (verb == "goeast" && verb_args.size() >= 3) town.send(cmd::GoEast{ int_arg(2) });
         else if (verb == "imbue" && verb_args.size() >= 3) town.send(cmd::Imbue{ int_arg(2) });
@@ -173,6 +173,24 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             town.world.set_waypoint(std::atoi(args[2].c_str()));
             return std::string("ok\n");
         }
+        if (args.size() >= 2 && args[1] == "presets" && town.level) {   // every object / NPC the level placed: index, objects.txt id, cell, hidden, name
+            std::string out;
+            for (std::size_t i = 0; i < town.level->npcs.size(); ++i) {
+                const auto& npc = town.level->npcs[i];
+                if (npc.object_id == 0 && npc.name.empty()) continue;
+                out += std::format("{}\t{}\t{:.1f}\t{:.1f}\t{}\t{}\n", i, npc.object_id, npc.x, npc.y, i < town.npc_states.size() && town.npc_states[i].hidden ? 1 : 0, npc.name);
+            }
+            for (const auto& room : town.level->rooms)                // preset rooms (not laid yet too): LvlPrest def, its middle
+                if (room.kind == 2) out += std::format("room\t{}\t{}\t{}\n", room.def, room.x + room.width / 2, room.y + room.height / 2);
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "goto" && town.world.game_data) {   // arrive on level id, at a free spot by its middle (quest tests)
+            const auto* destination = town.world.game_data->level(std::atoi(args[2].c_str()));
+            if (!destination || destination->ds1.width() == 0) return std::string("err no such level\n");
+            const auto [spot_x, spot_y] = destination->nearest_free(float(destination->ds1.width()) / 2, float(destination->ds1.height()) / 2);
+            town.world.arrive(destination, spot_x, spot_y, "debug goto");
+            return std::format("ok {:.1f} {:.1f}\n", spot_x, spot_y);
+        }
         if (args.size() >= 4 && args[1] == "warp") {       // put the player at cell (x, y)
             town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
             town.player.y = town.target_y = std::strtof(args[3].c_str(), nullptr);
@@ -210,6 +228,12 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             std::string text = args[2];
             for (std::size_t i = 3; i < args.size(); ++i) text += " " + args[i];
             town.add_chat(text);
+            return std::string("ok\n");
+        }
+        if (args.size() >= 2 && args[1] == "typing") {   // the chat edit box open with this text (its look; nothing is sent)
+            std::string text;
+            for (std::size_t i = 2; i < args.size(); ++i) text += (i > 2 ? " " : "") + args[i];
+            town.chat_typing = text;
             return std::string("ok\n");
         }
         if (args.size() >= 2 && args[1] == "portals") {   // the player's portals: which, level id, cell (none: not open)
@@ -337,9 +361,20 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 town.world.den_left = -1;
             }
             if (args.size() >= 4)                          // show / reset: its 16 bits, the Den's state
-                return std::format("ok bits={:#06x} den={} skillpts={}\n", quest_bits[std::size_t(bit >> 3)] | quest_bits[std::size_t(bit >> 3) + 1] << 8,
-                                   town.world.den.state, town.world.character.stats.get(d2d::d2s::kSkillPts));
+                return std::format("ok bits={:#06x} den={} skillpts={} states={},{},{},{},{},{}\n", quest_bits[std::size_t(bit >> 3)] | quest_bits[std::size_t(bit >> 3) + 1] << 8,
+                                   town.world.den.state, town.world.character.stats.get(d2d::d2s::kSkillPts), town.world.den.state, town.world.burial.state,
+                                   town.world.tools.state, town.world.cain.state, town.world.tower.state, town.world.andy.state);
             header.quests[std::size_t(header.active_difficulty())][std::size_t(bit >> 3)] |= std::uint8_t(1 << (bit & 7));
+            switch (quest) {                                // as a new game would see it (FUN_00546270): its join, then the chain from quest 1
+            case 1: town.world.den.join(quest_bits); break;
+            case 2: town.world.burial.join(quest_bits); break;
+            case 3: town.world.tools.join(quest_bits); break;
+            case 4: town.world.cain.join(quest_bits, false, false); break;
+            case 5: town.world.tower.join(quest_bits); break;
+            case 6: town.world.andy.join(quest_bits); break;
+            default: break;
+            }
+            if (quest >= 1 && quest <= 6) town.world.chain(1);
             for (std::size_t i = 0; i < town.level->npcs.size() && i < town.npc_states.size(); ++i)
                 if (const int gated_quest = town.level->npcs[i].quest)
                     town.npc_states[i].hidden = !header.quest_flag(header.active_difficulty(), gated_quest, 0);
@@ -368,9 +403,34 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 if (monsters[i].alive() && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
             return std::string("ok\n");
         }
+        if (args.size() >= 3 && args[1] == "itemat" && scene) {   // where carried item <id> sits on screen with the inventory open: its box's middle
+            const auto found = std::ranges::find(town.world.character.items, std::atoi(args[2].c_str()), &d2d::d2s::Item::id);
+            if (found == town.world.character.items.end()) return std::string("err no such item\n");
+            const auto& layout = scene->inv_layout[std::size_t(std::clamp(town.world.character.character_class, 0, 6))];
+            std::array<int, 4> rect{};
+            if (found->location == d2d::d2s::item_location::kStored && found->panel == d2d::d2s::item_panel::kInventory) {
+                const auto info = scene->rules.item_info.find(found->code);
+                const int width = info != scene->rules.item_info.end() ? info->second.width : 1, height = info != scene->rules.item_info.end() ? info->second.height : 1;
+                rect = { layout.grid_x + found->column * layout.box_w, layout.grid_y + found->row * layout.box_h, width * layout.box_w, height * layout.box_h };
+            } else if (found->location == d2d::d2s::item_location::kEquipped && found->slot >= d2d::d2s::body_location::kFirst && found->slot <= d2d::d2s::body_location::kLast) {
+                rect = layout.slots[std::size_t(found->slot)];
+            } else return std::string("err not in the inventory panel\n");
+            return std::format("ok {} {}\n", rect[0] + rect[2] / 2, rect[1] + rect[3] / 2);
+        }
         if (args.size() >= 2 && args[1] == "clearinv") {   // empty the inventory grid (tests that need room)
             std::erase_if(town.world.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });
             return std::string("ok\n");
+        }
+        if (args.size() >= 4 && args[1] == "equip" && scene) {   // a normal <code> in body slot <n>, replacing what's there (tests)
+            auto& items = town.world.character.items;
+            const int slot = std::atoi(args[3].c_str());
+            std::erase_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
+            auto seed = town.world.rng;
+            auto item = d2d::rules::generate_item(scene->rules, args[2], 1, 2, town.world.rng, &seed);
+            item.location = d2d::d2s::item_location::kEquipped;
+            item.slot = std::uint8_t(slot);
+            items.push_back(item);
+            return std::format("ok quantity={}\n", item.quantity);
         }
         if (args.size() >= 2 && args[1] == "wear") {       // halve worn items' durability
             for (auto& item : town.world.character.items) if (item.location == d2d::d2s::item_location::kEquipped) item.durability = d2d::rules::max_durability(item) / 2;
@@ -415,10 +475,20 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         if (args.size() >= 2 && args[1] == "pets") {      // each pet: row level life dmg th ac res ranged/aura
             std::string out;
             for (const auto& pet : town.fight.pets)
-                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={}\n",
+                out += std::format("{} L{} hp={}/{} dmg={}-{} th={} ac={} res={},{},{},{} fire={}-{} ranged={}:{} aura={}:{} here={} at={:.1f},{:.1f} {} walk={} path={} goal={:.1f},{:.1f} target={} cast={} ctrl={},{},{} charges={} buffs={}\n",
                                    pet.monster.npc.name, pet.monster.stats.level, pet.monster.hit_points, pet.monster.stats.hit_points, pet.monster.stats.a1_min, pet.monster.stats.a1_max, pet.monster.stats.to_hit, pet.monster.stats.armor_class,
                                    pet.res[0], pet.res[1], pet.res[2], pet.res[3], pet.fire_lo, pet.fire_hi, pet.ranged, pet.ranged_level, pet.aura,
-                                   pet.aura_level, pet.where == town.level);
+                                   pet.aura_level, pet.where == town.level, pet.monster.unit.x, pet.monster.unit.y, pet.monster.mode,
+                                   pet.monster.unit.walking, pet.monster.unit.path.size(), pet.monster.unit.goal_x, pet.monster.unit.goal_y, pet.target, pet.cast,
+                                   pet.ctrl[0], pet.ctrl[1], pet.ctrl[2], [&] {
+                                       std::string held;
+                                       for (const auto& charge : pet.charges) held += std::format("{}{}:{}", held.empty() ? "" : ",", charge.skill, charge.count);
+                                       return held.empty() ? std::string("-") : held;
+                                   }(), [&] {
+                                       std::string active;
+                                       for (const auto& buff : pet.buffs) active += std::format("{}{}", active.empty() ? "" : ",", buff.skill);
+                                       return active.empty() ? std::string("-") : active;
+                                   }());
             return out + "ok\n";
         }
         if (args.size() >= 4 && args[1] == "skill") {     // put skill <id> on the left / right button, if usable

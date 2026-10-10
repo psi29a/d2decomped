@@ -364,6 +364,7 @@ struct GameData {
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
+        int gfx_type = 0, gfx_class = 0;   // gfxtype / gfxclass (+0x2d / +0x2e): 2 looks and moves as that player class (FUN_00645270)
     };
     std::unordered_map<std::string, StateInfo> states;
     std::vector<std::uint8_t> colour_shifts;           // ACT1 PL2 +0x53500: 111 x 256

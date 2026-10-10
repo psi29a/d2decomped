@@ -4,6 +4,8 @@
 // with a party, nothing lands on a blocked subtile or by the entrance.
 #include <merc.hpp>
 #include <missiles.hpp>
+#include <pets.hpp>
+#include <shadows.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
@@ -13,6 +15,10 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <string_view>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -425,6 +431,372 @@ int main() {
                 assert(next == entry.tried.size() && act.kind == entry.kind && seed.low == entry.after_low && seed.high == entry.after_high);
             }
         }
+            // The pets' think (MonAI 67 NecroPet, FUN_005e4cf0; tools/emu/necropet.py
+            // --dump: game.exe's own runs). From the pet (at 5000, 5000): size, the
+            // owner, its mode, its path spot and end, the footstep cursor, its last
+            // arrival, its pets, those crowding this one, town, Velocity / Run, the
+            // foe (found, melee, bit 30, spot, distance), a clear line, the x where
+            // level 2 starts, the seed; what it comes to, the frames, unreachable,
+            // the seed after, the moves tried and the footsteps.
+            {
+                using Kind = d2d::rules::PetAct::Kind;
+                struct Tried { int x, y, mode, foe, type, pct, steps, found; };
+                struct PetCase {
+                    int size, owner_x, owner_y, owner_mode, cur_x, cur_y, end_x, end_y, cursor, arrive_x, arrive_y, pets, crowd, town, velocity, run;
+                    int foe, melee, ignored, foe_x, foe_y, distance, clear, split;
+                    std::uint32_t low, high; Kind kind; int frames, unreachable; std::uint32_t after_low, after_high;
+                    std::vector<Tried> tried; std::vector<std::pair<int, int>> ring;
+                };
+                const std::vector<PetCase> pet_cases{
+                { 3, 101, 130, 2, 101, 132, 95, 123, 15, 61, 100, 10, 1, 0, 9, 30, 0, 0, 0, 0, 0, 0, 1, -8, 2202822778u, 1241417136u, Kind::teleport, 0, 0, 2202822778u, 1241417136u, {  }, { { 110, 150 }, { 82, 106 }, { 99, 119 }, { 80, 105 }, { 105, 151 }, { 127, 144 }, { 111, 102 }, { 109, 125 }, { 99, 141 }, { 118, 139 }, { 112, 110 }, { 110, 100 }, { 124, 133 }, { 75, 103 }, { 73, 112 }, { 127, 115 }, { 109, 101 }, { 120, 129 }, { 91, 128 }, { 108, 153 } } },
+                { 3, 0, -3, 1, 3, -1, 0, -13, 13, 9, -29, 10, 3, 0, 0, 8, 1, 1, 0, 4, -1, 1, 0, 8, 430925917u, 180851701u, Kind::moved, 0, 0, 3009753990u, 179735911u, { { 0, -5, 2, 0, 0, 0, 40, 1 } }, { { -30, -20 }, { -17, 26 }, { 28, -30 }, { 0, -9 }, { 15, -8 }, { -4, -29 }, { 6, 7 }, { -18, 16 }, { 13, -16 }, { -9, -28 }, { -11, -12 }, { -30, -7 }, { 18, 26 }, { -23, -25 }, { -15, 12 }, { -24, -33 }, { -27, -4 }, { 21, -2 }, { -19, 10 }, { 5, -21 } } },
+                { 2, 2, -126, 1, 0, -129, 0, -129, 3, -25, -162, 20, 1, 0, 11, 9, 0, 0, 0, 0, 0, 0, 0, 10, 1260295230u, 2233701748u, Kind::teleport, 0, 0, 1260295230u, 2233701748u, {  }, { { -24, -151 }, { -15, -119 }, { 12, -141 }, { -28, -118 }, { -5, -133 }, { 11, -127 }, { -20, -119 }, { 2, -103 }, { 8, -148 }, { 27, -132 }, { -17, -116 }, { -19, -137 }, { 30, -142 }, { 24, -117 }, { -13, -110 }, { -16, -146 }, { 19, -116 }, { 32, -121 }, { -16, -113 }, { 32, -132 } } },
+                { 3, 10, 15, 4, 17, 22, 17, 22, 2, 31, -17, 40, 1, 0, 0, 0, 1, 0, 0, 0, -2, 8, 1, 9999, 3869060923u, 333587128u, Kind::chase, 0, 0, 3943344927u, 1613755786u, { { 0, 0, 2, 1, 13, 0, 12, 1 } }, { { -7, 43 }, { 38, -2 }, { 27, -14 }, { -16, 2 }, { 6, 13 }, { -5, -12 }, { -18, -4 }, { -2, 8 }, { 13, 21 }, { -12, -10 }, { 3, -7 }, { 37, 13 }, { 1, 27 }, { 26, 29 }, { 13, 22 }, { 40, -7 }, { 17, -13 }, { 39, -14 }, { 10, 43 }, { 2, 29 } } },
+                { 3, -123, 65, 6, -135, 72, -135, 72, 6, -97, 46, 5, 3, 0, 5, 8, 1, 0, 0, -1, -2, 40, 0, 9999, 1651065684u, 943077948u, Kind::teleport, 0, 0, 1651065684u, 943077948u, {  }, { { -148, 75 }, { -146, 51 }, { -97, 61 }, { -107, 56 }, { -129, 94 }, { -106, 79 }, { -116, 64 }, { -125, 64 }, { -100, 69 }, { -148, 68 }, { -105, 67 }, { -152, 54 }, { -115, 40 }, { -123, 36 }, { -139, 79 }, { -146, 66 }, { -104, 74 }, { -111, 93 }, { -122, 51 }, { -96, 35 } } },
+                { 1, -6, 5, 1, -17, 15, -17, 15, 8, -16, -17, 1, 0, 0, 11, 10, 1, 1, 0, 3, -16, 12, 1, 9999, 2028081411u, 2297156900u, Kind::swing, 0, 0, 942961344u, 215358412u, {  }, { { -19, 27 }, { -26, -18 }, { -8, 5 }, { -19, 34 }, { -23, 28 }, { -10, -1 }, { 4, 8 }, { -5, 18 }, { -16, 20 }, { 17, 28 }, { 3, 3 }, { -16, -21 }, { 17, -23 }, { -19, 30 }, { 2, -23 }, { 7, 20 }, { -19, 11 }, { -14, -6 }, { 5, 25 }, { 0, -24 } } },
+                { 2, -3, 2, 1, 0, 0, 1, 6, 9, 25, 3, 5, 0, 0, 0, 0, 1, 0, 1, 3, 1, 17, 0, 9999, 3435371986u, 150771832u, Kind::moved, 0, 0, 488148655u, 1783967588u, { { 2, -8, 2, 0, 7, 0, 0, 1 } }, { { -8, 26 }, { 17, 16 }, { 24, -14 }, { -28, -2 }, { 26, 29 }, { 13, -4 }, { -25, 0 }, { -4, -16 }, { 7, 28 }, { 25, -28 }, { -9, 7 }, { 3, 13 }, { 23, 4 }, { 17, 24 }, { 27, -7 }, { -4, -8 }, { 8, -15 }, { -27, 18 }, { 22, 24 }, { 18, 13 } } },
+                { 1, 5, -6, 6, 7, -6, 16, -2, 0, 42, 2, 1, 0, 0, 8, 10, 1, 1, 0, 32, -25, 31, 0, 9999, 3954732770u, 4109704211u, Kind::moved, 0, 0, 1863159805u, 1649488861u, { { 24, 6, 2, 0, 0, 0, 40, 1 } }, { { 35, 20 }, { 6, 1 }, { 35, 8 }, { -20, 12 }, { -11, -8 }, { 8, -1 }, { -7, 17 }, { 21, -1 }, { 15, -26 }, { 8, -4 }, { 28, 22 }, { 10, -20 }, { -6, 6 }, { -1, 18 }, { 30, 21 }, { 14, -23 }, { -6, 18 }, { -16, -2 }, { 8, -19 }, { 11, -5 } } },
+                { 2, 10, 11, 1, 10, 11, 10, 11, 12, 22, 38, 20, 0, 0, 13, 15, 1, 0, 0, -13, 27, 13, 0, -8, 3181589678u, 2696741227u, Kind::stand, 15, 0, 597741726u, 276691931u, {  }, { { 32, 40 }, { 37, 39 }, { 10, 14 }, { 0, -13 }, { -8, 7 }, { 19, -18 }, { 39, -3 }, { -12, 25 }, { 29, -18 }, { -18, -7 }, { -11, -5 }, { -20, 24 }, { -2, 1 }, { 26, 3 }, { -5, 20 }, { 11, -13 }, { 11, 27 }, { 17, -12 }, { 34, 13 }, { 19, -3 } } },
+                { 1, 32, -5, 1, 30, -8, 26, -11, 1, 62, 33, 20, 3, 1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 9999, 3980972189u, 2890246053u, Kind::failed, 0, 0, 1636273095u, 614735410u, { { 26, -19, 2, 0, 0, -100, 40, 0 }, { 13, -10, 2, 0, 0, 0, 0, 0 }, { 34, -19, 2, 0, 0, -100, 40, 0 }, { 17, -10, 2, 0, 0, 0, 0, 0 }, { 34, -11, 2, 0, 0, -100, 40, 0 }, { 17, -6, 2, 0, 0, 0, 0, 0 }, { 34, -3, 2, 0, 0, -100, 40, 0 }, { 17, -2, 2, 0, 0, 0, 0, 0 }, { 26, -3, 2, 0, 0, -100, 40, 0 }, { 13, -2, 2, 0, 0, 0, 0, 0 }, { 18, -3, 2, 0, 0, -100, 40, 0 }, { 9, -2, 2, 0, 0, 0, 0, 0 }, { 18, -11, 2, 0, 0, -100, 40, 0 }, { 9, -6, 2, 0, 0, 0, 0, 0 }, { 18, -19, 2, 0, 0, -100, 40, 0 }, { 9, -10, 2, 0, 0, 0, 0, 0 }, { 0, -4, 2, 0, 0, 0, 0, 0 }, { 16, -3, 2, 0, 0, 0, 0, 0 }, { 32, -5, 2, 0, 0, 0, 0, 0 } }, { { 10, 21 }, { 17, -27 }, { 48, -30 }, { 18, -11 }, { 8, -8 }, { 55, 25 }, { 28, -1 }, { 52, 10 }, { 10, -23 }, { 27, 5 }, { 45, 16 }, { 3, -29 }, { 14, 1 }, { 45, -13 }, { 60, 17 }, { 25, -28 }, { 47, -3 }, { 42, 13 }, { 23, -3 }, { 45, 18 } } },
+                { 3, 4, -8, 2, 2, -8, 2, -8, 8, -1, -34, 40, 0, 0, 8, 6, 1, 0, 0, 28, 7, 27, 1, 9999, 1467670483u, 1295746146u, Kind::moved, 0, 1, 3615766256u, 1183090370u, { { 0, 0, 2, 1, 13, 0, 12, 0 }, { 1, 4, 2, 0, 0, 0, 0, 1 } }, { { 6, -16 }, { 1, -25 }, { 12, -15 }, { -26, 2 }, { 18, -36 }, { 28, -26 }, { -15, -12 }, { 3, -15 }, { 21, -15 }, { -1, 20 }, { -14, 0 }, { -16, -32 }, { 6, 12 }, { -26, -18 }, { 31, -33 }, { 25, 15 }, { 19, 18 }, { 29, 20 }, { 14, 22 }, { -1, -2 } } },
+                { 3, 36, 34, 3, 36, 34, 36, 34, 16, 68, 6, 40, 3, 0, 0, 10, 1, 1, 0, -35, 9, 10, 0, 1, 2562215347u, 251450251u, Kind::moved, 0, 0, 2562215347u, 251450251u, { { 28, 42, 2, 0, 0, 100, 40, 1 } }, { { 48, 23 }, { 27, 17 }, { 48, 29 }, { 42, 15 }, { 40, 8 }, { 30, 36 }, { 37, 45 }, { 19, 48 }, { 13, 52 }, { 31, 40 }, { 7, 11 }, { 45, 10 }, { 53, 19 }, { 22, 32 }, { 31, 36 }, { 9, 52 }, { 18, 45 }, { 30, 4 }, { 12, 20 }, { 22, 21 } } },
+                { 1, 3, -5, 4, 2, -1, 2, -1, 14, -19, -14, 20, 0, 1, 8, 9, 0, 0, 0, 0, 0, 0, 0, 9999, 664535100u, 533975705u, Kind::stand, 15, 0, 1634320581u, 277172519u, {  }, { { 14, -18 }, { 8, 24 }, { -9, 7 }, { 18, 12 }, { -9, -34 }, { -27, 14 }, { -12, 2 }, { -25, 5 }, { -17, -9 }, { 21, 8 }, { -3, -32 }, { 30, -15 }, { 20, -10 }, { -24, 2 }, { 19, 25 }, { -7, -31 }, { 24, 22 }, { -13, -8 }, { 19, -5 }, { -11, 13 } } },
+                { 1, -2, 16, 2, -2, 15, -2, 16, 8, 12, -21, 20, 0, 1, 9, 8, 0, 0, 0, 0, 0, 0, 1, -18, 2364931898u, 1008261136u, Kind::moved, 0, 0, 2144526258u, 986395048u, { { -10, 24, 2, 0, 0, 0, 40, 1 } }, { { 17, 33 }, { 1, 38 }, { -24, 46 }, { -14, 32 }, { -24, 1 }, { -2, -7 }, { 0, 43 }, { -13, 36 }, { 0, 25 }, { 22, 8 }, { -15, 3 }, { 7, 29 }, { 14, 22 }, { 12, 23 }, { -20, 26 }, { -15, 34 }, { -17, -2 }, { 28, 1 }, { 0, 27 }, { 26, -2 } } },
+                { 3, -2, 3, 2, -5, 5, -5, 5, 0, 12, -29, 20, 1, 0, 0, 8, 0, 0, 0, 0, 0, 0, 1, -17, 363783341u, 111496651u, Kind::moved, 0, 0, 1293614286u, 232015216u, { { -13, 5, 2, 0, 0, 0, 40, 0 }, { -7, 2, 2, 0, 0, 0, 0, 0 }, { -13, -3, 2, 0, 0, 0, 40, 0 }, { -7, -2, 2, 0, 0, 0, 0, 0 }, { -5, -3, 2, 0, 0, 0, 40, 0 }, { -3, -2, 2, 0, 0, 0, 0, 0 }, { 3, -3, 2, 0, 0, 0, 40, 0 }, { 1, -2, 2, 0, 0, 0, 0, 0 }, { 3, 5, 2, 0, 0, 0, 40, 0 }, { 1, 2, 2, 0, 0, 0, 0, 0 }, { 3, 13, 2, 0, 0, 0, 40, 0 }, { 1, 6, 2, 0, 0, 0, 0, 0 }, { -5, 13, 2, 0, 0, 0, 40, 0 }, { -3, 6, 2, 0, 0, 0, 0, 0 }, { -13, 13, 2, 0, 0, 0, 40, 0 }, { -7, 6, 2, 0, 0, 0, 0, 0 }, { -4, -1, 2, 0, 0, 0, 0, 0 }, { -1, 1, 2, 0, 0, 0, 0, 0 }, { -2, 3, 2, 0, 0, 0, 0, 0 }, { -4, 2, 2, 0, 0, 0, 0, 1 } }, { { -7, 32 }, { 14, 30 }, { 1, -12 }, { -27, -4 }, { 21, -4 }, { -31, -4 }, { 11, -2 }, { 5, -3 }, { 18, -15 }, { 15, 9 }, { -9, 24 }, { -8, 7 }, { -23, 26 }, { 5, 9 }, { -21, -16 }, { -27, 21 }, { -3, 29 }, { 22, -9 }, { 19, -26 }, { -18, 6 } } },
+                { 1, -29, 31, 1, -28, 30, -29, 31, 5, -21, 12, 5, 0, 0, 9, 8, 0, 0, 0, 0, 0, 0, 0, 9999, 3138633804u, 493116845u, Kind::moved, 0, 0, 3138633804u, 493116845u, { { -37, 39, 2, 0, 0, -12, 40, 0 }, { -19, 19, 2, 0, 0, 0, 0, 1 } }, { { -11, 30 }, { -34, 23 }, { -38, 52 }, { -38, 44 }, { -51, 32 }, { -28, 35 }, { -8, 47 }, { -55, 46 }, { -20, 59 }, { -57, 27 }, { -11, 53 }, { -17, 23 }, { -5, 1 }, { -8, 25 }, { -6, 6 }, { -3, 30 }, { -25, 41 }, { -58, 34 }, { -36, 46 }, { -59, 52 } } },
+                { 2, 3, 4, 2, 1, 1, 3, 4, 9, 14, -27, 20, 1, 0, 11, 15, 0, 0, 0, 0, 0, 0, 1, 9999, 2867582038u, 1693232064u, Kind::moved, 0, 0, 1784377838u, 1196046586u, { { -5, 12, 2, 0, 0, 0, 40, 0 }, { -3, 6, 2, 0, 0, 0, 0, 1 } }, { { -14, 26 }, { 31, 28 }, { -18, 26 }, { -19, -21 }, { -5, -9 }, { 12, 19 }, { 6, -20 }, { 29, 4 }, { 17, 3 }, { -22, 21 }, { 10, 8 }, { 27, 6 }, { -8, -25 }, { 23, -14 }, { -1, -14 }, { 31, 17 }, { -22, 24 }, { 25, 2 }, { -14, -24 }, { 7, 0 } } },
+                { 2, 10, -4, 6, 20, -4, 20, -4, 16, 35, -26, 20, 0, 0, 9, 15, 1, 0, 0, -2, 4, 1, 1, -1, 2475991270u, 1793131370u, Kind::moved, 0, 1, 2730333427u, 1543519334u, { { 0, 0, 2, 1, 13, 0, 12, 0 }, { 4, -2, 2, 0, 0, 0, 0, 1 } }, { { 38, -8 }, { 19, -34 }, { 26, -9 }, { 19, 10 }, { 0, 16 }, { 30, -19 }, { 22, 4 }, { 13, -33 }, { -4, -13 }, { -8, -13 }, { -1, 7 }, { 8, -28 }, { 15, -10 }, { -7, -2 }, { 1, 16 }, { -2, 18 }, { -14, 5 }, { 25, -24 }, { -4, 15 }, { 14, 23 } } },
+                { 2, -15, 6, 4, -13, 8, -26, 14, 19, 0, 14, 20, 1, 0, 6, 10, 1, 1, 0, -1, -2, 28, 0, 9999, 452574072u, 2260095739u, Kind::moved, 0, 0, 1898387027u, 188765192u, { { -34, 14, 2, 0, 0, 0, 40, 1 } }, { { 5, -15 }, { -20, 7 }, { -7, -18 }, { -15, -2 }, { -19, 33 }, { -6, 34 }, { -1, 12 }, { 3, 2 }, { 3, -6 }, { -14, 32 }, { -16, 29 }, { 12, 30 }, { -1, 2 }, { 7, 3 }, { -38, 12 }, { -38, 33 }, { 15, 9 }, { -24, 9 }, { -12, 3 }, { -19, 33 } } },
+                { 1, 12, -5, 1, 14, -6, 2, 6, 9, -25, 13, 5, 1, 0, 5, 30, 1, 1, 0, 20, -14, 12, 0, 2, 3598827253u, 3690137481u, Kind::moved, 0, 0, 1856223892u, 88858914u, { { 32, -27, 2, 0, 0, 52, 77, 1 } }, { { 37, -1 }, { 8, 1 }, { 33, -25 }, { -4, 6 }, { 29, -9 }, { 18, -28 }, { 39, -31 }, { -12, -2 }, { 32, -27 }, { -11, 21 }, { 16, 1 }, { 42, -6 }, { -18, -17 }, { -3, 11 }, { 1, -34 }, { 2, -24 }, { -14, -7 }, { 39, -7 }, { 34, -2 }, { 7, -26 } } },
+                { 3, 10, 7, 1, 8, 4, 10, 7, 9, -7, -5, 5, 0, 0, 0, 9, 1, 0, 1, 16, 27, 4, 1, 9999, 1077621290u, 1818693869u, Kind::chase, 0, 0, 1453869887u, 449467617u, { { 0, 0, 2, 1, 13, 0, 12, 1 } }, { { 21, -17 }, { -1, 23 }, { 32, -3 }, { 37, -6 }, { 35, 3 }, { 25, 33 }, { -12, -2 }, { 24, 37 }, { 29, 5 }, { 6, -18 }, { -10, -9 }, { 35, -4 }, { -13, 22 }, { 24, -11 }, { -3, -12 }, { 26, -8 }, { 12, 19 }, { -2, 27 }, { -3, 0 }, { 31, 19 } } },
+                { 3, 14, 4, 1, 3, 14, 3, 14, 9, 24, 41, 2, 3, 1, 5, 10, 1, 0, 0, -36, -14, 19, 1, 9999, 2354268708u, 1118372199u, Kind::moved, 0, 0, 124150848u, 617906300u, { { -10, -3, 2, 0, 0, 48, 77, 0 }, { -10, -3, 2, 0, 15, 48, 77, 0 }, { -10, -3, 2, 0, 1, 48, 77, 1 } }, { { 44, -9 }, { 23, -25 }, { 17, -15 }, { 31, -10 }, { 16, -1 }, { 20, 33 }, { 25, 19 }, { -3, -9 }, { -10, -3 }, { -13, -17 }, { 30, 33 }, { 33, -3 }, { -8, 23 }, { -1, 20 }, { 37, 32 }, { -9, -25 }, { 4, 27 }, { 8, 2 }, { -11, 28 }, { 40, -2 } } },
+                { 1, -4, -2, 3, -2, -2, -2, -2, 15, -37, 20, 10, 1, 0, 11, 8, 0, 0, 0, 0, 0, 0, 0, 9999, 3299798234u, 716048591u, Kind::moved, 0, 0, 1595993233u, 1376320663u, { { 6, 6, 2, 0, 0, 0, 40, 1 } }, { { -1, 23 }, { -12, -18 }, { -28, -14 }, { -11, -10 }, { 5, -19 }, { -26, -30 }, { 20, -31 }, { 13, 8 }, { -4, 4 }, { -34, 19 }, { 14, 15 }, { -15, 10 }, { 8, -28 }, { 24, 22 }, { -21, 3 }, { 10, -10 }, { 8, -25 }, { 15, 23 }, { -11, -17 }, { 16, 8 } } },
+                { 1, -23, 24, 3, -11, 33, -11, 33, 19, -26, 13, 40, 0, 0, 8, 10, 1, 0, 0, -3, -1, 17, 1, 9999, 4246894278u, 595978277u, Kind::moved, 0, 0, 4246894278u, 595978277u, { { -11, 41, 2, 0, 0, 25, 40, 0 }, { -6, 20, 2, 0, 0, 0, 0, 1 } }, { { -43, 33 }, { 2, 20 }, { 2, 24 }, { -50, 16 }, { -37, 19 }, { -21, 41 }, { -3, 38 }, { -28, 10 }, { -8, 34 }, { -37, 17 }, { -8, 37 }, { -33, 5 }, { -32, 48 }, { -5, 7 }, { 0, 30 }, { 0, 2 }, { -17, 20 }, { -12, 39 }, { -45, 33 }, { -6, 47 } } },
+                { 1, 0, 5, 6, 3, 5, 0, 5, 14, -39, -9, 1, 1, 1, 9, 8, 1, 0, 0, 5, 2, 19, 1, -19, 433096235u, 4020679959u, Kind::failed, 0, 0, 3847817758u, 1711706110u, { { -8, 13, 2, 0, 0, 0, 40, 0 }, { -4, 6, 2, 0, 0, 0, 0, 0 }, { -8, 5, 2, 0, 0, 0, 40, 0 }, { -4, 2, 2, 0, 0, 0, 0, 0 }, { -8, -3, 2, 0, 0, 0, 40, 0 }, { -4, -2, 2, 0, 0, 0, 0, 0 }, { 0, -3, 2, 0, 0, 0, 40, 0 }, { 0, -2, 2, 0, 0, 0, 0, 0 }, { 8, -3, 2, 0, 0, 0, 40, 0 }, { 4, -2, 2, 0, 0, 0, 0, 0 }, { 8, 5, 2, 0, 0, 0, 40, 0 }, { 4, 2, 2, 0, 0, 0, 0, 0 }, { 8, 13, 2, 0, 0, 0, 40, 0 }, { 4, 6, 2, 0, 0, 0, 0, 0 }, { 0, 13, 2, 0, 0, 0, 40, 0 }, { 0, 6, 2, 0, 0, 0, 0, 0 }, { 4, 1, 2, 0, 0, 0, 0, 0 }, { 0, 2, 2, 0, 0, 0, 0, 0 }, { 0, 5, 2, 0, 0, 0, 0, 0 }, { -1, 4, 2, 0, 0, 0, 0, 0 } }, { { 0, -23 }, { -4, -3 }, { 21, 10 }, { -5, 10 }, { -27, -12 }, { 5, 14 }, { 12, 27 }, { 9, -9 }, { -13, -13 }, { 30, -7 }, { 25, -10 }, { 21, 3 }, { 6, 28 }, { 30, 21 }, { -27, -14 }, { 24, -24 }, { 30, -15 }, { 4, -18 }, { 13, -21 }, { -13, -3 } } },
+                { 1, -28, 55, 3, -30, 54, -40, 43, 16, -62, 66, 1, 1, 0, 13, 30, 0, 0, 0, 0, 0, 0, 0, 9999, 3238978850u, 2530056063u, Kind::teleport, 0, 0, 3238978850u, 2530056063u, {  }, { { -34, 71 }, { -35, 57 }, { -16, 42 }, { -7, 48 }, { -18, 65 }, { -30, 47 }, { -39, 42 }, { -54, 82 }, { -17, 45 }, { -20, 31 }, { -42, 46 }, { -45, 72 }, { -47, 38 }, { -55, 72 }, { -50, 59 }, { -39, 68 }, { -45, 36 }, { -36, 31 }, { -49, 34 }, { -35, 47 } } },
+                { 1, 14, 20, 1, 14, 20, 25, 14, 8, 28, 27, 20, 3, 0, 5, 10, 0, 0, 0, 0, 0, 0, 1, 9999, 1794707677u, 1009574681u, Kind::moved, 0, 0, 1588165487u, 365659305u, { { -5, 39, 2, 0, 0, 47, 77, 1 } }, { { -16, 42 }, { 5, 34 }, { 4, 44 }, { 24, 50 }, { 1, 32 }, { 22, 3 }, { 28, 3 }, { -5, 39 }, { -8, 0 }, { 28, 27 }, { 13, -8 }, { -8, 7 }, { -9, 6 }, { 44, 12 }, { 23, 29 }, { 6, 9 }, { -4, -10 }, { -12, 34 }, { -3, 37 }, { 29, 13 } } },
+                { 3, -23, 25, 1, -25, 25, -33, 34, 14, -37, -4, 5, 0, 0, 11, 10, 1, 1, 1, 4, -38, 40, 1, 9999, 2060026139u, 2881359599u, Kind::moved, 0, 0, 2060026139u, 2881359599u, { { -41, 34, 2, 0, 0, -10, 40, 0 }, { -21, 17, 2, 0, 0, 0, 0, 1 } }, { { -29, 7 }, { -6, 21 }, { -15, 9 }, { -25, 35 }, { -49, 18 }, { -27, 16 }, { -35, 32 }, { -25, 37 }, { -36, 13 }, { -11, 39 }, { -53, 38 }, { -14, 10 }, { -53, 21 }, { -30, 3 }, { -16, 52 }, { 2, 11 }, { -29, 21 }, { -36, 16 }, { -47, 47 }, { 3, 49 } } },
+                { 1, 6, 13, 3, 6, 13, 6, 13, 4, 14, 30, 40, 3, 0, 8, 8, 1, 0, 0, -4, -4, 22, 1, 9999, 1331684344u, 2967539754u, Kind::chase, 0, 0, 3082223106u, 555435378u, { { 0, 0, 2, 1, 13, 0, 12, 1 } }, { { -10, 36 }, { -8, 4 }, { -22, 3 }, { -15, 35 }, { -15, 33 }, { -6, 24 }, { -6, -14 }, { 24, 14 }, { -21, 8 }, { 15, -12 }, { 11, -9 }, { 35, 4 }, { 16, 28 }, { -23, 22 }, { 35, 26 }, { 24, -4 }, { 13, 17 }, { -24, 35 }, { 23, 13 }, { 2, 4 } } },
+                { 3, -14, 6, 3, -22, -3, -22, -3, 11, 20, -16, 10, 3, 0, 11, 9, 0, 0, 0, 0, 0, 0, 1, 9999, 2469514168u, 193798617u, Kind::moved, 0, 0, 331769457u, 1030015515u, { { -22, -11, 2, 0, 0, 0, 40, 0 }, { -11, -6, 2, 0, 0, 0, 0, 0 }, { -14, -11, 2, 0, 0, 0, 40, 0 }, { -7, -6, 2, 0, 0, 0, 0, 0 }, { -14, -3, 2, 0, 0, 0, 40, 0 }, { -7, -2, 2, 0, 0, 0, 0, 0 }, { -14, 5, 2, 0, 0, 0, 40, 0 }, { -7, 2, 2, 0, 0, 0, 0, 0 }, { -22, 5, 2, 0, 0, 0, 40, 1 } }, { { -27, 6 }, { -18, -22 }, { 13, 3 }, { 15, 0 }, { -32, 19 }, { 0, 35 }, { -13, 7 }, { -17, 20 }, { 7, 0 }, { -12, 25 }, { -14, -18 }, { -9, 23 }, { 10, -14 }, { 5, 13 }, { -24, -12 }, { -44, -2 }, { 8, -14 }, { -3, -2 }, { -20, 13 }, { 7, 9 } } },
+                { 2, -29, 31, 1, -32, 32, -29, 31, 5, -45, 65, 2, 1, 0, 6, 0, 1, 1, 0, -3, 37, 16, 1, 14, 2868049142u, 1258584083u, Kind::moved, 0, 0, 2868049142u, 1258584083u, { { -37, 39, 2, 0, 0, -100, 40, 0 }, { -19, 19, 2, 0, 0, 0, 0, 0 }, { -37, 31, 2, 0, 0, -100, 40, 1 } }, { { -48, 27 }, { -1, 34 }, { -30, 25 }, { -28, 8 }, { -45, 12 }, { -11, 40 }, { -53, 44 }, { -40, 33 }, { -5, 10 }, { -57, 45 }, { -37, 37 }, { -49, 36 }, { -28, 22 }, { -28, 10 }, { -31, 61 }, { -11, 23 }, { -8, 20 }, { -53, 16 }, { -9, 10 }, { -46, 13 } } },
+                { 3, -2, 5, 6, -2, 5, -2, 5, 8, 30, 9, 2, 0, 0, 0, 10, 1, 0, 0, 5, -4, 19, 1, 9999, 4246962295u, 1578061787u, Kind::chase, 0, 0, 3299744622u, 1771375565u, { { 0, 0, 2, 1, 13, 0, 12, 1 } }, { { 18, -8 }, { 28, 7 }, { -23, 30 }, { -8, -15 }, { 20, 30 }, { 2, 29 }, { -24, 14 }, { -27, 9 }, { 19, 21 }, { -22, 9 }, { 16, 17 }, { 12, 33 }, { 5, 24 }, { 8, -9 }, { -13, -22 }, { -5, 34 }, { 17, -2 }, { 9, 25 }, { 2, -11 }, { -2, 3 } } },
+                { 2, -1, 3, 1, -13, 4, -13, 4, 6, -22, -10, 5, 3, 0, 13, 8, 0, 0, 0, 0, 0, 0, 1, 9, 2557733434u, 2245223802u, Kind::moved, 0, 0, 2384741006u, 502379406u, { { -6, 12, 2, 0, 7, 0, 0, 0 }, { 9, -9, 2, 0, 0, 0, 9, 0 }, { -13, 4, 2, 0, 0, 0, 40, 0 }, { -3, 4, 2, 0, 0, 0, 0, 1 } }, { { 22, -16 }, { 13, 11 }, { 2, 27 }, { 6, 22 }, { 17, 15 }, { 20, -22 }, { -31, -4 }, { -27, 23 }, { -18, -2 }, { 22, -13 }, { -5, -5 }, { -10, -13 }, { -9, -2 }, { -31, 30 }, { 18, -12 }, { -15, -24 }, { 6, -4 }, { 2, 19 }, { -10, 6 }, { 12, -5 } } },
+                { 1, -1, -1, 3, 0, 0, -13, -4, 7, 19, -31, 1, 3, 0, 11, 9, 1, 0, 0, 15, 12, 16, 1, 20, 781144945u, 3290252109u, Kind::stand, 10, 1, 971617670u, 970870086u, { { 0, 0, 2, 1, 13, 0, 12, 0 } }, { { -12, -2 }, { 18, -28 }, { -10, -25 }, { -14, -18 }, { 2, 0 }, { -27, -29 }, { -25, 24 }, { 14, 3 }, { -28, -1 }, { 17, 16 }, { 2, -16 }, { -13, -19 }, { 28, 6 }, { -8, -16 }, { -4, -11 }, { -6, -27 }, { -10, -28 }, { -9, -13 }, { 2, 24 }, { 29, 23 } } },
+                { 3, -5, 7, 6, -6, 6, 6, 13, 4, -14, -26, 20, 3, 0, 8, 0, 1, 1, 0, 1, 2, 6, 1, 9999, 3752764873u, 1355479334u, Kind::swing, 0, 0, 720383639u, 244251088u, {  }, { { 14, 28 }, { 6, -21 }, { 10, -20 }, { -6, -20 }, { -8, -17 }, { 25, 7 }, { -23, -7 }, { 21, 34 }, { -32, 12 }, { -31, -23 }, { -18, 6 }, { 9, 16 }, { -7, 32 }, { -27, 4 }, { -4, 13 }, { 15, 24 }, { -20, 2 }, { 17, 18 }, { -20, 20 }, { 20, 16 } } },
+                { 3, -29, -16, 1, -27, -16, -18, -12, 9, -40, 21, 20, 3, 0, 11, 8, 0, 0, 0, 0, 0, 0, 1, 5, 4208886955u, 3122724643u, Kind::moved, 0, 0, 4208886955u, 3122724643u, { { -10, -4, 2, 0, 0, -28, 40, 1 } }, { { -4, 10 }, { -47, -30 }, { -57, 4 }, { -54, -1 }, { -42, -18 }, { -46, -23 }, { -17, -19 }, { -46, -18 }, { -32, -26 }, { -46, -7 }, { -58, -20 }, { -4, -27 }, { -20, 3 }, { -54, -17 }, { -12, -16 }, { -19, 10 }, { -24, -17 }, { -17, -22 }, { -16, 11 }, { -27, 5 } } },
+                { 3, 0, 0, 2, -2, 3, -4, -10, 16, 23, 1, 2, 3, 0, 6, 30, 1, 1, 0, -6, -7, 38, 1, 9999, 96844170u, 4095145211u, Kind::swing, 0, 0, 2970523558u, 464260102u, {  }, { { -5, -11 }, { -18, 17 }, { 28, -3 }, { -27, 1 }, { 7, -27 }, { 22, -17 }, { 23, 11 }, { -5, -26 }, { 7, 15 }, { 15, 18 }, { -9, 17 }, { -7, 7 }, { 0, -14 }, { -14, 15 }, { 13, 5 }, { -4, 4 }, { -20, -29 }, { -22, 18 }, { 19, 7 }, { -10, 21 } } },
+                { 2, -1, -1, 1, 2, -3, 9, -8, 19, 5, 0, 5, 0, 0, 11, 8, 0, 0, 0, 0, 0, 0, 0, -19, 1208699392u, 2616866758u, Kind::failed, 0, 0, 624406934u, 1751400829u, { { 8, 4, 2, 0, 7, 0, 0, 0 }, { 9, 9, 2, 0, 0, 0, 9, 0 }, { 9, -8, 2, 0, 0, 0, 40, 0 }, { 4, 0, 2, 0, 0, 0, 0, 0 } }, { { -7, 14 }, { -14, -22 }, { -9, 6 }, { 3, 1 }, { -30, 3 }, { -8, -6 }, { 11, -6 }, { -22, 19 }, { -12, 9 }, { 24, 22 }, { 28, 8 }, { -16, -18 }, { -20, -30 }, { -24, 27 }, { -26, 9 }, { 19, -30 }, { 16, -19 }, { -15, -30 }, { 0, -28 }, { 13, 6 } } },
+                { 2, 18, 19, 6, 18, 17, 26, 17, 17, 27, -13, 1, 3, 1, 11, 10, 0, 0, 0, 0, 0, 0, 1, -18, 2987144626u, 2914795165u, Kind::moved, 0, 0, 2427387024u, 1420568890u, { { 41, 32, 2, 0, 0, 64, 77, 1 } }, { { 40, 0 }, { 46, 26 }, { 31, 37 }, { -2, 19 }, { 10, 27 }, { 33, 11 }, { 1, 38 }, { 44, 9 }, { 43, 43 }, { 2, 19 }, { 11, -8 }, { 2, 20 }, { 33, 31 }, { -9, 43 }, { 32, 36 }, { -8, 38 }, { 41, 32 }, { 22, 49 }, { 25, -10 }, { -6, 9 } } },
+                { 2, -16, 5, 3, -16, 5, -16, 5, 16, 17, 33, 2, 1, 1, 6, 9, 0, 0, 0, 0, 0, 0, 1, 3, 1226321510u, 2241238311u, Kind::moved, 0, 0, 2419396921u, 883006583u, { { 5, 17, 2, 0, 0, 41, 77, 0 }, { 5, 17, 2, 0, 15, 41, 77, 0 }, { 5, 17, 2, 0, 1, 41, 77, 1 } }, { { -46, -10 }, { 13, -7 }, { -27, -9 }, { -46, -24 }, { -23, -6 }, { -20, 12 }, { -35, -8 }, { -35, -18 }, { -36, 29 }, { -40, 5 }, { -3, 7 }, { -34, -6 }, { -12, 31 }, { 10, 23 }, { 9, 14 }, { 5, 17 }, { -18, 19 }, { -1, 7 }, { -31, 1 }, { 6, -1 } } },
+                };
+                for (const auto& entry : pet_cases) {
+                    d2d::rules::PetView view{ .x = 5000, .y = 5000, .size = entry.size, .owner_x = 5000 + entry.owner_x, .owner_y = 5000 + entry.owner_y,
+                        .owner_mode = entry.owner_mode, .cur_x = 5000 + entry.cur_x, .cur_y = 5000 + entry.cur_y, .end_x = 5000 + entry.end_x, .end_y = 5000 + entry.end_y,
+                        .cursor = entry.cursor, .arrive_x = 5000 + entry.arrive_x, .arrive_y = 5000 + entry.arrive_y, .pets = entry.pets, .crowd = entry.crowd,
+                        .town = entry.town != 0, .velocity = entry.velocity, .run = entry.run, .foe = entry.foe != 0, .foe_melee = entry.melee != 0,
+                        .foe_ignored = entry.ignored != 0, .clear = entry.clear != 0, .foe_x = 5000 + entry.foe_x, .foe_y = 5000 + entry.foe_y, .foe_distance = entry.distance };
+                    for (std::size_t k = 0; k < view.ring.size(); ++k) view.ring[k] = { 5000 + entry.ring[k].first, 5000 + entry.ring[k].second };
+                    d2d::rules::Rng seed;
+                    seed.low = entry.low; seed.high = entry.high;
+                    std::size_t next = 0;
+                    const auto act = d2d::rules::necropet_think(view, seed, [&](int x, int) { return x - 5000 >= entry.split ? 2 : 1; },
+                        [&](const d2d::rules::MercMove& move) {
+                            assert(next < entry.tried.size());
+                            const auto& want = entry.tried[next++];
+                            assert(move.mode == want.mode && (move.unit != 0) == (want.foe != 0) && move.type == want.type && move.pct == want.pct && move.steps == want.steps);
+                            assert(move.unit != 0 || (move.x == 5000 + want.x && move.y == 5000 + want.y));
+                            return want.found != 0;
+                        });
+                    assert(next == entry.tried.size() && act.kind == entry.kind && act.frames == entry.frames && act.unreachable == (entry.unreachable != 0));
+                    assert(seed.low == entry.after_low && seed.high == entry.after_high);
+                }
+            }
+            // The other pets' thinks (rules::*_think on PetBrain; tools/emu/pet_ais.py
+            // --dump: game.exe's own runs, the follow / decide answers replayed):
+            // the scene, the calls each makes and what it comes to.
+            {
+                static constexpr std::string_view kCases =
+#include "pet_ais_cases.inc"
+                    ;
+                using d2d::rules::PetAct;
+                using d2d::rules::PetUnit;
+                struct Replay {
+                    std::vector<std::string> calls;
+                    std::size_t next = 0;
+                    std::vector<int> call(char kind) {
+                        assert(next < calls.size());
+                        std::istringstream fields(calls[next++]);
+                        char got = 0;
+                        fields >> got;
+                        assert(got == kind);
+                        std::vector<int> values;
+                        for (int value = 0; fields >> value;) values.push_back(value);
+                        return values;
+                    }
+                    bool try_move(const d2d::rules::MercMove& move) {
+                        const auto want = call('m');
+                        assert(move.mode == want[2] && move.unit == want[3] && move.type == want[4] && move.pct == want[5] && move.steps == want[6]);
+                        assert(move.unit != 0 || move.mode == 0 || ((move.x & 0xffff) == want[0] && (move.y & 0xffff) == want[1]));
+                        return want[7] != 0;
+                    }
+                    bool follow(int mode, bool run, int pct, int reach) {
+                        const auto want = call('f');
+                        assert(mode == want[0] && int(run) == want[1] && pct == want[2] && reach == want[3]);
+                        return want[4] != 0;
+                    }
+                    bool decide(PetUnit foe, bool melee, bool stay, int reach) {
+                        const auto want = call('d');
+                        assert(int(foe) == want[0] && int(melee) == want[1] && int(stay) == want[2] && reach == want[3]);
+                        return want[4] != 0;
+                    }
+                    bool teleport() { return call('t')[0] != 0; }
+                    void give_hands() {}
+                    [[nodiscard]] PetAct followed() const { return { .kind = PetAct::Kind::stand, .frames = -7 }; }
+                };
+                std::istringstream lines{ std::string(kCases) };
+                int checked = 0;
+                for (std::string line; std::getline(lines, line);) {
+                    if (line.empty()) continue;
+                    const auto bar = line.find('|'), bar2 = line.rfind('|');
+                    std::istringstream fields(line.substr(0, bar));
+                    auto read = [&] { int value = 0; fields >> value; return value; };
+                    d2d::rules::PetScene scene;
+                    const int which = read();
+                    scene.cls = read(); scene.owner = read() != 0; scene.owner_id = read(); scene.owner_mode = read(); scene.town = read() != 0; scene.frame = read();
+                    for (std::size_t unit = 1; unit < 6; ++unit) { scene.spot[unit].first = read(); scene.spot[unit].second = read(); }
+                    for (std::size_t from = 1; from < 6; ++from) for (std::size_t to = 1; to < 6; ++to) scene.gap[from][to] = read();
+                    for (std::size_t from = 1; from < 6; ++from) for (std::size_t to = 1; to < 6; ++to) scene.distance[from][to] = read();
+                    scene.foe = read() != 0; scene.foe_melee = read() != 0; scene.foe2 = read() != 0; scene.foe2_melee = read() != 0; scene.nearby = read() != 0;
+                    scene.foe_distance = read(); scene.foe2_distance = read();
+                    scene.driver = read() != 0; scene.driver_melee = read() != 0; scene.driver_distance = read();
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.clear[unit] = read() != 0;
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.melee_of[unit] = read() != 0;
+                    for (std::size_t unit = 1; unit < 6; ++unit) scene.dying[unit] = read() != 0;
+                    scene.poisoned = read() != 0; scene.slowed = read() != 0; scene.raging = read() != 0;
+                    scene.poison_resist = read(); scene.life = read(); scene.mana = read(); scene.max_life = read(); scene.max_mana = read();
+                    scene.skill_calc = read(); scene.skill_level = read(); scene.skill_mode = read(); scene.corpse_id = read(); scene.radius = read();
+                    for (auto& value : scene.aip) value = read();
+                    scene.skill1 = read(); scene.skill2 = read(); scene.mode1 = read(); scene.mode2 = read(); scene.velocity = read(); scene.run = read();
+                    if (const bool corpse = read() != 0; which == 6) scene.nearby = corpse;   // the Death Sentry's corpse is its `nearby`
+                    scene.ends = read() != 0;
+                    for (auto& [x, y] : scene.end) { x = read(); y = read(); }
+                    scene.left = read(); scene.right = read(); scene.owner_class = read(); scene.pet_attack = read() != 0;
+                    scene.aip8_nightmare = read(); scene.aip8_hell = read();
+                    for (auto& skill : scene.skills) { skill.id = read(); skill.cls = read(); skill.ai_ok = read() != 0; skill.mana = read(); skill.kind = read(); skill.mode = read(); skill.delay = scene.skill_calc; }
+                    std::array<int, 3> ctrl{};
+                    for (auto& value : ctrl) value = read();
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
+                    seed.high = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
+                    Replay world;
+                    std::istringstream call_text(line.substr(bar + 1, bar2 - bar - 1));
+                    for (std::string call; std::getline(call_text, call, ';');)
+                        if (call.find_first_not_of(' ') != std::string::npos) world.calls.push_back(call.substr(call.find_first_not_of(' ')));
+                    d2d::rules::PetBrain brain(scene, seed, ctrl, world);
+                    switch (which) {
+                    case 0: d2d::rules::hydra_think(brain); break;
+                    case 1: d2d::rules::totem_think(brain); break;
+                    case 2: d2d::rules::poison_creeper_think(brain); break;
+                    case 3: case 4: d2d::rules::cycle_vine_think(brain); break;
+                    case 5: d2d::rules::sentry_think(brain); break;
+                    case 6: d2d::rules::death_sentry_think(brain); break;
+                    case 7: d2d::rules::blade_sentinel_think(brain); break;
+                    case 8: d2d::rules::raven_think(brain); break;
+                    case 9: d2d::rules::druid_bear_think(brain); break;
+                    case 10: d2d::rules::spirit_wolf_think(brain); break;
+                    case 12: d2d::rules::shadow_warrior_think(brain); break;
+                    default: d2d::rules::fenris_think(brain); break;
+                    }
+                    assert(world.next == world.calls.size());
+                    std::istringstream tail(line.substr(bar2 + 1));
+                    std::string kind;
+                    int frames = 0, unreachable = 0, unit = 0, skill = 0, mode = 0, x = 0, y = 0;
+                    tail >> kind >> frames >> unreachable >> unit >> skill >> mode >> x >> y;
+                    using Kind = PetAct::Kind;
+                    const auto& act = brain.act;
+                    const bool same = kind == "followed" ? act.kind == Kind::stand && act.frames == -7
+                        : kind == "stand"  ? act.kind == Kind::stand && act.frames == frames
+                        : kind == "failed" ? act.kind == Kind::failed
+                        : kind == "die"    ? act.kind == Kind::die
+                        : kind == "moved"  ? act.kind == Kind::moved
+                        : kind == "chase"  ? act.kind == Kind::chase && int(act.unit) == unit
+                        : kind == "swing"  ? act.kind == Kind::swing && int(act.unit) == unit && act.frames == frames
+                        : kind == "skill"  ? act.kind == Kind::skill && int(act.unit) == unit && act.skill == skill && act.mode == mode && act.frames == frames && act.x == x && act.y == y
+                        : kind == "seq"    ? act.kind == Kind::seq && int(act.unit) == unit && act.skill == skill
+                                           : false;
+                    assert(same);
+                    assert(int(act.unreachable) == unreachable);
+                    for (auto& value : ctrl) { int want = 0; tail >> want; assert(value == want); }
+                    std::uint32_t low = 0, high = 0;
+                    tail >> low >> high;
+                    assert(seed.low == low && seed.high == high);
+                    ++checked;
+                }
+                assert(checked > 100);
+            }
+            // The Shadows (tools/emu/shadow_init.py / shadow_master.py --dump:
+            // game.exe's own runs): the Warrior's init and the Master's, then the
+            // Master's think (the log of what it asks and does), then its scan.
+            {
+                static constexpr std::array<std::string_view, 2> kInits{
+#include "shadow_init_cases.inc"
+                };
+                std::istringstream lines{ std::string(kInits[0]) };
+                int checked = 0;
+                for (std::string line; std::getline(lines, line);) {
+                    if (line.empty() || line.find('|') == std::string::npos) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { long long value = 0; fields >> value; return value; };
+                    const bool owner = read() != 0;
+                    const int owner_type = int(read()), summoned = int(read()), summon_level = int(read()), pet_class = int(read()), pet_type = int(read());
+                    const bool has_attack = read() != 0;
+                    const int aip3 = int(read());
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(read()); seed.high = std::uint32_t(read());
+                    struct Row { int id, summon, pet_type, hard; };
+                    std::vector<Row> rows(static_cast<std::size_t>(read()));
+                    std::vector<int> ids;
+                    for (auto& row : rows) { row.id = int(read()); row.summon = int(read()); row.pet_type = int(read()); row.hard = int(read()); ids.push_back(row.id); }
+                    std::string bar;
+                    fields >> bar;
+                    std::array<int, 3> ctrl{ 7, 7, 7 };
+                    const auto gifts = d2d::rules::shadow_warrior_init(ctrl, owner && owner_type == 0, summoned ? summon_level : -1, has_attack, ids,
+                        [&](int id) {
+                            const auto& row = *std::ranges::find(rows, id, &Row::id);
+                            return id >= 0 && id < 400 && d2d::rules::shadow_may_have(row.summon, row.pet_type, pet_class, pet_type, 20);
+                        },
+                        [&](int id) { return std::ranges::find(rows, id, &Row::id)->hard; });
+                    std::vector<int> want;
+                    for (std::string token; fields >> token && token != "|";) want.push_back(std::stoi(token));
+                    std::vector<int> got;
+                    for (const auto& gift : gifts) { got.push_back(gift.skill); got.push_back(gift.level); }
+                    assert(got == want);
+                    for (const int value : ctrl) assert(value == read());
+                    fields >> bar;
+                    const auto master = d2d::rules::shadow_master_init(aip3, seed);
+                    for (const int value : master) assert(value == read());
+                    assert(seed.low == std::uint32_t(read()) && seed.high == std::uint32_t(read()));
+                    ++checked;
+                }
+                assert(checked > 40);
+                std::istringstream uses{ std::string(kInits[1]) };
+                checked = 0;
+                for (std::string line; std::getline(uses, line);) {
+                    if (line.empty()) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { int value = 0; fields >> value; return value; };
+                    const bool may_have = read() != 0;
+                    const int aitype = read();
+                    const bool melee = read() != 0, target = read() != 0, in_state = read() != 0, target_in_state2 = read() != 0, progressive = read() != 0;
+                    const int charges = read();
+                    assert(d2d::rules::shadow_ai_may_use(may_have, aitype, melee, target, in_state, target_in_state2, progressive,
+                                                         charges < 0 ? std::nullopt : std::optional<int>(charges)) == (read() != 0));
+                    ++checked;
+                }
+                assert(checked > 300);
+                static constexpr std::array<std::string_view, 3> kMaster{
+#include "shadow_master_cases.inc"
+                };
+                struct World {
+                    std::vector<int> decides, casts, moves;
+                    std::string log;
+                    void note(const std::string& text) { log += (log.empty() ? "" : " ; ") + text; }
+                    static bool pop(std::vector<int>& answers) { const bool answer = answers.front() != 0; answers.erase(answers.begin()); return answer; }
+                    bool decide(int foe, bool melee) { note("decide " + std::to_string(foe) + " " + std::to_string(int(melee))); return pop(decides); }
+                    bool skill(int mode, int id, int target) { note("skill " + std::to_string(mode) + " " + std::to_string(id) + " " + std::to_string(target)); return pop(casts); }
+                    bool approach(int target) { note("approach " + std::to_string(target)); return pop(moves); }
+                    bool away(int x, int y) { note("away " + std::to_string(x) + " " + std::to_string(y)); return pop(moves); }
+                    void run(int unit) { note("run " + std::to_string(unit)); }
+                    void set_left(int id) { note("left " + std::to_string(id)); }
+                    void stand(int frames) { note("stand " + std::to_string(frames)); }
+                };
+                std::istringstream thinks{ std::string(kMaster[0]) + std::string(kMaster[1]) };
+                checked = 0;
+                for (std::string line; std::getline(thinks, line);) {
+                    if (line.empty()) continue;
+                    const auto bar = line.find('|'), bar2 = line.rfind('|');
+                    std::istringstream fields(line.substr(0, bar));
+                    auto read = [&] { long long value = 0; fields >> value; return value; };
+                    d2d::rules::ShadowMasterScene scene;
+                    scene.has_list = read() != 0; scene.owner = int(read()); scene.driver = int(read()); scene.driver_melee = read() != 0; scene.driver_distance = int(read());
+                    scene.units.resize(8);
+                    for (auto& unit : scene.units) {
+                        unit.type = int(read()); unit.x = int(read()); unit.y = int(read());
+                        unit.targetable = read() != 0; unit.dying = read() != 0; unit.foe = read() != 0; unit.melee = read() != 0; unit.worth = read() != 0;
+                        unit.target = int(read()); unit.owner = int(read()); unit.drain = int(read());
+                        unit.states.resize(std::size_t(read()));
+                        for (auto& state : unit.states) state = int(read());
+                        for (auto& resist : unit.resist) resist = int(read());
+                    }
+                    scene.groups.resize(std::size_t(read()));
+                    for (auto& group : scene.groups) group = int(read());
+                    scene.skills.resize(std::size_t(read()));
+                    for (auto& skill : scene.skills) { skill.id = int(read()); skill.level = int(read()); skill.kind = int(read()); skill.mode = int(read()); }
+                    for (auto rows = read(); rows-- > 0;) {
+                        const int id = int(read());
+                        auto& row = scene.rows[id];
+                        row.aitype = int(read()); row.bonus = int(read()); row.reqlevel = int(read()); row.etype = int(read());
+                        row.state = int(read()); row.state2 = int(read()); row.progressive = read() != 0;
+                        row.srvmissile = int(read()); row.missile = int(read()); row.missile_range = int(read()); row.repeat = read() != 0;
+                    }
+                    for (auto& value : scene.fixed) value = int(read());
+                    scene.aip3 = int(read());
+                    auto& scan = scene.scan;
+                    scan.closest = int(read()); scan.closest_distance = int(read()); scan.close_count = int(read());
+                    scan.owner_closest = int(read()); scan.owner_close_count = int(read()); scan.all = int(read()); scan.traps = int(read()); scan.worth = int(read());
+                    scene.life = int(read()); scene.left = read() != 0; scene.charged = read() != 0;
+                    if (read() != 0) for (auto& unit : scene.units) unit.blocked = true;
+                    if (const int charges = int(read()); charges >= 0) for (auto& [id, row] : scene.rows) row.charges = charges;   // the oracle's one aurastat for every state
+                    scene.town = read() != 0;
+                    std::array<int, 3> ctrl{};
+                    for (auto& value : ctrl) value = int(read());
+                    d2d::rules::Rng seed;
+                    seed.low = std::uint32_t(read()); seed.high = std::uint32_t(read());
+                    World world;
+                    for (int k = 0; k < 4; ++k) world.decides.push_back(int(read()));
+                    for (int k = 0; k < 40; ++k) world.casts.push_back(int(read()));
+                    for (int k = 0; k < 4; ++k) world.moves.push_back(int(read()));
+                    d2d::rules::shadow_master_think(scene, seed, ctrl, world);
+                    std::string want = line.substr(bar + 1, bar2 - bar - 1);
+                    want = want.substr(want.find_first_not_of(' '));
+                    want = want.substr(0, want.find_last_not_of(' ') + 1);
+                    assert(world.log == want);
+                    std::istringstream tail(line.substr(bar2 + 1));
+                    for (const int value : ctrl) { int expected = 0; tail >> expected; assert(value == expected); }
+                    std::uint32_t low = 0, high = 0;
+                    tail >> low >> high;
+                    assert(seed.low == low && seed.high == high);
+                    ++checked;
+                }
+                assert(checked > 80);
+                std::istringstream scans{ std::string(kMaster[2]) };
+                checked = 0;
+                for (std::string line; std::getline(scans, line);) {
+                    if (line.empty()) continue;
+                    std::istringstream fields(line);
+                    auto read = [&] { int value = 0; fields >> value; return value; };
+                    const bool owner = read() != 0;
+                    d2d::rules::ShadowUnit owner_unit{ .type = 0, .x = read(), .y = read(), .targetable = false, .foe = false };
+                    std::vector<d2d::rules::ShadowUnit> units(static_cast<std::size_t>(read()));
+                    int pet = -1;
+                    for (int index = 0; index < int(units.size()); ++index) {
+                        auto& unit = units[std::size_t(index)];
+                        unit.type = read(); unit.x = read(); unit.y = read();
+                        unit.targetable = read() != 0; unit.dying = read() != 0; unit.foe = read() != 0; unit.side = read() != 0;
+                        unit.monster_id = read(); unit.worth = read() != 0;
+                        if (unit.type < 0) { pet = index; unit = { .x = 5000, .y = 5000 }; }
+                    }
+                    units.push_back(owner_unit);
+                    const auto scan = d2d::rules::shadow_scan(units, pet, owner ? int(units.size()) - 1 : -1);
+                    std::string bar;
+                    fields >> bar;
+                    assert(scan.closest == read() && scan.closest_distance == read() && scan.close_count == read());
+                    assert(scan.owner_closest == read() && scan.owner_closest_distance == read() && scan.owner_close_count == read());
+                    assert(scan.all == read() && scan.traps == read() && scan.worth == read());
+                    ++checked;
+                }
+                assert(checked > 30);
+            }
             // The merc's attack think and skill pick (FUN_005e5050 / FUN_005e4d30;
             // tools/emu/merc_attack.py --dump, game.exe's own hireling rows):
             // class, level, aip1, gap, melee, +0x14, seed; the row's Level,

@@ -477,6 +477,17 @@ lines (missile names aren't passed in). What it does:
   (`ln12`: 50 + 10 per level), result flags 9, over an area of
   `aurarangecalc` (par3 = 6 subtiles) around the target (FUN_0056bad0).
 
+### Dragon Flight (srvdofunc 52)
+- Do (FUN_005d7850) on each action event, by the event count (unit
+  +0x38 >> 8, bit 0): the first teleports to the skill's spot
+  (FUN_0056d2c0, FUN_00554ea0; not into collision 0x804 where the room
+  asks); the next kicks the unit's target (FUN_00553540): to hit with toht
+  + stat 325 (FUN_0057ec10), on a hit the kick damage (FUN_005d54b0) with
+  ED `ln12` (FUN_004e6ca0), HitClass +0x1a5 (0x80 when 0); then the
+  charges are released (FUN_005d5220), hit or not. No knockback.
+- d2d: both on the one action frame (`Fight::spot`, and `shadow_cast` for
+  a Shadow beside its target).
+
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,
   0xffff = none, 0x8000 = assigned to the left button), +0x78 left skill,
@@ -519,6 +530,24 @@ lines (missile names aren't passed in). What it does:
   Cold Mastery) and Pierce (328) wait for spells and missiles (phase 4),
   the throw masteries for thrown weapons, Summon Resist for summons,
   Increased Stamina (no stamina yet), the +0x80 state check.
+
+### Shots and ammo
+- **The plain attack** (do 1, `FUN_0056f070`): with a bow or crossbow
+  (the unit's weapon class 1 / 7, `FUN_0064f460`) it fires the weapon's
+  missile (`FUN_00645f00`): magicarrow (Id 27) with stat 157, explodingarrow
+  (41) with stat 158, else arrow (0) / bolt (31). It spends ammo unless
+  the missile is magicarrow.
+- **Throw** (do 3, `FUN_0056f460`): the throwable in hand (ItemTypes
+  Throwable, `FUN_0062ba80`, or stat 125) flies as its weapons.txt
+  missiletype, spending one; `FUN_0056c600` then adds the skill's to-hit
+  (stat 19) and damage % (stat 25).
+- **A skill's do** (`FUN_0056f7f0`) spends one when Skills.txt
+  `decquant` is set; srvstfunc 4 (`FUN_005da8b0`) refuses the skill
+  without ammo (`FUN_0056c4e0`).
+- **The ammo** (`FUN_0056c4e0` / `FUN_0056c3f0`, players only): with a
+  bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
+  else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
+  takes 1 off its quantity (stat 70); at 0 there's none.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
@@ -657,7 +686,7 @@ lines (missile names aren't passed in). What it does:
   `Monsters::row` ignores case (Skills.txt says ClayGolem). Not yet:
   FUN_005c4470's stats, sumskills (the skeletal mage's bolt, Fire Golem's
   Holy Fire, Valkyrie's), sumumod, Skeleton / Golem Mastery
-  (FUN_005d6b60), pets' own think (they fight as the merc does, melee),
+  (FUN_005d6b60), pets' own think (NecroPet's since traced: pet-ai.md),
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 
@@ -756,10 +785,8 @@ lines (missile names aren't passed in). What it does:
   Fire round it), the totems' do-65 auras on the player in range
   (`update_fighters`), `pets_cross` (pets follow the player over a level
   edge; traps stay), devctl `debug pets`. Not traced / not built: the pet
-  AI functions (NecroPet, DruidWolf, Totem, ... — the merc's think for
-  all), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
-  Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, the Shadow
-  Warrior's own skills (it swings the owner's blow), Decoy's and the
+  AI functions but NecroPet's (DruidWolf, Totem, ...; pet-ai.md), the pets' MonEquip gear, sumumod / sumoverlay, Valkyrie's Dodge /
+  Avoid / Evade, Clay Golem's slow, Fire Golem's fire absorb, Decoy's and the
   Shadow's look (drawn as their rows), Raven's hit count (Param5).
 
 ### Missile hit functions and spot spells (phase 6, part 3)
@@ -904,7 +931,12 @@ lines (missile names aren't passed in). What it does:
   event (FUN_005417d0(5, FUN_004efc80 + frame)). **44** (FUN_005d6020,
   Blade Sentinel): a trap monster (FUN_005d5e10) sent to the point and
   back (FUN_00554ea0). **54** (FUN_005d7e10 -> FUN_005d7ce0, Blade
-  Shield): its events while the state lasts. **125** (FUN_005d1170, Wake
+  Shield): a periodic skill, struck every perdelay (par3: 25) frames while
+  the state lasts: every unit within aurarange (par4) passing aurafilter
+  (FUN_0056b7e0, each by FUN_005d7c40) takes a hit at the skill's to-hit
+  (FUN_006449f0, unless HitFlags bit 1), its MinDam..MaxDam (FUN_0056e170)
+  and element (FUN_0056e0c0), plus the weapon's at SrcDam (FUN_0057b7d0,
+  32 / 128), HitClass +0x1a5. **125** (FUN_005d1170, Wake
   of Fire's shot): its maker row toward the target. **95**
   (FUN_005cc4e0, Inferno Sentry's shot): one flame a frame, its reach
   from the monster's own bytes (+0x9a / +0x9b), for calc3 frames.
@@ -918,7 +950,7 @@ lines (missile names aren't passed in). What it does:
   `debug unbuilt` (lists none). Not traced / not built: the shapeshifted
   look (the Druid keeps his) and the werebeast skills' form requirement,
   Rabies' spread, the walls' time (24 s published) and makers' pace,
-  Armageddon / Hurricane / Blade Shield paces, Blade Sentinel as a
+  Armageddon / Hurricane paces, Blade Sentinel as a
   monster, Double Throw's toht, Vine Attack / the cyclers (the vines'
   published behaviour).
 

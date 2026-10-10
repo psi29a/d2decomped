@@ -7,6 +7,7 @@
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -25,11 +26,15 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
+#include <map>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -156,6 +161,27 @@ int main() {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.player.x, world.player.y };
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+    {   // A vendor's stock and Kashya's hire list last the game, not one opening.
+        const auto& npcs = world.level->npcs;
+        const auto index_of = [&](int hc_idx) { return int(std::ranges::find(npcs, hc_idx, &Npc::hc_idx) - npcs.begin()); };
+        const int charsi = index_of(d2d::rules::monster_ids::kCharsi), kashya = index_of(d2d::rules::monster_ids::kKashya);
+        auto codes = [&] {
+            std::vector<std::string> out;
+            for (const auto& tab : world.store.tabs) for (const auto& item : tab) out.push_back(item.code + std::to_string(item.id));
+            return out;
+        };
+        world.apply(d2d::game::cmd::OpenTrade{ charsi }, 27 * kTickMs);
+        const auto first = codes();
+        world.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+        world.apply(d2d::game::cmd::OpenTrade{ charsi }, 27 * kTickMs);
+        assert(!first.empty() && codes() == first);
+        world.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+        world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
+        const auto offers = world.hire_offers;
+        world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
+        assert(!offers.empty() && world.hire_offers.size() == offers.size() && world.hire_offers.front().seed == offers.front().seed);
+        std::printf("OK: Charsi's stock and Kashya's offers outlast their windows\n");
+    }
     {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
         auto seed = world.fight.spawning.game;
         d2d::rules::Rng unit{ seed.next() };
@@ -330,5 +356,60 @@ int main() {
     world.apply(d2d::game::cmd::QuestMessage{ tome_index, d2d::rules::TowerQuest::kTome }, 4701 * kTickMs);
     assert(world.tower.state == 2);
     std::printf("OK: the Moldy Tome's message 127, heard, starts the Forgotten Tower\n");
+
+    // Charsi's imbue (FUN_00579d60): every rare it can make survives its
+    // save form, which the View carries too (replication.hpp wire::items).
+    if (data->item_tables) {
+        int checked = 0;
+        for (std::uint32_t seed = 0; seed < 500; ++seed) {
+            d2d::rules::Rng imbue_rng{ seed };
+            d2d::d2s::Item axe;
+            axe.code = "hax"; axe.quality = 2; axe.identified = true; axe.ilvl = 8;
+            const auto imbued = d2d::rules::imbue_item(data->rules, axe, 8, imbue_rng);
+            d2d::d2s::detail::BitWriter writer;
+            d2d::d2s::detail::write_item(writer, imbued, *data->item_tables);
+            d2d::d2s::detail::Bits bits{ std::span<const std::byte>(writer.out), 0 };
+            try {
+                const auto back = d2d::d2s::detail::item(bits, *data->item_tables);
+                assert(back.code == "hax" && back.quality == 6);
+                std::map<std::pair<int, int>, std::int64_t> sent, read;   // what's saved, summed by (stat, param)
+                for (const auto& prop : imbued.props)
+                    if (prop.stat >= 0 && std::size_t(prop.stat) < data->item_tables->stats.size() && data->item_tables->stats[std::size_t(prop.stat)].save_bits)
+                        sent[{ prop.stat, prop.param }] += prop.value;
+                for (const auto& prop : back.props) read[{ prop.stat, prop.param }] += prop.value;
+                assert(read == sent);
+            } catch (const std::exception& error) {
+                std::printf("imbue seed %u: %s; props:", seed, error.what());
+                for (const auto& prop : imbued.props) std::printf(" %d:%d:%d", prop.stat, prop.param, prop.value);
+                std::printf("\n");
+                assert(false);
+            }
+            ++checked;
+        }
+        std::printf("OK: %d imbued rares round-trip their save form\n", checked);
+    }
+    // Sets.txt (FUN_00660120): Hsarus' Defense (row 1, 3 pieces) — two worn
+    // give its partial thorns 5, all three its full bonuses (lightning 25).
+    if (data->rules.set_bonuses.size() > 1 && data->rules.set_bonuses[1].pieces == 3) {
+        std::vector<d2d::d2s::Item> worn;
+        for (std::size_t row = 0; row < data->rules.sets.size() && worn.size() < 3; ++row)
+            if (data->rules.sets[row].set == 1) {
+                d2d::d2s::Item piece;
+                piece.code = data->rules.sets[row].code; piece.quality = 5; piece.set_id = int(row);
+                piece.location = d2d::d2s::item_location::kEquipped; piece.slot = std::uint8_t(d2d::d2s::body_location::kHead + int(worn.size()));
+                worn.push_back(piece);
+            }
+        auto total = [&](int stat) {
+            std::int64_t sum = 0;
+            for (const auto& prop : set_props(*data, worn)) if (prop.stat == stat) sum += prop.value;
+            return sum;
+        };
+        assert(total(41) == 25 && total(78) == 5);
+        worn.pop_back();
+        assert(total(41) == 0 && total(78) == 5);
+        worn.pop_back();
+        assert(set_props(*data, worn).empty());
+        std::printf("OK: Sets.txt partial and full bonuses\n");
+    }
     return 0;
 }

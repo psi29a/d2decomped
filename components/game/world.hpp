@@ -186,7 +186,14 @@ struct World {
     const CharacterStore* characters = nullptr;   // where the character is saved
     std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
     Store store;                           // the NPC window open (npc < 0: none): its stock
-    std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open
+    // A vendor's stock lasts the game (the NPC's own inventory, server
+    // side): bought items gone, sold ones there to buy back. By NPC index.
+    // ponytail: camp vendors only (every Act 1 vendor is); game.exe's
+    // refresh on an act change waits for Act 2.
+    std::map<int, Store> stocks;
+    // Kashya's list (FUN_00576070): rolled when first asked for, a hired
+    // offer leaves it, and once none is left it's rolled anew (FUN_00577010).
+    std::vector<d2d::rules::MercOffer> hire_offers;
     int next_item_id = 1;                  // the next item's unit id
     d2d::rules::DenQuest den;              // this game's Den of Evil
     d2d::rules::AndyQuest andy;            // and Sisters to the Slaughter

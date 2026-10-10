@@ -127,6 +127,10 @@ struct Special {
 };
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };
+// Sets.txt row: its partial bonuses PCode2a, 2b, 3a .. 5b (8, code empty
+// when unused), its full bonuses FCode1..8, and how many SetItems rows
+// belong to it (the record's +0xc).
+struct SetBonus { std::vector<Mod> partial, full; int pieces = 0; };
 // DifficultyLevels gamble odds, per 100000 (rare/set/unique).
 struct GambleRates { int rare = 10000, set = 100, unique = 50; };
 
@@ -197,6 +201,7 @@ struct Tables {
     std::vector<std::pair<int, int>> skill_levels;         // Skills.txt reqlevel, maxlvl by Id (FUN_00644710 / FUN_004aa8b0)
     std::array<int, 7> class_first_skill{};                // per class its first skill Id (FUN_006460f0)
     std::vector<Special> uniques, sets;
+    std::vector<SetBonus> set_bonuses;                    // by Sets.txt row
     std::unordered_map<std::string, std::vector<PropFunc>> properties;
     std::unordered_map<std::string, int> skill_id;         // Skills.txt skill name -> Id
     int rare_prefixes = 0, rare_suffixes = 0;              // RarePrefix / RareSuffix rows
@@ -375,15 +380,29 @@ inline bool indestructible(const d2d::d2s::Item& item) {
     return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; });
 }
 
+// A broken item (item flag 0x100, set by FUN_0055f850): its stats and
+// defense are off until a repair (FUN_0055f900) clears it.
+inline bool broken(const d2d::d2s::Item& item) { return (item.flags & 0x100) != 0; }
+// A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
+// FUN_006289f0) and throwable (FUN_0062ba80) — every stacking weapon.
+inline bool restocks(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    return base != tables.item_base.end() && base->second.stackable && info != tables.item_info.end() && info->second.kind == 2;
+}
+
 // Repair cost at the NPC (FUN_0062efb0 mode 3): the buy base with its
 // quality extras, times missing / max durability, times npc.txt rep mult
 // and the quest rep mults / 1024; 0 when there's nothing to repair.
-// Ethereal items can't be repaired.
+// A stack that restocks pays for its missing quantity instead (its base
+// a unit's, its durability free). Ethereal items can't be repaired.
 // ponytail: no charge recharging or socket terms.
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
-    if (item.max_durability <= 0 || item.durability >= max || item.ethereal || indestructible(item)) return 0;
+    const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
+    const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
+    if (item.ethereal || (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item))) return 0;
     const int base = found != tables.item_base.end() ? found->second.cost : 0;
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
@@ -401,7 +420,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
             break;
         default: break;
     }
-    long long cost = (max - item.durability) * x / max;
+    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : (max - item.durability) * x / max;
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
         cost = cost * prices.rep / 1024;
@@ -413,6 +432,16 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     return int(price_reduced(cost, reduced));
 }
 
+// Paying (FUN_00576d90): the purse first, then the stash; nothing taken
+// and false when both together fall short.
+inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
+    const auto from_purse = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
+    stats.values[d2d::d2s::kGold] -= from_purse;
+    stats.values[d2d::d2s::kGoldBank] -= cost - from_purse;
+    return true;
+}
+
 // Repairs item i (gold first from the inventory, then the stash, as a
 // buy). False if it's whole or you can't pay.
 inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
@@ -421,7 +450,9 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
+    if (restocks(tables, item)) item.quantity = tables.item_base.at(item.code).max_stack;
     item.durability = max_durability(item);
+    item.flags &= ~0x100u;
     return true;
 }
 
@@ -697,7 +728,8 @@ inline void respec(d2d::d2s::Stats& stats, const std::array<int, 4>& base, const
 // Can skill i (0..29 of class cls) take a point: a level to go, the
 // character level, and every prerequisite learned? (FUN_004ac200 greys
 // out the icons that can't.)
-// ponytail: base levels; +skills from items don't count toward anything.
+// ponytail: the base levels (points spent); whether FUN_004ac200 counts
+// item +skills here isn't traced (skill_level adds them elsewhere).
 inline bool can_learn(const Tables& tables, int cls, int skill_index, const std::array<std::uint8_t, 30>& levels, int clvl) {
     if (cls < 0 || cls > 6 || skill_index < 0 || std::size_t(skill_index) >= tables.class_skills[std::size_t(cls)].size()) return false;
     const auto& class_skill = tables.class_skills[std::size_t(cls)][std::size_t(skill_index)];

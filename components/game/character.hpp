@@ -45,7 +45,7 @@ inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, c
 // A worn set item's bonus lists that are on: list i (aprop(i+1)a / b,
 // FUN_0065fec0 kind 4) with i + 2 pieces of its set worn.
 // ponytail: add func 1 lists (by which other piece is worn) count pieces
-// too; Sets.txt's partial / full set bonuses aren't added.
+// too.
 inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
                                                 const d2d::d2s::Item& item) {
     std::vector<d2d::d2s::ItemProp> out;
@@ -69,6 +69,39 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
     return out;
 }
 
+// Sets.txt's bonuses for the sets worn (FUN_00663b40 -> FUN_00660120: a
+// stat list per set on the player): with n of its pieces worn, the
+// partial bonuses 2a, 2b .. na, nb (at most pieces - 1's); all of them
+// worn, the full bonuses FCode1..8 too. Set item rows count as pieces
+// once each.
+// ponytail: a ranged bonus takes its min (every 1.14d row has min == max).
+inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
+    std::vector<d2d::d2s::ItemProp> out;
+    const auto& rules = game_data.rules;
+    std::vector<std::vector<int>> worn(rules.set_bonuses.size());
+    for (const auto& item : items)
+        if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast
+            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && !d2d::rules::broken(item))
+            if (const int set = rules.sets[std::size_t(item.set_id)].set; set >= 0 && std::size_t(set) < worn.size() && !std::ranges::contains(worn[std::size_t(set)], item.set_id))
+                worn[std::size_t(set)].push_back(item.set_id);
+    d2d::rules::Rng rng;
+    for (std::size_t set = 0; set < worn.size(); ++set) {
+        const int count = int(worn[set].size());
+        if (count < 2) continue;
+        const auto& bonus = rules.set_bonuses[set];
+        const int partial = std::min(count, bonus.pieces - 1) * 2 - 2;
+        for (int index = 0; index < partial && std::size_t(index) < bonus.partial.size(); ++index)
+            if (!bonus.partial[std::size_t(index)].code.empty()) {
+                auto mod = bonus.partial[std::size_t(index)]; mod.max = mod.min;
+                d2d::rules::apply_mod(rules, mod, out, rng);
+            }
+        if (count >= bonus.pieces)
+            for (auto mod : bonus.full)
+                if (!mod.code.empty()) { mod.max = mod.min; d2d::rules::apply_mod(rules, mod, out, rng); }
+    }
+    return out;
+}
+
 // Everything the character's gear gives: worn items (slots 1..10), what's
 // socketed in them, their set bonuses on, inventory charms.
 inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
@@ -76,7 +109,7 @@ inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, con
     for (const auto& item : items) {
         const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
         const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if (!worn && !charm) continue;
+        if ((!worn && !charm) || d2d::rules::broken(item)) continue;
         out.insert(out.end(), item.props.begin(), item.props.end());
         for (const auto& socketed : item.socketed_items) {
             const auto filled = socket_props(game_data, item, socketed);
@@ -85,6 +118,8 @@ inline std::vector<d2d::d2s::ItemProp> gear_props(const GameData& game_data, con
         const auto bonus = set_bonus_props(game_data, items, item);
         out.insert(out.end(), bonus.begin(), bonus.end());
     }
+    const auto sets = set_props(game_data, items);
+    out.insert(out.end(), sets.begin(), sets.end());
     return out;
 }
 
@@ -120,7 +155,7 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
         const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory
                         && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if (!worn && !charm) continue;
+        if ((!worn && !charm) || d2d::rules::broken(item)) continue;
         add(item.props);
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
         const auto bonus = set_bonus_props(game_data, items, item);
@@ -133,6 +168,7 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         }
         if (item.defense > 0) item_def += item.defense * (100 + enhanced_defense) / 100;
     }
+    add(set_props(game_data, items));
     std::int64_t skill_def = 0;                           // 171 skill_armor_percent
     if (passives) for (const auto& passive : *passives) {
         if (!passive.itype.empty()) continue;
