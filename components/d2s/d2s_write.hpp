@@ -24,6 +24,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace d2d::d2s {
@@ -46,7 +47,24 @@ struct BitWriter {
 
 // One property list: runs of stats that travel together (17/18, the
 // elemental min / max / length) are written under their first id.
-inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* props, std::size_t count) {
+inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* all_props, std::size_t all_count) {
+    // Only stats with Save Bits go in (poison_count, 326, is the game's
+    // alone: it's left out), in stat order as the game's stat list keeps
+    // them, so a run's partners follow its first (17 then 18, 57 / 58 / 59).
+    std::vector<ItemProp> saved;
+    for (std::size_t i = 0; i < all_count; ++i)
+        if (all_props[i].stat >= 0 && std::size_t(all_props[i].stat) < item_tables.stats.size() && item_tables.stats[std::size_t(all_props[i].stat)].save_bits)
+            saved.push_back(all_props[i]);
+    std::ranges::stable_sort(saved, {}, &ItemProp::stat);
+    // One entry a stat and param, as a stat list holds (two poison
+    // affixes add up, FUN_00627260).
+    std::vector<ItemProp> merged;
+    for (const auto& prop : saved)
+        if (!merged.empty() && merged.back().stat == prop.stat && merged.back().param == prop.param) merged.back().value += prop.value;
+        else merged.push_back(prop);
+    saved = std::move(merged);
+    const ItemProp* props = saved.data();
+    const std::size_t count = saved.size();
     for (std::size_t i = 0; i < count;) {
         const int id = props[i].stat;
         const std::size_t run = id == kMaxDamagePercent || id == kFireMinDamage || id == kLightningMinDamage || id == kMagicMinDamage ? 2
@@ -54,8 +72,6 @@ inline void write_props(BitWriter& writer, const ItemTables& item_tables, const 
                                                                                                                                    : 1;
         writer.write(std::uint32_t(id), 9);
         for (std::size_t k = 0; k < run && i < count; ++k, ++i) {
-            if (props[i].stat < 0 || std::size_t(props[i].stat) >= item_tables.stats.size() || !item_tables.stats[std::size_t(props[i].stat)].save_bits)
-                throw std::runtime_error("d2s write: stat " + std::to_string(props[i].stat) + " can't be saved");
             const auto& stat_info = item_tables.stats[std::size_t(props[i].stat)];
             if (stat_info.param_bits) writer.write(std::uint32_t(props[i].param), stat_info.param_bits);
             writer.write(std::uint32_t(props[i].value + stat_info.save_add), stat_info.save_bits);

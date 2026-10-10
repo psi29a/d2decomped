@@ -7,6 +7,7 @@
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -25,11 +26,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -330,5 +334,31 @@ int main() {
     world.apply(d2d::game::cmd::QuestMessage{ tome_index, d2d::rules::TowerQuest::kTome }, 4701 * kTickMs);
     assert(world.tower.state == 2);
     std::printf("OK: the Moldy Tome's message 127, heard, starts the Forgotten Tower\n");
+
+    // Charsi's imbue (FUN_00579d60): every rare it can make survives its
+    // save form, which the View carries too (replication.hpp wire::items).
+    if (data->item_tables) {
+        int checked = 0;
+        for (std::uint32_t seed = 0; seed < 500; ++seed) {
+            d2d::rules::Rng imbue_rng{ seed };
+            d2d::d2s::Item axe;
+            axe.code = "hax"; axe.quality = 2; axe.identified = true; axe.ilvl = 8;
+            const auto imbued = d2d::rules::imbue_item(data->rules, axe, 8, imbue_rng);
+            d2d::d2s::detail::BitWriter writer;
+            d2d::d2s::detail::write_item(writer, imbued, *data->item_tables);
+            d2d::d2s::detail::Bits bits{ std::span<const std::byte>(writer.out), 0 };
+            try {
+                const auto back = d2d::d2s::detail::item(bits, *data->item_tables);
+                assert(back.code == "hax" && back.quality == 6);
+            } catch (const std::exception& error) {
+                std::printf("imbue seed %u: %s; props:", seed, error.what());
+                for (const auto& prop : imbued.props) std::printf(" %d:%d:%d", prop.stat, prop.param, prop.value);
+                std::printf("\n");
+                assert(false);
+            }
+            ++checked;
+        }
+        std::printf("OK: %d imbued rares round-trip their save form\n", checked);
+    }
     return 0;
 }
