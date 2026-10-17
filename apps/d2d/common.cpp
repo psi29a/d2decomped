@@ -16,16 +16,17 @@ void blit_sprite(std::vector<std::uint8_t>& framebuffer,
                  const d2d::dc6::Frame& frame,
                  const d2d::palette::Palette& pal,
                  int dst_x, int dst_y, int shade) {
+    const int screen_w = fb_width(framebuffer);
     for (std::uint32_t y = 0; y < frame.height; ++y) {
         const int dy = dst_y + int(y);
         if (dy < 0 || dy >= int(kScreenHeight)) continue;
         for (std::uint32_t x = 0; x < frame.width; ++x) {
             const int dx = dst_x + int(x);
-            if (dx < 0 || dx >= int(kScreenWidth)) continue;
+            if (dx < 0 || dx >= screen_w) continue;
             const auto idx = frame.pixels[y * frame.width + x];
             if (idx == 0) continue;
             const auto colour = pal[idx];
-            auto* pixel = &framebuffer[(std::size_t(dy) * kScreenWidth + std::size_t(dx)) * 4];
+            auto* pixel = &framebuffer[(std::size_t(dy) * std::size_t(screen_w) + std::size_t(dx)) * 4];
             if (shade == 256) { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
             else {
                 pixel[0] = std::uint8_t(std::min(255, colour.r * shade / 256));
@@ -53,15 +54,16 @@ void blit_additive(std::vector<std::uint8_t>& framebuffer,
                    int anchor_x, int anchor_y) {
     const int dst_x = anchor_x + frame.offset_x;
     const int dst_y = anchor_y + frame.offset_y - int(frame.height) + 1;
+    const int screen_w = fb_width(framebuffer);
     for (std::uint32_t y = 0; y < frame.height; ++y) {
         const int pixel_y = dst_y + int(y);
         if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
         for (std::uint32_t x = 0; x < frame.width; ++x) {
             const int pixel_x = dst_x + int(x);
-            if (pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
+            if (pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto idx = frame.pixels[y * frame.width + x];
             if (idx == 0) continue;
-            auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+            auto* pixel = &framebuffer[(std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4];
             if (pl2 && pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
                 // Fast path: black bg => additive result == fg palette entry.
                 const auto& out = pl2->base_palette()[idx];
@@ -78,9 +80,10 @@ void blit_additive(std::vector<std::uint8_t>& framebuffer,
 
 void paint_test_pattern(std::vector<std::uint8_t>& framebuffer) {
     // Diagonal gradient — a visually distinctive canary when no MPQ loads.
+    const auto screen_w = std::uint32_t(fb_width(framebuffer));
     for (std::uint32_t y = 0; y < kScreenHeight; ++y) {
-        for (std::uint32_t x = 0; x < kScreenWidth; ++x) {
-            auto* pixel = &framebuffer[(y * kScreenWidth + x) * 4];
+        for (std::uint32_t x = 0; x < screen_w; ++x) {
+            auto* pixel = &framebuffer[(y * screen_w + x) * 4];
             pixel[0] = std::uint8_t(x);
             pixel[1] = std::uint8_t(y);
             pixel[2] = std::uint8_t((x + y) / 2);

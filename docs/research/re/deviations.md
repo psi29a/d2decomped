@@ -59,7 +59,8 @@ holds the ones a player could notice or a test could trip on.
 |---|---|
 | `--seed`, `--headless`, `--devctl`, `--no-save`, `--no-video`, `--start-*`, `--toggle` | Scripted tests and development; game.exe's own switches are kept (dropin_goal) |
 | The devctl channel and its `debug` verbs (docs/control_channel.md) | Driving the game in tests |
-| Borderless fullscreen: Alt+Enter, `fullscreen = 1` in d2d.cfg, the launcher's Fullscreen box | game.exe's own display modes and `-w` aren't traced; borderless doesn't change the desktop's resolution |
+| Borderless fullscreen: Alt+Enter, `fullscreen = 1` in d2d.cfg, the launcher's Fullscreen box | game.exe's own display modes and `-w` aren't traced; borderless doesn't change the desktop's resolution
+| Widescreen (`--widescreen`, `widescreen = 1`, `--view-width`): the in-game world draws wider than 800 pixels, at the window's aspect (at most 1400); the HUD and panels stay 800×600, centred. Off by default | Modern displays. A wider view shows more of the map than game.exe ever did (it is a client view only: monsters update 30 cells out, the host replicates 28, the view is at most 13 across); the UI isn't re-laid-out yet (#39) |
 | A join that fails for reasons game.exe can't hit (a name a host won't take, a host that never finishes the join, a desync) shows d2d's own words in the OK popup | Say why, instead of only logging it |
 
 ## How to add one

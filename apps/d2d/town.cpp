@@ -211,7 +211,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     // The grid covers the view's corners (half the width in cells over 80
     // plus half the height over 40, halved, in subtiles) and the widest light
     // (18) past them, not game.exe's 48 (bugs.md #11).
-    const int half = (int(kScreenWidth) / 2 / (kIsoW / 2) + (int(kScreenHeight) / 2 + kIsoH) / (kIsoH / 2)) * 5 / 2 + 18 + 1;
+    const int half = (g_view_width / 2 / (kIsoW / 2) + (int(kScreenHeight) / 2 + kIsoH) / (kIsoH / 2)) * 5 / 2 + 18 + 1;
     if (ambient < 0) ambient = view.level->light >= 0 ? view.level->light : view.day.intensity();
     lighting.grid.reset(int(cam_x * 5), int(cam_y * 5), ambient, half * 2);
     for (int j = 0; j < lighting.grid.grid_size; ++j)                            // what walls light (FUN_004756d0)
@@ -1089,7 +1089,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
             rain_cam_x = cam_x; rain_cam_y = cam_y;
             if (!level->rain) { rain.drops.clear(); rain.splashes.clear(); }
-            else rain.tick(rain.rng, int(kScreenWidth), int(kScreenHeight), int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))),
+            else rain.tick(rain.rng, g_view_width, int(kScreenHeight), int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))),
                            d2d::rules::kDay[std::size_t(view.day.phase)].type);
             const int want = level->rain ? int(rain.volume() * 255.f) : 0;
             rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
@@ -1743,7 +1743,20 @@ auto Town::open_menu(int npc) -> void {
                 : std::string());
     }
 
+// Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
+// and everything else into its centre 800x600, as it always did.
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
+    const int screen_w = fb_width(framebuffer);
+    if (screen_w == int(kScreenWidth)) return draw_view(framebuffer, nullptr, mouse, frame_ms);
+    const int off = (screen_w - int(kScreenWidth)) / 2;
+    ui_buffer.resize(std::size_t(kScreenWidth) * kScreenHeight * 4);
+    draw_view(ui_buffer, &framebuffer, mouse, frame_ms);
+    for (std::size_t y = 0; y < kScreenHeight; ++y)
+        std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
+                    framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
+}
+
+auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
         const bool run_on = view.running && character.stats.values[d2d::d2s::kStamina] > 0;   // no run at stamina 0 (FUN_0057f090)
@@ -1824,7 +1837,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0,   // D2's "Show Items" (Alt)
-                      Hud{ view.poisoned, view.running, run_down });
+                      Hud{ view.poisoned, view.running, run_down }, wide);
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (net_game && net_game->trade.state != 0) {

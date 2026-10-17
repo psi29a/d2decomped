@@ -334,6 +334,9 @@ struct Town {
     // The frame: the world with its units, the open panels, the tree and
     // the waypoint panel.
     void draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms);
+    // draw's body; `wide` (widescreen) is where the world draws, `framebuffer` the 800x600 UI.
+    void draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms);
+    std::vector<std::uint8_t> ui_buffer;   // the widescreen UI's 800x600
 };
 
 }  // namespace d2d::client

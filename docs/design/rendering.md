@@ -73,5 +73,18 @@ pixels. Then:
    smooth light, perspective, larger resolutions. Authentic 800×600 stays
    the default.
 
+**Widescreen (done on the CPU path, opt-in).** The framebuffer's height is
+always 600 and its width is a runtime value (`fb_width()` from its size), so
+a wide view is just a wider buffer. The world (tiles, units, rain, labels)
+draws on the wide buffer around its centre; the HUD and panels then run
+unchanged on a copy of the centre 800×600 (`Town::draw`) and are pasted back.
+Mouse x counts from that centre, so the UI's hit tests and the world's
+click maths are untouched. The window is resizable, the width follows its
+aspect (clamped 800–1400), and the menus/cinematics switch the texture back
+to 800×600. Larger scales (4K) come from the logical presentation's zoom now,
+and from the GPU back end later. Not yet: panels anchored to the screen's
+edges (they sit at the 800 centre's), a wider monster bar/chat, edge-aware
+minimap.
+
 Each step is visible on its own and testable against screenshots of the
 original (the headless `screenshot` verb already captures frames).

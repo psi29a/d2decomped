@@ -56,6 +56,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr, bool player_visible = true,
                    const Unit* player_look = nullptr,     // its states' colour shift and overlays
                    bool show_items = false,
-                   const Hud& hud = {});            // the HUD's poison tint, run button
+                   const Hud& hud = {},             // the HUD's poison tint, run button
+                   std::vector<std::uint8_t>* wide = nullptr);   // widescreen: the world draws here, its centre 800 wide copied to framebuffer
 
 }  // namespace d2d::client

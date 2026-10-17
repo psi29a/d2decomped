@@ -32,6 +32,7 @@ namespace d2d::client {
 
 void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& rain) {
     const int bottom = int(kScreenHeight) - 47;
+    const int screen_w = fb_width(framebuffer);
     for (const auto& drop : rain.drops) {
         int dx = 0, dy = 0;
         if (!drop.landed) {
@@ -44,8 +45,8 @@ void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& r
         const int steps = std::max({ std::abs(dx), std::abs(dy), 1 });
         for (int k = 0; k <= steps; ++k) {
             const int x = drop.x + dx * k / steps, y = drop.y + dy * k / steps;
-            if (x < 0 || y < 0 || x >= int(kScreenWidth) || y >= bottom) continue;
-            auto* pixel = framebuffer.data() + (std::size_t(y) * kScreenWidth + std::size_t(x)) * 4;
+            if (x < 0 || y < 0 || x >= screen_w || y >= bottom) continue;
+            auto* pixel = framebuffer.data() + (std::size_t(y) * std::size_t(screen_w) + std::size_t(x)) * 4;
             for (int channel = 0; channel < 3; ++channel) pixel[channel] = half ? std::uint8_t((pixel[channel] + rgb[std::size_t(channel)]) / 2) : rgb[std::size_t(channel)];
         }
     }
@@ -83,7 +84,15 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    const Lighting* light , d2d::rules::Rain* rain , bool player_visible ,
                    const Unit* player_look ,     // its states' colour shift and overlays
                    bool show_items,               // Alt held: every ground item's name
-                   const Hud& hud) {
+                   const Hud& hud,
+                   std::vector<std::uint8_t>* wide) {
+    // Widescreen: the world (and its labels) draw on `wide`; its centre
+    // 800x600 is then copied into `framebuffer`, where the HUD and panels draw
+    // as at 800x600. Mouse x is relative to that centre, so the world's is
+    // shifted by `off`.
+    auto& world = wide ? *wide : framebuffer;
+    const int world_w = fb_width(world), off = (world_w - int(kScreenWidth)) / 2;
+    const int world_mouse_x = mouse_y < 0 ? -1 : mouse_x + off;
     // Prefer the real tile-composited world when townE1.ds1 loaded; fall
     // back to the credits DC6 placeholder when it didn't (headless CI, a
     // stripped MPQ dir, etc.). Palette follows the render path: ACT1 for
@@ -92,8 +101,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         set_phase(MainPhase::IngameClear);
         // Clear to black — tiles don't cover every subtile so an
         // uninitialized fb would leak the previous frame's contents.
-        std::fill(framebuffer.begin(), framebuffer.end(), std::uint8_t{0});
-        for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
+        std::fill(world.begin(), world.end(), std::uint8_t{0});
+        for (std::size_t i = 3; i < world.size(); i += 4) world[i] = 0xFF;
         set_phase(MainPhase::IngameFloor);   // render_world does floor+shadow+walls internally
         // Player: the camera follows them, so their feet sit on the camera
         // point (kW/2, kViewY); render_world slots them into the
@@ -161,8 +170,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             for (auto& unit : units) if (unit.npc == *hovered_npc && unit.name) unit.highlight = true;
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         std::vector<std::pair<const Unit*, std::array<int, 4>>> items;
-        render_world(framebuffer, scene, level, cam_x, cam_y, elapsed_ms, units, mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
-        if (rain) draw_rain(framebuffer, *rain);
+        render_world(world, scene, level, cam_x, cam_y, elapsed_ms, units, world_mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
+        if (rain) draw_rain(world, *rain);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // What a unit says (a shrine's message), centred over it.
         // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:
@@ -170,10 +179,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         for (const auto& unit : units) {
             if (!unit.says) continue;
             const auto text = string_id(scene, unit.says);
-            const int pixel_x = int(kScreenWidth) / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
+            const int pixel_x = world_w / 2 + int(std::lround(((unit.x - cam_x) - (unit.y - cam_y)) * (kIsoW / 2)));
             const int pixel_y = kViewY + int(std::lround(((unit.x - cam_x) + (unit.y - cam_y)) * (kIsoH / 2)));
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
+            scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
         }
         // Alt ("Show Items"): each ground item's name in a dark box over it,
         // nudged up clear of the ones already placed; the label under the
@@ -197,12 +206,12 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 }
                 placed.push_back(rect);
                 for (int y = std::max(rect[1], 0); y < std::min(rect[3], int(kScreenHeight)); ++y)
-                    for (int x = std::max(rect[0], 0); x < std::min(rect[2], int(kScreenWidth)); ++x) {
-                        auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+                    for (int x = std::max(rect[0], 0); x < std::min(rect[2], world_w); ++x) {
+                        auto* pixel = &world[(std::size_t(y) * std::size_t(world_w) + std::size_t(x)) * 4];
                         pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
                     }
-                scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, rect[0] + 4, rect[1] + 1, *unit->name, unit->rgb[0], unit->rgb[1], unit->rgb[2]);
-                if (mouse_x >= rect[0] && mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) {
+                scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, rect[0] + 4, rect[1] + 1, *unit->name, unit->rgb[0], unit->rgb[1], unit->rgb[2]);
+                if (world_mouse_x >= rect[0] && world_mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) {
                     if (hovered_npc) *hovered_npc = unit->npc;
                     hovered = { nullptr, {} };              // the label names it: no second name
                 }
@@ -214,9 +223,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const auto& box  = hovered.second;
             const auto& colour  = hovered.first->rgb;
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
+            scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
                                box[1] - scene.font.line_height() - 2, hovered_name, colour[0], colour[1], colour[2]);
         }
+        if (wide)
+            for (std::size_t y = 0; y < kScreenHeight; ++y)
+                std::copy_n(world.begin() + std::ptrdiff_t((y * std::size_t(world_w) + std::size_t(off)) * 4), kScreenWidth * 4,
+                            framebuffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4));
         // Who reads the hover text: red requirements, class lines, attack speed.
         std::optional<d2d::rules::Wearer> wearer_value;
         if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);

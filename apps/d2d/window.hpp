@@ -40,15 +40,16 @@ struct Window {
     // mouse events arrive in game pixels.
     // `fullscreen` is borderless at the desktop's own mode (SDL3's default
     // fullscreen; no display mode switch), the game letterboxed inside it.
-    bool open(int width_, int height_, int scale, bool fullscreen) {
+    bool open(int width_, int height_, int scale, bool fullscreen, bool resizable = false, int window_width = 0) {
         // Hints have to be set BEFORE SDL_CreateWindow to take effect.
         // Disable the CGWindowServer "wants full-screen space" nag on
         // macOS — that dialog is what triggers user reports of the
         // window appearing to freeze right after launch. Also request
         // high-DPI so the renderer picks up the true screen scale.
         SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
-        window = SDL_CreateWindow("d2d", width_ * scale, height_ * scale,
-                                  SDL_WINDOW_HIGH_PIXEL_DENSITY | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+        view_w = width_;
+        window = SDL_CreateWindow("d2d", (window_width > 0 ? window_width : width_) * scale, height_ * scale,
+                                  SDL_WINDOW_HIGH_PIXEL_DENSITY | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0) | (resizable ? SDL_WINDOW_RESIZABLE : 0));
         if (!window) { d2d::log::error("SDL_CreateWindow: {}", SDL_GetError()); return false; }
         set_icon(window);
         // The launcher quits as it starts us: take the foreground it leaves
@@ -70,6 +71,22 @@ struct Window {
         if (!texture) { d2d::log::error("SDL_CreateTexture: {}", SDL_GetError()); return false; }
         // Linear filter on upscale, as thirdeye does.
         SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+        return true;
+    }
+
+    // The logical view's width (the height stays kScreenHeight): the
+    // widescreen game view is wider than the 800x600 menus, so the texture
+    // and the letterbox follow the screen shown.
+    int view_w = int(kScreenWidth);
+    bool set_view(int width_) {
+        if (width_ == view_w) return true;
+        SDL_Texture* wider = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, width_, int(kScreenHeight));
+        if (!wider) { d2d::log::error("SDL_CreateTexture: {}", SDL_GetError()); return false; }
+        SDL_SetTextureScaleMode(wider, SDL_SCALEMODE_LINEAR);
+        SDL_DestroyTexture(texture);
+        texture = wider;
+        SDL_SetRenderLogicalPresentation(renderer, width_, int(kScreenHeight), SDL_LOGICAL_PRESENTATION_LETTERBOX);
+        view_w = width_;
         return true;
     }
 };

@@ -528,6 +528,14 @@ public:
                 QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
         });
 
+        widescreen_ = new QCheckBox(tr("Widescreen"), this);
+        widescreen_->setToolTip(tr("Widen the in-game view to the window's aspect ratio; menus and panels keep their 800x600 layout."));
+        connect(widescreen_, &QCheckBox::toggled, this, [this](bool checked) {
+            const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
+            if (!d2d::userdir::save_cfg(cfg, { { "widescreen", checked ? "1" : "0" } }))
+                QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+        });
+
         crashReports_ = new QCheckBox(
             tr("Automatically send crash reports and the last game frame to Sentry"), this);
         crashReports_->setEnabled(*d2::kSentryDsn != '\0');
@@ -601,6 +609,7 @@ public:
         btnRow->addWidget(fetchBins_);
         btnRow->addStretch();
         btnRow->addWidget(fullscreen_);
+        btnRow->addWidget(widescreen_);
         btnRow->addSpacing(12);   // macOS clips the checkbox label against the default button
         btnRow->addWidget(launch_);
         layout->addLayout(btnRow);
@@ -640,8 +649,9 @@ private:
         d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
         if (patch_path_.isEmpty())   // a hand-set `patch =` in d2d.cfg counts
             patch_path_ = QString::fromStdString(cfg["patch"]);
-        const QSignalBlocker quiet(fullscreen_);   // loading isn't a change to write back
+        const QSignalBlocker quiet(fullscreen_), quiet_widescreen(widescreen_);   // loading isn't a change to write back
         fullscreen_->setChecked(cfg["fullscreen"] == "1");
+        widescreen_->setChecked(cfg["widescreen"] == "1");
         source_ = settings.value("game/source", "manual").toString();
         const QSignalBlocker crashReportsQuiet(crashReports_);
         crashReports_->setChecked(settings.value("privacy/sendCrashReports", false).toBool());
@@ -967,6 +977,7 @@ private:
     QPushButton* fetchBins_{};
     QPushButton* launch_{};
     QCheckBox* fullscreen_{};
+    QCheckBox* widescreen_{};
     QCheckBox* crashReports_{};
     QLineEdit* crashNotes_{};
     QPushButton* upgrade_{};

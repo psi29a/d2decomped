@@ -259,7 +259,7 @@ public:
     void update(std::span<const std::uint8_t> framebuffer) {
         if (!active_)
             return;
-        if (framebuffer.size() != std::size_t(kScreenWidth) * kScreenHeight * 4) {
+        if (framebuffer.empty() || framebuffer.size() % (std::size_t(kScreenHeight) * 4) != 0) {
             d2d::log::warn("Skipping crash-frame capture due to unexpected framebuffer size.");
             return;
         }
@@ -271,7 +271,7 @@ public:
         if (stopping_ || !frame_available_)
             return;
         last_capture_ = now;
-        std::copy(framebuffer.begin(), framebuffer.end(), available_frame_.begin());
+        available_frame_.assign(framebuffer.begin(), framebuffer.end());
         frame_available_ = false;
         frame_pending_ = true;
         ready_.notify_one();
@@ -292,7 +292,7 @@ private:
 
             try {
                 const auto png = d2d::screenshot::encode_png(
-                    frame, kScreenWidth, kScreenHeight);
+                    frame, std::uint32_t(frame.size() / 4 / kScreenHeight), kScreenHeight);
                 auto attachment = sentry_attachment_from_bytes(
                     reinterpret_cast<const char*>(png.data()), png.size(),
                     "last-game-frame.png");
@@ -363,6 +363,8 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
 }
 static int         g_scale = 1;          // window = game res * g_scale
 static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
+static bool        g_widescreen = false; // d2d.cfg widescreen = 1 / --widescreen: the game view widens to the window
+static int         g_forced_view_w = 0;  // --view-width: the widescreen width, else the window's aspect
 
 // What a failed join shows (tcpip-menu.md, "Join errors"): game.exe's
 // "Cannot Connect to Server" (0x145b) when the host doesn't answer, its
@@ -427,7 +429,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::log::info("Initializing SDL... done! SDL {}.{}.{} ({})", SDL_VERSIONNUM_MAJOR(sdl_v),
                    SDL_VERSIONNUM_MINOR(sdl_v), SDL_VERSIONNUM_MICRO(sdl_v), SDL_GetCurrentVideoDriver());
     Window win;
-    if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen)) { SDL_Quit(); return 1; }
+    if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen, g_widescreen, g_widescreen ? 1066 : 0)) { SDL_Quit(); return 1; }
     SentryFrameAttachment crash_frame;
     if (sentry_is_enabled()) {
         auto graphics = sentry_value_new_object();
@@ -704,6 +706,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // SDL3 doesn't rescale event coords under logical presentation;
             // convert so the mouse lands in 800x600 game pixels.
             SDL_ConvertEventToRenderCoordinates(win.renderer, &event);
+            // Widescreen: mouse x counts from the centre 800x600, where the UI is.
+            const float view_off = float(win.view_w - int(kScreenWidth)) / 2;
+            if (event.type == SDL_EVENT_MOUSE_MOTION) event.motion.x -= view_off;
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
+            else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
         }
@@ -711,6 +718,22 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             std::memory_order_relaxed);
         if (channel.active()) channel.pump();
 
+        // The in-game view widens to the window's aspect (--widescreen); the
+        // menus, cinematics and endgame stay 800x600.
+        {
+            int want = int(kScreenWidth);
+            if (g_widescreen && screen == Screen::InGame) {
+                int pixels_w = 0, pixels_h = 0;
+                SDL_GetWindowSizeInPixels(win.window, &pixels_w, &pixels_h);
+                want = g_forced_view_w > 0 ? g_forced_view_w
+                     : pixels_h > 0 ? std::clamp(int(kScreenHeight) * pixels_w / pixels_h & ~1, int(kScreenWidth), kMaxViewWidth) : int(kScreenWidth);
+            }
+            if (want != win.view_w && win.set_view(want)) {
+                framebuffer.assign(std::size_t(want) * kScreenHeight * 4, 0);
+                for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
+                g_view_width = want;
+            }
+        }
         const std::uint32_t t_after_input = std::uint32_t(SDL_GetTicks());
         current_phase.store(std::uint32_t(MainPhase::Render),
                             std::memory_order_relaxed);
@@ -1079,22 +1102,23 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // the screen underneath.
             // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
+            const int cursor_dx = (fb_width(framebuffer) - int(kScreenWidth)) / 2;
             if (screen == Screen::InGame && town.held) {
-                draw_held(framebuffer, *scene, *town.held, mouse.x, mouse.y);
+                draw_held(framebuffer, *scene, *town.held, mouse.x + cursor_dx, mouse.y);
             } else if (screen == Screen::InGame && town.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
                 // An identify pick: cursor state 6, buysell's frame = Books.txt
                 // SpellIcon (0; S->C 0x3f, FUN_00468010), bottom 0x21 below the
                 // hotspot (FUN_00468460).
                 const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
                 const auto& frame = scene->cursor_buysell.frame(0, 0);
-                blit_sprite(framebuffer, frame, pal, mouse.x + frame.offset_x,
+                blit_sprite(framebuffer, frame, pal, mouse.x + cursor_dx + frame.offset_x,
                             mouse.y + 0x21 + frame.offset_y - int(frame.height) + 1);
             } else if (screen != Screen::Video && scene->cursor.frames_per_direction() >= 8) {   // hidden over cinematics
                 const auto& pal = screen == Screen::InGame
                                       ? (scene->act_pal.entries().empty() ? scene->pal : scene->act_pal)
                                   : screen == Screen::CharCreate ? scene->charselect_pal : scene->pal;
                 const auto& frame = scene->cursor.frame(0, mouse.down ? 7 : 0);
-                blit_sprite(framebuffer, frame, pal, mouse.x + frame.offset_x,
+                blit_sprite(framebuffer, frame, pal, mouse.x + cursor_dx + frame.offset_x,
                             mouse.y + frame.offset_y - int(frame.height) + 1);
             }
         } else {
@@ -1110,7 +1134,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         if (!(wflags & SDL_WINDOW_MINIMIZED)) {
             current_phase.store(std::uint32_t(MainPhase::Upload),
                                 std::memory_order_relaxed);
-            SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), int(kScreenWidth * 4));
+            SDL_UpdateTexture(win.texture, nullptr, framebuffer.data(), fb_width(framebuffer) * 4);
             SDL_RenderClear(win.renderer);
             SDL_RenderTexture(win.renderer, win.texture, nullptr, nullptr);
             current_phase.store(std::uint32_t(MainPhase::Present),
@@ -1245,8 +1269,15 @@ int main(int argc, char** argv) {
                    "Unix-socket dev-control channel path");
     std::string data_dir_str;
     int scale = cfg.contains("scale") ? std::atoi(cfg["scale"].c_str()) : 1;
+    int view_width = 0;
+    bool cli_widescreen = false;
     app.add_option("--scale", scale, "Window scale (game renders at 800x600)")
         ->check(CLI::Range(1, 8));
+    app.add_option("--view-width", view_width,
+                   "Widescreen game view's width, 800.." + std::to_string(kMaxViewWidth) + " (else it follows the window's aspect; also `widescreen = 1` in d2d.cfg)")
+        ->check(CLI::Range(int(kScreenWidth), kMaxViewWidth));
+    app.add_flag  ("--widescreen", cli_widescreen,
+                   "Widen the in-game view to the window's aspect (menus stay 800x600)");
     app.add_option("--data", data_dir_str,
                    "D2 MPQ directory (else $D2_MPQ_DIR, d2data.mpq beside d2d or in ./, d2d.cfg data =)");
     app.add_flag  ("--headless", headless,
@@ -1335,7 +1366,7 @@ int main(int argc, char** argv) {
 
     d2d::devctl::Channel channel;
     channel.on("info", [&](const std::vector<std::string>&) {
-        return "w=" + std::to_string(kScreenWidth) + " h=" + std::to_string(kScreenHeight)
+        return "w=" + std::to_string(fb_width(framebuffer)) + " h=" + std::to_string(kScreenHeight)
              + " frame=" + std::to_string(frame_count.load()) + "\nok\n";
     });
     channel.on("screenshot", [&](const std::vector<std::string>& args) {
@@ -1343,7 +1374,7 @@ int main(int argc, char** argv) {
         // Relative paths land in the user screenshots dir.
         const fs::path out = fs::path(args[1]).is_relative() ? shot_dir / args[1]
                                                              : fs::path(args[1]);
-        const auto written = d2d::screenshot::save_png(out, framebuffer, kScreenWidth, kScreenHeight);
+        const auto written = d2d::screenshot::save_png(out, framebuffer, std::uint32_t(fb_width(framebuffer)), kScreenHeight);
         return "ok " + std::to_string(written) + "\n";
     });
     channel.on("quit", [&](const std::vector<std::string>&) {
@@ -1401,6 +1432,8 @@ int main(int argc, char** argv) {
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
     g_fullscreen     = cfg["fullscreen"] == "1";
+    g_widescreen     = cfg["widescreen"] == "1" || cli_widescreen || view_width > 0;
+    g_forced_view_w  = std::clamp(view_width, 0, kMaxViewWidth);
     if (cfg.contains("master_volume")) g_master_volume = std::clamp(std::atoi(cfg["master_volume"].c_str()), 0, 100);
     if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
 

@@ -33,6 +33,19 @@ constexpr std::uint32_t kScreenHeight = 600;
 constexpr int kViewY = int(kScreenHeight) / 2 - 8;
 constexpr int kFloorViewY = (int(kScreenHeight) - 40) / 2;
 
+// The height is always kScreenHeight; a widescreen view is a buffer wider
+// than kScreenWidth, so a framebuffer's stride is read from its size.
+inline auto fb_width(const std::vector<std::uint8_t>& framebuffer) -> int {
+    return int(framebuffer.size() / 4 / kScreenHeight);
+}
+
+// The widest widescreen view (ultra-wide), in logical pixels.
+constexpr int kMaxViewWidth = 1400;
+
+// The in-game view's logical width: kScreenWidth, or wider in widescreen
+// (see main.cpp's resize handling). Read by the world's light grid and rain.
+inline int g_view_width = int(kScreenWidth);
+
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;
 

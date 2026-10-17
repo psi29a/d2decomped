@@ -30,6 +30,7 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    const d2d::palette::Palette& pal,
                    int screen_x, int screen_y, int alpha_all , const Hole* hole) {
     const int tile_height = std::abs(tile.height);
+    const int screen_w = fb_width(framebuffer);
     for (int y = 0; y < tile_height; ++y) {
         const int pixel_y = screen_y + y;
         if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -38,9 +39,9 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
             const std::uint8_t idx = row[x];
             if (idx == 0) continue;   // transparent
             const int pixel_x = screen_x + x;
-            if (pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
+            if (pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
-            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + pixel_x) * 4;
+            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             const int alpha = hole ? hole->alpha(pixel_x, pixel_y, alpha_all) : alpha_all;
             if (alpha >= 255) { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
             else { pixel[0] = std::uint8_t((pixel[0] * (255 - alpha) + colour.r * alpha) / 255); pixel[1] = std::uint8_t((pixel[1] * (255 - alpha) + colour.g * alpha) / 255); pixel[2] = std::uint8_t((pixel[2] * (255 - alpha) + colour.b * alpha) / 255); }
@@ -52,6 +53,7 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
 void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
                      const d2d::palette::Palette& pal, int screen_x, int screen_y) {
     const int tile_height = std::abs(tile.height);
+    const int screen_w = fb_width(framebuffer);
     for (int y = 0; y < tile_height; ++y) {
         const int pixel_y = screen_y + y;
         if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -59,9 +61,9 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
         for (int x = 0; x < tile.width; ++x) {
             const std::uint8_t idx = row[x];
             const int pixel_x = screen_x + x;
-            if (idx == 0 || pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
+            if (idx == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
-            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + pixel_x) * 4;
+            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             pixel[0] = std::uint8_t((pixel[0] * 3 + colour.r) / 4); pixel[1] = std::uint8_t((pixel[1] * 3 + colour.g) / 4); pixel[2] = std::uint8_t((pixel[2] * 3 + colour.b) / 4);
         }
     }
@@ -93,6 +95,7 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
         return std::size_t(int((corner[0] + (corner[1] - corner[0]) * frac_a) * (1 - fb2) + (corner[kPatch] + (corner[kPatch + 1] - corner[kPatch]) * frac_a) * fb2) >> 3);
     };
     const int tile_height = std::abs(tile.height);
+    const int screen_w = fb_width(framebuffer);
     for (int y = 0; y < tile_height; ++y) {
         const int pixel_y = screen_y + y;
         if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -101,10 +104,10 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
             const std::uint8_t idx = row[x];
             if (idx == 0) continue;
             const int pixel_x = screen_x + x;
-            if (pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
+            if (pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto lvl = level(pixel_x - top_x, floor ? pixel_y - top_y : kIsoH / 2);
             const auto col = pals[lvl][idx];
-            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + pixel_x) * 4;
+            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             const int alpha = hole ? hole->alpha(pixel_x, pixel_y, alpha_all) : alpha_all;
             if (alpha >= 255) { pixel[0] = col.r; pixel[1] = col.g; pixel[2] = col.b; }
             else { pixel[0] = std::uint8_t((pixel[0] * (255 - alpha) + col.r * alpha) / 255); pixel[1] = std::uint8_t((pixel[1] * (255 - alpha) + col.g * alpha) / 255); pixel[2] = std::uint8_t((pixel[2] * (255 - alpha) + col.b * alpha) / 255); }
@@ -150,7 +153,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     const auto& map = level.ds1;
     if (map.width() == 0 || map.height() == 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    const int cx0 = int(kScreenWidth) / 2;
+    const int screen_w = fb_width(framebuffer);
+    const int cx0 = screen_w / 2;
     const int map_width  = map.width();
     const int base_x = int(std::floor(cam_x)), base_y = int(std::floor(cam_y));
     // Screen position of cell (gx, gy)'s tile point. A floor's 128-row
@@ -293,12 +297,13 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Units' shadows, on the ground under the walls and units (the floor
     // pass FUN_004df510 → FUN_004dc7b0).
     {
-        static std::vector<std::uint16_t> mask(std::size_t(kScreenWidth) * kScreenHeight, 0);
+        static std::vector<std::uint16_t> mask;
+        if (mask.size() != std::size_t(screen_w) * kScreenHeight) mask.assign(std::size_t(screen_w) * kScreenHeight, 0);
         static std::uint16_t id = 0;
         for (const auto& unit : units) {
             if (!unit.anim || !unit.shadow) continue;
             const auto [anchor_x, anchor_y] = iso_point(unit.x, unit.y);
-            if (anchor_x < -200 || anchor_x > int(kScreenWidth) + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
+            if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
             if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
             shadow_composite(framebuffer, *unit.anim, unit.dir, std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate), anchor_x, anchor_y, mask, id);
         }
@@ -362,7 +367,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 }
             };
             draw_overs(true);
-            if (anchor_x < -200 || anchor_x > int(kScreenWidth) + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
+            if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
             std::array<int, 4> bounds{};
             if (unit.missile) {
                 const auto cel = scene.missile_cels.find(unit.missile->name);
@@ -454,6 +459,7 @@ void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                     int anchor_x, int anchor_y, int trans) {
     const int dst_x = anchor_x + frame.box_left;
     const int dst_y = anchor_y + frame.box_top;
+    const int screen_w = fb_width(framebuffer);
     for (std::int32_t y = 0; y < frame.height; ++y) {
         const int pixel_y = dst_y + y;
         if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
@@ -462,9 +468,9 @@ void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
             const auto idx = row[x];
             if (idx == 0) continue;
             const int pixel_x = dst_x + x;
-            if (pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
+            if (pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
-            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + pixel_x) * 4;
+            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             if (trans == 1) { pixel[0] = std::uint8_t(std::min(255, pixel[0] + colour.r)); pixel[1] = std::uint8_t(std::min(255, pixel[1] + colour.g)); pixel[2] = std::uint8_t(std::min(255, pixel[2] + colour.b)); }
             else if (trans == 2) { pixel[0] = std::uint8_t(pixel[0] * colour.r / 255); pixel[1] = std::uint8_t(pixel[1] * colour.g / 255); pixel[2] = std::uint8_t(pixel[2] * colour.b / 255); }
             else if (trans >= 3 && trans <= 5) {                       // a quarter, half, three quarters of the layer
@@ -480,7 +486,8 @@ void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id) {
     composite_frames(anim, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& frame, const d2d::cof::Layer* layer) {
-        if (layer && !layer->shadow) return;                               // the COF says this layer casts none
+        const int screen_w = fb_width(framebuffer);
+        if (layer && !layer->shadow) return;                               // the COF says this layer casts none                              // the COF says this layer casts none
         const int bottom = frame.box_top + frame.height - 1;              // the frame's bottom row, from the anchor
         const int left = anchor_x + frame.box_left + bottom / 2, top = anchor_y + bottom / 2;
         for (std::int32_t pixel_row = 0; pixel_row < frame.height; pixel_row += 2) {          // rows up from the bottom
@@ -489,11 +496,11 @@ void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::Playe
             const auto* row = frame.pixels.data() + std::size_t(frame.height - 1 - pixel_row) * frame.width;
             for (std::int32_t x = 0; x < frame.width; ++x) {
                 const int pixel_x = left + x - pixel_row / 2;
-                if (row[x] == 0 || pixel_x < 0 || pixel_x >= int(kScreenWidth)) continue;
-                auto& mask_cell = mask[std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)];
+                if (row[x] == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
+                auto& mask_cell = mask[std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)];
                 if (mask_cell == id) continue;
                 mask_cell = id;
-                auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4;
+                auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
                 pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
             }
         }
