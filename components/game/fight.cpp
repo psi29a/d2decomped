@@ -3135,7 +3135,7 @@ auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> voi
             x.friendly = true; x.caster = actor->id; x.level = pet.shot_level;
             x.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
             if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
-            missiles.push_back(x);
+            missiles.push_back(std::move(x));
         }
     }
 
@@ -3422,9 +3422,9 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         monster.force_sight = act.unreachable;
         const int aidel = type_info.diff[std::size_t(difficulty)].aidel > 0 ? type_info.diff[std::size_t(difficulty)].aidel : 15;
         if (act.kind == Kind::moved || act.kind == Kind::chase) {
-            const auto path = act.kind == Kind::chase ? unit.path : route;
             set_mode(*game_data, monster, act.move.mode == d2d::rules::kMonsterRun ? "RN" : "WL", now_ms);
-            unit.path = path; unit.walking = true;
+            if (act.kind != Kind::chase) unit.path = route;
+            unit.walking = true;
             if (act.kind == Kind::moved) { unit.goal_x = centre(act.move.x); unit.goal_y = centre(act.move.y); unit.budget = 0x14; unit.path_points = int(route.size()); unit.to_unit = false; }
             monster.move_pct = act.move.pct;
             pet.chase = act.kind == Kind::chase;
@@ -3643,7 +3643,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             }
             scene.skills[3] = { .id = -2 };
         }
-        world.give = give_hands;
+        world.give = std::move(give_hands);
         d2d::rules::PetBrain brain(scene, monster.seed, pet.ctrl, world);
         // The Shadow Master (shadows.hpp) on the units round it: the pet, its
         // owner, the monsters within 64 subtiles of either, its fellow pets
@@ -3674,7 +3674,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                                   .monster_id = other_type.base >= 0 ? other_type.base : other.type };
                 entry.resist = { foe.res[0], foe.res[2], foe.res[3], foe.res[1], foe.res[4], foe.res[5] };   // by EType: none, fire, light, magic, cold, poison
                 entry.drain = foe.drain;
-                units.push_back(entry);
+                units.push_back(std::move(entry));
                 monster_of.push_back(int(i));
             }
             for (const auto& fellow : actor->pets)
@@ -3789,9 +3789,9 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         switch (act.kind) {
         case Kind::moved:
         case Kind::chase: {
-            const auto path = act.kind == Kind::chase ? unit.path : route;
             set_mode(*game_data, monster, act.move.mode == d2d::rules::kMonsterRun ? "RN" : "WL", now_ms);
-            unit.path = path; unit.walking = true;
+            if (act.kind != Kind::chase) unit.path = route;
+            unit.walking = true;
             if (act.kind == Kind::moved) { unit.goal_x = centre(act.move.x); unit.goal_y = centre(act.move.y); unit.budget = 0x14; unit.path_points = int(route.size()); unit.to_unit = false; }
             monster.move_pct = act.move.pct;
             pet.chase = act.kind == Kind::chase && chased >= 0;
@@ -3801,7 +3801,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         case Kind::swing:
         case Kind::skill:
         case Kind::seq: {
-            const int target = act.kind == Kind::swing ? target_of_unit(act.unit) : target_of_unit(act.unit);
+            const int target = target_of_unit(act.unit);
             pet.target = target;
             pet.cast = act.kind == Kind::swing ? -1 : act.skill;
             pet.cast_x = centre(act.x); pet.cast_y = centre(act.y);
@@ -3981,7 +3981,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             x.dir = direction32(dx, dy); x.to = { foe.unit.x, foe.unit.y };
             x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
             if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;
-            pending.push_back(x);
+            pending.push_back(std::move(x));
             return;
         }
         if (target < 0) return;
@@ -4458,7 +4458,7 @@ auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t 
             const float dir_x = float(dx) / 5, dir_y = float(dy) / 5, speed = missile_speed(missile_info, lvl), distance = std::hypot(dir_x, dir_y);
             Missile missile{ &missile_info, x, y, dir_x / distance * speed, dir_y / distance * speed, direction32(dir_x, dir_y), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             missile.friendly = true; missile.caster = actor->id; missile.row = damage; missile.burst = missile_info.hit_par1;
-            pending.push_back(missile);
+            pending.push_back(std::move(missile));
         }
     }
 

@@ -2049,7 +2049,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
                                                               { "%1", monster.npc.name } };
         for (const auto& [placeholder, value] : words)
             if (const auto found = format.find(placeholder); found != std::string::npos) format.replace(found, placeholder.size(), value);
-        monster.npc.name = format;
+        monster.npc.name = std::move(format);
     }
 }
 

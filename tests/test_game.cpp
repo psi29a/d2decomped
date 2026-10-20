@@ -265,14 +265,15 @@ int main() try {
     // Max mana % (item_maxmana_percent 77, op 11): a share of the own maximum
     // plus the items' flat +mana, not of energy's (op 8).
     {
-        const auto items = hero.character.items;
+        auto items = std::move(hero.character.items);
         d2d::d2s::Item charm;
         charm.code = "cm1"; charm.panel = 1; charm.props = { { d2d::d2s::kMaxMana, 0, 100 }, { d2d::d2s::kEne, 0, 10 }, { d2d::d2s::kMaxManaPercent, 0, 50 } };
-        hero.character.items = { charm };
+        hero.character.items.clear();
+        hero.character.items.push_back(std::move(charm));
         fight.update_fighters(26 * kTickMs);
         const std::int64_t own = fight.own_stats().values[d2d::d2s::kMaxMana], flat = own + 100 * 256;
         const auto& gains = data->class_gains[std::size_t(hero.character.header.cls % 7)];
-        const std::int64_t energy = 10 * gains.mana_per_energy / 4 * 256;
+        const std::int64_t energy = 10LL * gains.mana_per_energy / 4 * 256;
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == flat + flat * 50 / 100 + energy);
         // Battle Orders' % (a state's 77) adds to the items': one % of the
         // same raw maximum, mana up with it.
@@ -282,7 +283,7 @@ int main() try {
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == flat + flat * 70 / 100 + energy);
         assert(hero.character.stats.values[d2d::d2s::kMana] == std::min(mana + (flat * 70 / 100 - flat * 50 / 100), flat + flat * 70 / 100 + energy));
         hero.boost = {};
-        hero.character.items = items;
+        hero.character.items = std::move(items);
         fight.update_fighters(26 * kTickMs);
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == own);
     }
@@ -596,7 +597,7 @@ int main() try {
             coop.tick({}, now_ms + kTickMs, now_ms); now_ms += kTickMs;
             assert(second.body && second.body->raised == 0 && lead.raising < 0);
             // Two channelling: twice as fast.
-            auto third_character = character;
+            auto third_character = std::move(character);
             third_character.name = "Third";
             auto& third = coop.join(third_character);
             std::tie(third.player.x, third.player.y) = blood_moor->nearest_free(second.body->x - 1, second.body->y);
