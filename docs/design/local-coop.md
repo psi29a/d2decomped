@@ -46,6 +46,21 @@ PC or Mac with pads works the same way.
 
 ![Player 2's roster over the game: Alpha greyed (playing), the green cursor on Beta](https://github.com/psi29a/d2decomped/raw/pr-assets/pr57-roster.png)
 
+**The lobby** (2026-10-21, `apps/d2d/lobby.{hpp,cpp}`, toggle `coop_lobby`)
+
+- The title's first button reads "SINGLE PLAYER / COOP".
+- On character select, with two or more external pads, the first is
+  player 1's. It alone plays the screen, and only it (or the keyboard
+  and mouse) starts the game.
+- Each other pad has a status line right of the panel. A (or Start)
+  opens its roster. Player 1's pick is greyed there, and so is a save
+  another partner took. A picks a save, or makes a new character (class,
+  name), and the seat reads "ready". B takes the pick back.
+- Player 1 picking another character drops the partners' picks, since
+  they were made against its difficulty, hardcore and expansion flags.
+- When player 1 starts, the ready seats join at once. A seat still
+  choosing gets its roster in the game as before.
+
 **Cursors**
 
 - When 2 or more pads are connected, each cursor is tinted by its pad: P1

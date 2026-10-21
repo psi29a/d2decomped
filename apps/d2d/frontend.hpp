@@ -201,6 +201,7 @@ CinematicsUI cinematics_ui(const Scene& scene, int unlocked);
 
 void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const CinematicsUI& cinematics);
 
-TitleUI title_ui(const Scene& scene);
+// `coop`: the "coop_lobby" toggle: SINGLE PLAYER reads "SINGLE PLAYER / COOP".
+TitleUI title_ui(const Scene& scene, bool coop = false);
 
 }  // namespace d2d::client

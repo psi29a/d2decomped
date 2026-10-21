@@ -1913,24 +1913,7 @@ auto Town::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void 
         auto& coop_player = *found;
         if (coop_player.roster) {                       // still choosing: the pad plays the roster
             const auto actions = coop_player.mapper.step(sample, pad::Context::Menu, seconds);
-            if (const auto choice = scene ? roster_input(*coop_player.roster, actions, *scene) : std::nullopt) {
-                const auto& lead = world.lead().character.header;
-                if (choice->save >= 0) {
-                    coop_join(seat, character_of_save(*scene, std::size_t(choice->save)));
-                } else {                                 // a new character, saved at once (as char-create's OK)
-                    // A name a player in the game or a save on disk has is refused (as char-create's).
-                    const auto lower = [](char letter) { return std::tolower(static_cast<unsigned char>(letter)); };
-                    const auto same = [&](const std::string& name) { return std::ranges::equal(name, choice->name, {}, lower, lower); };
-                    if (std::ranges::any_of(world.players, [&](const auto& each) { return same(each->character.name); })
-                        || (world.characters && std::filesystem::exists(world.characters->path(choice->name)))) return;
-                    coop_join(seat, made_character(*scene, choice->cls, choice->name, lead.hardcore(), lead.expansion(), rng));
-                    auto& made = *world.players.back();
-                    world.each_player([&](World::Player& each) {
-                        if (&each != &made) return;
-                        if (const auto why = world.save(); !why.empty()) d2d::log::warn("{}: {}", made.character.name, why);
-                    });
-                }
-            }
+            if (const auto choice = scene ? roster_input(*coop_player.roster, actions, *scene) : std::nullopt) (void)coop_choose(seat, *choice);
             return;
         }
         const auto in_world = std::ranges::find(world.players, coop_player.id, [](const auto& each) { return each->id; });
@@ -1943,6 +1926,29 @@ auto Town::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void 
         for (const pad::Key key : opens)                // the keys that opened it, for this frame's UI
             if (key == pad::Key::Up) pad_open_picker(); // field_play's stand-in for the picker
             else focus_keys.push_back(pad_keycode(key));
+    }
+
+// A seat's roster choice made (in the game or the lobby): a save joins, a
+// new character is made and saved at once (as char-create's OK). False
+// for a name a player in the game or a save on disk has (char-create's).
+auto Town::coop_choose(int seat, const RosterChoice& choice) -> bool {
+        if (!scene) return false;
+        const auto& lead = world.lead().character.header;
+        if (choice.save >= 0) {
+            coop_join(seat, character_of_save(*scene, std::size_t(choice.save)));
+            return true;
+        }
+        const auto lower = [](char letter) { return std::tolower(static_cast<unsigned char>(letter)); };
+        const auto same = [&](const std::string& name) { return std::ranges::equal(name, choice.name, {}, lower, lower); };
+        if (std::ranges::any_of(world.players, [&](const auto& each) { return same(each->character.name); })
+            || (world.characters && std::filesystem::exists(world.characters->path(choice.name)))) return false;
+        coop_join(seat, made_character(*scene, choice.cls, choice.name, lead.hardcore(), lead.expansion(), rng));
+        auto& made = *world.players.back();
+        world.each_player([&](World::Player& each) {
+            if (&each != &made) return;
+            if (const auto why = world.save(); !why.empty()) d2d::log::warn("{}: {}", made.character.name, why);
+        });
+        return true;
     }
 
 auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {

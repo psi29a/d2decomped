@@ -756,7 +756,7 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     button(tcpip.box_ok, tcpip.ok_label, true);
 }
 
-TitleUI title_ui(const Scene& scene) {
+TitleUI title_ui(const Scene& scene, bool coop) {
     struct Spec {
         int x, y, width, height;
         std::uint16_t tbl_id;
@@ -790,6 +790,7 @@ TitleUI title_ui(const Scene& scene) {
             if (auto found = lookup_string(scene, spec.tbl_id)) label = u16_to_latin1(*found);
         }
         if (label.empty() && spec.fallback) label = spec.fallback;
+        if (coop && spec.tbl_id == 0x13f2) label += " / COOP";   // d2d: local co-op starts here too (deviations.md)
         title.labels.push_back(std::move(label));
         title.buttons.push_back(Button{
             spec.x, rec_top(spec.y, spec.height), spec.width, spec.height,

@@ -19,7 +19,7 @@ d2d copies.
 **Toggles:** an improvement that changes what a player sees can be turned
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `trans_roof` (improvement 4), `autoloot` (improvement 5), `autoparty` (improvement 7),
-`pad_controls` (improvement 11).
+`pad_controls` (improvement 11), `coop_lobby` (improvement 12).
 
 ## Improvements
 
@@ -36,6 +36,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 9 | A joined host that goes silent | Untraced (unverified: game.exe's own drop timeout) | 20 s with no packet from the host (it answers our 0x6d every 5 s) and d2d leaves for character select. No toggle | A host that vanishes (its PC off or asleep) left d2d in a dead game for 18 min, until TCP gave up (live 2026-10-18) | yes: back to character select | netgame.cpp `kSilentMs`, main.cpp |
 | 10 | d2d's player far from the host's | Untraced (unverified: game.exe corrects by the host's 0x15 only) | 15+ subtiles apart for 2 s and d2d puts its player where the host has it. No toggle | d2d walked through doors only it had open and on floor the host's path won't take; the host is the truth | yes: a jump back | town.cpp `net_drift_ms` |
 | 11 | Configure Controls' buttons | Cancel, Default, Accept, each a third of the panel (FUN_004a5060) | A fourth, Gamepad / Keyboard, turns the list into the pad's page: its settings (left-handed sticks, swapped confirm, dead zone, cursor speed), two layouts, each action's two buttons; edits work as a key's do (a button leaves the action it clashed with), Accept keeps them in d2d.cfg `pad_*`. The four buttons take a quarter each. `--toggle pad_controls=off` turns it off | game.exe has no pad (#33) | yes | controls.cpp, gamepad_map.hpp `Bindings` |
+| 12 | The title's SINGLE PLAYER | Single player only; a joined game's players pick on their own machines | "SINGLE PLAYER / COOP": with two or more external pads character select is local co-op's lobby, where each pad past the first picks its character before player 1 (alone) starts. `--toggle coop_lobby=off` turns it off | Couch co-op without picking characters mid-game | yes | lobby.cpp, frontend.cpp `title_ui`, local-coop.md "The lobby" |
 
 ## Approximations
 

@@ -21,6 +21,7 @@
 #include "devctl_verbs.hpp"
 #include "frontend.hpp"
 #include "gamepad.hpp"
+#include "lobby.hpp"
 #include "gamepad_map.hpp"
 #include "roster.hpp"
 #include "load.hpp"
@@ -345,7 +346,8 @@ static bool        g_video = true;          // startup cinematics (--no-video / 
 static fs::path    g_user_dir;
 static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
 static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg automap_mode/fade/center/party/names/left (game.exe's registry)
-static bool        g_pad_controls = true; // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
+static bool        g_pad_controls = true;
+static bool        g_coop_lobby = true;   // the title's "SINGLE PLAYER / COOP" and character select's co-op lobby; off: --toggle coop_lobby=off // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = 0;
 static std::string g_start_name;
@@ -480,7 +482,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // ponytail: input waits too (a few hundred ms); clicks in that time are dropped.
     // (Black when the startup videos come first, or another screen was asked for.)
     const bool title_first = (g_start_screen.empty() && !g_video) || g_start_screen == "title";
-    const auto boot_title = scene && title_first ? std::optional<TitleUI>(title_ui(*scene)) : std::nullopt;
+    const auto boot_title = scene && title_first ? std::optional<TitleUI>(title_ui(*scene, g_coop_lobby)) : std::nullopt;
     while (loading.valid() && loading.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) if (event.type == SDL_EVENT_QUIT) quit = true;
@@ -565,7 +567,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     std::uint32_t pad_last_ms = std::uint32_t(SDL_GetTicks());
     int pad_focus_key = 0;
     bool pad_in_use = false, pad_was_field = false, pad_cursor_hidden = false;   // the pad was the last to act; its field mode
-    TitleUI title = scene ? title_ui(*scene) : TitleUI{};
+    TitleUI title = scene ? title_ui(*scene, g_coop_lobby) : TitleUI{};
+    Lobby lobby;                                  // local co-op's lobby on character select
     TitleUI other_multiplayer = scene ? other_multiplayer_ui(*scene) : TitleUI{};
     TcpIpUI tcpip;
 
@@ -724,6 +727,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
         if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.trade_gold_typing))
+                               || (screen == Screen::CharSelect && lobby.typing())
                            || (screen == Screen::TcpIp && tcpip.box_open); want != text_active) {
             if (want) {
                 // The field being typed in, so Steam's keyboard opens clear of it.
@@ -790,7 +794,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 if (coop_game) {
                     d2d::log::info("co-op: a game with {} pads", gamepads.pads().size());
                     for (const auto& pad : gamepads.pads()) if (!pad.built_in) take_seat(pad);
+                    // The lobby's choices join at once; a seat still choosing gets its roster in the game.
+                    for (const auto& lobby_seat : lobby.seats)
+                        if (lobby_seat.choice && !town.coop_choose(lobby_seat.seat, *lobby_seat.choice)) d2d::log::warn("co-op: seat {}'s character couldn't join", lobby_seat.seat);
                 }
+                lobby.seats.clear();
             } else if (in_game && coop_game) {
                 for (const auto& pad : pad_changes.came) if (!pad.built_in) take_seat(pad);
                 for (const auto& gone : pad_changes.went) if (const int seat = seats.disconnect(int(gone.id), pad_now); seat >= 0) d2d::log::info("co-op: seat {} held", seat);
@@ -813,7 +821,20 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // The screen's pad (a partner's while they have it) plays the UI; the first player's plays their field meanwhile.
             const int ui_seat = coop_game ? town.focus_seat() : 0;
             if (coop_game && ui_seat != 0) town.lead_pad(gamepads.sample(SDL_JoystickID(std::max(seats.pad(0), 0))), pad_dt);
-            const pad::Sample first = coop_game ? gamepads.sample(SDL_JoystickID(std::max(seats.pad(ui_seat), 0))) : gamepads.sample();
+            // Character select with two or more external pads: the lobby. The
+            // first is player 1's (it alone plays the screen and starts the
+            // game); the others choose their characters (Lobby).
+            std::vector<int> external_pads;
+            for (const auto& pad : gamepads.pads()) if (!pad.built_in) external_pads.push_back(int(pad.id));
+            const bool lobby_on = g_coop_lobby && screen == Screen::CharSelect && scene && g_join_host.empty() && external_pads.size() >= 2;
+            if (lobby_on) {
+                lobby.sync({ external_pads.begin() + 1, external_pads.end() }, csu.selected, g_pad_config);
+                for (auto& lobby_seat : lobby.seats) lobby.input(lobby_seat, gamepads.sample(SDL_JoystickID(lobby_seat.pad)), pad_dt, *scene);
+            } else if (screen != Screen::InGame && screen != Screen::CharSelect) {
+                lobby.seats.clear();
+            }
+            const pad::Sample first = coop_game ? gamepads.sample(SDL_JoystickID(std::max(seats.pad(ui_seat), 0)))
+                                    : lobby_on  ? gamepads.sample(SDL_JoystickID(external_pads.front())) : gamepads.sample();
             if (ui_seat != last_ui_seat) {                       // another pad: what it holds now isn't pressed now
                 pad_mapper = pad::Mapper{ g_pad_config };
                 (void)pad_mapper.step(first, pad_context, 0);
@@ -1206,7 +1227,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         }
                     }
                 }
+                if (lobby.typing()) lobby.text(text_this_frame, backspace_this_frame);   // a partner's new character's name
                 render_charselect(framebuffer, *scene, csu, now_ms);
+                if (!lobby.seats.empty()) lobby.draw(framebuffer, *scene);
                 break;
             }
             case Screen::InGame: {
@@ -1506,7 +1529,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls)");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
@@ -1603,6 +1626,7 @@ int main(int argc, char** argv) {
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
             { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
             { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
+            { "coop_lobby", &g_coop_lobby },       // SINGLE PLAYER / COOP, partners pick their characters on character select
         };
         std::string_view rest = toggles;
         while (!rest.empty()) {

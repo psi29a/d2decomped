@@ -278,6 +278,7 @@ struct Town {
     std::vector<SDL_Keycode> focus_keys;          // the keys a partner took the screen with, for this frame's UI
     // The first player's pad while a partner has the screen: field play only.
     void lead_pad(const pad::Sample& sample, float seconds);
+    bool coop_choose(int seat, const RosterChoice& choice);
     PadPlayer lead_field;
     pad::Mapper lead_mapper;
     // The pads' settings (d2d.cfg pad_*): every player's mapper plays by them.
