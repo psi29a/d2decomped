@@ -1777,8 +1777,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         if (near_foe.alive && !near_foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
                             near_foe.cursed = { 66, curse_level };
                 }
-                foe.melee_by.push_back(&monster);
-                if (taken.damage > 0) foe.damaged_by.push_back(&monster);
+                foe.melee_by.push_back(monster.id);
+                if (taken.damage > 0) foe.damaged_by.push_back(monster.id);
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
                 const int thorns = foe.fighter.thorns + d2d::rules::resisted(foe.fighter.thorns_light, res[3]) + taken.damage * foe.fighter.thorns_pct / 100
                                  + taken.damage * monster.reflect_pct / 100;  // Iron Maiden

@@ -2387,11 +2387,15 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
 auto World::footstep_frame(std::uint32_t tick_ms) -> void {
         using namespace d2d::rules::sound_ids;
         const int cls = actor->character.character_class;
-        if (!actor->player.walking || actor->pmode >= 0 || fight.dead() || cls < 0 || cls >= 7 || actor->ghost) return;
+        const bool walking = actor->player.walking && actor->pmode < 0;
+        if (walking && !actor->stepping) actor->walk_from_ms = tick_ms;   // a walk starting: its cycle from here
+        actor->stepping = walking;
+        if (!walking || fight.dead() || cls < 0 || cls >= 7 || actor->ghost) return;
         const bool run = actor->running && actor->character.stats.values[d2d::d2s::kStamina] > 0 && !in_town(level);
         const auto& anim = fight.player_anim(run ? kModeRN : in_town(level) ? kModeTW : kModeWL);
-        const int rate = int(anim.speed ? anim.speed : 256), length = int(anim.frames) * 256, count = 2;
-        const int pos = int((tick_ms - actor->player.mode_ms) / 40) * rate % std::max(length, 1);
+        const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256);
+        const int length = int(anim.frames ? anim.frames : anim.cof_frames) * 256, count = 2;
+        const int pos = int((tick_ms - actor->walk_from_ms) / 40) * rate % std::max(length, 1);
         if (!footfall(pos, rate, length, count, 0)) return;
         if (tick_ms - actor->step_sound_ms < std::uint32_t(2 * length / (count * rate) / 3) * 40) return;
         actor->step_sound_ms = tick_ms;

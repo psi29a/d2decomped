@@ -312,6 +312,8 @@ struct Fight {
         int   footstep_cursor = 0;
         std::uint32_t footstep_ms = 0;
         std::uint32_t step_sound_ms = 0;        // when its last footstep sounded (unit +0x84)
+        std::uint32_t walk_from_ms = 0;         // when its walk began: its animation's phase for the footsteps
+        bool          stepping = false;         // walking as of the last footstep tick
         // Where the player last arrived through a warp (player data +0x148 /
         // +0x14c, FUN_00554ea0; subtiles): a pet near it steps out of the crowd.
         std::pair<int, int> warp_spot{};

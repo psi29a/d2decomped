@@ -2984,8 +2984,11 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const -> void {
     const auto pick = pad_pick(pad, view.player, true);
     if (pick.kind == PadPick::kNone) return;
-    const bool object = pick.kind == PadPick::kThing && level && std::size_t(pick.id) < level->npcs.size() && level->npcs[std::size_t(pick.id)].root == "objects";
-    const std::string_view verb = pick.kind == PadPick::kMonster ? "Attack" : pick.kind == PadPick::kItem ? "Pick up" : object ? "Use" : "Talk";
+    // A town portal (-2000 - which) is used, a corpse (-3000 - which) picked up, as an object / ground item.
+    const bool portal = pick.kind == PadPick::kThing && pick.id <= -2000 && pick.id > -3000;
+    const bool corpse = pick.kind == PadPick::kThing && pick.id <= -3000 && pick.id > -4000;
+    const bool object = pick.kind == PadPick::kThing && pick.id >= 0 && level && std::size_t(pick.id) < level->npcs.size() && level->npcs[std::size_t(pick.id)].root == "objects";
+    const std::string_view verb = pick.kind == PadPick::kMonster ? "Attack" : pick.kind == PadPick::kItem || corpse ? "Pick up" : object || portal ? "Use" : "Talk";
     const auto& primary = pad_config.bindings[pad::Action::Primary];   // its first button bound
     const auto button = primary[0] != pad::Bindings::kNone ? primary[0] : primary[1];
     if (button == pad::Bindings::kNone) return;

@@ -1577,7 +1577,7 @@ void set_map_seed(GameData& game_data, std::uint32_t seed, int difficulty) {
     game_data.levels.clear();
     const Level& old = game_data.town;
     Level town{ .id = old.id, .name = old.name, .type = old.type, .layer = old.layer, .song = old.song, .ambience = old.ambience,
-                .night_ambience = old.night_ambience, .day_event = old.day_event, .night_event = old.night_event,
+                .material = old.material, .night_ambience = old.night_ambience, .day_event = old.day_event, .night_event = old.night_event,
                 .event_delay = old.event_delay, .light = old.light, .rain = old.rain };
     game_data.town = std::move(town);
     place_act1(game_data, game_data.mpqs, *game_data.builder->act1, seed);

@@ -36,7 +36,10 @@ mpq_dir = sys.argv[1]
 mpq_cat = os.path.join("build", "tools", "mpq-cat", "mpq-cat")
 
 def cat(path, mpqs=mpq_dir):
-    return subprocess.run([mpq_cat, mpqs, path], capture_output=True).stdout.decode("latin-1")
+    done = subprocess.run([mpq_cat, mpqs, path], capture_output=True)
+    if done.returncode != 0:
+        sys.exit(f"sound_coverage: mpq-cat {path}: {done.stderr.decode('latin-1').strip() or 'failed'}")
+    return done.stdout.decode("latin-1")
 
 def table(name):
     rows = [line.rstrip("\r").split("\t") for line in cat(f"data\\global\\excel\\{name}.txt").splitlines()]
@@ -87,10 +90,20 @@ for path in glob.glob("components/**/*.[ch]pp", recursive=True) + glob.glob("app
 numbers |= {int(sound) for _, sound in re.findall(r"\{ (\d+), (\d+) \}", open("apps/d2d/speech_sound.hpp").read())}
 ids = open("components/rules/sound_ids.hpp").read()
 numbers |= {int(n) for n in re.findall(r"=\s*(\d+);", ids)} | {int(n) for n in re.findall(r"\{ (\d+), \d+ \}", ids)}
-numbers |= {int(n) for n in re.findall(r"= (\d+);", ids)} | {int(n, 16) for n in re.findall(r"0x([0-9a-f]+)", ids)}
+numbers |= {int(n) for n in re.findall(r"= (\d+);", ids)}
+for line in ids.splitlines():                  # the impact's element rows (hex); the other hex there are hit classes and MonStats ids
+    if "out.element =" in line: numbers |= {int(n, 16) for n in re.findall(r"0x([0-9a-f]+)", line.split("out.element =", 1)[1])}
 numbers |= {int(n) for n in re.findall(r"out\.impact = (\d+)", ids)}
-numbers |= {int(n) for n in re.findall(r"\b(\d{2,4})\b", open("components/rules/object_sounds.hpp").read())}
-numbers |= {int(n) for n in re.findall(r"\b(\d{3,4})\b", ids)}
+# The object table's sound fields only: { id, { 8 mode rows }, { sound, mode, sound, mode } }, and object 0x3d's loops.
+objects = open("components/rules/object_sounds.hpp").read()
+for modes, loops in re.findall(r"\{ \d+, \{ ([\d, ]+) \}, \{ ([\d, ]+) \}", objects):
+    loop = [int(n) for n in loops.split(",")]
+    numbers |= {int(n) for n in modes.split(",")} | {loop[0], loop[2]}
+numbers |= {int(n) for n in re.search(r"kObject61Loops = \{ ([\d, ]+) \}", objects).group(1).split(",")}
+numbers.discard(0)
+for line in ids.splitlines():                  # the voice and greeting tables' rows (their lines open with a brace), not comments
+    if line.lstrip().startswith("{") or "kPlayerVoice = " in line:
+        numbers |= {int(n) for n in re.findall(r"(?<![x\w])(\d{3,4})\b", line)}
 numbers |= {by_name[text] for text in literals if text in by_name}
 code = set()
 for n in numbers: spread(n, code)

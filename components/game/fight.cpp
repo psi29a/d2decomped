@@ -344,7 +344,8 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         // floor's material (its Footstep the dirt one), FootstepLayer at FsPrb %.
         if (monster.mode == "NU" || sounds->footstep <= 0 || sounds->fs_count <= 0) return;
         const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
-        const int rate = int(anim.speed ? anim.speed : 256), length = int(anim.frames) * 256;
+        const int rate = int(anim.speed ? anim.speed : anim.cof_speed ? anim.cof_speed : 256);
+        const int length = int(anim.frames ? anim.frames : anim.cof_frames) * 256;
         if (length <= 0) return;
         const int pos = int((now_ms - monster.unit.mode_ms) / 40) * rate % length;
         if (now_ms / 40 == monster.step_ms / 40 || !d2d::rules::sound_ids::footfall(pos, rate, length, sounds->fs_count, sounds->fs_offset << 8)) return;
@@ -1294,10 +1295,11 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         // Frozen Armor (event 2, FUN_005cac50, damagedinmelee): calc1 frames'
         // freeze on a striker whose blow did damage; Shiver Armor (3,
         // FUN_005cad40, attackedinmelee): its element (FUN_0056e0c0) on any.
-        for (const auto* monster : foe.melee_by) {
-            const auto monster_index = std::size_t(monster - monsters.data());
-            if (monster_index >= monsters.size() || !monsters[monster_index].alive()) continue;
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, monster)) {
+        for (const int striker : foe.melee_by) {
+            const int found = this->monster_index(striker);
+            if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
+            const auto monster_index = std::size_t(found);
+            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker)) {
                 const auto* skill = game_data->skills.get(frozen_armor->skill);
                 const int frames = std::max(calc(*skill, skill->calc[0], frozen_armor->level), 1);
                 monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
@@ -1330,9 +1332,10 @@ auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         const auto* skill = actor->merc_buff.skill >= 0 && now_ms < actor->merc_buff.until ? game_data->skills.get(actor->merc_buff.skill) : nullptr;
         if (!skill || skill->aurastate != "frozenarmor") return;
         const int frames = std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], merc_calc_env(), skill->id, actor->merc_buff.level), 1);
-        for (const auto* monster : foe.damaged_by) {                  // as the player's (buff_events): its strikers freeze
-            const auto monster_index = std::size_t(monster - monsters.data());
-            if (monster_index >= monsters.size() || !monsters[monster_index].alive()) continue;
+        for (const int striker : foe.damaged_by) {                    // as the player's (buff_events): its strikers freeze
+            const int found = this->monster_index(striker);
+            if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
+            const auto monster_index = std::size_t(found);
             monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
             monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
         }
@@ -4341,7 +4344,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
             for (std::size_t i = allies; i < foes.size(); ++i)
                 if (const auto monster_index = i - allies; hurt(*game_data, monsters[monster_index], soak(monsters[monster_index], foes[i].physical, foes[i].damage), now_ms))
-                    killed(monster_index, now_ms, cursed(monsters[monster_index]) || std::ranges::any_of(foes[i].melee_by, cursed, [](const Monster* attacker) -> const Monster& { return *attacker; }));
+                    killed(monster_index, now_ms, cursed(monsters[monster_index]) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
             for (const auto& side : sides)
                 if (foes[side.at].blessed) side.hero->wisp_blessing = { foes[side.at].blessed, now_ms + 0x1a5e00u * 40 };   // FUN_006251f0: 0x1a5e00 frames
             foes.resize(allies);
@@ -4515,8 +4518,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor();
-        if (foe.hits > 0)                                           // a monster's MonStats2 HitClass; a missile's none here
-            actor->struck_class = foe.melee_by.empty() || foe.melee_by.back()->type < 0 ? 0 : game_data->monsters.types[std::size_t(foe.melee_by.back()->type)].hit_class;
+        if (foe.hits > 0) {                                         // a monster's MonStats2 HitClass; a missile's none here
+            const int striker = foe.melee_by.empty() ? -1 : monster_index(foe.melee_by.back());
+            actor->struck_class = striker < 0 || monsters[std::size_t(striker)].type < 0 ? 0 : game_data->monsters.types[std::size_t(monsters[std::size_t(striker)].type)].hit_class;
+        }
         foe.damage = absorb(foe);
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;

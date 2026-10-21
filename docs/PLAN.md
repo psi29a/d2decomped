@@ -911,7 +911,7 @@ A did nothing on a waypoint or a town portal):
   object's mode and looping sounds (the whole 0x7295f8 table,
   `rules/object_sounds.hpp`); town NPCs' greetings with their time of day.
 - `tools/sound_coverage.py` lists the base install's sounds d2d can't play:
-  3,148 of 3,520 play now (2,181 before).
+  3,123 of 3,520 play now (2,181 before).
 
 Still open (the tool's list): the hero's quest lines (the "find" and
 "complete" voices: each quest's server code sends its id to

@@ -327,8 +327,9 @@ struct Foe {
     int stun_ticks = 0;                       // stunned this frame (a monster's Smite), ticks
     std::optional<std::pair<float, float>> knocked_from;   // knocked back this frame by a unit there (result flag 8: Smite)
     bool blocked = false;                     // blocked a hit this frame
-    std::vector<const Monster*> melee_by;     // who struck at it in melee this frame (Shiver Armor)
-    std::vector<const Monster*> damaged_by;   // of those, whose blow did damage (Frozen Armor: the event's +8 over 0)
+    // Who struck at it in melee this frame (Shiver Armor) and, of those, whose blow did damage (Frozen
+    // Armor: the event's +8 over 0), by Monster::id: monsters born this frame may move the vector.
+    std::vector<int> melee_by, damaged_by;
     std::vector<int> fired_by;                // the owners of the ReturnFire missiles that reached it this frame (Chilling Armor)
     int hits = 0;                             // hits that landed this frame (each wears its armour)
     bool running = false;                     // the player in RN: always hit by a swing, block a third
