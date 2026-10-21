@@ -166,6 +166,9 @@ void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
                 const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,
                 std::uint32_t our_gold, const std::string* typing, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
 TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y);
+// What trade_click takes, as {x0, y0, x1, y1} boxes: the buttons, the gold
+// box and each cell of our offer's grid (a pad's hops).
+std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state);
 
 // The belt: items in location 2 keep their slot (0..15, 4 per row) in the
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the

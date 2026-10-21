@@ -715,13 +715,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
-        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing()))
+        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.trade_gold_typing))
                            || (screen == Screen::TcpIp && tcpip.box_open); want != text_active) {
             if (want) {
                 // The field being typed in, so Steam's keyboard opens clear of it.
                 const int side = screen == Screen::InGame ? (win.view_w - int(kScreenWidth)) / 2 : 0;
                 const SDL_Rect field = screen == Screen::CharCreate ? SDL_Rect{ 319, rec_top(519, 26), 169, 26 }
                                      : screen == Screen::TcpIp      ? SDL_Rect{ 300, rec_top(268, 20), 200, 20 }
+                                     : town.trade_gold_typing        ? SDL_Rect{ 236 + side, 286, 150, 18 }        // the trade's gold box (kOurGold)
                                      : SDL_Rect{ 0x7f + side, int(kScreenHeight) - 0x67, int(kScreenWidth) - 0xff, 0x2f };   // the chat line
                 float left = 0, top = 0, right = 0, bottom = 0;
                 SDL_RenderCoordinatesToWindow(win.renderer, float(field.x), float(field.y), &left, &top);
@@ -814,7 +815,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             const bool pad_active = pad_actions.move_active || pad_actions.click_press || pad_actions.click_down || pad_actions.rclick_press
                                     || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || !pad_actions.keys.empty()
                                     || pad_actions.snap_x != 0 || pad_actions.snap_y != 0 || pad_actions.trade_press || pad_actions.tab_step != 0
-                                    || pad_actions.skill_picker || pad_actions.recentre_cursor;
+                                    || pad_actions.skill_picker || pad_actions.recentre_cursor || pad_actions.focus_step != 0;
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) pad_in_use = true;
             if (pad_actions.skill_picker) town.pad_open_picker();
@@ -835,14 +836,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 mouse.x = std::clamp(mouse.x + int(std::lround(pad_actions.cursor_dx)), -pad_side, int(kScreenWidth) + pad_side - 1);
                 mouse.y = std::clamp(mouse.y + int(std::lround(pad_actions.cursor_dy)), 0, int(kScreenHeight) - 1);
             }
-            if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
-                // The menus' hops: the screen's buttons (char select steps its roster by key instead).
+            // The menus' buttons, for the d-pad's hops and the shoulders' steps.
+            const auto menu_buttons = [&] {
                 std::vector<pad::Point> points;
                 const auto buttons = [&](std::initializer_list<const Button*> shown) {
                     for (const Button* button : shown) points.push_back({ button->x + button->width / 2, button->y + button->height / 2 });
                 };
-                if (screen == Screen::InGame) points = town.pad_snap_points();
-                else if (screen == Screen::Title)            for (const auto& button : title.buttons) buttons({ &button });
+                if (screen == Screen::Title)                 for (const auto& button : title.buttons) buttons({ &button });
                 else if (screen == Screen::OtherMultiplayer) for (const auto& button : other_multiplayer.buttons) buttons({ &button });
                 else if (screen == Screen::TcpIp) {
                     if (tcpip.box_open) buttons({ &tcpip.box_ok, &tcpip.box_cancel });
@@ -850,9 +850,26 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 } else if (screen == Screen::CharCreate) {
                     for (const auto& position : kClassPos) points.push_back({ position.x, position.y - 50 });   // ponytail: a spot up each figure, not its frame's box
                     buttons({ &character.cancel_btn, &character.ok_btn });
+                } else if (screen == Screen::CharSelect) {
+                    buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
                 }
+                return points;
+            };
+            if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
+                // Char select's d-pad steps its roster by key instead.
+                const auto points = screen == Screen::InGame ? town.pad_snap_points() : screen == Screen::CharSelect ? std::vector<pad::Point>{} : menu_buttons();
                 if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
+                }
+            }
+            if (pad_actions.focus_step != 0) {
+                // The shoulders in a menu: the cursor to the screen's next / last button, round.
+                if (const auto points = menu_buttons(); !points.empty()) {
+                    const auto at = std::ranges::find_if(points, [&](const pad::Point& point) { return point.x == mouse.x && point.y == mouse.y; });
+                    const int count = int(points.size());
+                    const int next = at == points.end() ? (pad_actions.focus_step > 0 ? 0 : count - 1)
+                                                        : (int(at - points.begin()) + pad_actions.focus_step + count) % count;
+                    mouse.x = points[std::size_t(next)].x; mouse.y = points[std::size_t(next)].y;
                 }
             }
             if (pad_actions.trade_press) town.pad_trade(mouse.x, mouse.y);

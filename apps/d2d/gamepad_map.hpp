@@ -214,6 +214,7 @@ struct Actions {
     int   snap_x = 0, snap_y = 0;                  // a panel's d-pad press: hop the cursor this way (-1..1 each)
     bool  trade_press = false;                     // a store's X: buy or sell what's under the cursor
     int   tab_step = 0;                            // a store's shoulders: the tab before (-1) or after (1)
+    int   focus_step = 0;                          // the menus' shoulders: the screen's button before (-1) or after (1)
     std::vector<Key> keys;
 };
 
@@ -358,6 +359,7 @@ public:
             }
         } else {
             if (pressed(Button::Start)) out.keys.push_back(Key::Return);
+            out.focus_step = int(pressed(Button::RightShoulder)) - int(pressed(Button::LeftShoulder));
             if (context == Context::Menu && pressed(cancel)) out.keys.push_back(Key::Escape);
             snap();
             dpad_keys();                             // char select steps its roster by key

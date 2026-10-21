@@ -537,6 +537,19 @@ TradeClick trade_click(const Scene& scene, int state, int mouse_x, int mouse_y) 
     return TradeClick::kNone;
 }
 
+std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
+    if (state == 1) return { kTradeNo };
+    if (state == 2) return { kTradeYes, kTradeNo };
+    std::vector<std::array<int, 4>> out = { kTradeAccept, kTradeCancel, kOurGold };
+    const auto& ours = scene.trade_layout[1];
+    for (int row = 0; row < ours.rows; ++row)
+        for (int col = 0; col < ours.cols; ++col) {
+            const int x = ours.grid_x + col * ours.box_w, y = ours.grid_y + row * ours.box_h;
+            out.push_back({ x, y, x + ours.box_w, y + ours.box_h });
+        }
+    return out;
+}
+
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;

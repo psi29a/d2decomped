@@ -959,10 +959,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             auto& trade = net_game->trade;
             if (trade.state >= 3) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
             if (trade.state < 3) trade_gold_typing.reset();
-            if (trade_gold_typing)                                              // digits, Backspace, Enter offers it (capped at what we carry)
+            if (trade_gold_typing) {                                            // digits (text: an on-screen keyboard's too), Backspace, Enter offers it (capped at what we carry)
+                for (const char digit : typed)
+                    if (digit >= '0' && digit <= '9' && trade_gold_typing->size() < 7) trade_gold_typing->push_back(digit);
+            }
+            if (trade_gold_typing)
                 for (const auto key : keys_this_frame) {
-                    if (key >= SDLK_0 && key <= SDLK_9 && trade_gold_typing->size() < 7) trade_gold_typing->push_back(char('0' + (key - SDLK_0)));
-                    else if (key == SDLK_BACKSPACE && !trade_gold_typing->empty()) trade_gold_typing->pop_back();
+                    if (key == SDLK_BACKSPACE && !trade_gold_typing->empty()) trade_gold_typing->pop_back();
                     else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
                         const auto carried = std::uint32_t(std::max<std::int64_t>(character.stats.get(d2d::d2s::kGold), 0));
                         net_game->trade_gold(std::min(std::uint32_t(std::strtoul(trade_gold_typing->c_str(), nullptr, 10)), carried));
@@ -1819,6 +1822,38 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
                     centre(x, y - SkillBar::kIcon, SkillBar::kIcon, SkillBar::kIcon);
                 }
             for (const int x : { SkillBar::kButtonLeftX, SkillBar::kButtonRightX }) centre(x, int(kScreenHeight) - SkillBar::kIcon, SkillBar::kIcon, SkillBar::kIcon);
+        }
+        if (tree_open) {                                                // the tab's skills and the three tabs
+            const auto& list = scene->rules.class_skills[std::size_t(std::max(character.character_class, 0))];
+            for (const auto& class_skill : list)
+                if (class_skill.page == tree_tab)
+                    if (const auto [x, y] = skill_icon_at(class_skill); x > -1000) centre(x, y - 0x30, 0x30, 0x30);
+            for (const int top : { kTreeB - 0x174, kTreeB - 0x108, kTreeB - 0x9c }) centre(kTreeR - 0x58, top, 0x58, 0x6b);
+        }
+        if (char_open && character.stats.get(d2d::d2s::kStatPts) > 0)  // the stat buttons
+            for (const auto& button : kStatButtons) centre(kCharPanelX + button.x, kCharPanelY + button.y - 22, 40, 22);
+        if (quest_log.open) {                                           // the acts' tabs, the quests, Close and the last quest
+            for (int act = 0; act < (character.expansion ? 5 : 4); ++act) centre(kCharPanelX + act * (character.expansion ? 0x40 : 0x50), kCharPanelY, character.expansion ? 0x40 : 0x50, 0x1c);
+            for (const auto& slot : kQuestSlot) centre(kCharPanelX + slot.hit_x, kCharPanelY + slot.hit_y, 0x38, 0x34);
+            centre(kCharPanelX + 0x116, kCharPanelY + 0x188, 0x24, 0x22);
+            centre(kCharPanelX + 0xe6, kCharPanelY + 0x187, 0x1e, 0x21);
+        }
+        if (waypoint.open) {                                            // the open acts' tabs, the activated rows, Cancel
+            for (int act = 0; act < (character.expansion ? 5 : 4); ++act)
+                if (waypoint_act_open(character.header, act)) centre(kCharPanelX + act * (character.expansion ? 64 : 80), 60, character.expansion ? 64 : 80, 30);
+            const auto& rows = scene->waypoint_levels[std::size_t(waypoint.tab)];
+            for (std::size_t i = 0; i < rows.size() && i < 9; ++i)
+                if (character.header.waypoint(character.header.active_difficulty(), rows[i].waypoint)) centre(kCharPanelX + 17, 60 + kWpHitTop[i], 280, 30);
+            centre(kCharPanelX + 0x111, 60 + 0x183, 0x24, 0x22);
+        }
+        if (net_game && net_game->trade.state != 0)                     // a trade's buttons, gold and our offer's cells
+            for (const auto& box : trade_boxes(*scene, net_game->trade.state)) centre(box[0], box[1], box[2] - box[0], box[3] - box[1]);
+        if (belt_open) {                                                // the belt's boxes
+            const auto& belt = scene->belts[std::size_t(belt_index(*scene, character.items))];
+            for (int box = 0; box < belt.boxes; ++box) {
+                const auto& edges = belt.box[std::size_t(box)];
+                centre(edges[0], edges[2], edges[1] - edges[0], edges[3] - edges[2]);
+            }
         }
         if (npc_menu.npc >= 0 && store.npc < 0) {                      // the lines you can choose
             int base = npc_menu.y;
