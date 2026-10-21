@@ -166,6 +166,7 @@ struct Level {
     int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
     int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
     int song = 0, ambience = 0;                        // SoundEnviron Song / Day Ambience (Sounds.txt)
+    int material = 1;                                  // SoundEnviron Material 1: its floor's where a tile says none (footsteps)
     int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
     int light = -1;                                    // Levels.txt Intensity when it has its own light (caves: 0), -1 the day's
     bool rain = false;                                 // Levels.txt Rain: the weather reaches it
@@ -410,6 +411,7 @@ struct GameData {
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
         int gfx_type = 0, gfx_class = 0;   // gfxtype / gfxclass (+0x2d / +0x2e): 2 looks and moves as that player class (FUN_00645270)
+        int on_sound = 0, off_sound = 0;   // onsound / offsound (+0x26 / +0x28): on the unit as it comes on (FUN_004d9b20) / goes (FUN_004d9c30)
     };
     std::unordered_map<std::string, StateInfo> states;
     std::vector<std::string> state_names;              // States.txt's names by row (a host's 0xa8 / 0xa9 state ids)
@@ -618,6 +620,12 @@ struct GameData {
     struct MonSound {
         std::array<int, 2> attack{}, weapon{}, att_del{}, wea_del{}, att_prb{ 100, 100 };
         int hit = 0, death = 0, hit_del = 0, death_del = 0;
+        // Skill1..4 (+0x44..: on S1..S4, FUN_004cb890), Neutral and NeuTime (+0x68 / +0x6c, ticks:
+        // FUN_004cb460), Init (+0x70: as it first shows, FUN_004cc380), Footstep, FootstepLayer and
+        // FsCnt / FsOff / FsPrb (+0x54..+0x64: FUN_004caf60).
+        std::array<int, 4> skill{};
+        int neutral = 0, neutral_time = 0, init = 0;
+        int footstep = 0, footstep_layer = 0, fs_count = 0, fs_offset = 0, fs_chance = 100;
     };
     std::unordered_map<std::string, MonSound> mon_sounds;
     std::vector<Sound> sounds;
@@ -640,6 +648,8 @@ struct GameData {
     struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
+                         int hit_class = 0;                                     // HitClass (sound_ids::hit_class): its impact sound
+                         int travel_sound = 0, hit_sound = 0;                   // TravelSound (+0x12, on it while it flies), HitSound (+0x14)
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
@@ -714,7 +724,7 @@ inline std::string string_id(const GameData& game_data, std::uint16_t id) {
 // dev codename), D2 mode ids we use, and layer names by COF type.
 constexpr const char* kCharCode[7] = { "AM", "SO", "NE", "PA", "BA", "DZ", "AI" };
 constexpr int kModeDT = 0, kModeNU = 1, kModeWL = 2, kModeRN = 3, kModeGH = 4, kModeTN = 5, kModeTW = 6,
-              kModeA1 = 7, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeDD = 17;
+              kModeA1 = 7, kModeA2 = 8, kModeBL = 9, kModeSC = 10, kModeKK = 12, kModeS1 = 13, kModeS3 = 15, kModeS4 = 16, kModeDD = 17;
 
 // Movement speed from a unit's velocity (CharStats Walk/RunVelocity,
 // MonStats Velocity): the path velocity is velocity << 8 (scaled by

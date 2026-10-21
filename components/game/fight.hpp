@@ -244,6 +244,8 @@ struct Fight {
         // this swing uses (Attack when it's not built or can't be paid for),
         // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
         int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
+        bool  item_cast = false;              // swing_skill is cast from an item (a scroll): its ItemCastSound
+        int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
         std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
         // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
         // class): its frames, each seq_frame_ms long, and the hits (event 1)
@@ -309,6 +311,7 @@ struct Fight {
         std::array<std::pair<int, int>, 20> footsteps{};
         int   footstep_cursor = 0;
         std::uint32_t footstep_ms = 0;
+        std::uint32_t step_sound_ms = 0;        // when its last footstep sounded (unit +0x84)
         // Where the player last arrived through a warp (player data +0x148 /
         // +0x14c, FUN_00554ea0; subtiles): a pet near it steps out of the crowd.
         std::pair<int, int> warp_spot{};
@@ -371,6 +374,11 @@ struct Fight {
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
     Spawning spawning;                                   // the game's rooms in play and what they spawned (new_game)
     std::vector<Missile> missiles;         // in flight in the Blood Moor
+    int missile_sounds = 0;                // the last Missile::sound handed out
+    std::uint32_t neutral_ms = 0, neutral_gap = 0;   // any monster's last Neutral and the ticks till the next may (0x7c88b8 / 0x7c88c0)
+    d2d::rules::Rng sound_rng{ 0x5d1u };   // the sounds' own rolls (game.exe's are the client's seed, FUN_004e40a0), apart from the game's
+    // The floor's material at (x, y) cells (FUN_004cadb0): its tile's DT1 flags, else the level's SoundEnviron Material 1.
+    [[nodiscard]] int floor_material_at(float x, float y) const;
     std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
     std::vector<std::pair<int, int>> burned;             // this frame's burns: monster, skill
     std::vector<int> told;                 // skills logged as not built yet
@@ -429,6 +437,7 @@ struct Fight {
     // speed; get-hit, block and self cast recover faster with FHR / FBR /
     // FCR (rules::speed_frames on the animation's base frame count).
     void set_pmode(int mode, std::uint32_t now_ms);
+    void do_sounds(std::uint32_t now_ms);           // the skill's do: its dosound, and tgtsound on its target
     [[nodiscard]] bool dead() const;
     // Life 0 and the death plays (DT, then DD).
     void die(std::uint32_t now_ms);

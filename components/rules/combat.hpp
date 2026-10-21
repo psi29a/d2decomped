@@ -56,6 +56,7 @@ struct Fighter {
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
+    int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
     int defense = 0, block = 0;                     // block %, standing still
@@ -105,6 +106,7 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     const std::int64_t clvl = std::max<std::int64_t>(stats.get(kLevel), 1), str = stats.get(kStr), dex = stats.get(kDex);
     const ItemBase* weapon_base = nullptr;
     if (weapon && !broken(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken one's stats are off (FUN_0055f850)
+    if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
     // In 256ths, as game.exe keeps them.
     std::int64_t low = (weapon_base ? weapon_base->mindam * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
                  high = (weapon_base ? weapon_base->maxdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
@@ -170,9 +172,12 @@ inline int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * 
 // Ticks an attack animation of `frames` frames at AnimData `rate` takes with
 // `ias` and weapon speed `wsm` (1.10): EIAS = effective IAS - WSM, clamped
 // to -85..75; ticks = ceil(256 x frames / (rate x (100 + EIAS) / 100)).
-inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0) {
+inline int attack_speed(int rate, int ias, int wsm, int sias = 0) {
     const int eias = std::clamp(effective_speed(ias) - wsm + sias, -85, 75);
-    const int speed = std::max(rate * (100 + eias) / 100, 1);
+    return std::max(rate * (100 + eias) / 100, 1);
+}
+inline int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0) {
+    const int speed = attack_speed(rate, ias, wsm, sias);
     return (256 * frames + speed - 1) / speed;
 }
 
@@ -210,6 +215,7 @@ struct Blow {
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     int stun_ticks = 0;
+    int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 
@@ -264,6 +270,7 @@ struct Swing {
     bool kick = false, knockback = false;
     int skill_lo = 0, skill_hi = 0;
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
+    int hit_class = 0;                    // the skill's HitClass, OR-ed into the weapon's
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
@@ -281,7 +288,7 @@ struct Swing {
 // ponytail: crushing blow's boss / difficulty divisors aren't applied (its
 // code isn't located in game.exe yet).
 inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}) {
-    Blow blow;
+    Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
     if (target.block > 0 && rng(100) < target.block) { blow.blocked = true; return blow; }

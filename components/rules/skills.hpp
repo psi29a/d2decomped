@@ -401,6 +401,12 @@ struct Skill {
     std::array<Calc, 4> calc;              // calc1..4
     std::array<int, 8> par{};              // Param1..8
     int hitshift = 8, srcdam = 128;
+    int hit_class = 0;                     // HitClass (+0x134): OR-ed into the hit's (its element's impact layer)
+    // Its sounds (Sounds.txt rows, 0 none; docs/research/re/unit-sounds.md): stsound (+0xfc),
+    // stsoundclass (+0xfe, the class's own), ItemCastSound (+0x122, cast from an item), dosound
+    // (+0x100), tgtsound (+0x10a); flags stsounddelay (13: the swing's frames less 3) and weaponsnd (14).
+    int st_sound = 0, st_sound_class = 0, item_cast_sound = 0, do_sound = 0, tgt_sound = 0;
+    bool st_sound_delay = false, weapon_sound = false;
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires
     std::string srvmissilea;               // +0x48: the row its srvdofunc fires (FUN_005d3cf0)

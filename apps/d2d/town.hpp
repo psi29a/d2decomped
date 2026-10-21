@@ -59,9 +59,11 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // ponytail: an overlay's light (Radius) isn't stamped; LoopWaitTime isn't
 // applied.
 struct StateClock {
-    struct Seen { std::uint32_t start = 0, last = 0; };
+    struct Seen { std::uint32_t start = 0, last = 0; float x = 0, y = 0; bool off = false; };
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
     std::uint32_t now = 0;
+    struct Sound { int sound; float x, y; };
+    std::vector<Sound> sounds;             // its states' onsound as they come (Town::frame plays them, and the offsounds)
 };
 inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::string_view> names, StateClock* clk) {
     int pri = -1;
@@ -79,7 +81,9 @@ inline void dress(const Scene& scene, Unit& unit, int key, std::span<const std::
         if (clk) {
             auto [seen, fresh] = clk->seen.try_emplace({ key, &state }, StateClock::Seen{ clk->now, clk->now });
             if (!fresh && clk->now - seen->second.last > 200) seen->second.start = clk->now;   // gone a while: a new one
+            if (seen->second.start == clk->now && state.on_sound > 0) clk->sounds.push_back({ state.on_sound, unit.x, unit.y });
             seen->second.last = clk->now;
+            seen->second.x = unit.x; seen->second.y = unit.y; seen->second.off = false;
             start = seen->second.start;
         }
         for (const auto* overlay : state.over) if (overlay) unit.overs.push_back({ overlay, start, false });
@@ -368,6 +372,11 @@ struct Town {
     bool  player_walked = false;           // `walking` as of the last frame
     bool alt_held = false;                 // devctl `debug alt on`: "Show Items" held
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
+    // The level's objects' modes as last seen (Town::object_sounds), by level->npcs index: "" not seen.
+    std::vector<std::string_view> object_modes;
+    const Level* object_level = nullptr;
+    std::vector<int> object_loops;          // the objects' loops wanted now (their owners, -1 - index)
+    void object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y);
     std::uint32_t walk_ms = 0;             // when the player last started or stopped walking (the client's clock)
     bool  player_ran = false;
     bool  inv_open = false;   // 'I' — inventory panel

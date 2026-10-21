@@ -49,6 +49,8 @@ struct MonType {
     std::array<std::string, 3> el_mode;
     std::array<int, 3> el_type{ -1, -1, -1 };
     bool can_block = false;                     // MonStats2 mBL
+    bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
+    int hit_class = 0;                          // MonStats2 HitClass (FUN_00623c20): the impact on what it strikes
     int threat = 0;                             // threat (record +0x4e, FUN_005dc920): a mode 5 search's primary at 2 or more
     bool switch_ai = false;                     // SwitchAI (flags +0xe & 1, FUN_00573040): Confuse / Attract can set its target
     bool interact = false;                      // interact (flag 9, +0xd & 2): the curse thinks don't swing (FUN_00457490)

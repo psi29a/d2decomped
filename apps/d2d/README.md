@@ -44,7 +44,7 @@ buttons are shown by the names printed on that pad.
 |---|---|---|
 | Left stick | Walk (run follows the run toggle) | Move the cursor |
 | Right stick | Aim: turn to the thing to hit or use, without walking; with a panel open, move the cursor. Click: the skill picker (with a panel open: recentre). In the picker the d-pad hops, A on a skill button switches hands, A on a skill chooses it | Move the cursor |
-| A (south) / right trigger | Hit or use what's highlighted ("A  Talk" over the panel says what) | Left click |
+| A (south) / right trigger | Hit or use what's highlighted: a monster, an item, an NPC, an object or waypoint, a town portal, your corpse ("A  Talk" over the panel says what) | Left click |
 | B (east) | Right-hand skill; in a store or dialog: back | Back (Esc) |
 | Left trigger | Swap weapons (W) | |
 | Y (north) / X (west) | Inventory / character; in a store X buys or sells what the cursor is on | |

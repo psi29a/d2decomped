@@ -226,13 +226,12 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             visitor.present = visitor.distance < 16;
             visitor.talking = listed || (visitor.present && busy[0] >= 0);
         }
-        // ponytail: act.greet (unit sound 0x12, the client's greeting through
-        // FUN_004e0590) plays nothing yet.
         // The palace guard (JarJar): aside as record 0xb's data+0x40 is 2 (rules::ArcaneQuest::guard_state).
         const auto act = npc.town_ai == TownAi::jarjar ? d2d::rules::jarjar_think(state.brain, x, y, int(now_ms / kFrameMs), guard_aside, guard_aside, visitor)
                        : npc.town_ai == TownAi::vendor ? d2d::rules::vendor_think(npc.seed)
                                                        : d2d::rules::npc_think(state.brain, npc.seed, points, x, y, npc.hc_idx, npc.modes, 1, visitor, npc.town_ai == TownAi::towner);
         if (act.face >= 0) state.dir = facing16(act.face);
+        state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
         switch (act.kind) {
         case d2d::rules::NpcAct::Kind::stand: state.wait_until = now_ms + std::uint32_t(act.frames) * kFrameMs; break;
         case d2d::rules::NpcAct::Kind::walk:

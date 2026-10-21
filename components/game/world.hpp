@@ -100,7 +100,7 @@ struct View {
     struct Pet { Npc npc; UnitState unit; std::string_view mode; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Monster> monsters;         // the level's
-    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; };
+    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; };
     std::vector<Shot> missiles;
     int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
     std::vector<Loot::GroundItem> ground;  // the level's floor
@@ -626,6 +626,11 @@ struct World {
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
+    void footstep_frame(std::uint32_t tick_ms);   // the player's footsteps on this tick (FUN_004caf60)
+    // A town NPC's greeting row (FUN_004e0590, `kind` as rules::greeting_row), never the
+    // one it said last (twenty draws), 0 none.
+    int greet_sound(const Npc& npc, int kind);
+    std::unordered_map<int, int> greeted_with;   // by MonStats class: its last greeting (the record's +0x10)
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus

@@ -7,6 +7,7 @@
 #include <d2s_items.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <sound_ids.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -33,6 +34,29 @@ int main() {
     StatSum sum{}, wsum{};
     auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
+    // The hit class (unit sounds, FUN_004ca560 / the swing table 0x727ed8):
+    // the weapon's, else hand to hand; the blow carries it with the skill's.
+    {
+        namespace snd = d2d::rules::sound_ids;
+        assert(fighter.hit_class == 1 && make_fighter(tables, nullptr, nullptr, sum, wsum, stats, {}, 0, {}).hit_class == 1);
+        tables.item_base["hax"].hit_class = snd::hit_class("1hsl");
+        auto axe = make_fighter(tables, &hax, nullptr, sum, wsum, stats, {}, 0, {});
+        assert(axe.hit_class == 3 && snd::kSwing[3].sound == 268 && snd::kSwing[10].sound == 0);
+        Rng roll(1);
+        Target dummy;
+        assert(player_blow(axe, dummy, 1, roll, Swing{ .hit_class = 0x70 }).hit_class == 0x73);   // Bash's 112
+        assert(snd::impact(3, false).impact == 341 && snd::impact(3, false).element == 0);         // impact_blade_swing
+        assert(snd::impact(0x21, false).impact == 321 && snd::impact(0x21, false).element == 0x164);
+        assert(snd::impact(0x36, false).element == 0x16a && snd::impact(0x36, true).element == 0);  // cold: no layer on a death
+        assert(snd::impact(0x30, true).element == 0x167 && snd::impact(10, false).impact == 347);
+        // Footsteps (FUN_004caf60 / FUN_004caeb0): the tick nearest each half of the cycle; the row by floor and run.
+        int steps = 0;
+        for (int tick = 0; tick < 16; ++tick) steps += snd::footfall(tick * 256 % 2048, 256, 2048, 2, 0);
+        assert(steps == 4 && snd::footfall(0, 256, 2048, 2, 0) && snd::footfall(1024, 256, 2048, 2, 0) && !snd::footfall(512, 256, 2048, 2, 0));
+        assert(snd::footstep(2816, 1, false) == 2816 && snd::footstep(2816, 6, true) == 2816 + 20 + 24 && snd::footstep(0, 3, false) == 0);
+        assert(snd::floor_material(0x20) == 1 && snd::floor_material(0x400) == 5 && snd::floor_material(0x80) == 6 && snd::floor_material(2) == 0);
+        tables.item_base["hax"].hit_class = 0;
+    }
     sum[17] = sum[18] = 100;                                          // enhanced damage off the weapon: no effect (op 13)
     assert(make_fighter(tables, &hax, nullptr, sum, wsum, stats, {}, 0, {}).max == 7);
     sum[17] = sum[18] = 0;

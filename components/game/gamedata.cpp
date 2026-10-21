@@ -1099,6 +1099,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         for (std::size_t env_row = 0; env_row < builder.sound_env.size(); ++env_row)
             if (builder.sound_env.get(env_row, "Index") == text("SoundEnv")) {
                 level->song = num(builder.sound_env.get(env_row, "Song"));
+                level->material = num(builder.sound_env.get(env_row, "Material 1"));
                 level->ambience = num(builder.sound_env.get(env_row, "Day Ambience"));
                 level->night_ambience = num(builder.sound_env.get(env_row, "Night Ambience"));
                 level->day_event = num(builder.sound_env.get(env_row, "Day Event"));

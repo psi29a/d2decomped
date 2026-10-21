@@ -207,7 +207,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
     {
         wire::Out chunk;
         chunk.u16(int(view.missiles.size()));
-        for (const auto& missile : view.missiles) chunk.str(missile.info->name).f32(missile.x).f32(missile.y).u8(missile.dir).u32(missile.born);
+        for (const auto& missile : view.missiles) chunk.str(missile.info->name).f32(missile.x).f32(missile.y).u8(missile.dir).u32(missile.born).i32(missile.sound);
         wire::section(out, enc.section[2], std::move(chunk.bytes));
     }
     // 3: the ground, 4: fires.
@@ -327,7 +327,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         }
     }
     out.u16(int(view.sounds.size()));
-    for (const auto& cue : view.sounds) out.u32(cue.when_ms).i32(cue.sound).f32(cue.x).f32(cue.y);
+    for (const auto& cue : view.sounds) out.u32(cue.when_ms).i32(cue.sound).f32(cue.x).f32(cue.y).i32(cue.owner);
     return out.bytes;
 }
 
@@ -424,7 +424,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const float x = f32(), y = f32();
             const int dir = byte();
             const auto born = u32();
-            if (const auto found = game_data.missiles.find(name); found != game_data.missiles.end()) view.missiles.push_back({ &found->second, x, y, dir, born });
+            const int sound = i32();
+            if (const auto found = game_data.missiles.find(name); found != game_data.missiles.end()) view.missiles.push_back({ &found->second, x, y, dir, born, sound });
         }
     });
     body([&] {
@@ -543,7 +544,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         const auto when_ms = u32();
         const int snd = i32();
         const float x = f32(), y = f32();
-        view.sounds.push_back({ when_ms, snd, x, y });
+        const int owner = i32();
+        view.sounds.push_back({ when_ms, snd, x, y, owner });
     }
     return input.ok && input.offset == bytes.size() && view.level;
 }

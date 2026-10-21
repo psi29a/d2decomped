@@ -8,6 +8,7 @@
 #include "log.hpp"
 
 #include <combat.hpp>
+#include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
@@ -284,21 +285,82 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
     }
 
 auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
-        if (monster.mode == monster.last_mode) return;
-        monster.last_mode = monster.mode;
         const auto& superunique = monster.super >= 0 && std::size_t(monster.super) < game_data->superuniques.size() ? game_data->superuniques[std::size_t(monster.super)].sound : std::string();
-        const auto found = game_data->mon_sounds.find(d2d::rules::boss_sound(game_data->monsters.types[std::size_t(monster.type)], monster.boss, superunique));
-        if (found == game_data->mon_sounds.end()) return;
-        const auto& sounds = found->second;
-        if (monster.mode == "A1" || monster.mode == "A2") {
-            const std::size_t attack_index = monster.mode == "A2";
-            if (rng(100) < sounds.att_prb[attack_index]) cues.cue(sounds.attack[attack_index], now_ms + std::uint32_t(sounds.att_del[attack_index]) * 40, monster.unit.x, monster.unit.y);
-            cues.cue(sounds.weapon[attack_index], now_ms + std::uint32_t(sounds.wea_del[attack_index]) * 40, monster.unit.x, monster.unit.y);
-        } else if (monster.mode == "GH") {
-            cues.cue(sounds.hit, now_ms + std::uint32_t(sounds.hit_del) * 40, monster.unit.x, monster.unit.y);
-        } else if (monster.mode == "DT") {
-            cues.cue(sounds.death, now_ms + std::uint32_t(sounds.death_del) * 40, monster.unit.x, monster.unit.y);
+        const auto found = monster.type < 0 ? game_data->mon_sounds.end()
+                         : game_data->mon_sounds.find(d2d::rules::boss_sound(game_data->monsters.types[std::size_t(monster.type)], monster.boss, superunique));
+        const GameData::MonSound* sounds = found == game_data->mon_sounds.end() ? nullptr : &found->second;
+        const auto play = [&](int sound, std::uint32_t when) { cues.cue(sound, when, monster.unit.x, monster.unit.y); };
+        const bool town = d2d::rules::level_ids::is_town(level->id);
+        // As it first shows (FUN_004cc380): its Init, outside town, a Neutral's start.
+        if (!monster.sounded) {
+            monster.sounded = true;
+            if (sounds && sounds->init > 0 && !town) {
+                play(sounds->init, now_ms);
+                monster.neutral_ms = neutral_ms = now_ms;
+                neutral_gap = 30 + sound_rng(90);
+            }
         }
+        if (monster.mode != monster.last_mode) {
+            monster.last_mode = monster.mode;
+            monster.sound_ms = now_ms;                  // a mode's sound (unit +0x7c: FUN_004cb6a0, FUN_004cc410, FUN_004cb890)
+            // Struck (FUN_004cc410): the hit's impact and its element's layer, but a critter's.
+            // ponytail: state 0x92's skip isn't in.
+            if ((monster.mode == "GH" || monster.mode == "KB" || monster.mode == "DT") && monster.hit_class
+                && !(monster.type >= 0 && game_data->monsters.types[std::size_t(monster.type)].critter)) {
+                const auto impact = d2d::rules::sound_ids::impact(monster.hit_class, monster.mode == "DT");
+                cues.cue(impact.impact, now_ms, monster.unit.x, monster.unit.y);
+                cues.cue(impact.element, now_ms, monster.unit.x, monster.unit.y);
+                monster.hit_class = 0;
+            }
+            if (sounds) {
+                if (monster.mode == "A1" || monster.mode == "A2") {
+                    const std::size_t attack_index = monster.mode == "A2";
+                    if (rng(100) < sounds->att_prb[attack_index]) play(sounds->attack[attack_index], now_ms + std::uint32_t(sounds->att_del[attack_index]) * 40);
+                    play(sounds->weapon[attack_index], now_ms + std::uint32_t(sounds->wea_del[attack_index]) * 40);
+                } else if (monster.mode == "GH" || monster.mode == "KB") {
+                    play(sounds->hit, now_ms + std::uint32_t(sounds->hit_del) * 40);
+                } else if (monster.mode == "DT") {
+                    play(sounds->death, now_ms + std::uint32_t(sounds->death_del) * 40);
+                } else if (monster.mode.size() == 2 && monster.mode[0] == 'S' && monster.mode[1] >= '1' && monster.mode[1] <= '4') {
+                    play(sounds->skill[std::size_t(monster.mode[1] - '1')], now_ms);   // FUN_004cb890
+                }
+            }
+        }
+        const bool about = monster.mode == "NU" || monster.mode == "WL" || monster.mode == "RN";
+        if (!sounds || !monster.alive() || !about) return;
+        // Neutral (FUN_004cb460): a 1 in 15 roll a tick, a random 30..119 ticks after any
+        // monster's last, NeuTime after its own last sound and Neutral, outside town, within
+        // 31 subtiles of a player (FUN_004b9e10: dx^2 + (2 dy)^2 < 490000 in client pixels).
+        const bool by_player = std::ranges::any_of(heroes, [&](const Hero* hero) {
+            return hero && std::hypot(hero->player.x - monster.unit.x, hero->player.y - monster.unit.y) * 5 < 31; });
+        const std::uint32_t own = std::uint32_t(sounds->neutral_time) * 40;
+        if (sounds->neutral > 0 && !town && by_player && now_ms - neutral_ms >= neutral_gap * 40 && now_ms - monster.sound_ms >= own
+            && now_ms - monster.neutral_ms >= own && now_ms / 40 != monster.sound_tick && (monster.sound_tick = now_ms / 40, sound_rng(15) == 0)) {
+            play(sounds->neutral, now_ms);
+            monster.neutral_ms = neutral_ms = now_ms;
+            neutral_gap = 30 + sound_rng(90);
+        }
+        // Its footsteps walking or running (FUN_004caf60): FsCnt a cycle from FsOff, the
+        // floor's material (its Footstep the dirt one), FootstepLayer at FsPrb %.
+        if (monster.mode == "NU" || sounds->footstep <= 0 || sounds->fs_count <= 0) return;
+        const auto& anim = game_data->npc_timing(monster.npc, monster.mode);
+        const int rate = int(anim.speed ? anim.speed : 256), length = int(anim.frames) * 256;
+        if (length <= 0) return;
+        const int pos = int((now_ms - monster.unit.mode_ms) / 40) * rate % length;
+        if (now_ms / 40 == monster.step_ms / 40 || !d2d::rules::sound_ids::footfall(pos, rate, length, sounds->fs_count, sounds->fs_offset << 8)) return;
+        if (sounds->fs_count > 1 && now_ms - monster.step_ms < std::uint32_t(2 * length / (sounds->fs_count * rate) / 3) * 40) return;
+        monster.step_ms = now_ms;
+        play(d2d::rules::sound_ids::footstep(sounds->footstep, floor_material_at(monster.unit.x, monster.unit.y), monster.mode == "RN"), now_ms);
+        if (sounds->footstep_layer > 0 && int(sound_rng(100)) < sounds->fs_chance) play(sounds->footstep_layer, now_ms);
+    }
+
+auto Fight::floor_material_at(float x, float y) const -> int {
+        const int cell_x = int(std::floor(x)), cell_y = int(std::floor(y));
+        for (const auto& floors : level->room_floors)
+            for (const auto& floor : floors)
+                if (floor.x == cell_x && floor.y == cell_y)
+                    if (const int material = d2d::rules::sound_ids::floor_material(floor.material); material > 0) return material;
+        return level->material;
     }
 
 auto Fight::gfx() const -> const GameData::Appearance& {
@@ -319,6 +381,13 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         if (attack_mode(mode) && anim.frames) {
             const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
             len = std::uint32_t(ticks) * 40;
+            // The swing (FUN_004cc5b0: A1 / A2, a Barbarian's S3, an Assassin's S4): its weapon_* that many frames in.
+            const int cls = actor->character.character_class;
+            if (mode == kModeA1 || mode == kModeA2 || (mode == kModeS3 && cls == d2d::d2s::kBarbarian) || (mode == kModeS4 && cls == d2d::d2s::kAssassin)) {
+                const auto swing = d2d::rules::sound_ids::kSwing[std::size_t(actor->player_combat.hit_class & 0xf)];
+                const int speed = d2d::rules::attack_speed(int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+                cues.cue(swing.sound, now_ms + std::uint32_t((swing.frames * 256 + 128) / speed) * 40, actor->player.x, actor->player.y);
+            }
         } else if ((mode == kModeGH || mode == kModeBL || mode == kModeSC) && anim.frames) {
             const int stat = mode == kModeGH ? actor->player_combat.fhr : mode == kModeBL ? actor->player_combat.fbr : actor->player_combat.fcr;
             const int shown = d2d::rules::speed_frames(int(anim.frames), stat);
@@ -326,6 +395,45 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;
+        // Struck or dying (FUN_004cc410's player branch): the hit's impact, then the class's own cry.
+        // ponytail: FUN_004b9e90's check before the GH cry isn't traced; a missile's hit class isn't kept.
+        if (mode == kModeGH || mode == kModeDT) {
+            const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, mode == kModeDT);
+            cues.cue(impact.impact, now_ms, actor->player.x, actor->player.y);
+            cues.cue(impact.element, now_ms, actor->player.x, actor->player.y);
+            actor->struck_class = 0;
+            if (const int cls = actor->character.character_class; cls >= 0 && cls < 7) {
+                const auto& voice = d2d::rules::sound_ids::kPlayerVoice[std::size_t(cls)];
+                cues.cue(mode == kModeDT ? voice.death : voice.hit, now_ms, actor->player.x, actor->player.y);
+            }
+        }
+        // A skill starting (FUN_004c6140): its stsound (its ItemCastSound from an item), the
+        // weapon's swing for weaponsnd, and the class's own stsoundclass; stsounddelay holds
+        // them back the swing's frames less 3 ticks (FUN_004ca500).
+        if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (attack_mode(mode) || mode == kModeSC)) {
+            static constexpr std::array<std::string_view, 7> kClassCode = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+            const auto swing = d2d::rules::sound_ids::kSwing[std::size_t(actor->player_combat.hit_class & 0xf)];
+            const int rate = int(anim.speed ? anim.speed : 256);
+            const int speed = attack_mode(mode) ? d2d::rules::attack_speed(rate, actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms)) : rate;
+            const int swing_ticks = (swing.frames * 256 + 128) / speed;
+            const std::uint32_t start_at = now_ms + (skill->st_sound_delay ? std::uint32_t(std::max(swing_ticks - 3, 0)) * 40 : 0);
+            const bool item = actor->item_cast && skill->item_cast_sound > 0;
+            cues.cue(item ? skill->item_cast_sound : skill->st_sound, start_at, actor->player.x, actor->player.y);
+            if (skill->weapon_sound) cues.cue(swing.sound, now_ms + std::uint32_t(swing_ticks) * 40, actor->player.x, actor->player.y);
+            const int cls = actor->character.character_class;
+            if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
+                cues.cue(skill->st_sound_class, start_at, actor->player.x, actor->player.y);
+        }
+    }
+
+// The skill's do (FUN_004c6680, its client do-function done): dosound on the
+// caster, tgtsound on its target (FUN_004648f0; none, no sound).
+auto Fight::do_sounds(std::uint32_t now_ms) -> void {
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        if (!skill) return;
+        cues.cue(skill->do_sound, now_ms, actor->player.x, actor->player.y);
+        if (const int target = actor->attack_mon; target >= 0 && std::size_t(target) < monsters.size() && skill->tgt_sound > 0)
+            cues.cue(skill->tgt_sound, now_ms, monsters[std::size_t(target)].unit.x, monsters[std::size_t(target)].unit.y);
     }
 
 auto Fight::dead() const -> bool { return actor->pmode == kModeDT || actor->pmode == kModeDD; }
@@ -612,6 +720,7 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
         const auto* skill = &skill_row;
         const auto& skill_tables = game_data->skills;
         swing.ar_pct = d2d::rules::skill_tohit(skill_tables, *skill, env, lvl);
+        swing.hit_class = skill->hit_class;
         if (skill->srvstfunc == ServerStartFunction::kChargeUp) return swing;                   // a charge-up: a plain hit at its to-hit (FUN_005d3490)
         if (skill->srvstfunc == ServerStartFunction::kDragonTail) {                            // Dragon Tail: a kick (FUN_005d7090 -> FUN_005d54b0)
             swing.kick = true;
@@ -681,6 +790,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (target.align == 2) return;                          // converted: no foe of the player's side (FUN_00554200)
         if (blow.blocked) { block_anim(*game_data, target, now_ms); return; }
         if (!blow.hit) return;
+        target.hit_class = blow.hit_class;
         if (by_player) {
             actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + (std::int64_t(blow.life) << 8));
             actor->character.stats.values[kMana] = std::min(actor->character.stats.values[kMaxMana], actor->character.stats.values[kMana] + (std::int64_t(blow.mana) << 8));
@@ -760,11 +870,11 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
 
 auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && missile_skill(*skill)) {   // Magic Arrow: the bow's action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; fire(*skill, now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); fire(*skill, now_ms); }
             return;
         }
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; spot(*skill, now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); }
             return;
         }
         if (!actor->seq.empty()) {
@@ -784,6 +894,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
         if (actor->pstruck || actor->attack_mon < 0
             || now_ms < actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) return;
         actor->pstruck = true;
+        do_sounds(now_ms);
         hit(now_ms);
     }
 
@@ -2037,6 +2148,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
         } else if (actor->pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!actor->pstruck && now_ms >= actor->player.mode_ms + player_anim(kModeSC).action_ms()) {
                 actor->pstruck = true;
+                do_sounds(now_ms);
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->srvdofunc == ServerDoFunction::kBookOrScroll) {
                     actor->portal_due = true;                         // Town Portal (FUN_005bf3d0): the World opens it
                 } else if (skill && missile_skill(*skill)) {
@@ -2712,6 +2824,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
+        blow.hit_class = missile.info->hit_class | skill->hit_class;
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
         land(monster_index, blow, true, now_ms);
@@ -4028,7 +4141,9 @@ auto Fight::cast_scroll(int skill, std::uint32_t now_ms) -> bool {
         if (dead() || actor->pmode >= 0) return false;
         actor->swing_skill = skill;
         actor->attack_mon = -1;
+        actor->item_cast = true;
         set_pmode(kModeSC, now_ms);
+        actor->item_cast = false;
         actor->pstruck = false;
         return true;
     }
@@ -4249,6 +4364,18 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             missile_tick(now_ms);
             // The merc's arrows strike the first live monster they reach.
             const auto reach = [&](float x, float y) { return missile_rooms(*game_data, *level, x, y); };
+            // A missile's sounds (FUN_004cd540, FUN_004d2d70): its TravelSound from its first frame,
+            // on it while it flies; its HitSound where it struck (gone before its end).
+            struct Flying { int sound; std::uint32_t dies; float x, y; int hit_sound; };
+            std::vector<Flying> flying;
+            for (auto& missile : missiles) {
+                if (!missile.info) continue;
+                if (missile.sound == 0) {
+                    missile.sound = ++missile_sounds;
+                    cues.cue(missile.info->travel_sound, now_ms, missile.x, missile.y, missile.sound);
+                }
+                flying.push_back({ missile.sound, missile.dies, missile.x, missile.y, missile.info->hit_sound });
+            }
             missiles_update(*level, missiles, foes, rng, now_ms, reach, [&](Missile& missile) {
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
                 const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
@@ -4278,6 +4405,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 act_as(*side.hero);
                 return_fire(foes[side.at], now_ms);              // the missiles that reached the player just now
             }
+            for (const auto& flown : flying)
+                if (now_ms < flown.dies && !std::ranges::contains(missiles, flown.sound, &Missile::sound))
+                    cues.cue(flown.hit_sound, now_ms, flown.x, flown.y);
             std::ranges::move(pending, std::back_inserter(missiles));
             pending.clear();
             for (auto& monster : monsters)
@@ -4385,6 +4515,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor();
+        if (foe.hits > 0)                                           // a monster's MonStats2 HitClass; a missile's none here
+            actor->struck_class = foe.melee_by.empty() || foe.melee_by.back()->type < 0 ? 0 : game_data->monsters.types[std::size_t(foe.melee_by.back()->type)].hit_class;
         foe.damage = absorb(foe);
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;

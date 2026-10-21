@@ -32,6 +32,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>
+#include <object_sounds.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
@@ -1675,6 +1676,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         else if (!mouse.down) press_on_ui = false;
         if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
+        object_sounds(audio, frame_ms, view.player.x, view.player.y);
+        audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner); });
         draw(framebuffer, mouse, frame_ms);
         // Screen Shot (FUN_004fa7a0): at most one a second, Screenshot%03d,
         // the first number free. d2d writes PNG in its screenshots folder
@@ -1772,13 +1775,13 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
-            && !game_menu.open && !controls.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
+            && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
     }
 
 // What the pad's A would act on now: a monster in reach in the facing (the
 // held target first), else, with `uses` (a fresh press), the ground item,
-// then the NPC or object in reach there.
+// then the NPC, object, town portal or corpse in reach there.
 auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const -> PadPick {
         const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
         std::vector<pad::Candidate> monsters;
@@ -1800,6 +1803,9 @@ auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool use
                 if (state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1)) continue;
                 things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
             }
+        for (const auto& portal : view.portals)  // Interact's ids, as the mouse's hover names them (Cain's, 8, has no name)
+            if (portal.which < 8) things.push_back({ -2000 - portal.which, portal.x, portal.y });
+        for (const auto& corpse : view.corpses) things.push_back({ -3000 - corpse.which, corpse.x, corpse.y });
         if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, things, -1, pad::Aim{ 4.5f, 4.5f, -0.2f }); pick >= 0)
             return { PadPick::kThing, things[std::size_t(pick)].id, things[std::size_t(pick)].x, things[std::size_t(pick)].y };
         return {};
@@ -1882,6 +1888,32 @@ auto Town::lead_leaves() -> int {
         view_enc.reset();                             // the next View whole: another player's
         publish();
         return seat;
+    }
+
+// The level's objects' sounds as the client plays them (FUN_004cb460's object
+// branch): the row a mode plays as an object enters it (none as it first
+// shows), and its looping row while it's in that mode in sight (the 14 cells
+// view_units draws: the unit is there), started again when it ends.
+auto Town::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y) -> void {
+        object_loops.clear();
+        if (!level || !scene) return;
+        if (object_level != level) { object_modes.assign(level->npcs.size(), {}); object_level = level; }   // a new level: nothing has changed yet
+        if (object_modes.size() != level->npcs.size()) object_modes.resize(level->npcs.size());
+        for (std::size_t i = 0; i < level->npcs.size() && i < view.npc_states.size(); ++i) {
+            const auto& npc = level->npcs[i];
+            const auto& state = view.npc_states[i];
+            auto& was = object_modes[i];
+            if (npc.root != "objects" || state.hidden || std::abs(state.x - sight_x) >= 14 || std::abs(state.y - sight_y) >= 14) { was = {}; continue; }
+            const std::string_view mode = state.mode.empty() ? std::string_view("NU") : std::string_view(state.mode);
+            if (!was.empty() && was != mode)
+                cues.cue(d2d::rules::object_sound(npc.object_id, d2d::game::mode_index(mode), d2d::game::mode_index(was)), frame_ms, state.x, state.y);
+            was = mode;
+            if (const int loop = d2d::rules::object_loop(npc.object_id, d2d::game::mode_index(mode)); loop > 0) {
+                const int owner = -1 - int(i);
+                object_loops.push_back(owner);
+                if (!audio.owner_playing(owner) && !std::ranges::contains(cues.due, owner, &d2d::game::Cues::Cue::owner)) cues.cue(loop, frame_ms, state.x, state.y, owner);
+            }
+        }
     }
 
 auto Town::set_pad_config(const pad::Config& config) -> void {
@@ -2055,6 +2087,7 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
             const int count = int(game_menu.rows().size());
             return PadFocus{ 1000 + game_menu.menu * 64 + game_menu.sel, int(kScreenWidth) / 2, game_menu.top() + game_menu.step() * game_menu.sel + count + game_menu.step() / 2 };
         }
+        if (waypoint.open) return PadFocus{ 4000 + waypoint.tab, kCharPanelX + 17 + 140, 60 + kWpHitTop[0] + 15 };   // the tab's first row
         if (npc_menu.npc >= 0) {
             int base = npc_menu.y;
             for (const auto& line : npc_menu.lines) {                   // the topmost line you can choose
@@ -2763,7 +2796,17 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         auto look_states = player_states(*scene, view);
         if (net_game)
             for (const int row : net_game->self_states) if (std::size_t(row) < scene->state_names.size()) look_states.emplace_back(scene->state_names[std::size_t(row)]);
+        player_look.x = view.player.x; player_look.y = view.player.y;
         dress(*scene, player_look, -1, look_states, &state_clock);
+        // A state gone plays its offsound once, where it was; one leaving the
+        // view with its unit (the in_view box, 14 cells) hasn't ended.
+        for (auto& [key, seen] : state_clock.seen)
+            if (seen.last != frame_ms && !seen.off) {
+                seen.off = true;
+                if (key.second->off_sound > 0 && std::abs(seen.x - cam_x) < 13 && std::abs(seen.y - cam_y) < 13) state_clock.sounds.push_back({ key.second->off_sound, seen.x, seen.y });
+            }
+        for (const auto& sound : state_clock.sounds) cues.cue(sound.sound, frame_ms, sound.x, sound.y);
+        state_clock.sounds.clear();
         const bool town = d2d::rules::level_ids::is_town(level->id);                       // TN/TW in town, NU/WL outside
         // A dead player has no DD composite: DT held on its last frame.
         const auto cls = std::max(character.character_class, 0);

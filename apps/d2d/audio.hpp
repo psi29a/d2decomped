@@ -55,6 +55,7 @@ struct Audio {
     struct Channel {
         ALuint src = 0, buf = 0;
         int sound = 0;                           // Sounds.txt index, 0 = silent, -1 = a fixed file
+        int owner = 0;                           // a missile's sound id (Cues::Cue::owner): stops with it
         float gain = 1.f, fade_from = 0.f, fade_to = 0.f;
         std::uint64_t fade_t0 = 0, fade_t1 = 0;  // SDL ms; t1 = 0: not fading
     };
@@ -63,7 +64,7 @@ struct Audio {
     ALCdevice* dev = nullptr;
     ALCcontext* ctx = nullptr;
     Channel voice, music, ambience, ui_sounds, rain;
-    std::array<Channel, 12> sfx;                 // world sounds, oldest reused first
+    std::array<Channel, 32> sfx;                 // world sounds: a free one, else the oldest reused
     std::size_t sfx_next = 0;
     Channel music_old;                           // the previous song, fading out under `music`
     Channel ambience_old;                        // the day's (night's) ambience, fading out under `ambience`
@@ -141,6 +142,17 @@ struct Audio {
         channel = {};
     }
     void stop_voice() { stop(voice); }
+    [[nodiscard]] bool owner_playing(int owner) const {
+        return std::ranges::any_of(sfx, [&](const Channel& channel) {
+            ALint state = AL_STOPPED;
+            if (channel.owner == owner && channel.src) alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
+            return state == AL_PLAYING;
+        });
+    }
+    // The sounds of missiles and objects no longer in `live` (their sound ids) stop.
+    template <class Live> void stop_owners(Live&& live) {
+        for (auto& channel : sfx) if (channel.owner && !live(channel.owner)) stop(channel);
+    }
     bool start(Channel& channel, const Decoded& decoded, float gain, bool loop, int index) {
         stop(channel);
         if (!ok) return false;
@@ -167,11 +179,18 @@ struct Audio {
     // `pan` -1 (left) .. 1 (right).
     // ponytail: world sounds don't pan by where they are yet; only the
     // level's ambient events do.
-    void play_sfx(const GameData& game_data, int index, float gain, int variant, float pan = 0.f) {
+    void play_sfx(const GameData& game_data, int index, float gain, int variant, float pan = 0.f, int owner = 0) {
         if (!ok || index <= 0 || std::size_t(index) >= game_data.sounds.size() || gain <= 0.01f) return;
         const int group = game_data.sounds[std::size_t(index)].group;
-        auto& channel = sfx[sfx_next++ % sfx.size()];
+        const auto done = [](const Channel& channel) {
+            ALint state = AL_STOPPED;
+            if (channel.src) alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
+            return state != AL_PLAYING;
+        };
+        const auto free_channel = std::ranges::find_if(sfx, done);
+        auto& channel = free_channel != sfx.end() ? *free_channel : sfx[sfx_next++ % sfx.size()];
         play(channel, game_data, group > 1 ? index + variant % group : index);
+        channel.owner = owner;
         if (channel.src) alSourcef(channel.src, AL_GAIN, channel.gain * gain);
         if (channel.src && pan != 0.f) alSource3f(channel.src, AL_POSITION, pan, 0.f, -std::sqrt(std::max(0.f, 1.f - pan * pan)));
     }
@@ -362,7 +381,7 @@ inline void play_cues(Cues& cues, Audio& audio, float listener_x, float listener
     std::erase_if(cues.due, [&](const Cues::Cue& cue) {
         if (now_ms < cue.when_ms) return false;
         const float distance = std::hypot(cue.x - listener_x, cue.y - listener_y);
-        audio.play_sfx(*cues.game_data, cue.sound, std::clamp(1.f - distance / 20.f, 0.f, 1.f), rng(16));
+        audio.play_sfx(*cues.game_data, cue.sound, std::clamp(1.f - distance / 20.f, 0.f, 1.f), rng(16), 0.f, cue.owner);
         return true;
     });
 }

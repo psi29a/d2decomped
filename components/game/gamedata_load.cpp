@@ -20,6 +20,7 @@
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
+#include <sound_ids.hpp>
 #include <txt.hpp>
 
 #include <algorithm>
@@ -225,6 +226,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.footprint = num(ms2.get(monstats2_row, "SizeX")) > 0; type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            type_info.critter = ms2.get(monstats2_row, "critter") == "1";
+            type_info.hit_class = num(ms2.get(monstats2_row, "HitClass"));
             type_info.pieces = num(ms2.get(monstats2_row, "TotalPieces"));
             type_info.spawn_col = num(ms2.get(monstats2_row, "spawnCol"));
             for (std::size_t layer = 0; layer < 16; ++layer) {
@@ -256,6 +259,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         GameData::MonSound sounds{ { id("Attack1"), id("Attack2") }, { id("Weapon1"), id("Weapon2") }, { number("Att1Del"), number("Att2Del") },
                            { number("Wea1Del"), number("Wea2Del") }, { number("Att1Prb"), number("Att2Prb") }, id("HitSound"), id("DeathSound"),
                            number("HitDelay"), number("DeaDelay") };
+        sounds.skill = { id("Skill1"), id("Skill2"), id("Skill3"), id("Skill4") };
+        sounds.neutral = id("Neutral"); sounds.neutral_time = number("NeuTime"); sounds.init = id("Init");
+        sounds.footstep = id("Footstep"); sounds.footstep_layer = id("FootstepLayer");
+        sounds.fs_count = number("FsCnt"); sounds.fs_offset = number("FsOff"); sounds.fs_chance = number("FsPrb");
         game_data.mon_sounds.emplace(std::string(snd.get(row_index, "Id")), sounds);
     }
     // Missiles.txt, the rows monsters and skills fire.
@@ -312,7 +319,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
-        missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.elen = number("ELen");
+        missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.hit_class = d2d::rules::sound_ids::hit_class(missiles_table.get(row_index, "HitClass"));
+        for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound } })
+            if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
+ missile_info.elen = number("ELen");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -447,7 +457,11 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
         for (int i = 0; i < 4; ++i) skill_row.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) skill_row.par[std::size_t(i)] = number("Param" + std::to_string(i + 1));
-        skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
+        const auto sound = [&](const std::string& column) { const auto found = game_data.sound_index.find(std::string(text(column))); return found == game_data.sound_index.end() ? 0 : found->second; };
+        skill_row.st_sound = sound("stsound"); skill_row.st_sound_class = sound("stsoundclass"); skill_row.item_cast_sound = sound("ItemCastSound");
+        skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound");
+        skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1";
+        skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");
         skill_row.summon = text("summon"); skill_row.pettype = text("pettype"); skill_row.petmax = calc("petmax"); skill_row.target_corpse = text("TargetCorpse") == "1";
         for (int i = 0; i < 5; ++i) {
@@ -679,6 +693,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto found = game_data.overlays.find(std::string(name));
         return found == game_data.overlays.end() || found->second.file.empty() || found->second.file == "null" ? nullptr : &found->second;
     };
+    struct StateSounds { std::string state, on, off; };
+    std::vector<StateSounds> state_sounds;     // resolved once Sounds.txt is in, below
     if (const auto states_table = txt("States"); states_table.size() > 0)
         for (std::size_t row = 0; row < states_table.size(); ++row) {
             GameData::StateInfo state;
@@ -689,6 +705,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
             state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
+            state_sounds.push_back({ std::string(states_table.get(row, "state")), std::string(states_table.get(row, "onsound")), std::string(states_table.get(row, "offsound")) });
             state.item_type = std::string(states_table.get(row, "itemtype"));
             const std::string trans(states_table.get(row, "itemtrans"));
             for (std::size_t colour = 0; colour < game_data.item_colours.codes.size(); ++colour) if (!trans.empty() && game_data.item_colours.codes[colour] == trans) state.item_colour = int(colour);
@@ -796,6 +813,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           table == &misc ? 0 : number("rarity") };
                 auto& base = game_data.rules.item_base[code];
                 base.gem_sockets = number("gemsockets");
+                base.hit_class = table == &weapons ? d2d::rules::sound_ids::hit_class(table->get(row, "hit class")) : 0;
                 base.auto_prefix = table == &misc ? 0 : number("auto prefix");
                 base.nightmare_upgrade = std::string(table->get(row, "NightmareUpgrade"));
                 base.hell_upgrade = std::string(table->get(row, "HellUpgrade"));
@@ -1041,6 +1059,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             for (std::size_t env_row = 0; env_row < sound_env.size(); ++env_row)
                 if (sound_env.get(env_row, "Index") == env) {
                     into->song = std::atoi(std::string(sound_env.get(env_row, "Song")).c_str());
+                    into->material = std::atoi(std::string(sound_env.get(env_row, "Material 1")).c_str());
                     into->ambience = std::atoi(std::string(sound_env.get(env_row, "Day Ambience")).c_str());
                     into->night_ambience = std::atoi(std::string(sound_env.get(env_row, "Night Ambience")).c_str());
                     into->day_event = std::atoi(std::string(sound_env.get(env_row, "Day Event")).c_str());
@@ -1064,6 +1083,10 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                                std::atoi(std::string(sounds_table.get(row, "Block 3")).c_str()) } };
             game_data.sound_index.emplace(std::string(sounds_table.get(row, "Sound")), index);
         }
+    for (const auto& names : state_sounds)
+        if (const auto state = game_data.states.find(names.state); state != game_data.states.end())
+            for (auto [name, into] : { std::pair{ &names.on, &state->second.on_sound }, std::pair{ &names.off, &state->second.off_sound } })
+                if (const auto found = game_data.sound_index.find(*name); found != game_data.sound_index.end()) *into = found->second;
     auto& item_names = game_data.item_names;
     item_names.unique   = keys("UniqueItems", "index", false);
     item_names.set      = keys("SetItems", "index", false);

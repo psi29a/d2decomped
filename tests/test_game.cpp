@@ -68,6 +68,19 @@ int main() try {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    // Skill and missile sounds (unit-sounds.md): Fire Bolt's cast, Bash's grunt (the
+    // Barbarian's own), its swing held back; the fire bolt's flight and impact.
+    if (const auto* fire_bolt = data->skills.get(36); fire_bolt && data->missiles.contains("firebolt")) {
+        assert(fire_bolt->st_sound == data->sound_index.at("sorceress_cast_fire"));
+        const auto* bash = data->skills.get(126);
+        assert(bash && bash->st_sound_class == data->sound_index.at("barbarian_grunt_small_1") && bash->st_sound_delay && bash->hit_class == 112);
+        const auto& bolt = data->missiles.at("firebolt");
+        assert(std::ranges::any_of(data->monsters.types, [](const auto& type) { return type.id == "zombie1" && type.hit_class == 12; }));
+        const auto& zombie = data->mon_sounds.at("zombie");   // its Neutral every 300 ticks at most, two light steps a walk
+        assert(zombie.neutral == data->sound_index.at("zombie_neutral_1") && zombie.neutral_time == 300 && zombie.footstep == data->sound_index.at("light_walk_dirt_1") && zombie.fs_count == 2);
+        assert(data->states.at("amplifydamage").on_sound == data->sound_index.at("necromancer_amplifydamage") && data->states.at("wolf").off_sound > 0);
+        assert(bolt.travel_sound == data->sound_index.at("sorceress_firebolt_1") && bolt.hit_sound == data->sound_index.at("sorceress_firebolt_impact_1"));
+    }
     // Collision shapes (FUN_006484e0): the Rogue merc stamps 0x2000 and
     // opens doors, Akara 0x1000; a player walks through the merc, not back.
     if (data->mon_npc.size() > 0x10f) {                  // MonStats: the patch's

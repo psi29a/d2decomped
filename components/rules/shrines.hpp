@@ -4,6 +4,7 @@
 #pragma once
 
 #include "object_ids.hpp"
+#include "object_sounds.hpp"
 #include "rules.hpp"
 
 #include <d2s_items.hpp>
@@ -235,37 +236,6 @@ inline int door_mode(int mode, bool occupied) {
     if (mode == 0) return 2;
     if (mode != 2 && mode != 5) return -1;
     return !occupied ? 0 : mode == 5 ? -1 : 5;
-}
-// The client's object sounds (0x7295f8 by objects.txt Id: a Sounds.txt
-// row for each mode it enters, FUN_004cb380), for the objects operated
-// here.
-struct ObjectSound { int id; int mode; std::string_view sound; };
-inline constexpr ObjectSound kObjectSounds[] = {
-    { 13, 0, "object_door_metal_close" }, { 13, 2, "object_door_metal_open" }, { 14, 0, "object_door_metal_close" }, { 14, 2, "object_door_metal_open" },
-    { 15, 0, "object_door_wood_close" }, { 15, 2, "object_door_wood_open" }, { 16, 0, "object_door_wood_close" }, { 16, 2, "object_door_wood_open" },
-    { 23, 0, "object_door_gate_close" }, { 23, 2, "object_door_gate_open" }, { 24, 0, "object_door_gate_close" }, { 24, 2, "object_door_gate_open" },
-    { 25, 0, "object_door_gate_close" }, { 25, 2, "object_door_gate_open" }, { 47, 0, "object_door_gate_close" }, { 47, 2, "object_door_gate_open" },
-    { 27, 0, "object_door_wood_close" }, { 27, 1, "object_door_wood_open" },
-    { 62, 0, "object_door_wood_close" }, { 62, 2, "object_door_wood_open" }, { 63, 0, "object_door_wood_close" }, { 63, 2, "object_door_wood_open" },
-    { 64, 0, "object_door_wood_close" }, { 64, 2, "object_door_wood_open" }, { 74, 0, "object_door_wood_close" }, { 74, 2, "object_door_wood_open" },
-    { 75, 0, "object_door_wood_close" }, { 75, 2, "object_door_wood_open" }, { 129, 1, "object_door_secret" },
-    { 290, 0, "object_door_metal_close" }, { 290, 2, "object_door_metal_open" }, { 291, 0, "object_door_metal_close" }, { 291, 2, "object_door_metal_open" },
-    { 292, 0, "object_door_metal_close" }, { 292, 2, "object_door_metal_open" }, { 293, 0, "object_door_metal_close" }, { 293, 2, "object_door_metal_open" },
-    { 294, 0, "object_door_wood_close" }, { 294, 2, "object_door_wood_open" }, { 295, 0, "object_door_wood_close" }, { 295, 2, "object_door_wood_open" },
-    { 1, 1, "object_casket" }, { 3, 1, "object_casket" }, { 50, 1, "object_casket" }, { 51, 1, "object_casket" }, { 53, 1, "object_casket" }, { 79, 1, "object_casket" },
-    { 7, 1, "object_wood_break_1" }, { 46, 1, "object_wood_break_1" }, { 11, 1, "object_barrel_explode" }, { 28, 1, "object_grave" },
-    { 54, 1, "object_corpse_roll" }, { 55, 1, "object_corpse_roll" }, { 56, 1, "object_corpse_roll" }, { 326, 1, "object_corpse_roll" },
-    { 57, 1, "object_corpse_drop" }, { 58, 1, "object_corpse_drop" }, { 155, 1, "object_stone_large" }, { 159, 1, "object_stone_large" },
-    { 163, 1, "object_shrine_hell_2" }, { 169, 1, "skeleton_walk_1" }, { 174, 1, "object_stone_small" }, { 175, 1, "object_stone_small" },
-    { 247, 1, "object_bed" }, { 248, 1, "object_bed" }, { 289, 1, "object_bed" },
-    { 104, 2, "object_armorstand" }, { 105, 2, "object_armorstand" }, { 106, 2, "object_weaponrack" }, { 107, 2, "object_weaponrack" },
-    { 179, 2, "object_bookshelf" }, { 180, 2, "object_bookshelf" },
-    { 111, 1, "object_well" }, { 111, 2, "object_well" }, { 113, 1, "object_well" }, { 113, 2, "object_well" }, { 115, 1, "object_well" }, { 115, 2, "object_well" },
-    { 130, 1, "object_well" }, { 130, 2, "object_well" }, { 138, 1, "object_well" }, { 138, 2, "object_well" },
-};
-inline std::string_view object_sound(int id, int mode) {
-    for (const auto& entry : kObjectSounds) if (entry.id == id && entry.mode == mode) return entry.sound;
-    return {};
 }
 // An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
 // weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area

@@ -5,6 +5,7 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <rules.hpp>
+#include <object_sounds.hpp>
 #include <shrines.hpp>
 
 #include <cassert>
@@ -197,7 +198,7 @@ int main() try {
     // Doors (FUN_00581d40): closed opens; open closes, or sticks while occupied.
     assert(door_mode(0, true) == 2 && door_mode(2, false) == 0 && door_mode(2, true) == 5);
     assert(door_mode(5, true) == -1 && door_mode(5, false) == 0 && door_mode(1, false) == -1);
-    assert(object_sound(15, 2) == "object_door_wood_open" && object_sound(13, 0) == "object_door_metal_close" && object_sound(15, 1).empty());
+    assert(object_sound(15, 2) == 2568 && object_sound(13, 0) == 2564 && object_sound(15, 1) == 0 && object_loop(37, 0) > 0 && object_loop(12, 3) > 0);   // object_door_wood_open, object_door_metal_close; a torch, a fountain loop
     // A well: half the maxima back, capped; nothing short, no drink.
     std::int64_t life = 10, mana = 100, stamina = 0;
     assert(well_drink(life, 100, mana, 100, stamina, 40) && life == 60 && mana == 100 && stamina == 20);

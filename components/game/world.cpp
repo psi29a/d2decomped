@@ -25,6 +25,7 @@
 #include <quests_act3.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
+#include <sound_ids.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
 
@@ -282,7 +283,7 @@ auto World::view() const -> View {
                     view.monsters.push_back(monster);
                     view.monsters.back().npc.colour = monster_colour(monster);
                 }
-            for (const auto& missile : fight.missiles) if (missile.info) view.missiles.push_back({ missile.info, missile.x, missile.y, missile.dir, missile.born });
+            for (const auto& missile : fight.missiles) if (missile.info) view.missiles.push_back({ missile.info, missile.x, missile.y, missile.dir, missile.born, missile.sound });
         }
         if (actor->attack_mon >= 0 && std::size_t(actor->attack_mon) < fight.monsters.size()) view.attack = fight.monsters[std::size_t(actor->attack_mon)].id;
         view.attack_skill = actor->attack_skill;
@@ -410,9 +411,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
             return std::pair{ opened, drops.size() };
         };
-        auto to_mode = [&](int mode) {               // FUN_00624690, its sound (0x7295f8) and footprint (FUN_00623830)
+        auto to_mode = [&](int mode) {               // FUN_00624690 and its footprint (FUN_00623830); its sound is the client's (Town::object_sounds)
             set_footprint(*level, object, object.collision >> mode & 1);
-            if (const auto sound = d2d::rules::object_sound(object.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         };
         // A trap object (30: "a trap", the exploding chest; FUN_00581cd0), in
         // mode 0: a physical then a fire blast on its opener (FUN_005dfa00
@@ -816,7 +816,6 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         if (state.mode == mode) return;
         state = { mode, now_ms };
         set_footprint(*level, door, door.collision >> mode & 1);   // FUN_00623830 out / FUN_00620a70 back in
-        if (const auto sound = d2d::rules::object_sound(door.object_id, mode); !sound.empty()) cues.cue(sound, now_ms, door.x, door.y);
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
@@ -853,7 +852,6 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         const auto& barrel = level->npcs[std::size_t(npc_index)];
         operated[{ level, npc_index }] = now_ms;
-        if (const auto sound = d2d::rules::object_sound(barrel.object_id, 1); !sound.empty()) cues.cue(sound, now_ms, barrel.x, barrel.y);
         // FUN_00584240: a physical blast (FUN_005dfa00 type 0) on each live
         // unit within 3 subtiles.
         // ponytail: the level's units in the order player, merc, monsters,
@@ -2365,6 +2363,41 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
 // ponytail: the run stays a run while stamina lasts and walks at 0 each
 // frame, not at the next move as game.exe; the same since a walk at 0 never
 // regens.
+// A walking or running player's footsteps (FUN_004caf60): two a cycle of the
+// walk's animation, from its start, on the floor tile under them (its DT1
+// material, else the level's SoundEnviron Material 1), each at least two
+// thirds of a step after the last.
+// ponytail: the animation's rate is AnimData's, not sped by faster run/walk.
+auto World::greet_sound(const Npc& npc, int kind) -> int {
+        const auto* greeting = d2d::rules::sound_ids::greeting_of(npc.hc_idx);
+        if (!greeting) return 0;
+        auto& last = greeted_with[npc.hc_idx];
+        int row = 0;
+        // ponytail: the member is a plain draw; FUN_00482680 also keeps from the group's last ones.
+        for (int tries = 0; tries < 20; ++tries) {
+            row = d2d::rules::sound_ids::greeting_row(*greeting, kind, day.phase, [&](int bound) { return int(fight.sound_rng(bound)); });
+            if (row > 0 && std::size_t(row) < game_data->sounds.size())
+                if (const int group = game_data->sounds[std::size_t(row)].group; group > 1) row += int(fight.sound_rng(group));
+            if (row != last) break;
+        }
+        last = row;
+        return row;
+    }
+
+auto World::footstep_frame(std::uint32_t tick_ms) -> void {
+        using namespace d2d::rules::sound_ids;
+        const int cls = actor->character.character_class;
+        if (!actor->player.walking || actor->pmode >= 0 || fight.dead() || cls < 0 || cls >= 7 || actor->ghost) return;
+        const bool run = actor->running && actor->character.stats.values[d2d::d2s::kStamina] > 0 && !in_town(level);
+        const auto& anim = fight.player_anim(run ? kModeRN : in_town(level) ? kModeTW : kModeWL);
+        const int rate = int(anim.speed ? anim.speed : 256), length = int(anim.frames) * 256, count = 2;
+        const int pos = int((tick_ms - actor->player.mode_ms) / 40) * rate % std::max(length, 1);
+        if (!footfall(pos, rate, length, count, 0)) return;
+        if (tick_ms - actor->step_sound_ms < std::uint32_t(2 * length / (count * rate) / 3) * 40) return;
+        actor->step_sound_ms = tick_ms;
+        cues.cue(footstep(kPlayerVoice[std::size_t(cls)].step, fight.floor_material_at(actor->player.x, actor->player.y), run), tick_ms, actor->player.x, actor->player.y);
+    }
+
 auto World::stamina_frame() -> void {
         using namespace d2d::d2s;
         if (fight.dead()) return;
@@ -2425,7 +2458,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step(act());
             credit_party([&] { act1_tick(); act2_tick(); });
-            each_player([&](Player&) { stamina_frame(); });
+            each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); });
         }
         each_player([&](Player& player) {
             if (player.boost.until && now_ms >= player.boost.until) {     // the state runs out
@@ -2528,7 +2561,11 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                             constexpr int kRespec = d2d::rules::kRespecQuest;
                             if (quest::bit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !quest::bit(quest_bits, kRespec, 1) && !quest::bit(quest_bits, kRespec, 0)) { d2d::rules::quest::set(quest_bits, kRespec, 13); d2d::rules::quest::set(quest_bits, kRespec, 1); }
                         }
-                        actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, quest_talk(npc.hc_idx) });
+                        auto lines = quest_talk(npc.hc_idx);
+                        // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell.
+                        // ponytail: kind 2's "return" (the talk record's +0x12 flag) isn't traced.
+                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet)) cues.cue(greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, std::move(lines) });
                     }
                     actor->player.walking = false; actor->interact_npc = -1;
                 } else if (!actor->player.walking) {
@@ -2601,6 +2638,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             for (std::size_t k = 0; k < talking.size(); ++k) if (player->talking[k] >= 0) talking[k] = player->talking[k];
         // ponytail: an NPC with news greets the first player.
         npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &lead().player, arcane.guard_state == 2);
+        for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+            if (std::exchange(npc_states[i].greets, false)) cues.cue(greet_sound(level->npcs[i], 1), now_ms, lead().player.x, lead().player.y);
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];

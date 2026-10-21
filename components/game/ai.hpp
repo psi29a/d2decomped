@@ -39,6 +39,7 @@ struct UnitState {
     UnitShape shape;                  // its collision (gamedata.hpp); a player's by default
     int dir = 0;
     bool walking = false;
+    bool greets = false;              // a town NPC's think greeted the player just now (unit sound 0x12; World plays it)
     std::size_t next = 0;             // path point being walked to
     std::uint32_t wait_until = 0;     // ms; idle until then
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
@@ -170,6 +171,10 @@ struct Monster {
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
     std::string_view mode = "NU";             // animation mode token
     std::string_view last_mode = "NU";        // as of the last sound check
+    bool sounded = false;                     // its sounds have started (its Init played, FUN_004cc380)
+    std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
+    std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled
+    int hit_class = 0;                        // the last hit's (unit +0xb0): the impact its GH / KB / DT plays
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
     std::uint32_t next_act = 0;               // ms: may attack again (aidel)
     bool struck = false;                      // this attack's hit is resolved
@@ -397,6 +402,7 @@ struct Missile {
     int bolt = -1;
     bool wall_maker = false;                    // FUN_005cd110: a draw first, under 20 its path stays straight
     d2d::rules::MissileFlight flight;
+    int sound = 0;                            // its id for its sounds (0: not seen yet): its TravelSound stops when it's gone
     bool launched = false, follow = true;
     float flown_x = 0, flown_y = 0, aimed_x = 0, aimed_y = 0;
     std::vector<std::array<int, 4>> rooms;
