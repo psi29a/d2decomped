@@ -686,6 +686,9 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const int clip_x0 = !mini ? 0 : on_left ? 0 : kWidth - 0x119;
     const int clip_y0 = !mini ? 0 : on_left ? (automap.portraits ? 0x60 : 0) - 0x15 : 0x39;
     const int clip_x1 = !mini ? kWidth - 1 : clip_x0 + 0x117, clip_y1 = !mini ? kHeight - 1 : clip_y0 + 0xe1;
+    // Portraits off, the box pokes 0x15 above the screen; D2GFX clips its
+    // draws to the screen, so only the pixel writes stop at row 0.
+    const int draw_y0 = std::max(clip_y0, 0);
     // The fade (FUN_004576c0's mode; mini takes Centre as Everything):
     // draw modes 0 / 1 / 2 (a quarter, half, three quarters seen), 5 whole.
     const int fade = mini && automap.fade == 1 ? 2 : automap.fade;
@@ -711,7 +714,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
             for (int column = 0; column < int(frame.width); ++column) {
                 const int pixel_x = x + column, pixel_y = top + row;
                 const auto index = frame.pixels[std::size_t(row) * frame.width + std::size_t(column)];
-                if (index == 0 || pixel_x < clip_x0 || pixel_x > clip_x1 || pixel_y < clip_y0 || pixel_y > clip_y1) continue;
+                if (index == 0 || pixel_x < clip_x0 || pixel_x > clip_x1 || pixel_y < draw_y0 || pixel_y > clip_y1) continue;
                 const auto colour = pal[index];
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
                 pixel[0] = std::uint8_t((pixel[0] * (4 - seen) + colour.r * seen) / 4);
