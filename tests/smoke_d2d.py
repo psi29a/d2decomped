@@ -342,6 +342,11 @@ try:
         assert len(rows) == 8, f"hire list: {len(rows)} rows shown, not the widget's eight (ten offered)"
         cmd(f"move {rows[0][1]} {rows[0][2]}"); frames(2); cmd(f"click {rows[0][1]} {rows[0][2]}"); frames(6)
         assert state()["merc"].endswith(":RG"), "hired rogue missing"
+        # The Hireling screen (O): its panel opens with a merc, Esc shuts it.
+        cmd("key o"); frames(3)
+        assert state()["hireling"] == "1", "O didn't open the Hireling screen"
+        cmd("key Escape"); frames(2)
+        assert state()["hireling"] == "0", "Esc didn't close the Hireling screen"
 
         # Cain once rescued: identify items.
         cmd("debug quest 4")

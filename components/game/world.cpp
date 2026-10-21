@@ -17,6 +17,7 @@
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
+#include <merc.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
@@ -237,7 +238,24 @@ auto World::view() const -> View {
         view.prate = actor->prate;
         view.seq.assign(actor->seq.begin(), actor->seq.end()); view.seq_frame_ms = actor->seq_frame_ms; view.seq_loop = actor->seq_loop;
         view.gfx = fight.gfx();
-        if (actor->merc && actor->merc_npc) view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
+        if (actor->merc && actor->merc_npc) {
+            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
+            const auto fighter = fight.merc_fighter();
+            const auto gear = fight.merc_gear();
+            const auto& st = actor->merc_st;
+            View::MercSheet sheet;
+            sheet.level = st.level;
+            sheet.str = int(st.str + gear.sum[std::size_t(d2d::d2s::kStr)]);
+            sheet.dex = int(st.dex + gear.sum[std::size_t(d2d::d2s::kDex)]);
+            sheet.min = fighter.min; sheet.max = fighter.max; sheet.defense = fighter.defense; sheet.res = fighter.res;
+            sheet.life = actor->merc->hit_points; sheet.max_life = fight.merc_max_life();
+            sheet.exp = actor->character.header.merc_exp;
+            if (const auto* row = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), 1)) {
+                sheet.next = std::int64_t(st.level + 2) * row->exp_per_level * (st.level + 1) * (st.level + 1);   // the merc_stats level rule's next step
+                if (const auto* at_level = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), st.level)) sheet.cls = at_level->cls;
+            }
+            view.merc_sheet = sheet;
+        }
         for (const auto& pet : actor->pets) if (pet.where == level) view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode });
         for (const auto& player : players)                    // the others in the game, as their client draws them
             if (player.get() != actor) {
@@ -2183,6 +2201,37 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 }
             }
             else fight.drink_item(use->item, now_ms);
+            return;
+        }
+        if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {   // 0x61 (FUN_0054d430)
+            if (fight.dead() || !actor->merc || actor->merc->hit_points <= 0 || !actor->character.expansion) return;
+            auto& worn = actor->character.merc_items;
+            if (!actor->held && merc_item->slot >= 1 && merc_item->slot <= 10) {          // FUN_0054d130: off the merc into the hand
+                if (const auto found = std::ranges::find(worn, merc_item->slot, &d2d::d2s::Item::slot); found != worn.end()) {
+                    actor->held = std::move(*found);
+                    worn.erase(found);
+                    actor->held->location = d2d::d2s::item_location::kStored;
+                    actor->held->slot = 0;
+                }
+                return;
+            }
+            if (!actor->held || merc_item->slot != 0) return;
+            if (fight.feed_merc_item(*actor->held, now_ms)) { actor->held.reset(); return; }   // FUN_005bf240: a potion it drinks
+            const auto& merc_row = actor->merc_st;
+            const auto* hireling = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), merc_row.level);
+            const int slot = hireling ? d2d::rules::merc_slot(game_data->rules, *actor->held, hireling->cls, merc_row.str, merc_row.dex, merc_row.level) : 0;
+            if (slot == 0) return;                                                         // FUN_00553380: no
+            auto put = std::move(*actor->held);
+            actor->held.reset();
+            if (const auto found = std::ranges::find(worn, slot, &d2d::d2s::Item::slot); found != worn.end()) {   // what was there into the hand
+                actor->held = std::move(*found);
+                worn.erase(found);
+                actor->held->location = d2d::d2s::item_location::kStored;
+                actor->held->slot = 0;
+            }
+            put.location = d2d::d2s::item_location::kEquipped;
+            put.slot = slot;
+            worn.push_back(std::move(put));
             return;
         }
         if (const auto* use_belt = std::get_if<cmd::UseBelt>(&command)) {

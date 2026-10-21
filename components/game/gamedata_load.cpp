@@ -1317,6 +1317,15 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 layout.slots[slot] = { num(column + "Left"), num(column + "Top"), num(column + "Width"), num(column + "Height") };
             }
         }
+    for (std::size_t row = 0; row < inv.size(); ++row) {
+        if (inv.get(row, "class") != "Hireling2") continue;
+        auto num = [&](const std::string& column) { return std::atoi(std::string(inv.get(row, column)).c_str()); };
+        for (auto slot = std::size_t(d2d::d2s::body_location::kFirst); slot <= std::size_t(d2d::d2s::body_location::kLast); ++slot) {
+            const std::string column = kSlotCol[slot];
+            const int left = num(column + "Left"), top = num(column + "Top");
+            if (left >= 0 && top >= 0) game_data.merc_layout.slots[slot] = { left, top, num(column + "Width"), num(column + "Height") };
+        }
+    }
     auto index_of = [&](std::string_view code) {
         for (std::size_t i = 1; i < game_data.comp.size(); ++i)
             if (game_data.comp[i].code == code) return std::uint8_t(i);

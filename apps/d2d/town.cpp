@@ -993,6 +993,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         keys_this_frame.insert(keys_this_frame.end(), focus_keys.begin(), focus_keys.end());
         focus_keys.clear();
         Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
+        // The Hireling screen's clicks: its close button, an item on or off the merc (0x61).
+        if (hireling.open && !help.open && !controls.open && !game_menu.open) {
+            if (!view.merc_sheet) hireling.open = false;
+            else if (const int asked = hireling.input(*scene, mouse, held.has_value()); asked >= 0) {
+                send(cmd::MercItem{ asked });
+                mouse.press_this_frame = mouse.release_this_frame = false;
+            }
+            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+        }
         // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
         if (help.open && !controls.open && !game_menu.open) {
             if (help.input(mouse)) { help.open = true; toggle_help(); }
@@ -1053,7 +1062,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skillbar.hotkey(slot, mouse.x, mouse.y);
             if (fires(keys::kShowBelt)) belt_open = !belt_open;
             if (fires(keys::kAutomap)) automap.open = !automap.open;
-            if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
+            if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
             if (fires(keys::kQuestLog)) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead)) { send(cmd::Resurrect{}); continue; }
             for (int belt = 0; belt < 4; ++belt)
@@ -1069,7 +1078,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kShowPortraits)) portraits_hidden = !portraits_hidden;   // 0x493840
             if (fires(keys::kSkillSpeedBar)) skillbar.picking = skillbar.picking == 2 ? 0 : 2;   // 0x468b00: UI 3, the right hand's picker (0x7c07fc = 0)
             if (fires(keys::kMessageLog)) message_log = !message_log;
-            if (fires(keys::kHelp)) toggle_help();   // 0x468980: UI 0x18, which 1.14d never draws
+            if (fires(keys::kHelp)) toggle_help();
+            // 0x469170: UI 0x24, an expansion game with a merc; a left-hand panel.
+            if (fires(keys::kHireling) && character.expansion && view.merc_sheet) {
+                hireling.open = !hireling.open;
+                if (hireling.open) char_open = stash_open = cube_open = quest_log.open = false;
+            }   // 0x468980: UI 0x18, which 1.14d never draws
             // The automap's (0x468a60..0x468ad0), the same values as Options -> Automap.
             auto& automap_values = game_menu.value[4];
             if (fires(keys::kFadeAutomap)) automap_values[2] = (automap_values[2] + 1) % 4;   // 0x468a70: the next fade
@@ -1090,8 +1104,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
-                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open)   // then panels
-                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open)   // then panels
+                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = false;
                 else open_game_menu();
             }
         }
@@ -1707,7 +1721,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::pad_field() const -> bool {
-        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open
+        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open
             && !game_menu.open && !controls.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
     }
@@ -2771,6 +2785,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
+        if (hireling.open && view.merc_sheet)
+            hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (help.open) help.draw(framebuffer, *scene, key_table);
         if (controls.open) controls.draw(framebuffer, *scene, now_ms);
         for (const auto& coop_player : coop)              // a joining pad's pick

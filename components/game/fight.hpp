@@ -407,6 +407,10 @@ struct Fight {
     // ponytail: no class bonus or doubling for it; antidote / thawing are
     // spent and do nothing (the merc's poison and chill aren't kept).
     void feed_merc(int col, std::uint32_t now_ms);
+    // A healing, antidote or thawing potion in hand given to the merc (0x61,
+    // FUN_005bf240): true when it drank it.
+    bool feed_merc_item(const d2d::d2s::Item& item, std::uint32_t now_ms);
+    void merc_drinks(const std::string& code, std::uint32_t now_ms);
     void drink_item(int id, std::uint32_t now_ms);
     void potion(const std::string& code, std::uint32_t now_ms);
     // Potions and poison, then the steady regeneration: replenish life

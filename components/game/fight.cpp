@@ -190,9 +190,21 @@ auto Fight::feed_merc(int col, std::uint32_t now_ms) -> void {
         if (bottle == actor->character.items.end() || !tables.item_info.contains(bottle->code)) return;
         const auto& type = tables.item_info.at(bottle->code).type;
         if (!d2d::rules::type_is(tables, type, "hpot") && !d2d::rules::type_is(tables, type, "apot") && !d2d::rules::type_is(tables, type, "wpot")) return;
-        const std::string code = d2d::rules::drink_belt(tables, actor->character.items, col);
-        if (code.empty()) return;
-        const auto& potion = tables.potions.at(code);
+        merc_drinks(d2d::rules::drink_belt(tables, actor->character.items, col), now_ms);
+    }
+
+auto Fight::feed_merc_item(const d2d::d2s::Item& item, std::uint32_t now_ms) -> bool {
+        const auto& tables = game_data->rules;
+        if (dead() || !actor->merc || actor->merc->hit_points <= 0 || !tables.item_info.contains(item.code) || !tables.potions.contains(item.code)) return false;
+        const auto& type = tables.item_info.at(item.code).type;
+        if (!d2d::rules::type_is(tables, type, "hpot") && !d2d::rules::type_is(tables, type, "apot") && !d2d::rules::type_is(tables, type, "wpot")) return false;
+        merc_drinks(item.code, now_ms);
+        return true;
+    }
+
+auto Fight::merc_drinks(const std::string& code, std::uint32_t now_ms) -> void {
+        if (code.empty() || !actor->merc) return;
+        const auto& potion = game_data->rules.potions.at(code);
         if (potion.percent) actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + merc_max_life() * potion.life / 100);
         else if (potion.life > 0) {
             const int len = std::max(potion.ticks, 1);

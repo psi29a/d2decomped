@@ -96,6 +96,10 @@ struct Chat { int npc = -1; };
 struct QuestMessage { int npc = -1, string = 0; };
 // 0x60: the weapon switch (an expansion character's I / II).
 struct SwapWeapons {};
+// 0x61: the merc's items (FUN_0054d430): slot 0 with an item in hand puts
+// it on the merc (a healing, antidote or thawing potion it drinks); slot
+// 1..10 with none takes that item into the hand.
+struct MercItem { int slot = 0; };
 // 0x49: travel from waypoint object `npc` to the waypoint of `level`.
 struct Waypoint { int npc = -1, level = 0; };
 }  // namespace cmd
@@ -104,7 +108,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::SwapWeapons>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::SwapWeapons, cmd::MercItem>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -187,6 +191,7 @@ inline constexpr std::uint8_t kWaypoint = 0x49;
 inline constexpr std::uint8_t kRunOn = 0x53;
 inline constexpr std::uint8_t kRunOff = 0x54;
 inline constexpr std::uint8_t kSwapWeapons = 0x60;
+inline constexpr std::uint8_t kMercItem = 0x61;
 }  // namespace opcode
 
 // 0x38's first byte: which deal (d2d's numbering; game.exe tells Respec,
@@ -205,6 +210,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
         else if constexpr (std::is_same_v<T, cmd::SwapWeapons>) out.u8(opcode::kSwapWeapons);
+        else if constexpr (std::is_same_v<T, cmd::MercItem>) out.u8(opcode::kMercItem).i32(message.slot);
         else if constexpr (std::is_same_v<T, cmd::Transmute>) out.u8(opcode::kButton).u16(0x18);
         else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(opcode::kStatPoint).i32(message.stat).i32(message.count);
         else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(opcode::kSkillPoint).i32(message.skill);
@@ -254,6 +260,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
         case opcode::kResurrect: command = cmd::Resurrect{}; break;
         case opcode::kSwapWeapons: command = cmd::SwapWeapons{}; break;
+        case opcode::kMercItem: command = cmd::MercItem{ i32() }; break;
         case opcode::kButton: if (input.get<std::uint16_t>() != 0x18) return std::nullopt; command = cmd::Transmute{}; break;
         case opcode::kStatPoint: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
         case opcode::kSkillPoint: command = cmd::SkillPoint{ i32() }; break;

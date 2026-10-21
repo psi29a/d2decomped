@@ -286,4 +286,33 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
     return use ? pick() : MercAttack{ .kind = Kind::stand };
 }
 
+// What a merc can wear (FUN_0048b290, the server's FUN_0054d230): an
+// identified item, not broken; a helm (and its kinds) or body armour; and
+// by its MonStats row (Hireling.txt Class) a bow (271, the rogue), a spear
+// or polearm (338, the desert guard), a shield or a one-handed sword (359,
+// the iron wolf), a one-handed axe (560) or a sword (561), the two
+// barbarians also a primal helm; then its strength, dexterity and level
+// against the item's (FUN_0062eaf0). Where it goes: the head, the torso, a
+// shield the left hand, the rest the right.
+// ponytail: FUN_0062eaf0's other checks (ethereal, the "requirements -x%"
+// stat) aren't applied, as for the player's (can_wear).
+[[nodiscard]] inline int merc_slot(const Tables& tables, const d2d::d2s::Item& item, int merc_class, int str, int dex, int level) {
+    namespace body = d2d::d2s::body_location;
+    const auto* info = info_of(tables, item);
+    if (!info || !item.identified || (item.max_durability > 0 && item.durability == 0)) return 0;
+    const auto is = [&](std::string_view type) { return type_is(tables, info->type, type); };
+    int slot = 0;
+    if (is("helm")) slot = body::kHead;
+    else if (is("tors")) slot = body::kTorso;
+    else if (merc_class == 271 && is("bow")) slot = body::kRightArm;
+    else if (merc_class == 338 && (is("spea") || is("pole"))) slot = body::kRightArm;
+    else if (merc_class == 359 && is("shie")) slot = body::kLeftArm;
+    else if (merc_class == 359 && is("swor") && !info->two_handed) slot = body::kRightArm;
+    else if (merc_class == 560 && is("axe") && !info->two_handed) slot = body::kRightArm;
+    else if (merc_class == 561 && is("swor")) slot = body::kRightArm;
+    if ((merc_class == 560 || merc_class == 561) && is("phlm")) slot = body::kHead;
+    if (slot == 0 || str < info->req_str || dex < info->req_dex || level < info->req_lvl) return 0;
+    return slot;
+}
+
 }  // namespace d2d::rules

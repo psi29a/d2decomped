@@ -163,6 +163,12 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
         if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); }
+        chunk.u8(view.merc_sheet.has_value());             // the Hireling screen's numbers
+        if (const auto& sheet = view.merc_sheet) {
+            chunk.i32(sheet->level).i32(sheet->str).i32(sheet->dex).i32(sheet->min).i32(sheet->max).i32(sheet->defense).i32(sheet->life).i32(sheet->max_life).i32(sheet->cls);
+            chunk.u32(std::uint32_t(sheet->exp)).u32(std::uint32_t(sheet->exp >> 32)).u32(std::uint32_t(sheet->next)).u32(std::uint32_t(sheet->next >> 32));
+            for (const int resist : sheet->res) chunk.i32(resist);
+        }
         chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.day.eclipse).i32(view.day.dimmed).u8(view.den_cleared).i32(view.light_bonus);
         for (const auto quest : view.quest_log) chunk.u8(quest);
         for (const auto quest : view.game_quests) chunk.u16(quest);
@@ -360,6 +366,15 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
             if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode };
+        }
+        view.merc_sheet.reset();
+        if (byte()) {
+            View::MercSheet sheet;
+            sheet.level = i32(); sheet.str = i32(); sheet.dex = i32(); sheet.min = i32(); sheet.max = i32(); sheet.defense = i32(); sheet.life = i32(); sheet.max_life = i32(); sheet.cls = i32();
+            const std::uint64_t exp_low = u32(), exp_high = u32(), next_low = u32(), next_high = u32();
+            sheet.exp = std::int64_t(exp_low | exp_high << 32); sheet.next = std::int64_t(next_low | next_high << 32);
+            for (auto& resist : sheet.res) resist = i32();
+            view.merc_sheet = sheet;
         }
         view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.day.eclipse = byte() != 0; view.day.dimmed = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32(); 
         for (auto& quest : view.quest_log) quest = std::uint8_t(byte());

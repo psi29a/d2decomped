@@ -523,6 +523,7 @@ struct GameData {
     // PANEL\supertransmogrifier (FUN_0048a4b0), same left-panel spot
     // (panel 0xe, 0x48eeca).
     InvLayout cube_layout{};
+    InvLayout merc_layout{};                          // inventory.txt "Hireling2": the Hireling screen's body slots
     std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
     // A new character's start (CharStats.txt): str, dex, int (energy), vit,
     // stamina, hpadd; item1..10 with their loc and count; StartSkill.

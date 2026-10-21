@@ -88,6 +88,15 @@ struct View {
     GameData::Appearance gfx{};               // what the character wears
     struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; };
     std::optional<Merc> merc;
+    // The Hireling screen's numbers (FUN_0048a990): level, experience and the
+    // next level's, strength, dexterity, damage, defense, the resistances
+    // (fire, lightning, cold, poison), life now and its most; its MonStats row.
+    struct MercSheet {
+        int level = 0, str = 0, dex = 0, min = 0, max = 0, defense = 0, life = 0, max_life = 0, cls = 0;
+        std::int64_t exp = 0, next = 0;
+        std::array<int, 4> res{};
+    };
+    std::optional<MercSheet> merc_sheet;
     struct Pet { Npc npc; UnitState unit; std::string_view mode; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Monster> monsters;         // the level's
