@@ -128,16 +128,35 @@ A local game pauses while UI 0xb is up (menu.md).
 
 ## d2d's ceilings
 
-- d2d acts on the functions it has: the screens, Chat, Automap, Skill
-  1..16, Show Belt, Use Belt 1..4, Toggle Run/Walk, Show Items and Swap
-  Weapons. The rest (Party, Message Log, Help, the automap options, the
-  speed bar, Previous / Next Skill, Say, Run, Stand Still, Clear
-  Screen / Messages, Screen Shot, Portraits, Mini Map, Hireling) are
-  listed and kept, but do nothing yet.
+- What the functions do (the handler table at `0x712698`):
+  - Run (`0x469000` / release `0x4691c0`): runs while held, back to a
+    walk on release unless the toggle runs (C→S 0x53 / 0x54).
+  - Stand Still (`0x469080`): a flag (`0x7a0664`). While it's held, a
+    click on the ground uses the left skill there and doesn't step.
+  - Clear Screen (`FUN_0044c6b0`): every closable panel and the automap
+    shut.
+  - Clear Messages (`FUN_004a01e0`): every chat line's time runs out.
+  - Previous / Next Skill (`FUN_004aa740`, ∓1): from the hotkey last used
+    (`0x7c0708`), round the 16 slots to the next right-hand skill that can
+    be used.
+  - Screen Shot (release `0x4fa7a0`): at most once a second,
+    `Screenshot%03d.jpg`. d2d writes PNG to its screenshots folder.
+  - Show Portraits (`0x493840`): toggles the party portraits.
+  - Say 1..7 and Retreat (`0x468f80..0x468ff0`): C→S 0x3f with phrase
+    0x19..0x20. The server's handler (`0x54c070` → `FUN_00553380`) sets
+    it on the player (+0x6e) and sends it to everyone as S→C 0x2c. Each
+    client plays the class's voice (`FUN_004cb9c0`): the class sound
+    table at `0x72a008`, +0x20 (amazon_chat_a_1, 2937), `- 0x32 +
+    phrase * 2`, one of its group's two takes. English shows no text
+    (`FUN_004a0200` only does for languages 6, 7 and 9).
 - Default is the static table. game.exe's is whatever `0x712220`
   holds, which the save dir's default.key overwrites when a character's
   own file was refused (`FUN_004698d0(1)`).
 - Unverified: the skill picker shows a hotkey's first key, else its
   second. Which one game.exe shows isn't traced.
+- d2d plays the Say voice itself and sends 0x3f to a host. game.exe's
+  own player hears it back from the server. The 75-tick repeat guard on
+  the voice isn't kept.
+- Screen Shot fires on the key's press, not its release.
 - Auto-repeat: game.exe skips a held key's repeats (lParam bit 30).
   d2d gets no repeats on the screen's keys anyway.

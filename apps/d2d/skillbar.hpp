@@ -141,8 +141,24 @@ struct SkillBar {
         if ((hotkey & 0xffff) == 0xffff) return;
         const int id = int(hotkey & 0x7fff);
         const bool on_left = hotkey & 0x8000;
-        if (usable(id, on_left)) (on_left ? left : right) = id;
+        if (usable(id, on_left)) { (on_left ? left : right) = id; last_slot = slot_index; }
     }
+    // Previous / Next Skill (FUN_004aa740, -1 / 1): from the hotkey last
+    // used, the next slot round holding a right-hand skill that can be
+    // used becomes the right hand's.
+    void cycle(int step) {
+        int slot = last_slot;
+        for (int tries = 0; tries < 16; ++tries) {
+            slot = (slot + (step > 0 ? 1 : 15)) % 16;
+            const auto hotkey = character.header.hotkeys[std::size_t(slot)];
+            if ((hotkey & 0xffff) == 0xffff || (hotkey & 0x8000)) continue;
+            if (!usable(int(hotkey & 0x7fff), false)) continue;
+            right = int(hotkey & 0x7fff);
+            last_slot = slot;
+            return;
+        }
+    }
+    int last_slot = 0;                             // 0x7c0708: the hotkey last used
     std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
 
     // The buttons, the open picker (hotkey labels on its icons) and the

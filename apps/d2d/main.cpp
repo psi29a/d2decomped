@@ -662,6 +662,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     if (!g_no_save) town.cfg_file = g_user_dir / "d2d.cfg";
     if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
     town.pad_controls_page = g_pad_controls;
+    town.shot_dir = g_user_dir / "screenshots";
     // A joined game: the host keeps the character and sends its save back
     // (B3) now and then and on leaving; each whole one goes to disk
     // (FUN_0045c520 writes <save dir><name>.d2s).

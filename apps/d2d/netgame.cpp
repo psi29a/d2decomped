@@ -134,6 +134,7 @@ auto NetGame::trade_accept() -> void {
 }
 
 auto NetGame::say(std::string_view message) -> void { send({ d2d::net::d2gs::c2s::chat(message) }); }
+auto NetGame::phrase(std::uint16_t which) -> void { send({ d2d::net::d2gs::c2s::phrase(which) }); }
 
 auto NetGame::trade_cancel() -> void {
     send({ d2d::net::d2gs::c2s::click_button(2) });
@@ -557,6 +558,10 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             if (packet[0] == 0x4d) { unit.skill_x = read_u16(packet, 0xb); unit.skill_y = read_u16(packet, 0xd); }
             else if (const auto target = units.find(key(packet[9], read_u32(packet, 0xa))); target != units.end()) { unit.skill_x = target->second.x; unit.skill_y = target->second.y; }
         }
+        break;
+    case 0x2c:   // unit sound: +1 type, +2 u32 id, +6 u16 sound; a player's Say (0x19..0x20) plays its class's voice (FUN_004cb9c0)
+        if (size >= 8 && packet[1] == 0 && read_u32(packet, 2) != self_id && unsigned(read_u16(packet, 6) - 0x19) < 8)
+            if (const auto speaker = units.find(key(0, read_u32(packet, 2))); speaker != units.end()) phrases.push_back({ speaker->second.cls, read_u16(packet, 6) - 0x19 });
         break;
     case 0x26:   // chat / overhead: +1 type (1 to all, 2 a whisper, 5 overhead), +10 name\0, the message\0
         if (size >= 12 && packet[1] == 5) {                   // +3 unit type, +4 id (FUN_0049f410)

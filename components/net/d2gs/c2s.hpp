@@ -137,6 +137,14 @@ inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
 // trade's (FUN_004b8730 .. FUN_004b9110): 2 decline / cancel, 3 accept
 // the request, 4 accept the trade, 7 take the accept back, 8 our gold
 // (high, low half).
+// A character phrase (Say, FUN_004785b0): 0x19..0x20.
+inline auto phrase(std::uint16_t which) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x3f);
+    put_u16(out, which);
+    return out;
+}
+
 inline auto click_button(std::uint16_t button, std::uint16_t first = 0, std::uint16_t second = 0) -> Bytes {
     Bytes out;
     put_u8(out, 0x4f);

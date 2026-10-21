@@ -287,6 +287,16 @@ struct Town {
     bool pad_controls_page = true;                // the "pad_controls" toggle
     bool pad_config_changed = false;              // Accept changed the pad's settings: main's mapper takes them
     void load_keys();
+    void say(int phrase);
+    [[nodiscard]] static int say_sound(int cls, int phrase);                         // Say 1..7, Retreat (0..7)
+    void clear_screen();
+    [[nodiscard]] bool pad_field_or_free() const;
+    bool run_held = false;                        // Run's key made the player run
+    bool portraits_hidden = false;                // Show Portraits toggled them off
+    std::filesystem::path shot_dir;               // Screen Shot's folder (main sets it)
+    std::uint32_t last_shot_ms = 0;
+    bool screenshot_wanted = false;               // Screen Shot: the next frame drawn goes to a file (main)
+    int audio_say = -1;                           // a Say's sound, played by update (it has the audio)
     void save_keys(bool shared) const;
     void update_hotkey_names();
     void accept_controls();

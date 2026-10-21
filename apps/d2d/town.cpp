@@ -30,6 +30,7 @@
 #include <monster_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <screenshot.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
@@ -891,6 +892,32 @@ auto Town::function_held(int action) const -> bool {
         return key_held(keys::key_of(key_table, action, 0)) || key_held(keys::key_of(key_table, action, 1));
     }
 
+// Say (0x468f80..0x468ff0): phrase 0x19 + n to the server (C→S 0x3f),
+// which sets it on the player; every client then plays the class's
+// voice (FUN_004cb9c0: its sound table's +0x20, - 0x32 + phrase * 2: one
+// of the phrase's two takes). English shows no text with it (FUN_004a0200
+// only does for languages 6, 7 and 9).
+auto Town::say_sound(int cls, int phrase) -> int {
+        static constexpr std::array<int, 7> kChatSound = { 0xb79, 0xcb1, 0xc15, 0xc63, 0xbc7, 0xd4d, 0xcff };   // amazon_chat_a_1 ...
+        return kChatSound[std::size_t(std::clamp(cls, 0, 6))] + 2 * std::clamp(phrase, 0, 7);
+    }
+
+auto Town::say(int phrase) -> void {
+        audio_say = say_sound(int(character.header.cls), phrase);
+        if (net_game) net_game->phrase(std::uint16_t(0x19 + phrase));
+    }
+
+// Clear Screen (FUN_0044c6b0): every closable panel shuts, and the automap.
+auto Town::clear_screen() -> void {
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = belt_open = false;
+        automap.open = false;
+        skillbar.picking = 0;
+    }
+
+auto Town::pad_field_or_free() const -> bool {
+        return have_world && !game_menu.open && !controls.open && npc_menu.npc < 0 && store.npc < 0 && !inv_open && !stash_open && !cube_open;
+    }
+
 auto Town::new_game() -> void {
         world.new_game();
         skillbar.new_game();
@@ -983,6 +1010,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead)) { send(cmd::Resurrect{}); continue; }
             for (int belt = 0; belt < 4; ++belt)
                 if (fires(keys::kBelt1 + belt)) net.send(cmd::UseBelt{ belt, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
+            for (int phrase = 0; phrase < 8; ++phrase)
+                if (fires(phrase < 7 ? keys::kSay1 + phrase : int(keys::kSayRetreat))) say(phrase);
+            if (fires(keys::kRun) && !view.running) { send(cmd::Run{ true }); run_held = true; }   // 0x469000: run while held
+            if (fires(keys::kClearScreen)) clear_screen();
+            if (fires(keys::kClearMessages)) chat_lines.clear();   // FUN_004a01e0: every line's time out
+            if (fires(keys::kPreviousSkill)) skillbar.cycle(-1);
+            if (fires(keys::kNextSkill)) skillbar.cycle(1);
+            if (fires(keys::kScreenShot)) screenshot_wanted = true;
+            if (fires(keys::kShowPortraits)) portraits_hidden = !portraits_hidden;   // 0x493840
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
@@ -1000,6 +1036,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
                 else open_game_menu();
             }
+        }
+        if (audio_say >= 0) { audio.play_sfx(*scene, audio_say, 1.f, int(rng.next() & 1)); audio_say = -1; }
+        if (net_game)                                      // the other players' Says
+            for (const auto& said : std::exchange(net_game->phrases, {})) audio.play_sfx(*scene, say_sound(said.cls, said.phrase), 1.f, int(rng.next() & 1));
+        // Run's key let go (0x4691c0): back to walking, unless the toggle runs.
+        if (run_held && !function_held(keys::kRun)) { send(cmd::Run{ false }); run_held = false; }
+        // The wheel's functions (Previous / Next Skill by default) when nothing else scrolls.
+        if (mouse.wheel != 0 && pad_field_or_free()) {
+            const auto fired = keys::actions_of(key_table, mouse.wheel > 0 ? keys::kWheelUp : keys::kWheelDown);
+            if (std::ranges::contains(fired, int(keys::kPreviousSkill))) skillbar.cycle(-1);
+            if (std::ranges::contains(fired, int(keys::kNextSkill))) skillbar.cycle(1);
         }
         // Classic Terror's End: the game closed under the player (FUN_00530590).
         if (world.game_closed) { world.game_closed = false; save(); screen = Screen::CharSelect; return; }
@@ -1507,6 +1554,21 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         draw(framebuffer, mouse, frame_ms);
+        // Screen Shot (FUN_004fa7a0): at most one a second, Screenshot%03d,
+        // the first number free. d2d writes PNG in its screenshots folder
+        // (deviations.md), game.exe JPEG in the game's.
+        if (std::exchange(screenshot_wanted, false) && !shot_dir.empty() && frame_ms - last_shot_ms >= 1000) {
+            last_shot_ms = frame_ms;
+            for (int number = 0; number < 1000; ++number) {
+                const auto path = shot_dir / std::format("Screenshot{:03}.png", number);
+                if (std::filesystem::exists(path)) continue;
+                try {
+                    d2d::screenshot::save_png(path, framebuffer, std::uint32_t(fb_width(framebuffer)), kScreenHeight);
+                    d2d::log::info("screenshot: {}", path.string());
+                } catch (const std::exception& error) { d2d::log::warn("screenshot: {}", error.what()); }
+                break;
+            }
+        }
     }
 
 auto Town::quest_bits() const -> const d2d::rules::QuestBits& {
@@ -1568,10 +1630,13 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
             else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2008) || (hovered_npc <= -3000 && hovered_npc > -3016)
                      || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
+            else if (function_held(keys::kStandStill)) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true });   // 0x7a0664: no step, the skill there
             else out.push_back(cmd::Move{ world_x, world_y, true });
         } else if (mouse.down) {                             // held: the attack goes on, else the walk re-aims
             if (const int attacked = view.monster(view.attack); attacked >= 0 && view.monsters[std::size_t(attacked)].alive())
                 out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, true });
+            else if (function_held(keys::kStandStill))
+                out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true });
             else
                 out.push_back(cmd::Move{ world_x, world_y, false });
         }
@@ -2820,7 +2885,7 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
 // mode 5 blend is drawn solid.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
-    if (!net_game || left_open) return;
+    if (!net_game || left_open || portraits_hidden) return;
     const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
     if (self == net_game->units.end() || self->second.party == 0xffff) return;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;

@@ -310,6 +310,9 @@ try:
         with open(os.path.join(user, "d2d.cfg")) as f:
             cfg = dict(line.split(" = ", 1) for line in f.read().splitlines() if " = " in line)
         assert cfg.get("pad_inventory") == "back" and cfg.get("pad_quest_log") == "none", f"the pad page didn't keep View on Inventory: {cfg}"
+        # Screen Shot (Print Screen): Screenshot000.png in the screenshots folder.
+        cmd("key PrintScreen"); frames(3)
+        assert os.path.exists(os.path.join(user, "screenshots", "Screenshot000.png")), "Print Screen wrote no screenshot"
         # The skill picker on a pad: the right stick's click opens the right
         # hand's; hops left end on the left skill button, A there switches
         # to the left hand's (the cursor on its skill), A again chooses it.

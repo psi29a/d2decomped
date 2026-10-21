@@ -163,6 +163,7 @@ struct NetGame {
     auto trade_accept() -> void;
     auto trade_cancel() -> void;
     auto say(std::string_view message) -> void;   // chat to all (0x15)
+    auto phrase(std::uint16_t which) -> void;     // a Say (0x3f, 0x19..0x20)
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)
@@ -177,6 +178,8 @@ struct NetGame {
     std::vector<Event> events;
     struct Overhead { int type = 0; std::uint32_t id = 0; std::string text; };   // 0x26 type 5: over a unit
     std::vector<Overhead> overheads;
+    struct Phrase { int cls = 0, phrase = 0; };   // another player's Say (0x2c)
+    std::vector<Phrase> phrases;
     std::vector<int> quest_news;               // quests (words) whose log state the host sent (0x5d, no flags): the Quest Log button
     // The quest log as the host has it: each quest's log state by its word
     // (0x52 whole, 0x5d one), the game's quest words (0x29), the Den's
