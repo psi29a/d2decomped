@@ -894,6 +894,34 @@ classic ending (90 s, the credits), the seal flash's event (the boss comes
 at once), the gems at once on loot's rng, the burning souls' chest drop,
 Act 5 past the portal.
 
+## Checkpoint 2026-10-22: sounds; the Deck's A on waypoints and portals
+
+Branch `sounds`, after Bret's Steam Deck playtest (no hit or miss sounds,
+A did nothing on a waypoint or a town portal):
+
+- The pad: an open waypoint counted as the field (`Town::pad_field`), so A
+  never reached its rows; the cursor now starts on its first row. A also
+  takes town portals and corpses. `tests/pad_use_d2d.py`.
+- Sounds, traced in game.exe's client (UnitSnd.cpp, Skills.cpp) and
+  ported (docs/research/re/unit-sounds.md): the weapon's swing and the
+  struck unit's impact by hit class; skills' start, do and target sounds;
+  missiles' flight (a looping one stops with its missile) and hit; states
+  on and off; the hero's own hit and death cries; footsteps by floor
+  material; monsters' idle Neutral, Init, Skill1..4 and footsteps; every
+  object's mode and looping sounds (the whole 0x7295f8 table,
+  `rules/object_sounds.hpp`); town NPCs' greetings with their time of day.
+- `tools/sound_coverage.py` lists the base install's sounds d2d can't play:
+  3,148 of 3,520 play now (2,181 before).
+
+Still open (the tool's list): the hero's quest lines (the "find" and
+"complete" voices: each quest's server code sends its id to
+FUN_00553380; ~45 a class) and chat phrases; monsters' Taunt and Flee
+(server events), their own skill stsound; dosound a / b, prgsound, block
+and kick sounds; the quest music jingles; camp floors (DS1 tiles aren't in
+`room_floors`: always dirt).
+
+Next: the hero's quest lines, act by act; then a real-Deck check.
+
 ## Checkpoint 2026-10-19: Coverity scans our code; max mana %
 
 PR #52 (`coverity-mana`), on top of the gamepad (#36):

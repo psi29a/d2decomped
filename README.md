@@ -46,6 +46,7 @@ TCP/IP, and plays with a gamepad as well as mouse and keyboard.
 | Multiplayer over TCP/IP (a d2d host) | Not started |
 | Joining a game hosted by the original | 🚧 Acts I–IV played through together: party, trade, portals, waypoints, chat, quests, travel; a few live checks pending |
 | Gamepad | ✅ Xbox, PlayStation, Switch and Steam Deck pads, one default layout ([apps/d2d](apps/d2d/README.md)) |
+| Sound | 🚧 3,148 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings; the hero's quest lines next ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
 | Dedicated server | Not started |
 
 ## Bring your own game
