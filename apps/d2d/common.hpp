@@ -2,6 +2,8 @@
 // Shared includes, screen/iso constants, blit helpers.
 #pragma once
 
+#include <font.hpp>
+
 #include "game_api.hpp"
 
 #include <dc6.hpp>
@@ -35,6 +37,13 @@ constexpr int kFloorViewY = (int(kScreenHeight) - 40) / 2;
 
 // The height is always kScreenHeight; a widescreen view is a buffer wider
 // than kScreenWidth, so a framebuffer's stride is read from its size.
+// game.exe's text y (FUN_00502320) is the bottom of the font's glyph cell
+// (font6's cells are 11 tall, the baseline on row 8); Font::draw takes the
+// top. The char panel's rule (draw_char_panel), for every panel's text.
+[[nodiscard]] inline int glyph_top(const d2d::font::Font& font, int bottom) {
+    return bottom - (font.sheet().frames_per_direction() > 0 ? int(font.sheet().frame(0, 0).height) : font.line_height()) + 1;
+}
+
 inline auto fb_width(const std::vector<std::uint8_t>& framebuffer) -> int {
     return int(framebuffer.size() / 4 / kScreenHeight);
 }

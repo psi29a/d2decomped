@@ -76,7 +76,7 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     const auto put = [&](const d2d::font::Font& font, const std::string& words, int x, int baseline, int colour, bool centred) {
         const auto& rgb = kRgb[std::size_t(std::clamp(colour, 0, 8))];
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kLeft + (centred ? x - font.measure(words) / 2 : x),
-                         kTop + baseline - font.line_height() + 1, words, rgb[0], rgb[1], rgb[2]);
+                         kTop + glyph_top(font, baseline), words, rgb[0], rgb[1], rgb[2]);
     };
     const auto cut = [&](const d2d::font::Font& font, std::string words, int width) {    // FUN_0049a2c0 / FUN_0049a830: "..." past the width
         if (font.measure(words) <= width) return words;

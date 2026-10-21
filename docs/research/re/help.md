@@ -26,7 +26,7 @@ d2d: `apps/d2d/help.{hpp,cpp}`, opened from `town.cpp`.
     function in the emulator with the text calls hooked; the numbers are
     in `help.cpp` `kLabels`. "Diablo II Help" (0x1066) is centred at
     0x17c, baseline 0x11. "Close" (0x1030) is centred at 701, baseline
-    0x49. Eight lines sit at x 117, baselines 78 + 20i. Four of them
+    0x49. Eight lines sit at x 117, baselines 78 + 20i. Five of them
     take a function's first key by name through `%s`: Run (0x1067),
     Show Items (0x1068), Stand Still (0x1069), Automap (0x106a) and
     this screen (0x106e). The rest are the control panel's labels,

@@ -133,7 +133,7 @@ void HirelingPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& sc
         const int width = font.measure(words);
         const int x = right_align ? right - width : right > left ? left + (right - left - width) / 2 : left;
         const auto& rgb = kRgb[std::size_t(std::clamp(colour, 0, 4))];
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kLeft + x, kTop + baseline - font.line_height() + 1, words, rgb[0], rgb[1], rgb[2]);
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kLeft + x, kTop + glyph_top(font, baseline), words, rgb[0], rgb[1], rgb[2]);
     };
     std::string shown = name;
     while (!shown.empty() && font16.measure(shown) > 0xa0) shown.pop_back();
@@ -165,8 +165,9 @@ void HirelingPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& sc
             case kPoison: words = res(3); break;
             case kLife: words = std::to_string(std::max(sheet.life, 1)) + " / " + std::to_string(sheet.max_life); break;
         }
-        const bool small = box.width > 0 && font16.measure(words) > box.width;
-        put(small ? font8 : font16, words, box.x0, box.x1, box.y - 2, colour, box.x0 == 0);
+        // font8; font6 when wider than its box (FUN_0048a990: 0x7221b4).
+        const bool small = box.width > 0 && font8.measure(words) > box.width;
+        put(small ? font6 : font8, words, box.x0, box.x1, box.y - 2, colour, box.x0 == 0);
     }
     if (hover && !held) {
         const d2d::rules::Wearer merc{ -1, sheet.str, sheet.dex, sheet.level };

@@ -188,7 +188,7 @@ void ControlsUI::button(int which, Result& result) {
     if (which == 0) { table = backup; pad = pad_backup; result = kCancel; }
     else if (which == 1) { if (pad_page) pad = pad::Config{}; else table = keys::defaults(); }
     else if (which == 2) {
-        if (!pad::clashes(pad.bindings).empty()) { pad_message = "Two actions share a button"; message_ms = now_; return; }
+        if (!pad::clashes(pad.bindings).empty()) { pad_message = "Two actions share a button"; message = 0; message_ms = now_; return; }
         result = kAccept;
     } else if (which == 3) {
         pad_page = !pad_page;
@@ -223,6 +223,7 @@ void ControlsUI::pad_edit(pad::Button pressed, std::uint32_t now_ms) {
     const auto action = pad::Action(row.index);
     if (pad::is_dpad(pressed) && (pad::kWhere[std::size_t(action)] & pad::kDpadHops) != 0) {
         pad_message = "The d-pad moves the cursor in panels";
+        message = 0;
         message_ms = now_ms;
         editing = false;
         return;
@@ -235,6 +236,7 @@ void ControlsUI::pad_edit(pad::Button pressed, std::uint32_t now_ms) {
             if (button == pressed) {
                 button = pad::Bindings::kNone;
                 pad_message = std::string(pad::label(family, pressed)) + " was " + pad_action_name(pad::Action(other)) + "'s";
+                message = 0;
                 message_ms = now_ms;
             }
     }
@@ -372,7 +374,7 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     const auto& text_font = font(scene);
     const auto text = [&](const std::string& words, int left, int baseline, int colour) {
         const auto& rgb = kRgb[std::size_t(std::clamp(colour, 0, 5))];
-        text_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, left, baseline - text_font.line_height() + 1, words, rgb[0], rgb[1], rgb[2]);
+        text_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, left, glyph_top(text_font, baseline), words, rgb[0], rgb[1], rgb[2]);
     };
     const auto darken = [&](int left, int top, int width, int height) {   // FUN_0046efd0 colour 0, mode 1: half
         for (int py = std::max(0, top); py < std::min(kHeight, top + height); ++py)

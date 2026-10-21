@@ -141,10 +141,16 @@ auto NetGame::party_button(std::uint32_t player) -> void {
     auto& other = units[key(0, player)];
     const int action = other.relation == 0 ? 6 : other.relation == 4 ? 7 : other.relation == 2 ? 8 : 9;
     other.relation = other.relation == 0 ? 4 : other.relation == 4 ? 0 : 1;      // FUN_00479eb0's own guess, until 0x8b
+    if (action == 7 || action == 9) { if (!std::ranges::contains(no_auto_invite, player)) no_auto_invite.push_back(player); }
+    else std::erase(no_auto_invite, player);
     send({ d2d::net::d2gs::c2s::party(std::uint8_t(action), player) });
 }
 
-auto NetGame::leave_party() -> void { send({ d2d::net::d2gs::c2s::party(9, self_id) }); }
+auto NetGame::leave_party() -> void {
+    for (const auto& [unit_key, unit] : units)                                    // the party left: autoparty doesn't ask them back
+        if (unit.type == 0 && unit.id != self_id && unit.relation == 3 && !std::ranges::contains(no_auto_invite, unit.id)) no_auto_invite.push_back(unit.id);
+    send({ d2d::net::d2gs::c2s::party(9, self_id) });
+}
 
 auto NetGame::relation(std::uint32_t player, int flag) -> void {
     auto& other = units[key(0, player)];
@@ -495,7 +501,8 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         // game.exe's player clicks the party button; d2d has none: it
         // invites a player not yet asked (state 0: 6) and accepts an
         // invite (2: 8) itself.
-        if (size >= 6 && auto_party && read_u32(packet, 1) != self_id && (packet[5] == 0 || packet[5] == 2)) {
+        if (size >= 6 && auto_party && read_u32(packet, 1) != self_id && (packet[5] == 0 || packet[5] == 2)
+            && !(packet[5] == 0 && std::ranges::contains(no_auto_invite, read_u32(packet, 1)))) {
             log.note(std::string(packet[5] == 0 ? "inviting " : "accepting the invite of ") + std::to_string(read_u32(packet, 1)));
             send({ d2d::net::d2gs::c2s::party(packet[5] == 0 ? 6 : 8, read_u32(packet, 1)) });
         }

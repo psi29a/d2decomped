@@ -2217,9 +2217,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             }
             if (!actor->held || merc_item->slot != 0) return;
             if (fight.feed_merc_item(*actor->held, now_ms)) { actor->held.reset(); return; }   // FUN_005bf240: a potion it drinks
+            // FUN_0062eaf0 reads the merc's stats with its gear, as the panel shows them.
             const auto& merc_row = actor->merc_st;
+            const auto gear = fight.merc_gear();
+            const int merc_str = int(merc_row.str + gear.sum[std::size_t(d2d::d2s::kStr)]), merc_dex = int(merc_row.dex + gear.sum[std::size_t(d2d::d2s::kDex)]);
             const auto* hireling = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), merc_row.level);
-            const int slot = hireling ? d2d::rules::merc_slot(game_data->rules, *actor->held, hireling->cls, merc_row.str, merc_row.dex, merc_row.level) : 0;
+            const int slot = hireling ? d2d::rules::merc_slot(game_data->rules, *actor->held, hireling->cls, merc_str, merc_dex, merc_row.level) : 0;
             if (slot == 0) return;                                                         // FUN_00553380: no
             auto put = std::move(*actor->held);
             actor->held.reset();

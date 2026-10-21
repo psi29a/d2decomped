@@ -187,11 +187,11 @@ struct Scene : GameData {
     // and minipanelbtn.
     std::unordered_map<std::string, d2d::dc6::Sprite> menu_text;
     d2d::dc6::Sprite pentspin, opt_bar, opt_bar_c, opt_skull, menu_button, minipanel, minipanel_btn;
-    d2d::dc6::Sprite boxpieces, textslid;
-    d2d::dc6::Sprite help_border, help_white_bullet, help_yellow_bullet;
+    d2d::dc6::Sprite boxpieces, textslid;   // Configure Controls: UI\menu\boxpieces (its frame), textslid (its scroll bar)
+    d2d::dc6::Sprite help_border, help_white_bullet, help_yellow_bullet;   // the Help screen: UI\Menu\800helpborder, helpwhitebullet, helpyellowbullet
     // The Hireling screen (FUN_004868b0): PANEL\NPCInv, the empty slots' inv_armor, inv_helm_glove, inv_weapons.
     d2d::dc6::Sprite npc_inv, inv_armor, inv_helm_glove, inv_weapons;
-    d2d::dc6::Sprite party_panel, party_buttons, party_boxes, party_bar;   // the Party screen: UI\Menu\party, partybuttons, partyboxes, partybar   // the Help screen: UI\Menu\800helpborder, helpwhitebullet, helpyellowbullet   // Configure Controls: UI\menu\boxpieces (its frame), textslid (its scroll bar)
+    d2d::dc6::Sprite party_panel, party_buttons, party_boxes, party_bar;   // the Party screen: UI\Menu\party, partybuttons, partyboxes, partybar
     // Automap: AutoMap.txt resolved like FUN_0061fcf0 — LevelName through
     // game.exe's level-type names (0x6e7d50: "None", "1 Town", ...),
     // TileName through its orientation names (0x6e7f90: fl wl wr wtlr

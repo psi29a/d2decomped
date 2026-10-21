@@ -913,7 +913,8 @@ auto Town::say(int phrase) -> void {
 
 // Clear Screen (FUN_0044c6b0): every closable panel shuts, and the automap.
 auto Town::clear_screen() -> void {
-        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = belt_open = false;
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = belt_open = hireling.open = party.open = false;
+        if (help.open) toggle_help();
         automap.open = false;
         skillbar.picking = 0;
     }
@@ -998,10 +999,11 @@ auto Town::new_game() -> void {
     }
 
 auto Town::open_game_menu() -> void {
+        if (help.open) toggle_help();                 // first: it may have brought the mini-panel up
         game_menu.restore_automap = automap.open;
         game_menu.restore_mini = mini.open;
         automap.open = mini.open = belt_open = false;
-        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = false;
+        inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
         game_menu.expansion = character.expansion;
         game_menu.open = true;
         game_menu.show(0);
@@ -1149,6 +1151,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
+                else if (help.open) toggle_help();                    // then the Help screen
                 else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open)   // then panels
                     inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
                 else open_game_menu();
@@ -2938,7 +2941,10 @@ auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const -> void {
     if (pick.kind == PadPick::kNone) return;
     const bool object = pick.kind == PadPick::kThing && level && std::size_t(pick.id) < level->npcs.size() && level->npcs[std::size_t(pick.id)].root == "objects";
     const std::string_view verb = pick.kind == PadPick::kMonster ? "Attack" : pick.kind == PadPick::kItem ? "Pick up" : object ? "Use" : "Talk";
-    const std::string text = std::string(pad::label(pad_family, pad_config.bindings[pad::Action::Primary][0])) + "  " + std::string(verb);
+    const auto& primary = pad_config.bindings[pad::Action::Primary];   // its first button bound
+    const auto button = primary[0] != pad::Bindings::kNone ? primary[0] : primary[1];
+    if (button == pad::Bindings::kNone) return;
+    const std::string text = std::string(pad::label(pad_family, button)) + "  " + std::string(verb);
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, (int(kScreenWidth) - font.measure(text)) / 2, int(kScreenHeight) - 0x70, text, 199, 179, 119);

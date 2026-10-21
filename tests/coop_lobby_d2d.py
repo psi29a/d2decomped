@@ -93,4 +93,6 @@ frames(40)
 assert "screen=ingame" in cmd("state")
 started = players()
 assert set(started) == {"Alpha", "Beta"} and started["Beta"][2] == 1, started
+# Beta came from the lobby, not the in-game roster: no roster is open.
+assert not [line for line in cmd("debug roster").splitlines() if "\t" in line], cmd("debug roster")
 print("OK: co-op lobby: a partner picks Beta on character select, only player 1 starts, both play")

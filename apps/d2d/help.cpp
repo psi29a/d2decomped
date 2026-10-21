@@ -95,7 +95,7 @@ void HelpScreen::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     const auto& title_font = scene.font;
     const auto& text_font = scene.font_formal12.line_height() > 0 ? scene.font_formal12 : scene.font;
     const auto put = [&](const d2d::font::Font& font, const std::string& words, int x, int baseline, bool centred) {
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centred ? x - font.measure(words) / 2 : x, baseline - font.line_height() + 1, words);
+        font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centred ? x - font.measure(words) / 2 : x, glyph_top(font, baseline), words);
     };
     put(title_font, string_id(scene, 0x1066), 0x17c, 0x11, true);
     put(title_font, string_id(scene, 0x1030), 701, 0x49, true);
