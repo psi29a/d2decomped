@@ -145,6 +145,14 @@ inline auto phrase(std::uint16_t which) -> Bytes {
     return out;
 }
 
+// The merc's items (FUN_0054d430): slot 0 gives it the cursor's item, 1..10 takes that one.
+inline auto merc_item(std::uint16_t slot) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x61);
+    put_u16(out, slot);
+    return out;
+}
+
 inline auto click_button(std::uint16_t button, std::uint16_t first = 0, std::uint16_t second = 0) -> Bytes {
     Bytes out;
     put_u8(out, 0x4f);

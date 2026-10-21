@@ -71,5 +71,5 @@ merc into the hand (`FUN_0054d130`). With an item in hand
   game.exe's two-hander test (`FUN_0063d340`) isn't ported.
 - `FUN_0062eaf0`'s further checks (ethereal, "requirements −x%") aren't
   applied, as with the player's `can_wear`.
-- In a joined game d2d sends no 0x61 to the host yet; the World's copy
-  changes.
+- In a joined game d2d sends 0x61 to the host. The merc's items as the
+  host has them (its item packets for the merc) aren't read back yet.

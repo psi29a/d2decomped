@@ -447,6 +447,8 @@ auto Town::send(const Command& command) -> void {
             net_game->set_running(run->running);
         } else if (std::holds_alternative<cmd::SwapWeapons>(command)) {
             net_game->swap_weapons();
+        } else if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {
+            net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
             const auto* skill = scene->skills.get(use->skill);
             const bool melee = skill && !self_cast(*skill) && !world.fight.missile_skill(*skill) && !Fight::spot_skill(*skill) && !world.fight.summon_skill(*skill);

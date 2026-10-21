@@ -164,6 +164,7 @@ struct NetGame {
     auto trade_cancel() -> void;
     auto say(std::string_view message) -> void;   // chat to all (0x15)
     auto phrase(std::uint16_t which) -> void;     // a Say (0x3f, 0x19..0x20)
+    auto merc_item(std::uint16_t slot) -> void;   // the merc's items (0x61): 0 give the held one, 1..10 take that one
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)

@@ -135,6 +135,7 @@ auto NetGame::trade_accept() -> void {
 
 auto NetGame::say(std::string_view message) -> void { send({ d2d::net::d2gs::c2s::chat(message) }); }
 auto NetGame::phrase(std::uint16_t which) -> void { send({ d2d::net::d2gs::c2s::phrase(which) }); }
+auto NetGame::merc_item(std::uint16_t slot) -> void { send({ d2d::net::d2gs::c2s::merc_item(slot) }); }
 
 auto NetGame::trade_cancel() -> void {
     send({ d2d::net::d2gs::c2s::click_button(2) });
