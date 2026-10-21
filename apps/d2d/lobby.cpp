@@ -7,10 +7,9 @@
 #include "roster.hpp"
 #include "scene.hpp"
 
-#include <d2s.hpp>
-
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <optional>
 #include <string>

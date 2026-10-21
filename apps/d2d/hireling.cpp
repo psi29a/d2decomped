@@ -8,7 +8,8 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
-#include <d2s.hpp>
+#include <d2s_items.hpp>
+#include <rules.hpp>
 #include <dc6.hpp>
 #include <font.hpp>
 #include <item_text.hpp>

@@ -127,12 +127,12 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
                     }
             // FUN_0049b330's tooltips.
             if (inside(mouse_x, mouse_y, box.x, bottom + box.dy, 0x14, 0x14)) {
-                const bool on = (row.flags & box.flag) != 0;
+                const bool set = (row.flags & box.flag) != 0;
                 std::uint16_t first = 0;
-                if (box.flag == 8) first = row.level < 9 || own.level < 9 ? 0x101a : !own.in_town ? 0x1019 : on ? 0x100c : 0x100a;
-                if (box.flag == 1) first = on ? 0x1010 : 0x100e;
-                if (box.flag == 2) first = on ? 0x1012 : 0x1014;
-                if (box.flag == 4) first = on ? 0x1017 : 0x1016;
+                if (box.flag == 8) first = row.level < 9 || own.level < 9 ? 0x101a : !own.in_town ? 0x1019 : set ? 0x100c : 0x100a;
+                if (box.flag == 1) first = set ? 0x1010 : 0x100e;
+                if (box.flag == 2) first = set ? 0x1012 : 0x1014;
+                if (box.flag == 4) first = set ? 0x1017 : 0x1016;
                 tip_first = string_id(scene, first);
                 tip_second = first == 0x1016 || first == 0x1017 || first == 0x1019 || first == 0x101a ? "" : string_id(scene, std::uint16_t(first + 1));
                 tip_x = box.flag == 8 ? (first == 0x1019 ? 0x6e : 0xa0) : box.flag == 1 ? 0xff : box.flag == 2 ? 0x114 : 0x128;   // FUN_0049b330's centres

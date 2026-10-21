@@ -11,7 +11,6 @@
 #include <font.hpp>
 #include <palette.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -103,10 +102,10 @@ void HelpScreen::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     for (const auto& label : kLabels) {
         std::string words = string_id(scene, label.id);
         if (label.key >= 0)
-            if (const auto at = words.find("%s"); at != std::string::npos) {
+            if (const auto marker = words.find("%s"); marker != std::string::npos) {
                 const auto key = keys::key_of(table, label.key, 1);
                 const auto name = keys::name_id(key);
-                words.replace(at, 2, name ? string_id(scene, name) : std::string(1, char(key & 0xff)));
+                words.replace(marker, 2, name ? string_id(scene, name) : std::string(1, char(key & 0xff)));
             }
         put(text_font, words, label.x, label.baseline, label.centred);
     }

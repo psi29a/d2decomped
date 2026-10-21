@@ -12,6 +12,7 @@
 #include "ingame.hpp"
 #include "keyconfig.hpp"
 #include "panels.hpp"
+#include "party.hpp"
 #include "load.hpp"
 #include "platform.hpp"
 #include "roster.hpp"
@@ -47,6 +48,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <exception>
 #include <format>
 #include <numbers>
 #include <initializer_list>
@@ -974,11 +976,11 @@ auto Town::automap_frame() -> void {
             if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own_party = self->second.party;
         const float world_x = level ? float(level->world_x) : 0.f, world_y = level ? float(level->world_y) : 0.f;
         for (const auto& other : view.others) {
-            bool party = !net_game;                                   // local co-op: one party
+            bool same_party = !net_game;                                 // local co-op: one party
             if (net_game)
                 if (const auto unit = net_game->units.find(std::uint64_t(other.id)); unit != net_game->units.end())
-                    party = own_party != 0xffff && unit->second.party == own_party;
-            automap.marks.push_back({ other.unit.x + world_x, other.unit.y + world_y, party, other.name });
+                    same_party = own_party != 0xffff && unit->second.party == own_party;
+            automap.marks.push_back({ other.unit.x + world_x, other.unit.y + world_y, same_party, other.name });
         }
         const std::array<std::pair<std::string, std::string>, 6> now = { {
             { "automap_mode", std::to_string(values[1]) }, { "automap_fade", std::to_string(values[2]) }, { "automap_center", std::to_string(values[3]) },

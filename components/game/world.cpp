@@ -242,17 +242,17 @@ auto World::view() const -> View {
             view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
             const auto fighter = fight.merc_fighter();
             const auto gear = fight.merc_gear();
-            const auto& st = actor->merc_st;
+            const auto& stats = actor->merc_st;
             View::MercSheet sheet;
-            sheet.level = st.level;
-            sheet.str = int(st.str + gear.sum[std::size_t(d2d::d2s::kStr)]);
-            sheet.dex = int(st.dex + gear.sum[std::size_t(d2d::d2s::kDex)]);
+            sheet.level = stats.level;
+            sheet.str = int(stats.str + gear.sum[std::size_t(d2d::d2s::kStr)]);
+            sheet.dex = int(stats.dex + gear.sum[std::size_t(d2d::d2s::kDex)]);
             sheet.min = fighter.min; sheet.max = fighter.max; sheet.defense = fighter.defense; sheet.res = fighter.res;
             sheet.life = actor->merc->hit_points; sheet.max_life = fight.merc_max_life();
             sheet.exp = actor->character.header.merc_exp;
             if (const auto* row = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), 1)) {
-                sheet.next = std::int64_t(st.level + 2) * row->exp_per_level * (st.level + 1) * (st.level + 1);   // the merc_stats level rule's next step
-                if (const auto* at_level = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), st.level)) sheet.cls = at_level->cls;
+                sheet.next = std::int64_t(stats.level + 2) * row->exp_per_level * (stats.level + 1) * (stats.level + 1);   // the merc_stats level rule's next step
+                if (const auto* at_level = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), stats.level)) sheet.cls = at_level->cls;
             }
             view.merc_sheet = sheet;
         }

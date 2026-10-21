@@ -300,17 +300,17 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
     namespace body = d2d::d2s::body_location;
     const auto* info = info_of(tables, item);
     if (!info || !item.identified || (item.max_durability > 0 && item.durability == 0)) return 0;
-    const auto is = [&](std::string_view type) { return type_is(tables, info->type, type); };
+    const auto of_type = [&](std::string_view type) { return type_is(tables, info->type, type); };
     int slot = 0;
-    if (is("helm")) slot = body::kHead;
-    else if (is("tors")) slot = body::kTorso;
-    else if (merc_class == 271 && is("bow")) slot = body::kRightArm;
-    else if (merc_class == 338 && (is("spea") || is("pole"))) slot = body::kRightArm;
-    else if (merc_class == 359 && is("shie")) slot = body::kLeftArm;
-    else if (merc_class == 359 && is("swor") && !info->two_handed) slot = body::kRightArm;
-    else if (merc_class == 560 && is("axe") && !info->two_handed) slot = body::kRightArm;
-    else if (merc_class == 561 && is("swor")) slot = body::kRightArm;
-    if ((merc_class == 560 || merc_class == 561) && is("phlm")) slot = body::kHead;
+    if (of_type("helm")) slot = body::kHead;
+    else if (of_type("tors")) slot = body::kTorso;
+    else if (merc_class == 271 && of_type("bow")) slot = body::kRightArm;
+    else if (merc_class == 338 && (of_type("spea") || of_type("pole"))) slot = body::kRightArm;
+    else if (merc_class == 359 && of_type("shie")) slot = body::kLeftArm;
+    else if (merc_class == 359 && of_type("swor") && !info->two_handed) slot = body::kRightArm;
+    else if (merc_class == 560 && of_type("axe") && !info->two_handed) slot = body::kRightArm;
+    else if (merc_class == 561 && of_type("swor")) slot = body::kRightArm;
+    if ((merc_class == 560 || merc_class == 561) && of_type("phlm")) slot = body::kHead;
     if (slot == 0 || str < info->req_str || dex < info->req_dex || level < info->req_lvl) return 0;
     return slot;
 }
