@@ -664,50 +664,110 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
         }
 }
 
+// The automap (FUN_00459700 / FUN_00459440 / FUN_0045a860): its cels
+// scrolled round the player, full screen or (mini) at half size in a
+// third of the screen's corner, faded by the option, then the marks.
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y) {
-    if (!automap.open || scene.automap_cels.frames_per_direction() == 0) return;
+    const bool mini = automap.mini == 1;
+    const auto& cels = mini && scene.automap_cels_small.frames_per_direction() > 0 ? scene.automap_cels_small : scene.automap_cels;
+    if (!automap.open || cels.frames_per_direction() == 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    const int scroll_x = int(std::lround((player_x - player_y) * 80 / 10)) - int(kScreenWidth) / 2 + 40;
-    const int scroll_y = int(std::lround((player_x + player_y) * 40 / 10)) - int(kScreenHeight) / 2 + 15;
+    constexpr int kWidth = int(kScreenWidth), kHeight = int(kScreenHeight);
+    const int divisor = mini ? 20 : 10;
+    // A panel open on one side: the full map moves a quarter over, the mini
+    // one goes to the other corner (FUN_00459700).
+    const bool on_left = automap.panel_side == 1 ? true : automap.panel_side == 2 ? false : automap.left;
+    const int shift = mini ? 0 : automap.panel_side == 1 ? -kWidth / 4 : automap.panel_side == 2 ? kWidth / 4 : 0;
+    const int box_x = on_left ? 0 : kWidth * 2 / 3, box_y = on_left ? (automap.portraits ? 0x60 : 0) : 0x4e;   // FUN_00457520
+    const int offset_x = mini ? kWidth / 3 - box_x - 0x10 : 0, offset_y = mini ? kHeight / 3 - box_y - 0x10 : 0;   // 0x7a5188 / 0x7a518c
+    const int scroll_x = int(std::lround((player_x - player_y) * 80 / float(divisor))) - kWidth / 2 - shift + 0x28 + offset_x;
+    const int scroll_y = int(std::lround((player_x + player_y) * 40 / float(divisor))) - kHeight / 2 + 0xf + offset_y;
+    // The cels' clip: the screen, or the mini map's box (FUN_00459440).
+    const int clip_x0 = !mini ? 0 : on_left ? 0 : kWidth - 0x119;
+    const int clip_y0 = !mini ? 0 : on_left ? (automap.portraits ? 0x60 : 0) - 0x15 : 0x39;
+    const int clip_x1 = !mini ? kWidth - 1 : clip_x0 + 0x117, clip_y1 = !mini ? kHeight - 1 : clip_y0 + 0xe1;
+    // The fade (FUN_004576c0's mode; mini takes Centre as Everything):
+    // draw modes 0 / 1 / 2 (a quarter, half, three quarters seen), 5 whole.
+    const int fade = mini && automap.fade == 1 ? 2 : automap.fade;
+    const auto mode_of = [&](int x, int y) {
+        if (fade == 2) return 1;
+        if (fade == 3) return automap.in_town ? (mini ? 1 : 2) : 5;
+        if (fade != 1 || mini) return 5;
+        const int centre_x = kWidth / 2 + shift, centre_y = kHeight / 2;
+        if (x < centre_x - 0x8c || x > centre_x + 0x8c || y < centre_y - 0x96 || y > centre_y + 0x82) return 5;
+        const int across = std::abs(centre_x - x), down = std::abs(centre_y - 10 - y);
+        const int distance = (down < across ? down + across * 2 : across + down * 2) / 2;
+        return distance >= 0x96 ? 5 : distance < 50 ? 0 : distance < 100 ? 1 : 2;
+    };
     for (const auto& cell : automap.cells) {
-        if (cell.list == 3 || cell.cel < 0 || std::uint32_t(cell.cel) >= scene.automap_cels.frames_per_direction()) continue;   // miniatures: another cel file
-        const auto& frame = scene.automap_cels.frame(0, std::uint32_t(cell.cel));
-        const int x = cell.x - scroll_x, y = cell.y - scroll_y;
-        if (x < -32 || x > int(kScreenWidth) + 32 || y < -64 || y > int(kScreenHeight) + 64) continue;
-        blit_sprite(framebuffer, frame, pal, x, y - int(frame.height) + 1);
+        if (cell.list == 3 || cell.cel < 0 || std::uint32_t(cell.cel) >= cels.frames_per_direction()) continue;   // miniatures: another cel file
+        const auto& frame = cels.frame(0, std::uint32_t(cell.cel));
+        const int x = cell.x * 10 / divisor - scroll_x, bottom = cell.y * 10 / divisor - scroll_y;
+        const int top = bottom - int(frame.height) + 1;
+        if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
+        const int mode = mode_of(x, bottom);
+        const int seen = mode == 5 ? 4 : mode + 1;                   // quarters of the cel over what's there
+        for (int row = 0; row < int(frame.height); ++row)
+            for (int column = 0; column < int(frame.width); ++column) {
+                const int pixel_x = x + column, pixel_y = top + row;
+                const auto index = frame.pixels[std::size_t(row) * frame.width + std::size_t(column)];
+                if (index == 0 || pixel_x < clip_x0 || pixel_x > clip_x1 || pixel_y < clip_y0 || pixel_y > clip_y1) continue;
+                const auto colour = pal[index];
+                auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                pixel[0] = std::uint8_t((pixel[0] * (4 - seen) + colour.r * seen) / 4);
+                pixel[1] = std::uint8_t((pixel[1] * (4 - seen) + colour.g * seen) / 4);
+                pixel[2] = std::uint8_t((pixel[2] * (4 - seen) + colour.b * seen) / 4);
+            }
     }
-    // Your own mark (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
+    // The marks (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
     // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
-    // - 8), in the palette colour nearest FUN_004fb180(0, 0, 0xff) — the
-    // palette is BGR, so red (party green, other players blue).
-    std::uint8_t marker_red = 255, marker_green = 0, marker_blue = 0;
-    {
+    // - 8), in the palette colour nearest FUN_004fb180(b, g, r): you red,
+    // the party green (with Party on), other players blue (FUN_00459bc0).
+    // Party names (with Names and Party on) in font6, centred, 10 above
+    // the mark (FUN_0045a760).
+    const auto nearest = [&](int want_r, int want_g, int want_b) {
+        std::array<std::uint8_t, 3> found{};
         int best = 1 << 30;
         for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
             const auto colour = pal[std::uint8_t(i)];
-            const int distance = (colour.r - 255) * (colour.r - 255) + colour.g * colour.g + colour.b * colour.b;
-            if (distance < best) { best = distance; marker_red = colour.r; marker_green = colour.g; marker_blue = colour.b; }
+            const int distance = (colour.r - want_r) * (colour.r - want_r) + (colour.g - want_g) * (colour.g - want_g) + (colour.b - want_b) * (colour.b - want_b);
+            if (distance < best) { best = distance; found = { colour.r, colour.g, colour.b }; }
         }
-    }
-    const int marker_x = int(std::lround((player_x - player_y) * 80 / 10)) - scroll_x + 8;
-    const int marker_y = int(std::lround((player_x + player_y) * 40 / 10)) - scroll_y - 8;
-    auto plot = [&](int x, int y) {
-        if (x < 0 || y < 0 || x >= int(kScreenWidth) || y >= int(kScreenHeight)) return;
-        auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
-        pixel[0] = marker_red; pixel[1] = marker_green; pixel[2] = marker_blue;
+        return found;
     };
-    for (int i = 0; i + 1 < 13; ++i) {                   // Bresenham, like a D2GFX line
-        int left = marker_x + kMark[i][0] * 2, top = marker_y + kMark[i][1] * 2;
-        const int right = marker_x + kMark[i + 1][0] * 2, bottom = marker_y + kMark[i + 1][1] * 2;
-        const int dx = std::abs(right - left), dy = -std::abs(bottom - top), step_x = left < right ? 1 : -1, step_y = top < bottom ? 1 : -1;
-        for (int err = dx + dy;;) {
-            plot(left, top);
-            if (left == right && top == bottom) break;
-            const int doubled_error = 2 * err;
-            if (doubled_error >= dy) { err += dy; left += step_x; }
-            if (doubled_error <= dx) { err += dx; top += step_y; }
+    const auto mark = [&](float unit_x, float unit_y, const std::array<std::uint8_t, 3>& colour) {
+        const int marker_x = int(std::lround((unit_x - unit_y) * 80 / float(divisor))) - scroll_x + 8;
+        const int marker_y = int(std::lround((unit_x + unit_y) * 40 / float(divisor))) - scroll_y - 8;
+        if (marker_x < clip_x0 - 8 || marker_x > clip_x1 || marker_y < clip_y0 || marker_y > clip_y1) return std::pair{ -1, -1 };
+        auto plot = [&](int x, int y) {
+            if (x < 0 || y < 0 || x >= kWidth || y >= kHeight) return;
+            auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+            pixel[0] = colour[0]; pixel[1] = colour[1]; pixel[2] = colour[2];
+        };
+        for (int i = 0; i + 1 < 13; ++i) {                   // Bresenham, like a D2GFX line
+            int left = marker_x + kMark[i][0] * 2, top = marker_y + kMark[i][1] * 2;
+            const int right = marker_x + kMark[i + 1][0] * 2, bottom = marker_y + kMark[i + 1][1] * 2;
+            const int dx = std::abs(right - left), dy = -std::abs(bottom - top), step_x = left < right ? 1 : -1, step_y = top < bottom ? 1 : -1;
+            for (int err = dx + dy;;) {
+                plot(left, top);
+                if (left == right && top == bottom) break;
+                const int doubled_error = 2 * err;
+                if (doubled_error >= dy) { err += dy; left += step_x; }
+                if (doubled_error <= dx) { err += dx; top += step_y; }
+            }
         }
+        return std::pair{ marker_x, marker_y };
+    };
+    const auto green = nearest(0, 0xff, 0), blue = nearest(0, 0, 0xff);
+    const auto& name_font = scene.font_tiny.line_height() > 0 ? scene.font_tiny : scene.font;
+    for (const auto& other : automap.marks) {
+        if (other.party && !automap.party) continue;
+        const auto [x, y] = mark(other.x, other.y, other.party ? green : blue);
+        if (x < 0 || !other.party || !automap.names || other.name.empty()) continue;
+        name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x - name_font.measure(other.name) / 2, y - 10 - name_font.line_height() + 1,
+                              other.name, 0, 255, 0);
     }
+    mark(player_x, player_y, nearest(0xff, 0, 0));
 }
 
 bool waypoint_act_open(const d2d::d2s::Header& header, int act) {

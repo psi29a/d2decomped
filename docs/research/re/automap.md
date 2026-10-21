@@ -184,7 +184,27 @@ dropped, otherwise the cel decides.
   the DS1 left their maps empty.
 - Cel choice is a tile hash, not the game's RNG.
 - Your own mark is drawn.
-- Not yet: the fade, NPC/party marks, the small mode, panel shift.
+- The options (Options → Automap, the key config's automap functions;
+  kept in d2d.cfg `automap_*` as game.exe keeps them in the registry):
+  - Mini (`DAT_007a5150`): divisor 20 and `MaxiMapS`. The map is in a
+    third of the screen's corner (`FUN_00457520`): top right at
+    (W·2/3, 0x4e), or with "AutoMap Left" (Toggle MiniMap, `0x468ad0`)
+    top left at (0, 0x60 with portraits up, else 0). Cels are clipped
+    to `{W-0x119, 0x39} + (0x117, 0xe1)`, or the left one.
+  - With a side panel open, the full map moves a quarter screen away
+    (`0x7a5210`: 1 right, 2 left) and the mini map takes the other
+    corner.
+  - Fade (`FUN_004576c0`, Fade Automap cycles it): Centre gives cels
+    within an octagon of 150 round the centre draw mode 2 / 1 / 0 (from
+    100 / 50 in). Everything is mode 1. Auto is 2 in town (mini: 1).
+    Mini takes Centre as Everything.
+  - Marks (`FUN_00459bc0`): you red, party green (Party on), other
+    players blue. Party names (Names and Party on) are in font6, centred,
+    10 above the mark (`FUN_0045a760`).
+- Not yet: NPC / monster marks, the miniatures. The fade applies to every
+  cel list; game.exe's to one (`DAT_007a5168`, untraced which). The
+  fade's inner distances read the octagon's half (`ECX` there, unverified).
+  Center Automap does nothing: d2d's mini map box never moves.
 - devctl `debug automap` reveals the whole level.
 - Saved maps: `d2s_automap.hpp` reads and writes the files above;
   `load_automap` / `save_automap` (panels.cpp) run on entering the game,

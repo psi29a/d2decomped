@@ -200,6 +200,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite wp_bg, wp_icons;
     std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6
+    d2d::dc6::Sprite automap_cels_small;               // UI\AutoMap\MaxiMapS.dc6: the mini map's
     std::unordered_map<std::string, d2d::dcc::Sprite> missile_cels;   // a missile's CelFile DCC, by Missiles.txt row name
     std::array<d2d::dc6::Sprite, 4> rain_splash;       // UncompOverlays\Rain1..4 (Rain3 / 4 splash where drops fall)
     d2d::dcc::Sprite npc_alert;                        // Overlay.txt npcalert: NPCSpeechBalloon.dcc

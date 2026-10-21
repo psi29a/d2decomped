@@ -288,6 +288,9 @@ struct Town {
     bool pad_config_changed = false;              // Accept changed the pad's settings: main's mapper takes them
     void load_keys();
     void say(int phrase);
+    void automap_frame();
+    std::array<std::pair<std::string, std::string>, 6> automap_saved{};   // the automap options last kept in d2d.cfg
+    bool automap_saved_once = false;
     [[nodiscard]] static int say_sound(int cls, int phrase);                         // Say 1..7, Retreat (0..7)
     void clear_screen();
     [[nodiscard]] bool pad_field_or_free() const;

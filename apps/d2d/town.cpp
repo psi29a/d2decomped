@@ -918,6 +918,41 @@ auto Town::pad_field_or_free() const -> bool {
         return have_world && !game_menu.open && !controls.open && npc_menu.npc < 0 && store.npc < 0 && !inv_open && !stash_open && !cube_open;
     }
 
+// The automap's options from Options -> Automap (kept in d2d.cfg, as
+// game.exe keeps them in the registry) and this frame's marks.
+auto Town::automap_frame() -> void {
+        const auto& values = game_menu.value[4];
+        automap.mini = character.expansion ? values[1] : 0;
+        automap.fade = values[2];
+        automap.center = values[3] != 0;
+        automap.party = values[4] != 0;
+        automap.names = values[5] != 0;
+        const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0;
+        automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
+        automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
+        automap.portraits = portraits_shown;
+        automap.marks.clear();
+        int own_party = 0xffff;
+        if (net_game)
+            if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own_party = self->second.party;
+        const float world_x = level ? float(level->world_x) : 0.f, world_y = level ? float(level->world_y) : 0.f;
+        for (const auto& other : view.others) {
+            bool party = !net_game;                                   // local co-op: one party
+            if (net_game)
+                if (const auto unit = net_game->units.find(std::uint64_t(other.id)); unit != net_game->units.end())
+                    party = own_party != 0xffff && unit->second.party == own_party;
+            automap.marks.push_back({ other.unit.x + world_x, other.unit.y + world_y, party, other.name });
+        }
+        const std::array<std::pair<std::string, std::string>, 6> now = { {
+            { "automap_mode", std::to_string(values[1]) }, { "automap_fade", std::to_string(values[2]) }, { "automap_center", std::to_string(values[3]) },
+            { "automap_party", std::to_string(values[4]) }, { "automap_names", std::to_string(values[5]) }, { "automap_left", automap.left ? "1" : "0" } } };
+        if (now != automap_saved) {
+            if (automap_saved_once && !cfg_file.empty()) d2d::userdir::save_cfg(cfg_file, { now.begin(), now.end() });
+            automap_saved = now;
+            automap_saved_once = true;
+        }
+    }
+
 auto Town::new_game() -> void {
         world.new_game();
         skillbar.new_game();
@@ -1019,6 +1054,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kNextSkill)) skillbar.cycle(1);
             if (fires(keys::kScreenShot)) screenshot_wanted = true;
             if (fires(keys::kShowPortraits)) portraits_hidden = !portraits_hidden;   // 0x493840
+            // The automap's (0x468a60..0x468ad0), the same values as Options -> Automap.
+            auto& automap_values = game_menu.value[4];
+            if (fires(keys::kFadeAutomap)) automap_values[2] = (automap_values[2] + 1) % 4;   // 0x468a70: the next fade
+            if (fires(keys::kPartyOnAutomap)) automap_values[4] = !automap_values[4];
+            if (fires(keys::kNamesOnAutomap)) automap_values[5] = !automap_values[5];
+            if (fires(keys::kToggleMiniMap)) automap.left = !automap.left;          // "AutoMap Left": the mini map's corner
+            // Center Automap (0x468a60) puts the mini map's box back (FUN_00457520); d2d's never moves.
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
@@ -2658,6 +2700,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 hover_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2))) - (pick.kind == PadPick::kItem ? 4 : 24);
             }
         }
+        automap_frame();
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,

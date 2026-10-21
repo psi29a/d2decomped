@@ -204,6 +204,20 @@ struct Automap {
     std::unordered_map<int, std::vector<std::uint8_t>> revealed;   // per level, per DS1 tile
     bool open = false;
     bool add(const Cell& cell);
+    // The options (Options -> Automap and the key config's functions;
+    // automap.md "Options"): size 0 full / 1 mini (0x7a5150, div 10 / 20),
+    // fade 0 no / 1 centre / 2 everything / 3 auto (0x7a51a8), party
+    // marks and names (0x7113e4 / 0x7113e8), the mini map on the left
+    // ("AutoMap Left", 0x7a51e0).
+    int mini = 0, fade = 0;
+    bool center = true, party = true, names = true, left = false;
+    // Set each frame by the game: the side a panel is open on (0x7a5210:
+    // 1 right, 2 left, 0 none or both), in town, portraits shown, and the
+    // other players' marks (green: party; blue: not).
+    int panel_side = 0;
+    bool in_town = false, portraits = false;
+    struct Mark { float x = 0, y = 0; bool party = false; std::string name; };
+    std::vector<Mark> marks;
 };
 
 // Interchangeable cels (0x711258, cel then group).

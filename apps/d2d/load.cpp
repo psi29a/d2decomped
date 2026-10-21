@@ -187,6 +187,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (!rule.cels.empty()) scene.automap_rules.push_back(std::move(rule));
         }
         if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*bytes);
+        if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMapS.dc6)")) scene.automap_cels_small = d2d::dc6::Sprite(*bytes);
     }
     sprite(R"(data\global\ui\menu\waygatebackground.dc6)", scene.wp_bg);
     sprite(R"(data\global\ui\menu\waygateicons.dc6)", scene.wp_icons);

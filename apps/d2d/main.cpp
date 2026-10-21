@@ -344,6 +344,7 @@ static std::string g_start_screen;
 static bool        g_video = true;          // startup cinematics (--no-video / cfg video = 0)
 static fs::path    g_user_dir;
 static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
+static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg automap_mode/fade/center/party/names/left (game.exe's registry)
 static bool        g_pad_controls = true; // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = 0;
@@ -663,6 +664,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
     town.pad_controls_page = g_pad_controls;
     town.shot_dir = g_user_dir / "screenshots";
+    for (int option = 0; option < 5; ++option) town.game_menu.value[4][std::size_t(option) + 1] = g_automap_options[std::size_t(option)];
+    town.automap.left = g_automap_options[5] != 0;
     // A joined game: the host keeps the character and sends its save back
     // (B3) now and then and on leaving; each whole one goes to disk
     // (FUN_0045c520 writes <save dir><name>.d2s).
@@ -1639,6 +1642,12 @@ int main(int argc, char** argv) {
         std::vector<std::string> problems;
         g_pad_config = pad::load_config([&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; }, problems);
         for (const auto& problem : problems) d2d::log::warn("d2d.cfg: {}", problem);
+    }
+    {
+        static constexpr std::array<std::pair<const char*, int>, 6> kAutomapKeys = { { { "automap_mode", 1 }, { "automap_fade", 3 }, { "automap_center", 1 },
+                                                                                       { "automap_party", 1 }, { "automap_names", 1 }, { "automap_left", 1 } } };
+        for (std::size_t option = 0; option < kAutomapKeys.size(); ++option)
+            if (cfg.contains(kAutomapKeys[option].first)) g_automap_options[option] = std::clamp(std::atoi(cfg[kAutomapKeys[option].first].c_str()), 0, kAutomapKeys[option].second);
     }
     if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
 
