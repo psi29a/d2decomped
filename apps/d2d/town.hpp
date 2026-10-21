@@ -6,6 +6,7 @@
 
 #include "audio.hpp"
 #include "common.hpp"
+#include "controls.hpp"
 #include "gamemenu.hpp"
 #include "gamepad_map.hpp"
 #include "netgame.hpp"
@@ -278,6 +279,18 @@ struct Town {
     pad::Mapper lead_mapper;
     // The pads' settings (d2d.cfg pad_*): every player's mapper plays by them.
     void set_pad_config(const pad::Config& config);
+    // The key config (docs/research/re/controls.md) and Configure Controls.
+    keys::Table key_table = keys::defaults();
+    std::filesystem::path key_dir;                // where <name>.key and default.key live (the saves; empty: not kept)
+    ControlsUI controls;
+    pad::Button controls_pad_press = pad::Button::Count;   // a pad button just pressed, for the pad page's edit (main sets it)
+    bool pad_controls_page = true;                // the "pad_controls" toggle
+    bool pad_config_changed = false;              // Accept changed the pad's settings: main's mapper takes them
+    void load_keys();
+    void save_keys(bool shared) const;
+    void update_hotkey_names();
+    void accept_controls();
+    [[nodiscard]] bool function_held(int action) const;
     pad::Config pad_config;
     std::vector<Command> lead_orders;
     // True when no panel, menu or dialog is up: the pad plays without a cursor.

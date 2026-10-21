@@ -208,6 +208,8 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
             if (auto bytes = mpqs.try_read(std::string(R"(data\local\UI\ENG\)") + std::string(name) + ".dc6"))
                 scene.menu_text.emplace(std::string(name), d2d::dc6::Sprite(*bytes));
     sprite(R"(data\global\ui\CURSOR\pentspin.dc6)", scene.pentspin);
+    sprite(R"(data\global\ui\menu\boxpieces.dc6)", scene.boxpieces);
+    sprite(R"(data\global\ui\menu\textslid.dc6)", scene.textslid);
     sprite(R"(data\global\ui\Widgets\OptBar.dc6)", scene.opt_bar);
     sprite(R"(data\global\ui\Widgets\OptBarC.dc6)", scene.opt_bar_c);
     sprite(R"(data\global\ui\Widgets\OptSkull.dc6)", scene.opt_skull);

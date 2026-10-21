@@ -140,7 +140,7 @@ the World doesn't tick while the menu is open without a host.
 - Video and Automap options are drawn and change, but nothing applies
   them. The 3D sound rows are greyed out. Resolution and AutoMapMode are
   greyed out because d2d is 800x600 with the full map.
-- Configure Controls (UI 0xb) isn't drawn: it closes the menu.
+- Configure Controls (UI 0xb) is its own screen: controls.md.
 - The mini-panel has no hover tooltips; Messages does nothing.
 - The darkened strip's modes 0 / 2 are taken as keeping (3-mode)/4 of
   the colour (unverified). Gamma's and 3DBias's starting values aren't

@@ -157,7 +157,7 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/d2d_icon.hpp" CONTENT
     "#pragma once\n// generated from assets/icon/d2d.bmp\ninline constexpr unsigned char kIconBmp[] = {${icon_bytes}};\n")
 
 add_executable(d2d
-    main.cpp common.cpp cursor.cpp frontend.cpp gamemenu.cpp gamepad.cpp ingame.cpp items.cpp load.cpp panels.cpp
+    main.cpp common.cpp controls.cpp cursor.cpp frontend.cpp gamemenu.cpp gamepad.cpp ingame.cpp items.cpp load.cpp panels.cpp
     netgame.cpp roster.cpp scene.cpp skilltree.cpp store.cpp town.cpp ui.cpp window.cpp world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
 target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

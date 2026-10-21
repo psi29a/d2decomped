@@ -6,7 +6,13 @@ the layout is in [apps/d2d/README.md](../../apps/d2d/README.md)), stick
 walking by direction (run follows the run toggle), soft targeting in the field, menus by cursor
 and d-pad; panels hop the cursor item to item on the d-pad, and a store
 trades on X with the shoulders for tabs; the right stick's click opens the
-skill picker, and the left trigger swaps weapons. Not yet: remapping, Steam Input / glyphs, a second pad, touch.
+skill picker, and the left trigger swaps weapons. Since #38: the right
+stick aims in the field and what A would hit or use is hovered with an
+"A  Talk" prompt; the d-pad hops through every panel; a menu's shoulders
+step its buttons; buttons are named per pad family; every action is
+rebindable (`pad::Bindings`, d2d.cfg `pad_*`) on Configure Controls'
+gamepad page, which also ports game.exe's keyboard config
+(docs/research/re/controls.md). Not yet: Steam Input, touch.
 The plan below was written 2026-10-15, before any controller code.
 
 ## Goal

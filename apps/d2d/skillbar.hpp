@@ -12,8 +12,12 @@
 // cut to 40 px, left edge at x + 0x22, or right-aligned at x + 47 when
 // wider than 13 px, baseline at the icon's bottom - 0x23.
 // ponytail: the font is whatever is current there (untraced), font8 here;
-// the names are F1..F8 (the save's slots), not the key config's.
+// a slot's name is its first key's, else its second's (which game.exe
+// shows is untraced). Town sets `hotkey_names` from the key config.
 #pragma once
+
+#include <array>
+#include <string>
 
 #include "common.hpp"
 #include "scene.hpp"
@@ -121,12 +125,12 @@ struct SkillBar {
         if (on_button(mouse.x, mouse.y, kButtonRightX)) { picking = was == 2 ? 0 : 2; return true; }
         return was != 0;
     }
-    // F1..F8: with a picker open, give the hovered skill that key (the
-    // left picker marks it for the left button, 0x8000); otherwise choose
-    // the skill that key holds.
-    void key(SDL_Keycode key_code, int mouse_x, int mouse_y) {
-        if (key_code < SDLK_F1 || key_code > SDLK_F8) return;
-        const auto slot = std::size_t(key_code - SDLK_F1);
+    // Skill hotkey `slot` (0..15, the key config's Skill 1..16): with a
+    // picker open, give the hovered skill that slot (the left picker marks
+    // it for the left button, 0x8000); otherwise choose the skill it holds.
+    void hotkey(int slot_index, int mouse_x, int mouse_y) {
+        if (slot_index < 0 || slot_index >= 16) return;
+        const auto slot = std::size_t(slot_index);
         auto& hotkeys = character.header.hotkeys;
         if (const int id = picked(mouse_x, mouse_y); id >= 0) {
             for (auto& hotkey : hotkeys) if ((hotkey & 0x7fff) == std::uint32_t(id) && ((hotkey & 0x8000) != 0) == (picking == 1)) hotkey = 0xffff;
@@ -139,6 +143,7 @@ struct SkillBar {
         const bool on_left = hotkey & 0x8000;
         if (usable(id, on_left)) (on_left ? left : right) = id;
     }
+    std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
 
     // The buttons, the open picker (hotkey labels on its icons) and the
     // hovered skill's name.
@@ -164,10 +169,10 @@ struct SkillBar {
             for (std::size_t column = 0; column < row_list[row].size(); ++column) {
                 const auto [icon_x, icon_y] = picker_at(row_list, on_left, int(row), int(column));
                 icon(row_list[row][column], icon_x, icon_y);
-                for (std::size_t k = 0; k < 8; ++k) {
+                for (std::size_t k = 0; k < 16; ++k) {
                     const auto hotkey = character.header.hotkeys[k];
                     if ((hotkey & 0xffff) != 0xffff && int(hotkey & 0x7fff) == row_list[row][column] && ((hotkey & 0x8000) != 0) == on_left) {
-                        const auto label = "F" + std::to_string(k + 1);
+                        const auto& label = hotkey_names[k];
                         const int width = scene->font_small.measure(label);
                         scene->font_small.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, icon_x + 0x22 + std::min(0, 13 - width),
                                                       icon_y - 0x23 - scene->font_small.line_height(), label, 199, 179, 119);

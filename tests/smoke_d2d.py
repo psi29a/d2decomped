@@ -287,6 +287,29 @@ try:
         press("a"); frames(30)
         assert state()["menu"] != "0", "A on the hovered Akara didn't talk"
         press("b")
+        # Configure Controls (Esc, Options, Configure Controls): Inventory's
+        # first key to Y, Accept; <name>.key and default.key keep it (0x59).
+        cmd("key Escape"); frames(3); cmd("key Up"); cmd("key Up"); frames(2); cmd("key Return"); frames(3)
+        cmd("key Up"); frames(2); cmd("key Return"); frames(5)
+        cmd("key Down"); cmd("key Return"); frames(2); cmd("key y"); frames(3)
+        cmd("move 476 438"); frames(2); cmd("click 476 438"); frames(5)
+        name = state()["name"]
+        with open(os.path.join(saves, name + ".key"), "rb") as f:
+            keyfile = f.read()
+        inventory = [struct.unpack_from("<iHi", keyfile, 2 + 10 * i) for i in range(114) if struct.unpack_from("<i", keyfile, 2 + 10 * i)[0] == 1]
+        assert (1, 0x59, 1) in inventory, f"Accept didn't keep Y on Inventory: {inventory}"
+        assert os.path.getsize(os.path.join(saves, "default.key")) == 6 + 1140, "Accept didn't write default.key"
+        # Its gamepad page: Inventory Screen takes the pad's View (Quest Log's,
+        # which loses it); Accept keeps it in d2d.cfg.
+        cmd("key Escape"); frames(3); cmd("key Up"); cmd("key Up"); frames(2); cmd("key Return"); frames(3)
+        cmd("key Up"); frames(2); cmd("key Return"); frames(5)
+        cmd("move 631 438"); frames(2); cmd("click 631 438"); frames(3)
+        for _ in range(9): cmd("key Down")
+        cmd("key Return"); frames(2); press("back"); frames(2)
+        cmd("move 476 438"); frames(2); cmd("click 476 438"); frames(5)
+        with open(os.path.join(user, "d2d.cfg")) as f:
+            cfg = dict(line.split(" = ", 1) for line in f.read().splitlines() if " = " in line)
+        assert cfg.get("pad_inventory") == "back" and cfg.get("pad_quest_log") == "none", f"the pad page didn't keep View on Inventory: {cfg}"
         # The skill picker on a pad: the right stick's click opens the right
         # hand's; hops left end on the left skill button, A there switches
         # to the left hand's (the cursor on its skill), A again chooses it.

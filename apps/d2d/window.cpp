@@ -2,6 +2,8 @@
 // Definitions for window.hpp: SDL events.
 #include "window.hpp"
 
+#include "controls.hpp"
+
 #include "platform.hpp"
 #include "d2d_icon.hpp"
 #include "ui.hpp"
@@ -99,6 +101,8 @@ void handle_sdl_events(SDL_Event& event, Mouse& mouse, Screen& current_screen,
             mouse.press_this_frame = true;
         } else if (event.button.button == SDL_BUTTON_RIGHT) {
             mouse.rpress_this_frame = true;
+        } else if (current_screen == Screen::InGame && event.button.button >= SDL_BUTTON_MIDDLE && event.button.button <= SDL_BUTTON_X2) {
+            keys.push_back(kMouseKey + SDL_Keycode(event.button.button - SDL_BUTTON_MIDDLE));   // the key config's Mouse 3..5
         }
     } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
         // Whole ticks from y: integer_y is SDL 3.2.12+ (Debian 13 has 3.2.10, #58).

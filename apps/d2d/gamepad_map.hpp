@@ -297,12 +297,12 @@ public:
                             : context == Context::Shop ? where::kShop : context == Context::Dialog ? where::kDialog : 0;
         const auto& bindings = config_.bindings;
         // An action is on here, and held / just pressed on one of its buttons.
-        const auto on = [&](Action action) { return (kWhere[std::size_t(action)] & here) != 0; };
+        const auto works_here = [&](Action action) { return (kWhere[std::size_t(action)] & here) != 0; };
         const auto down = [&](Action action) {
-            return on(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && held[std::size_t(button)]; });
+            return works_here(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && held[std::size_t(button)]; });
         };
         const auto hit = [&](Action action) {
-            return on(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && pressed(button); });
+            return works_here(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && pressed(button); });
         };
         const auto key = [&](Action action, Key press) { if (hit(action)) out.keys.push_back(press); };
         const bool game = here != 0;

@@ -18,7 +18,8 @@ d2d copies.
 
 **Toggles:** an improvement that changes what a player sees can be turned
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
-`trans_roof` (improvement 4), `autoloot` (improvement 5), `autoparty` (improvement 7).
+`trans_roof` (improvement 4), `autoloot` (improvement 5), `autoparty` (improvement 7),
+`pad_controls` (improvement 11).
 
 ## Improvements
 
@@ -34,6 +35,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 8 | When the world loads | Built after char-select's OK, behind the loading screen | Built behind the title: game tables, saves, sprites, then the town of the newest save's act (Act 1 until other acts exist) and the levels next to it (overlapping it, its warps, its walk links; in Act 1 that's the Blood Moor) for the newest save's map seed (the likely pick). Picking another character rebuilds for its seed (`set_map_seed`). No toggle | The usual pick is ready the moment OK is clicked | yes: no wait after OK; the log shows those levels building on the title | load.cpp `finish_scene`, main.cpp `set_map_seed` |
 | 9 | A joined host that goes silent | Untraced (unverified: game.exe's own drop timeout) | 20 s with no packet from the host (it answers our 0x6d every 5 s) and d2d leaves for character select. No toggle | A host that vanishes (its PC off or asleep) left d2d in a dead game for 18 min, until TCP gave up (live 2026-10-18) | yes: back to character select | netgame.cpp `kSilentMs`, main.cpp |
 | 10 | d2d's player far from the host's | Untraced (unverified: game.exe corrects by the host's 0x15 only) | 15+ subtiles apart for 2 s and d2d puts its player where the host has it. No toggle | d2d walked through doors only it had open and on floor the host's path won't take; the host is the truth | yes: a jump back | town.cpp `net_drift_ms` |
+| 11 | Configure Controls' buttons | Cancel, Default, Accept, each a third of the panel (FUN_004a5060) | A fourth, Gamepad / Keyboard, turns the list into the pad's page: its settings (left-handed sticks, swapped confirm, dead zone, cursor speed), two layouts, each action's two buttons; edits work as a key's do (a button leaves the action it clashed with), Accept keeps them in d2d.cfg `pad_*`. The four buttons take a quarter each. `--toggle pad_controls=off` turns it off | game.exe has no pad (#33) | yes | controls.cpp, gamepad_map.hpp `Bindings` |
 
 ## Approximations
 
@@ -64,6 +66,7 @@ holds the ones a player could notice or a test could trip on.
 | Borderless fullscreen: Alt+Enter, `fullscreen = 1` in d2d.cfg, the launcher's Fullscreen box | game.exe's own display modes and `-w` aren't traced; borderless doesn't change the desktop's resolution
 | Widescreen (`--widescreen`, `widescreen = 1`, `--view-width`): the in-game world draws wider than 800 pixels, at the window's aspect (at most 1400); the HUD and panels stay 800×600, centred. Off by default | Modern displays. A wider view shows more of the map than game.exe ever did (it is a client view only: monsters update 30 cells out, the host replicates 28, the view is at most 13 across); the UI isn't re-laid-out yet (#39) |
 | Local co-op: up to 4 players in one game on one screen (docs/design/local-coop.md). They are one party: experience, NoDrop and gold go by game.exe's party rules (party.md). One screen keeps them on one level: a warp, a portal, a level's edge or a respawn takes the whole party. Players walk through each other, and a step that would spread the party past one screen is undone (`World::leash`). Death with a partner alive makes a ghost (gear kept, D2's penalty) that a partner's Resurrect channel raises, or a town; everyone dead respawns in town as in single player. Quest credit is one rule for every quest (`World::credit_party`: what the acting player gained, a partner who hasn't done that quest gains), where game.exe has a callback per quest | Friends on one Steam Deck; game.exe has no shared-screen play
+| Gamepads (SDL3; apps/d2d/README.md, docs/design/controller-plan.md): stick walking, soft targeting with the target hovered and an "A  Talk" prompt, the right stick aiming in the field, d-pad hops through every panel, shoulders through a menu's buttons, rebindable in d2d.cfg `pad_*` and Configure Controls' pad page | Couch and Steam Deck play; game.exe has no pad
 | A join that fails for reasons game.exe can't hit (a name a host won't take, a host that never finishes the join, a desync) shows d2d's own words in the OK popup | Say why, instead of only logging it |
 
 ## How to add one

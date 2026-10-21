@@ -32,6 +32,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
 | Monster sight, search, moves | `uv run python sight.py 20000 3`, `search.py 20000 2`, `moves.py` | `ok` |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
+| Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
 
 ## When it breaks
 

@@ -37,20 +37,28 @@ In game, Alt+Enter switches window / borderless fullscreen.
 ## Gamepad
 
 Any pad SDL knows (Xbox, PlayStation, Switch, Steam Deck) plays with one
-default layout, by button position. The first pad connected plays.
+default layout, by button position. The first pad connected plays. Its
+buttons are shown by the names printed on that pad.
 
 | Pad | In game | In the menus |
 |---|---|---|
 | Left stick | Walk (run follows the run toggle) | Move the cursor |
-| Right stick | Move the cursor; click: the skill picker (with a panel open: recentre). In the picker the d-pad hops, A on a skill button switches hands, A on a skill chooses it | Move the cursor |
-| A (south) / right trigger | Left click: attack or use what's in reach | Left click |
-| B (east) | Right-hand skill | Back (Esc) |
+| Right stick | Aim: turn to the thing to hit or use, without walking; with a panel open, move the cursor. Click: the skill picker (with a panel open: recentre). In the picker the d-pad hops, A on a skill button switches hands, A on a skill chooses it | Move the cursor |
+| A (south) / right trigger | Hit or use what's highlighted ("A  Talk" over the panel says what) | Left click |
+| B (east) | Right-hand skill; in a store or dialog: back | Back (Esc) |
 | Left trigger | Swap weapons (W) | |
 | Y (north) / X (west) | Inventory / character; in a store X buys or sells what the cursor is on | |
-| Left / right shoulder | Skill tree / automap; in a store the tab before / after | |
+| Left / right shoulder | Skill tree / automap; in a store the tab before / after | The screen's button before / after |
 | View (back) / Menu (start) | Quest log / game menu (Esc) | — / Enter |
 | D-pad | Belt slots 1–4; with a panel open the cursor hops item to item | Up, down, left, right |
 | Left stick click | Walk / run toggle | |
+
+Change it in game: Esc, Options, Configure Controls, then Gamepad. It
+keeps every button, left-handed sticks (the right stick walks),
+swapped confirm and back (a Nintendo pad's A and B), the dead zone and
+the cursor speed, as `pad_*` lines in `d2d.cfg`. The same screen sets
+the keyboard's keys, as game.exe does (kept beside the saves as
+`<name>.key` and `default.key`).
 
 Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 `~/.config/d2d` (Linux), `Documents\My Games\d2d` (Windows). The log,

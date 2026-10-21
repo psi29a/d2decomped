@@ -344,6 +344,7 @@ static std::string g_start_screen;
 static bool        g_video = true;          // startup cinematics (--no-video / cfg video = 0)
 static fs::path    g_user_dir;
 static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
+static bool        g_pad_controls = true; // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = 0;
 static std::string g_start_name;
@@ -552,6 +553,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Mouse  mouse;
     Gamepads gamepads;
     pad::Mapper pad_mapper{ g_pad_config };
+    std::array<bool, std::size_t(pad::Button::Count)> pad_capture_held{};   // last frame's buttons, for Configure Controls' pad edit
     gamepads.open_connected();
     // Local co-op (docs/design/local-coop.md): a game begun with a pad other
     // than the Deck's own controls in is co-op. Pads take seats; seat 0's
@@ -658,6 +660,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     town.world.characters = g_no_save ? nullptr : &characters;
     town.world.autoloot_gold = g_autoloot;
     if (!g_no_save) town.cfg_file = g_user_dir / "d2d.cfg";
+    if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
+    town.pad_controls_page = g_pad_controls;
     // A joined game: the host keeps the character and sends its save back
     // (B3) now and then and on leaving; each whole one goes to disk
     // (FUN_0045c520 writes <save dir><name>.d2s).
@@ -766,7 +770,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             const std::uint32_t pad_now = std::uint32_t(SDL_GetTicks());
             const float pad_dt = std::min(float(pad_now - pad_last_ms) / 1000.f, 0.1f);
             pad_last_ms = pad_now;
-            const pad::Context pad_context = screen == Screen::InGame ? (town.store.npc >= 0 ? pad::Context::Shop : town.pad_dialog() ? pad::Context::Dialog
+            const pad::Context pad_context = screen == Screen::InGame && town.controls.open ? pad::Context::Menu   // Configure Controls: a menu's layout
+                                           : screen == Screen::InGame ? (town.store.npc >= 0 ? pad::Context::Shop : town.pad_dialog() ? pad::Context::Dialog
                                                                          : town.pad_field() ? pad::Context::Game : pad::Context::Panel)
                                            : screen == Screen::Title  ? pad::Context::Title : pad::Context::Menu;
             const auto pad_changes = gamepads.changes();
@@ -810,7 +815,24 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 (void)pad_mapper.step(first, pad_context, 0);
                 last_ui_seat = ui_seat;
             }
-            const pad::Actions pad_actions = pad_mapper.step(first, pad_context, pad_dt);
+            if (town.pad_config_changed) {                       // Configure Controls' Accept: its pad settings
+                g_pad_config = town.pad_config;
+                pad_mapper = pad::Mapper{ g_pad_config };
+                town.pad_config_changed = false;
+            }
+            // The pad page's edit takes the next button pressed, not what it does.
+            const bool pad_capture = screen == Screen::InGame && town.controls.open && town.controls.editing && town.controls.pad_page;
+            if (pad_capture)
+                for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button) {
+                    const bool now_down = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
+                                        : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
+                    if (now_down && !pad_capture_held[button]) town.controls_pad_press = pad::Button(button);
+                }
+            for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button)
+                pad_capture_held[button] = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
+                                         : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
+            const pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt)), pad::Actions{})
+                                                         : pad_mapper.step(first, pad_context, pad_dt);
             const int pad_side = (win.view_w - int(kScreenWidth)) / 2;   // widescreen's world beyond the 800x600 UI
             const bool pad_active = pad_actions.move_active || pad_actions.click_press || pad_actions.click_down || pad_actions.rclick_press
                                     || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || !pad_actions.keys.empty()
@@ -852,12 +874,16 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
                     buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
+                } else if (screen == Screen::InGame && town.controls.open && scene) {
+                    for (const auto& [x, y] : town.controls.buttons(*scene)) points.push_back({ x, y });
                 }
                 return points;
             };
             if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
                 // Char select's d-pad steps its roster by key instead.
-                const auto points = screen == Screen::InGame ? town.pad_snap_points() : screen == Screen::CharSelect ? std::vector<pad::Point>{} : menu_buttons();
+                // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
+                const bool by_key = screen == Screen::CharSelect || (screen == Screen::InGame && town.controls.open);
+                const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
                 if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
                 }
@@ -865,10 +891,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_actions.focus_step != 0) {
                 // The shoulders in a menu: the cursor to the screen's next / last button, round.
                 if (const auto points = menu_buttons(); !points.empty()) {
-                    const auto at = std::ranges::find_if(points, [&](const pad::Point& point) { return point.x == mouse.x && point.y == mouse.y; });
+                    const auto current = std::ranges::find_if(points, [&](const pad::Point& point) { return point.x == mouse.x && point.y == mouse.y; });
                     const int count = int(points.size());
-                    const int next = at == points.end() ? (pad_actions.focus_step > 0 ? 0 : count - 1)
-                                                        : (int(at - points.begin()) + pad_actions.focus_step + count) % count;
+                    const int next = current == points.end() ? (pad_actions.focus_step > 0 ? 0 : count - 1)
+                                                        : (int(current - points.begin()) + pad_actions.focus_step + count) % count;
                     mouse.x = points[std::size_t(next)].x; mouse.y = points[std::size_t(next)].y;
                 }
             }
@@ -1476,7 +1502,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty)");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls)");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
@@ -1572,6 +1598,7 @@ int main(int argc, char** argv) {
             { "trans_roof", &g_roof_cutout },   // the see-through circle in roofs round the player
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
             { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
+            { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
         };
         std::string_view rest = toggles;
         while (!rest.empty()) {

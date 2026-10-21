@@ -5,10 +5,12 @@
 
 #include "audio.hpp"
 #include "common.hpp"
+#include "controls.hpp"
 #include "cursor.hpp"
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
+#include "keyconfig.hpp"
 #include "panels.hpp"
 #include "load.hpp"
 #include "platform.hpp"
@@ -34,6 +36,9 @@
 #include <weather.hpp>
 
 #include <algorithm>
+#include <fstream>
+#include <ios>
+#include <iterator>
 #include <cctype>
 #include <array>
 #include <cmath>
@@ -397,7 +402,9 @@ auto Town::enter() -> void {
         quest_log = {};                           // done animations play again in a new game
         mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
         game_menu.open = false;
+        controls.open = false;
         world.enter(character);
+        if (scene) load_keys();
         coop.clear();                             // a new game: its first player alone
         lead_colour = 0;
         focus = 0;
@@ -826,6 +833,64 @@ auto Town::net_overlay() -> void {
         }
     }
 
+// The character's key config (FUN_0046aae0): its <name>.key when that's
+// whole, else the save folder's default.key, else the built-in table;
+// then kept as <name>.key.
+auto Town::load_keys() -> void {
+        const auto read = [](const std::filesystem::path& path) {
+            std::ifstream file(path, std::ios::binary);
+            return std::vector<std::uint8_t>{ std::istreambuf_iterator<char>(file), {} };
+        };
+        key_table = keys::defaults();
+        if (!key_dir.empty()) {
+            if (const auto own = keys::read_character(read(key_dir / (character.name + ".key")))) { key_table = *own; }
+            else {
+                if (const auto shared = keys::read_default(read(key_dir / "default.key")); shared && keys::valid(*shared)) key_table = *shared;
+                save_keys(false);
+            }
+        }
+        update_hotkey_names();
+    }
+
+// <name>.key, and with `shared` the save folder's default.key (Accept,
+// FUN_00469780).
+auto Town::save_keys(bool shared) const -> void {
+        if (key_dir.empty()) return;
+        const auto write = [](const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
+            std::ofstream file(path, std::ios::binary);
+            file.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
+            if (!file) d2d::log::warn("{}: not written", path.string());
+        };
+        write(key_dir / (character.name + ".key"), keys::write_character(key_table));
+        if (shared) write(key_dir / "default.key", keys::write_default(key_table));
+    }
+
+auto Town::update_hotkey_names() -> void {
+        for (int slot = 0; slot < 16; ++slot) {
+            const int action = slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8;
+            auto key = keys::key_of(key_table, action, 1);
+            if (key == keys::kNone) key = keys::key_of(key_table, action, 0);
+            const auto id = keys::name_id(key);
+            skillbar.hotkey_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
+        }
+    }
+
+// Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.
+auto Town::accept_controls() -> void {
+        key_table = controls.table;
+        save_keys(true);
+        update_hotkey_names();
+        if (!(controls.pad == pad_config)) {
+            set_pad_config(controls.pad);
+            pad_config_changed = true;
+            if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, pad::save_config(pad_config))) d2d::log::warn("d2d.cfg: the pad's settings not saved");
+        }
+    }
+
+auto Town::function_held(int action) const -> bool {
+        return key_held(keys::key_of(key_table, action, 0)) || key_held(keys::key_of(key_table, action, 1));
+    }
+
 auto Town::new_game() -> void {
         world.new_game();
         skillbar.new_game();
@@ -858,6 +923,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         keys_this_frame.insert(keys_this_frame.end(), focus_keys.begin(), focus_keys.end());
         focus_keys.clear();
         Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
+        // Configure Controls (UI 0xb) takes every key and click while it's up.
+        if (controls.open) {
+            std::vector<std::uint16_t> virtual_keys;
+            for (const auto key : keys_this_frame) if (const auto code = virtual_key(key)) virtual_keys.push_back(code);
+            const auto result = controls.input(*scene, virtual_keys, mouse, std::exchange(controls_pad_press, pad::Button::Count), frame_ms);
+            if (result == ControlsUI::kAccept) accept_controls();
+            if (result == ControlsUI::kCancel) open_game_menu();          // FUN_0047e090(0, 1): back to the menu
+            keys_this_frame.clear();
+            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            mouse.wheel = 0;
+        }
         // ESC handled globally in handle_sdl_events (returns to Title).
         // D2 movement: press or hold the left button on the ground
         // and the character walks toward that point (the target
@@ -870,8 +946,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
+                if (!chat_typing) { if (keys::bound(key_table, keys::kChat, virtual_key(key))) chat_typing = std::string{}; continue; }   // the key config's Chat (Enter)
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
-                if (!chat_typing) { chat_typing = std::string{}; continue; }
                 if (!chat_typing->empty()) net_game->say(*chat_typing);
                 chat_typing.reset();
             }
@@ -891,17 +967,22 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         for (const auto key : keys_this_frame) {
             if ((trade_gold_typing || chat_typing || coop_typing()) && key != SDLK_ESCAPE) continue;   // typing (a co-op roster's name too): no hotkeys
             if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
-            if (key == SDLK_I) { inv_open = !inv_open; if (inv_open) tree_open = false; }
-            if (key == SDLK_T) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
-            if (key == SDLK_R) send(cmd::Run{ !view.running });       // D2's run/walk toggle
-            if (key == SDLK_W && character.expansion) send(cmd::SwapWeapons{});   // D2's "Swap Weapons" key
-            skillbar.key(key, mouse.x, mouse.y);                // F1-F8
-            if (key == SDLK_GRAVE) belt_open = !belt_open;      // D2's "Show Belt" key
-            if (key == SDLK_TAB) automap.open = !automap.open;  // D2's automap toggle
-            if (key == SDLK_C) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
-            if (key == SDLK_Q) toggle_quest_log();
+            // The key config's functions (docs/research/re/controls.md); Esc stays Esc.
+            const auto fired = keys::actions_of(key_table, virtual_key(key));
+            const auto fires = [&](int action) { return std::ranges::contains(fired, action); };
+            if (fires(keys::kInventory)) { inv_open = !inv_open; if (inv_open) tree_open = false; }
+            if (fires(keys::kSkillTree)) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
+            if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
+            if (fires(keys::kSwapWeapons) && character.expansion) send(cmd::SwapWeapons{});
+            for (int slot = 0; slot < 16; ++slot)
+                if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skillbar.hotkey(slot, mouse.x, mouse.y);
+            if (fires(keys::kShowBelt)) belt_open = !belt_open;
+            if (fires(keys::kAutomap)) automap.open = !automap.open;
+            if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
+            if (fires(keys::kQuestLog)) toggle_quest_log();
             if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead)) { send(cmd::Resurrect{}); continue; }
-            if (key >= SDLK_1 && key <= SDLK_4) net.send(cmd::UseBelt{ int(key - SDLK_1), (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
+            for (int belt = 0; belt < 4; ++belt)
+                if (fires(keys::kBelt1 + belt)) net.send(cmd::UseBelt{ belt, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
             if (key == SDLK_ESCAPE && skillbar.picking) { skillbar.picking = 0; continue; }   // the picker first
             // Esc (0x4690b0): the NPC's windows first, then the game menu
             // closes, else every Esc-closable panel at once (FUN_00456300;
@@ -924,7 +1005,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (world.game_closed) { world.game_closed = false; save(); screen = Screen::CharSelect; return; }
         // The game menu takes every click while it's up; Exit saves and goes
         // to the roster. Its volumes go to d2d.cfg.
-        // ponytail: Configure Controls (UI 0xb) isn't drawn; it closes the menu.
         bool hud_click = false;
         if (game_menu.open) {
             const auto action = game_menu.input(*scene, audio, mouse, keys_this_frame, frame_ms);
@@ -933,6 +1013,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                    { "music_volume", std::to_string(audio.music_volume) } });
             game_menu.volume_changed = false;
             if (action != GameMenu::kNone) close_game_menu();
+            if (action == GameMenu::kControls) {          // CfgOptions (0x47f400): UI 0xb
+                controls.family = pad_family;
+                controls.pad_extra = pad_controls_page;
+                controls.show(key_table, pad_config, character.expansion);
+            }
             // Save and Exit: alone, the game ends; in local co-op the next player leads and it goes on.
             if (action == GameMenu::kExit && (handed_over = lead_leaves()) < 0) { save(); screen = Screen::CharSelect; }
             hud_click = true;
@@ -1500,7 +1585,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open
-            && !game_menu.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
+            && !game_menu.open && !controls.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
     }
 
@@ -1758,6 +1843,10 @@ auto Town::take_focus(int id) -> void {
     }
 
 auto Town::pad_focus() const -> std::optional<PadFocus> {
+        if (controls.open) {                                            // Configure Controls: the selected row's column
+            const auto [x, y] = controls.focus();
+            return PadFocus{ 9000 + controls.sel * 2 + controls.column + (controls.pad_page ? 1000 : 0), x, y };
+        }
         if (skillbar.picking) {                                         // the hand's skill now, else its button
             const bool on_left = skillbar.picking == 1;
             const auto rows = skillbar.rows(on_left);
@@ -2212,7 +2301,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         // A local game pauses under the game menu (FUN_0044efa0: game mode
         // 0 / 1, UI 9 or 0xb up, the player in a room): it draws and plays
         // sounds, the server's frame (FUN_0052fc20) doesn't run.
-        if (!net_game && game_menu.open) world_ms = frame_ms;
+        if (!net_game && (game_menu.open || controls.open)) world_ms = frame_ms;
         bool ticked = false;
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {
             prev_x = view.player.x; prev_y = view.player.y;
@@ -2515,7 +2604,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || (SDL_GetModState() & SDL_KMOD_ALT) != 0,   // D2's "Show Items" (Alt)
+                      &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0 }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
@@ -2558,6 +2647,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
+        if (controls.open) controls.draw(framebuffer, *scene, now_ms);
         for (const auto& coop_player : coop)              // a joining pad's pick
             if (coop_player.roster) draw_roster(framebuffer, *scene, *coop_player.roster, coop_player.seat, coop_player.colour);
     }
