@@ -684,7 +684,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     const int scroll_y = int(std::lround((player_x + player_y) * 40 / float(divisor))) - kHeight / 2 + 0xf + offset_y;
     // The cels' clip: the screen, or the mini map's box (FUN_00459440).
     const int clip_x0 = !mini ? 0 : on_left ? 0 : kWidth - 0x119;
-    const int clip_y0 = !mini ? 0 : on_left ? (automap.portraits ? 0x60 : 0) - 0x15 : 0x39;
+    const int clip_y0 = !mini ? 0 : std::max(0, on_left ? (automap.portraits ? 0x60 : 0) - 0x15 : 0x39);
     const int clip_x1 = !mini ? kWidth - 1 : clip_x0 + 0x117, clip_y1 = !mini ? kHeight - 1 : clip_y0 + 0xe1;
     // The fade (FUN_004576c0's mode; mini takes Centre as Everything):
     // draw modes 0 / 1 / 2 (a quarter, half, three quarters seen), 5 whole.
