@@ -2489,6 +2489,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         view_overlays(framebuffer, *scene, view, hovered_monster());
         skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
             std::vector<d2d::d2s::Item> theirs;
             for (const auto& [id, stocked] : net_game->store_items) {
@@ -2610,6 +2611,19 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83, kHeight - 0x58 + 15 * int(i) - font.line_height() + 1, lines[i], 255, 255, 255);
     if (now_ms % 600 < 500)   // ponytail: blinks on the clock, not from when typing began
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83 + font.measure(lines[shown - 1]), kHeight - 0x58 + 15 * int(shown - 1) - font.line_height() + 1, "_", 255, 255, 255);
+}
+
+// The field's pad prompt over the control panel: the button A is bound to,
+// and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
+auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const -> void {
+    const auto pick = pad_pick(pad, view.player, true);
+    if (pick.kind == PadPick::kNone) return;
+    const bool object = pick.kind == PadPick::kThing && level && std::size_t(pick.id) < level->npcs.size() && level->npcs[std::size_t(pick.id)].root == "objects";
+    const std::string_view verb = pick.kind == PadPick::kMonster ? "Attack" : pick.kind == PadPick::kItem ? "Pick up" : object ? "Use" : "Talk";
+    const std::string text = std::string(pad::label(pad_family, pad_config.bindings[pad::Action::Primary][0])) + "  " + std::string(verb);
+    const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
+    const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+    font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, (int(kScreenWidth) - font.measure(text)) / 2, int(kScreenHeight) - 0x70, text, 199, 179, 119);
 }
 
 // An event message's line (FUN_0049eb10, by +1; the strings by id), or

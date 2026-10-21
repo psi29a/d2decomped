@@ -769,6 +769,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                                                          : town.pad_field() ? pad::Context::Game : pad::Context::Panel)
                                            : screen == Screen::Title  ? pad::Context::Title : pad::Context::Menu;
             const auto pad_changes = gamepads.changes();
+            if (screen == Screen::InGame) {                      // hotplug, shown: a pad in or out mid-game
+                for (const auto& pad : pad_changes.came) town.add_chat(pad.name + " connected");
+                for (const auto& pad : pad_changes.went) town.add_chat(pad.name + " disconnected");
+            }
             const bool in_game = screen == Screen::InGame;
             if (in_game && !was_in_game) {                       // a game begins: co-op or not, for its length
                 coop_game = gamepads.external() && !town.net_game;
@@ -779,7 +783,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
             } else if (in_game && coop_game) {
                 for (const auto& pad : pad_changes.came) if (!pad.built_in) take_seat(pad);
-                for (const auto gone : pad_changes.went) if (const int seat = seats.disconnect(int(gone), pad_now); seat >= 0) d2d::log::info("co-op: seat {} held", seat);
+                for (const auto& gone : pad_changes.went) if (const int seat = seats.disconnect(int(gone.id), pad_now); seat >= 0) d2d::log::info("co-op: seat {} held", seat);
                 for (const int seat : seats.expire(pad_now)) {
                     if (seat > 0) { town.coop_leave(seat); continue; }
                     // The first player's pad gone for good: the next player leads (or they play on alone).
@@ -824,6 +828,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
             town.pad_cue = pad_field;
+            // ponytail: the first pad's labels, also when a co-op partner's pad has the screen
+            town.pad_family = gamepads.pads().empty() ? pad::Family::Xbox : gamepads.pads().front().family;
             if (pad_actions.recentre_cursor) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }
             if (!pad_field) {
                 mouse.x = std::clamp(mouse.x + int(std::lround(pad_actions.cursor_dx)), -pad_side, int(kScreenWidth) + pad_side - 1);

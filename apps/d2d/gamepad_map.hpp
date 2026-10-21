@@ -76,6 +76,21 @@ inline constexpr std::array<std::string_view, std::size_t(Action::Count)> kActio
     "primary", "secondary", "back", "game_menu", "inventory", "character", "skill_tree", "quest_log", "automap", "toggle_run",
     "swap_weapons", "skill_picker", "recentre", "belt_1", "belt_2", "belt_3", "belt_4", "trade", "tab_prev", "tab_next" };
 
+// The pad's family, for the labels printed on its buttons.
+enum class Family { Xbox, PlayStation, Nintendo, Deck };
+// What `button` is called on a `family` pad. Nintendo's face letters sit
+// mirrored (A east, B south); PlayStation's are shapes, spelled out (the
+// game's fonts have none).
+[[nodiscard]] inline std::string_view label(Family family, Button button) {
+    static constexpr std::array<std::array<std::string_view, std::size_t(Button::Count)>, 4> kLabels = { {
+        { "A", "B", "X", "Y", "View", "Menu", "LB", "RB", "LS", "RS", "Up", "Down", "Left", "Right", "LT", "RT" },
+        { "Cross", "Circle", "Square", "Triangle", "Share", "Options", "L1", "R1", "L3", "R3", "Up", "Down", "Left", "Right", "L2", "R2" },
+        { "B", "A", "Y", "X", "-", "+", "L", "R", "LS", "RS", "Up", "Down", "Left", "Right", "ZL", "ZR" },
+        { "A", "B", "X", "Y", "View", "Menu", "L1", "R1", "L3", "R3", "Up", "Down", "Left", "Right", "L2", "R2" },
+    } };
+    return button < Button::Count ? kLabels[std::size_t(family)][std::size_t(button)] : std::string_view("-");
+}
+
 // Each action's buttons: up to two (Button::Count: none).
 struct Bindings {
     static constexpr Button kNone = Button::Count;

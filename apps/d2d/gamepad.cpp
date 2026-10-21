@@ -25,7 +25,13 @@ void Gamepads::open(SDL_JoystickID id) {
     const Uint16 vendor = SDL_GetGamepadVendor(handle), product = SDL_GetGamepadProduct(handle);
     const char* serial = SDL_GetGamepadSerial(handle);
     const char* name = SDL_GetGamepadName(handle);
-    Pad pad{ handle, id, vendor == 0x28de && product == 0x1205, std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : "") };
+    Pad pad{ handle, id, vendor == 0x28de && product == 0x1205, std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : ""), name ? name : "unnamed pad" };
+    switch (SDL_GetGamepadType(handle)) {
+        case SDL_GAMEPAD_TYPE_PS3: case SDL_GAMEPAD_TYPE_PS4: case SDL_GAMEPAD_TYPE_PS5: pad.family = pad::Family::PlayStation; break;
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: pad.family = pad::Family::Nintendo; break;
+        default: pad.family = pad.built_in ? pad::Family::Deck : pad::Family::Xbox; break;
+    }
     // What the Deck check rests on: the real device's ids and type, behind Steam Input's virtual pad.
     d2d::log::info("gamepad: {} connected (id {}, vendor {:04x}, product {:04x}, type {}, real type {}, serial '{}'{})", name ? name : "unnamed pad", id,
                    vendor, product, int(SDL_GetGamepadType(handle)), int(SDL_GetRealGamepadType(handle)), serial ? serial : "", pad.built_in ? ", the Deck's own" : "");
@@ -54,9 +60,14 @@ void Gamepads::handle_event(const SDL_Event& event) {
         if (gone == pads_.end()) return;
         d2d::log::info("gamepad: {} disconnected (id {})", SDL_GetGamepadName(gone->handle) ? SDL_GetGamepadName(gone->handle) : "unnamed pad", gone->id);
         SDL_CloseGamepad(gone->handle);
-        changes_.went.push_back(gone->id);
+        changes_.went.push_back(*gone);
         pads_.erase(gone);
     }
+}
+
+pad::Family Gamepads::family(SDL_JoystickID id) const {
+    const auto found = std::ranges::find(pads_, id, &Pad::id);
+    return found == pads_.end() ? pad::Family::Xbox : found->family;
 }
 
 bool Gamepads::external() const { return std::ranges::any_of(pads_, [](const Pad& pad) { return !pad.built_in; }); }

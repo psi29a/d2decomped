@@ -228,6 +228,8 @@ struct Town {
     struct PadPick { enum Kind { kNone, kMonster, kItem, kThing } kind = kNone; int id = -1; float x = 0, y = 0; };
     [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const;
     bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
+    pad::Family pad_family = pad::Family::Xbox;   // the screen's pad's button labels (main sets it)
+    void draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const;
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out);
     // Local co-op's other players at this screen (seats 1..3,
     // docs/design/local-coop.md): their World player (id 0 while their

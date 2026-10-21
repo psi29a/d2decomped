@@ -21,7 +21,8 @@ public:
     // An open pad. `built_in`: the Steam Deck's own controls (USB 0x28de /
     // 0x1205, as SDL reports the device behind Steam Input's virtual pad),
     // which never take a co-op seat. `key`: its model and serial (pad::Seats).
-    struct Pad { SDL_Gamepad* handle = nullptr; SDL_JoystickID id = 0; bool built_in = false; std::string key; };
+    // `name`, `family`: what to call it and its buttons.
+    struct Pad { SDL_Gamepad* handle = nullptr; SDL_JoystickID id = 0; bool built_in = false; std::string key, name; pad::Family family = pad::Family::Xbox; };
 
     // Open the pads already plugged in (SDL_INIT_GAMEPAD is up).
     void open_connected();
@@ -36,8 +37,10 @@ public:
     [[nodiscard]] const std::vector<Pad>& pads() const { return pads_; }
     // Whether a pad other than the Deck's own controls is in.
     [[nodiscard]] bool external() const;
+    // The family of pad `id`'s buttons (Xbox when it's gone).
+    [[nodiscard]] pad::Family family(SDL_JoystickID id) const;
     // The pads that came and went since the last call.
-    struct Changes { std::vector<Pad> came; std::vector<SDL_JoystickID> went; };
+    struct Changes { std::vector<Pad> came, went; };   // a gone Pad's handle is closed
     Changes changes();
 
     void close();
