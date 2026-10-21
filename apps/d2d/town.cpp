@@ -1501,13 +1501,43 @@ auto Town::pad_field() const -> bool {
             && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
     }
 
+// What the pad's A would act on now: a monster in reach in the facing (the
+// held target first), else, with `uses` (a fresh press), the ground item,
+// then the NPC or object in reach there.
+auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const -> PadPick {
+        const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
+        std::vector<pad::Candidate> monsters;
+        for (const auto& monster : view.monsters)
+            if (monster.alive()) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });
+        if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target); hit >= 0)
+            return { PadPick::kMonster, monsters[std::size_t(hit)].id, monsters[std::size_t(hit)].x, monsters[std::size_t(hit)].y };
+        if (!uses) return {};
+        std::vector<pad::Candidate> drops;
+        for (const auto& item : view.ground) drops.push_back({ item.id, item.x, item.y });
+        if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, drops, -1, pad::Aim{ 3.5f, 3.5f, -0.2f }); pick >= 0)
+            return { PadPick::kItem, drops[std::size_t(pick)].id, drops[std::size_t(pick)].x, drops[std::size_t(pick)].y };
+        std::vector<pad::Candidate> things;      // NPCs and objects you can use
+        if (level)
+            for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                const auto& npc = level->npcs[i];
+                const UnitState* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
+                if ((state && state->hidden) || npc.name.empty()) continue;
+                if (state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1)) continue;
+                things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
+            }
+        if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, things, -1, pad::Aim{ 4.5f, 4.5f, -0.2f }); pick >= 0)
+            return { PadPick::kThing, things[std::size_t(pick)].id, things[std::size_t(pick)].x, things[std::size_t(pick)].y };
+        return {};
+    }
+
 // The pad's buttons in the field: hit what is in reach in the facing, else
 // pick up / talk to what is, else swing that way. Nothing is latched: a
-// released button forgets its target.
+// released button forgets its target. The aiming stick turns the facing
+// (and so the target) without walking; else the walk does.
 auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out) -> void {
         const auto& move = player_pad.move;
-        if (move.active) {
-            const auto face = pad::world_step(move.x, move.y, kIsoW, kIsoH, 1.f);
+        if (move.aim || move.active) {
+            const auto face = move.aim ? pad::world_step(move.aim_x, move.aim_y, kIsoW, kIsoH, 1.f) : pad::world_step(move.x, move.y, kIsoW, kIsoH, 1.f);
             player_pad.face_x = face.x; player_pad.face_y = face.y;
         }
         const bool want = move.attack || move.attack_down || move.alt;
@@ -1517,42 +1547,20 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
             if (const auto* body = body_near(hero_x, hero_y, 4.f)) out(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
             return;
         }
-        std::vector<pad::Candidate> monsters;
-        for (const auto& monster : view.monsters)
-            if (monster.alive()) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });
-        const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target);
         const bool left = !move.alt;
         const int skill = left ? left_skill : right_skill;
-        if (hit >= 0) {
-            player_pad.target = monsters[std::size_t(hit)].id;
-            out(cmd::UseSkill{ skill, monsters[std::size_t(hit)].x, monsters[std::size_t(hit)].y, player_pad.target, left });
+        const PadPick pick = pad_pick(player_pad, unit, left && move.attack);
+        if (pick.kind == PadPick::kMonster) {
+            player_pad.target = pick.id;
+            out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, left });
             return;
         }
         player_pad.target = -1;
         if (move.attack_down && !move.attack && !move.alt) return;   // held with nothing left to hit
-        if (left && move.attack) {
-            std::vector<pad::Candidate> drops;
-            for (const auto& item : view.ground) drops.push_back({ item.id, item.x, item.y });
-            if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, drops, -1, pad::Aim{ 3.5f, 3.5f, -0.2f }); pick >= 0) {
-                out(cmd::Pickup{ drops[std::size_t(pick)].id });
-                return;
-            }
-            std::vector<pad::Candidate> things;      // NPCs and objects you can use
-            if (level)
-                for (std::size_t i = 0; i < level->npcs.size(); ++i) {
-                    const auto& npc = level->npcs[i];
-                    const UnitState* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
-                    if ((state && state->hidden) || npc.name.empty()) continue;
-                    if (state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1)) continue;
-                    things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
-                }
-            if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, things, -1, pad::Aim{ 4.5f, 4.5f, -0.2f }); pick >= 0) {
-                out(cmd::Interact{ things[std::size_t(pick)].id });
-                return;
-            }
-        }
+        if (pick.kind == PadPick::kItem) { out(cmd::Pickup{ pick.id }); return; }
+        if (pick.kind == PadPick::kThing) { out(cmd::Interact{ pick.id }); return; }
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
-        const bool foe_near = std::ranges::any_of(monsters, [&](const pad::Candidate& foe) { return std::hypot(foe.x - hero_x, foe.y - hero_y) < 10.f; });
+        const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) { return foe.alive() && std::hypot(foe.unit.x - hero_x, foe.unit.y - hero_y) < 10.f; });
         if (move.alt || (move.attack && foe_near))
             out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left });
     }
@@ -1574,6 +1582,7 @@ auto Town::coop_seat(int seat, int colour) -> void {
         std::vector<std::string> playing;
         for (const auto& in_game : world.players) playing.push_back(in_game->character.name);
         auto& waiting = coop.emplace_back();
+        waiting.mapper = pad::Mapper{ pad_config };
         waiting.seat = seat;
         waiting.colour = colour;
         waiting.roster = open_roster(*scene, playing, world.lead().character.header);
@@ -1600,9 +1609,15 @@ auto Town::lead_leaves() -> int {
         return seat;
     }
 
+auto Town::set_pad_config(const pad::Config& config) -> void {
+        pad_config = config;
+        lead_mapper = pad::Mapper{ config };
+        for (auto& coop_player : coop) coop_player.mapper = pad::Mapper{ config };
+    }
+
 auto Town::coop_join(int seat, const Character& joining) -> void {
         auto found = std::ranges::find(coop, seat, &CoopPlayer::seat);
-        if (found == coop.end()) { coop.emplace_back().seat = seat; found = coop.end() - 1; }
+        if (found == coop.end()) { coop.emplace_back().seat = seat; found = coop.end() - 1; found->mapper = pad::Mapper{ pad_config }; }
         found->id = world.join(joining).id;
         found->roster.reset();
     }
@@ -1669,7 +1684,8 @@ auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
 auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
                       const Send& out) -> std::vector<pad::Key> {
         const auto actions = mapper.step(sample, pad::Context::Game, seconds);
-        player_pad.move = { actions.move_x, actions.move_y, actions.move_active, actions.click_press, actions.click_down, actions.rclick_press };
+        player_pad.move = { actions.move_x, actions.move_y, actions.move_active, actions.click_press, actions.click_down, actions.rclick_press,
+                            actions.aim_active, actions.aim_x, actions.aim_y };
         std::vector<pad::Key> opens;
         for (const pad::Key key : actions.keys)
             switch (key) {
@@ -2441,11 +2457,23 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         float rate = pmode >= 0 && pmode != kModeDD ? view.prate : 1.f;
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
         const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient(), extra, &player_look, frame_ms, &hero_at);
+        // A pad in the field shows no cursor: it hovers what A would act on
+        // instead (its name, and a monster's life bar), a spot up its body.
+        // ponytail: a spot, not its box: something drawn in front can take the hover.
+        int hover_x = held ? -1 : mouse.x, hover_y = held ? -1 : mouse.y;
+        if (pad_cue) {
+            hover_x = hover_y = -1;
+            if (const auto pick = pad_pick(pad, focused().player, true); pick.kind != PadPick::kNone && focus_id() == hero.id) {
+                const float dx = pick.x - cam_x, dy = pick.y - cam_y;
+                hover_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
+                hover_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2))) - (pick.kind == PadPick::kItem ? 4 : 24);
+            }
+        }
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,
                       cam_x, cam_y, mode,
-                      unit.dir, frame_ms, held ? -1 : mouse.x, held ? -1 : mouse.y, said_npcs.empty() ? std::span<const UnitState>(view.npc_states) : std::span<const UnitState>(said_npcs),
+                      unit.dir, frame_ms, hover_x, hover_y, said_npcs.empty() ? std::span<const UnitState>(view.npc_states) : std::span<const UnitState>(said_npcs),
                       inv_open ? &character.items : nullptr,
                       char_open ? &character.stats : nullptr, &character.stats, &character.panel, mode_ms, &character.items,
                       &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_open,

@@ -213,7 +213,7 @@ struct Town {
     // toggle says; `attack` / `attack_down` / `alt` are its buttons, which
     // hit what is in reach. The first player's is set each frame by main,
     // the other co-op players' by coop_pad.
-    struct PadMove { float x = 0, y = 0; bool active = false, attack = false, attack_down = false, alt = false; };
+    struct PadMove { float x = 0, y = 0; bool active = false, attack = false, attack_down = false, alt = false; bool aim = false; float aim_x = 0, aim_y = 0; };
     struct PadPlayer {
         PadMove move;
         bool walking = false;                     // last frame's stick walk, to send a fresh walk once
@@ -225,6 +225,9 @@ struct Town {
     // The pad's walk and its buttons for the hero at `unit` (`field`: no
     // panel or menu is up), the commands out through `out`.
     void pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out);
+    struct PadPick { enum Kind { kNone, kMonster, kItem, kThing } kind = kNone; int id = -1; float x = 0, y = 0; };
+    [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const;
+    bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out);
     // Local co-op's other players at this screen (seats 1..3,
     // docs/design/local-coop.md): their World player (id 0 while their
@@ -271,6 +274,9 @@ struct Town {
     void lead_pad(const pad::Sample& sample, float seconds);
     PadPlayer lead_field;
     pad::Mapper lead_mapper;
+    // The pads' settings (d2d.cfg pad_*): every player's mapper plays by them.
+    void set_pad_config(const pad::Config& config);
+    pad::Config pad_config;
     std::vector<Command> lead_orders;
     // True when no panel, menu or dialog is up: the pad plays without a cursor.
     [[nodiscard]] bool pad_field() const;

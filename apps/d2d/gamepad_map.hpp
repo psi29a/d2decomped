@@ -10,15 +10,19 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace d2d::client::pad {
 
+// The triggers count as buttons past a press point (Mapper's hysteresis); a
+// Sample's own `held` has them off.
 enum class Button { South, East, West, North, Back, Start, LeftShoulder, RightShoulder, LeftStick, RightStick,
-                    DpadUp, DpadDown, DpadLeft, DpadRight, Count };
+                    DpadUp, DpadDown, DpadLeft, DpadRight, LeftTrigger, RightTrigger, Count };
 
 // What the screen the pad plays is: the title (B is not Esc there: that quits),
 // the other menus (the d-pad hops the cursor between buttons), or the game:
@@ -38,12 +42,149 @@ struct Sample {                       // one frame of a pad: sticks -1..1, trigg
     [[nodiscard]] bool operator[](Button which) const { return held[std::size_t(which)]; }
 };
 
+// What a button does in the game, rebindable (Bindings). Each one works in
+// some of the game's contexts (kWhere): two actions may share a button only
+// where they never both work. The menus outside the game keep a fixed
+// layout: the confirm button clicks, the other one backs out, the d-pad steps.
+enum class Action { Primary, Secondary, Back, GameMenu, Inventory, Character, SkillTree, QuestLog, Automap, ToggleRun,
+                    SwapWeapons, SkillPicker, Recentre, Belt1, Belt2, Belt3, Belt4, Trade, TabPrev, TabNext, Count };
+
+namespace where {
+inline constexpr unsigned kField = 1, kPanel = 2, kShop = 4, kDialog = 8, kAll = 15;
+}
+// The contexts each Action works in, by Action.
+inline constexpr std::array<unsigned, std::size_t(Action::Count)> kWhere = {
+    where::kAll,                                   // Primary: the left click
+    where::kField | where::kPanel,                 // Secondary: the right click / right-hand skill
+    where::kShop | where::kDialog,                 // Back: Esc out of a store or a dialog
+    where::kAll,                                   // GameMenu (Esc)
+    where::kAll, where::kField | where::kPanel | where::kDialog, where::kField | where::kPanel | where::kDialog,   // Inventory, Character, SkillTree
+    where::kAll, where::kField | where::kPanel | where::kDialog,                     // QuestLog, Automap
+    where::kAll, where::kAll,                      // ToggleRun, SwapWeapons
+    where::kField,                                 // SkillPicker
+    where::kPanel | where::kShop | where::kDialog, // Recentre: the cursor to the screen's middle
+    where::kField, where::kField, where::kField, where::kField,   // Belt1..4
+    where::kShop, where::kShop, where::kShop,      // Trade, TabPrev, TabNext
+};
+// Where the d-pad is the cursor's hops, so no action can have it.
+inline constexpr unsigned kDpadHops = where::kPanel | where::kShop | where::kDialog;
+
+inline constexpr std::array<std::string_view, std::size_t(Button::Count)> kButtonNames = {
+    "south", "east", "west", "north", "back", "start", "left_shoulder", "right_shoulder", "left_stick", "right_stick",
+    "dpad_up", "dpad_down", "dpad_left", "dpad_right", "left_trigger", "right_trigger" };
+inline constexpr std::array<std::string_view, std::size_t(Action::Count)> kActionNames = {
+    "primary", "secondary", "back", "game_menu", "inventory", "character", "skill_tree", "quest_log", "automap", "toggle_run",
+    "swap_weapons", "skill_picker", "recentre", "belt_1", "belt_2", "belt_3", "belt_4", "trade", "tab_prev", "tab_next" };
+
+// Each action's buttons: up to two (Button::Count: none).
+struct Bindings {
+    static constexpr Button kNone = Button::Count;
+    using Pair = std::array<Button, 2>;
+    std::array<Pair, std::size_t(Action::Count)> buttons{};
+    Bindings() {                                   // the default layout (apps/d2d/README.md)
+        using enum Button;
+        const auto put = [&](Action action, Button first, Button second = kNone) { buttons[std::size_t(action)] = { first, second }; };
+        put(Action::Primary, South, RightTrigger);  put(Action::Secondary, East);       put(Action::Back, East);
+        put(Action::GameMenu, Start);               put(Action::Inventory, North);      put(Action::Character, West);
+        put(Action::SkillTree, LeftShoulder);       put(Action::QuestLog, Back);        put(Action::Automap, RightShoulder);
+        put(Action::ToggleRun, LeftStick);          put(Action::SwapWeapons, LeftTrigger);
+        put(Action::SkillPicker, RightStick);       put(Action::Recentre, RightStick);
+        put(Action::Belt1, DpadUp);                 put(Action::Belt2, DpadDown);       put(Action::Belt3, DpadLeft);
+        put(Action::Belt4, DpadRight);              put(Action::Trade, West);
+        put(Action::TabPrev, LeftShoulder);         put(Action::TabNext, RightShoulder);
+    }
+    [[nodiscard]] const Pair& operator[](Action action) const { return buttons[std::size_t(action)]; }
+    Pair& operator[](Action action) { return buttons[std::size_t(action)]; }
+    bool operator==(const Bindings&) const = default;
+};
+
+[[nodiscard]] inline bool is_dpad(Button button) { return button >= Button::DpadUp && button <= Button::DpadRight; }
+
+// The actions that clash: a button two actions share where both work, or a
+// d-pad direction where it hops. Each clash once, as (action, other); other is
+// Action::Count for the d-pad's hops.
+[[nodiscard]] inline std::vector<std::pair<Action, Action>> clashes(const Bindings& bindings) {
+    std::vector<std::pair<Action, Action>> out;
+    for (std::size_t first = 0; first < std::size_t(Action::Count); ++first)
+        for (const Button button : bindings.buttons[first]) {
+            if (button == Bindings::kNone) continue;
+            if (is_dpad(button) && (kWhere[first] & kDpadHops) != 0) out.emplace_back(Action(first), Action::Count);
+            for (std::size_t second = first + 1; second < std::size_t(Action::Count); ++second)
+                if ((kWhere[first] & kWhere[second]) != 0 && std::ranges::contains(bindings.buttons[second], button))
+                    out.emplace_back(Action(first), Action(second));
+        }
+    return out;
+}
+
 struct Config {
     float deadzone = 0.15f;           // radial, both sticks
     float cursor_speed = 650.f;       // game pixels per second at full tilt
     float trigger_press = 0.5f, trigger_release = 0.3f;
     float walk_reach = 6.f;           // tiles ahead a held stick walks towards
+    bool  swap_sticks = false;        // left-handed: the right stick walks, the left one aims and moves the cursor
+    bool  swap_confirm = false;       // the menus' confirm on east, back on south (a Nintendo pad's A / B)
+    Bindings bindings;
+    bool operator==(const Config&) const = default;
 };
+
+// d2d.cfg's `pad_*` keys. Names it doesn't know, or bindings that clash, are
+// put in `problems` and left at their defaults.
+[[nodiscard]] inline std::string button_list(const Bindings::Pair& pair) {
+    std::string out;
+    for (const Button button : pair)
+        if (button != Bindings::kNone) out += (out.empty() ? "" : ",") + std::string(kButtonNames[std::size_t(button)]);
+    return out.empty() ? "none" : out;
+}
+[[nodiscard]] inline std::vector<std::pair<std::string, std::string>> save_config(const Config& config) {
+    std::vector<std::pair<std::string, std::string>> out = {
+        { "pad_deadzone", std::to_string(int(std::lround(config.deadzone * 100))) },
+        { "pad_cursor_speed", std::to_string(int(std::lround(config.cursor_speed))) },
+        { "pad_swap_sticks", config.swap_sticks ? "1" : "0" },
+        { "pad_swap_confirm", config.swap_confirm ? "1" : "0" } };
+    for (std::size_t action = 0; action < std::size_t(Action::Count); ++action)
+        out.emplace_back("pad_" + std::string(kActionNames[action]), button_list(config.bindings.buttons[action]));
+    return out;
+}
+// `lookup(key)`: the cfg's value or nullptr.
+template <class Lookup>
+[[nodiscard]] Config load_config(const Lookup& lookup, std::vector<std::string>& problems) {
+    Config config;
+    const auto number = [&](const char* key, int low, int high, auto apply) {
+        const std::string* value = lookup(key);
+        if (!value) return;
+        char* end = nullptr;
+        const long parsed = std::strtol(value->c_str(), &end, 10);
+        if (value->empty() || *end != 0 || parsed < low || parsed > high) problems.push_back(std::string(key) + " = " + *value + ": not " + std::to_string(low) + ".." + std::to_string(high));
+        else apply(int(parsed));
+    };
+    number("pad_deadzone", 0, 90, [&](int value) { config.deadzone = float(value) / 100; });
+    number("pad_cursor_speed", 50, 3000, [&](int value) { config.cursor_speed = float(value); });
+    number("pad_swap_sticks", 0, 1, [&](int value) { config.swap_sticks = value != 0; });
+    number("pad_swap_confirm", 0, 1, [&](int value) { config.swap_confirm = value != 0; });
+    const Bindings defaults;
+    for (std::size_t action = 0; action < std::size_t(Action::Count); ++action) {
+        const std::string key = "pad_" + std::string(kActionNames[action]);
+        const std::string* value = lookup(key.c_str());
+        if (!value) continue;
+        Bindings::Pair pair = { Bindings::kNone, Bindings::kNone };
+        std::size_t count = 0;
+        bool bad = false;
+        for (std::size_t start = 0; *value != "none" && start <= value->size();) {
+            const std::size_t comma = std::min(value->find(',', start), value->size());
+            const auto found = std::ranges::find(kButtonNames, std::string_view(*value).substr(start, comma - start));
+            if (found == kButtonNames.end() || count == pair.size()) { bad = true; break; }
+            pair[count++] = Button(found - kButtonNames.begin());
+            start = comma + 1;
+        }
+        if (bad) problems.push_back(key + " = " + *value + ": not up to two of " + button_list({ Button::South, Button::East }) + ", ...");
+        else config.bindings.buttons[action] = pair;
+    }
+    if (const auto clashing = clashes(config.bindings); !clashing.empty()) {
+        problems.push_back(std::string("pad bindings clash (") + std::string(kActionNames[std::size_t(clashing.front().first)]) + "): the default layout instead");
+        config.bindings = defaults;
+    }
+    return config;
+}
 
 struct Actions {
     float cursor_dx = 0, cursor_dy = 0;            // pixels to move the cursor this frame
@@ -51,6 +192,8 @@ struct Actions {
     bool  rclick_press = false;
     bool  recentre_cursor = false;
     bool  skill_picker = false;                    // the field's right stick click: open the skill picker
+    bool  aim_active = false;                      // the field's aiming stick turns the facing...
+    float aim_x = 0, aim_y = 0;                    // ...to this screen direction (unit length)
     bool  move_active = false;                     // the left stick walks the hero...
     float move_x = 0, move_y = 0;                  // ...towards this screen direction (unit length); walk or run is the run toggle's
     int   snap_x = 0, snap_y = 0;                  // a panel's d-pad press: hop the cursor this way (-1..1 each)
@@ -118,89 +261,97 @@ public:
     // Sample: every button lets go, so nothing stays held.
     Actions step(const Sample& sample, Context context, float seconds) {
         Actions out;
-        const bool left_trigger_was = left_trigger_;
         left_trigger_ = hysteresis(sample.left_trigger, left_trigger_);
         right_trigger_ = hysteresis(sample.right_trigger, right_trigger_);
         auto held = sample.held;
+        held[std::size_t(Button::LeftTrigger)] = left_trigger_;
+        held[std::size_t(Button::RightTrigger)] = right_trigger_;
         const auto pressed = [&](Button which) { return held[std::size_t(which)] && !prev_[std::size_t(which)]; };
-        const auto key = [&](Button which, Key press) { if (pressed(which)) out.keys.push_back(press); };
         const auto snap = [&] {
             out.snap_x = int(pressed(Button::DpadRight)) - int(pressed(Button::DpadLeft));
             out.snap_y = int(pressed(Button::DpadDown)) - int(pressed(Button::DpadUp));
         };
-        const bool shop = context == Context::Shop, dialog = context == Context::Dialog;
-        const bool panel = context == Context::Panel || shop || dialog, game = context == Context::Game || panel;
         const auto dpad_keys = [&] {
-            key(Button::DpadUp, Key::Up);
-            key(Button::DpadDown, Key::Down);
-            key(Button::DpadLeft, Key::Left);
-            key(Button::DpadRight, Key::Right);
+            if (pressed(Button::DpadUp)) out.keys.push_back(Key::Up);
+            if (pressed(Button::DpadDown)) out.keys.push_back(Key::Down);
+            if (pressed(Button::DpadLeft)) out.keys.push_back(Key::Left);
+            if (pressed(Button::DpadRight)) out.keys.push_back(Key::Right);
         };
+        const unsigned here = context == Context::Game ? where::kField : context == Context::Panel ? where::kPanel
+                            : context == Context::Shop ? where::kShop : context == Context::Dialog ? where::kDialog : 0;
+        const auto& bindings = config_.bindings;
+        // An action is on here, and held / just pressed on one of its buttons.
+        const auto on = [&](Action action) { return (kWhere[std::size_t(action)] & here) != 0; };
+        const auto down = [&](Action action) {
+            return on(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && held[std::size_t(button)]; });
+        };
+        const auto hit = [&](Action action) {
+            return on(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && pressed(button); });
+        };
+        const auto key = [&](Action action, Key press) { if (hit(action)) out.keys.push_back(press); };
+        const bool game = here != 0;
+        const Button confirm = config_.swap_confirm ? Button::East : Button::South, cancel = config_.swap_confirm ? Button::South : Button::East;
 
-        // The left button: south or the right trigger, anywhere.
-        out.click_down = sample[Button::South] || right_trigger_;
+        // The left button: Primary in the game; the confirm button or the right trigger in the menus.
+        out.click_down = game ? down(Action::Primary) : held[std::size_t(confirm)] || right_trigger_;
         out.click_press = out.click_down && !click_prev_;
         out.click_release = !out.click_down && click_prev_;
         click_prev_ = out.click_down;
-        if (game && !shop && !dialog) {             // a store's or a dialog's B leaves it (Escape, below)
-            const bool secondary = sample[Button::East];
-            out.rclick_press = secondary && !secondary_prev_;
-            secondary_prev_ = secondary;
-        } else {
-            secondary_prev_ = false;
-        }
+        const bool secondary = down(Action::Secondary);
+        out.rclick_press = secondary && !secondary_prev_;
+        secondary_prev_ = secondary;
 
-        // Right stick: the cursor. In the menus the left one moves it too.
-        float cursor_x = sample.rx, cursor_y = sample.ry;
-        if (!game) { cursor_x += sample.lx; cursor_y += sample.ly; }
+        // The aiming stick (the right one; the left one when swapped): the cursor. In the menus the other one moves it too.
+        const float walk_x = config_.swap_sticks ? sample.rx : sample.lx, walk_y = config_.swap_sticks ? sample.ry : sample.ly;
+        const float aim_x = config_.swap_sticks ? sample.lx : sample.rx, aim_y = config_.swap_sticks ? sample.ly : sample.ry;
+        float cursor_x = aim_x, cursor_y = aim_y;
+        if (!game) { cursor_x += walk_x; cursor_y += walk_y; }
         const auto [tilt_x, tilt_y, tilt] = dead(cursor_x, cursor_y);
         const float speed = config_.cursor_speed * tilt * tilt;   // gentle near the centre, quick at the edge
         out.cursor_dx = tilt_x * speed * seconds;
         out.cursor_dy = tilt_y * speed * seconds;
-        // The right stick's click recentres the cursor; in the field, where none
-        // shows, it opens the skill picker.
-        (context == Context::Game ? out.skill_picker : out.recentre_cursor) = pressed(Button::RightStick);
+        out.skill_picker = hit(Action::SkillPicker);
+        out.recentre_cursor = game ? hit(Action::Recentre) : pressed(Button::RightStick);
 
-        // Left stick: walking, in the game.
         if (game) {
-            const auto [dir_x, dir_y, tilt_move] = dead(sample.lx, sample.ly);
+            // The walking stick walks; in the field, where no cursor shows, the aiming one turns the facing.
+            const auto [dir_x, dir_y, tilt_move] = dead(walk_x, walk_y);
             out.move_active = tilt_move > 0;
             out.move_x = dir_x; out.move_y = dir_y;
-        }
+            const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
+            out.aim_active = context == Context::Game && tilt_aim > 0;
+            out.aim_x = face_x; out.aim_y = face_y;
 
-        if (game) {
-            key(Button::Start, Key::Escape);
-            if (shop || dialog) key(Button::East, Key::Escape);
-            key(Button::North, Key::Inventory);
-            key(Button::Back, Key::QuestLog);
-            key(Button::LeftStick, Key::ToggleRun);
-            if (left_trigger_ && !left_trigger_was) out.keys.push_back(Key::SwapWeapons);
-            if (shop) {
-                out.trade_press = pressed(Button::West);
-                out.tab_step = int(pressed(Button::RightShoulder)) - int(pressed(Button::LeftShoulder));
-            } else {
-                key(Button::West, Key::Character);
-                key(Button::LeftShoulder, Key::SkillTree);
-                key(Button::RightShoulder, Key::Automap);
-            }
-            if (panel) {
+            key(Action::GameMenu, Key::Escape);
+            key(Action::Back, Key::Escape);
+            key(Action::Inventory, Key::Inventory);
+            key(Action::QuestLog, Key::QuestLog);
+            key(Action::ToggleRun, Key::ToggleRun);
+            key(Action::SwapWeapons, Key::SwapWeapons);
+            key(Action::Character, Key::Character);
+            key(Action::SkillTree, Key::SkillTree);
+            key(Action::Automap, Key::Automap);
+            key(Action::Belt1, Key::Belt1);
+            key(Action::Belt2, Key::Belt2);
+            key(Action::Belt3, Key::Belt3);
+            key(Action::Belt4, Key::Belt4);
+            out.trade_press = hit(Action::Trade);
+            out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
+            if (here & kDpadHops) {
                 snap();
-                if (dialog) dpad_keys();             // the game menu steps its rows and sliders by key
-            } else {
-                key(Button::DpadUp, Key::Belt1);
-                key(Button::DpadDown, Key::Belt2);
-                key(Button::DpadLeft, Key::Belt3);
-                key(Button::DpadRight, Key::Belt4);
+                if (context == Context::Dialog) dpad_keys();   // the game menu steps its rows and sliders by key
             }
         } else {
-            key(Button::Start, Key::Return);
-            if (context == Context::Menu) key(Button::East, Key::Escape);
+            if (pressed(Button::Start)) out.keys.push_back(Key::Return);
+            if (context == Context::Menu && pressed(cancel)) out.keys.push_back(Key::Escape);
             snap();
             dpad_keys();                             // char select steps its roster by key
         }
         prev_ = held;
         return out;
     }
+
+    [[nodiscard]] const Config& config() const { return config_; }
 
 private:
     struct Tilt { float x, y, magnitude; };

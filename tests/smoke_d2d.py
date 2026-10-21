@@ -279,6 +279,14 @@ try:
         press("b"); near("Akara")
         press("b")
         assert state()["menu"] == "0", "pad B didn't close Akara's menu"
+        # In the field the pad hovers what A would use: the right stick
+        # aims at Akara (up-left of the hero) without walking, A talks.
+        cmd("pad axis rightx -0.8"); cmd("pad axis righty -0.56"); frames(4)
+        assert int(state()["hover"]) >= 0, "aiming at Akara didn't hover her"
+        cmd("pad axis rightx 0"); cmd("pad axis righty 0"); frames(2)
+        press("a"); frames(30)
+        assert state()["menu"] != "0", "A on the hovered Akara didn't talk"
+        press("b")
         # The skill picker on a pad: the right stick's click opens the right
         # hand's; hops left end on the left skill button, A there switches
         # to the left hand's (the cursor on its skill), A again chooses it.

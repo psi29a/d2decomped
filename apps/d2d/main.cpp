@@ -343,6 +343,7 @@ private:
 static std::string g_start_screen;
 static bool        g_video = true;          // startup cinematics (--no-video / cfg video = 0)
 static fs::path    g_user_dir;
+static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = 0;
 static std::string g_start_name;
@@ -550,7 +551,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Screen last_screen = screen;
     Mouse  mouse;
     Gamepads gamepads;
-    pad::Mapper pad_mapper;
+    pad::Mapper pad_mapper{ g_pad_config };
     gamepads.open_connected();
     // Local co-op (docs/design/local-coop.md): a game begun with a pad other
     // than the Deck's own controls in is co-op. Pads take seats; seat 0's
@@ -646,6 +647,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
+    town.set_pad_config(g_pad_config);
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
     const auto take_seat = [&](const Gamepads::Pad& pad) {
         if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) town.coop_seat(seat, seats.colour(seat));
@@ -799,7 +801,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (coop_game && ui_seat != 0) town.lead_pad(gamepads.sample(SDL_JoystickID(std::max(seats.pad(0), 0))), pad_dt);
             const pad::Sample first = coop_game ? gamepads.sample(SDL_JoystickID(std::max(seats.pad(ui_seat), 0))) : gamepads.sample();
             if (ui_seat != last_ui_seat) {                       // another pad: what it holds now isn't pressed now
-                pad_mapper = pad::Mapper{};
+                pad_mapper = pad::Mapper{ g_pad_config };
                 (void)pad_mapper.step(first, pad_context, 0);
                 last_ui_seat = ui_seat;
             }
@@ -821,6 +823,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
+            town.pad_cue = pad_field;
             if (pad_actions.recentre_cursor) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }
             if (!pad_field) {
                 mouse.x = std::clamp(mouse.x + int(std::lround(pad_actions.cursor_dx)), -pad_side, int(kScreenWidth) + pad_side - 1);
@@ -862,7 +865,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             }
             town.pad.move = screen == Screen::InGame
                 ? Town::PadMove{ pad_actions.move_x, pad_actions.move_y, pad_actions.move_active,
-                                pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press }
+                                pad_field && pad_actions.click_press, pad_field && pad_actions.click_down, pad_field && pad_actions.rclick_press,
+                                pad_actions.aim_active, pad_actions.aim_x, pad_actions.aim_y }
                 : Town::PadMove{};
         }
         current_phase.store(std::uint32_t(MainPhase::Devctl),
@@ -1580,6 +1584,11 @@ int main(int argc, char** argv) {
     g_widescreen     = cfg["widescreen"] == "1" || cli_widescreen || view_width > 0;
     g_forced_view_w  = std::clamp(view_width, 0, kMaxViewWidth);
     if (cfg.contains("master_volume")) g_master_volume = std::clamp(std::atoi(cfg["master_volume"].c_str()), 0, 100);
+    {
+        std::vector<std::string> problems;
+        g_pad_config = pad::load_config([&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; }, problems);
+        for (const auto& problem : problems) d2d::log::warn("d2d.cfg: {}", problem);
+    }
     if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
 
     if (headless) {

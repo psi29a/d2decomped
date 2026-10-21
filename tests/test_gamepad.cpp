@@ -8,6 +8,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <map>
+#include <string>
 #include <vector>
 
 using namespace d2d::client::pad;
@@ -217,6 +219,65 @@ int main() {
         assert(seats.colour(0) == 0 && seats.colour(2) == 2);
         seats.swap(0, 2);
         assert(seats.pad(0) == 16 && seats.colour(0) == 2 && seats.pad(2) == 10 && seats.colour(2) == 0);
+    }
+    // Bindings: the defaults don't clash; d2d.cfg's pad_* round-trips; a bad
+    // name or a clash is reported and the default kept.
+    {
+        assert(clashes(Bindings{}).empty());
+        Config config;
+        config.bindings[Action::Inventory] = { Button::Back, Bindings::kNone };
+        config.bindings[Action::QuestLog] = { Button::North, Bindings::kNone };
+        config.swap_sticks = true;
+        config.deadzone = 0.2f;
+        std::map<std::string, std::string> cfg;
+        for (const auto& [key, value] : save_config(config)) cfg[key] = value;
+        const auto lookup = [&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; };
+        std::vector<std::string> problems;
+        assert(load_config(lookup, problems) == config && problems.empty());
+        cfg["pad_trade"] = "west,nowhere";
+        cfg["pad_deadzone"] = "95";
+        const Config partly = load_config(lookup, problems);
+        assert(problems.size() == 2 && partly.bindings[Action::Trade] == Bindings{}[Action::Trade] && partly.deadzone == 0.15f);
+        problems.clear();
+        cfg["pad_trade"] = "west";
+        cfg["pad_deadzone"] = "20";
+        cfg["pad_inventory"] = "south";                            // Primary's, everywhere
+        assert(load_config(lookup, problems).bindings == Bindings{} && problems.size() == 1);
+        Bindings dpad;
+        dpad[Action::Character] = { Button::DpadUp, Bindings::kNone };   // the d-pad hops in a panel
+        assert(clashes(dpad).size() == 2);                          // the hops, and Belt1 in the field
+    }
+    // A rebound button does its new action, and the old one nothing.
+    {
+        Config config;
+        config.bindings[Action::Inventory] = { Button::Back, Bindings::kNone };
+        config.bindings[Action::QuestLog] = { Button::North, Bindings::kNone };
+        Mapper mapper{ config };
+        assert(has(mapper.step(with(Button::Back), Context::Game, 0.016f), Key::Inventory));
+        (void)mapper.step(Sample{}, Context::Game, 0.016f);
+        const Actions north = mapper.step(with(Button::North), Context::Game, 0.016f);
+        assert(has(north, Key::QuestLog) && !has(north, Key::Inventory));
+    }
+    // Left-handed: the right stick walks, the left one aims (in the field) and moves the cursor.
+    {
+        Config config;
+        config.swap_sticks = true;
+        Mapper mapper{ config };
+        Sample sticks; sticks.rx = 1.f; sticks.ly = 1.f;
+        const Actions field = mapper.step(sticks, Context::Game, 0.016f);
+        assert(field.move_active && field.move_x > 0.99f && field.aim_active && field.aim_y > 0.99f);
+        const Actions panel = mapper.step(sticks, Context::Panel, 0.1f);
+        assert(panel.cursor_dy > 0 && panel.cursor_dx == 0 && !panel.aim_active);
+    }
+    // Swapped confirm: east clicks in the menus and south backs out.
+    {
+        Config config;
+        config.swap_confirm = true;
+        Mapper mapper{ config };
+        assert(mapper.step(with(Button::East), Context::Menu, 0.016f).click_press);
+        (void)mapper.step(Sample{}, Context::Menu, 0.016f);
+        const Actions south = mapper.step(with(Button::South), Context::Menu, 0.016f);
+        assert(has(south, Key::Escape) && !south.click_press);
     }
     return 0;
 }
