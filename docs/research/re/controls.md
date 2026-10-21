@@ -128,7 +128,12 @@ A local game pauses while UI 0xb is up (menu.md).
 
 ## d2d's ceilings
 
-- What the functions do (the handler table at `0x712698`):
+- Every function acts:
+  - the screens: Party (party.md), Hireling (hireling.md), Help
+    (help.md), the Message Log (a flag 1.14d never draws) and the Skill
+    Speed Bar (the right hand's skill picker, `0x7c07fc` = 0);
+  - the automap's options (automap.md "Options"); Center Automap does
+    nothing, since d2d's mini map box never moves;
   - Run (`0x469000` / release `0x4691c0`): runs while held, back to a
     walk on release unless the toggle runs (C→S 0x53 / 0x54).
   - Stand Still (`0x469080`): a flag (`0x7a0664`). While it's held, a
