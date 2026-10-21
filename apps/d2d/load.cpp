@@ -211,6 +211,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\CURSOR\pentspin.dc6)", scene.pentspin);
     sprite(R"(data\global\ui\menu\boxpieces.dc6)", scene.boxpieces);
     sprite(R"(data\global\ui\menu\textslid.dc6)", scene.textslid);
+    sprite(R"(data\global\ui\Menu\800helpborder.dc6)", scene.help_border);
+    sprite(R"(data\global\ui\Menu\helpwhitebullet.dc6)", scene.help_white_bullet);
+    sprite(R"(data\global\ui\Menu\helpyellowbullet.dc6)", scene.help_yellow_bullet);
     sprite(R"(data\global\ui\Widgets\OptBar.dc6)", scene.opt_bar);
     sprite(R"(data\global\ui\Widgets\OptBarC.dc6)", scene.opt_bar_c);
     sprite(R"(data\global\ui\Widgets\OptSkull.dc6)", scene.opt_skull);

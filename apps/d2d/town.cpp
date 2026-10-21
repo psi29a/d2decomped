@@ -914,6 +914,14 @@ auto Town::clear_screen() -> void {
         skillbar.picking = 0;
     }
 
+// The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
+// it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
+auto Town::toggle_help() -> void {
+        help.open = !help.open;
+        if (help.open && !mini.open) { mini.open = true; help_opened_mini = true; }
+        if (!help.open && help_opened_mini) { mini.open = false; help_opened_mini = false; }
+    }
+
 auto Town::pad_field_or_free() const -> bool {
         return have_world && !game_menu.open && !controls.open && npc_menu.npc < 0 && store.npc < 0 && !inv_open && !stash_open && !cube_open;
     }
@@ -985,6 +993,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         keys_this_frame.insert(keys_this_frame.end(), focus_keys.begin(), focus_keys.end());
         focus_keys.clear();
         Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
+        // The Help screen's close button; its other clicks go nowhere (FUN_00494f30).
+        if (help.open && !controls.open && !game_menu.open) {
+            if (help.input(mouse)) { help.open = true; toggle_help(); }
+            mouse.down = mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+        }
         // Configure Controls (UI 0xb) takes every key and click while it's up.
         if (controls.open) {
             std::vector<std::uint16_t> virtual_keys;
@@ -1054,6 +1067,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kNextSkill)) skillbar.cycle(1);
             if (fires(keys::kScreenShot)) screenshot_wanted = true;
             if (fires(keys::kShowPortraits)) portraits_hidden = !portraits_hidden;   // 0x493840
+            if (fires(keys::kSkillSpeedBar)) skillbar.picking = skillbar.picking == 2 ? 0 : 2;   // 0x468b00: UI 3, the right hand's picker (0x7c07fc = 0)
+            if (fires(keys::kMessageLog)) message_log = !message_log;
+            if (fires(keys::kHelp)) toggle_help();   // 0x468980: UI 0x18, which 1.14d never draws
             // The automap's (0x468a60..0x468ad0), the same values as Options -> Automap.
             auto& automap_values = game_menu.value[4];
             if (fires(keys::kFadeAutomap)) automap_values[2] = (automap_values[2] + 1) % 4;   // 0x468a70: the next fade
@@ -2755,6 +2771,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
+        if (help.open) help.draw(framebuffer, *scene, key_table);
         if (controls.open) controls.draw(framebuffer, *scene, now_ms);
         for (const auto& coop_player : coop)              // a joining pad's pick
             if (coop_player.roster) draw_roster(framebuffer, *scene, *coop_player.roster, coop_player.seat, coop_player.colour);

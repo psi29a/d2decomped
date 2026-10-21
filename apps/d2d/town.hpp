@@ -7,6 +7,7 @@
 #include "audio.hpp"
 #include "common.hpp"
 #include "controls.hpp"
+#include "help.hpp"
 #include "gamemenu.hpp"
 #include "gamepad_map.hpp"
 #include "netgame.hpp"
@@ -295,7 +296,11 @@ struct Town {
     void clear_screen();
     [[nodiscard]] bool pad_field_or_free() const;
     bool run_held = false;                        // Run's key made the player run
-    bool portraits_hidden = false;                // Show Portraits toggled them off
+    bool portraits_hidden = false;
+    bool message_log = false;
+    HelpScreen help;                              // UI 0x21
+    bool help_opened_mini = false;
+    void toggle_help();                     // UI 0x18: only a flag in 1.14d (FUN_00456ee0 draws nothing for it)                // Show Portraits toggled them off
     std::filesystem::path shot_dir;               // Screen Shot's folder (main sets it)
     std::uint32_t last_shot_ms = 0;
     bool screenshot_wanted = false;               // Screen Shot: the next frame drawn goes to a file (main)
