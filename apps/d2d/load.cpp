@@ -213,6 +213,10 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\menu\textslid.dc6)", scene.textslid);
     sprite(R"(data\global\ui\Menu\800helpborder.dc6)", scene.help_border);
     sprite(R"(data\global\ui\PANEL\NPCInv.dc6)", scene.npc_inv);
+    sprite(R"(data\global\ui\Menu\party.dc6)", scene.party_panel);
+    sprite(R"(data\global\ui\Menu\partybuttons.dc6)", scene.party_buttons);
+    sprite(R"(data\global\ui\Menu\partyboxes.dc6)", scene.party_boxes);
+    sprite(R"(data\global\ui\Menu\partybar.dc6)", scene.party_bar);
     sprite(R"(data\global\ui\PANEL\inv_armor.dc6)", scene.inv_armor);
     sprite(R"(data\global\ui\PANEL\inv_helm_glove.dc6)", scene.inv_helm_glove);
     sprite(R"(data\global\ui\PANEL\inv_weapons.dc6)", scene.inv_weapons);

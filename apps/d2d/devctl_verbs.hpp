@@ -434,6 +434,14 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             }
             return out + "\n";
         }
+        if (args.size() >= 2 && args[1] == "party") {      // the Party screen with three sample players (no joined game needed): `debug party on|off`
+            town.party_preview.clear();
+            if (args.size() >= 3 && args[2] == "on")
+                town.party_preview = { { 2, "Ally", 3, 25, 1, 3, 0, "Rogue Encampment", false }, { 3, "Stranger", 4, 12, 0xffff, 0, 1, {}, false },
+                                       { 4, "Rival", 6, 40, 0xffff, 2, 8, {}, true } };
+            town.party.open = !town.party_preview.empty();
+            return std::string("ok\n");
+        }
         if (args.size() >= 2 && args[1] == "alt") {        // hold "Show Items" (Alt) as if pressed: `debug alt on|off`
             town.alt_held = args.size() >= 3 && args[2] == "on";
             return std::string("ok\n");

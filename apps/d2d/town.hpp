@@ -9,6 +9,7 @@
 #include "controls.hpp"
 #include "help.hpp"
 #include "hireling.hpp"
+#include "party.hpp"
 #include "gamemenu.hpp"
 #include "gamepad_map.hpp"
 #include "netgame.hpp"
@@ -301,6 +302,10 @@ struct Town {
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
     HirelingPanel hireling;                       // UI 0x24
+    PartyPanel party;                             // UI 0x16 (a joined game's)
+    std::vector<PartyPanel::Row> party_preview;   // devctl `debug party on`: rows to show without a joined game
+    [[nodiscard]] std::vector<PartyPanel::Row> party_rows() const;
+    [[nodiscard]] PartyPanel::Own party_own() const;
     bool help_opened_mini = false;
     void toggle_help();                     // UI 0x18: only a flag in 1.14d (FUN_00456ee0 draws nothing for it)                // Show Portraits toggled them off
     std::filesystem::path shot_dir;               // Screen Shot's folder (main sets it)

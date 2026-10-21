@@ -1014,6 +1014,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         const auto levels_table = txt("Levels");
         for (std::size_t row = 0; row < levels_table.size(); ++row)
             if (levels_table.get(row, "Id") == "1") game_data.town.type = std::atoi(std::string(levels_table.get(row, "LevelType")).c_str());
+        for (std::size_t row = 0; row < levels_table.size(); ++row)
+            game_data.level_names[std::atoi(std::string(levels_table.get(row, "Id")).c_str())] = std::string(levels_table.get(row, "LevelName"));
         for (std::size_t row = 0; row < levels_table.size(); ++row) {
             const auto waypoint = levels_table.get(row, "Waypoint");
             const int act = std::atoi(std::string(levels_table.get(row, "Act")).c_str());

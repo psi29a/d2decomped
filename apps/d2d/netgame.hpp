@@ -38,6 +38,10 @@ struct NetGame {
         bool running = false;         // a player's move is a run (command 0x17 / 0x18)
         int party = 0xffff;           // a player's party (0x8d, 0x75; 0xffff none)
         int party_life = 100;         // a party member's life % (0x7f)
+        int level = 0;                // a player's level (0x75 +7)
+        int area = 0;                 // a party member's level id (0x7f +8)
+        int relation = 0;             // the party button's state toward it (0x8b: 0 invite, 2 accept, 3 leave, 4 asked; roster +0x30)
+        int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
@@ -165,6 +169,13 @@ struct NetGame {
     auto say(std::string_view message) -> void;   // chat to all (0x15)
     auto phrase(std::uint16_t which) -> void;     // a Say (0x3f, 0x19..0x20)
     auto merc_item(std::uint16_t slot) -> void;   // the merc's items (0x61): 0 give the held one, 1..10 take that one
+    // The Party screen's (docs/research/re/party.md): its big button
+    // (FUN_00479eb0: 0x5e 6 invite / 7 cancel / 8 accept / 9 leave, the
+    // state as game.exe sets it before the host answers) and a relation
+    // flag toggled (0x5d: 1 loot, 2 hear, 4 squelch, 8 hostile).
+    auto party_button(std::uint32_t player) -> void;
+    auto relation(std::uint32_t player, int flag) -> void;
+    auto leave_party() -> void;                   // LEAVE (FUN_00479f60: 0x5e 9)
     auto trade_gold(std::uint32_t gold) -> void;   // our offer (0x4f 8); an accept up is taken back first (7), as FUN_004b9110 does
     auto trade_settling() const -> bool;   // a trade just ended: the host sends our items again (a cancel: all of them, new ids)
     std::uint32_t portal_here = 0;             // our town portal's end in the host's area for us (0x82 +0x15; +0x19 the other)

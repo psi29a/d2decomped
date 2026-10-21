@@ -605,6 +605,7 @@ struct GameData {
     // Waypoint index, per act in index order; art ui\menu\waygate*.
     struct WaypointLevel { int waypoint = 0, level = 0; std::string name; };
     std::array<std::vector<WaypointLevel>, 5> waypoint_levels;
+    std::unordered_map<int, std::string> level_names;  // Levels.txt Id -> LevelName (a string key)
     // Sounds.txt by Index: file (under data\global\sfx or, for speech,
     // data\local\sfx) and volume 0..255.
     struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0;

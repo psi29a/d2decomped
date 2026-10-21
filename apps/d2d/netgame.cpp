@@ -43,7 +43,7 @@ auto key(int type, std::uint32_t id) -> std::uint64_t { return std::uint64_t(typ
 // The S->C ids NetGame acts on (the net log's "used").
 auto used_ids() -> std::bitset<256> {
     std::bitset<256> used;
-    for (const int id : { 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8e, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
+    for (const int id : { 0x75, 0x7f, 0x8d, 0x10, 0x26, 0x5a, 0x01, 0x02, 0x03, 0x04, 0x06, 0x09, 0x27, 0x5d, 0x81, 0x9c, 0x9d, 0x42, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x0a, 0x0c, 0x0d, 0x0f, 0x15, 0x18, 0x0e, 0x28, 0x77, 0x78, 0x79, 0x82, 0x8b, 0x8c, 0x8e, 0x2c, 0x51, 0x59, 0x5c, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x95, 0x96, 0xac, 0xab, 0xaf, 0xb3, 0xb4 })
         used.set(std::size_t(id));
     return used;
 }
@@ -136,6 +136,21 @@ auto NetGame::trade_accept() -> void {
 auto NetGame::say(std::string_view message) -> void { send({ d2d::net::d2gs::c2s::chat(message) }); }
 auto NetGame::phrase(std::uint16_t which) -> void { send({ d2d::net::d2gs::c2s::phrase(which) }); }
 auto NetGame::merc_item(std::uint16_t slot) -> void { send({ d2d::net::d2gs::c2s::merc_item(slot) }); }
+
+auto NetGame::party_button(std::uint32_t player) -> void {
+    auto& other = units[key(0, player)];
+    const int action = other.relation == 0 ? 6 : other.relation == 4 ? 7 : other.relation == 2 ? 8 : 9;
+    other.relation = other.relation == 0 ? 4 : other.relation == 4 ? 0 : 1;      // FUN_00479eb0's own guess, until 0x8b
+    send({ d2d::net::d2gs::c2s::party(std::uint8_t(action), player) });
+}
+
+auto NetGame::leave_party() -> void { send({ d2d::net::d2gs::c2s::party(9, self_id) }); }
+
+auto NetGame::relation(std::uint32_t player, int flag) -> void {
+    auto& other = units[key(0, player)];
+    other.flags ^= flag;                                                          // FUN_00479d30
+    send({ d2d::net::d2gs::c2s::relation(std::uint8_t(flag), (other.flags & flag) != 0, player) });
+}
 
 auto NetGame::trade_cancel() -> void {
     send({ d2d::net::d2gs::c2s::click_button(2) });
@@ -472,7 +487,11 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
         if (size >= 11 && packet[1] == 0 && read_u32(packet, 2) == self_id && packet[6] == 8) died = true;
         break;
+    case 0x8c:   // player relation: +1 the player, +5 toward whom, +9 u16 flags (1 loot, 2 not heard, 4 squelched, 8 hostile)
+        if (size >= 11 && read_u32(packet, 1) == self_id) unit_at(0, read_u32(packet, 5)).flags = read_u16(packet, 9);
+        break;
     case 0x8b:   // relationship: +1 the other player, +5 its state (the party button's, FUN_00479eb0)
+        if (size >= 6) unit_at(0, read_u32(packet, 1)).relation = packet[5];
         // game.exe's player clicks the party button; d2d has none: it
         // invites a player not yet asked (state 0: 6) and accepts an
         // invite (2: 8) itself.
@@ -581,10 +600,10 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 7) unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
         break;
     case 0x75:   // party roster: +1 the player, +5 u16 party, +7 u16 level
-        if (size >= 13) unit_at(0, read_u32(packet, 1)).party = read_u16(packet, 5);
+        if (size >= 13) { auto& player = unit_at(0, read_u32(packet, 1)); player.party = read_u16(packet, 5); player.level = read_u16(packet, 7); }
         break;
     case 0x7f:   // party member: +1 is a player, +2 u16 life %, +4 the id, +8 u16 area
-        if (size >= 10 && packet[1] == 1) unit_at(0, read_u32(packet, 4)).party_life = read_u16(packet, 2);
+        if (size >= 10 && packet[1] == 1) { auto& member = unit_at(0, read_u32(packet, 4)); member.party_life = read_u16(packet, 2); member.area = read_u16(packet, 8); }
         break;
     case 0x5a:   // an event message (FUN_0049eb10)
         if (size >= 40) {

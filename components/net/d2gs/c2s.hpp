@@ -173,6 +173,17 @@ inline auto party(std::uint8_t action, std::uint32_t player) -> Bytes {
     return out;
 }
 
+// 0x5d: a relation flag toward a player (FUN_00478740): 1 loot, 2 hear,
+// 4 squelch, 8 hostile; on or off.
+inline auto relation(std::uint8_t flag, bool on, std::uint32_t player) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x5d);
+    put_u8(out, flag);
+    put_u8(out, on ? 1 : 0);
+    put_u32(out, player);
+    return out;
+}
+
 // 0x13: interact with a unit (type, id): talk, operate, take a warp.
 inline auto interact(std::uint32_t type, std::uint32_t id) -> Bytes {
     Bytes out;

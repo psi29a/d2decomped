@@ -918,6 +918,33 @@ auto Town::clear_screen() -> void {
 
 // The Help screen (0x4689d0: UI 0x21): it brings the mini-panel up while
 // it's open (FUN_004966c0, 0x7bef00) and puts it away after (FUN_00494fc0).
+// The Party screen's roster (FUN_0049a640): the other players of the
+// joined game, by unit id.
+// ponytail: game.exe's roster keeps the order they joined in.
+auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
+        std::vector<PartyPanel::Row> rows;
+        if (!net_game) return party_preview;
+        for (const auto& [unit_key, unit] : net_game->units) {
+            if (unit.type != 0 || unit.id == net_game->self_id || unit.name.empty()) continue;
+            PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0 };
+            if (scene && unit.area > 0)
+                if (const auto found = scene->level_names.find(unit.area); found != scene->level_names.end()) {
+                    const auto text = lookup_string(*scene, std::string_view(found->second));
+                    row.area = text ? u16_to_latin1(*text) : found->second;
+                }
+            rows.push_back(std::move(row));
+        }
+        std::ranges::sort(rows, {}, &PartyPanel::Row::id);
+        return rows;
+    }
+
+auto Town::party_own() const -> PartyPanel::Own {
+        PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
+        if (net_game)
+            if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own.party = self->second.party;
+        return own;
+    }
+
 auto Town::toggle_help() -> void {
         help.open = !help.open;
         if (help.open && !mini.open) { mini.open = true; help_opened_mini = true; }
@@ -995,6 +1022,15 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         keys_this_frame.insert(keys_this_frame.end(), focus_keys.begin(), focus_keys.end());
         focus_keys.clear();
         Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
+        // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
+        if (party.open && net_game && !help.open && !controls.open && !game_menu.open) {
+            const auto click = party.input(mouse, party_rows(), party_own());
+            if (click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
+            if (click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
+            if (click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
+            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+        }
+        if (party.open && !net_game && party_preview.empty()) party.open = false;
         // The Hireling screen's clicks: its close button, an item on or off the merc (0x61).
         if (hireling.open && !help.open && !controls.open && !game_menu.open) {
             if (!view.merc_sheet) hireling.open = false;
@@ -1081,6 +1117,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kSkillSpeedBar)) skillbar.picking = skillbar.picking == 2 ? 0 : 2;   // 0x468b00: UI 3, the right hand's picker (0x7c07fc = 0)
             if (fires(keys::kMessageLog)) message_log = !message_log;
             if (fires(keys::kHelp)) toggle_help();
+            // 0x468960: UI 0x16, in a multiplayer game only (FUN_0044db30); a left-hand panel.
+            if (fires(keys::kParty) && net_game) {
+                party.open = !party.open;
+                if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
+            }
             // 0x469170: UI 0x24, an expansion game with a merc; a left-hand panel.
             if (fires(keys::kHireling) && character.expansion && view.merc_sheet) {
                 hireling.open = !hireling.open;
@@ -1106,8 +1147,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
-                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open)   // then panels
-                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = false;
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open)   // then panels
+                    inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
                 else open_game_menu();
             }
         }
@@ -1723,7 +1764,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::pad_field() const -> bool {
-        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open
+        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
     }
@@ -2787,6 +2828,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
+        if (party.open && (net_game || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (help.open) help.draw(framebuffer, *scene, key_table);
