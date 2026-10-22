@@ -187,8 +187,7 @@ bool start_sentry(const fs::path& user_dir, std::string_view release,
     sentry_options_set_auto_session_tracking(options, 0);
     const auto database = user_dir / "sentry";
     const char* raw_base_path = SDL_GetBasePath();
-    const fs::path base_path = raw_base_path ? fs::path(raw_base_path) : fs::path{};
-    SDL_free(const_cast<char*>(raw_base_path));
+    const fs::path base_path = raw_base_path ? fs::path(raw_base_path) : fs::path{};   // SDL owns it (SDL3): not ours to free
 #ifdef _WIN32
     const auto database_path = database.wstring();
     sentry_options_set_database_pathw(options, database_path.c_str());
