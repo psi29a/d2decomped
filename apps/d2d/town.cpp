@@ -2283,7 +2283,7 @@ auto Town::tip_env() const -> d2d::rules::CalcEnv {
             if (prop.stat >= 0 && std::size_t(prop.stat) < sum->size()) (*sum)[std::size_t(prop.stat)] += prop.value;
         for (const auto& passive : d2d::rules::passive_stats(scene->skills, env))
             if (passive.itype.empty() && passive.stat >= 0 && std::size_t(passive.stat) < sum->size()) (*sum)[std::size_t(passive.stat)] += passive.value;
-        env.stat = [sum](int id) { return id >= 0 && std::size_t(id) < sum->size() ? int((*sum)[std::size_t(id)]) : 0; };
+        env.stat = [sum = std::move(sum)](int id) { return id >= 0 && std::size_t(id) < sum->size() ? int((*sum)[std::size_t(id)]) : 0; };
         return env;
     }
 

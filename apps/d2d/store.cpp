@@ -110,7 +110,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
             const auto found = text.find("%d");
             if (found != text.npos) text.replace(found, 2, std::to_string(items ? d2d::rules::repair_all_cost(scene.rules, store, *items) : 0));
         }
-        draw_hover_text(framebuffer, scene, { { text, kTxtWhite } }, tip_x, tip_x, 440, 440);
+        draw_hover_text(framebuffer, scene, { { std::move(text), kTxtWhite } }, tip_x, tip_x, 440, 440);
         break;
     }
     // Stock, Monster2 grid.
