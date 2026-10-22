@@ -857,9 +857,12 @@ private:
                 for (const auto& [resource, suffix] : kArt) {
                     if (!art_ok) break;   // past a failed write, the art already there stays
                     const QString target = grid + '/' + appid + suffix;
-                    QFile::remove(target);
-                    art_ok = QFile::copy(resource, target)
-                          && QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
+                    const QString staged = target + ".new";   // the old art stays until the new one is whole
+                    QFile::remove(staged);
+                    art_ok = QFile::copy(resource, staged)
+                          && QFile::setPermissions(staged, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther)
+                          && (!QFile::exists(target) || QFile::remove(target)) && QFile::rename(staged, target);
+                    if (!art_ok) QFile::remove(staged);
                 }
                 if (art_ok) ++added;
                 else failed << from_path(config) + ": " + tr("the shortcut is in, but its artwork couldn't be written to %1").arg(grid);
