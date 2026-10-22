@@ -102,5 +102,16 @@ int main() {
         expect_argv(translated, {"d2d"});
         expect_ignored(translated, {ignored_as("-music", "-m")});
     }
+    {
+        const auto negative = run({"d2d", "-seed", "-5"});
+        expect_argv(negative, {"d2d"});
+        expect_ignored(negative, {ignored_exact("-seed")});
+        const auto kept = run({"d2d", "-seed", "-nosave"});
+        expect_argv(kept, {"d2d", "--no-save"});
+        expect_ignored(kept, {ignored_exact("-seed")});
+        const auto act = run({"d2d", "-act", "-2"});
+        expect_argv(act, {"d2d"});
+        expect_ignored(act, {ignored_exact("-act")});
+    }
     std::cout << "test_switches: ok\n";
 }

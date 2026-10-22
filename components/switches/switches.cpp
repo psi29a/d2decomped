@@ -121,6 +121,14 @@ bool same_token(std::string_view typed, std::string_view token_name) {
     return true;
 }
 
+// A negative integer value, such as -5. Not a switch: -nosave and --seed stay.
+bool negative_integer(std::string_view word) {
+    if (word.size() < 2 || word[0] != '-' || word[1] == '-') return false;
+    for (std::size_t index = 1; index < word.size(); ++index)
+        if (word[index] < '0' || word[index] > '9') return false;
+    return true;
+}
+
 std::string ignored_line(std::string_view typed, std::string_view token_name) {
     if (same_token(typed, token_name))
         return std::format("game.exe switch {} ignored (not supported yet)", typed);
@@ -149,7 +157,8 @@ Translated translate(std::span<const std::string_view> arguments) {
         }
         const bool takes_value = token->kind != Kind::boolean && leftover.empty();
         const bool next_is_value = index + 1 < arguments.size()
-            && (arguments[index + 1].empty() || arguments[index + 1][0] != '-');
+            && (arguments[index + 1].empty() || arguments[index + 1][0] != '-'
+                || (token->kind == Kind::integer && negative_integer(arguments[index + 1])));
         // The value is not passed on. This pass only accepts the switch.
         if (takes_value && next_is_value) ++index;
         // ponytail: -nosave is the only switch wired (d2d's --no-save). The
