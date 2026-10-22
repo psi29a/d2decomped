@@ -2268,7 +2268,7 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
 
 auto Town::tip_env() const -> d2d::rules::CalcEnv {
         d2d::rules::CalcEnv env{ [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
-                                 [this](int id) { return d2d::game::skill_level(*scene, character, id, {}); },
+                                 [this](int id) { return skillbar.level(id); },   // with the skill shrine's +all skills
                                  {}, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
         // The stats the calcs and masteries read: the gear's and the passives' (no weapon-type ones).
         auto sum = std::make_shared<d2d::rules::StatSum>();

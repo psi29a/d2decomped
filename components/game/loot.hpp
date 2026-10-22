@@ -51,7 +51,7 @@ struct Loot {
         std::uint32_t now_ms = 0;                // when it dropped: the flippy plays from here
         std::string label;
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
-        bool dropped_here = false;           // gold the player just dropped: autoloot leaves it till they step off it
+        int dropped_by = 0;                  // gold a player (Hero::id) just dropped: autoloot leaves it to them till they step off it
     };
     std::vector<GroundItem> ground;        // ground_level's
     int next_id = 1;                       // the next ground item's unit id

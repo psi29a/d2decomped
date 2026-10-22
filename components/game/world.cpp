@@ -2188,7 +2188,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 loot.enter(level);
                 const auto before = loot.ground.size();
                 loot.put({ .code = "gld", .gold = drop->amount }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
-                if (loot.ground.size() > before) loot.ground.back().dropped_here = true;
+                if (loot.ground.size() > before) loot.ground.back().dropped_by = actor->id;
             }
             return;
         }
@@ -2642,7 +2642,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                     auto& ground_item = loot.ground[i];
                     if (ground_item.item.code != "gld") continue;
                     const bool underfoot = std::hypot(ground_item.x - actor->player.x, ground_item.y - actor->player.y) <= 0.5f;
-                    if (ground_item.dropped_here) { ground_item.dropped_here = underfoot; continue; }
+                    if (ground_item.dropped_by == actor->id) { if (!underfoot) ground_item.dropped_by = 0; continue; }
                     if (underfoot) {
                         if (loot.index_of(actor->pick_item) == int(i)) actor->pick_item = -1;
                         loot.take(i);
