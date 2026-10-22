@@ -159,8 +159,7 @@ bool transmute_at(const Scene& scene, int mouse_x, int mouse_y);
 // "Trade Page 1-2" (items' panel 100), ours in "Trade Page 2-2" (101),
 // Accept Trade and Cancel where game.exe has them (FUN_004b8730's boxes,
 // tooltips 0x1023 / 0x1022), their accept beside their grid.
-// Gold: a click on our bar types an amount (Enter offers it).
-// ponytail: the amount is typed in the bar, not game.exe's gold box.
+// Gold: a click on our bar opens the gold box (store.hpp GoldBox, mode 2).
 enum class TradeClick { kNone, kAccept, kDecline, kOurGrid, kGold };
 void draw_trade(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int state, const std::string& with, const std::string& our_name,
                 const std::vector<d2d::d2s::Item>& theirs, const std::vector<d2d::d2s::Item>& ours, std::uint32_t their_gold,

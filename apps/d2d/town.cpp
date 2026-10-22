@@ -1034,6 +1034,57 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         keys_this_frame.insert(keys_this_frame.end(), focus_keys.begin(), focus_keys.end());
         focus_keys.clear();
         Mouse mouse = frame_mouse;             // the menu / mini-panel take their clicks from the rest
+        // The gold box takes the keys and clicks while it's up: digits and
+        // Backspace edit the amount (at most the gold it's from), the spinner
+        // steps it, OK or Enter does the box's mode (0x454080), Cancel closes.
+        if (gold_box && !game_menu.open) {
+            using namespace d2d::d2s;
+            const std::int64_t most = std::max<std::int64_t>(character.stats.get(gold_box->mode == 4 ? kGoldBank : kGold), 0);
+            const auto amount = [&] { return std::min<std::int64_t>(gold_box->amount.empty() ? 0 : std::stoll(gold_box->amount), most); };
+            for (const char digit : typed) if (digit >= '0' && digit <= '9' && gold_box->amount.size() < 10) gold_box->amount.push_back(digit);
+            bool ok = false, cancel = false;
+            for (const auto key : keys_this_frame) {
+                if (key == SDLK_BACKSPACE && !gold_box->amount.empty()) gold_box->amount.pop_back();
+                if (key == SDLK_RETURN || key == SDLK_KP_ENTER) ok = true;
+            }
+            if (!gold_box->amount.empty()) gold_box->amount = std::to_string(amount());
+            const auto part = gold_box_at(mouse.x, mouse.y);
+            if (mouse.press_this_frame) {
+                gold_box->spin = part == GoldBoxPart::kUp ? 1 : part == GoldBoxPart::kDown ? -1 : 0;
+                gold_box->spin_ms = frame_ms;
+                if (gold_box->spin != 0) gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin, 0, most));   // a click: one step
+                gold_box->next_ms = frame_ms + 400;
+                gold_box->ok_down = part == GoldBoxPart::kOk;
+                gold_box->cancel_down = part == GoldBoxPart::kCancel;
+            }
+            if (!mouse.down) gold_box->spin = 0;
+            if (gold_box->spin != 0 && frame_ms >= gold_box->next_ms) {
+                // ponytail: steps of 1, ten times more each second held; the spinner's own rate isn't traced
+                std::int64_t step = 1;
+                for (std::uint32_t held_s = (frame_ms - gold_box->spin_ms) / 1000; held_s > 0 && step < 1000000; --held_s) step *= 10;
+                gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin * step, 0, most));
+                gold_box->next_ms = frame_ms + 80;
+            }
+            if (mouse.release_this_frame) {
+                ok = ok || (gold_box->ok_down && part == GoldBoxPart::kOk);
+                cancel = gold_box->cancel_down && part == GoldBoxPart::kCancel;
+                gold_box->ok_down = gold_box->cancel_down = false;
+            }
+            if (ok) {
+                const std::int64_t gold = amount();
+                const int mode = gold_box->mode;
+                if (mode == 2) { if (net_game) net_game->trade_gold(std::uint32_t(gold)); }
+                else if (gold > 0 && mode >= 3) {
+                    if (net_game) net_game->send_items({ d2d::net::d2gs::c2s::button(mode == 3 ? 0x14 : 0x13, std::uint16_t(gold >> 16), std::uint16_t(gold)) });
+                    else send(cmd::StashGold{ int(gold), mode == 3 });
+                } else if (gold > 0) {
+                    if (net_game) net_game->send_items({ d2d::net::d2gs::c2s::drop_gold(net_game->self_id, std::uint32_t(gold)) });
+                    else send(cmd::DropGold{ int(gold) });
+                }
+            }
+            if (ok || cancel) gold_box.reset();
+            mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+        }
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
         if (party.open && net_game && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
@@ -1076,7 +1127,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // it, Enter sends it (0x15) and Esc drops it. The host's 0x26 comes
         // back to everyone, us too, as "name: message".
         // ponytail: no whispers (/w name), no single-player echo.
-        if (net_game && !trade_gold_typing && !game_menu.open) {
+        if (net_game && !gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
@@ -1099,7 +1150,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         std::erase_if(chat_lines, [&](const auto& line) { return frame_ms >= line.until; });
         for (const auto key : keys_this_frame) {
-            if ((trade_gold_typing || chat_typing || coop_typing()) && key != SDLK_ESCAPE) continue;   // typing (a co-op roster's name too): no hotkeys
+            if ((gold_box || chat_typing || coop_typing()) && key != SDLK_ESCAPE) continue;   // typing (a co-op roster's name too): no hotkeys
             if (game_menu.open && key != SDLK_ESCAPE) continue;   // the menu's input table (FUN_00467a70) has the keys
             // The key config's functions (docs/research/re/controls.md); Esc stays Esc.
             const auto fired = keys::actions_of(key_table, virtual_key(key));
@@ -1152,7 +1203,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
                 if (chat_typing) chat_typing.reset();                         // a chat line being typed first
-                else if (trade_gold_typing) trade_gold_typing.reset();        // then the gold being typed
+                else if (gold_box) gold_box.reset();                          // then the gold box
                 else if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
                 else if (waypoint.open) waypoint = {};
                 else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
@@ -1219,21 +1270,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (net_game && net_game->trade.state != 0 && !game_menu.open) {
             auto& trade = net_game->trade;
             if (trade.state >= 3) { inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
-            if (trade.state < 3) trade_gold_typing.reset();
-            if (trade_gold_typing) {                                            // digits (text: an on-screen keyboard's too), Backspace, Enter offers it (capped at what we carry)
-                for (const char digit : typed)
-                    if (digit >= '0' && digit <= '9' && trade_gold_typing->size() < 7) trade_gold_typing->push_back(digit);
-            }
-            if (trade_gold_typing)
-                for (const auto key : keys_this_frame) {
-                    if (key == SDLK_BACKSPACE && !trade_gold_typing->empty()) trade_gold_typing->pop_back();
-                    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
-                        const auto carried = std::uint32_t(std::max<std::int64_t>(character.stats.get(d2d::d2s::kGold), 0));
-                        net_game->trade_gold(std::min(std::uint32_t(std::strtoul(trade_gold_typing->c_str(), nullptr, 10)), carried));
-                        trade_gold_typing.reset();
-                        break;
-                    }
-                }
+            if (trade.state < 3 && gold_box && gold_box->mode == 2) gold_box.reset();
             const auto click = trade_click(*scene, trade.state, mouse.x, mouse.y);
             const bool over_window = trade.state >= 3 && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320 && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432;
             if (mouse.press_this_frame && (click != TradeClick::kNone || over_window)) {
@@ -1241,7 +1278,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                     if (trade.state == 2) net_game->trade_answer(true);
                     else if (trade.state >= 3 && trade.state != 7) net_game->trade_accept();
                 } else if (click == TradeClick::kGold) {
-                    trade_gold_typing = std::string{};
+                    gold_box = GoldBox{ .mode = 2 };
                 } else if (click == TradeClick::kDecline) {
                     if (trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel();
                 } else if (click == TradeClick::kOurGrid && hero.held) {
@@ -1432,19 +1469,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             transmute_down = false;
         }
-        // The stash's gold (FUN_00564d50's 0x4f 0x13 / 0x14): its coin takes
-        // all it can to the inventory, the inventory's coin puts all in.
-        // ponytail: no amount box (game.exe's asks how much).
-        if (stash_open && mouse.press_this_frame && (stash_coin_at(mouse.x, mouse.y) || (inv_open && inventory_coin_at(mouse.x, mouse.y)))) {
-            using namespace d2d::d2s;
-            const bool deposit = !stash_coin_at(mouse.x, mouse.y);
-            const std::int64_t carried = character.stats.get(kGold), bank = character.stats.get(kGoldBank);
-            const std::int64_t amount = deposit ? std::min(carried, std::max<std::int64_t>(2500000 - bank, 0))
-                                                : std::min(bank, std::max<std::int64_t>(character.stats.get(kLevel) * 10000 - carried, 0));
-            if (amount > 0) {
-                if (net_game) net_game->send_items({ d2d::net::d2gs::c2s::button(deposit ? 0x14 : 0x13, std::uint16_t(amount >> 16), std::uint16_t(amount)) });
-                else send(cmd::StashGold{ int(amount), deposit });
-            }
+        // The gold coins open the gold box (0x454150): the stash's to withdraw
+        // (4), the inventory's to deposit (3) with the stash open, else to drop (1).
+        const bool trading = net_game && net_game->trade.state != 0;
+        if (!gold_box && !trading && store.npc < 0 && mouse.press_this_frame
+            && ((stash_open && stash_coin_at(mouse.x, mouse.y)) || (inv_open && inventory_coin_at(mouse.x, mouse.y)))) {
+            gold_box = GoldBox{ .mode = stash_open ? (stash_coin_at(mouse.x, mouse.y) ? 4 : 3) : 1 };
             audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
             mouse.press_this_frame = false;
         }
@@ -1798,7 +1828,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
-            && !skillbar.picking && !chat_typing && !trade_gold_typing && !(net_game && net_game->trade.state != 0);
+            && !skillbar.picking && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
     }
 
 // What the pad's A would act on now: a monster in reach in the facing (the
@@ -2225,6 +2255,7 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
     }
 
 auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
+        if (gold_box) return true;                                   // the gold box: B is its Cancel
         if (!scene || held || !(stash_open || cube_open)) return false;
         const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                             { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse_x, mouse_y);
@@ -2547,7 +2578,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         for (const auto& command : input(mouse, over_ui)) send(command);
         // The screen's pad plays the screen's player (local co-op: a partner's while they have it).
         const Send to_world = [this](const Command& command) { send(command); };
-        const bool field = pad_field() && !game_menu.open && !chat_typing && !trade_gold_typing;
+        const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
         pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
         pad_act(pad, focused().player, view.dead, pad_field(), skillbar.left, skillbar.right, to_world);
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
@@ -2892,9 +2923,10 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             if (with.empty())
                 if (const auto partner = net_game->units.find(trade.with); partner != net_game->units.end()) with = partner->second.name;
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
-                       trade.our_gold, trade_gold_typing ? &*trade_gold_typing : nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
+                       trade.our_gold, nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
         draw_portraits(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open);
+        if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
         draw_chat(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;

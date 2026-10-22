@@ -247,9 +247,21 @@ else rare.
   withdraws `n` (n <= stash gold, carried + n <= clvl x 10000
   (`FUN_00622e70`), else nothing moves and a message); 0x14 deposits
   `n` <= carried, up to the stash's 2,500,000 (`FUN_00623460`).
-- d2d: a click on the stash's coin takes all it can; the inventory's,
-  with the stash open, puts all in. ponytail: game.exe's amount box
-  isn't done.
+- The coins open the gold box (`0x454150`, mode in `0x7a279c`): 1 drop
+  (the inventory's coin), 2 a trade's offer, 3 deposit (the inventory's
+  coin with the stash open), 4 withdraw (the stash's). Prompts 0xfc1 /
+  0xfce / 0xfd1 / 0xfd2 wrapped to 200 px, 24 down; `menu\dialogbackground`
+  (210x158) top-left at (215, 140); `menu\spinner` (`0x4bc340`) bottom
+  219 / 232 at x 224; the amount, an edit box (`0x4bbd80`) up to the gold
+  it's from (stat 14, 15 to withdraw), 10 digits, bottom 228 from x 258,
+  100 wide; `panel\buysellbtn` OK (frame 16, 0xd49) / Cancel (10, 0x102e)
+  bottom 287 at x 250 / 355 (`0x4baf20`, table `0x7275a8`). OK
+  (`0x454080`): 0/1 C->S 0x50 (u32 player id, u32 amount; `FUN_00535510`
+  drops it), 2 `FUN_004b9110` (0x4f 8), 3 0x4f 0x14, 4 0x4f 0x13; an
+  amount of 0 sends nothing but a trade's.
+- d2d: a click on a spinner arrow steps 1; held, it repeats with steps
+  ten times bigger each second (ponytail: the spinner's own rate isn't
+  traced).
 - A button's hover (`FUN_004886c0`): box x .. x + 0x2d by 432..474, the
   string centred on x = 80 + the button table's x, bottom 440. Repair
   all's string 0x276f ("Repair all equipment: %d") takes the total

@@ -18,6 +18,7 @@
 #include "roster.hpp"
 #include "scene.hpp"
 #include "skillbar.hpp"
+#include "store.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
 
@@ -200,7 +201,7 @@ struct Town {
     std::string typed;                                      // this frame's typed text (SDL text input)
     struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; };   // gold: that many letters first in gold (a speaker's name)
     std::vector<ChatShown> chat_lines;                      // the top-left chat lines, oldest first
-    std::optional<std::string> trade_gold_typing;           // a trade's gold, being typed (our bar clicked)
+    std::optional<GoldBox> gold_box;                        // the gold box up (store.hpp): drop, offer, deposit or withdraw
     int net_operate_waypoint = -1;                           // ... a waypoint: then 0x49 to this level
     std::uint32_t net_moving_until = 0;                      // such a 0x13 went: no following walks till the host moves us (0x15) or then
     std::uint32_t net_trade_ms = 0, frame_now = 0;           // when it began; walk()'s frame time for send()
@@ -332,8 +333,8 @@ struct Town {
     [[nodiscard]] std::optional<PadFocus> pad_focus() const;
     [[nodiscard]] std::vector<pad::Point> pad_snap_points() const;
     void pad_trade(int mouse_x, int mouse_y);
-    // The pad's Secondary (B) is Back where the stash or Cube is up (no key
-    // toggles them) and the cursor's on no item: true when it's taken.
+    // The pad's Secondary (B) is Back with the gold box up, or where the stash
+    // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
     void pad_tab(int step);
     void pad_open_picker();

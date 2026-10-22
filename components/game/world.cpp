@@ -2181,6 +2181,15 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (std::holds_alternative<cmd::Transmute>(command)) { transmute(now_ms); return; }
+        if (const auto* drop = std::get_if<cmd::DropGold>(&command)) {        // FUN_00535510
+            auto& carried = actor->character.stats.values[d2d::d2s::kGold];
+            if (drop->amount > 0 && drop->amount <= carried && !fight.dead()) {
+                carried -= drop->amount;
+                loot.enter(level);
+                loot.put({ .code = "gld", .gold = drop->amount }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
+            }
+            return;
+        }
         if (const auto* gold = std::get_if<cmd::StashGold>(&command)) {         // FUN_00564d50
             using namespace d2d::d2s;
             constexpr std::int64_t kStashGoldMax = 2500000;                    // FUN_00623460

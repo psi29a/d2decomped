@@ -113,6 +113,11 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }
     if (hover && hover->location == d2d::d2s::item_location::kStored) draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0], hover_box[1], pal);
+    if (hover && hover->location == d2d::d2s::item_location::kEquipped) {   // FUN_0048b540: the item's cells centred in its slot
+        const auto [width, height] = d2d::rules::item_size(scene.rules, hover->code);
+        draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0] + (hover_box[2] - width * layout.box_w) / 2,
+                     hover_box[1] + (hover_box[3] - height * layout.box_h) / 2, pal);
+    }
     if (hover) {
         auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
         if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });

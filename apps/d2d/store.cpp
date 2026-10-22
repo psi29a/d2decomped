@@ -155,6 +155,46 @@ void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     text(278 - scene.font.measure(gold_text), 434, gold_text);
 }
 
+GoldBoxPart gold_box_at(int mouse_x, int mouse_y) {
+    const auto inside = [&](int left, int bottom, int width, int height) { return mouse_x >= left && mouse_x < left + width && mouse_y > bottom - height && mouse_y <= bottom; };
+    if (inside(224, 219, 15, 12)) return GoldBoxPart::kUp;
+    if (inside(224, 232, 15, 12)) return GoldBoxPart::kDown;
+    if (inside(250, 287, 32, 32)) return GoldBoxPart::kOk;
+    if (inside(355, 287, 32, 32)) return GoldBoxPart::kCancel;
+    return GoldBoxPart::kNone;
+}
+
+void draw_gold_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const GoldBox& box, std::uint32_t now_ms) {
+    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
+    const auto bottom_left = [&](const d2d::dc6::Sprite& sprite, std::uint32_t frame, int left, int bottom) {
+        if (frame < sprite.frames_per_direction()) blit_sprite(framebuffer, sprite.frame(0, frame), pal, left, bottom - int(sprite.frame(0, frame).height) + 1);
+    };
+    if (scene.gold_dialog.frames_per_direction() > 0) blit_sprite(framebuffer, scene.gold_dialog.frame(0, 0), pal, 215, 140);
+    static constexpr std::array<std::uint16_t, 5> kPrompt{ 0xfc1, 0xfc1, 0xfce, 0xfd1, 0xfd2 };
+    std::vector<std::string> lines{ std::string{} };   // word-wrapped to 200 px
+    const std::string prompt = string_id(scene, kPrompt[std::size_t(std::clamp(box.mode, 0, 4))]);
+    for (std::size_t start = 0; start < prompt.size();) {
+        const auto end = std::min(prompt.find(' ', start), prompt.size());
+        const auto word = prompt.substr(start, end - start);
+        const auto joined = lines.back().empty() ? word : lines.back() + " " + word;
+        if (!lines.back().empty() && scene.font.measure(joined) > 200) lines.push_back(word);
+        else lines.back() = joined;
+        start = end + 1;
+    }
+    int line_y = 140 + 24 - cell + 1;
+    for (const auto& line : lines) {
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 215 + (210 - scene.font.measure(line)) / 2, line_y, line);
+        line_y += cell;
+    }
+    bottom_left(scene.spinner, box.spin > 0 ? 1 : 0, 224, 219);
+    bottom_left(scene.spinner, box.spin < 0 ? 3 : 2, 224, 232);
+    const int typed = scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 258, 228 - cell + 1, box.amount.empty() ? std::string("0") : box.amount);
+    if (((now_ms / 500) & 1) == 0) scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, typed, 228 - cell + 1, "|");
+    bottom_left(scene.store_buttons, box.ok_down ? 17 : 16, 250, 287);
+    bottom_left(scene.store_buttons, box.cancel_down ? 11 : 10, 355, 287);
+}
+
 bool stash_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 153 && mouse_x < 173 && mouse_y > 102 - 18 && mouse_y <= 102; }
 bool inventory_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 483 && mouse_x < 503 && mouse_y > 471 - 18 && mouse_y <= 471; }
 

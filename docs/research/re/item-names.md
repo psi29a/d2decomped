@@ -84,3 +84,5 @@ line (`FUN_00486670`), Holy Shield's block and smite, time-of-day stats
   cells from `0x6d91e8`, 48-byte records `[sockets-1][width-1][height-1]`
   of six {col, row}; the socket at x = (col - 1) * box_w / 2 + left - 1,
   bottom (row + 1) * box_h / 2 + top, the filler's inventory art over it.
+- Worn items (`FUN_0048b540`): the same, from the item's cells centred
+  in its body slot (the grid's cell size).

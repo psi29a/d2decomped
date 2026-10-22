@@ -730,7 +730,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
-        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.trade_gold_typing))
+        if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.gold_box))
                                || (screen == Screen::CharSelect && lobby.typing())
                            || (screen == Screen::TcpIp && tcpip.box_open); want != text_active) {
             if (want) {
@@ -738,7 +738,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const int side = screen == Screen::InGame ? (win.view_w - int(kScreenWidth)) / 2 : 0;
                 const SDL_Rect field = screen == Screen::CharCreate ? SDL_Rect{ 319, rec_top(519, 26), 169, 26 }
                                      : screen == Screen::TcpIp      ? SDL_Rect{ 300, rec_top(268, 20), 200, 20 }
-                                     : town.trade_gold_typing        ? SDL_Rect{ 236 + side, 286, 150, 18 }        // the trade's gold box (kOurGold)
+                                     : town.gold_box                 ? SDL_Rect{ 258 + side, 212, 100, 16 }        // the gold box's amount
                                      : SDL_Rect{ 0x7f + side, int(kScreenHeight) - 0x67, int(kScreenWidth) - 0xff, 0x2f };   // the chat line
                 float left = 0, top = 0, right = 0, bottom = 0;
                 SDL_RenderCoordinatesToWindow(win.renderer, float(field.x), float(field.y), &left, &top);

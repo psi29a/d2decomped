@@ -45,6 +45,8 @@ struct Transmute {};
 // the inventory (none over clvl x 10000 carried) / into the stash (up to
 // its 2,500,000).
 struct StashGold { int amount = 0; bool deposit = false; };
+// 0x50 (FUN_0054c800 -> FUN_00535510): `amount` carried gold onto the ground at the feet.
+struct DropGold { int amount = 0; };
 // 0x3a: spend `count` stat points on a stat (0 str, 1 energy, 2 dex, 3 vit).
 struct StatPoint { int stat = 0, count = 1; };
 // 0x3b: spend a skill point on the class's skill `skill` (its index 0..29,
@@ -118,7 +120,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::SwapWeapons, cmd::MercItem>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -200,6 +202,7 @@ inline constexpr std::uint8_t kSelectSkill = 0x3c;
 inline constexpr std::uint8_t kResurrect = 0x41;
 inline constexpr std::uint8_t kButton = 0x4f;      // game.exe's "click button": +1 u16 0x18 Transmute
 inline constexpr std::uint8_t kWaypoint = 0x49;
+inline constexpr std::uint8_t kDropGold = 0x50;
 inline constexpr std::uint8_t kRunOn = 0x53;
 inline constexpr std::uint8_t kRunOff = 0x54;
 inline constexpr std::uint8_t kSwapWeapons = 0x60;
@@ -224,6 +227,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::SwapWeapons>) out.u8(opcode::kSwapWeapons);
         else if constexpr (std::is_same_v<T, cmd::MercItem>) out.u8(opcode::kMercItem).i32(message.slot);
         else if constexpr (std::is_same_v<T, cmd::Transmute>) out.u8(opcode::kButton).u16(0x18);
+        else if constexpr (std::is_same_v<T, cmd::DropGold>) out.u8(opcode::kDropGold).i32(message.amount);
         else if constexpr (std::is_same_v<T, cmd::StashGold>) out.u8(opcode::kButton).u16(message.deposit ? 0x14 : 0x13).i32(message.amount);
         else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(opcode::kStatPoint).i32(message.stat).i32(message.count);
         else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(opcode::kSkillPoint).i32(message.skill);
@@ -293,6 +297,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kToGrid: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
         case opcode::kToBody: command = cmd::ToBody{ i32() }; break;
         case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
+        case opcode::kDropGold: command = cmd::DropGold{ i32() }; break;
         case opcode::kSocket: command = cmd::Socket{ i32() }; break;
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {

@@ -241,6 +241,12 @@ inline auto cursor_to_grid(std::uint32_t id, std::uint32_t x, std::uint32_t y, s
     return out;
 }
 // 0x1f: swap the cursor's item with the grid item `target` at (x, y).
+// 0x50: drop `amount` gold (FUN_0054c800: u32 the player's unit id, u32 amount).
+inline auto drop_gold(std::uint32_t player, std::uint32_t amount) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x50); put_u32(out, player); put_u32(out, amount);
+    return out;
+}
 // 0x28: the held socket filler into item `target` (FUN_0054b650).
 inline auto insert_socket(std::uint32_t id, std::uint32_t target) -> Bytes {
     Bytes out;
