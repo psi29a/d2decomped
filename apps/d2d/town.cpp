@@ -1544,9 +1544,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (audio.rain.src && scene->sounds.size() > d2d::rules::sound_ids::kSceneRain)
             audio.set_gain(audio.rain, float(scene->sounds[d2d::rules::sound_ids::kSceneRain].volume) / 255.f * float(rain_vol) / 255.f);
         // Every Event Delay ticks, give or take a third, one of the event
-        // sounds from the left or right (x +-450..750, y +-100 in game.exe's
-        // units; the first within one gap of arriving).
-        // ponytail: x becomes pan x / 750, y is dropped.
+        // sounds from the left or right (FUN_004e42e0: x +-450..750 and
+        // 2 dy -100..100 client pixels, FUN_004b99a0; the first within one
+        // gap of arriving), mixed by that distance like any placed sound.
         {
             const std::uint32_t tick = frame_ms / 40;
             const int event_sound = day ? level->day_event : level->night_event, delay = level->event_delay;
@@ -1558,7 +1558,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (event_sound > 0 && tick - amb_last >= amb_next && !audio.world_paused) {
                 const int x = (sound_rng(2) ? 1 : -1) * (450 + sound_rng(301));
-                audio.play_sfx(*scene, event_sound, 1.f, sound_rng(16), float(x) / 750.f);
+                const int y = sound_rng(201) - 100;
+                audio.play_placed(*scene, event_sound, sound_rng(16), float(x), float(y));
                 amb_last = tick;
                 amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
             }

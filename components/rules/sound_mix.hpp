@@ -51,6 +51,20 @@ inline SoundMix sound_mix_pixels(int volume, int falloff, float screen_x, float 
     return mix;
 }
 
+// The two speakers' amplitudes, 0..1: DirectSound's volume (`FUN_005157b0`)
+// times its pan (`FUN_00515890`): past the middle the far speaker goes down
+// to (255 - pan) / 127, or pan / 127 to the left, by 2000 log10 hundredths
+// of a dB (`FUN_005165f0`); the near one stays whole.
+struct Speakers { float left, right; };
+constexpr Speakers speakers(const SoundMix& mix) {
+    const float volume = float(mix.volume) / 255.f;
+    const float left = mix.pan > 128 ? float(255 - mix.pan) / 127.f : 1.f;
+    const float right = mix.pan < 128 ? float(mix.pan) / 127.f : 1.f;
+    return { volume * left, volume * right };
+}
+static_assert(speakers({ true, 255, 128 }).left == 1.f && speakers({ true, 255, 128 }).right == 1.f);
+static_assert(speakers({ true, 255, 255 }).left == 0.f && speakers({ true, 255, 0 }).right == 0.f);
+
 // The same `dx`, `dy` cells away (d2d's cells: 5 subtiles, a subtile 32 x 16
 // client pixels).
 inline SoundMix sound_mix(int volume, int falloff, float dx, float dy) {

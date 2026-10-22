@@ -55,6 +55,7 @@ struct Audio {
     struct Decoded { ALenum format = 0; ALsizei freq = 0; std::vector<Uint8> pcm; };
     struct Channel {
         ALuint src = 0, buf = 0;
+        ALuint right_src = 0, right_buf = 0;     // a split world sound: src the left speaker, this the right
         int sound = 0;                           // Sounds.txt index, 0 = silent, -1 = a fixed file
         int owner = 0;                           // a missile's sound id (Cues::Cue::owner): stops with it
         float gain = 1.f, fade_from = 0.f, fade_to = 0.f;
@@ -107,6 +108,7 @@ struct Audio {
         if (!ok) { d2d::log::warn("  no OpenAL device — running silent"); return; }
         d2d::log::info("  Device: {}", alcGetString(dev, ALC_DEVICE_SPECIFIER));
         d2d::log::info("  OpenAL {} ({}, {})", alGetString(AL_VERSION), alGetString(AL_RENDERER), alGetString(AL_VENDOR));
+        direct_channels = alIsExtensionPresent("AL_SOFT_direct_channels") == AL_TRUE;
     }
     ~Audio() {
         video_stop();
@@ -145,6 +147,8 @@ struct Audio {
     void stop(Channel& channel) {
         if (channel.src) { alSourceStop(channel.src); alDeleteSources(1, &channel.src); }
         if (channel.buf) alDeleteBuffers(1, &channel.buf);
+        if (channel.right_src) { alSourceStop(channel.right_src); alDeleteSources(1, &channel.right_src); }
+        if (channel.right_buf) alDeleteBuffers(1, &channel.right_buf);
         channel = {};
     }
     void stop_voice() { stop(voice); }
@@ -203,35 +207,37 @@ struct Audio {
     // `listener_y`: game.exe's distance volume and pan (rules/sound_mix.hpp);
     // not started past its Falloff's far range.
     void play_world(const GameData& game_data, int index, int variant, float x, float y, float listener_x, float listener_y, int owner = 0) {
-        if (!ok || index <= 0 || std::size_t(index) >= game_data.sounds.size()) return;
-        const int group = game_data.sounds[std::size_t(index)].group;
-        const int row = group > 1 ? index + variant % group : index;
-        if (std::size_t(row) >= game_data.sounds.size()) return;
-        const auto& snd = game_data.sounds[std::size_t(row)];
-        const auto mix = d2d::rules::sound_mix(std::clamp(snd.volume, 0, 255), snd.falloff, x - listener_x, y - listener_y);
-        if (!mix.audible || mix.volume <= 0) return;
-        const auto done = [](const Channel& channel) {
-            ALint state = AL_STOPPED;
-            if (channel.src) alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
-            return state != AL_PLAYING && state != AL_PAUSED;
-        };
-        const auto free_channel = std::ranges::find_if(sfx, done);
-        auto& channel = free_channel != sfx.end() ? *free_channel : sfx[sfx_next++ % sfx.size()];
-        play(channel, game_data, row);
-        if (!channel.src) return;
-        channel.owner = owner;
-        channel.placed = true;
-        channel.tracking = snd.tracking;
-        channel.x = x;
-        channel.y = y;
-        channel.volume = std::clamp(snd.volume, 0, 255);
-        channel.falloff = snd.falloff;
-        apply_mix(channel, mix);
-        if (world_paused) alSourcePause(channel.src);
+        const auto* snd = variant_row(game_data, index, variant);
+        if (!snd) return;
+        const auto mix = d2d::rules::sound_mix(std::clamp(snd->volume, 0, 255), snd->falloff, x - listener_x, y - listener_y);
+        if (Channel* channel = play_mixed(game_data, *snd, int(snd - game_data.sounds.data()), mix)) {
+            channel->owner = owner;
+            channel->tracking = snd->tracking;
+            channel->x = x;
+            channel->y = y;
+        }
     }
+    // One placed by client pixels from the listener instead (dx, and 2 dy as
+    // FUN_004b97d0 doubles it), kept there: the level's ambient events.
+    void play_placed(const GameData& game_data, int index, int variant, float screen_x, float screen_y2) {
+        const auto* snd = variant_row(game_data, index, variant);
+        if (!snd) return;
+        play_mixed(game_data, *snd, int(snd - game_data.sounds.data()),
+                   d2d::rules::sound_mix_pixels(std::clamp(snd->volume, 0, 255), snd->falloff, screen_x, screen_y2));
+    }
+    // AL_SOFT_direct_channels: a split world sound's two buffers go each
+    // straight to its speaker, so game.exe's pan law holds (Speakers).
+    bool direct_channels = false;
+    static constexpr ALenum kDirectChannelsSoft = 0x1033;   // AL_DIRECT_CHANNELS_SOFT (alext.h)
     void apply_mix(Channel& channel, const d2d::rules::SoundMix& mix) {
-        // ponytail: game.exe pans by turning the far side down linearly
-        // (FUN_00515890); OpenAL pans a mono source by its angle.
+        if (channel.right_src) {
+            const auto speakers = d2d::rules::speakers(mix);
+            alSourcef(channel.src, AL_GAIN, speakers.left);
+            alSourcef(channel.right_src, AL_GAIN, speakers.right);
+            return;
+        }
+        // ponytail: without direct channels OpenAL pans the mono source by
+        // its angle, not game.exe's far-side-down law.
         const float pan = std::clamp(float(mix.pan - 128) / 128.f, -1.f, 1.f);
         alSourcef(channel.src, AL_GAIN, float(mix.volume) / 255.f);
         alSource3f(channel.src, AL_POSITION, pan, 0.f, -std::sqrt(std::max(0.f, 1.f - pan * pan)));
@@ -265,20 +271,98 @@ struct Audio {
             if (!channel.src) continue;
             ALint state = AL_STOPPED;
             alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
-            if (paused && state == AL_PLAYING) alSourcePause(channel.src);
-            if (!paused && state == AL_PAUSED) alSourcePlay(channel.src);
+            const std::array<ALuint, 2> both{ channel.src, channel.right_src };
+            if (paused && state == AL_PLAYING) alSourcePausev(channel.right_src ? 2 : 1, both.data());
+            if (!paused && state == AL_PAUSED) alSourcePlayv(channel.right_src ? 2 : 1, both.data());
         }
+    }
+    static std::optional<std::vector<std::byte>> read_wav(const GameData& game_data, const GameData::Sound& snd, int index) {
+        std::optional<std::vector<std::byte>> wav;
+        if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
+            if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
+        if (!wav) d2d::log::warn("sound {}: {} not found", index, snd.file);
+        return wav;
     }
     void play(Channel& channel, const GameData& game_data, int index) {
         stop(channel);
         if (!ok || index <= 0 || std::size_t(index) >= game_data.sounds.size()) return;
         const auto& snd = game_data.sounds[std::size_t(index)];
-        std::optional<std::vector<std::byte>> wav;
-        if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
-        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
-            if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
-        if (!wav) { d2d::log::warn("sound {}: {} not found", index, snd.file); return; }
-        start(channel, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
+        if (const auto wav = read_wav(game_data, snd, index))
+            start(channel, *wav, float(std::clamp(snd.volume, 0, 255)) / 255.f, snd.loop, index);
+    }
+    // `index`'s row, or a random one of its group.
+    static const GameData::Sound* variant_row(const GameData& game_data, int index, int variant) {
+        if (index <= 0 || std::size_t(index) >= game_data.sounds.size()) return nullptr;
+        const int group = game_data.sounds[std::size_t(index)].group;
+        const int row = group > 1 ? index + variant % group : index;
+        return std::size_t(row) < game_data.sounds.size() ? &game_data.sounds[std::size_t(row)] : nullptr;
+    }
+    // A free world channel (else the oldest), the sound started in it at `mix`.
+    Channel* play_mixed(const GameData& game_data, const GameData::Sound& snd, int index, const d2d::rules::SoundMix& mix) {
+        if (!ok || !mix.audible || mix.volume <= 0) return nullptr;
+        const auto done = [](const Channel& channel) {
+            ALint state = AL_STOPPED;
+            if (channel.src) alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
+            return state != AL_PLAYING && state != AL_PAUSED;
+        };
+        const auto free_channel = std::ranges::find_if(sfx, done);
+        auto& channel = free_channel != sfx.end() ? *free_channel : sfx[sfx_next++ % sfx.size()];
+        stop(channel);
+        const auto wav = read_wav(game_data, snd, index);
+        if (!wav) return nullptr;
+        if (direct_channels) {
+            const auto decoded = decode(*wav);
+            if (!decoded) { d2d::log::warn("sound {}: {}", index, SDL_GetError()); return nullptr; }
+            start_split(channel, *decoded, snd.loop, index);
+        } else {
+            start(channel, *wav, 1.f, snd.loop, index);
+        }
+        if (!channel.src) return nullptr;
+        channel.placed = true;
+        channel.volume = std::clamp(snd.volume, 0, 255);
+        channel.falloff = snd.falloff;
+        apply_mix(channel, mix);
+        if (world_paused) {
+            alSourcePause(channel.src);
+            if (channel.right_src) alSourcePause(channel.right_src);
+        }
+        return &channel;
+    }
+    // A sound as two stereo buffers, one silent side each (S16), playing
+    // in step: the left speaker's and the right's.
+    bool start_split(Channel& channel, const Decoded& decoded, bool loop, int index) {
+        const bool stereo = decoded.format == AL_FORMAT_STEREO8 || decoded.format == AL_FORMAT_STEREO16;
+        const bool eight = decoded.format == AL_FORMAT_MONO8 || decoded.format == AL_FORMAT_STEREO8;
+        const std::size_t sample_size = eight ? 1 : 2, frames = decoded.pcm.size() / (sample_size * (stereo ? 2 : 1));
+        const auto sample = [&](std::size_t frame, int side) -> std::int16_t {
+            const std::size_t offset = (frame * (stereo ? 2 : 1) + (stereo ? std::size_t(side) : 0)) * sample_size;
+            if (eight) return std::int16_t((int(decoded.pcm[offset]) - 128) * 256);
+            return std::int16_t(decoded.pcm[offset] | (decoded.pcm[offset + 1] << 8));
+        };
+        std::vector<std::int16_t> left(frames * 2, 0), right(frames * 2, 0);
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            left[frame * 2] = sample(frame, 0);
+            right[frame * 2 + 1] = sample(frame, 1);
+        }
+        const auto make = [&](ALuint& src, ALuint& buf, const std::vector<std::int16_t>& pcm) {
+            alGenBuffers(1, &buf);
+            alBufferData(buf, AL_FORMAT_STEREO16, pcm.data(), ALsizei(pcm.size() * sizeof(std::int16_t)), decoded.freq);
+            alGenSources(1, &src);
+            alSourcei(src, AL_BUFFER, ALint(buf));
+            alSourcei(src, kDirectChannelsSoft, AL_TRUE);
+            alSourcei(src, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+            alSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
+        };
+        make(channel.src, channel.buf, left);
+        make(channel.right_src, channel.right_buf, right);
+        const std::array<ALuint, 2> both{ channel.src, channel.right_src };
+        alSourcePlayv(2, both.data());
+        if (alGetError() != AL_NO_ERROR) { stop(channel); return false; }
+        channel.gain = 1.f;
+        channel.fade_t1 = 0;
+        channel.sound = index;
+        return true;
     }
     void play_voice(const GameData& game_data, int index) { play(voice, game_data, index); }
     // Music from its full path, on the worker. `id` identifies it (a

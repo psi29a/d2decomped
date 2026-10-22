@@ -4,6 +4,7 @@
 #include <sound_mix.hpp>
 
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 
 int main() {
@@ -26,6 +27,12 @@ int main() {
     assert(d2d::rules::sound_mix_pixels(90, 0, 230.f, 0.f).volume == (127 * 90 / 255) * 240 / 255);
     assert(!d2d::rules::sound_mix_pixels(90, 0, 401.f, 0.f).audible);
     assert(!d2d::rules::sound_mix(255, 0, 3.6f, 0.f).audible && d2d::rules::sound_mix(255, 0, 3.5f, 0.f).audible);
+    // The speakers: FUN_005165f0 (0, 127, v) is 2000 log10(v / 127) hundredths of a dB
+    // (sound_falloff.py: 63.5 -> -602.06, 12.7 -> -2000), so the far one is v / 127.
+    const auto right_of_middle = d2d::rules::speakers({ true, 255, 191 });
+    assert(right_of_middle.right == 1.f && std::fabs(right_of_middle.left - 64.f / 127.f) < 1e-6f);
+    const auto left_quiet = d2d::rules::speakers({ true, 51, 13 });
+    assert(left_quiet.left == 51.f / 255.f && std::fabs(left_quiet.right - 51.f / 255.f * 13.f / 127.f) < 1e-6f);
     std::puts("test_sound_mix: ok");
     return 0;
 }

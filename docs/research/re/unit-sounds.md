@@ -190,14 +190,31 @@ offset again each tick; others keep the one they started with. The volume
 past it (d = √(dx² + 4dy²)), times Volume / 255, times `FUN_00516830`'s:
 r = √(x² + y² + 2²) for (dx, 2 dy) / 320, capped at 100, and
 255 / 10^(log2(r / 2) × 6 / 20), 6 dB down a doubling. Its pan is
-dx × 127 / 400 + 128, clamped to 0..255; `FUN_00515890` turns the far side
-down by it. The volume is an amplitude (`FUN_005165f0`: 2000 log10(v / 255)
-hundredths of a dB). `tools/emu/sound_falloff.py` runs `FUN_00516830`;
-`tests/test_sound_mix.cpp` holds its answers (`rules/sound_mix.hpp`).
+dx × 127 / 400 + 128, clamped to 0..255. Both are amplitudes:
+`FUN_005165f0` (lo, hi, v) is 2000 log10(v / hi) hundredths of a dB
+(−10000 at lo, 0 at hi), so SetVolume is volume / 255 and `FUN_00515890`'s
+SetPan leaves the near speaker whole and turns the far one down to
+(255 − pan) / 127 (right of the middle) or pan / 127 (left).
+`tools/emu/sound_falloff.py` runs `FUN_00516830` and `FUN_005165f0`;
+`tests/test_sound_mix.cpp` holds the answers (`rules/sound_mix.hpp`). d2d
+plays a world sound as two sources, one silent side each, straight to the
+speakers (`AL_SOFT_direct_channels`), at those two amplitudes.
+
+The level's ambient events (`FUN_004e42e0`) are placed the same way, kept
+where they start: `FUN_004b99a0` (x, y, 0) → (x, y, 0 + 640) with x =
+±(450 + rand(301)) (the sign rand(2) first) and y = rand(201) − 100, both as
+`FUN_004b98f0` takes them (y is already 2 dy).
 
 An object's loop starts as it enters a mode (`FUN_004cb460` returns at once
-while its mode is unchanged). A local game paused under the game menu keeps
-playing sounds: `FUN_0044efa0` still runs the sound tick `FUN_00482c20`.
+while its mode is unchanged). Stopped past its far range (state 2 in
+`FUN_004ba020`), a sound whose record loops (+0x3e), has no Duration (+0x43)
+and wasn't told to stop (+0x3d) goes back to waiting (state 0) instead of
+being freed, and starts again the first tick it's back in range: walking
+back to a torch brings its crackle back. (Record offsets: the Sounds.txt
+field table in `FUN_00481950`: Volume +0x3c, Loop +0x3e, Duration +0x43,
+Compound +0x45, Falloff +0x47.) A local game paused under the game menu
+keeps playing sounds: `FUN_0044efa0` still runs the sound tick
+`FUN_00482c20`.
 
 ## In d2d
 
