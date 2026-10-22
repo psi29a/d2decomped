@@ -111,8 +111,8 @@ inline bool finisher(const d2d::rules::Skill* skill) {
 // Skills.txt order; Attack, Throw with a throwable in hand, and a tome's
 // skill with the tome carried, 1),
 // then with what the gear gives (gear_props: worn, socketed, set bonuses,
-// charms) and `extra` (the skill shrine's +all skills) — only on skills
-// that have points.
+// charms) and `extra` (the skill shrine's +all skills) — on skills that
+// have points or that an item grants (rules::item_grants_skill).
 // ponytail: other general skills and item charges don't count yet.
 inline int skill_base_level(const GameData& game_data, const Character& character, int id) {
     const auto& ids = game_data.skills.class_ids[std::size_t(std::max(character.character_class, 0))];
@@ -135,8 +135,9 @@ inline int skill_level(const GameData& game_data, const Character& character, in
     std::vector<d2d::d2s::ItemProp> props = extra;
     const auto gear = gear_props(game_data, character.items);
     props.insert(props.end(), gear.begin(), gear.end());
-    const int bonus = d2d::rules::item_skill_bonus(*skill, std::max(character.character_class, 0), props);
-    return base > 0 ? base + bonus : 0;
+    const int cls = std::max(character.character_class, 0);
+    if (base == 0 && !d2d::rules::item_grants_skill(*skill, cls, props)) return 0;
+    return std::max(base + d2d::rules::item_skill_bonus(*skill, cls, props), 0);
 }
 
 struct Fight {

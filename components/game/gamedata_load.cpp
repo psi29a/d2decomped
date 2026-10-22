@@ -276,6 +276,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             (srvdofunc == d2d::rules::ServerDoFunction::kVariantMissile || srvdofunc == d2d::rules::ServerDoFunction::kDoomKnightMissile) && !missile_name.empty())   // necromage1..4, undeadmissile1..4
             for (char digit = '2'; digit <= '4'; ++digit) skill_missiles.emplace(missile_name.substr(0, missile_name.size() - 1) + digit);
     }
+    // SkillDesc's (descmissile1..3: the rows its tooltips show).
+    if (const auto skill_desc = txt("SkillDesc"); skill_desc.size() > 0)
+        for (std::size_t row_index = 0; row_index < skill_desc.size(); ++row_index)
+            for (const char* column : { "descmissile1", "descmissile2", "descmissile3" }) skill_missiles.emplace(skill_desc.get(row_index, column));
     // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
     // Double Throw.
     std::unordered_map<int, std::string> thrown_ids;
@@ -322,7 +326,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.hit_class = d2d::rules::sound_ids::hit_class(missiles_table.get(row_index, "HitClass"));
         for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
- missile_info.elen = number("ELen");
+ missile_info.elen = number("ELen"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -418,6 +422,12 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
     for (std::size_t row = 0; row < skill_calc.size(); ++row) skill_tables.names.operands.emplace_back(skill_calc.get(row, "code"));
     for (std::size_t row = 0; row < isc.size(); ++row) skill_tables.names.stats.emplace(std::string(isc.get(row, "Stat")), num(isc.get(row, "ID")));
+    {                                                              // miss()'s names: misscalc.txt operands, Missiles.txt rows by Id
+        const auto miss_calc = txt("misscalc"), missiles_table = txt("Missiles");
+        for (std::size_t row = 0; row < miss_calc.size(); ++row) skill_tables.names.miss_operands.emplace_back(miss_calc.get(row, "code"));
+        for (std::size_t row = 0; row < missiles_table.size(); ++row)
+            if (!missiles_table.get(row, "Id").empty()) skill_tables.names.missiles.emplace(std::string(missiles_table.get(row, "Missile")), num(missiles_table.get(row, "Id")));
+    }
     for (std::size_t row = 0; row < skills_table.size(); ++row) {
         const int id = num(skills_table.get(row, "Id"));
         if (id < 0 || skills_table.get(row, "Id").empty()) continue;
@@ -512,6 +522,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             skill_row.str_long = skill_desc.get(found->second, "str long");
             skill_row.str_short = skill_desc.get(found->second, "str short");
             skill_row.str_mana = skill_desc.get(found->second, "str mana");
+            for (std::size_t slot = 0; slot < 3; ++slot) skill_row.desc_missile[slot] = skill_desc.get(found->second, "descmissile" + std::to_string(slot + 1));
             const auto desc_calc = [&](const std::string& column, d2d::rules::Calc& into) {
                 if (const auto expression = skill_desc.get(found->second, column); !expression.empty()) {
                     std::string err;
@@ -535,6 +546,13 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             }
         }
     }
+    for (auto& [name, missile_info] : game_data.missiles)      // a missile's synergy calc names skills
+        if (!missile_info.edmg_sym_text.empty()) {
+            std::string err;
+            missile_info.edmg_sym = d2d::rules::compile_calc(missile_info.edmg_sym_text, skill_tables.names, &err);
+            ++calcs;
+            if (!err.empty()) bad.push_back(name + " EDmgSymPerCalc: " + err);
+        }
     d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", skill_tables.rows.size(), calcs, bad.size());
     for (const auto& failed : bad) d2d::log::info("  not implemented: calc {}", failed);
 }

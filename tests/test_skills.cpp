@@ -100,13 +100,21 @@ int main() {
     cheap.mana = 0;
     assert(mana_cost(cheap, 3) == 256);                     // minmana 1
 
-    // Item bonuses: all skills, class skills, the skill's tab, single skills.
+    // Item bonuses (FUN_00644180): all skills, class skills, the skill's tab, single skills.
     using P = d2d::d2s::ItemProp;
     const std::vector<P> props{ { .stat = 127, .value = 1 }, { .stat = 83, .param = 4, .value = 2 },
                                 { .stat = 188, .param = 4 * 8 + 1, .value = 3 }, { .stat = 107, .param = 0, .value = 1 },
                                 { .stat = 83, .param = 1, .value = 5 }, { .stat = 97, .param = 2, .value = 2 } };
     assert(item_skill_bonus(skill_tables.rows[0], 4, props) == 1 + 2 + 3 + 1);   // Bash, barbarian, page 2 = tab 1
-    assert(item_skill_bonus(skill_tables.rows[2], 4, props) == 2);                // Fire Bolt for a barbarian: the oskill only
+    assert(item_skill_bonus(skill_tables.rows[2], 4, props) == 1 + 2);            // Fire Bolt for a barbarian: +all skills and the oskill
+    // Granted with no points (FUN_0055b800): an oskill for anyone, +single skill for its own class only.
+    const std::vector<P> single{ { .stat = 107, .param = 2, .value = 1 } };
+    assert(item_grants_skill(skill_tables.rows[2], 4, props) && item_grants_skill(skill_tables.rows[2], 1, single) && !item_grants_skill(skill_tables.rows[2], 4, single));
+    // A sorceress's own Fire Bolt: oskills cap at 3, +fire skills (126, game.exe's EType 1) count.
+    Skill fire_typed = skill_tables.rows[2];
+    fire_typed.etype = 0;
+    const std::vector<P> sorc{ { .stat = 97, .param = 2, .value = 5 }, { .stat = 126, .param = 1, .value = 2 }, { .stat = 126, .param = 4, .value = 7 } };
+    assert(item_skill_bonus(fire_typed, 1, sorc) == 3 + 2);
 
     // Charge-ups: Tiger Strike's calc1 x charges ED, Cobra Strike's ln12
     // steal (life, then mana too, then both doubled), prgdam 4's element.

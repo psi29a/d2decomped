@@ -300,6 +300,21 @@ inline int player_exp_pct(int players) {
     return players < 9 ? kPct[std::size_t(std::max(players, 0))] : (players * 5 + 130) * 2;
 }
 
+// FUN_006538a0's values before monster_stats' roll, at the type's own
+// Level: life min / max, A1 min / max (the skill tooltips' summon lines,
+// game::skill_text).
+struct MonRanges { int min_hp = 0, max_hp = 0, a1_min = 0, a1_max = 0; };
+inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficulty) {
+    if (type < 0 || std::size_t(type) >= monsters.types.size() || monsters.lvl.empty()) return {};
+    const auto& type_info = monsters.types[std::size_t(type)];
+    const auto index = std::size_t(std::clamp(difficulty, 0, 2));
+    const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(std::max(type_info.level[index], 0)), monsters.lvl.size() - 1)];
+    const auto& per_difficulty = type_info.diff[index];
+    auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
+    return { pct(level_row.hit_points[index], per_difficulty.min_hp), pct(level_row.hit_points[index], per_difficulty.max_hp),
+             pct(level_row.damage[index], per_difficulty.a1_min), pct(level_row.damage[index], per_difficulty.a1_max) };
+}
+
 inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1) {
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;

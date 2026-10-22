@@ -170,7 +170,9 @@ struct SkillBar {
         // A hovered button's or picker icon's tooltip (FUN_004a8d50 -> FUN_004ef990).
         const auto tip = [&](int id, int x, int y) {
             if (id < 0 || id == kResurrectSkill) return;
-            const auto lines = d2d::game::skill_button_tip(*scene, env, id, env.level ? env.level(id) : 1);
+            std::vector<TextLine> corner;   // a scroll's or tome's count, its own box first (FUN_004ed3f0)
+            const auto lines = d2d::game::skill_button_tip(*scene, env, id, env.level ? env.level(id) : 1, &corner);
+            if (!corner.empty()) draw_hover_text(framebuffer, *scene, corner, int(kScreenWidth) - 0x80, int(kScreenWidth) - 0x80, int(kScreenHeight) - 0x34, int(kScreenHeight) - 0x34);
             draw_hover_text(framebuffer, *scene, lines, x, x + kIcon, y, y - kIcon);
         };
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;

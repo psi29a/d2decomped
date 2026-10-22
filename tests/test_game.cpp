@@ -24,6 +24,7 @@
 #include <replication.hpp>
 #include <rules.hpp>
 #include <skill_text.hpp>
+#include <skills.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -47,7 +48,7 @@
 
 using namespace d2d::game;
 
-int main() try {
+int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -77,6 +78,25 @@ int main() try {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    // `--skill-tips N [difficulty]`: every SkillDesc line at levels 1..N with
+    // no unit, as tools/emu/skill_tips.py prints game.exe's (FUN_004edea0).
+    if (argc > 2 && std::string_view(argv[1]) == "--skill-tips") {
+        data->difficulty = argc > 3 ? std::atoi(argv[3]) : 0;
+        d2d::rules::CalcEnv env;
+        env.clvl = 0;
+        const auto line_env = skill_text::with_missiles(*data, env);
+        for (const auto& skill : data->skills.rows) {
+            if (skill.id < 0 || skill.desc.empty()) continue;
+            for (std::size_t line = 0; line < skill.desc_lines.size(); ++line)
+                for (int level = 1; level <= std::atoi(argv[2]); ++level) {
+                    skill_text::Builder out{ *data, {}, {} };
+                    const bool wrote = skill_text::desc_line(out, data->skills, skill, line_env, level, skill.desc_lines[line], 0);
+                    std::ranges::replace(out.text, '\n', '|');
+                    if (wrote || !out.text.empty()) std::printf("%d %zu %d: %d %s\n", skill.id, line, level, wrote ? 1 : 0, out.text.c_str());
+                }
+        }
+        return 0;
+    }
     // Skill and missile sounds (unit-sounds.md): Fire Bolt's cast, Bash's grunt (the
     // Barbarian's own), its swing held back; the fire bolt's flight and impact.
     if (const auto* fire_bolt = data->skills.get(36); fire_bolt && data->missiles.contains("firebolt")) {

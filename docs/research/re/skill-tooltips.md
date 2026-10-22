@@ -28,12 +28,25 @@ newline in the line's own colour.
    and "\n\n";
 3. at level > 0: desc lines 0..5 at the level, then 0x109e "Current
    Skill Level: " + the level (+ 0x1112 " (item)" when an item grants
-   it), "\n\n";
+   it: `FUN_006442a0` gives a level with item bonuses (flag 1) but none
+   without), "\n\n";
 4. dsc2 lines 6..9 at level + 1, "\n" if any;
 5. "str long" (SkillDesc record +0xc), "\n", "str name" (+8) in colour 2;
 6. 0x1113 "You have been granted this skill by an item" (after "\n\n")
    when an item gives it; 0x1114 "You have not learned this skill yet"
-   when `FUN_004ed480` says the player has no points in it.
+   while `FUN_004ed480` finds no skill of the player's class with points
+   (any of them, not this one; the answer is kept in 0x7c8ca0 once yes).
+
+"Maxed" (step 2) compares the points without items (`FUN_006442a0`
+flag 0) with the max level (`FUN_004aa8b0`).
+
+Item-granted skills (`FUN_0055b800`, ItemMode.cpp): stat 97 (oskill)
+for any skill, or 107 for a skill of the player's class, adds the skill
+at 0 points. A skill's item bonus (`FUN_00644180`, a player's): 127 for
+any skill; for its own class 83 (class), 188 (tab) and 97 at most 3,
+another class's 97 in full; 126 by its EType (1 fire, 2 lightning, 3
+magic, 4 cold, 5 poison); 107. `rules::item_skill_bonus` /
+`item_grants_skill`.
 
 ## FUN_004ef990 (the buttons)
 
@@ -42,7 +55,8 @@ short" (+0xa), "\n", "str name". The Amazon-only 0x5722 line isn't ported.
 
 ## Lines (FUN_004edea0)
 
-Arguments: the skill record, its id, the level, the line index (record
+Arguments: the skill record, its id, the level, an item (0 here; the
+mana line asks `FUN_004e84f0` for a charge's cost), the line index (record
 +0x42 + i: the format byte, +0x54 + 2i text a, +0x76 + 2i text b, +0x98 +
 4i calc a, +0xdc + 4i calc b; texts default to 0x1506, "none"). The calcs
 run through `FUN_00646d00` at the given level. 75 formats (jump table
@@ -73,6 +87,50 @@ run through `FUN_00646d00` at the given level. 75 formats (jump table
 | 63 / 67 | 209 / 26 | `FUN_004ec7e0`: a ": " +calc a (63: "%") " " b — the synergy lines |
 | 70 | 3 | a, b, +calc a |
 
-Not ported (about 60 lines): 13 (a summon's life), 22 / 23 / 28..31
-(missile ranges and lengths), 33..37, 39, 41..50, 53..56, 60, 61, 64, 65,
-68, 69, 71..75.
+The rest SkillDesc uses (one to twenty lines each): 13 the summon's
+(Skills +0xbc) average life (`FUN_006538a0` at its Level, min + max / 2)
++ calc a % + calc b, "Life: "; 22 descmissile1's damage (`FUN_0064b100`
+/ `FUN_0064b1d0`: EMin + MinELev brackets + its EDmgSymPerCalc %, <<
+HitShift) x 75 with the skill's fire / lightning mastery, as an average;
+23 / 30 descmissile1's (30: its SubMissile1's) Range + LevRange x lvl as
+seconds; 27 the skill's average x 75 (26's x 25); 28 descmissile1's
+Param1 as a radius; 29 its (Range + LevRange x (lvl - 1)) x 2 / 3 "
+yards"; 31 calc a / DifficultyLevels AiCurseDivisor as seconds; 33 a b
+from level 2; 34 / 39 the summon's A1 damage (flag 8), + its aurastats'
+and passivestats' stat 25 % (at least -90; 34 adds stat 111 flat first)
+"Damage: "; 35 "a: calc a-calc b"; 36 calc a then a for 1 else b; 37
+calc a x 10 / 3 tenths as yards (19 and 28 x 20 / 3; " yard" for 1
+whole, whatever the tenth; at least 1 whole); 41 the Fire Golem's A1 min
++ calc a to max + calc b under the EType label; 42 "a: +calc a.calc b
+b"; 43 256ths as whole.tenth "a lo-hi b"; 47 / 49 `FUN_004e80f0` a
+range (49 the skill's own damage, "+", a space); 48 length, element,
+damage and attack rating (expansion); 50 descmissile1's damage under a;
+53..56 the scroll / tome count, drawn in its own box at (width - 128,
+height - 52) by `FUN_004ed3f0`, "Quantity : %d" over the item's name;
+the count's search (`FUN_004a9a90`..) always returns 0 (bugs.md); 61
+calc a in 256ths, its fraction x (calc b or 10); 68 calc a a b; 71 "a:
+" b formatted with calc a; 72 / 73 "[+]calc a/calc b a" (nothing at 0).
+Unused: 44..46, 64, 65, 69, 74, 75.
+
+**What counts as written**: `FUN_004edea0` returns 1 for every format it
+knows whatever was appended (the tree's headers and blank lines hang on
+it), and 0 only for an unknown format, a missing descmissile (23, 28..30),
+text a missing (40, 71; 71 and 40 b too) or 72 / 73 at 0.
+
+**Calc operands only tooltips use** (`FUN_00646460`): m1en..m3el (26..34:
+descmissile n's min / max >> 8, length), m1rn..m3rn (35..37: Range +
+LevRange x lvl), m1eo..me3y (43..48, 256ths; the missile is picked by
+(code - 43) / 3, so m2eo / m2ey read missile 1 and me3o / me3y missile
+2), len / rng / pets (the auralen / aurarange / petmax calcs), sklvl(s,
+at, op) (`FUN_00646c60`: s's op at this skill's `at`) and miss(row, op)
+(`FUN_0064b340`, misscalc operands; inside miss() a name is first a
+Missiles.txt row).
+
+## The oracle
+
+`tools/emu/skill_tips.py [levels] [difficulty]` loads the string tables
+(`FUN_005259c0("ENG", 1)`) and every excel table, then runs
+`FUN_004edea0` with no unit for every SkillDesc line;
+`test_game --skill-tips [levels] [difficulty]` prints d2d's the same way.
+All 17 lines of every skill at levels 1..20 match on all three
+difficulties (22,800 lines each).

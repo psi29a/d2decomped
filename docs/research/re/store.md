@@ -259,9 +259,14 @@ else rare.
   (`0x454080`): 0/1 C->S 0x50 (u32 player id, u32 amount; `FUN_00535510`
   drops it), 2 `FUN_004b9110` (0x4f 8), 3 0x4f 0x14, 4 0x4f 0x13; an
   amount of 0 sends nothing but a trade's.
-- d2d: a click on a spinner arrow steps 1; held, it repeats with steps
-  ten times bigger each second (ponytail: the spinner's own rate isn't
-  traced).
+- The spinner (`SpinnerImplementation`, vtable 0x6da83c; the box's
+  callback 0x453fe0 adds the step, at most the gold it's from, or takes
+  it, not below 0): a click on an arrow (`FUN_004bc0a0`) notes the tick
+  and steps 1. While held, each draw (`FUN_004bbe70`) counts one more
+  (+0x40, cleared on release) and asks `FUN_004bbfb0` for a step: none
+  if under 70 ms (0x46) since the last, else 1 for the first second, the
+  count >> 5 past 1000 ms, >> 4 past 2000, >> 2 past 3000, and (ms held
+  >> 11) x the count past 4096. d2d counts the draws at 25 a second.
 - A button's hover (`FUN_004886c0`): box x .. x + 0x2d by 432..474, the
   string centred on x = 80 + the button table's x, bottom 440. Repair
   all's string 0x276f ("Repair all equipment: %d") takes the total

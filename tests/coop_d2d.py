@@ -72,8 +72,8 @@ def ghosts():
 def ids():
     return {row.split("\t")[1]: int(row.split("\t")[0]) for row in cmd("debug players").splitlines() if "\t" in row}
 
-def walk(pad, frames_held=40):
-    cmd(f"pad {pad} axis leftx 1"); frames(frames_held)
+def walk(pad, frames_held=40, leftx=1):
+    cmd(f"pad {pad} axis leftx {leftx}"); frames(frames_held)
     cmd(f"pad {pad} axis leftx 0"); frames(10)
 
 for _ in range(400):
@@ -139,7 +139,7 @@ assert screen_name() == "Beta", cmd("state")[:300]
 cmd("pad 2 axis rightx 0.6"); frames(15); cmd("pad 2 axis rightx 0")   # the cursor out over the inventory
 if os.environ.get("COOP_SHOT"): cmd("screenshot " + os.environ["COOP_SHOT"].replace(".png", "-panel.png"))
 held = players()
-walk(0, 30)
+walk(0, 30, -1)                    # back west: east, both walked up to the town's wall already
 moved_alpha = players()
 assert abs(moved_alpha["Alpha"][0] - held["Alpha"][0]) + abs(moved_alpha["Alpha"][1] - held["Alpha"][1]) > 0.5, (held, moved_alpha)
 assert moved_alpha["Beta"][:2] == held["Beta"][:2], (held, moved_alpha)   # Beta's stick isn't Alpha's

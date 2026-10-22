@@ -23,6 +23,7 @@
 #include "ui.hpp"
 #include "world_view.hpp"
 
+#include <combat.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -52,6 +53,7 @@
 #include <filesystem>
 #include <exception>
 #include <format>
+#include <memory>
 #include <numbers>
 #include <initializer_list>
 #include <optional>
@@ -1059,17 +1061,21 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 gold_box->spin = part == GoldBoxPart::kUp ? 1 : part == GoldBoxPart::kDown ? -1 : 0;
                 gold_box->spin_ms = frame_ms;
                 if (gold_box->spin != 0) gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin, 0, most));   // a click: one step
-                gold_box->next_ms = frame_ms + 400;
+                gold_box->next_ms = frame_ms;
                 gold_box->ok_down = part == GoldBoxPart::kOk;
                 gold_box->cancel_down = part == GoldBoxPart::kCancel;
             }
             if (!mouse.down) gold_box->spin = 0;
-            if (gold_box->spin != 0 && frame_ms >= gold_box->next_ms) {
-                // ponytail: steps of 1, ten times more each second held; the spinner's own rate isn't traced
-                std::int64_t step = 1;
-                for (std::uint32_t held_s = (frame_ms - gold_box->spin_ms) / 1000; held_s > 0 && step < 1000000; --held_s) step *= 10;
+            // Held (FUN_004bbfb0 through the box's 0x453fe0): a step at most every
+            // 70 ms, 1 for the first second, then the draws held >> 5, >> 4, >> 2
+            // past 1, 2, 3 s, and (ms held >> 11) x the draws past 4096 ms.
+            // ponytail: game.exe counts its own draws (+0x40); here 25 a second, its in-game rate.
+            if (gold_box->spin != 0 && frame_ms - gold_box->next_ms >= 70) {
+                const std::uint32_t held_ms = frame_ms - gold_box->spin_ms;
+                const std::int64_t draws = held_ms / 40;
+                const std::int64_t step = held_ms > 0x1000 ? std::int64_t(held_ms >> 11) * draws : held_ms > 3000 ? draws >> 2 : held_ms > 2000 ? draws >> 4 : held_ms > 1000 ? draws >> 5 : 1;
                 gold_box->amount = std::to_string(std::clamp<std::int64_t>(amount() + gold_box->spin * step, 0, most));
-                gold_box->next_ms = frame_ms + 80;
+                gold_box->next_ms = frame_ms;
             }
             if (mouse.release_this_frame) {
                 ok = ok || (gold_box->ok_down && part == GoldBoxPart::kOk);
@@ -2261,9 +2267,17 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
     }
 
 auto Town::tip_env() const -> d2d::rules::CalcEnv {
-        return { [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
-                 [this](int id) { return d2d::game::skill_level(*scene, character, id, {}); },
-                 [](int) { return 0; }, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
+        d2d::rules::CalcEnv env{ [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
+                                 [this](int id) { return d2d::game::skill_level(*scene, character, id, {}); },
+                                 {}, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
+        // The stats the calcs and masteries read: the gear's and the passives' (no weapon-type ones).
+        auto sum = std::make_shared<d2d::rules::StatSum>();
+        for (const auto& prop : d2d::game::gear_props(*scene, character.items))
+            if (prop.stat >= 0 && std::size_t(prop.stat) < sum->size()) (*sum)[std::size_t(prop.stat)] += prop.value;
+        for (const auto& passive : d2d::rules::passive_stats(scene->skills, env))
+            if (passive.itype.empty() && passive.stat >= 0 && std::size_t(passive.stat) < sum->size()) (*sum)[std::size_t(passive.stat)] += passive.value;
+        env.stat = [sum](int id) { return id >= 0 && std::size_t(id) < sum->size() ? int((*sum)[std::size_t(id)]) : 0; };
+        return env;
     }
 
 auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {

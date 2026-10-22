@@ -13,6 +13,7 @@
 #include <skill_text.hpp>
 #include <skills.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -97,7 +98,9 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         const auto [icon_x, icon_y] = skill_icon_at(list[std::size_t(hover)]);
         const int skill = ids[std::size_t(hover)];
         const int lvl = env.level ? env.level(skill) : levels[std::size_t(hover)];
-        const auto lines = d2d::game::skill_tree_tip(scene, env, skill, lvl, levels[std::size_t(hover)] >= list[std::size_t(hover)].max_level, levels[std::size_t(hover)] > 0);
+        const int points = levels[std::size_t(hover)];
+        const bool learned = std::ranges::any_of(levels, [](std::uint8_t level) { return level > 0; });   // FUN_004ed480: points in any class skill
+        const auto lines = d2d::game::skill_tree_tip(scene, env, skill, lvl, points >= list[std::size_t(hover)].max_level, points == 0 && lvl > 0, learned);
         draw_hover_text(framebuffer, scene, lines, icon_x, icon_x + 0x30, icon_y, icon_y - 0x30);
     }
 }

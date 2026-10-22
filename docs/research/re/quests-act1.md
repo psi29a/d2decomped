@@ -1114,7 +1114,9 @@ FUN_00577010(rec)   // if no valid unhired offers remain: free the list, rec+0x2
 Flavie (hcIdx 266, `navi`) has no talk topics (her talk-table record has
 0). Her chat is quest record 0x1d's hook (`FUN_00596a90`): with the Den
 not cleared in the game (game bit 1/13), its record active (+9) and the
-player's Den bits 0, 13 and 1 clear, message rand(2), else rand(3) + 2,
-on the record's seed. d2d shows message n as string 59 + n
-(RogueSignpostGossip1..5); unverified (source: the strings' order): the
-client's message-to-string map isn't traced.
+player's Den bits 0, 13 and 1 clear, block rand(2), else rand(3) + 2,
+on the record's seed. `FUN_00543790` sends block n of the record's table
+(+0xdc = 0x738778; `tools/emu/quest_msgs.py 0x738778`): Flavie's (266)
+message 59 + n, kind 1 (sent as 0, a greeting). The client's speech box
+(`FUN_004a10e0`, 0x4a124e) looks the message up as a string id, so it
+shows string 59 + n, RogueSignpostGossip1..5.

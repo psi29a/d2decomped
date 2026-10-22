@@ -42,10 +42,11 @@ struct Calc {
 enum CalcFunction : std::uint8_t { kCalcMin, kCalcMax, kCalcRand, kCalcSkill, kCalcMissile, kCalcStat, kCalcSkillLevel };
 
 // What names mean when compiling: skillcalc.txt's operand names in order,
-// skill names (Skills.txt `skill`) and stat names (ItemStatCost `Stat`).
+// skill names (Skills.txt `skill`) and stat names (ItemStatCost `Stat`);
+// inside miss(), Missiles.txt rows (by row) and misscalc.txt's operands.
 struct CalcNames {
-    std::vector<std::string> operands;
-    std::unordered_map<std::string, int> skills, stats;
+    std::vector<std::string> operands, miss_operands;
+    std::unordered_map<std::string, int> skills, stats, missiles;
 };
 
 // Compiles one calc cell the way game.exe's FUN_006c1ae0 does (skills.md
@@ -73,8 +74,8 @@ struct CalcNames {
 // done: it doesn't change a value. Checked against game.exe's own
 // compiler in tools/emu on every Skills.txt / SkillDesc.txt calc and 4000
 // random strings (skills.md).
-// ponytail: inside miss() names are Missiles.txt rows and misscalc.txt
-// codes, which d2d doesn't pass in (two SkillDesc tooltip lines).
+// - Inside miss() (FUN_006119f0 function 4) a name is first a Missiles.txt
+//   row, as a constant, else a misscalc.txt operand by its first four.
 inline Calc compile_calc(std::string_view src, const CalcNames& names, std::string* error = nullptr) {
     Calc out;
     struct Pending { std::uint8_t kind; int value; };      // kind: 1 a function's "(" (value its tag), 2 a "(", else a Calc::Op
@@ -114,6 +115,11 @@ inline Calc compile_calc(std::string_view src, const CalcNames& names, std::stri
         const int function = !pending.empty() && pending.back().kind == 1 ? pending.back().value : -1;
         if (function == kCalcSkill || function == kCalcSkillLevel) {
             if (const int skill = find_name(names.skills, name); skill >= 0) return { skill, true };
+        } else if (function == kCalcMissile) {
+            if (const int missile = find_name(names.missiles, name); missile >= 0) return { missile, true };
+            const auto key = name.substr(0, 4);
+            for (std::size_t code = 0; code < names.miss_operands.size(); ++code) if (!key.empty() && names.miss_operands[code] == key) return { int(code), false };
+            return { -1, false };
         } else if (function == kCalcStat) {
             if (const int stat = find_name(names.stats, name); stat >= 0) return { stat, true };
             return { lower(name) == "base" ? 1 : lower(name) == "mod" ? 2 : 0, false };
@@ -449,6 +455,7 @@ struct Skill {
     int descdam = 0, descatt = 0;          // SkillDesc: the char panel's damage / attack rating kind
     Calc ddam_calc1, ddam_calc2;           // SkillDesc "ddam calc1" (damage %) / "ddam calc2" (flat)
     std::string str_long, str_short, str_mana;   // SkillDesc "str long" / "str short" / "str mana": the tooltips' texts
+    std::array<std::string, 3> desc_missile;     // SkillDesc descmissile1..3 (+0x3c): the rows its tooltip shows (calcs' m1en..)
     // SkillDesc's tooltip lines as game.exe holds them (the record from
     // +0x42): descline1..6 (0..5), dsc2line1..4 (6..9), dsc3line1..7
     // (10..16); func picks the format (FUN_004edea0), texts are tbl keys.
@@ -501,6 +508,12 @@ struct CalcEnv {
     std::function<int(int stat)> stat;          // stat('x'.accr)
     int clvl = 1;                               // ulvl
     Rng* rng = nullptr;                         // rand()
+    // The SkillDesc missiles' operands (m1en..m3rn, m1eo..me3y; codes 26..37,
+    // 43..48): game::skill_text fills it, Missiles.txt being GameData's.
+    std::function<int(const Skill& skill, int code, int lvl)> desc_missile;
+    // miss('row'.operand): a misscalc.txt operand of a Missiles.txt row at
+    // the calc's level (FUN_00643740 -> FUN_0064b340), GameData's too.
+    std::function<int(int skill, int missile, int code, int lvl)> missile;
 };
 
 inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const CalcEnv& env, int skill, int lvl, int depth = 0);
@@ -640,9 +653,8 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
 }
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
-// ponytail: the missile operands (m1en.., 26..37, 43..48), len, rng,
-// pets, skpt read 0; no Skills.txt calc uses them, only SkillDesc's
-// tooltip lines (game::skill_text: those lines show 0 or nothing).
+// The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
+// ponytail: skpt (+0x170, the skill points calc) reads 0; no calc uses it.
 inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
     const auto& params = skill.par;
     switch (code) {
@@ -665,6 +677,9 @@ inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, con
             }
             return 0;
         }
+        case 26: case 27: case 28: case 29: case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+        case 43: case 44: case 45: case 46: case 47: case 48:
+            return env.desc_missile ? env.desc_missile(skill, code, lvl) : 0;
         case 49: return elem_damage(skill_tables, skill, env, lvl, false, depth, true) >> 8;    // enma (FUN_00644d50 flag 1)
         case 50: return elem_damage(skill_tables, skill, env, lvl, true, depth, true) >> 8;     // exma
         case 51: return elem_length(skill_tables, skill, env, lvl, depth);                      // edma (FUN_00644f20 flag 1)
@@ -675,6 +690,9 @@ inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, con
         case 40: return env.clvl;                                                // ulvl
         case 41: return env.base_level ? env.base_level(skill.id) : lvl;             // blvl
         case 42: return lvl < 1 ? 0 : (skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31);   // usmc
+        case 54: return eval_calc(skill_tables, skill.auralen, env, skill.id, lvl, depth + 1);      // len
+        case 59: return eval_calc(skill_tables, skill.aurarange, env, skill.id, lvl, depth + 1);    // rng
+        case 71: return eval_calc(skill_tables, skill.petmax, env, skill.id, lvl, depth + 1);       // pets
         case 55: case 56: case 57: case 58: return eval_calc(skill_tables, skill.calc[std::size_t(code - 55)], env, skill.id, lvl, depth + 1);
         case 60: case 61: case 62: case 63: case 64: case 65:
             return eval_calc(skill_tables, skill.aura_calc[std::size_t(code - 60)], env, skill.id, lvl, depth + 1);
@@ -735,9 +753,14 @@ inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const Ca
                         break;
                     }
                     case kCalcStat: stack.push_back(env.stat ? env.stat(left) : 0); break;
-                    // ponytail: miss() and sklvl() (0x643740 / 0x646c60) read 0; only
-                    // SkillDesc's tooltip lines use them (game::skill_text).
-                    default: static_cast<void>(third); stack.push_back(0); break;
+                    case kCalcMissile: stack.push_back(env.missile ? env.missile(skill, left, right, lvl) : 0); break;
+                    case kCalcSkillLevel: {            // sklvl(id, at, operand), FUN_00646c60: that skill's operand at this one's `at`
+                        const Skill* other = skill_tables.get(left);
+                        const int level = calc_operand(skill_tables, *skill_row, env, lvl, right, depth + 1);
+                        stack.push_back(other ? calc_operand(skill_tables, *other, env, level, third, depth + 1) : 0);
+                        break;
+                    }
+                    default: stack.push_back(0); break;
                 }
                 break;
             }
@@ -819,23 +842,39 @@ inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& sk
 
 // ---- a character's skill levels
 
-// Item bonuses to one skill, over the item properties the character wears
-// (ItemStatCost ids): 127 +all skills, 83 +class skills (param = class),
-// 188 +skill tab (param = class x 8 + tab, tab = SkillDesc page - 1),
-// 107 +single class skill and 97 +skill as "oskill" (param = skill id).
+// Item bonuses to one skill (FUN_00644180, a player's), over the item
+// properties the character wears (ItemStatCost ids): 127 +all skills (any
+// skill it has, its class's or not); for its own class's 83 +class skills
+// (param = class), 188 +skill tab (param = class x 8 + tab, tab = SkillDesc
+// page - 1) and 97 oskill at most 3, another class's 97 in full; 126
+// +elemental skills (param = game.exe's EType: 1 fire, 2 lightning, 3
+// magic, 4 cold, 5 poison) and 107 +single skill (param = skill id).
+// ponytail: the skill's own +0x2c and FUN_00644150's share aren't kept.
 inline int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
-    int bonus = 0;
+    static constexpr std::array<int, 5> kGameEType{ 1, 2, 4, 5, 3 };   // d2d's fire, lightning, cold, poison, magic
     const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];
+    const int etype = skill.etype >= 0 && skill.etype < 5 ? kGameEType[std::size_t(skill.etype)] : 0;
+    int bonus = 0, oskill = 0;
     for (const auto& prop : props) {
         switch (prop.stat) {
-            case 127: if (own) bonus += prop.value; break;
+            case 127: bonus += prop.value; break;
             case 83: if (own && prop.param == cls) bonus += prop.value; break;
             case 188: if (own && skill.page > 0 && prop.param == cls * 8 + skill.page - 1) bonus += prop.value; break;
-            case 107: case 97: if (prop.param == skill.id) bonus += prop.value; break;
+            case 97: if (prop.param == skill.id) oskill += prop.value; break;
+            case 126: if (etype != 0 && prop.param == etype) bonus += prop.value; break;
+            case 107: if (prop.param == skill.id) bonus += prop.value; break;
             default: break;
         }
     }
-    return bonus;
+    return bonus + (own ? std::min(oskill, 3) : oskill);
+}
+
+// Whether worn items give the character a skill it has no points in
+// (FUN_0055b800, ItemMode.cpp: stat 97 for any skill, 107 for its own
+// class's adds the skill at 0 points).
+inline bool item_grants_skill(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
+    const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];
+    return std::ranges::any_of(props, [&](const d2d::d2s::ItemProp& prop) { return prop.param == skill.id && prop.value > 0 && (prop.stat == 97 || (prop.stat == 107 && own)); });
 }
 
 }  // namespace d2d::rules

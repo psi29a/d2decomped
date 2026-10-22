@@ -656,6 +656,7 @@ struct GameData {
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
                          std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
+                         std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
