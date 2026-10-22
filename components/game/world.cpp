@@ -1242,7 +1242,7 @@ auto World::cross_level() -> void {
 auto World::quest_talk(int hc_idx, bool fresh) -> std::vector<d2d::rules::QuestMsg> {
         if (hosted_quests) return {};
         std::vector<d2d::rules::QuestMsg> out;
-        act1_talk(out, hc_idx);
+        act1_talk(out, hc_idx, fresh);
         act2_talk(out, hc_idx, fresh);
         act3_talk(out, hc_idx);
         act4_talk(out, hc_idx);
@@ -2181,6 +2181,19 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (std::holds_alternative<cmd::Transmute>(command)) { transmute(now_ms); return; }
+        if (const auto* gold = std::get_if<cmd::StashGold>(&command)) {         // FUN_00564d50
+            using namespace d2d::d2s;
+            constexpr std::int64_t kStashGoldMax = 2500000;                    // FUN_00623460
+            auto& values = actor->character.stats.values;
+            const std::int64_t amount = gold->amount, carried = values[kGold], bank = values[kGoldBank];
+            if (gold->deposit && amount > 0 && amount <= carried) {
+                const std::int64_t moved = std::min(amount, std::max<std::int64_t>(kStashGoldMax - bank, 0));
+                values[kGold] -= moved; values[kGoldBank] += moved;
+            } else if (!gold->deposit && amount > 0 && amount <= bank && carried + amount <= values[kLevel] * 10000) {
+                values[kGoldBank] -= amount; values[kGold] += amount;
+            }
+            return;
+        }
         if (const auto* use = std::get_if<cmd::UseItem>(&command)) {
             const auto found = std::ranges::find(actor->character.items, use->item, &d2d::d2s::Item::id);
             if (found != actor->character.items.end() && (found->code == "tsc" || found->code == "tbk")) read_portal(found, now_ms);
@@ -2263,6 +2276,28 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) (void)d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats));
+            return;
+        }
+        if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command)) {   // FUN_0055ef20
+            const auto book = std::ranges::find(actor->character.items, to_book->book, &d2d::d2s::Item::id);
+            if (actor->held && book != actor->character.items.end() && d2d::rules::tome_takes(tables, *actor->held, *book)) {
+                ++book->quantity;
+                actor->held.reset();
+            }
+            return;
+        }
+        if (const auto* socket = std::get_if<cmd::Socket>(&command)) {        // FUN_00562660
+            const auto target = std::ranges::find(actor->character.items, socket->item, &d2d::d2s::Item::id);
+            if (actor->held && target != actor->character.items.end() && (target->location == d2d::d2s::item_location::kStored || target->location == d2d::d2s::item_location::kEquipped)
+                && d2d::rules::takes_socket(tables, *actor->held, *target)) {
+                actor->held->location = d2d::d2s::item_location::kSocketed;
+                actor->held->column = int(target->socketed_items.size());
+                actor->held->row = actor->held->panel = 0;
+                target->socketed_items.push_back(std::move(*actor->held));
+                actor->held.reset();
+                const auto& type = tables.item_info.at(target->socketed_items.back().code).type;   // misc.txt's usesound by kind
+                cues.cue(d2d::rules::type_is(tables, type, "rune") ? "item_rune" : d2d::rules::type_is(tables, type, "jewl") ? "item_jewel" : "item_gem", now_ms, actor->player.x, actor->player.y);
+            }
             return;
         }
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {

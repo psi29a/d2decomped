@@ -148,6 +148,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\PANEL\buyselltabs.dc6)", scene.store_tabs);
     sprite(R"(data\global\ui\PANEL\buysellbtn.dc6)", scene.store_buttons);
     sprite(R"(data\global\ui\PANEL\goldcoinbtn.dc6)", scene.gold_coin);
+    sprite(R"(data\global\ui\PANEL\gemsocket.dc6)", scene.gem_socket);
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
         auto& graphics = scene.type_invgfx[code];

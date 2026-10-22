@@ -51,7 +51,18 @@ auto World::act1_enter(const Level& from) -> void {
         cain.enter(quests(), from.id, level->id);
     }
 
-auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> void {
+auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh) -> void {
+        if (hc_idx == d2d::rules::monster_ids::kFlavie) {
+            // Flavie's chat (quest record 0x1d's hook, FUN_00596a90): with the
+            // Den not cleared in this game and the player's not done (bits 0,
+            // 13, 1), "Turn back" / "Halt" (rand 2), else a "Beware" (rand 3 + 2),
+            // unverified (source: string.tbl's order): message n is string 59 + n,
+            // RogueSignpostGossip1..5; the client's map isn't traced.
+            namespace quest = d2d::rules::quest;
+            const bool warn = !quest::bit(game_bits, 1, 13) && den.active && !quest::bit(quests(), 1, 0) && !quest::bit(quests(), 1, 13) && !quest::bit(quests(), 1, 1);
+            if (fresh) flavie_line = 59 + (warn ? int(fight.spawning.quests.next() % 2) : 2 + int(fight.spawning.quests.next() % 3));
+            out.push_back({ flavie_line, true });
+        }
         std::ranges::copy(den.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(burial.talk(quests(), hc_idx), std::back_inserter(out));

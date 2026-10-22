@@ -29,7 +29,7 @@ void render_title(std::vector<std::uint8_t>& framebuffer,
 // authored for the fechar palette — on this Sky screen it speckles.
 //
 // Slots list <user dir>/save/*.d2s; OK enters InGame once one is picked.
-// CREATE hops to CharCreate. DELETE is a no-op for now.
+// CREATE hops to CharCreate. DELETE asks first (records 0xd6..0xd9).
 struct CharSelectUI {
     Button create_btn{};
     Button convert_btn{};
@@ -46,6 +46,11 @@ struct CharSelectUI {
     std::string popup;
     Button popup_ok{};
     Screen popup_return = Screen::CharSelect;
+    // DELETE's question (FUN at 0x439cc0): PopUpOKCancel2, tbl 0x142b,
+    // NO (0x142f) at x 281 and YES (0x142e, 0x43b6b0 deletes) at x 421.
+    bool confirm_delete = false;
+    std::string delete_text, yes_label, no_label;
+    Button popup_no{}, popup_yes{};
     int selected = -1;           // index into Scene::saves, or -1
     int scroll = 0;              // index of the save in slot 0; always even
     std::uint32_t last_click_ms = 0;   // double-click = OK (FUN_0043a9d0)

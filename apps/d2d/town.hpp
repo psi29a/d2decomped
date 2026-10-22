@@ -332,6 +332,9 @@ struct Town {
     [[nodiscard]] std::optional<PadFocus> pad_focus() const;
     [[nodiscard]] std::vector<pad::Point> pad_snap_points() const;
     void pad_trade(int mouse_x, int mouse_y);
+    // The pad's Secondary (B) is Back where the stash or Cube is up (no key
+    // toggles them) and the cursor's on no item: true when it's taken.
+    [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
     void pad_tab(int step);
     void pad_open_picker();
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere

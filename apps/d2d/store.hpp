@@ -43,14 +43,26 @@ std::array<int, 4> store_button_frames(const Store& store);
 // The tab labels: x centre and string, 18-byte records at 0x722110.
 inline constexpr int kTabLabelX[4] = { 42, 121, 201, 281 };
 inline constexpr std::uint16_t kTabString[4] = { 0xfc4, 0xfc5, 0xfc5, 0xfc7 };
-void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer);
+// A button's hover (FUN_004886c0, box x .. x+0x2d by 432..474): its
+// string centred on x 80 + its table x, bottom 440; Repair all's (0x276f)
+// with what it would cost.
+void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer,
+                const std::vector<d2d::d2s::Item>* items = nullptr);
 
 // Gold readouts (FUN_00488100, docs/research/re/store.md), font16 white,
 // baselines at 800x600: the inventory's carried gold (stat 14) at x 508,
 // y 468 after the goldcoinbtn (frame 0, bottom-left 484,469); with a
 // store open, "Stash" (0xcf3) at x 101, y 434 and the stash gold (15)
 // right-aligned to x 278.
-// ponytail: the coin button doesn't click (no gold drop/withdraw yet).
+// ponytail: the coin buttons move it all, no amount box (Town's stash gold); no gold drop.
 void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, bool store);
+// The stash's (FUN_00488100 with 0): goldcoinbtn at (155, bottom 100),
+// the stash gold at x 245, baseline 100, and over the coin's box
+// (stash_coin_at) string 0x101c at x 133, baseline 82.
+void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y);
+// FUN_00486820's boxes, 20x18 up from the bottom-left: the stash's coin
+// at (153, 102), the inventory's at (483, 471).
+bool stash_coin_at(int mouse_x, int mouse_y);
+bool inventory_coin_at(int mouse_x, int mouse_y);
 
 }  // namespace d2d::client

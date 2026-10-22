@@ -23,6 +23,7 @@ inline constexpr int kDuriel = 211;
 inline constexpr int kTyrael = 251;      // tyrael1: in Duriel's Lair
 inline constexpr int kMeshif = 210;      // meshif1: Lut Gholein's
 inline constexpr int kMeshifAct3 = 264;  // meshif2: Kurast Docks'
+inline constexpr int kFlavie = 266;        // navi: the rogue at the Blood Moor's way to the Cold Plains
 inline constexpr int kPalaceGuard = 331;   // act2guard2 (MonAI JarJar): at the palace gate
 inline constexpr int kAndariel = 156;
 inline constexpr int kMephisto = 242;

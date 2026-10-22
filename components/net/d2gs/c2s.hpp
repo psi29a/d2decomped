@@ -241,6 +241,18 @@ inline auto cursor_to_grid(std::uint32_t id, std::uint32_t x, std::uint32_t y, s
     return out;
 }
 // 0x1f: swap the cursor's item with the grid item `target` at (x, y).
+// 0x28: the held socket filler into item `target` (FUN_0054b650).
+inline auto insert_socket(std::uint32_t id, std::uint32_t target) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x28); put_u32(out, id); put_u32(out, target);
+    return out;
+}
+// 0x29: the held scroll into tome `book` (FUN_0054b710).
+inline auto scroll_to_book(std::uint32_t id, std::uint32_t book) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x29); put_u32(out, id); put_u32(out, book);
+    return out;
+}
 inline auto swap_grid(std::uint32_t id, std::uint32_t target, std::uint32_t x, std::uint32_t y) -> Bytes {
     Bytes out;
     put_u8(out, 0x1f); put_u32(out, id); put_u32(out, target); put_u32(out, x); put_u32(out, y);

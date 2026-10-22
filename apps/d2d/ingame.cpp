@@ -251,7 +251,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         if (store && store->npc >= 0)
         {
-            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer);
+            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory);
             if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
         }
         if (stash) {
@@ -260,8 +260,11 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 draw_storage(framebuffer, scene, *stash, scene.cube_panel, scene.cube_layout, d2d::d2s::item_panel::kCube, mouse_x, mouse_y,
                              hover_wearer, cube_open == 2);
             else
+            {
                 draw_storage(framebuffer, scene, *stash, scene.stash_panel[std::size_t(expansion_index)], scene.stash_layout[std::size_t(expansion_index)], d2d::d2s::item_panel::kStash,
                              mouse_x, mouse_y, hover_wearer);
+                if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
+            }
         }
         if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);

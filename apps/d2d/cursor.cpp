@@ -30,6 +30,13 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
     else if (open.stash) grids.push_back({ &scene.stash_layout[open.expansion ? 1 : 0], d2d::d2s::item_panel::kStash });
     for (const auto& [layout, panel] : grids) {
         if (!inside(layout->grid_x, layout->grid_y, layout->cols * layout->box_w, layout->rows * layout->box_h)) continue;
+        if (held)                                          // a gem onto a socketed item: into it
+            for (const auto& item : items) {
+                if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
+                const auto rect = grid_rect(scene, *layout, item);
+                if (inside(rect[0], rect[1], rect[2], rect[3]) && d2d::rules::takes_socket(tables, *held, item)) return { true, cmd::Socket{ item.id } };
+                if (inside(rect[0], rect[1], rect[2], rect[3]) && d2d::rules::tome_takes(tables, *held, item)) return { true, cmd::ScrollToBook{ item.id } };
+            }
         if (held) {
             // The held item is drawn centred on the cursor: its top-left
             // cell is the one under the cursor, shifted back half its size.
@@ -49,6 +56,9 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
         for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot) {
             const auto& rect = inv.slots[std::size_t(slot)];
             if (rect[2] <= 0 || !inside(rect[0], rect[1], rect[2], rect[3])) continue;
+            if (held)
+                for (const auto& item : items)
+                    if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot && d2d::rules::takes_socket(tables, *held, item)) return { true, cmd::Socket{ item.id } };
             if (held) return { true, cmd::ToBody{ slot } };
             for (const auto& item : items)
                 if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot) return { true, cmd::ToCursor{ item.id } };

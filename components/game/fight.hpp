@@ -319,6 +319,7 @@ struct Fight {
         std::pair<int, int> warp_spot{};
         // Potions working: life / mana (8.8 fixed) a millisecond, until when.
         struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
+        struct StaminaPot { int bonus = 0; std::uint32_t until = 0; } stamina_pot;   // the staminapot state
         std::vector<Regen> regen;
         // A shrine's boost (Shrines.txt booster: its stats, FUN_00583b30), one
         // at a time, until when.

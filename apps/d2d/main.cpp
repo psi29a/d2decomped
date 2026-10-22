@@ -641,6 +641,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                  &scene->medium_button,
                                  Screen::InGame, /*do_switch=*/false };
         csu.popup_ok   = Button{ 351, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
+        csu.delete_text = tbl_label(0x142b, "Are you sure that you want to delete this character?");
+        csu.no_label    = tbl_label(0x142f, "NO");
+        csu.yes_label   = tbl_label(0x142e, "YES");
+        csu.popup_no    = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
+        csu.popup_yes   = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
     }
 
     const auto start_ticks = SDL_GetTicks();
@@ -855,7 +860,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button)
                 pad_capture_held[button] = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
                                          : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
-            const pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt)), pad::Actions{})
+            pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt)), pad::Actions{})
                                                          : pad_mapper.step(first, pad_context, pad_dt);
             const int pad_side = (win.view_w - int(kScreenWidth)) / 2;   // widescreen's world beyond the 800x600 UI
             const bool pad_active = pad_actions.move_active || pad_actions.click_press || pad_actions.click_down || pad_actions.rclick_press
@@ -897,7 +902,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     for (const auto& position : kClassPos) points.push_back({ position.x, position.y - 50 });   // ponytail: a spot up each figure, not its frame's box
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
-                    buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
+                    if (csu.confirm_delete) buttons({ &csu.popup_no, &csu.popup_yes });
+                    else buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
                 } else if (screen == Screen::InGame && town.controls.open && scene) {
                     for (const auto& [x, y] : town.controls.buttons(*scene)) points.push_back({ x, y });
                 }
@@ -906,7 +912,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
                 // Char select's d-pad steps its roster by key instead.
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
-                const bool by_key = screen == Screen::CharSelect || (screen == Screen::InGame && town.controls.open);
+                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete) || (screen == Screen::InGame && town.controls.open);
                 const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
                 if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
@@ -926,6 +932,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_actions.tab_step != 0) town.pad_tab(pad_actions.tab_step);
             if (pad_actions.click_press && !pad_field)   { mouse.down = true;  mouse.press_this_frame = true; }
             if (pad_actions.click_release && mouse.down) { mouse.down = false; mouse.release_this_frame = true; }
+            if (pad_actions.rclick_press && screen == Screen::InGame && !pad_field && town.pad_back(mouse.x, mouse.y)) {
+                pad_actions.rclick_press = false;
+                pad_actions.keys.push_back(pad::Key::Escape);
+            }
             if (pad_actions.rclick_press && !pad_field)  mouse.rpress_this_frame = true;
             for (const pad::Key pad_key : pad_actions.keys) {
                 // Escape quits from the title screen; B must not be able to close the app there.
@@ -1126,6 +1136,26 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     render_charselect(framebuffer, *scene, csu, now_ms);
                     break;
                 }
+                if (csu.confirm_delete) {   // DELETE's YES / NO takes the input
+                    Screen stay = screen;
+                    update_button(csu.popup_no, mouse, stay, quit);
+                    update_button(csu.popup_yes, mouse, stay, quit);
+                    const auto key = [&](auto... wanted) { return std::ranges::any_of(keys_this_frame, [&](SDL_Keycode got) { return ((got == wanted) || ...); }); };
+                    const bool yes = (csu.popup_yes.hovered && mouse.release_this_frame) || key(SDLK_RETURN, SDLK_KP_ENTER);
+                    if (yes || (csu.popup_no.hovered && mouse.release_this_frame) || key(SDLK_ESCAPE)) csu.confirm_delete = false;
+                    if (yes && csu.selected >= 0 && csu.selected < int(scene->saves.size())) {
+                        // FUN_0043c750: every file <save dir><name>.* (the .d2s, .key, .ma*, ...).
+                        const std::string prefix = scene->saves[std::size_t(csu.selected)].name + ".";
+                        std::error_code error;
+                        for (const auto& entry : fs::directory_iterator(save_dir, error))
+                            if (entry.is_regular_file(error) && entry.path().filename().string().starts_with(prefix)) fs::remove(entry.path(), error);
+                        load_saves(*scene, save_dir);
+                        csu.selected = scene->saves.empty() ? -1 : 0;
+                        csu.scroll = 0;
+                    }
+                    render_charselect(framebuffer, *scene, csu, now_ms);
+                    break;
+                }
                 if (std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end()) screen = Screen::Title;
                 const int count = int(scene->saves.size());
                 const int max_scroll = charselect_max_scroll(count);
@@ -1175,6 +1205,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                   &csu.cancel_btn, &csu.ok_btn})
                     update_button(*button, mouse, screen, quit);
                 if (play && csu.selected >= 0 && csu.selected < count) screen = Screen::InGame;
+                if (csu.delete_btn.hovered && mouse.release_this_frame && csu.selected >= 0 && csu.selected < count) csu.confirm_delete = true;
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
                     const auto& header = scene->saves[std::size_t(csu.selected)];

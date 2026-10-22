@@ -846,6 +846,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             d2d::rules::Tables::Potion potion{ 0, 0, number("len") };
             if (stat1 == "hpregen") potion.life = number("calc1");
             else if (stat1 == "manarecovery") potion.mana = number("calc1");
+            else if (stat1 == "staminarecoverybonus") potion.stamina = number("calc1");
             else if (stat1 == "hitpoints" && stat2 == "mana") { potion.life = number("calc1"); potion.mana = number("calc2"); potion.percent = true; }
             else if (misc.get(row, "pSpell") == "6") {             // antidote / thawing: the states they clear (cstate1/2)
                 potion.antidote = misc.get(row, "cstate1") == "poison";

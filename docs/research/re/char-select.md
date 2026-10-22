@@ -85,6 +85,16 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
   y-1 (443..456), track (f5) every 10 px above it, up arrow at
   (y-h)+9 (90..103), thumb at `(h-30)*pos/max - h + 19 + y`.
 
+## Delete
+
+- DELETE's click (`0x439cc0`) shows records 0xd6..0xd9: `PopUpOKCancel2`
+  at (268, 350) 264x176, NO (0x142f, `CancelButtonBlank`, 281, 337,
+  96x32, `0x439d40` closes), YES (0x142e, 421, 337, `0x43b6b0`) and the
+  text box 0xd9 (268, 320, 264x120) with string 0x142b ("Are you sure
+  that you want to delete this character? ...").
+- YES (`0x43b6b0`): `FUN_0043c750` deletes every file `<save dir><name>.*`
+  (not directories), then `FUN_0043b080` rebuilds the list.
+
 ## Not yet RE'd
 ## Input
 

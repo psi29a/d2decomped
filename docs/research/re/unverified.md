@@ -18,6 +18,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
 | Objects.txt CycleAnim0..7: 0 = play once, hold the last frame | apps/d2d/ingame.cpp `holds` | objects.txt's column names | an opened chest stops open | the object animation update |
+| Flavie's chat message n is string 59 + n (RogueSignpostGossip1..5) | components/game/world_quests_act1.cpp `act1_talk` | the strings' order in string.tbl | n's roll (`FUN_00596a90`) fits: 0/1 warn while the Den's open, 2..4 "Beware" after | the client's map for `FUN_00543790`'s NPC messages |
 | Character-create name filter: letters, one ' - _ not first or last, 2..15 | apps/d2d/main.cpp Screen::CharCreate | the TCP host's join check (FUN_0052c5b0) | "Bob Bitchen" (a space) got no answer from a live host | the create screen's edit box / OK handler |
 | DT1 block y-shift, `max(0, -min(block.y))` | components/dt1/dt1.hpp | OpenDiablo2's renderer | tiles draw seamlessly | the DT1 loader / tile blitter |
 | pal.dat is BGR triples | components/palette/palette.hpp | OpenDiablo2's d2dat.Load | colours match the game's screens | the palette loader |

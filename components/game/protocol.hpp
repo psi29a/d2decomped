@@ -41,6 +41,10 @@ struct Pickup { int item = -1; };
 struct Resurrect {};
 // 0x4f button 0x18: the Cube's Transmute (FUN_00566ae0 -> FUN_005665f0).
 struct Transmute {};
+// 0x4f button 0x13 / 0x14 (FUN_00564d50): `amount` gold from the stash to
+// the inventory (none over clvl x 10000 carried) / into the stash (up to
+// its 2,500,000).
+struct StashGold { int amount = 0; bool deposit = false; };
 // 0x3a: spend `count` stat points on a stat (0 str, 1 energy, 2 dex, 3 vit).
 struct StatPoint { int stat = 0, count = 1; };
 // 0x3b: spend a skill point on the class's skill `skill` (its index 0..29,
@@ -61,6 +65,12 @@ struct UseItem { int item = -1; };                 // right-click an item: a pot
 struct ToGrid { int panel = 1, col = 0, row = 0; };
 struct ToBody { int slot = 0; };
 struct ToBelt { int box = 0; };
+// 0x28 (FUN_0054b650 -> FUN_00562660): the held socket filler (a gem, rune
+// or jewel) into item `item`'s next free socket, the item stored or worn.
+struct Socket { int item = -1; };
+// 0x29 (FUN_0054b710 -> FUN_0055ef20): the held scroll into tome `book`
+// (stored; its quantity under the max).
+struct ScrollToBook { int book = -1; };
 // NPC deals: 0x38 an NPC's trade / gamble window or hire list (the server
 // rolls the stock / offers); 0x32 buy stock item `stock` (a gamble too);
 // 0x33 sell an item (by unit id; the one in hand too); 0x35 repair one
@@ -106,9 +116,9 @@ struct Waypoint { int npc = -1, level = 0; };
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
-                             cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt,
+                             cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::SwapWeapons, cmd::MercItem>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::SwapWeapons, cmd::MercItem>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -172,6 +182,8 @@ inline constexpr std::uint8_t kToBody = 0x1a;
 inline constexpr std::uint8_t kUseItem = 0x20;
 inline constexpr std::uint8_t kToBelt = 0x23;
 inline constexpr std::uint8_t kUseBelt = 0x26;
+inline constexpr std::uint8_t kSocket = 0x28;
+inline constexpr std::uint8_t kScrollToBook = 0x29;
 inline constexpr std::uint8_t kChat = 0x2f;
 inline constexpr std::uint8_t kCloseTrade = 0x30;
 inline constexpr std::uint8_t kQuestMessage = 0x31;
@@ -212,6 +224,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::SwapWeapons>) out.u8(opcode::kSwapWeapons);
         else if constexpr (std::is_same_v<T, cmd::MercItem>) out.u8(opcode::kMercItem).i32(message.slot);
         else if constexpr (std::is_same_v<T, cmd::Transmute>) out.u8(opcode::kButton).u16(0x18);
+        else if constexpr (std::is_same_v<T, cmd::StashGold>) out.u8(opcode::kButton).u16(message.deposit ? 0x14 : 0x13).i32(message.amount);
         else if constexpr (std::is_same_v<T, cmd::StatPoint>) out.u8(opcode::kStatPoint).i32(message.stat).i32(message.count);
         else if constexpr (std::is_same_v<T, cmd::SkillPoint>) out.u8(opcode::kSkillPoint).i32(message.skill);
         else if constexpr (std::is_same_v<T, cmd::SelectSkill>) out.u8(opcode::kSelectSkill).i32(message.skill).u8(message.left);
@@ -222,6 +235,8 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(opcode::kToGrid).i32(message.panel).i32(message.col).i32(message.row);
         else if constexpr (std::is_same_v<T, cmd::ToBody>) out.u8(opcode::kToBody).i32(message.slot);
         else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(opcode::kToBelt).i32(message.box);
+        else if constexpr (std::is_same_v<T, cmd::Socket>) out.u8(opcode::kSocket).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::ScrollToBook>) out.u8(opcode::kScrollToBook).i32(message.book);
         else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(opcode::kNpcDeal).u8(message.gamble ? npc_deal::kGamble : npc_deal::kTrade).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(opcode::kNpcDeal).u8(npc_deal::kHire).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(opcode::kNpcDeal).u8(npc_deal::kRespec).i32(message.npc);
@@ -261,7 +276,13 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kResurrect: command = cmd::Resurrect{}; break;
         case opcode::kSwapWeapons: command = cmd::SwapWeapons{}; break;
         case opcode::kMercItem: command = cmd::MercItem{ i32() }; break;
-        case opcode::kButton: if (input.get<std::uint16_t>() != 0x18) return std::nullopt; command = cmd::Transmute{}; break;
+        case opcode::kButton: {
+            const auto button = input.get<std::uint16_t>();
+            if (button == 0x18) command = cmd::Transmute{};
+            else if (button == 0x13 || button == 0x14) command = cmd::StashGold{ i32(), button == 0x14 };
+            else return std::nullopt;
+            break;
+        }
         case opcode::kStatPoint: { const int stat = i32(); command = cmd::StatPoint{ stat, i32() }; break; }
         case opcode::kSkillPoint: command = cmd::SkillPoint{ i32() }; break;
         case opcode::kSelectSkill: { const int skill = i32(); command = cmd::SelectSkill{ skill, byte() != 0 }; break; }
@@ -272,6 +293,8 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kToGrid: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
         case opcode::kToBody: command = cmd::ToBody{ i32() }; break;
         case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
+        case opcode::kSocket: command = cmd::Socket{ i32() }; break;
+        case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
             command = kind == npc_deal::kImbue ? Command{ cmd::Imbue{ npc } } : kind == npc_deal::kCaravan ? Command{ cmd::Caravan{ npc } } : kind == npc_deal::kRespec ? Command{ cmd::Respec{ npc } } : kind == npc_deal::kResurrectMerc ? Command{ cmd::ResurrectMerc{ npc } }

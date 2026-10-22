@@ -274,6 +274,18 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, button->label);
         }
     }
+    if (select_ui.confirm_delete) {
+        // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
+        blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
+        draw_text_box(framebuffer, scene, scene.font24, select_ui.delete_text, 268, rec_top(320, 120), 264, 120);
+        for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
+            blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
+            const int label_x = button->x + (button->width - scene.font.measure(*label)) / 2, label_y = button->y + (button->height - scene.font.line_height()) / 2;
+            if (button->hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, *label, 255, 208, 80);
+            else                 scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, *label);
+        }
+        return;
+    }
     if (select_ui.popup.empty()) return;
     // FUN_00433380 on a Sky screen: PopUpOK (record 0xde), the message
     // (0xe0, Font24) and OK (0xe1).

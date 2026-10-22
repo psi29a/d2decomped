@@ -67,7 +67,8 @@ std::array<int, 4> store_button_frames(const Store& store) {
     return { 2, 4, repair ? 6 : 0, repair ? 18 : 10 };
 }
 
-void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer) {
+void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Store& store, int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer,
+                const std::vector<d2d::d2s::Item>* items) {
     if (store.npc < 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     if (scene.store_panel.frames_per_direction() >= 4) {
@@ -98,6 +99,20 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
             const auto& frame = scene.store_buttons.frame(0, std::uint32_t(frames[std::size_t(i)] + (down ? 1 : 0)));
             blit_sprite(framebuffer, frame, pal, kCharPanelX - 1 + kBtnX[i], 476 - int(frame.height) + 1);
         }
+    for (int i = 0; i < 4; ++i) {
+        const int tip_x = kCharPanelX + kBtnX[i];
+        if (mouse_x < tip_x || mouse_x >= tip_x + 0x2d || mouse_y <= 431 || mouse_y >= 475) continue;
+        static constexpr std::array<std::pair<int, std::uint16_t>, 5> kTips{ { { 2, 0xd07 }, { 4, 0xd08 }, { 6, 0xd0a }, { 18, 0x276f }, { 10, 0x1030 } } };
+        const auto tip = std::ranges::find(kTips, frames[std::size_t(i)], &std::pair<int, std::uint16_t>::first);
+        if (tip == kTips.end()) break;
+        std::string text = string_id(scene, tip->second);
+        if (tip->second == 0x276f) {
+            const auto found = text.find("%d");
+            if (found != text.npos) text.replace(found, 2, std::to_string(items ? d2d::rules::repair_all_cost(scene.rules, store, *items) : 0));
+        }
+        draw_hover_text(framebuffer, scene, { { text, kTxtWhite } }, tip_x, tip_x, 440, 440);
+        break;
+    }
     // Stock, Monster2 grid.
     Scene::InvLayout layout;
     layout.grid_x = 96; layout.grid_y = 123; layout.box_w = layout.box_h = 29;
@@ -138,6 +153,21 @@ void draw_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     text(101, 434, string_id(scene, 0xcf3));
     const auto gold_text = std::to_string(stats.get(d2d::d2s::kGoldBank));
     text(278 - scene.font.measure(gold_text), 434, gold_text);
+}
+
+bool stash_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 153 && mouse_x < 173 && mouse_y > 102 - 18 && mouse_y <= 102; }
+bool inventory_coin_at(int mouse_x, int mouse_y) { return mouse_x >= 483 && mouse_x < 503 && mouse_y > 471 - 18 && mouse_y <= 471; }
+
+void draw_stash_gold(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats, int mouse_x, int mouse_y) {
+    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
+    auto text = [&](int x, int baseline, const std::string& label) { scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x, baseline - cell + 1, label); };
+    if (scene.gold_coin.frames_per_direction() > 0) {
+        const auto& frame = scene.gold_coin.frame(0, 0);
+        blit_sprite(framebuffer, frame, pal, 155, 100 - int(frame.height) + 1);
+    }
+    text(245, 100, std::to_string(stats.get(d2d::d2s::kGoldBank)));
+    if (stash_coin_at(mouse_x, mouse_y)) text(133, 82, string_id(scene, 0x101c));
 }
 
 }  // namespace d2d::client

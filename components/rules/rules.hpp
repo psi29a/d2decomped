@@ -225,8 +225,9 @@ struct Tables {
     std::unordered_map<std::string, TreasureClass> treasure;
     std::array<std::array<QualityRatio, 6>, 4> quality_ratio{};
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
-    // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once).
-    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; };
+    // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once;
+    // stamina: staminarecoverybonus % for `ticks`).
+    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; int stamina = 0; };
     std::unordered_map<std::string, Potion> potions;
 };
 
@@ -496,6 +497,14 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     return true;
 }
 
+// What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60).
+inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
+    int cost = 0;
+    for (const auto& item : items)
+        if (item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))
+            cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
+    return cost;
+}
 // Repair all: every worn or carried item, in list order, while the gold lasts.
 inline int store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     int repaired = 0;
@@ -504,6 +513,14 @@ inline int store_repair_all(const Tables& tables, const Store& store, std::vecto
     return repaired;
 }
 
+// A scroll's tome (Books.txt pairs tsc / tbk, isc / ibk) for `scroll`:
+// true when `book` is one with room (FUN_0055ef20: quantity, stat 70,
+// under its max).
+inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const d2d::d2s::Item& book) {
+    const std::string tome = scroll.code == "tsc" ? "tbk" : scroll.code == "isc" ? "ibk" : "";
+    const auto base = tables.item_base.find(book.code);
+    return !tome.empty() && book.code == tome && book.location == d2d::d2s::item_location::kStored && base != tables.item_base.end() && book.quantity < base->second.max_stack;
+}
 // Buys stock item i of the open tab into the inventory (10x4): gold
 // down by the price, the item leaves the stock unless it's a perm one.
 // False if it doesn't fit or you can't afford it.
@@ -513,14 +530,19 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     const auto& item = tab[std::size_t(index)];
     const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    // A scroll goes into a carried tome with room (FUN_00577830 -> FUN_0055f640).
+    const auto book = std::ranges::find_if(items, [&](const d2d::d2s::Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
-    const auto [column, row] = free_spot(tables, inv, 10, 4, width, height);
+    const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height);
     if (column < 0) return false;
-    auto bought = item;
-    bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
-    items.push_back(std::move(bought));
+    if (book != items.end()) ++book->quantity;
+    else {
+        auto bought = item;
+        bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
+        items.push_back(std::move(bought));
+    }
     // Carried gold first, then the stash (the store shows it for that).
     // ponytail: that order is a guess; the server's buy isn't RE'd.
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
@@ -1613,6 +1635,14 @@ inline std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& i
         for (int box = col + 4; box < 16; box += 4)
             for (auto& item : items) if (item.location == d2d::d2s::item_location::kBelt && item.column == box) item.column = box - 4;
     return code;
+}
+// FUN_00562660's checks: `filler` is a socket filler (item type "sock":
+// gems, runes, jewels) and `target` identified, socketed, with a socket free.
+// ponytail: no rune words (FUN_006600a0).
+inline bool takes_socket(const Tables& tables, const d2d::d2s::Item& filler, const d2d::d2s::Item& target) {
+    const auto info = tables.item_info.find(filler.code);
+    return info != tables.item_info.end() && type_is(tables, info->second.type, "sock") && filler.identified
+        && target.identified && target.socketed && int(target.socketed_items.size()) < target.sockets;
 }
 inline std::string drink_item(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id) {
     return drink_at(tables, items, std::ranges::find(items, id, &d2d::d2s::Item::id));

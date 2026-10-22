@@ -555,7 +555,7 @@ auto Town::send(const Command& command) -> void {
             net_game->store_items.clear();
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
-                   || std::holds_alternative<cmd::Drop>(command)) {
+                   || std::holds_alternative<cmd::Drop>(command) || std::holds_alternative<cmd::Socket>(command) || std::holds_alternative<cmd::ScrollToBook>(command)) {
             net_items(command);
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(interact->npc)];
@@ -706,6 +706,12 @@ auto Town::net_items(const Command& command) -> void {
             net_cursor = swap ? net_game->host_item(*worn) : 0;
         } else if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command); to_belt && held_id) {
             net_game->send_items({ c2s::cursor_to_belt(held_id, std::uint32_t(to_belt->box)) });
+            net_cursor = 0;
+        } else if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command); to_book && held_id) {
+            if (const auto target = host(local(to_book->book))) net_game->send_items({ c2s::scroll_to_book(held_id, target) });
+            net_cursor = 0;
+        } else if (const auto* socket = std::get_if<cmd::Socket>(&command); socket && held_id) {
+            if (const auto target = host(local(socket->item))) net_game->send_items({ c2s::insert_socket(held_id, target) });
             net_cursor = 0;
         } else if (std::holds_alternative<cmd::Drop>(command) && held_id) {
             net_game->send_items({ c2s::item_id_packet(0x17, held_id) });
@@ -1425,6 +1431,22 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else send(cmd::Transmute{});
             }
             transmute_down = false;
+        }
+        // The stash's gold (FUN_00564d50's 0x4f 0x13 / 0x14): its coin takes
+        // all it can to the inventory, the inventory's coin puts all in.
+        // ponytail: no amount box (game.exe's asks how much).
+        if (stash_open && mouse.press_this_frame && (stash_coin_at(mouse.x, mouse.y) || (inv_open && inventory_coin_at(mouse.x, mouse.y)))) {
+            using namespace d2d::d2s;
+            const bool deposit = !stash_coin_at(mouse.x, mouse.y);
+            const std::int64_t carried = character.stats.get(kGold), bank = character.stats.get(kGoldBank);
+            const std::int64_t amount = deposit ? std::min(carried, std::max<std::int64_t>(2500000 - bank, 0))
+                                                : std::min(bank, std::max<std::int64_t>(character.stats.get(kLevel) * 10000 - carried, 0));
+            if (amount > 0) {
+                if (net_game) net_game->send_items({ d2d::net::d2gs::c2s::button(deposit ? 0x14 : 0x13, std::uint16_t(amount >> 16), std::uint16_t(amount)) });
+                else send(cmd::StashGold{ int(amount), deposit });
+            }
+            audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
+            mouse.press_this_frame = false;
         }
         // An open NPC menu takes every click: an entry runs its action,
         // anything else closes it.
@@ -2200,6 +2222,13 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
             const auto rect = grid_rect(*scene, inv, item);
             if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { send(cmd::Sell{ item.id }); return; }
         }
+    }
+
+auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
+        if (!scene || held || !(stash_open || cube_open)) return false;
+        const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                            { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse_x, mouse_y);
+        return !(click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd));
     }
 
 // The field's right stick click: the right hand's skill picker (A on the

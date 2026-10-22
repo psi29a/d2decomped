@@ -11,6 +11,7 @@
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
+#include <palette.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 
@@ -30,6 +31,43 @@
 #include <vector>
 
 namespace d2d::client {
+
+namespace {
+// FUN_00483e40: a hovered identified, socketed grid item's sockets, each
+// GemSocket with what fills it over the item; places in half cells from
+// 0x6d91e8, [sockets - 1][width - 1][height - 1] (0, 0: none for that size).
+void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, int box_w, int box_h, int left, int top,
+                  const d2d::palette::Palette& pal) {
+    using Place = std::array<std::pair<int, int>, 6>;
+    static constexpr std::array<std::array<std::array<Place, 4>, 2>, 6> kPlaces{ {
+        { { { { Place{ { { 1, 1 } } }, Place{ { { 1, 2 } } }, Place{ { { 1, 3 } } }, Place{ { { 1, 4 } } } } },
+            { { Place{ { { 2, 1 } } }, Place{ { { 2, 2 } } }, Place{ { { 2, 3 } } }, Place{ { { 2, 4 } } } } } } },
+        { { { { Place{}, Place{ { { 1, 1 }, { 1, 3 } } }, Place{ { { 1, 2 }, { 1, 4 } } }, Place{ { { 1, 3 }, { 1, 5 } } } } },
+            { { Place{ { { 1, 1 }, { 3, 1 } } }, Place{ { { 2, 1 }, { 2, 3 } } }, Place{ { { 2, 2 }, { 2, 4 } } }, Place{ { { 2, 2 }, { 2, 6 } } } } } } },
+        { { { { Place{}, Place{}, Place{ { { 1, 1 }, { 1, 3 }, { 1, 5 } } }, Place{ { { 1, 2 }, { 1, 4 }, { 1, 6 } } } } },
+            { { Place{}, Place{ { { 1, 1 }, { 3, 1 }, { 2, 3 } } }, Place{ { { 2, 1 }, { 2, 3 }, { 2, 5 } } }, Place{ { { 2, 2 }, { 2, 4 }, { 2, 6 } } } } } } },
+        { { { { Place{}, Place{}, Place{}, Place{ { { 1, 1 }, { 1, 3 }, { 1, 5 }, { 1, 7 } } } } },
+            { { Place{}, Place{ { { 1, 1 }, { 3, 3 }, { 1, 3 }, { 3, 1 } } }, Place{ { { 1, 2 }, { 3, 4 }, { 1, 4 }, { 3, 2 } } }, Place{ { { 2, 1 }, { 2, 3 }, { 2, 5 }, { 2, 7 } } } } } } },
+        { { { { Place{}, Place{}, Place{}, Place{} } },
+            { { Place{}, Place{}, Place{ { { 2, 3 }, { 1, 1 }, { 3, 5 }, { 1, 5 }, { 3, 1 } } }, Place{ { { 2, 4 }, { 1, 2 }, { 3, 6 }, { 1, 6 }, { 3, 2 } } } } } } },
+        { { { { Place{}, Place{}, Place{}, Place{} } },
+            { { Place{}, Place{}, Place{ { { 1, 1 }, { 1, 3 }, { 1, 5 }, { 3, 1 }, { 3, 3 }, { 3, 5 } } }, Place{ { { 1, 2 }, { 1, 4 }, { 1, 6 }, { 3, 2 }, { 3, 4 }, { 3, 6 } } } } } } },
+    } };
+    if (!item.identified || !item.socketed || item.sockets < 1 || item.sockets > 6 || scene.gem_socket.frames_per_direction() == 0) return;
+    const auto [width, height] = d2d::rules::item_size(scene.rules, item.code);
+    if (width < 1 || width > 2 || height < 1 || height > 4) return;
+    const auto& places = kPlaces[std::size_t(item.sockets - 1)][std::size_t(width - 1)][std::size_t(height - 1)];
+    const auto& socket = scene.gem_socket.frame(0, 0);
+    for (int i = 0; i < item.sockets; ++i) {
+        const auto [col, row] = places[std::size_t(i)];
+        const int socket_x = (col - 1) * box_w / 2 + left - 1, bottom = (row + 1) * box_h / 2 + top;
+        blit_sprite(framebuffer, socket, pal, socket_x, bottom - int(socket.height) + 1);
+        if (std::size_t(i) >= item.socketed_items.size()) continue;
+        const auto& gem = item.socketed_items[std::size_t(i)];
+        if (const auto* spr = scene.item_sprite(gem); spr && spr->frames_per_direction() > 0) blit_sprite(framebuffer, spr->frame(0, 0), scene.item_pal(gem, pal), socket_x, bottom - box_h);
+    }
+}
+}  // namespace
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
@@ -74,6 +112,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }
+    if (hover && hover->location == d2d::d2s::item_location::kStored) draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0], hover_box[1], pal);
     if (hover) {
         auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
         if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });
@@ -455,6 +494,7 @@ void draw_storage(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         const auto& frame = scene.transmute_button.frame(0, transmute_down ? 1 : 0);
         blit_sprite(framebuffer, frame, pal, kCharPanelX + 0x90, cube_bottom(scene) - 0xbc - int(frame.height) + 1);
     }
+    if (hover) draw_sockets(framebuffer, scene, *hover, layout.box_w, layout.box_h, hover_box[0], hover_box[1], pal);
     if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
 }
 

@@ -351,6 +351,7 @@ struct World {
     d2d::rules::ArcaneQuest arcane;        // and the Arcane Sanctuary
     d2d::rules::SummonerQuest summoner;    // and the Summoner
     d2d::rules::SevenTombsQuest tombs;     // and the Seven Tombs
+    int flavie_line = 59;                  // Flavie's RogueSignpostGossip as last rolled
     int guard_line = 186;                  // the palace guard's line as last rolled (the talk's, for what's heard)
     [[nodiscard]] d2d::rules::HoradricStaffQuest::Items staff_items() const { return { carries("tr1"), carries("msf"), carries("box"), carries("vip"), carries("hst") }; }
     d2d::rules::QuestBits game_bits{};
@@ -384,7 +385,7 @@ struct World {
     void act3_enter(const Level& from);
     void act4_enter(const Level& from);
     // The NPC's quest messages, in talk order.
-    void act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);
+    void act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh);
     void act2_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh);
     void act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);
     void act4_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);

@@ -201,6 +201,7 @@ struct Scene : GameData {
     struct AutomapRule { int level_type = 0, orientation = 0, main = -1, sub0 = -1, sub1 = -1; std::vector<int> cels; };
     d2d::dc6::Sprite store_panel, store_tabs, store_buttons;   // PANEL\buysell, buyselltabs, buysellbtn
     d2d::dc6::Sprite gold_coin;                                   // PANEL\goldcoinbtn
+    d2d::dc6::Sprite gem_socket;                                  // PANEL\GemSocket (0x7bef14)
     d2d::dc6::Sprite wp_bg, wp_icons;
     std::array<d2d::dc6::Sprite, 2> wp_tabs;                      // [expansion]: waygatetabs / expwaygatetabs
     d2d::dc6::Sprite automap_cels;                     // UI\AutoMap\MaxiMap.dc6

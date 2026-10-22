@@ -71,3 +71,16 @@ below it, so the call order is bottom to top. Top line first (d2d
 Not yet: set item / set bonus lists (`FUN_004e6410` flags), the gold
 line (`FUN_00486670`), Holy Shield's block and smite, time-of-day stats
 268-273, throwing potions' missile damage, charged skill details.
+
+## Sockets
+
+- Inserting (C→S 0x28, `FUN_0054b650` → `FUN_00562660`): the held item
+  must be a socket filler (item type 53 `sock`: gems, runes, jewels) and
+  identified; the target stored or worn, identified, socketed (0x800),
+  able to hold sockets (Items +0x137) and with a free one. d2d leaves
+  out rune words (`FUN_006600a0`).
+- The hover overlay (`FUN_00483e40`, a hovered identified socketed grid
+  item, `Panel\GemSocket` = `0x7bef14`): per socket i a place in half
+  cells from `0x6d91e8`, 48-byte records `[sockets-1][width-1][height-1]`
+  of six {col, row}; the socket at x = (col - 1) * box_w / 2 + left - 1,
+  bottom (row + 1) * box_h / 2 + top, the filler's inventory art over it.

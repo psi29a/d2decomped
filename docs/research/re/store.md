@@ -235,3 +235,26 @@ mods → stats through Properties.txt funcs (1/2/3/5/6/7/8/10/11/15/16/17/
 19/20/21/22). Uniques and sets by code and level, weighted by rarity,
 else rare.
 
+
+## Stash gold, button hovers
+
+- The stash's gold (`FUN_00488100` with 0, LoD): goldcoinbtn frame 0 (1
+  held) at x 155, bottom 100; the stash gold (stat 15) at x 245,
+  baseline 100. Over the coin's box (`FUN_00486820`: 20x18 up from
+  (153, 102)) string 0x101c "Withdraw" at x 133, baseline 82. The
+  inventory's coin box is (483, 471) the same way.
+- The server's 0x4f buttons with a stash open (`FUN_00564d50`): 0x13
+  withdraws `n` (n <= stash gold, carried + n <= clvl x 10000
+  (`FUN_00622e70`), else nothing moves and a message); 0x14 deposits
+  `n` <= carried, up to the stash's 2,500,000 (`FUN_00623460`).
+- d2d: a click on the stash's coin takes all it can; the inventory's,
+  with the stash open, puts all in. ponytail: game.exe's amount box
+  isn't done.
+- A button's hover (`FUN_004886c0`): box x .. x + 0x2d by 432..474, the
+  string centred on x = 80 + the button table's x, bottom 440. Repair
+  all's string 0x276f ("Repair all equipment: %d") takes the total
+  repair cost (`FUN_0062fe60`).
+- A bought scroll goes into a carried tome with room (`FUN_00577830` →
+  `FUN_0055f640`), as one picked up does. 0x29 (`FUN_0054b710` →
+  `FUN_0055ef20`) puts the held scroll into a stored tome of the same
+  spell, quantity (stat 70) under its max.
