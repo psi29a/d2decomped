@@ -501,7 +501,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                      std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
-    std::erase_if(ms_, [&](Missile& missile) {
+    const auto spent = [&](Missile& missile) {
         missile.flight.crossed.clear();
         const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
         if (moving && !missile_fly(level, missile, reach)) return true;
@@ -567,6 +567,20 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return true;
         }
         return false;
+    };
+    // Gone into a unit or a wall, its ExplosionMissile plays there; run
+    // out, only when AlwaysExplode (FUN_004d30c0 -> FUN_004d2d70).
+    // ponytail: one that flies on through units (CollideKill 0) doesn't
+    // burst at each; RandStart isn't applied; a guided one losing its
+    // owner bursts as a hit.
+    std::erase_if(ms_, [&](Missile& missile) {
+        if (!spent(missile)) return false;
+        if (const auto* explosion = missile.info ? missile.info->explosion : nullptr; explosion && !missile.visual_only && (now_ms < missile.dies || missile.info->always_explode)) {
+            Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
+            burst.visual_only = true;
+            laid.push_back(std::move(burst));
+        }
+        return true;
     });
     std::ranges::move(laid, std::back_inserter(ms_));
 }

@@ -665,6 +665,9 @@ struct GameData {
                          int srv_do = 0, param1 = 0, param2 = 0, hit_par2 = 0;
                          bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
                          std::string sub, hit_sub;
+                         // ExplosionMissile (+0x16): played where it hits a unit or a wall,
+                         // and at its range's end too when AlwaysExplode (+0x18c) (FUN_004d2d70).
+                         std::string explosion_name; const MissileInfo* explosion = nullptr; bool always_explode = false;
                          int light = 0;   // Light: its light radius, subtiles
                          int size = 0;    // Size: its unit collision shape (rules::missile_touches; 0 strikes none)
                          int trans = 0;   // Trans (record +0x18d): 1 additive, 2 multiply (FUN_004720xx: draw modes 3 / 4)

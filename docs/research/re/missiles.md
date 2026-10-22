@@ -97,6 +97,29 @@ turned by low & 31 of a seed draw into {−1, 0, 1, −1, …, 31: +1}. The
 type-4 aim stays for the first frame, which snaps onto point 0 (the
 start) without moving.
 
+## The client's hit and explosion — FUN_004d2d70 (ECX missile, EDX unit hit or 0, stack `ended`)
+
+Missiles.txt record (0x1a4 bytes, table at `PTR_DAT_00744304 + 0xb64`,
+fields from FUN_00661b20's column list): pCltHitFunc +0xa, HitSound +0x14,
+ExplosionMissile +0x16, CollideKill +0x186, CollideFriend +0x187, NextHit
++0x188, NextDelay +0x189, ToHit +0x18b, AlwaysExplode +0x18c, Trans +0x18d.
+
+The client's missile step (`FUN_004d30c0`) calls it three ways:
+
+- its range runs out: no unit, `ended` 0;
+- a wall or a blocked path (`FUN_00648eb0` & 5, or the move fails): `ended` 1;
+- a unit in a subtile it entered (ClientCol +0x185): that unit, `ended` 0.
+
+With no unit and `ended` 0 it only goes off when AlwaysExplode. A unit hit
+skips one NextHit already struck (state 0x56) or one not hittable. Going
+off: the pCltHitFunc (table 0x72a508), HitSound, then when
+ExplosionMissile ≥ 0 that missile is made at the missile's spot
+(`FUN_004cdba0`), the same owner and level. With a unit hit, CollideKill 0
+leaves the missile flying.
+
+`fireexplode` (a fire bolt's, the firebolt trap's): 12 frames (Range,
+AnimLen), RandStart 5, Light 13, additive, one direction.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
@@ -109,6 +132,9 @@ start) without moving.
   a frame); its rooms from `missile_rooms` (gamedata.cpp near lists).
   Hits: the subtiles entered against each foe's footprint by size.
 - Charged Bolt (do 17) sends `bolt` = its index: the wiggle path.
+- `missiles_update` (ai.hpp): a missile gone into a unit or a wall, or run
+  out with AlwaysExplode, leaves its ExplosionMissile as a visual-only
+  missile there (`MissileInfo::explosion`).
 - tests/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
