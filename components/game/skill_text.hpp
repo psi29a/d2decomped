@@ -463,7 +463,7 @@ inline d2d::rules::CalcEnv with_missiles(const GameData& game_data, const d2d::r
     auto with = env;
     auto base = std::make_shared<const d2d::rules::CalcEnv>(env);  // one copy both operands share
     with.desc_missile = [&game_data, base](const d2d::rules::Skill& skill, int code, int lvl) { return desc_missile_operand(game_data, *base, skill, code, lvl); };
-    with.missile = [&game_data, base](int skill, int missile, int code, int lvl) { return miss_operand(game_data, *base, skill, missile, code, lvl); };
+    with.missile = [&game_data, shared = std::move(base)](int skill, int missile, int code, int lvl) { return miss_operand(game_data, *shared, skill, missile, code, lvl); };
     return with;
 }
 
