@@ -1143,7 +1143,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     const auto key = [&](auto... wanted) { return std::ranges::any_of(keys_this_frame, [&](SDL_Keycode got) { return ((got == wanted) || ...); }); };
                     const bool yes = (csu.popup_yes.hovered && mouse.release_this_frame) || key(SDLK_RETURN, SDLK_KP_ENTER);
                     if (yes || (csu.popup_no.hovered && mouse.release_this_frame) || key(SDLK_ESCAPE)) csu.confirm_delete = false;
-                    if (yes && csu.selected >= 0 && csu.selected < int(scene->saves.size())) {
+                    if (yes && g_no_save) d2d::log::info("--no-save: {} not deleted", scene->saves[std::size_t(std::clamp(csu.selected, 0, int(scene->saves.size()) - 1))].name);
+                    if (yes && !g_no_save && csu.selected >= 0 && csu.selected < int(scene->saves.size())) {
                         // FUN_0043c750: every file <save dir><name>.* (the .d2s, .key, .ma*, ...).
                         const std::string prefix = scene->saves[std::size_t(csu.selected)].name + ".";
                         std::error_code error;

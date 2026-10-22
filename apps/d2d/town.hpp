@@ -407,7 +407,7 @@ struct Town {
     // keeps the client's tab and buttons.
     void publish();
     void send(const Command& command);    // to the World, and to a joined host
-    void net_items(const Command& command);   // a joined game: our item moves and uses to the host
+    bool net_items(const Command& command);   // a joined game: our item moves and uses to the host; false: not sent (no host id)
     const NetGame::Unit* net_npc(int index) const;   // the host's NPC for d2d's NPC index
 
     // Into the game with the character the client has (a save loaded, or

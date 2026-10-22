@@ -142,6 +142,7 @@ auto Fight::new_game(int difficulty) -> void {
         actor->charges.clear();
         actor->self_states.clear();
         actor->boost = {};
+        actor->stamina_pot = {};
         actor->pets.clear();
         actor->attack_mon = -1;
         actor->pmode = -1;
@@ -171,6 +172,7 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         actor->character.stats.values[kLife] = actor->character.stats.values[kMaxLife];
         actor->regen.clear();
+        actor->stamina_pot = {};
         actor->charges.clear();
         actor->self_states.clear();
         actor->curses[0] = {}; actor->marks[0] = {};

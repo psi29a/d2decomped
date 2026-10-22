@@ -2186,7 +2186,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (drop->amount > 0 && drop->amount <= carried && !fight.dead()) {
                 carried -= drop->amount;
                 loot.enter(level);
+                const auto before = loot.ground.size();
                 loot.put({ .code = "gld", .gold = drop->amount }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
+                if (loot.ground.size() > before) loot.ground.back().dropped_here = true;
             }
             return;
         }
@@ -2636,11 +2638,16 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 }
             }
             if (autoloot_gold && !fight.dead() && !actor->ghost)  // d2d: walking over gold picks it up (game.exe wants a click)
-                for (std::size_t i = loot.ground.size(); i-- > 0;)
-                    if (const auto& ground_item = loot.ground[i]; ground_item.item.code == "gld" && std::hypot(ground_item.x - actor->player.x, ground_item.y - actor->player.y) <= 0.5f) {
+                for (std::size_t i = loot.ground.size(); i-- > 0;) {
+                    auto& ground_item = loot.ground[i];
+                    if (ground_item.item.code != "gld") continue;
+                    const bool underfoot = std::hypot(ground_item.x - actor->player.x, ground_item.y - actor->player.y) <= 0.5f;
+                    if (ground_item.dropped_here) { ground_item.dropped_here = underfoot; continue; }
+                    if (underfoot) {
                         if (loot.index_of(actor->pick_item) == int(i)) actor->pick_item = -1;
                         loot.take(i);
                     }
+                }
             bool to_unit = actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size() && level->npcs[std::size_t(actor->interact_npc)].root == "monsters";
             if (const auto target = fight.engage(now_ms)) { std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true; }
             if (actor->player.walking && (actor->pmode < 0 || actor->ghost)) {

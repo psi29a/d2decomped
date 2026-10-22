@@ -557,7 +557,7 @@ auto Town::send(const Command& command) -> void {
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
                    || std::holds_alternative<cmd::Drop>(command) || std::holds_alternative<cmd::Socket>(command) || std::holds_alternative<cmd::ScrollToBook>(command)) {
-            net_items(command);
+            if (!net_items(command)) return;                  // the host can't make it: nor does the local World
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
             const auto& npc = level->npcs[std::size_t(interact->npc)];
             // The host walks us there only for a skill: d2d walks us up and
@@ -659,7 +659,7 @@ auto Town::net_npc(int index) const -> const NetGame::Unit* {
 // Our item moves and uses to the host, by its ids for d2d's items (the
 // same code in the same place: NetGame::host_item); d2d still makes the
 // move here. An item the host doesn't know is skipped and logged.
-auto Town::net_items(const Command& command) -> void {
+auto Town::net_items(const Command& command) -> bool {
         using namespace d2d::d2s;
         namespace c2s = d2d::net::d2gs::c2s;
         auto local = [&](int id) -> const Item* {
@@ -709,15 +709,20 @@ auto Town::net_items(const Command& command) -> void {
             net_game->send_items({ c2s::cursor_to_belt(held_id, std::uint32_t(to_belt->box)) });
             net_cursor = 0;
         } else if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command); to_book && held_id) {
-            if (const auto target = host(local(to_book->book))) net_game->send_items({ c2s::scroll_to_book(held_id, target) });
+            const auto target = host(local(to_book->book));
+            if (!target) return false;
+            net_game->send_items({ c2s::scroll_to_book(held_id, target) });
             net_cursor = 0;
         } else if (const auto* socket = std::get_if<cmd::Socket>(&command); socket && held_id) {
-            if (const auto target = host(local(socket->item))) net_game->send_items({ c2s::insert_socket(held_id, target) });
+            const auto target = host(local(socket->item));
+            if (!target) return false;
+            net_game->send_items({ c2s::insert_socket(held_id, target) });
             net_cursor = 0;
         } else if (std::holds_alternative<cmd::Drop>(command) && held_id) {
             net_game->send_items({ c2s::item_id_packet(0x17, held_id) });
             net_cursor = 0;
         }
+        return true;
     }
 
 // A joined game: the host's monsters stand in for the World's (it makes
