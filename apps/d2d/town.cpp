@@ -32,6 +32,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>
+#include <skills.hpp>
 #include <object_sounds.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
@@ -2254,6 +2255,12 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         }
     }
 
+auto Town::tip_env() const -> d2d::rules::CalcEnv {
+        return { [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
+                 [this](int id) { return d2d::game::skill_level(*scene, character, id, {}); },
+                 [](int) { return 0; }, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
+    }
+
 auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
         if (gold_box) return true;                                   // the gold box: B is its Cancel
         if (!scene || held || !(stash_open || cube_open)) return false;
@@ -2909,7 +2916,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 draw_raise_aura(framebuffer, int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))), kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), body.raised, frame_ms);
             }
         view_overlays(framebuffer, *scene, view, hovered_monster());
-        skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
             std::vector<d2d::d2s::Item> theirs;
@@ -2936,7 +2943,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (quest_log.open && draw_quest_log(framebuffer, *scene, quest_log, quest_bits(), quest_state(), frame_ms, character.expansion, mouse.x, mouse.y))
             questdone_sound = true;                    // cursor_questdone
         if (tree_open)
-            draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats,
+            draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);

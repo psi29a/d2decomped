@@ -26,6 +26,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
+#include <skills.hpp>
 #include <weather.hpp>
 
 #include <cstdint>
@@ -336,6 +337,9 @@ struct Town {
     // The pad's Secondary (B) is Back with the gold box up, or where the stash
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
+    // The skill tooltips' calcs: the character's skill points and their
+    // item bonuses. ponytail: stats read 0 (the World's are the fight's).
+    [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
     void pad_tab(int step);
     void pad_open_picker();
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere

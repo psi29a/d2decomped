@@ -20,11 +20,14 @@
 #include <string>
 
 #include "common.hpp"
+#include "items.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
 #include <rules.hpp>
+#include <skill_text.hpp>
+#include <skills.hpp>
 
 #include <SDL3/SDL_keycode.h>
 
@@ -163,7 +166,13 @@ struct SkillBar {
 
     // The buttons, the open picker (hotkey labels on its icons) and the
     // hovered skill's name.
-    void draw(std::vector<std::uint8_t>& framebuffer, int mouse_x, int mouse_y) const {
+    void draw(std::vector<std::uint8_t>& framebuffer, int mouse_x, int mouse_y, const d2d::rules::CalcEnv& env) const {
+        // A hovered button's or picker icon's tooltip (FUN_004a8d50 -> FUN_004ef990).
+        const auto tip = [&](int id, int x, int y) {
+            if (id < 0 || id == kResurrectSkill) return;
+            const auto lines = d2d::game::skill_button_tip(*scene, env, id, env.level ? env.level(id) : 1);
+            draw_hover_text(framebuffer, *scene, lines, x, x + kIcon, y, y - kIcon);
+        };
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
         auto icon = [&](int id, int x, int y) {
             const auto prayer = scene->skills.by_name.find("Prayer");   // Resurrect wears Prayer's gold
@@ -178,7 +187,11 @@ struct SkillBar {
         };
         icon(left, kButtonLeftX, int(kScreenHeight));
         icon(right, kButtonRightX, int(kScreenHeight));
-        if (!picking) return;
+        if (!picking) {
+            if (on_button(mouse_x, mouse_y, kButtonLeftX)) tip(left, kButtonLeftX, int(kScreenHeight));
+            if (on_button(mouse_x, mouse_y, kButtonRightX)) tip(right, kButtonRightX, int(kScreenHeight));
+            return;
+        }
         const bool on_left = picking == 1;
         const auto row_list = rows(on_left);
         for (std::size_t row = 0; row < row_list.size(); ++row)
@@ -198,13 +211,7 @@ struct SkillBar {
         if (const int id = picked(mouse_x, mouse_y); id == kResurrectSkill)
             scene->font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::clamp(mouse_x - scene->font.measure("Resurrect") / 2, 0, int(kScreenWidth) - scene->font.measure("Resurrect")),
                              mouse_y - 30, "Resurrect");
-        else if (id >= 0)
-            if (const auto* skill = scene->skills.get(id)) {
-                auto found = lookup_string(*scene, skill->str_name);
-                const std::string name = found ? u16_to_latin1(*found) : skill->name;
-                scene->font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::clamp(mouse_x - scene->font.measure(name) / 2, 0, int(kScreenWidth) - scene->font.measure(name)),
-                                 mouse_y - 30, name);
-            }
+        else if (id >= 0) tip(id, mouse_x - kIcon / 2, mouse_y);
     }
 };
 

@@ -10,6 +10,8 @@
 #include <dc6.hpp>
 #include <font.hpp>
 #include <rules.hpp>
+#include <skill_text.hpp>
+#include <skills.hpp>
 
 #include <array>
 #include <cstddef>
@@ -47,7 +49,8 @@ int skill_tab_at(int mouse_x, int mouse_y) {
 }
 
 void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int cls, int tab,
-                     const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, int pressed, int mouse_x, int mouse_y) {
+                     const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, const d2d::rules::CalcEnv& env,
+                     int pressed, int mouse_x, int mouse_y) {
     if (cls < 0 || cls > 6) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     auto dc6 = [&](const d2d::dc6::Sprite& spr, int frame, int x, int y, int shade = 256) {
@@ -89,10 +92,13 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         }
         if (mouse_x > icon_x && mouse_x < icon_x + 0x30 && mouse_y > icon_y - 0x30 && mouse_y < icon_y) hover = int(i);
     }
-    if (hover >= 0 && !list[std::size_t(hover)].name.empty()) {
+    const auto& ids = scene.skills.class_ids[std::size_t(cls)];
+    if (hover >= 0 && std::size_t(hover) < ids.size()) {
         const auto [icon_x, icon_y] = skill_icon_at(list[std::size_t(hover)]);
-        if (auto found = lookup_string(scene, list[std::size_t(hover)].name))
-            draw_hover_text(framebuffer, scene, { { u16_to_latin1(*found), kTxtWhite } }, icon_x, icon_x + 0x30, icon_y, icon_y - 0x30);
+        const int skill = ids[std::size_t(hover)];
+        const int lvl = env.level ? env.level(skill) : levels[std::size_t(hover)];
+        const auto lines = d2d::game::skill_tree_tip(scene, env, skill, lvl, levels[std::size_t(hover)] >= list[std::size_t(hover)].max_level, levels[std::size_t(hover)] > 0);
+        draw_hover_text(framebuffer, scene, lines, icon_x, icon_x + 0x30, icon_y, icon_y - 0x30);
     }
 }
 

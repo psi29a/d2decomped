@@ -448,6 +448,12 @@ struct Skill {
     std::string str_alt;                   // SkillDesc "str alt": the char panel's attack block name
     int descdam = 0, descatt = 0;          // SkillDesc: the char panel's damage / attack rating kind
     Calc ddam_calc1, ddam_calc2;           // SkillDesc "ddam calc1" (damage %) / "ddam calc2" (flat)
+    std::string str_long, str_short, str_mana;   // SkillDesc "str long" / "str short" / "str mana": the tooltips' texts
+    // SkillDesc's tooltip lines as game.exe holds them (the record from
+    // +0x42): descline1..6 (0..5), dsc2line1..4 (6..9), dsc3line1..7
+    // (10..16); func picks the format (FUN_004edea0), texts are tbl keys.
+    struct DescLine { int func = 0; std::string text_a, text_b; Calc calc_a, calc_b; };
+    std::array<DescLine, 17> desc_lines{};
 };
 
 struct SkillTables {
@@ -636,7 +642,7 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // ponytail: the missile operands (m1en.., 26..37, 43..48), len, rng,
 // pets, skpt read 0; no Skills.txt calc uses them, only SkillDesc's
-// tooltip lines (not drawn yet).
+// tooltip lines (game::skill_text: those lines show 0 or nothing).
 inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
     const auto& params = skill.par;
     switch (code) {
@@ -730,7 +736,7 @@ inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const Ca
                     }
                     case kCalcStat: stack.push_back(env.stat ? env.stat(left) : 0); break;
                     // ponytail: miss() and sklvl() (0x643740 / 0x646c60) read 0; only
-                    // SkillDesc's tooltip lines use them, and those aren't drawn.
+                    // SkillDesc's tooltip lines use them (game::skill_text).
                     default: static_cast<void>(third); stack.push_back(0); break;
                 }
                 break;

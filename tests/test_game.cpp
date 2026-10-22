@@ -23,6 +23,7 @@
 #include <quests.hpp>
 #include <replication.hpp>
 #include <rules.hpp>
+#include <skill_text.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -50,6 +51,14 @@ int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
+    {
+        // Skill tooltips: game.exe's string is built bottom line first, colour codes carrying on.
+        const auto lines = d2d::game::skill_text::to_lines("Mana Cost: 2\n\nFire: 3-6\n\xff" "c2Fire Bolt\n\n\xff" "c1Not learned");
+        assert(lines.size() == 6 && lines[0].text == "Not learned" && lines[0].rgb == d2d::game::kTxtRed);
+        assert(lines[2].text == "Fire Bolt" && lines[2].rgb == d2d::game::kTxtGreen && lines[1].text.empty());
+        assert(lines[3].text == "Fire: 3-6" && lines[4].text.empty() && lines[5].text == "Mana Cost: 2" && lines[5].rgb == d2d::game::kTxtWhite);
+        std::printf("OK: skill tooltip lines: bottom first, colour codes\n");
+    }
     {
         GameData empty_data;
         View sent;
