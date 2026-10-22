@@ -894,6 +894,34 @@ classic ending (90 s, the credits), the seal flash's event (the boss comes
 at once), the gems at once on loot's rng, the burning souls' chest drop,
 Act 5 past the portal.
 
+## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
+
+PR #66 (`sentry-fixes`):
+
+- Sentry D2D-3: SDL's base path was freed twice (heap corruption at exit).
+- Tester fixes: delete character, stash gold, sockets on worn items, tomes,
+  the stamina potion, pad B; the gold box (drop, trade offer, deposit,
+  withdraw) with game.exe's spinner rate (`FUN_004bbfb0`).
+- Skill tooltips (docs/research/re/skill-tooltips.md): the tree's and the
+  skill buttons', every SkillDesc line format SkillDesc uses, checked
+  against game.exe's own `FUN_004edea0` in tools/emu
+  (`skill_tips.py` vs `test_game --skill-tips`): all lines at levels
+  1..20 match on all three difficulties. The calcs gained the descmissile,
+  len / rng / pets, sklvl() and miss() operands.
+- Item-granted skills (`FUN_0055b800`): oskills (97) and +single skills
+  (107, own class) give a skill at 0 points, castable and shown " (item)";
+  the item bonus follows `FUN_00644180` (+all skills on every skill,
+  own-class oskills capped at 3, +elemental skills 126).
+- Flavie's lines traced (record 0x1d's table 0x738778, message = string).
+- `coop_d2d` no longer walks Alpha into the town wall (a flake under load).
+
+Still open: missiles' EDmgSymPerCalc in combat (tooltips only so far:
+Meteor's fire, Immolation Arrow, Fist of the Heavens bolts miss their
+synergies in the fight); tooltip stats in a joined game leave out auras,
+states and weapon masteries; item charges as skills.
+
+Next: missile synergies in the fight; then the hero's quest lines.
+
 ## Checkpoint 2026-10-22: sounds; the Deck's A on waypoints and portals
 
 Branch `sounds`, after Bret's Steam Deck playtest (no hit or miss sounds,
