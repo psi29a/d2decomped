@@ -19,7 +19,7 @@ using namespace std::string_literals;
 using namespace std::string_view_literals;
 namespace steam = d2d::steam;
 
-int main() {
+int main() try {
     // Another game, as Steam writes it, with a float and a uint64 it may add.
     const std::string foreign =
         "\x00shortcuts\x00"
@@ -70,8 +70,11 @@ int main() {
     const std::uint32_t first = steam::add_to_account(dir, d2decomp);
     assert(steam::add_to_account(dir, d2decomp) == first);
     assert(std::filesystem::exists(dir / "shortcuts.vdf.d2d-backup"));
-    std::ifstream input(dir / "shortcuts.vdf", std::ios::binary);
-    const std::string written{std::istreambuf_iterator<char>(input), {}};
+    std::string written;
+    {   // closed before remove_all: Windows can't delete an open file
+        std::ifstream input(dir / "shortcuts.vdf", std::ios::binary);
+        written.assign(std::istreambuf_iterator<char>(input), {});
+    }
     std::vector<steam::Node> reread = steam::parse(written);
     auto& entry = steam::find(steam::find(reread, "shortcuts")->children, "0")->children;
     assert(steam::text(entry, "icon") == (dir / "grid" / (std::to_string(first) + "_icon.png")).string());
@@ -79,4 +82,7 @@ int main() {
 
     std::puts("test_steam_shortcuts: ok");
     return 0;
+} catch (const std::exception& error) {
+    std::printf("test_steam_shortcuts: %s\n", error.what());
+    return 1;
 }
