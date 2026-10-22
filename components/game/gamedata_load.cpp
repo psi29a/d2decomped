@@ -1116,7 +1116,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                              std::atoi(std::string(sounds_table.get(row, "Fade Out")).c_str()),
                                              std::atoi(std::string(sounds_table.get(row, "Group Size")).c_str()),
                                              { std::atoi(std::string(sounds_table.get(row, "Block 1")).c_str()), std::atoi(std::string(sounds_table.get(row, "Block 2")).c_str()),
-                                               std::atoi(std::string(sounds_table.get(row, "Block 3")).c_str()) } };
+                                               std::atoi(std::string(sounds_table.get(row, "Block 3")).c_str()) },
+                                             std::atoi(std::string(sounds_table.get(row, "Falloff")).c_str()), sounds_table.get(row, "Tracking") == "1" };
             game_data.sound_index.emplace(std::string(sounds_table.get(row, "Sound")), index);
         }
     for (const auto& names : state_sounds)

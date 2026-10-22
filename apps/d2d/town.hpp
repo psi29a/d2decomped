@@ -295,6 +295,7 @@ struct Town {
     ControlsUI controls;
     pad::Button controls_pad_press = pad::Button::Count;   // a pad button just pressed, for the pad page's edit (main sets it)
     bool pad_controls_page = true;                // the "pad_controls" toggle
+    bool pause_sounds = true;                     // the "pause_sounds" toggle: world sounds hold while a local game is paused
     bool pad_config_changed = false;              // Accept changed the pad's settings: main's mapper takes them
     void load_keys();
     void say(int phrase);

@@ -1556,7 +1556,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 amb_next = std::uint32_t(std::max(1, delay + spread(delay / 3)));
                 amb_last = tick - std::uint32_t(sound_rng(int(amb_next)));
             }
-            if (event_sound > 0 && tick - amb_last >= amb_next) {
+            if (event_sound > 0 && tick - amb_last >= amb_next && !audio.world_paused) {
                 const int x = (sound_rng(2) ? 1 : -1) * (450 + sound_rng(301));
                 audio.play_sfx(*scene, event_sound, 1.f, sound_rng(16), float(x) / 750.f);
                 amb_last = tick;
@@ -1742,6 +1742,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         object_sounds(audio, frame_ms, view.player.x, view.player.y);
         audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner); });
+        audio.track(view.player.x, view.player.y, [&](int owner) -> std::optional<std::pair<float, float>> {
+            if (const auto shot = std::ranges::find(view.missiles, owner, &d2d::game::View::Shot::sound); owner > 0 && shot != view.missiles.end()) return std::pair{ shot->x, shot->y };
+            if (const auto object = std::size_t(-1 - owner); owner < 0 && object < view.npc_states.size()) return std::pair{ view.npc_states[object].x, view.npc_states[object].y };
+            return std::nullopt;
+        });
+        audio.pause_world(pause_sounds && !net_game && (game_menu.open || controls.open));
         draw(framebuffer, mouse, frame_ms);
         // Screen Shot (FUN_004fa7a0): at most one a second, Screenshot%03d,
         // the first number free. d2d writes PNG in its screenshots folder

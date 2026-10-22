@@ -767,6 +767,17 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " voice=" + std::to_string(audio.voice_sound())
              + " music=" + std::to_string(audio.music.sound)
              + " music_old=" + std::to_string(audio.music_old.sound)
+             + " sfx=" + [&] {   // world sounds on: Sounds.txt index:owner:gain (after distance), p = paused
+                   std::string playing;
+                   for (const auto& sfx_channel : audio.sfx) {
+                       ALint source_state = AL_STOPPED;
+                       ALfloat gain = 0.f;
+                       if (sfx_channel.src) { alGetSourcei(sfx_channel.src, AL_SOURCE_STATE, &source_state); alGetSourcef(sfx_channel.src, AL_GAIN, &gain); }
+                       if (source_state == AL_PLAYING || source_state == AL_PAUSED)
+                           playing += std::format("{}{}:{}:{:.2f}{}", playing.empty() ? "" : ",", sfx_channel.sound, sfx_channel.owner, gain, source_state == AL_PAUSED ? "p" : "");
+                   }
+                   return playing.empty() ? std::string("-") : playing;
+               }()
              + "\nok\n";
     });
 }

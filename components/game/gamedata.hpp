@@ -612,7 +612,9 @@ struct GameData {
     // data\local\sfx) and volume 0..255.
     struct Sound { std::string file; int volume = 255; bool loop = false, music = false; int fade_in = 0, fade_out = 0;
                    int group = 0;                      // Group Size: variants at the following indices
-                   std::array<int, 3> block{ -1, -1, -1 }; };   // a song's Block 1..3: cue points, in sample frames
+                   std::array<int, 3> block{ -1, -1, -1 };      // a song's Block 1..3: cue points, in sample frames
+                   int falloff = 0;                     // Falloff (record +0x47): its near / far range (audio.hpp)
+                   bool tracking = false; };            // Tracking: follows its unit, its volume and pan redone each tick
     std::unordered_map<std::string, int> sound_index;   // Sounds.txt Sound -> Index
     // MonSounds.txt by Id (MonStats MonSound): per attack mode (A1, A2) the
     // attack and weapon sounds, their delays in ticks and the attack sound's

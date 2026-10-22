@@ -72,7 +72,8 @@ headless mode and local control channel for scripted play and testing, and
 opt-in crash reports from the launcher (off by default; see
 [apps/README.md](apps/README.md)), and gamepad play.
 Small comforts, each switchable off with `--toggle`: gold is picked up by
-walking over it, and roofs turn see-through around your character.
+walking over it, roofs turn see-through around your character, and the
+world's sounds pause with the game menu.
 
 **Planned:** continue through the rest of the campaign; let d2d host multiplayer
 games and run a dedicated server; and support high-DPI displays and remappable controls. These features are not implemented yet.

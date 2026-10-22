@@ -167,6 +167,38 @@ one. Kind 1 is the town NPC's think greeting a player near it (S→C unit sound
 0x12, on the player); kind 0 / 2 as its menu opens (FUN_004b66b0, from the
 talk record's flags at 0x726850).
 
+## Distance (FUN_004b9a00, FUN_004ba020, FUN_004dfc20)
+
+A sound started on a unit (`FUN_004b9a00`, unit given) keeps its offset from
+the player in client pixels (`FUN_004b97d0`: dx, 2 dy and 640 up; units by
+`FUN_00620900`, path +8 / +0xc; a d2d cell is 80 px of dx and of 2 dy). Its
+record's Falloff (+0x47, Sounds.txt) picks a near and a far range:
+
+| Falloff | near (`FUN_004825b0`) | far (`FUN_00482610`) |
+|---|---|---|
+| 0 | 60 | 400 |
+| 1, other | 60 | 700 |
+| 2 | 200 | 1000 |
+| 3 | 400 | 1500 |
+| 4 | 2000 | 2000 |
+
+Every sound tick (`FUN_004ba020`) it isn't started, or is stopped
+(`FUN_004df7b0`), once dx² + (2 dy)² (each clamped to ±2000) passes far².
+Tracking rows (Sounds.txt Tracking, a unit list at +0x28) take their unit's
+offset again each tick; others keep the one they started with. The volume
+(`FUN_004dfc20`, 0..255): 255 within near, (far − d) × 255 / (far − near)
+past it (d = √(dx² + 4dy²)), times Volume / 255, times `FUN_00516830`'s:
+r = √(x² + y² + 2²) for (dx, 2 dy) / 320, capped at 100, and
+255 / 10^(log2(r / 2) × 6 / 20), 6 dB down a doubling. Its pan is
+dx × 127 / 400 + 128, clamped to 0..255; `FUN_00515890` turns the far side
+down by it. The volume is an amplitude (`FUN_005165f0`: 2000 log10(v / 255)
+hundredths of a dB). `tools/emu/sound_falloff.py` runs `FUN_00516830`;
+`tests/test_sound_mix.cpp` holds its answers (`rules/sound_mix.hpp`).
+
+An object's loop starts as it enters a mode (`FUN_004cb460` returns at once
+while its mode is unchanged). A local game paused under the game menu keeps
+playing sounds: `FUN_0044efa0` still runs the sound tick `FUN_00482c20`.
+
 ## In d2d
 
 `tools/sound_coverage.py` lists the base install's sounds d2d can't play yet.
