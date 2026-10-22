@@ -420,6 +420,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (hovered && unit.name && !unit.name->empty()) {
                 if (mouse_x >= bounds[0] && mouse_x < bounds[2] && mouse_y >= bounds[1] && mouse_y < bounds[3])
                     *hovered = { &unit, bounds };
+                // An object's name doesn't follow its frames (a waypoint's
+                // flames): FUN_00454f30 puts its box's bottom at the feet
+                // + 8 + NameOffset + 2; the label draw takes 2 off box[1].
+                if (hovered->first == &unit && unit.name_offset) hovered->second[1] = anchor_y + 8 + *unit.name_offset + 2 + 2;
             }
         }
     };

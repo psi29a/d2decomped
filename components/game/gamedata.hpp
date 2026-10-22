@@ -101,6 +101,7 @@ struct Npc {
     TownAi town_ai = TownAi::none;       // MonStats AI Npc / Towner / Vendor: thinks with rules::npc_think / vendor_think
     std::uint32_t modes = 0;             // MonStats2 mS1 / mS2 as bits 8 / 9 (FUN_0046c140)
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
+    std::optional<int> name_offset;      // objects.txt NameOffset: its hover name's height over its feet (FUN_00454f30)
     UnitShape shape;                     // an NPC's collision (MonStats / MonStats2)
     int object_id = 0;                   // an object's objects.txt Id
     bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)

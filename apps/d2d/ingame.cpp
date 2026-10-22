@@ -143,6 +143,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (state) units.back().says = state->says;
             units.back().shadow = npc.root != "objects";
             units.back().hold = holds(npc, state);
+            units.back().name_offset = npc.name_offset;
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
         // gate, Flavie, patrolling rogues), where they are now: D2 draws the

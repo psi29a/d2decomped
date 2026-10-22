@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -144,6 +145,7 @@ struct Unit {
     std::uint16_t says = 0;              // string id over its head (UnitState::says)
     bool shadow = true;                  // a composite casts one (players, monsters; MonStats2 Shadow), objects don't
     bool spirit = false;                 // local co-op's ghost: pale, half see-through, no shadow (docs/design/local-coop.md)
+    std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
 };
 
 // `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque).

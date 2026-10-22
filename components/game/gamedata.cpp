@@ -572,6 +572,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     }
     // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
     npc.object_id = oid;
+    npc.name_offset = std::atoi(std::string(objects.get(row, "NameOffset")).c_str());
     npc.door = objects.get(row, "IsDoor") == "1"; npc.monster_ok = objects.get(row, "MonsterOK") == "1";
     {                                                     // FUN_006209d0
         const bool blocks_vis = objects.get(row, "BlocksVis") == "1", block_missile = objects.get(row, "BlockMissile") == "1";
