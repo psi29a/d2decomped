@@ -855,9 +855,10 @@ private:
                 const QString grid = from_path(config / "grid");
                 bool art_ok = QDir().mkpath(grid);
                 for (const auto& [resource, suffix] : kArt) {
+                    if (!art_ok) break;   // past a failed write, the art already there stays
                     const QString target = grid + '/' + appid + suffix;
                     QFile::remove(target);
-                    art_ok = art_ok && QFile::copy(resource, target)
+                    art_ok = QFile::copy(resource, target)
                           && QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
                 }
                 if (art_ok) ++added;
