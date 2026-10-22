@@ -16,6 +16,7 @@
 //   --seed <n>        map seed: act 1's layout and the Blood Moor
 
 #include "audio.hpp"
+#include "build_info.hpp"
 #include "common.hpp"
 #include "cursor.hpp"
 #include "devctl_verbs.hpp"
@@ -1506,7 +1507,11 @@ int main(int argc, char** argv) {
     fs::create_directories(save_dir, mk_ec);
     fs::create_directories(shot_dir, mk_ec);
     d2d::log::open(user_dir / "d2d.log");
-    d2d::log::info("d2d — Diablo II re-implementation");
+    d2d::log::info("d2d {} — Diablo II re-implementation", d2d::build::kVersion);
+    d2d::log::info("  Git hash: {}", d2d::build::kGitHash);
+    d2d::log::info("  Branch: {}", d2d::build::kGitBranch);
+    d2d::log::info("  Tag: {}", d2d::build::kGitTag);
+    d2d::log::info("  Built: {}", d2d::build::kDate);
     d2d::log::info("  User dir: {}", user_dir.string());
     d2d::userdir::Config cfg;
     for (const auto& dir : { d2d::userdir::global_dir("d2d"), fs::path("."), user_dir })
