@@ -989,8 +989,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         audio.update();
         const Screen prev_screen = last_screen;          // the screen as of the last frame
         last_screen = screen;
-        // Out of the game (to the menus): its world sounds, ambience and rain stop.
-        if (prev_screen == Screen::InGame && screen != Screen::InGame && screen != Screen::Video) audio.stop_world();
+        // Out of the game (to the menus): its world sounds, ambience and rain
+        // stop. Under a cinematic they hold (the game goes on after it; the
+        // Town's frame picks them up again).
+        const bool game_screen = screen == Screen::InGame || screen == Screen::Video;
+        if ((prev_screen == Screen::InGame || prev_screen == Screen::Video) && !game_screen) audio.stop_world();
+        if (screen == Screen::Video && prev_screen == Screen::InGame) audio.pause_world(true);
         // Frontend music (FUN_00516250's music thread + FUN_00514990): on
         // the menus, whenever nothing plays, a random not-yet-played track
         // of the 8-track list (the LoD one at 0x72f8b8; classic uses

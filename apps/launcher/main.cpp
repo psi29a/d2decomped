@@ -853,14 +853,15 @@ private:
             try {
                 const QString appid = QString::number(d2d::steam::add_to_account(config, shortcut));
                 const QString grid = from_path(config / "grid");
-                QDir().mkpath(grid);
+                bool art_ok = QDir().mkpath(grid);
                 for (const auto& [resource, suffix] : kArt) {
                     const QString target = grid + '/' + appid + suffix;
                     QFile::remove(target);
-                    QFile::copy(resource, target);
-                    QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
+                    art_ok = art_ok && QFile::copy(resource, target)
+                          && QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
                 }
-                ++added;
+                if (art_ok) ++added;
+                else failed << from_path(config) + ": " + tr("the shortcut is in, but its artwork couldn't be written to %1").arg(grid);
             } catch (const std::exception& error) {
                 failed << from_path(config) + ": " + QString::fromUtf8(error.what());
             }

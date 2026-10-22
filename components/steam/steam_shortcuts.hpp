@@ -252,18 +252,29 @@ inline std::vector<fs::path> account_configs(const fs::path& home) {
 inline std::uint32_t add_to_account(const fs::path& config, const Shortcut& shortcut) {
     const fs::path vdf = config / "shortcuts.vdf";
     std::string data;
-    if (std::ifstream input{vdf, std::ios::binary}) data.assign(std::istreambuf_iterator<char>(input), {});
+    std::error_code exists_error;
+    const bool exists = fs::exists(vdf, exists_error);
+    if (exists_error) throw std::runtime_error("can't look at " + vdf.string() + ": " + exists_error.message());
+    if (exists) {   // one that's there but can't be read whole is left alone, never replaced
+        std::ifstream input{vdf, std::ios::binary};
+        if (!input) throw std::runtime_error("can't read " + vdf.string());
+        data.assign(std::istreambuf_iterator<char>(input), {});
+        if (input.bad()) throw std::runtime_error("can't read " + vdf.string());
+    }
     std::vector<Node> file = parse(data);
     auto& fields = upsert(file, shortcut).children;
     const std::uint32_t appid = number(fields, "appid");
     set_text(fields, "icon", (config / "grid" / (std::to_string(appid) + "_icon.png")).string());
-    if (!data.empty()) fs::copy_file(vdf, config / "shortcuts.vdf.d2d-backup", fs::copy_options::overwrite_existing);
+    if (exists) fs::copy_file(vdf, config / "shortcuts.vdf.d2d-backup", fs::copy_options::overwrite_existing);
     const fs::path temp = config / "shortcuts.vdf.d2d-new";
-    {
-        std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-        const std::string bytes = serialize(file);
-        out.write(bytes.data(), std::streamsize(bytes.size()));
-        if (!out) throw std::runtime_error("can't write " + temp.string());
+    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+    const std::string bytes = serialize(file);
+    out.write(bytes.data(), std::streamsize(bytes.size()));
+    out.close();   // flushed and closed before it can replace the real one
+    if (!out) {
+        std::error_code ignored;
+        fs::remove(temp, ignored);
+        throw std::runtime_error("can't write " + temp.string());
     }
     fs::rename(temp, vdf);
     return appid;
