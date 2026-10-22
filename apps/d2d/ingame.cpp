@@ -187,16 +187,36 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, pixel_x - scene.font.measure(text) / 2, pixel_y - 100, text, 255, 255, 255);
         }
-        // Alt ("Show Items"): each ground item's name in a dark box over it,
-        // nudged up clear of the ones already placed; the label under the
-        // mouse is the item it points at (a click picks it up).
-        // ponytail: game.exe's label layout isn't traced (box padding, the
-        // stacking order, the hovered label's own colour).
+        // A box under a label (FUN_004f6300): `rgb` at draw mode 1 (half,
+        // over black), 2 (a quarter of the colour kept) or 5 (solid).
+        auto fill = [&](const std::array<int, 4>& rect, int mode, std::array<std::uint8_t, 3> rgb) {
+            for (int y = std::max(rect[1], 0); y < std::min(rect[3], int(kScreenHeight)); ++y)
+                for (int x = std::max(rect[0], 0); x < std::min(rect[2], world_w); ++x) {
+                    auto* pixel = &world[(std::size_t(y) * std::size_t(world_w) + std::size_t(x)) * 4];
+                    for (std::size_t channel = 0; channel < 3; ++channel)
+                        pixel[channel] = mode == 5 ? rgb[channel] : mode == 1 ? std::uint8_t((pixel[channel] + rgb[channel]) / 2) : std::uint8_t(pixel[channel] / 4);
+                }
+        };
+        // Alt ("Show Items", UI\showitems.cpp FUN_004c0810): each ground
+        // item's name over it, nudged up clear of the ones already placed.
+        // A label is black at half (draw mode 1) in the item's colour; the
+        // first one under the mouse, or naming the item the cursor is on,
+        // goes solid (mode 5) in the palette's nearest to (0, 64, 128)
+        // (FUN_004fb180) with white text, and a click picks that item up.
+        // ponytail: game.exe's label layout (FUN_004c0640's 12 tries, its
+        // screen clamps) isn't traced.
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+            std::array<std::uint8_t, 3> hover_blue{};
+            for (int best = 1 << 30, index = 0; index < 256 && std::size_t(index) < pal.entries().size(); ++index) {
+                const auto colour = pal[std::uint8_t(index)];
+                const int distance = colour.r * colour.r + (colour.g - 64) * (colour.g - 64) + (colour.b - 128) * (colour.b - 128);
+                if (distance < best) { best = distance; hover_blue = { colour.r, colour.g, colour.b }; }
+            }
             std::ranges::sort(items, {}, [](const auto& entry) { return -entry.second[3]; });   // nearest the bottom first
             std::vector<std::array<int, 4>> placed;
             const int line_height = scene.font.line_height();
+            bool label_hovered = false;
             for (const auto& [unit, box] : items) {
                 if (!unit->name || unit->name->empty()) continue;
                 const int width = scene.font.measure(*unit->name) + 8;
@@ -208,26 +228,28 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                         if (rect[0] < placed_rect[2] && placed_rect[0] < rect[2] && rect[1] < placed_rect[3] && placed_rect[1] < rect[3]) { const int dy = rect[3] - placed_rect[1]; rect[1] -= dy; rect[3] -= dy; moved = true; }
                 }
                 placed.push_back(rect);
-                for (int y = std::max(rect[1], 0); y < std::min(rect[3], int(kScreenHeight)); ++y)
-                    for (int x = std::max(rect[0], 0); x < std::min(rect[2], world_w); ++x) {
-                        auto* pixel = &world[(std::size_t(y) * std::size_t(world_w) + std::size_t(x)) * 4];
-                        pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
-                    }
-                scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, rect[0] + 4, rect[1] + 1, *unit->name, unit->rgb[0], unit->rgb[1], unit->rgb[2]);
-                if (world_mouse_x >= rect[0] && world_mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) {
+                const bool lit = !label_hovered && ((world_mouse_x >= rect[0] && world_mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) || hovered.first == unit);
+                fill(rect, lit ? 5 : 1, lit ? hover_blue : std::array<std::uint8_t, 3>{});
+                const auto& colour = lit ? std::array<std::uint8_t, 3>{ 255, 255, 255 } : unit->rgb;
+                scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, rect[0] + 4, rect[1] + 1, *unit->name, colour[0], colour[1], colour[2]);
+                if (lit) {
+                    label_hovered = true;
                     if (hovered_npc) *hovered_npc = unit->npc;
-                    hovered = { nullptr, {} };              // the label names it: no second name
                 }
             }
+            if (label_hovered) hovered = { nullptr, {} };   // the label names it: no second name
         }
-        // Name over whatever the cursor points at, centred above it.
+        // Name over whatever the cursor points at, centred above it, on a
+        // box a quarter as bright (FUN_00503000: draw mode 2, text + 8 wide).
         if (hovered.first && (hovered.first->npc > -10 || hovered.first->npc <= -1000)) {   // monsters: their bar at the top
             const auto& hovered_name = *hovered.first->name;
             const auto& box  = hovered.second;
             const auto& colour  = hovered.first->rgb;
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+            const int width = scene.font.measure(hovered_name) + 8, top = box[1] - scene.font.line_height() - 2;
+            fill({ (box[0] + box[2]) / 2 - width / 2, top, (box[0] + box[2]) / 2 - width / 2 + width, top + scene.font.line_height() + 2 }, 2, {});
             scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, (box[0] + box[2]) / 2 - scene.font.measure(hovered_name) / 2,
-                               box[1] - scene.font.line_height() - 2, hovered_name, colour[0], colour[1], colour[2]);
+                               top, hovered_name, colour[0], colour[1], colour[2]);
         }
         if (wide)
             for (std::size_t y = 0; y < kScreenHeight; ++y)
