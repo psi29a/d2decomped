@@ -741,6 +741,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " str=" + std::to_string(character.stats.get(d2d::d2s::kStr))
              + " life=" + std::to_string(character.stats.fixed(d2d::d2s::kLife)) + "/" + std::to_string(character.stats.fixed(d2d::d2s::kMaxLife))
              + " mana=" + std::to_string(character.stats.fixed(d2d::d2s::kMana)) + "/" + std::to_string(character.stats.fixed(d2d::d2s::kMaxMana))
+             + " stamina=" + std::to_string(character.stats.values[d2d::d2s::kStamina]) + "/" + std::to_string(character.stats.values[d2d::d2s::kMaxStamina])
              + " level=" + std::to_string(character.stats.get(d2d::d2s::kLevel)) + " exp=" + std::to_string(character.stats.get(d2d::d2s::kExp))
              + " pmode=" + (town.hero.pmode >= 0 ? kModeCode[town.hero.pmode] : "-")
              + " missiles=" + std::to_string(town.fight.missiles.size())
