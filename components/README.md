@@ -9,6 +9,9 @@ library per subdirectory, each with its own `CMakeLists.txt`.
   default folders, macOS apps, Wine prefixes), classifies it (1.14d,
   older, no LoD, D2R refused), resolves d2d's data dir. Static `install_detect`.
   No deps.
+- `steam/` — header-only reader/writer for Steam's binary
+  `shortcuts.vdf` (the launcher's Add to Steam). INTERFACE target
+  `steam_shortcuts`. No deps.
 
 Convention: keep components dependency-light. If a component wants a heavy
 third-party lib, guard it behind an option so consumers can opt out.

@@ -27,6 +27,7 @@ Pick your Diablo II install from the list, then press **Launch**.
 | Install from discs | **Install Diablo II** → **Add ISO files...** → pick a destination |
 | Use a non-1.14d install | **Fix: use LODPatch_114d.exe...**, or **Fetch patch...** to download it |
 | Start fullscreen | tick **Fullscreen** |
+| Play it from Steam (Linux, Steam Deck) | exit Steam, then **Add to Steam**: adds or updates the shortcut and its library art |
 | Send crash reports | tick the crash-reports box (off by default) |
 | Check where things went | the settings are in `d2d.cfg`: `data =`, `patch =`, `fullscreen =` (folder per OS: [d2d's README](../d2d/README.md)) |
 

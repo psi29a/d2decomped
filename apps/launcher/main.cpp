@@ -5,13 +5,16 @@
 #include <install.hpp>
 #include <iso9660.hpp>
 #include <mpq.hpp>
+#include <steam_shortcuts.hpp>
 #include <userdir.hpp>
 
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
 #include <QDesktopServices>
+#include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
@@ -523,6 +526,16 @@ public:
         connect(fetchBins_, &QPushButton::clicked, this,
                 &MainWindow::fetchPatch);
 
+        // Linux only: Steam's non-Steam-game list, plus its library art.
+        addToSteam_ = new QPushButton(tr("Add to Steam"), this);
+        addToSteam_->setToolTip(tr("Adds D2Decomp to Steam's library with its artwork, or updates it if it's already there."));
+#ifdef Q_OS_LINUX
+        addToSteam_->setVisible(!d2d::steam::account_configs(to_path(QDir::homePath())).empty());
+#else
+        addToSteam_->setVisible(false);
+#endif
+        connect(addToSteam_, &QPushButton::clicked, this, &MainWindow::addToSteam);
+
         // d2d.cfg's `fullscreen`, the same key d2d's Alt+Enter writes.
         fullscreen_ = cfgCheckBox(tr("Fullscreen"), "fullscreen", "1", "0");
         fullscreen_->setToolTip(tr("Borderless fullscreen (Alt+Enter switches in game)"));
@@ -615,6 +628,7 @@ public:
 
         auto* btnRow = new QHBoxLayout;
         btnRow->addWidget(fetchBins_);
+        btnRow->addWidget(addToSteam_);
         btnRow->addStretch();
         btnRow->addWidget(launch_);
         layout->addLayout(btnRow);
@@ -809,6 +823,55 @@ private:
         saveSettings();
         fillList();
         refresh();
+    }
+
+    // Writes our entry into every Steam account's shortcuts.vdf and the art
+    // into its grid/. A running Steam keeps its own copy and saves it over
+    // ours, so it has to be closed first.
+    void addToSteam() {
+        if (QMessageBox::question(this, tr("Add to Steam"),
+                tr("Close Steam first (Steam → Exit): a running Steam would undo this when it quits.\n\n"
+                   "Add D2Decomp to Steam now?")) != QMessageBox::Yes)
+            return;
+        d2d::steam::Shortcut shortcut{.name = "D2Decomp"};
+        if (const QString flatpak = qEnvironmentVariable("FLATPAK_ID"); !flatpak.isEmpty()) {
+            shortcut.exe = "\"/usr/bin/flatpak\"";   // the host's, as Steam runs it
+            shortcut.start_dir = "\"/usr/bin/\"";
+            shortcut.launch_options = "run " + flatpak.toStdString();
+            shortcut.flatpak_id = flatpak.toStdString();
+        } else {
+            shortcut.exe = '"' + QCoreApplication::applicationFilePath().toStdString() + '"';
+            shortcut.start_dir = '"' + QCoreApplication::applicationDirPath().toStdString() + '"';
+        }
+        static constexpr std::pair<const char*, const char*> kArt[] = {
+            {":/steam-capsule.png", "p.png"}, {":/steam-wide.png", ".png"}, {":/steam-hero.png", "_hero.png"},
+            {":/steam-logo.png", "_logo.png"}, {":/d2d.png", "_icon.png"},
+        };
+        QStringList failed;
+        int added = 0;
+        for (const auto& config : d2d::steam::account_configs(to_path(QDir::homePath()))) {
+            try {
+                const QString appid = QString::number(d2d::steam::add_to_account(config, shortcut));
+                const QString grid = from_path(config / "grid");
+                QDir().mkpath(grid);
+                for (const auto& [resource, suffix] : kArt) {
+                    const QString target = grid + '/' + appid + suffix;
+                    QFile::remove(target);
+                    QFile::copy(resource, target);
+                    QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
+                }
+                ++added;
+            } catch (const std::exception& error) {
+                failed << from_path(config) + ": " + QString::fromUtf8(error.what());
+            }
+        }
+        if (!failed.isEmpty())
+            QMessageBox::warning(this, tr("Add to Steam"), tr("Could not update:\n%1").arg(failed.join('\n')));
+        else if (added == 0)
+            QMessageBox::warning(this, tr("Add to Steam"), tr("No Steam account found under %1.").arg(QDir::homePath()));
+        else
+            QMessageBox::information(this, tr("Add to Steam"),
+                tr("D2Decomp is in Steam's library. Start Steam (or switch to Gaming Mode) to see it."));
     }
 
     // Not 1.14d: point the patch layer at a 1.14d patch installer. The
@@ -1017,6 +1080,7 @@ private:
     QLabel* version_{};
     QPushButton* install_{};
     QPushButton* fetchBins_{};
+    QPushButton* addToSteam_{};
     QPushButton* launch_{};
     QCheckBox* fullscreen_{};
     QCheckBox* widescreen_{};

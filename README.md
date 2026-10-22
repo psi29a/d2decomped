@@ -86,13 +86,13 @@ Deck's own controls work as a gamepad. In Desktop Mode:
    [latest release](https://github.com/psi29a/d2decomped/releases/latest).
 2. Open it to install with Discover, or run
    `flatpak install --user ~/Downloads/d2decomped-x86_64.flatpak`.
-3. In Steam, choose Games → Add a Non-Steam Game to My Library… and pick
-   D2Decomp, so it launches from Gaming Mode.
-4. Optional, its library art: download the `steam-*.png` files from
-   [assets/icon](assets/icon). In Steam's library, right-click D2Decomp →
-   Manage → Set custom artwork and pick `steam-capsule.png` (the portrait
-   tile); on its game page, right-click the banner for Set custom background
-   (`steam-hero.png`) and Set custom logo (`steam-logo.png`).
+3. Exit Steam (Steam → Exit), start D2Decomp from the app menu and press
+   **Add to Steam**: it adds D2Decomp to Steam's library with its artwork,
+   so it launches from Gaming Mode. Pressing it again updates the entry
+   instead of adding a second one, including one you added by hand.
+
+Updates: `flatpak install --user --reinstall --bundle d2decomped-x86_64.flatpak`;
+the Steam entry stays as it is.
 
 You must provide your own Diablo II + Lord of Destruction data; point the
 launcher at it (a D2 install folder or the ISOs).

@@ -46,7 +46,8 @@ add_executable(d2d-launcher WIN32 MACOSX_BUNDLE
     $<$<PLATFORM_ID:Windows>:${icon_dir}/d2d.rc>
 )
 set_target_properties(d2d-launcher PROPERTIES MACOSX_BUNDLE_ICON_FILE d2d.icns)
-qt_add_resources(d2d-launcher icon PREFIX "/" BASE "${icon_dir}" FILES "${icon_dir}/d2d.png" "${icon_dir}/hero.png")
+qt_add_resources(d2d-launcher icon PREFIX "/" BASE "${icon_dir}" FILES "${icon_dir}/d2d.png" "${icon_dir}/hero.png"
+    "${icon_dir}/steam-capsule.png" "${icon_dir}/steam-wide.png" "${icon_dir}/steam-hero.png" "${icon_dir}/steam-logo.png")
 
 target_include_directories(d2d-launcher PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -57,6 +58,7 @@ target_link_libraries(d2d-launcher PRIVATE
     mpq
     install_detect
     userdir
+    steam_shortcuts
 )
 
 # The package name (apps/CMakeLists.txt) carries the same version.

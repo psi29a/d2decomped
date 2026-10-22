@@ -32,11 +32,13 @@ It starts the launcher. Your own Diablo II + LoD files are still needed.
 |---|---|
 | Build the Flatpak yourself | `mkdir -p build/flatpak-source && git archive HEAD \| tar -x -C build/flatpak-source`, then `flatpak-builder --user --install build-flatpak .github/flatpak/ci-manifest.yml` |
 | Change the build recipe | `.github/flatpak/ci-manifest.yml` (CI only, not for Flathub) |
-| Play from Steam's Gaming Mode | In Desktop Mode, add D2Decomp to Steam as a non-Steam game |
+| Play from Steam's Gaming Mode | Exit Steam, then the launcher's **Add to Steam** (shortcut + library art) |
+| Update to a newer build | `flatpak install --user --reinstall --bundle ./d2decomped-x86_64.flatpak`: the Steam entry stays |
 
 ## When it breaks
 
 | You see | Fix |
 |---|---|
 | `flatpak install` complains about the runtime | `flatpak install flathub org.kde.Platform//6.11` |
+| D2Decomp isn't in Steam after **Add to Steam** | Steam was running and saved over it: exit Steam, press it again. The old list is kept as `shortcuts.vdf.d2d-backup` |
 | The launcher can't see your game files | The app gets no folder access by default: pick the folder with **Add folder...** (the system file picker grants it), or `flatpak override --user --filesystem=/path/to/diablo2 io.github.psi29a.d2decomped` |

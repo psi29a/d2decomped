@@ -12,6 +12,7 @@ finish-args:
   - --socket=x11  # not fallback-x11: SDL opens Steam's on-screen keyboard (steam://open/keyboard) on X11 only
   - --device=all  # gamepads: /dev/input + hidraw (Steam Input's virtual pad)
   - --socket=pulseaudio
+  - --filesystem=~/.local/share/Steam/userdata  # the launcher's Add to Steam: shortcuts.vdf + grid art
 modules:
   - name: d2decomped
     buildsystem: simple

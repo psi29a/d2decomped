@@ -24,6 +24,7 @@ d2d_add_test(test_ds1 mpq ds1)
 d2d_add_test(test_cof mpq cof)
 d2d_add_test(test_dcc mpq dcc)
 d2d_add_test(test_devctl devctl)
+d2d_add_test(test_steam_shortcuts steam_shortcuts)
 d2d_add_test(test_screenshot screenshot)   # zlib transitive via screenshot
 d2d_add_test(test_palette mpq palette)
 d2d_add_test(test_font mpq font)
