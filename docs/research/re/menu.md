@@ -70,8 +70,21 @@ them times master/100.
   Left: x = W/2 - widest - 0xf9, frame f ? 8-f : 0. Right: x = W/2+0xf9,
   frame f. widest (`0x7bc95c`, `FUN_0047de80`) is the widest frame (52).
   Each frame draws at its DC6 offset (`FUN_004f6480` → the renderer):
-  widths 51..9, ox −1..21, oy 0, so it spins about x+25. f steps once a draw when more than 50 ms have passed
-  since the last step (`FUN_00454850`, GetTickCount; no catch-up).
+  widths 51..9, ox −1..21, oy 0, so it spins about x+25. f steps once a
+  draw when more than 50 ms have passed since the last step
+  (`FUN_00454850`, GetTickCount; no catch-up, its only caller).
+- How often that draw runs (the pause below): under UI 9 the client
+  draws every pass of the message loop (`FUN_00451bb0`), and the loop's
+  `Sleep(10)` is skipped while the window is active (`0x70f7e0`, set by
+  the WM_ACTIVATEAPP handler `0x451ab0`; default 1). So the step comes on
+  the first draw past 50 ms: 62.5 ms on Windows (GetTickCount's 15.6 ms
+  ticks), ~51 ms with a 1 ms clock (Wine). d2d checks once an app frame
+  (~60 fps): ~64–67 ms.
+- The only other pentspin is the front end's (`0x87e96c`, loaded by
+  `FUN_005070d0`): list control type 7's draw (`FUN_00507160`, installed by
+  `FUN_005075e0`) puts one either side of the selected entry and steps
+  its frame (+0x5c, wrapping at 8) every draw, untimed. The NPC menu has
+  none. d2d has no type 7 list; which screen uses it isn't traced.
 - `FUN_00502680` draws a multi-frame image 0x100 apart. Align 1:
   x += -1 - (totalW >> 1); align 2: x -= totalW.
 
@@ -134,7 +147,8 @@ A local game pauses under the menu: the client's frame (`FUN_0044efa0`)
 in game mode 0 / 1 (`DAT_007a0610`, single player), with UI 9 (this
 menu) or 0xb (Configure Controls) up and the player in a room
 (`FUN_004646a0`), only draws (`DAT_007a0484`) and plays sounds
-(`FUN_00482c20`); the server's frame (`FUN_0052fc20`) doesn't run. d2d:
+(`FUN_00482c20`), unpaced (the 40 ms frame, `0x70ef1c`, is skipped);
+the server's frame (`FUN_0052fc20`) doesn't run. d2d:
 the World doesn't tick while the menu is open without a host.
 
 ## d2d's ceilings
