@@ -3,7 +3,7 @@
 # tick, the protocol). No SDL, sound, pixels or fonts: the client
 # (apps/d2d) draws what it replicates. docs/PLAN.md "Where code goes".
 add_library(game STATIC ai.cpp fight.cpp gamedata.cpp gamedata_load.cpp objgroups.cpp world.cpp
-                        world_quests_act1.cpp world_quests_act2.cpp world_quests_act3.cpp world_quests_act4.cpp)
+                        world_quests_act1.cpp world_quests_act2.cpp world_quests_act3.cpp world_quests_act4.cpp world_quests_act5.cpp)
 target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(game PUBLIC log mpq d2s rules drlg txt userdir install_detect cof compcode ds1 dt1 tbl)
 target_compile_features(game PUBLIC cxx_std_${CMAKE_CXX_STANDARD})

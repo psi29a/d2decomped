@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Acts 1-4's quests end to end: drive a headless d2d over devctl.
+"""Acts 1-5's quests end to end: drive a headless d2d over devctl.
 
 Usage: quests_d2d.py <path-to-d2d> [acts]
 
@@ -26,9 +26,9 @@ import tempfile
 import time
 
 d2d = sys.argv[1]
-acts = sys.argv[2] if len(sys.argv) > 2 else "1234"
-if not acts or set(acts) - set("1234"):
-    sys.exit(f"acts must be digits from 1-4, got {acts!r}")
+acts = sys.argv[2] if len(sys.argv) > 2 else "12345"
+if not acts or set(acts) - set("12345"):
+    sys.exit(f"acts must be digits from 1-5, got {acts!r}")
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")
 patch = os.environ.get("D2_PATCH_INSTALLER")
 if not os.path.exists(os.path.join(data, "d2data.mpq")) or not patch or not os.path.exists(patch):
@@ -747,6 +747,44 @@ def act4():
     until("in Harrogath", lambda: level() == 109, 30)
     assert bits(0x1c) & 0x2001 == 0x2001, f"word 0x1c: {bits(0x1c):#x}"
     print("OK: Terror's End (a4q2)")
+
+
+def a5(key):
+    """Act 5's record states (s) or logs (l) from `debug quest ... show`: [a5q1, a5q2, a5q3, a5q4]."""
+    shown = cmd("debug quest 35 show")
+    return [int(v) for v in re.search(rf"{'a5' if key == 's' else 'logs'}=(\S+)", shown)[1].split(",")]
+
+
+def act5():
+    # Harrogath, as Tyrael's portal leaves it (word 0x1c bits 0 and 13).
+    cmd("debug quest 28")
+    go(109)
+    # a5q0: Malah's introduction (20037 to an Amazon) sets her intro bit and
+    # opens Siege on Harrogath (a5q1 state 1).
+    until("Siege shut", lambda: a5("s")[0] == 0, 2)
+    talk("Malah")
+    until("Siege opens", lambda: a5("s")[0] == 1, 5)
+    # a5q1: Larzuk tells it (20077: state 2, bit 2); out of town state 3;
+    # Shenk dies on the Bloody Foothills (bits 13 and 1); Larzuk's reward
+    # (20090: bit 5) opens Rescue on Mount Arreat (a5q2 state 1).
+    talk_until("Larzuk", lambda: bits(0x23) & 4, "the siege not given")
+    go(110)
+    assert a5("s")[0] == 3, f"a5q1 out of town: {a5('s')}"
+    width = int(float(cmd("debug level").split()[4]))
+    for x in range(4, width, 8):
+        cmd(f"debug warp {x} 24"); time.sleep(0.2)
+        shenk = [l.split("\t") for l in cmd("monsters").splitlines() if l.split("\t")[7:8] == ["superunique"]]
+        if shenk: break
+    assert shenk, "no Shenk on the Bloody Foothills"
+    cmd(f"debug warp {int(float(shenk[0][1]))} {int(float(shenk[0][2])) + 2}"); time.sleep(0.5)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Shenk is dead" not in log_text():
+        cmd("debug kill"); time.sleep(0.5)
+    assert bits(0x23) & 0x2002 == 0x2002, f"word 0x23: {bits(0x23):#x}"
+    go(109)
+    talk_until("Larzuk", lambda: bits(0x23) & 0x20, "the siege not rewarded")
+    assert a5("s")[:2] == [5, 1], f"a5q1 rewarded, a5q2 open: {a5('s')}"
+    print("OK: the introductions, Siege on Harrogath (a5q0, a5q1)")
 
 
 try:
