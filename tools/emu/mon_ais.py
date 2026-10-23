@@ -57,10 +57,13 @@ AIS = {
     "VileMother": 0x5fa010, "VileDog": 0x5fa280, "FingerMage": 0x5fa380, "Regurgitator": 0x5fa710, "DoomKnight": 0x5faa90,
     "AbyssKnight": 0x5fab80, "OblivionKnight": 0x5faf00, "Megademon": 0x5e0c80, "Izual": 0x5f89b0,
     "TrappedSoul": 0x5e9f10, "Diablo": 0x5e9170, "DiabloOther": 0x5e8480,
+    # Act 5's (monster-ai.md "Act 5's MonAIs").
+    "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
 ACT4_AIS = tuple(list(AIS)[list(AIS).index("VileMother"):])
+ACT5_AIS = tuple(list(AIS)[list(AIS).index("ReanimatedHorde"):])
 ORDER = list(AIS)
 
 
@@ -71,12 +74,12 @@ def write_names(path):
         f.write("// tools/emu/mon_ais.py --dump (write_names): the AIs the cases number, ORDER.\n")
         for ai in ORDER:
             other = ai.endswith("Other")
-            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()} }},\n')
+            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()}, {str(ai in ACT5_AIS).lower()} }},\n')
 # Think acts (rules::MonAct) by name; units (rules::ThinkUnit).
 ACTS = ["idle", "a1", "a2", "s2", "skill", "walk", "run", "approach", "keep", "circle", "wander", "none", "die", "around",
         "home", "point", "untraced", "s3", "s4", "seq", "fly", "gone", "s1", "sc", "mode_at", "move_to", "spawn"]
 UNIT = {"foe": 0, None: 1, "foe2": 2, "kin": 3, "aid": 4, "mon": 5}
-MODE_ACT = {4: "a1", 5: "a2", 7: "sc", 8: "s1", 9: "s2", 10: "s3", 11: "s4"}
+MODE_ACT = {0: "die", 4: "a1", 5: "a2", 7: "sc", 8: "s1", 9: "s2", 10: "s3", 11: "s4"}
 
 
 def setup(rng, ai):
@@ -202,6 +205,22 @@ def setup(rng, ai):
         s["ctrl"][0] = rng.choice((0, 0, 0, 5))
         s["foe_player"] = rng.random() < 0.7                             # a player (unit type 0): his think looks for its leader                           # its pending action: only 5 (Lightning) is ever kept
         s["stat"][("foe", 0x29)] = rng.choice((0, rng.randint(0, 100), rng.randint(-50, 300)))
+    # Act 5's: three clear lines to the target (FUN_005dc640), Skill1's reach
+    # (FUN_004e6c70), the siege beast's rider (FUN_00552fd0), it lies dead
+    # (FUN_0063ea40), its state 0x69 test (FUN_006259b0), an imp to take on
+    # (FUN_005dd0b0 with FUN_005e1720); the target in state 0x20 (FUN_00625760),
+    # its FUN_00625d10 / FUN_00625d60, the units' own lives (FUN_00621f20);
+    # its command's last frame (+0x14).
+    if ai in ACT5_AIS:
+        s["lines"] = rng.random() < 0.6
+        s["sk_range"] = rng.choice((0, rng.randint(0, 30)))
+        s["rider"], s["self_dead"], s["state69"], s["imp"] = rng.random() < 0.4, rng.random() < 0.1, rng.random() < 0.2, rng.random() < 0.5
+        s["state20"] = rng.random() < 0.3
+        s["mana"] = (rng.randint(0, 200), rng.randint(0, 200))
+        s["foe_life"] = rng.choice((rng.randint(0, 100), 100))
+        s["cmd_until"] = s["frame"] + rng.randint(-30, 30)
+        s["foe_kind"] = rng.choice(("player", "monster"))
+        s["reach"] = rng.random() < 0.5
     if ai == "Vulture":
         for k in range(2):                                                 # its spot words: a point, or unset
             if rng.random() < 0.5: s["ctrl"][1 + k] = s["spots"]["foe"][k] + rng.randint(-12, 12)
@@ -290,7 +309,7 @@ def install(e):
     e.hook(0x620c10, lambda e: 0, 2)                                   # face the unit
     # The answers.
     e.hook(0x5dd2b0, lambda e: int(cur["s"]["got_hit"]), 0)
-    e.hook(0x621f20, lambda e: cur["s"]["life"], 1)
+    e.hook(0x621f20, lambda e: cur["s"]["life"] if cur["s"]["ai"] not in ACT5_AIS or name(e.arg(0)) == "mon" else cur["s"]["foe_life"], 1)
     e.hook(0x5dd280, lambda e: cur["s"]["life"], 0)
     e.hook(0x625480, lambda e: cur["s"]["stat"].get((name(e.arg(0)), e.arg(1)), 0) & MASK, 3)
     def second(e):
@@ -322,6 +341,8 @@ def install(e):
             if s["corpse"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 4)): e.w32(ctx, cur["units"]["kin"]); e.w32(ctx + 4, s["kin_d"])
         elif cb == 0x5fae40:                                               # the Oblivion Knight's knight (class 0x136) within 2500 (squared, +8)
             if s["kin"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 8)): e.w32(ctx, cur["units"]["kin"]); e.w32(ctx + 12, s["kin_d"])
+        elif cb == 0x5e1720:                                               # the siege beast's imp to take on (returned)
+            return cur["units"]["kin"] if s["imp"] else 0
         elif cb == 0x5f2a00:                                               # a corpse, a hurt one, their counts
             if s["corpse"]: e.w32(ctx, cur["units"]["kin"])
             if s["aid"]: e.w32(ctx + 4, cur["units"]["aid"])
@@ -335,6 +356,7 @@ def install(e):
         c = cur["s"]["command"]
         if c is None: return 0
         e.w32(cur["cmd"] + 8, c)
+        if "cmd_until" in cur["s"]: e.w32(cur["cmd"] + 0x14, cur["s"]["cmd_until"] & MASK)
         return cur["cmd"]
     e.hook(0x58ee80, command, 0)
     e.hook(0x58f0d0, lambda e: cur["units"][cur["s"]["group"]] if cur["s"]["group"] else 0, 0)
@@ -481,7 +503,19 @@ def install(e):
         return ok
     e.hook(0x5dee50, go, 2)
     e.hook(0x5ded90, lambda e: out("walkto", S32(e.arg(0)), S32(e.arg(1))), 2)
-    e.hook(0x5b4390, lambda e: out("greet"), 0)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
+    e.hook(0x5b4390, lambda e: out("greet"), 0)
+    # Act 5's.
+    act5 = lambda: cur["s"]["ai"] in ACT5_AIS
+    e.hook(0x5dc640, lambda e: int(cur["s"].get("lines", True)), 0)
+    e.hook(0x4e6c70, lambda e: cur["s"].get("sk_range", 0), 0)
+    e.hook(0x552fd0, lambda e: cur["units"]["foe2"] if cur["s"].get("rider") else 0, 0)
+    e.hook(0x63ea40, lambda e: int(cur["s"].get("self_dead", False)), 1)
+    e.hook(0x6259b0, lambda e: int(cur["s"].get("state69", False)), 1)
+    e.hook(0x5e17e0, lambda e: out("mount"), 0)
+    e.hook(0x625760, lambda e: int(cur["s"].get("state20", False) and e.arg(1) == 0x20), 2)
+    e.hook(0x625d10, lambda e: cur["s"]["mana"][0], 1)
+    e.hook(0x625d60, lambda e: cur["s"]["mana"][1], 1)
+    e.hook(0x6416d0, lambda e: out("retarget"), 2)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
 
 
 def run_game(e, s, addr, rng_moves):
@@ -509,7 +543,7 @@ def run_game(e, s, addr, rng_moves):
     if s["target"]: e.w32(params + 8, units["foe"])
     e.w32(params + 20, s["dist"]); e.w32(params + 24, int(s["melee"]))
     if s["ai"] in ("Diablo", "DiabloOther"): e.w32(units["foe"], 0 if s["foe_player"] else 1)
-    if s["ai"] in ("ZakarumZealot", "WillOWisp"):
+    if s["ai"] in ("ZakarumZealot", "WillOWisp") or s["ai"] in ACT5_AIS:
         e.w32(units["foe"], 0 if s["foe_kind"] == "player" else 1)
         e.w32(units["foe2"], 0)                                          # the owner, a player
     if s["ai"] in ACT3_AIS:
@@ -612,9 +646,12 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
             nums += [int(s["d_target"]), s["score"], s["count"], int(s["word"] is not None), *w, int(s["stuck"]), int(s["reach"]),
                      -1 if s["lskill"] is None else s["lskill"], -1 if s["rskill"] is None else s["rskill"], int(s["state_b"]), s["players"],
                      int(s["chaos"]), s["stat"][("foe", 0x29)], int(s["foe_player"])]
+    if s["ai"] in ACT5_AIS:
+        nums += [int(s["lines"]), s["sk_range"], int(s["rider"]), int(s["self_dead"]), int(s["state69"]), int(s["imp"]), int(s["state20"]),
+                 *s["mana"], s["foe_life"], s["cmd_until"], int(s["foe_kind"] == "player"), int(s["reach"]), int(s["busy"])]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
-             "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14}
+             "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16}
     keep = lambda x: int(x[0] == "toggle" and s["ai"] == "SandMaggotOther")          # it puts the third word back after
     eff = [f"{kinds[x[0]]} {x[1] if len(x) > 1 else 0} {x[2] if len(x) > 2 else keep(x)}" for x in effects]
     tail = [ACTS.index(act[0])] + act[1:] + pace + ctrl[:3] + list(seed) + ctrl[3:4]   # the SandMaggot's command word after, last

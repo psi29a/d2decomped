@@ -967,6 +967,25 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 return fits_on(game_data, level, crowd, 0x154 + bone, target_x + kPrison[std::size_t(bone)].first, target_y + kPrison[std::size_t(bone)].second, target_room); });
         }
     }
+    // Act 5's (monster-ai.md "Act 5's MonAIs"): three lines to the target
+    // clear of 0x805 (FUN_005dc640), Skill1's Param1 (its reach), the dead
+    // test (mode DT / DD), its own life %, the target a player, the command's
+    // unit (the Minion's: in reach by melee).
+    // ponytail: one line stands for FUN_005dc640's three; the siege beast's
+    // rider, state 0x69 and imps to take on, the target's state 0x20 and its
+    // FUN_00625d10 / 60 values aren't kept (no rider, state off, values 0);
+    // a command's last frame is the frame after.
+    {
+        const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
+        input.lines_clear = !d2d::rules::sight_blocked(x, y, type_info.size, target_x, target_y, target->size, wall805);
+        if (const auto* own = game_data.skills.get(skill_id(game_data, type_info.skill[0]))) input.skill1_range = own->par[0];
+        input.self_dead = monster.mode == "DT" || monster.mode == "DD";
+        input.self_life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));
+        input.target_life_pct = target->life_pct;
+        if (type_info.ai_name == "Succubus") input.target_player = !target->pet && !target->of;
+        input.command_until = input.frame + 1;
+        input.reach = input.in_melee;
+    }
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
         unit.dir = direction16(dx, dy);
