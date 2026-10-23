@@ -279,9 +279,15 @@ struct Audio {
     }
     static std::optional<std::vector<std::byte>> read_wav(const GameData& game_data, const GameData::Sound& snd, int index) {
         std::optional<std::vector<std::byte>> wav;
-        if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
-        for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
-            if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
+        // One there that won't read (a cut-short MPQ) goes unheard.
+        try {
+            if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+            for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
+                if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
+        } catch (const std::exception& error) {
+            d2d::log::warn("sound {}: {}", index, error.what());
+            return std::nullopt;
+        }
         if (!wav) d2d::log::warn("sound {}: {} not found", index, snd.file);
         return wav;
     }
@@ -458,7 +464,9 @@ struct Audio {
         if (!ok) return;
         auto found = file_cache.find(path);
         if (found == file_cache.end()) {
-            auto bytes = game_data.mpqs.try_read(path);
+            std::optional<std::vector<std::byte>> bytes;
+            try { bytes = game_data.mpqs.try_read(path); }
+            catch (const std::exception& error) { d2d::log::warn("sound {}: {}", path, error.what()); }
             if (!bytes) return;
             found = file_cache.emplace(path, std::move(*bytes)).first;
         }
