@@ -1192,6 +1192,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         case MonAct::seq:                                          // FUN_005de000: the skill's own sequence (the Greater Mummy's raise)
         case MonAct::skill: {                                      // its Sk mode's sequence (MonSeq) plays out
+            // Act 5's raw skill ids: the catapult spotter's strike (A1 at a point),
+            // the generic spawner's young (sequence 0xa7).
+            // ponytail: the hut's young isn't made (it stands).
+            if (type_info.ai_name == "CatapultSpotter" && act.act == MonAct::skill) {
+                use("A1", act.n);
+                monster.skill_x = act.x; monster.skill_y = act.y; monster.at_point = true;
+                return true;
+            }
+            if (type_info.ai_name == "GenericSpawner") { idle(0); return true; }
             // ponytail: later acts: a skill without a sequence here stands
             // instead (none in Act 1: cr_archer / cr_lancer carry no Skill1..3, so their
             // thinks' skill tests draw nothing).

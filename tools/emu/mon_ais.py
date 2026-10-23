@@ -60,7 +60,8 @@ AIS = {
     # Act 5's (monster-ai.md "Act 5's MonAIs").
     "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
     "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
-    "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0,
+    "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
+    "DeathMauler": 0x5ee260,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
@@ -224,6 +225,9 @@ def setup(rng, ai):
         s["foe_kind"] = rng.choice(("player", "monster"))
         s["reach"] = rng.random() < 0.5
         s["attacker"], s["hurt"], s["free_minion"] = rng.random() < 0.6, rng.random() < 0.5, rng.random() < 0.5   # the Overseer's
+        s["catapult_gone"], s["strike_spot"] = rng.random() < 0.3, rng.random() < 0.7
+        if ai == "CatapultSpotter": s["ctrl"][0] = rng.randint(0, 4)        # its strike pick: only rand(5) is kept
+        s["spawn_unset"], s["spawn_found"], s["spawn_room"] = rng.random() < 0.3, rng.random() < 0.5, rng.random() < 0.7
         s["imp_aip"] = [[rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)] for _ in range(4)]
     if ai == "Vulture":
         for k in range(2):                                                 # its spot words: a point, or unset
@@ -531,7 +535,16 @@ def install(e):
     e.hook(0x5dd2d0, lambda e: 1, 0)                                   # it has the skill (its own row's)
     e.hook(0x6439f0, lambda e: 1, 0)                                   # its Skill1 record
     e.hook(0x554010, lambda e: 0, 0)
-    e.hook(0x587900, lambda e: 0, 0)                                   # Shenk's quest step                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
+    e.hook(0x587900, lambda e: 0, 0)                                   # Shenk's quest step
+    e.hook(0x5edf70, lambda e: int(cur["s"].get("catapult_gone", False)), 0)
+    def strike_spot(e):                                                # FUN_0064e7e0(room, &spot, 2, 0x805, 3): the spot kept
+        return int(cur["s"].get("strike_spot", True))
+    e.hook(0x64e7e0, strike_spot, 5)
+    from unicorn.x86_const import UC_X86_REG_ECX as RECX
+    e.hook(0x45adf0, lambda e: cur["s"]["spots"][name(e.mu.reg_read(RECX)) or "mon"][0], 0)
+    e.hook(0x45ae20, lambda e: cur["s"]["spots"][name(e.mu.reg_read(RECX)) or "mon"][1], 0)
+    e.hook(0x5e6020, lambda e: int(cur["s"].get("spawn_found", True)), 1)
+    e.hook(0x5fd350, lambda e: int(cur["s"].get("spawn_room", True)), 3)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
 
 
 def run_game(e, s, addr, rng_moves):
@@ -575,6 +588,7 @@ def run_game(e, s, addr, rng_moves):
         for k in s["skills"] + s.get("skills68", []):
             if 0 <= k < 0x200: e.mu.mem_write(rows + 0x23c * k + 0x80, struct.pack("<hh", SKILL_STATE, SKILL_STATE))
     if s["ai"] in ACT5_AIS:
+        if s["ai"] == "GenericSpawner": e.w32(ctrl + 0x3c, MASK if s["spawn_unset"] else 0)
         block = alloc(0x40); e.w32(mon + 0x14, block); e.w32(block + 0x28, ctrl)   # unit +0x14 -> +0x28: its AI control
         data = e.r32(0x744304)
         if s["ai"] == "Imp":                                             # MonStats imp1..imp4 (0x1ec..0x1ef): their aips
@@ -601,11 +615,13 @@ def outcome(s, out):
         elif k == "stand": to("idle", item[1])
         elif k == "wait": act[5] = item[1]
         elif k == "event": act[6] = item[1]
+        elif k == "skill" and item[2] not in s["skills"] + s.get("skills68", []):   # a raw skill id (the catapult spotter's strike)
+            to("skill", item[2], item[4], item[5], item[3])
         elif k == "skill":
             slot = (s["skills"] + s.get("skills68", [])).index(item[2])
             spot = (item[4], item[5]) == s["spot"]                         # at the target's spot (the Summoner's)
             to("skill", slot, 0 if spot else item[4], 1 if spot else item[5], item[3])
-        elif k == "seq": to("seq", s["skills"].index(item[1]), unit=item[2])
+        elif k == "seq": to("seq", s["skills"].index(item[1]) if item[1] in s["skills"] else item[1], unit=item[2])
         elif k in ("walk", "run", "approach"): to(k, item[2], unit=item[1])
         elif k == "away":
             asks.append((item[2], item[4]))
@@ -675,6 +691,7 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
         nums += [int(s["lines"]), s["sk_range"], int(s["rider"]), int(s["self_dead"]), int(s["state69"]), int(s["imp"]), int(s["state20"]),
                  *s["mana"], s["foe_life"], s["cmd_until"], int(s["foe_kind"] == "player"), int(s["reach"]), int(s["busy"]),
                  int(s["attacker"]), int(s["hurt"]), int(s["free_minion"])] + [v for row in s["imp_aip"] for v in row]
+        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"])]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
              "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16}

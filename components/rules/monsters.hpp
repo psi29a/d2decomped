@@ -1211,6 +1211,12 @@ struct ThinkIn {
     bool attacker = false, hurt_minion = false, free_minion = false;
     // The Imp's: MonStats imp1..imp4's aip1..8 (its think reads theirs).
     std::array<std::array<int, 8>, 4> imp_aip{};
+    // The catapult spotter's: its catapult gone (FUN_005edf70 finds none
+    // behind it); a free spot at its strike's point (FUN_0064e7e0, mask
+    // 0x805). The generic spawner's: its spawn type unset (AI control +0x3c
+    // -1) and none found for it (FUN_005e6020); room for its young
+    // (FUN_005fd350).
+    bool catapult_gone = false, strike_spot = true, spawn_unset = false, spawn_found = true, spawn_room = true;
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1221,7 +1227,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 79> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 83> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1231,7 +1237,8 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "FetishShaman", "HighPriest", "Hydra", "FetishBlowgun", "Mephisto", "WillOWisp",
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
-                                                               "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord" };
+                                                               "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
+                                                               "GenericSpawner", "DeathMauler" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3051,8 +3058,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (roll() < aip[2] && away(aip[3] & 0xff, true)) return { MonAct::none };
             return roll() < aip[0] ? Think{ MonAct::a1 } : Think{ MonAct::idle, aip[5] };
         }
-        if (input.skill45[1] && aip[7] > 0 && roll() < aip[4] && input.second && rng(100) < aip[7]) return cast(4, ThinkUnit::second);
-        if (input.dist < aip[3] && roll() < aip[2] && away(aip[3] & 0xff, true)) return { MonAct::none };
+        int dist = input.dist;                                     // FUN_005ddc30 writes the second target's distance over it
+        if (input.skill45[1] && aip[7] > 0 && roll() < aip[4]) {
+            dist = input.second ? input.second_dist : 0x7fffffff;
+            if (input.second && rng(100) < aip[7]) return cast(4, ThinkUnit::second);
+        }
+        if (dist < aip[3] && roll() < aip[2] && away(aip[3] & 0xff, true)) return { MonAct::none };
         if (!input.skill45[1] && input.second && roll() < aip[4]) { Think out{ MonAct::s2 }; out.unit = ThinkUnit::second; return out; }
         if (roll() < aip[1]) return walk_in;
         if (roll() > 49) return { MonAct::idle, aip[5] };
@@ -3156,6 +3167,75 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (!input.in_melee) return roll() < aip[1] ? Think{ MonAct::direct } : Think{ MonAct::idle, aip[3] };
         if (roll() < aip[0]) return roll() < aip[2] ? cast(0) : Think{ MonAct::a1 };
         return { MonAct::idle, aip[3] };
+    }
+    // CatapultSpotter (126, FUN_005ee040): a check for its catapult (FUN_005edf70,
+    // 3 % of thinks once it has called one, state3): none, it dies (mode 0).
+    // Every aip2 frames since its last call (state3) with a target, aip1 %:
+    // a strike (0x6e3514[rand(5)], kept for aip5 calls: state its pick, state2
+    // the calls left) at a point within aip4 of the target, where a spot's
+    // free (else stands 15); else stands aip2.
+    if (ai_name == "CatapultSpotter") {
+        if (*input.state3 == 0 || roll() <= 2) { if (input.catapult_gone) return { MonAct::die }; }
+        if (*input.state3 == 0) *input.state3 = 1;
+        if (aip[1] - input.frame + *input.state3 < 1 && input.target && roll() < aip[0]) {
+            static constexpr std::array<int, 5> kStrikes{ 287, 288, 303, 304, 305 };
+            int pick = 0;
+            if (*input.state2 < 1) { pick = rng(5); *input.state = pick; *input.state2 = aip[4]; }
+            else { pick = *input.state; --*input.state2; }
+            Think out{ MonAct::skill, pick >= 0 && pick < 5 ? kStrikes[std::size_t(pick)] : 0 };   // only rand(5) is ever kept
+            out.unit = ThinkUnit::none;
+            out.x = rng(2 * aip[3]) - aip[3] + input.target_x;
+            out.y = rng(2 * aip[3]) - aip[3] + input.target_y;
+            if (!input.strike_spot) return { MonAct::idle, 15 };
+            *input.state3 = input.frame;
+            return out;
+        }
+        return idle2;
+    }
+    // NpcBarb (127, FUN_005edc50; Harrogath's defenders): in melee A1, then a
+    // wait of aip1; within aip3 aip2 % runs at it at 100 % pace. Else a walk
+    // to a point about its spot (up to three tries, FUN_005dee50: 20 square,
+    // 40 left of it then 30 above or below it); none sets off, stands 15.
+    if (ai_name == "NpcBarb") {
+        if (input.target) {
+            if (input.in_melee) { Think out{ MonAct::a1 }; out.wait = aip[0]; return out; }
+            if (input.dist < aip[2] && roll() < aip[1]) { set_pace(100, 0); return { MonAct::run }; }
+        }
+        auto go = [&](int to_x, int to_y) { return away(-1, false) ? std::optional<Think>{ Think{ MonAct::move_to, 0, to_x, to_y, ThinkUnit::none } } : std::nullopt; };
+        const std::uint32_t first = rng.next(), first_y = rng.next();
+        if (auto out = go(int(first % 20) - 40 + input.self_x, int(first_y % 20) - 10 + input.self_y)) return *out;
+        const std::uint32_t side = rng.next(), second_x = rng.next(), second_y = rng.next();
+        if (auto out = go(int(second_x % 20) - 10 + input.self_x, ((side & 1) ? -30 : 30) + int(second_y % 20) - 10 + input.self_y)) return *out;
+        const std::uint32_t third_x = rng.next(), third_y = rng.next();
+        if (auto out = go(int(third_x % 20) - 10 + input.self_x, ((side & 1) ? 30 : -30) + int(third_y % 20) - 10 + input.self_y)) return *out;
+        return { MonAct::idle, 15 };
+    }
+    // GenericSpawner (129, FUN_005e61b0; the evil huts' doors): with a target,
+    // no spawn type found leaves the game (flag 0x20000); within 21: aip3
+    // made (state2) it leaves; every aip1 frames (state, abs) with room for
+    // one, a young out (sequence 0xa7). Else stands 20.
+    if (ai_name == "GenericSpawner") {
+        if (input.target) {
+            if (input.spawn_unset && !input.spawn_found) return { MonAct::gone };
+            if (input.dist < 0x15) {
+                if (aip[2] <= *input.state2) return { MonAct::gone };
+                if (aip[0] <= std::abs(input.frame - *input.state)) {
+                    *input.state = input.frame;
+                    if (input.spawn_room) { ++*input.state2; return { MonAct::seq, 0xa7 }; }
+                }
+            }
+        }
+        return { MonAct::idle, 20 };
+    }
+    // DeathMauler (130, FUN_005ee260): out of melee Skill1 (its burrow
+    // charge) within aip3 aip4 %, aip2 % walks in, else stands 15; in it
+    // aip1 % A1, else stands 15.
+    if (ai_name == "DeathMauler") {
+        if (!input.in_melee) {
+            if (input.skill[0] && input.dist < aip[2] && roll() < aip[3]) return cast(0);
+            if (roll() < aip[1]) return walk_in;
+        } else if (roll() < aip[0]) return { MonAct::a1 };
+        return { MonAct::idle, 15 };
     }
     return { MonAct::untraced };
 }
