@@ -288,6 +288,17 @@ struct Monster {
     bool has_point = false, armored = false;
     int armor_pool = 0;
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
+    // A prisoner's (Wussie, a5q2) view, set by World::act5_update: its cage's
+    // portal (FUN_00588d60, subtiles), one of its cage gone through it
+    // (FUN_00588830), a player within 16 (FUN_005ddf20) and a broken door in
+    // that player's rooms (FUN_00588e10); and what its think asked of the
+    // record: the log 5 (FUN_00588dd0), the portal (FUN_005888d0), gone
+    // through it (FUN_00588880).
+    struct WussieView {
+        bool portal = false, cage_left = false, player = false, door_broken = false;
+        int portal_x = 0, portal_y = 0, player_id = 0;
+        bool cried = false, open_portal = false, left = false;
+    } wussie;
     int point_x = 0, point_y = 0;
     std::uint32_t laid_until = 0;
     // Its unit seed (+0x20) as its look left it: what its thinks draw. A

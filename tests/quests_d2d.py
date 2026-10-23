@@ -785,6 +785,27 @@ def act5():
     talk_until("Larzuk", lambda: bits(0x23) & 0x20, "the siege not rewarded")
     assert a5("s")[:2] == [5, 1], f"a5q1 rewarded, a5q2 open: {a5('s')}"
     print("OK: the introductions, Siege on Harrogath (a5q0, a5q1)")
+    # a5q2: Qual-Kehk (20096, bit 2); the Frigid Highlands' three cages come
+    # up with five prisoners each; a door broken frees its five, the player
+    # by them opens its portal; the third, with all fifteen freed, sets bits
+    # 13, 1 and 5. Qual-Kehk's reward (20110): three runes, bit 0.
+    talk_until("Qual-Kehk", lambda: bits(0x24) & 4, "the rescue not given")
+    cmd("debug goto 111")
+    until("in the Frigid Highlands", lambda: level() == 111, 60)
+    cages = [(39, 38), (23, 86), (39, 118)]             # object 473 (map seed 3: drlg-dump 3 111 units), its door 2 east
+    for n, cage in enumerate(cages):
+        cmd(f"debug warp {cage[0]} {cage[1] + 2}"); time.sleep(1)
+        until(f"cage {n} up", lambda: log_text().count("Rescue on Mount Arreat: cage") >= n + 1, 10)
+        cmd("debug kill spare act5pow within 12")
+        until(f"cage {n}'s portal", lambda: log_text().count("'s portal (") >= n + 1, 10)
+    assert bits(0x24) & 0x2022 == 0x2022, f"word 0x24: {bits(0x24):#x} {a5('s')} {a5('l')}"
+    until("the last cage's prisoners through", lambda: log_text().count("a prisoner through the portal") >= 5, 30)
+    go(109)
+    runes = cmd("items").count("[r0")
+    talk_until("Qual-Kehk", lambda: bits(0x24) & 1, "the rescue not rewarded")
+    assert cmd("items").count("[r0") >= runes + 3 or "Qual-Kehk's 3 runes" in log_text(), "no runes"
+    assert a5("s")[1:3] == [5, 1], f"a5q2 rewarded, a5q3 open: {a5('s')}"
+    print("OK: Rescue on Mount Arreat (a5q2)")
 
 
 try:

@@ -344,6 +344,8 @@ struct World {
     d2d::rules::PrisonQuest prison;
     d2d::rules::BetrayalQuest betrayal;
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
+    std::map<std::pair<const Level*, int>, int> cages_up;   // a5q2's cages (object 473) whose InitFn ran: their slot (-1 none)
+    void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)
     std::uint32_t izual_ghost_at = 0;      // a4q1's 3-tick timer (FUN_005b3e60): his ghost
     std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)

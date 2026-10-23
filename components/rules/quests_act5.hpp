@@ -187,24 +187,38 @@ struct SiegeQuest {
 
 // Rescue on Mount Arreat (a5q2.cpp, word 0x24, record 0x20, FUN_00588510).
 // State: 0 shut, 1 open (a5q1's chain), 2 Qual-Kehk told (20096) or a cage
-// seen, 3 the Highlands / Plateau or Harrogath after, 5 rewarded (20110).
-// Three cages (object 473, InitFn 62) hold five prisoners each (0x216); a
-// door (0x1b2) broken frees those within 15, who walk into the portal it
-// opens; five prisoners dead fails it (log 12). Freed (data +0xac) 12 or more
-// of the 15: bits 13 and 1, and 5 / 6 / 7 for 15 / 14 / 12..13; Qual-Kehk
-// pays three runes (two with bit 6, one with 7).
+// up, 3 the Highlands / Plateau, or out of Harrogath at 2; 5 rewarded
+// (20110). Three cages (object 473, InitFn 62: FUN_005886a0) hold five
+// prisoners each (act5pow 0x216, the Wussie think FUN_005ee3c0). A cage's
+// door (prisondoor 0x1b2) broken frees the living prisoners within 15 of
+// it (FUN_00588040); a player by them then has the cage's portal to
+// Harrogath open (FUN_005888d0), and they walk into it. Five prisoners dead
+// fail it (log 12). The portal's opener, with every cage up and every
+// prisoner dead or freed: 12 or more freed of the 15, bits 13 and 1, and 5
+// / 6 / 7 for 15 / 14 / 12..13; Qual-Kehk pays three runes (two with bit 6,
+// one with 7). Log: 1 told, 5 a caged prisoner by the player, 2 a portal
+// with some still to free, 3 done, 12 failed, 13 rewarded.
 struct RescueQuest {
-    static constexpr int kQuest = 0x24, kQualKehk = act5_detail::kQualKehk;
-    static constexpr int kTold = 20096, kReward = 20110;
+    static constexpr int kQuest = 0x24, kQualKehk = act5_detail::kQualKehk, kPrisoner = act5_detail::kPrisoner, kDoor = act5_detail::kPrisonDoor;
+    static constexpr int kTold = 20096, kReward = 20110, kCages = 3, kPerCage = 5, kFreeReach = 15, kFail = 5;
     static constexpr std::array<const char*, 3> kRunes{ "r07", "r08", "r09" };   // 0x732fec: Ral, Ort, Tal
     bool open = true;
     int state = 0, log = 0;
     bool told_heard = false;       // data +0x84
-    int cages = 0;                 // data +0x86..: cages come up (3 at most)
+    bool closed_hook = true;       // record +0xa8 (LAB_00587a30), cleared as a level change moves the log from 0
+    struct Cage {
+        bool up = false;           // data +0x86 + n
+        int x = 0, y = 0;          // data +0x8c + n * 8: the cage's spot, subtiles
+        std::array<int, kPerCage> ids{ -1, -1, -1, -1, -1 };   // data +0xb0 + n * 20: its prisoners' unit ids
+        int gone = 0;              // data +0x114 + n * 4: its prisoners dead or through the portal
+        bool emptied = false;      // data +0x108 + n: five gone
+        bool portal = false;       // data +0x10e + n: its portal opened (+0xf8 + n: made)
+    };
+    std::array<Cage, kCages> cages{};
     int made = 0;                  // data +0xa4: prisoners made
-    int dead = 0;                  // data +0xa8: prisoners killed
-    int freed = 0;                 // data +0xac: freed (their door broken by them)
-    int home = 0;                  // prisoners through their portal (+0x114 summed)
+    int dead = 0;                  // data +0xa8: prisoners killed caged
+    int freed = 0;                 // data +0xac: freed by their door
+    std::vector<int> freed_ids;    // data +0x120, count +0x15c
     bool news = false;
 
     // The player joins (LAB_00588470): bit 4 cleared first.
@@ -217,22 +231,39 @@ struct RescueQuest {
     }
     // a5q1's chain (FUN_005883e0): 0 → 1.
     void opened() { if (open && state == 0) state = 1; }
-    // A cage comes up (InitFn 62, FUN_005886a0): state 2 if under, the log
-    // 1 while 0 (and under five dead); its five prisoners.
-    void cage(int prisoners) {
-        if (!open || cages >= 3) return;
+    // A cage comes up (InitFn 62, FUN_005886a0) at (x, y) subtiles: state 2
+    // if under, the log 1 at 0 (under five dead); a slot of its own (none
+    // when three are up or one's at that spot). The World then makes its
+    // prisoners (FUN_00588600: up to 25 tries for five within 5 of it) and
+    // calls prisoner_made.
+    int cage(int x, int y) {
+        if (!open) return -1;
         if (state < 2) state = 2;
-        if (log == 0 && dead < 5) { log = 1; news = true; }
-        ++cages;
-        made += prisoners;
+        if (log == 0 && dead < kFail) { log = 1; news = true; }
+        int slot = 0;
+        while (slot < kCages && cages[std::size_t(slot)].up) {
+            if (cages[std::size_t(slot)].x == x && cages[std::size_t(slot)].y == y) return -1;
+            ++slot;
+        }
+        if (slot == kCages) return -1;
+        auto& made_cage = cages[std::size_t(slot)];
+        made_cage.up = true; made_cage.x = x; made_cage.y = y;
+        return slot;
+    }
+    void prisoner_made(int slot, int which, int id) { cages[std::size_t(slot)].ids[std::size_t(which)] = id; ++made; }
+    // FUN_00587fc0: the cage holding the prisoner, -1 none.
+    [[nodiscard]] int cage_of(int id) const {
+        for (int slot = 0; slot < kCages; ++slot)
+            if (std::ranges::contains(cages[std::size_t(slot)].ids, id)) return slot;
+        return -1;
     }
     // A level change (FUN_00588200): into the Highlands / Plateau, or out of
     // Harrogath at 2.
     void enter(QuestBits& quest_bits, int from, int into) {
-        if ((into == act5_detail::kFrigidHighlands || into == act5_detail::kArreatPlateau) && open && dead < 5) {
+        if ((into == act5_detail::kFrigidHighlands || into == act5_detail::kArreatPlateau) && open && dead < kFail) {
             const bool moved = state == 1 || state == 2;
             if (moved) state = 3;
-            if (log == 0) { log = 1; news = true; }
+            if (log == 0) { log = 1; news = true; closed_hook = false; }
             else if (!moved) return;
             act5_detail::mark(quest_bits, kQuest, state);
             return;
@@ -240,36 +271,53 @@ struct RescueQuest {
         if (from == act5_detail::kHarrogath && state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) {
             state = 3;
             act5_detail::mark(quest_bits, kQuest, state);
-            if (log == 0 && open && dead < 5) { log = 1; news = true; }
+            if (log == 0 && open && dead < kFail) { log = 1; news = true; closed_hook = false; }
         }
     }
-    // A door broken freed these (FUN_00588040's 0x1b2 branch).
-    void door_broken(int prisoners_near) { freed += prisoners_near; }
-    // A prisoner killed (not freed): five fail it, the others get bit 14.
-    void prisoner_killed(QuestBits& quest_bits) {
+    // A door broke (FUN_00588040's 0x1b2 branch): these living prisoners
+    // within 15 of it freed.
+    void door_broken(QuestBits& quest_bits, const std::vector<int>& near_ids) {
         if (!open) return;
-        if (++dead > 4 && log != 0xc) {
-            log = 0xc; news = true; told_heard = false;
-            if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14);
-        }
+        for (const int id : near_ids) { freed_ids.push_back(id); ++freed; }
+        failed(quest_bits);
     }
-    // A cage's portal opened by the player (FUN_005888d0): once every cage is
-    // up and each prisoner is dead or freed, 12 or more freed pays.
-    void portal_opened(QuestBits& quest_bits) {
-        if (made != dead + freed || cages < 3) {
+    // A prisoner died (FUN_00588040): one freed counts gone from its cage;
+    // one caged is dead (five fail it), and gone too.
+    void prisoner_died(QuestBits& quest_bits, int id) {
+        if (!open) return;
+        if (std::ranges::contains(freed_ids, id)) { went(cage_of(id)); return; }
+        ++dead;
+        failed(quest_bits);
+        went(cage_of(id));
+    }
+    // A freed prisoner went through its cage's portal (FUN_00588880).
+    void went(int slot) {
+        if (slot < 0) return;
+        if (++cages[std::size_t(slot)].gone >= kPerCage) cages[std::size_t(slot)].emptied = true;
+    }
+    // A caged prisoner with a player by it (FUN_00588dd0): log 5.
+    void cried() { if (open && log != 5 && dead < kFail) { log = 5; news = true; } }
+    // Its door broken, a player by it (FUN_005888d0): true when the cage's
+    // portal is to open now; then the opener's bits.
+    bool portal_due(int slot) const { return slot >= 0 && !cages[std::size_t(slot)].portal; }
+    void portal_opened(QuestBits& quest_bits, int slot) {
+        cages[std::size_t(slot)].portal = true;
+        if (made != dead + freed || !std::ranges::all_of(cages, &Cage::up)) {
             quest::set(quest_bits, kQuest, 4);
-            if (dead < 5) { log = 2; news = true; }
+            if (dead < kFail) { log = 2; news = true; }
             told_heard = false;
             return;
         }
-        if (freed < 12) { if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14); return; }
+        if (freed < 12) { someone_else(quest_bits); return; }
         log = 3; news = true;
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
         quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
         quest::set(quest_bits, kQuest, freed == 15 ? 5 : freed == 14 ? 6 : 7);
     }
-    // Qual-Kehk's talk closes (LAB_00587a30): log 1 after 20096.
-    void talk_closed(int npc) { if (npc == kQualKehk && std::exchange(told_heard, false) && dead < 5) { log = 1; news = true; } }
+    // Qual-Kehk's talk closes (LAB_00587a30, while the record keeps it): log 1 after 20096.
+    void talk_closed(int npc) {
+        if (npc == kQualKehk && closed_hook && dead < kFail && std::exchange(told_heard, false)) { log = 1; news = true; closed_hook = false; }
+    }
     // Heard (FUN_00587b00): the runes paid (their count) and whether the chain opens.
     struct Heard { int runes = 0; bool chain = false; };
     Heard said(QuestBits& quest_bits, int npc, int string) {
@@ -277,7 +325,10 @@ struct RescueQuest {
         if (npc != kQualKehk) return out;
         if (string == kTold) { told_heard = true; state = 2; act5_detail::mark(quest_bits, kQuest, state); return out; }
         if (string != kReward || !quest::bit(quest_bits, kQuest, 1)) return out;
-        if (quest::bit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 13; news = true; out.chain = true; }
+        if (quest::bit(quest_bits, kQuest, 13)) {
+            if (state != 5) { state = 5; log = 13; out.chain = true; }
+            closed_hook = false;
+        }
         out.runes = quest::bit(quest_bits, kQuest, 6) ? 2 : quest::bit(quest_bits, kQuest, 7) ? 1 : 3;
         quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false);
         act5_detail::clear_steps(quest_bits, kQuest);
@@ -300,12 +351,24 @@ struct RescueQuest {
     }
     // The "!" (FUN_00588340): Qual-Kehk, and every prisoner till it's done.
     [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
-        if (npc == act5_detail::kPrisoner) return !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
+        if (npc == kPrisoner) return !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (npc != kQualKehk) return false;
         if (state == 1) return !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         return quest::bit(quest_bits, kQuest, 1);
     }
-    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 5); }
+    // The log: the records' default (+0xe8 none; done at +0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
+
+private:
+    // Five dead (FUN_00588040's tail): log 12, the others' bit 14 (FUN_00587f60).
+    void failed(QuestBits& quest_bits) {
+        if (dead < kFail || log == 0xc) return;
+        log = 0xc; news = true; told_heard = false;
+        someone_else(quest_bits);
+    }
+    static void someone_else(QuestBits& quest_bits) {
+        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14);
+    }
 };
 
 // Prison of Ice (a5q3.cpp, word 0x25, record 0x21, FUN_0058a410). State: 0

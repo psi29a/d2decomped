@@ -386,7 +386,7 @@ int main(int argc, char** argv) try {
     assert(spot_x == int(std::floor(gibbet->x * 5)) + 3 && spot_y == int(std::floor(gibbet->y * 5)) + 3);
     assert(world.cain_portal.level == tristram && world.cain_portal.x == (float(spot_x) + 0.5f) / 5 && world.cain_portal.y == (float(spot_y) + 0.5f) / 5);
     const auto cain_view = world.view();
-    assert(std::ranges::count_if(cain_view.portals, [&](const auto& shown) { return shown.which == 8 && shown.x == world.cain_portal.x && shown.y == world.cain_portal.y; }) == 1);
+    assert(std::ranges::count_if(cain_view.portals, [&](const auto& shown) { return shown.which == int(d2d::game::World::kGamePortals) && shown.x == world.cain_portal.x && shown.y == world.cain_portal.y; }) == 1);
     std::printf("OK: Tristram Cain walked %.2f cells and took his portal at subtile (%d, %d)\n", cain_moved, spot_x, spot_y);
     // A spot no room near his holds (FUN_00463740 null): it moves on 3 and
     // no portal opens; he steps in at once, his own spot the target.
