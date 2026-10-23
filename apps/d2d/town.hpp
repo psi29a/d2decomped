@@ -255,8 +255,8 @@ struct Town {
     std::vector<CoopPlayer> coop;
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
     // A pad took seat `seat` (its colour `colour`): its roster comes up (a held seat's player stays).
-    // `held`: the pad now, so what it holds (the Start that seated it) isn't pressed in the roster.
-    void coop_seat(int seat, int colour, const pad::Sample& held = {});
+    // `pad_now`: the pad as it is, so what it holds (the Start that seated it) isn't pressed in the roster.
+    void coop_seat(int seat, int colour, const pad::Sample& pad_now = {});
     // The first player leaves a co-op game: saved, the next joined player
     // leads (World::leave), still played by their own pad; their seat, for
     // that pad to take seat 0, or -1 (no one to lead: the game ends as alone).
