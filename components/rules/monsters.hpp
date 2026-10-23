@@ -1054,7 +1054,8 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 // A think's rand(100)s are one step each of the monster's seed (+0x20),
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
-enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, point, untraced, s3, s4, seq, fly, gone, s1, sc, mode_at, move_to, spawn };
+// direct: FUN_005deca0, a walk at the unit with no path (the frozen horror's, the blood lord's).
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, point, untraced, s3, s4, seq, fly, gone, s1, sc, mode_at, move_to, spawn, direct };
 // Whom an act is at: the think's target, no unit, the second target
 // (FUN_005ddc30), the search's find (FUN_005dd0b0: kin, a corpse), the hurt
 // one it heals, itself.
@@ -1203,6 +1204,13 @@ struct ThinkIn {
     // (FUN_005541b0).
     bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
     int skill1_range = 0, target_mana = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
+    // The Overseer's: the one that last hit it (FUN_005de830: a player not
+    // dead, a monster a pet); its search (FUN_005e26d0): a minion within 24
+    // under 50 % life, one within 20 not under FUN_005a0180, how many
+    // minions (the MinionSpawner's FUN_005e2b70 count too: `young`).
+    bool attacker = false, hurt_minion = false, free_minion = false;
+    // The Imp's: MonStats imp1..imp4's aip1..8 (its think reads theirs).
+    std::array<std::array<int, 8>, 4> imp_aip{};
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1213,7 +1221,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 72> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 79> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1222,7 +1230,8 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "Mosquito", "ThornHulk", "ZakarumZealot", "ZakarumPriest", "FrogDemon", "Tentacle", "TentacleHead",
                                                                "FetishShaman", "HighPriest", "Hydra", "FetishBlowgun", "Mephisto", "WillOWisp",
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
-                                                               "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus" };
+                                                               "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
+                                                               "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3024,6 +3033,129 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (input.in_melee) return roll() >= aip[0] ? Think{ MonAct::idle, aip[4] } : Think{ MonAct::a1 };
         if (input.skill45[1] && aip[7] > 0 && input.second && rng(100) < aip[7]) return cast(4, ThinkUnit::second);
         return roll() >= aip[1] ? Think{ MonAct::idle, aip[5] } : walk_in;
+    }
+    // SuccubusWitch (119, FUN_005e2120): the Succubus's casts (a target
+    // needed). In melee aip3 % backs off aip4 (running), else aip1 % A1, else
+    // stands aip6. Out of it: Skill5 (aip8 %, aip5 % first) at the second
+    // target; within aip4 aip3 % backs off aip4; with no Skill5 the second
+    // target aip5 % gets S2; aip2 % walks in; half the time circles 6, else
+    // (or when it can't) stands aip6.
+    if (ai_name == "SuccubusWitch") {
+        if (input.target && !input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
+            if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
+            if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
+            if (input.skill[2] && (input.target_max_mana < input.target_mana || !input.target_player)) return cast(2);
+            if (input.skill45[0] && input.target_player) return cast(3);
+        }
+        if (input.in_melee) {
+            if (roll() < aip[2] && away(aip[3] & 0xff, true)) return { MonAct::none };
+            return roll() < aip[0] ? Think{ MonAct::a1 } : Think{ MonAct::idle, aip[5] };
+        }
+        if (input.skill45[1] && aip[7] > 0 && roll() < aip[4] && input.second && rng(100) < aip[7]) return cast(4, ThinkUnit::second);
+        if (input.dist < aip[3] && roll() < aip[2] && away(aip[3] & 0xff, true)) return { MonAct::none };
+        if (!input.skill45[1] && input.second && roll() < aip[4]) { Think out{ MonAct::s2 }; out.unit = ThinkUnit::second; return out; }
+        if (roll() < aip[1]) return walk_in;
+        if (roll() > 49) return { MonAct::idle, aip[5] };
+        bool set_off = false;
+        auto out = circle(6, 1, set_off);
+        return set_off ? out : Think{ MonAct::idle, aip[5] };
+    }
+    // Overseer (120, FUN_005e27a0; Shenk's quest step, FUN_00587900, isn't
+    // here): hit, past its timer (state), Skill1 (the warcry) at the one that
+    // hit it, the timer aip1 frames on. In melee aip6 %: aip7 % A2, else A1.
+    // Skill2 aip2 % at a minion under half life within 24, Skill3 aip3 % at
+    // one within 20 (FUN_005e26d0). No minions: 40 % walks in, else stands
+    // 10. Closer than aip4 - aip5 it backs off to aip4; within aip4 + aip5
+    // half the time circles 5, else stands 10; past it walks in.
+    if (ai_name == "Overseer") {
+        if (input.skill[0] && input.got_hit && *input.state < input.frame && input.attacker) {
+            *input.state = aip[0] + input.frame;
+            return cast(0, ThinkUnit::second);
+        }
+        if (input.in_melee && roll() < aip[5]) return roll() >= aip[6] ? Think{ MonAct::a1 } : Think{ MonAct::a2 };
+        if (input.skill[1] && input.hurt_minion && roll() < aip[1]) return cast(1, ThinkUnit::kin);
+        if (input.skill[2] && input.free_minion && roll() < aip[2]) return cast(2, ThinkUnit::aid);
+        if (input.young == 0) return roll() > 59 ? Think{ MonAct::idle, 10 } : walk_in;
+        if (input.dist < aip[3] - aip[4]) { (void)away((aip[3] - input.dist) & 0xff, false); return { MonAct::none }; }
+        if (input.dist <= aip[4] + aip[3]) {
+            if (rng(100) >= 50) return { MonAct::idle, 10 };
+            bool set_off = false;
+            return circle(5, 0, set_off);
+        }
+        return walk_in;
+    }
+    // MinionSpawner (121, FUN_005e2bd0; the evil huts): under aip1 made
+    // (state2) and the target within aip4, past its timer (state): Skill1 (a
+    // minion) at the target while fewer than aip2 minions live about
+    // (FUN_005e2b70), the timer aip3 frames on; else stands aip2.
+    if (ai_name == "MinionSpawner") {
+        if (*input.state2 >= aip[0]) return { MonAct::none };
+        if (aip[3] < input.dist || input.frame < *input.state) return idle2;
+        if (input.skill[0] && input.young < aip[1]) { ++*input.state2; *input.state = aip[2] + input.frame; return cast(0); }
+        return idle2;
+    }
+    // Imp (122, FUN_005e2ff0; imp1..imp4's aips as a, b, c, d): riding (state:
+    // its beast's id, -1 none) and not under 0x69's test: a beast gone, busy,
+    // ridden or under it drops the ride; past b1 it walks to it, else Skill1
+    // (its teleport) onto it. In melee under a1 % life it teleports (within
+    // a2 of itself), else c2 % backs off 5 (running). Then a3 % teleports;
+    // within c1 c2 % backs off 5; Skill4 at the second target within c3 (c4
+    // %) or d3 (d4 %); 33 % approaches 4; else 80 % stands 10, 20 % wanders 8.
+    if (ai_name == "Imp") {
+        const auto& first = input.imp_aip[0];
+        const auto& third = input.imp_aip[2];
+        const auto& fourth = input.imp_aip[3];
+        auto teleport = [&] {                                       // FUN_005df850: Skill1 at a point within a2 of itself
+            const int radius = input.imp_aip[0][1];
+            Think out = cast(0, ThinkUnit::none);
+            out.x = rng(2 * radius) - radius + input.self_x;
+            out.y = rng(2 * radius) - radius + input.self_y;
+            return out;
+        };
+        if (*input.state != -1 && !input.state69) {
+            if (!input.command_unit || input.command_busy || input.rider) *input.state = -1;
+            else {
+                if (input.imp_aip[1][0] * input.imp_aip[1][0] < input.kin_dist) { Think out = walk_in; out.unit = ThinkUnit::kin; return out; }
+                if (input.skill[0]) return cast(0, ThinkUnit::kin);
+            }
+        }
+        if (input.in_melee) {
+            if (input.skill[0] && input.life_pct < first[0]) return teleport();
+            if (roll() < third[1] && away(5, true)) return { MonAct::none };
+        }
+        if (input.skill[0] && roll() < first[2]) return teleport();
+        if (input.dist < third[0] && roll() < third[1]) { (void)away(5, false); return { MonAct::none }; }
+        if (input.skill45[1] && input.second) {
+            if (input.second_dist < third[2]) { if (rng(100) < third[3]) return cast(3, ThinkUnit::second); }
+            else if (input.second_dist < fourth[2] && rng(100) < fourth[3]) return cast(3, ThinkUnit::second);
+        }
+        if (roll() < 0x21) return { MonAct::approach, 4 };
+        if (roll() > 0x13) return { MonAct::idle, 10 };
+        return think_wander(rng, 8);
+    }
+    // Catapult (123, FUN_005e34c0): aip1 % A1 (at no unit), else stands 15.
+    if (ai_name == "Catapult") {
+        if (roll() < aip[0]) { Think out{ MonAct::a1 }; out.unit = ThinkUnit::none; return out; }
+        return { MonAct::idle, 15 };
+    }
+    // FrozenHorror (124, FUN_005e3530): Skill1 (Arctic Blast) within its level
+    // aip3 % while state 0xc is off; state 0xc then off. In melee aip1 % A1;
+    // out of it aip2 % walks straight at it; else stands aip4.
+    if (ai_name == "FrozenHorror") {
+        const int reach = input.skill[0] ? std::max(input.skill_level, 0) : 0;
+        if (input.skill[0] && input.dist < reach && roll() < aip[2] && !input.state_c) return cast(0);
+        if (input.state_c) effect(ThinkEffect::state, 0xc, 0);
+        if (!input.in_melee) { if (roll() < aip[1]) return { MonAct::direct }; }
+        else if (roll() < aip[0]) return { MonAct::a1 };
+        return { MonAct::idle, aip[3] };
+    }
+    // BloodLord (125, FUN_005e36f0): out of melee aip2 % walks straight at
+    // it, else stands aip4; in it aip1 %: aip3 % Skill1 in A2, else A1; else
+    // stands aip4.
+    if (ai_name == "BloodLord") {
+        if (!input.in_melee) return roll() < aip[1] ? Think{ MonAct::direct } : Think{ MonAct::idle, aip[3] };
+        if (roll() < aip[0]) return roll() < aip[2] ? cast(0) : Think{ MonAct::a1 };
+        return { MonAct::idle, aip[3] };
     }
     return { MonAct::untraced };
 }
