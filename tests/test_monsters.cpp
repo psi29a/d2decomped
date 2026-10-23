@@ -711,6 +711,7 @@ int main() {
                         for (auto& row : input.imp_aip) for (auto& value : row) value = read();
                         input.catapult_gone = read() != 0; input.strike_spot = read() != 0; input.spawn_unset = read() != 0;
                         input.spawn_found = read() != 0; input.spawn_room = read() != 0; input.defile = read() != 0;
+                        input.ancient = read(); input.asleep = read() != 0; input.state36 = read() != 0; input.picked = read() != 0;
                     }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));

@@ -1008,6 +1008,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
         }
+        // The Ancients: which by class, a foe picked (the target), awake.
+        // ponytail: their sleep (a5q5's record) and Talic's state 0x36 aren't kept.
+        if (name == "Ancient") {
+            input.ancient = type_info.id == "ancientbarb2" ? 1 : type_info.id == "ancientbarb3" ? 2 : 0;
+            input.picked = true;
+            input.self_size = type_info.size; input.target_size = target->size;
+            input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
+        }
         // Baal's tentacles live on their master (FUN_00552fd0).
         // ponytail: the master's taken as there; the putrid defiler's find
         // (FUN_005efa50) is never made.
