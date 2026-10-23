@@ -1236,7 +1236,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 87> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 88> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1247,7 +1247,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3321,6 +3321,40 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (!input.reach) return straight();
         if (roll() < aip[2]) return swing();
         return { MonAct::idle, 25 };
+    }
+    // Nihlathak (128, FUN_005ee5d0; his quest's step FUN_0058bc40 isn't here):
+    // state 0xc off. Skill1 (his teleport) is FUN_005df850 within aip2 of
+    // himself. No target: hit, he teleports; else stands 25. In melee aip1 %
+    // teleports; within aip5 40 % backs off 5 running. Skill3 (Corpse
+    // Explosion) aip3 % at a corpse (FUN_0056e390). Skill4 within 14 60 %.
+    // Skill2 aip4 %: at a minion within 25 (FUN_005e26d0), else Skill5 (a
+    // minion) where there's room, else wanders 6. Past 13 (or no Skill4) 60 %
+    // straight at it, a stand of 5 after; else Skill4.
+    if (ai_name == "Nihlathak") {
+        if (input.state_c) effect(ThinkEffect::state, 0xc, 0);
+        auto teleport = [&] {
+            const int radius = aip[1];
+            Think out = cast(0, ThinkUnit::none);
+            out.x = rng(2 * radius) - radius + input.self_x;
+            out.y = rng(2 * radius) - radius + input.self_y;
+            return out;
+        };
+        if (!input.target) return input.got_hit ? teleport() : Think{ MonAct::idle, 25 };
+        if (input.in_melee && roll() < aip[0]) return teleport();
+        if (input.dist < aip[4] && roll() < 40 && away(5, true)) return { MonAct::none };
+        if (input.skill[2] && roll() < aip[2] && input.corpse) return cast(2, ThinkUnit::kin);
+        if (input.skill45[0] && roll() < 60 && input.dist < 14) return cast(3);
+        if (input.skill[1] && roll() < aip[3]) {
+            if (input.free_minion) return cast(1, ThinkUnit::aid);   // FUN_005e26d0's second find (within 25, +0x10)
+            if (input.skill45[1] && input.spawn_room) return cast(4);
+            return think_wander(rng, 6);
+        }
+        if (!input.skill45[0] || input.dist > 13) {
+            Think out{ MonAct::idle, 5 };
+            if (roll() < 60) { out = { MonAct::direct }; out.wait = 5; }
+            return out;
+        }
+        return cast(3);
     }
     return { MonAct::untraced };
 }
