@@ -68,3 +68,4 @@
 { "PutridDefiler", false, true, true, true },
 { "BaalTentacle", false, true, true, true },
 { "BaalMinion", false, true, true, true },
+{ "Ancient", false, true, true, true },

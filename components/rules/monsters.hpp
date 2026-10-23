@@ -1220,6 +1220,12 @@ struct ThinkIn {
     // The putrid defiler's: a unit within 25 its search takes (FUN_005efa50:
     // FUN_005d2140's test), in reach (FUN_00622c40: `reach`).
     bool defile = false;
+    // The Ancients' (FUN_005ef1a0 by class: 0 Talic 0x21c, 1 Madawc, 2
+    // Korlic): asleep (a5q5's record +0x11 unset, FUN_0058cf90); Talic's
+    // state 0x36; a player picked (FUN_005e8f20, as Diablo's) when there's no
+    // target.
+    int ancient = 0;
+    bool asleep = false, state36 = false, picked = false;
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1230,7 +1236,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 86> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 87> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1241,7 +1247,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3006,7 +3012,6 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (*input.command == 1 && input.frame < input.command_until && input.command_unit && !input.command_busy) {
                 commanded = true;
                 at = ThinkUnit::kin;
-                effect(ThinkEffect::retarget);
                 melee = input.reach;
             } else effect(ThinkEffect::command_done);
         }
@@ -3273,6 +3278,49 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         else out = { MonAct::idle, aip[2] };
         out.wait = aip[3];
         return out;
+    }
+    // Ancient (133, FUN_005ef1a0): asleep, they stand 25. Their foe: Talic's
+    // target or, as the others always, a pick (FUN_005e8f20); none, stands 25.
+    // `apart`: FUN_006416d0, the units' distance less half each one's size.
+    // Talic (FUN_005eeb70; not under state 0x36): Skill1 (Leap) within aip1
+    // aip2 % to aip4 past the foe along their line (mode set directly,
+    // FUN_005a7c20); out of reach straight at it, a wait of 10; aip3 %: A1 or
+    // A2 (rand(2)); else stands 25.
+    // Madawc (FUN_005eeda0): in reach aip4 % backs off aip5 running, a wait of
+    // 25; Skill1 (at no unit) aip3 % unless its states are on; within aip1
+    // aip2 % A1, else stands 10; past it approaches to aip1.
+    // Korlic (FUN_005ef010): Skill1's sequence within aip1 aip2 %; out of
+    // reach straight at it, a wait of 10; aip3 %: A1 or A2; else stands 25.
+    if (ai_name == "Ancient") {
+        if (input.asleep || (input.ancient == 0 && input.state36)) return { MonAct::idle, 25 };
+        if ((input.ancient != 0 || !input.target) && !input.picked) return { MonAct::idle, 25 };
+        const int apart = point_apart(input.target_x - input.self_x, input.target_y - input.self_y, input.self_size / 2 + input.target_size / 2);
+        auto swing = [&] { return rng(2) != 0 ? Think{ MonAct::a1 } : Think{ MonAct::a2 }; };
+        auto straight = [&] { Think out{ MonAct::direct }; out.wait = 10; return out; };
+        if (input.ancient == 0) {
+            if (input.skill[0] && apart < aip[0] && rng(100) < aip[1]) {
+                const int off_x = input.target_x - input.self_x, off_y = input.target_y - input.self_y;
+                const int span = std::max(point_apart(off_x, off_y, 0), 1);
+                Think out = cast(0, ThinkUnit::none);
+                out.x = input.target_x + aip[3] * off_x / span;
+                out.y = input.target_y + aip[3] * off_y / span;
+                return out;
+            }
+            if (!input.reach) return straight();
+            if (rng(100) < aip[2]) return swing();
+            return { MonAct::idle, 25 };
+        }
+        if (input.ancient == 1) {
+            if (input.reach && roll() < aip[3] && away(aip[4] & 0xff, true)) { Think out{ MonAct::none }; out.wait = 25; return out; }
+            if (input.skill[0] && !input.skill_state && roll() < aip[2]) return cast(0, ThinkUnit::none);
+            if (apart < aip[0] && roll() < aip[1]) return { MonAct::a1 };
+            if (apart < aip[0]) return { MonAct::idle, 10 };
+            return { MonAct::approach, int(std::int8_t(apart - aip[0])) };
+        }
+        if (input.skill[0] && apart < aip[0] && rng(100) < aip[1]) return { MonAct::seq, 0 };
+        if (!input.reach) return straight();
+        if (roll() < aip[2]) return swing();
+        return { MonAct::idle, 25 };
     }
     return { MonAct::untraced };
 }

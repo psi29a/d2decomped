@@ -61,7 +61,7 @@ AIS = {
     "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
     "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
     "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
-    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910,
+    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
@@ -229,6 +229,10 @@ def setup(rng, ai):
         if ai == "CatapultSpotter": s["ctrl"][0] = rng.randint(0, 4)        # its strike pick: only rand(5) is kept
         s["spawn_unset"], s["spawn_found"], s["spawn_room"] = rng.random() < 0.3, rng.random() < 0.5, rng.random() < 0.7
         s["defile"] = rng.random() < 0.5
+        s["ancient"], s["asleep"], s["state36"] = rng.randint(0, 2), rng.random() < 0.15, rng.random() < 0.15
+        if ai == "Ancient":                                                # no target: a pick (FUN_005e8f20) as Diablo's
+            s["target"] = rng.random() < 0.7
+            s["d_target"], s["score"], s["count"] = rng.random() < 0.8, rng.randint(0, 60), rng.randint(0, 4)
         s["imp_aip"] = [[rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)] for _ in range(4)]
     if ai == "Vulture":
         for k in range(2):                                                 # its spot words: a point, or unset
@@ -252,7 +256,7 @@ def install(e):
     def moved():
         return int(cur["moves"].random() >= cur["s"]["fails"])
     # The acts.
-    e.hook(0x5ddf90, lambda e: out("mode", e.arg(0), name(e.arg(1))), 2)
+    e.hook(0x5ddf90, lambda e: out("mode", e.arg(0), name(e.arg(1))) or int(cur["s"]["ai"] in ACT5_AIS), 2)   # Act 5's read it (set)
     e.hook(0x5de080, lambda e: out("stand", S32(e.arg(0))), 1)
     e.hook(0x5de0f0, lambda e: out("wait", S32(e.arg(0))), 1)
     e.hook(0x5de130, lambda e: out("event", S32(e.arg(0))), 1)
@@ -411,6 +415,7 @@ def install(e):
     e.hook(0x457490, lambda e: int(cur["s"]["interact"] and e.mu.reg_read(EDX) == 9), 0)
     e.hook(0x639df0, lambda e: int(cur["s"].get("afraid", False) and e.arg(1) == 0x38 or cur["s"].get("state_c", False) and e.arg(1) == 0xc
                                     or cur["s"].get("state_b", False) and e.arg(1) == 0xb
+                                    or cur["s"].get("state36", False) and e.arg(1) == 0x36
                                     or cur["s"].get("skill_state", False) and e.arg(1) in (SKILL_STATE, 0x54)), 2)   # 0x54: the finger mage's target's
     def toggle(e):                                                     # FUN_005b0e00 back to the MonAI row's think: the reset branch
         out("toggle", e.arg(1))
@@ -532,7 +537,6 @@ def install(e):
     e.hook(0x625760, lambda e: int(cur["s"].get("state20", False) and e.arg(1) == 0x20), 2)
     e.hook(0x625d10, lambda e: cur["s"]["mana"][0], 1)
     e.hook(0x625d60, lambda e: cur["s"]["mana"][1], 1)
-    e.hook(0x6416d0, lambda e: out("retarget"), 2)
     e.hook(0x5deca0, lambda e: out("direct", name(e.arg(0))), 1)
     e.hook(0x5de830, lambda e: cur["units"]["foe2"] if cur["s"].get("attacker") else 0, 0)
     e.hook(0x5dd2d0, lambda e: 1, 0)                                   # it has the skill (its own row's)
@@ -540,6 +544,13 @@ def install(e):
     e.hook(0x554010, lambda e: 0, 0)
     e.hook(0x587900, lambda e: 0, 0)                                   # Shenk's quest step
     e.hook(0x5edf70, lambda e: int(cur["s"].get("catapult_gone", False)), 0)
+    e.hook(0x58cf90, lambda e: int(cur["s"].get("asleep", False)), 0)
+    def mode_set(e):                                                   # FUN_005a7e60(unit, mode, &ctx): the mode it's given
+        e.w32(e.arg(2), e.arg(1)); return 0
+    e.hook(0x5a7e60, mode_set, 3)
+    e.hook(0x620210, lambda e: 0, 2)
+    e.hook(0x649070, lambda e: 0, 2)
+    e.hook(0x5a7c20, lambda e: out("leap", e.r32(e.arg(1)), S32(e.r32(e.arg(1) + 0xc)), S32(e.r32(e.arg(1) + 0x10))), 3)
     def strike_spot(e):                                                # FUN_0064e7e0(room, &spot, 2, 0x805, 3): the spot kept
         return int(cur["s"].get("strike_spot", True))
     e.hook(0x64e7e0, strike_spot, 5)
@@ -592,6 +603,8 @@ def run_game(e, s, addr, rng_moves):
             if 0 <= k < 0x200: e.mu.mem_write(rows + 0x23c * k + 0x80, struct.pack("<hh", SKILL_STATE, SKILL_STATE))
     if s["ai"] in ACT5_AIS:
         if s["ai"] == "GenericSpawner": e.w32(ctrl + 0x3c, MASK if s["spawn_unset"] else 0)
+        if s["ai"] == "Ancient": e.w32(mon + 4, 0x21c + s["ancient"])     # its class picks the think
+        e.w32(e.r32(0x744304) + 0xc4, 0x400)                             # the states' count: skill +0x80 / +0x82's tested
         block = alloc(0x40); e.w32(mon + 0x14, block); e.w32(block + 0x28, ctrl)   # unit +0x14 -> +0x28: its AI control
         data = e.r32(0x744304)
         if s["ai"] == "Imp":                                             # MonStats imp1..imp4 (0x1ec..0x1ef): their aips
@@ -647,6 +660,7 @@ def outcome(s, out):
         elif k == "fly": to("fly", item[3], item[1], item[2], None)
         elif k == "spawn": to("spawn", 1)
         elif k == "direct": to("direct", unit=item[1])
+        elif k == "leap": to("skill", 0, item[2], item[3], None)
         elif k == "goto":                                                  # FUN_005dee50: a walk to a point, asked whether it set off
             asks.append((-1, item[3]))
             if item[3]: to("move_to", 0, item[1], item[2], None)
@@ -694,7 +708,8 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
         nums += [int(s["lines"]), s["sk_range"], int(s["rider"]), int(s["self_dead"]), int(s["state69"]), int(s["imp"]), int(s["state20"]),
                  *s["mana"], s["foe_life"], s["cmd_until"], int(s["foe_kind"] == "player"), int(s["reach"]), int(s["busy"]),
                  int(s["attacker"]), int(s["hurt"]), int(s["free_minion"])] + [v for row in s["imp_aip"] for v in row]
-        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"])]
+        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"]),
+                 s["ancient"], int(s["asleep"]), int(s["state36"]), int(s.get("d_target", False))]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
              "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16}
