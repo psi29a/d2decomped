@@ -1868,10 +1868,12 @@ auto Town::pad_field() const -> bool {
 // What the pad's A would act on now: a monster in reach in the facing (the
 // held target first), else, with `uses` (a fresh press), the ground item,
 // then the NPC, object, town portal or corpse in reach there.
-auto Town::pad_aim(int skill) const -> pad::Aim {
+auto Town::pad_aim(int skill, bool steering) const -> pad::Aim {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
-        if (info && info->range == "rng") return { 12.f, 14.f, 0.7f };   // ~45 degrees either side: the one you face, not one beside you
-        return {};
+        // Skills.txt's range is none / h2h / range / both; spells (Fire Ball: none) fire a missile.
+        const bool ranged = info && (!info->srvmissile.empty() || info->range == "range");
+        if (!ranged) return {};
+        return { 12.f, 14.f, steering ? pad::Aim{}.cone_cos : -2.f };   // the stick left alone: any way round
     }
 
 auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim) const -> PadPick {
@@ -1922,7 +1924,7 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
         }
         const bool left = !move.alt;
         const int skill = left ? left_skill : right_skill;
-        const PadPick pick = pad_pick(player_pad, unit, left && move.attack, pad_aim(skill));
+        const PadPick pick = pad_pick(player_pad, unit, left && move.attack, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
             out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, left });
