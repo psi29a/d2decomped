@@ -7,7 +7,10 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
+#include <string_view>
 #include <utility>
 
 namespace d2d::client {
@@ -25,7 +28,9 @@ void Gamepads::open(SDL_JoystickID id) {
     const Uint16 vendor = SDL_GetGamepadVendor(handle), product = SDL_GetGamepadProduct(handle);
     const char* serial = SDL_GetGamepadSerial(handle);
     const char* name = SDL_GetGamepadName(handle);
-    Pad pad{ handle, id, vendor == 0x28de && product == 0x1205, std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : ""), name ? name : "unnamed pad" };
+    const std::string_view named = name ? name : "";
+    const bool deck = (vendor == 0x28de && product == 0x1205) || named.contains("Steam Deck");
+    Pad pad{ handle, id, deck, std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : ""), name ? name : "unnamed pad" };
     switch (SDL_GetGamepadType(handle)) {
         case SDL_GAMEPAD_TYPE_PS3: case SDL_GAMEPAD_TYPE_PS4: case SDL_GAMEPAD_TYPE_PS5: pad.family = pad::Family::PlayStation; break;
         case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
@@ -45,6 +50,10 @@ void Gamepads::close() {
 }
 
 void Gamepads::open_connected() {
+    // SDL tells Steam Input's virtual pads apart (the Deck's own from an
+    // external one) by the file Steam names here; unread, every pad is 28de:11ff.
+    if (const char* info = std::getenv("SteamVirtualGamepadInfo"))
+        d2d::log::info("gamepad: Steam's pad info '{}' ({})", info, std::filesystem::exists(info) ? "readable" : "not here: the Deck's own controls can't be told apart");
     int count = 0;
     if (SDL_JoystickID* ids = SDL_GetGamepads(&count)) {
         for (int i = 0; i < count; ++i) open(ids[i]);
@@ -74,7 +83,16 @@ bool Gamepads::external() const { return std::ranges::any_of(pads_, [](const Pad
 
 auto Gamepads::changes() -> Changes { return std::exchange(changes_, {}); }
 
-pad::Sample Gamepads::sample() const { return pads_.empty() ? pad::Sample{} : sample(pads_.front().id); }
+auto Gamepads::primary() const -> const Pad* {
+    if (pads_.empty()) return nullptr;
+    const auto external = std::ranges::find(pads_, false, &Pad::built_in);
+    return external != pads_.end() ? &*external : &pads_.front();
+}
+
+pad::Sample Gamepads::sample() const {
+    const Pad* pad = primary();
+    return pad ? sample(pad->id) : pad::Sample{};
+}
 
 pad::Sample Gamepads::sample(SDL_JoystickID id) const {
     pad::Sample out;

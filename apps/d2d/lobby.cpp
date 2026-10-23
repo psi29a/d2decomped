@@ -32,7 +32,15 @@ void Lobby::sync(const std::vector<int>& partners, int lead_save_now, const pad:
 }
 
 void Lobby::input(Seat& seat, const pad::Sample& sample, float seconds, const Scene& scene) {
-    const auto actions = seat.mapper.step(sample, pad::Context::Menu, seconds);
+    act(seat, seat.mapper.step(sample, pad::Context::Menu, seconds), scene);
+}
+
+void Lobby::enter(const Scene& scene) {
+    for (auto& seat : seats)
+        if (seat.roster && roster_typing(*seat.roster)) { act(seat, pad::Actions{ .keys = { pad::Key::Return } }, scene); return; }
+}
+
+void Lobby::act(Seat& seat, const pad::Actions& actions, const Scene& scene) {
     const bool back = std::ranges::contains(actions.keys, pad::Key::Escape);
     if (seat.choice) {                                // ready: B takes the pick back
         if (back) { seat.choice.reset(); seat.chosen.clear(); }

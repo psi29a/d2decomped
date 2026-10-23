@@ -37,7 +37,13 @@ struct Lobby {
     void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) const;
     [[nodiscard]] bool typing() const;
     void text(std::string_view typed, bool backspace);
+    // The keyboard's Enter (Steam's keyboard on a Deck) on the name being
+    // typed: the new character is made, as the pad's A.
+    void enter(const Scene& scene);
     [[nodiscard]] std::optional<RosterChoice> choice_of(int seat) const;
+
+private:
+    void act(Seat& seat, const pad::Actions& actions, const Scene& scene);
 };
 
 }  // namespace d2d::client

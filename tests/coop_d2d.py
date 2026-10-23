@@ -190,15 +190,17 @@ press(3, "start")
 assert set(players()) == {"Alpha", "Beta", "Zed"} and players()["Zed"][2] == 2 and roster() == {}, (players(), roster())
 
 # Alpha (the first player) saves and exits: Beta leads, pad 2 plays the
-# first player's part, pad 0 gets a roster (Alpha may come back), the game goes on.
+# first player's part, Zed stays pad 3's, pad 0 is logged out, the game goes on.
 cmd("key Escape"); frames(5)
 cmd("key Up"); frames(2)
 cmd("key Return"); frames(10)
 led = players()
 assert set(led) == {"Beta", "Zed"} and led["Beta"][2] == -1 and led["Zed"][2] == 2, led
 assert cmd("state").split("screen=")[1].split()[0] == "ingame"
-assert roster() == {1: (0, 0, ["Alpha", "*Beta", "Gamma", "*Zed", "New character"], "")} or roster()[1][2][0] == "Alpha", roster()
+assert roster() == {}, roster()                     # logged out: no roster
 assert modes() == {"Beta": -1, "Zed": -1}
+press(0, "start")                                   # Start brings a logged-out pad back: a seat and its roster
+assert list(roster()) == [1] and roster()[1][2][0] == "Alpha", roster()
 # Beta toward Zed on screen when they're apart (the leash lets that through),
 # else to the left (not into Zed: the crowd stops a walk into another unit).
 apart = (led["Zed"][0] - led["Zed"][1]) - (led["Beta"][0] - led["Beta"][1])
@@ -210,4 +212,4 @@ assert abs(after["Beta"][0] - led["Beta"][0]) + abs(after["Beta"][1] - led["Beta
 
 cmd("quit")
 proc.wait(timeout=20)
-print("OK: co-op pads: seats, the roster (a save, a new character), each pad its own player, the Deck's left out, a replug, the leash, a partner's panel, a ghost raised, the lead's hand-over")
+print("OK: co-op pads: seats, the roster (a save, a new character), each pad its own player, the Deck's left out, a replug, the leash, a partner's panel, a ghost raised, the lead's hand-over (the leaver logged out, back with Start)")

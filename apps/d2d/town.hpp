@@ -251,16 +251,19 @@ struct Town {
     // A pad took seat `seat` (its colour `colour`): its roster comes up (a held seat's player stays).
     void coop_seat(int seat, int colour);
     // The first player leaves a co-op game: saved, the next joined player
-    // leads (World::leave); their seat, for their pad to play the first
-    // player's part, or -1 (no one to lead: the game ends as alone).
+    // leads (World::leave), still played by their own pad; their seat, for
+    // that pad to take seat 0, or -1 (no one to lead: the game ends as alone).
     int lead_leaves();
-    int handed_over = -1;                         // the seat a hand-over in the game menu gave seat 0 (main swaps the pads)
+    int handed_over = -1;                         // the seat a hand-over in the game menu gave seat 0 (main swaps the pads, frees the leaver's)
+    int partner_left = -1;                        // the seat whose player Save and Exit logged out (main frees it)
     // A seat's player joins with `character` / leaves (saved).
     void coop_join(int seat, const Character& joining);
     void coop_leave(int seat);
     // Typed text for a roster's name (Steam's keyboard on a Deck); whether one wants it.
     void coop_text(std::string_view text, bool backspace);
     [[nodiscard]] bool coop_typing() const;
+    // The keyboard's Enter on that name: the new character is made, as the pad's A.
+    void coop_enter();
     // A seat's pad this frame: its field play, as that player's orders.
     void coop_pad(int seat, const pad::Sample& sample, float seconds);
     // A pad's field play for `hero_there` (walk, hit, belt, run, weapons) out

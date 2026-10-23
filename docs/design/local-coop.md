@@ -41,8 +41,11 @@ PC or Mac with pads works the same way.
   written on leaving and on quitting.
 - A pad that disconnects: its character is saved and the slot is held about
   60 s. The same pad reconnecting takes it back; otherwise the player leaves.
-- The lead quitting: the next player becomes lead and the game goes on. The
+- Save and Exit logs out the player whose pad has the menu; the others keep
+  their own characters on their own pads. The lead quitting: the next
+  player becomes lead (still on their pad) and the game goes on. The
   difficulty stays (every player matched it on joining).
+- A logged-out pad comes back with Start: a seat and its roster.
 
 ![Player 2's roster over the game: Alpha greyed (playing), the green cursor on Beta](https://github.com/psi29a/d2decomped/raw/pr-assets/pr57-roster.png)
 
@@ -151,7 +154,10 @@ different levels). One screen keeps the party on one level.
   pad as a virtual Xbox pad; SDL 3 should still report the real device
   behind it (the Deck's controller is USB 0x28de / 0x1205). Each pad's
   real type and ids are logged as it connects ("gamepad: ... connected"); one run on a docked Deck with a pad settles
-  it.
+  it. SDL reads the real ids from the file Steam names in
+  `SteamVirtualGamepadInfo`; whether the Flatpak sees that file is logged
+  too ("gamepad: Steam's pad info ..."). The first Deck run had the Deck's
+  own controls playing player 1 docked.
 
 ## What it does for networking
 

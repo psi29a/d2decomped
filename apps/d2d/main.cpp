@@ -58,6 +58,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <map>
 #include <cstring>
 #include <condition_variable>
 #include <exception>
@@ -565,6 +566,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     pad::Seats seats;
     bool coop_game = false, was_in_game = false;
     int last_ui_seat = 0;
+    std::map<SDL_JoystickID, bool> start_held;    // each pad's Start last frame, for an unseated pad's rejoin
     std::uint32_t pad_last_ms = std::uint32_t(SDL_GetTicks());
     int pad_focus_key = 0;
     bool pad_in_use = false, pad_was_field = false, pad_cursor_hidden = false;   // the pad was the last to act; its field mode
@@ -780,6 +782,16 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
         }
+        // A partner's roster name and the keyboard's Enter (Steam's keyboard
+        // on a Deck): their character is made, and the Enter is theirs, not
+        // player 1's (character select's Enter plays, the game's opens chat).
+        if (const bool partner_typing = scene && ((screen == Screen::CharSelect && lobby.typing()) || (screen == Screen::InGame && town.coop_typing()));
+            partner_typing && std::erase_if(keys_this_frame, [](SDL_Keycode key) { return key == SDLK_RETURN || key == SDLK_KP_ENTER; }) > 0) {
+            if (screen == Screen::CharSelect) lobby.enter(*scene);
+            else town.coop_enter();
+            // A name refused (taken, or not one D2 takes) is still being typed: Steam's keyboard, closed by its Enter, opens again.
+            if (screen == Screen::CharSelect ? lobby.typing() : town.coop_typing()) { SDL_StopTextInput(win.window); text_active = false; }
+        }
         {
             // The pad plays as a cursor, clicks and keys through the same paths as the mouse and keyboard.
             const std::uint32_t pad_now = std::uint32_t(SDL_GetTicks());
@@ -815,11 +827,22 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (const int next = town.lead_leaves(); next > 0) { seats.swap(0, next); seats.release(next); }
                 }
             }
-            if (town.handed_over > 0) {                          // Save and Exit handed the game on: the next pad to seat 0, the leaver's to a roster
+            if (town.handed_over > 0) {                          // Save and Exit handed the game on: the next player's pad to seat 0, the leaver's logged out
                 seats.swap(0, town.handed_over);
-                town.coop_seat(town.handed_over, seats.colour(town.handed_over));
+                seats.release(town.handed_over);
                 town.handed_over = -1;
             }
+            if (town.partner_left > 0) {                         // a partner's Save and Exit: their pad logged out
+                seats.release(town.partner_left);
+                town.partner_left = -1;
+            }
+            // A pad logged out (or past the four seats) comes back with Start: a seat and its roster.
+            if (coop_game)
+                for (const auto& pad : gamepads.pads()) {
+                    const bool start = gamepads.sample(pad.id).held[std::size_t(pad::Button::Start)];
+                    const bool was = std::exchange(start_held[pad.id], start);
+                    if (!pad.built_in && start && !was && seats.seat_of(int(pad.id)) < 0) take_seat(pad);
+                }
             if (!in_game) coop_game = false;
             was_in_game = in_game;
             if (coop_game)
@@ -883,8 +906,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
             town.pad_cue = pad_field;
-            // ponytail: the first pad's labels, also when a co-op partner's pad has the screen
-            town.pad_family = gamepads.pads().empty() ? pad::Family::Xbox : gamepads.pads().front().family;
+            // ponytail: the primary pad's labels, also when a co-op partner's pad has the screen
+            town.pad_family = gamepads.primary() ? gamepads.primary()->family : pad::Family::Xbox;
             if (pad_actions.recentre_cursor) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }
             if (!pad_field) {
                 mouse.x = std::clamp(mouse.x + int(std::lround(pad_actions.cursor_dx)), -pad_side, int(kScreenWidth) + pad_side - 1);

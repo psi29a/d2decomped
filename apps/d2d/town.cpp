@@ -1257,8 +1257,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 controls.pad_extra = pad_controls_page;
                 controls.show(key_table, pad_config, character.expansion);
             }
-            // Save and Exit: alone, the game ends; in local co-op the next player leads and it goes on.
-            if (action == GameMenu::kExit && (handed_over = lead_leaves()) < 0) { save(); screen = Screen::CharSelect; }
+            // Save and Exit logs out whoever's pad has the menu. A partner leaves alone; the first
+            // player alone ends the game, in local co-op the next player leads and it goes on.
+            if (action == GameMenu::kExit) {
+                if (const int seat = focus_seat(); seat > 0) { coop_leave(seat); partner_left = seat; }
+                else if ((handed_over = lead_leaves()) < 0) { save(); screen = Screen::CharSelect; }
+            }
             hud_click = true;
         } else {
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
@@ -1941,7 +1945,9 @@ auto Town::coop_seat(int seat, int colour) -> void {
     }
 
 auto Town::lead_leaves() -> int {
-        const auto next = std::ranges::find_if(coop, [](const CoopPlayer& coop_player) { return coop_player.id > 0; });
+        // World::leave makes slot [1] the lead: the seat of whoever plays it, so their own pad keeps them.
+        if (world.players.size() < 2) return -1;
+        const auto next = std::ranges::find(coop, world.players[1]->id, &CoopPlayer::id);
         if (next == coop.end()) return -1;
         take_focus(hero.id);
         if (scene && level) save_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
@@ -2007,6 +2013,15 @@ auto Town::coop_text(std::string_view text, bool backspace) -> void {
 
 auto Town::coop_typing() const -> bool {
         return std::ranges::any_of(coop, [](const CoopPlayer& coop_player) { return coop_player.roster && roster_typing(*coop_player.roster); });
+    }
+
+auto Town::coop_enter() -> void {
+        if (!scene) return;
+        for (auto& coop_player : coop)
+            if (coop_player.roster && roster_typing(*coop_player.roster)) {
+                if (const auto choice = roster_input(*coop_player.roster, pad::Actions{ .keys = { pad::Key::Return } }, *scene)) (void)coop_choose(coop_player.seat, *choice);
+                return;
+            }
     }
 
 auto Town::coop_leave(int seat) -> void {
