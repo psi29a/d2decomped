@@ -61,7 +61,7 @@ AIS = {
     "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
     "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
     "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
-    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0, "Nihlathak": 0x5ee5d0,
+    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0, "Nihlathak": 0x5ee5d0, "ClawViperEx": 0x5f1de0,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
