@@ -636,6 +636,35 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
         set_off(running, nullptr);
     };
+    // Wussie (FUN_005ee3c0; a5q2's prisoners): no target. Its cage's portal
+    // open: unless one of its cage has gone through, 4 or more off it it
+    // walks at it 70 % (FUN_005dec80 flags 7), else rand(100) < 10 wanders 4,
+    // else stands 10; there (or after the first) it's gone through. Else a
+    // player within 16: its door broken, the portal opens (FUN_005888d0),
+    // still caged it cries (FUN_00588dd0; rand(1000) < 100 the overhead
+    // 0x14ff). Then it stands 25.
+    // ponytail: the walk at the portal as one to its spot; the overhead
+    // line, and FUN_005b1990 at +0xd0 == 11, aren't sent.
+    if (type_info.ai_name == "Wussie") {
+        auto& view = monster.wussie;
+        if (view.portal) {
+            if (!view.cage_left && d2d::rules::ai_distance(view.portal_x - x, view.portal_y - y) >= 4) {   // FUN_005dc5c0
+                if (monster.seed(100) < 70) { walk_to(view.portal_x - x, view.portal_y - y, false); return true; }
+                if (monster.seed(100) < 10) { const auto wander = d2d::rules::think_wander(monster.seed, 4); walk_to(wander.x, wander.y, false); return true; }
+                idle(10);
+                return true;
+            }
+            view.left = true;
+            monster.gone = true;
+            return true;
+        }
+        if (view.player) {
+            if (view.door_broken) view.open_portal = true;
+            else { view.cried = true; (void)monster.seed(1000); }
+        }
+        idle(25);
+        return true;
+    }
     if (!target) {
         monster.chase = -1;
         // FUN_005de890 with none found: with a WL mode (MonStats2 mode bits,

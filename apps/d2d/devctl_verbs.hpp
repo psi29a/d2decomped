@@ -533,14 +533,17 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             make_boss(*scene, *best, d2d::rules::Boss::unique, mods, -1, town.world.rng(0x10000), town.hero.character.header.active_difficulty(), town.world.rng);
             return std::format("ok #{} {} aura={} lvl={}\n", best->id, best->npc.name, best->aura, best->aura_lvl);
         }
-        if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n> and those of MonStats id <spare> (quests)
-            int keep = args.size() >= 3 && args[2] != "spare" ? std::atoi(args[2].c_str()) : 0;
-            const auto spare_at = std::ranges::find(args, std::string("spare"));
-            if (spare_at != args.end() && spare_at + 1 == args.end()) return std::string("err spare <MonStats id>\n");
+        if (args.size() >= 2 && args[1] == "kill" && scene) {   // kill the level's monsters but <n>, those of MonStats id <spare>, those over <cells> off (quests)
+            int keep = args.size() >= 3 && args[2] != "spare" && args[2] != "within" ? std::atoi(args[2].c_str()) : 0;
+            const auto spare_at = std::ranges::find(args, std::string("spare")), within_at = std::ranges::find(args, std::string("within"));
+            if ((spare_at != args.end() && spare_at + 1 == args.end()) || (within_at != args.end() && within_at + 1 == args.end())) return std::string("err spare <MonStats id> / within <cells>\n");
             const std::string spare = spare_at != args.end() ? *(spare_at + 1) : "";
+            const float within = within_at != args.end() ? float(std::atof((within_at + 1)->c_str())) : 1e9f;
             auto& monsters = town.world.fight.monsters;
             for (std::size_t i = 0; i < monsters.size(); ++i)
-                if (monsters[i].alive() && (spare.empty() || scene->monsters.types[std::size_t(monsters[i].type)].id != spare) && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
+                if (monsters[i].alive() && (spare.empty() || scene->monsters.types[std::size_t(monsters[i].type)].id != spare)
+                    && std::hypot(monsters[i].unit.x - town.hero.player.x, monsters[i].unit.y - town.hero.player.y) <= within
+                    && keep-- <= 0 && hurt(*scene, monsters[i], monsters[i].hit_points, town.world.now)) town.world.fight.killed(i, town.world.now);
             return std::string("ok\n");
         }
         if (args.size() >= 3 && args[1] == "itemat" && scene) {   // where carried item <id> sits on screen with the inventory open: its box's middle

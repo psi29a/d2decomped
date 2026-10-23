@@ -932,10 +932,14 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
         }
     // FUN_0066ac40 with no tile of the start's group (0..4) counts none and
     // stops at the list's first tile: the Pandemonium Fortress starts at its
-    // town-portal tile (style 33), its only one.
+    // town-portal tile (style 33), its only one; Harrogath's town portals
+    // (index 11, FUN_0056cf40) open at its start tile, its only one.
     for (const auto& room : built)
-        for (const auto& spawn : room.spawns)
-            if (level.start.first < 0) level.start = { (float(spawn.x) * 5 + 3 + 0.5f) / 5, (float(spawn.y) * 5 + 3 + 0.5f) / 5 };
+        for (const auto& spawn : room.spawns) {
+            const std::pair spot{ (float(spawn.x) * 5 + 3 + 0.5f) / 5, (float(spawn.y) * 5 + 3 + 0.5f) / 5 };
+            if (level.start.first < 0) level.start = spot;
+            if (level.portal_spot.first < 0) level.portal_spot = spot;
+        }
     for (const auto& room : built)
         for (const auto& unit : room.units) {
             level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path, unit.actions });

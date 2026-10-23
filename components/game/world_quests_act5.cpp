@@ -8,6 +8,7 @@
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -17,6 +18,8 @@
 namespace d2d::game {
 
 namespace {
+constexpr int kCage = 473;                    // cagedwussie1 (InitFn 62)
+int subtile(float cells) { return int(std::floor(cells * 5)); }
 // FUN_00619790's list (room2 +8): the player's room is the dead one's or on
 // its near list.
 bool rooms_near(const GameData& game_data, const Level& where, float x, float y, float dead_x, float dead_y) {
@@ -43,6 +46,7 @@ auto World::act5_join() -> void {
         betrayal = {};
         betrayal.join(quests());
         betrayal_log_at = 0;
+        cages_up.clear();
         act5_chain();
     }
 
@@ -125,6 +129,25 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             siege.killed(quests(), about);
             d2d::log::info("Siege on Harrogath: Shenk is dead");
         }
+        // Rescue on Mount Arreat (FUN_00588040, units bound to 0x20): a door
+        // broken frees the living prisoners within 15 of it; a prisoner dead.
+        if (std::size_t(kill.type) < game_data->monsters.types.size()) {
+            const int base = game_data->monsters.types[std::size_t(kill.type)].base;
+            if (base == d2d::rules::RescueQuest::kDoor) {
+                std::vector<int> near_ids;
+                for (const auto& prisoner : fight.monsters)
+                    if (prisoner.alive() && game_data->monsters.types[std::size_t(prisoner.type)].base == d2d::rules::RescueQuest::kPrisoner
+                        && rescue.cage_of(prisoner.id) >= 0 && !std::ranges::contains(rescue.freed_ids, prisoner.id)
+                        && d2d::rules::ai_distance(subtile(prisoner.unit.x) - subtile(kill.x), subtile(prisoner.unit.y) - subtile(kill.y)) < d2d::rules::RescueQuest::kFreeReach)   // FUN_006416d0
+                        near_ids.push_back(prisoner.id);
+                rescue.door_broken(quests(), near_ids);
+                d2d::log::info("Rescue on Mount Arreat: a door broken, {} freed", near_ids.size());
+            }
+            if (base == d2d::rules::RescueQuest::kPrisoner && rescue.cage_of(kill.id) >= 0) {
+                rescue.prisoner_died(quests(), kill.id);
+                d2d::log::info("Rescue on Mount Arreat: a prisoner dead ({} caged dead)", rescue.dead);
+            }
+        }
         // Nihlathak (MonStats base 0x20e, bound to 0x22: FUN_0058b7a0).
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
             if (betrayal.killed(quests(), about)) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
@@ -132,8 +155,89 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         }
     }
 
+// a5q2's cages and prisoners. A cage's InitFn (62, FUN_005886a0) as its
+// room comes up: its slot, its five prisoners (FUN_00588600, bound to
+// 0x20). Each prisoner's view for its think (ai.cpp's Wussie), then what
+// it asked: the log 5, its cage's portal (FUN_005888d0: at the broken
+// door's spot +2 subtiles east, FUN_00555230 a town portal; its twin at
+// Harrogath's portal spot), gone through it (FUN_00588880).
+// ponytail: the prisoners at free spots about the cage, not FUN_005b2f20's
+// draws on the room's seed; the portal's fallback spots (x - 2, then
+// FUN_00545340) are the nearest free one.
+auto World::rescue_update(std::uint32_t now_ms) -> void {
+        const auto made_rooms = fight.spawning.levels.find(level);
+        const bool rooms_known = made_rooms != fight.spawning.levels.end();
+        for (int i = 0; i < int(level->npcs.size()); ++i) {
+            const auto& cage = level->npcs[std::size_t(i)];
+            if (cage.object_id != kCage || cages_up.contains({ level, i })) continue;
+            const int room = room_of(*level, cage.x, cage.y);
+            if (!rooms_known || room < 0 || !std::ranges::contains(made_rooms->second.order, std::size_t(room))) continue;
+            const int slot = rescue.cage(subtile(cage.x), subtile(cage.y));
+            cages_up[{ level, i }] = slot;
+            if (slot < 0) continue;
+            const int row = int(game_data->mon_bin[std::size_t(d2d::rules::RescueQuest::kPrisoner)]);
+            for (int which = 0; which < d2d::rules::RescueQuest::kPerCage; ++which) {
+                const auto [at_x, at_y] = level->nearest_free(cage.x + float(which % 3 - 1) * 0.6f, cage.y + float(which / 3) * 0.6f);
+                fight.add_monster(make_monster(*game_data, row, at_x, at_y, fight.rng, actor->character.header.active_difficulty(), true, int(players.size())), level);
+                rescue.prisoner_made(slot, which, fight.monsters.back().id);
+            }
+            d2d::log::info("Rescue on Mount Arreat: cage {} up, {} prisoners", slot, d2d::rules::RescueQuest::kPerCage);
+        }
+        const auto door_down = [&](float x, float y) {                  // FUN_00588e10: a dead prisondoor in the player's rooms
+            const auto rooms = near_rooms(*game_data, *level, x, y);
+            return std::ranges::any_of(fight.monsters, [&](const Monster& door) {
+                return !door.alive() && game_data->monsters.types[std::size_t(door.type)].base == d2d::rules::RescueQuest::kDoor
+                    && std::ranges::contains(rooms, std::pair{ level, room_of(*level, door.unit.x, door.unit.y) }); });
+        };
+        for (auto& prisoner : fight.monsters) {
+            const int slot = rescue.cage_of(prisoner.id);
+            if (slot < 0) continue;
+            auto& view = prisoner.wussie;
+            if (std::exchange(view.left, false)) { rescue.went(slot); d2d::log::info("Rescue on Mount Arreat: a prisoner through the portal"); }
+            if (!prisoner.alive()) continue;
+            const auto& gate = portal[kCagePortals + std::size_t(slot) * 2];
+            view.portal = gate.level == level;
+            if (view.portal) { view.portal_x = subtile(gate.x); view.portal_y = subtile(gate.y); }
+            view.cage_left = rescue.cages[std::size_t(slot)].gone > 0;
+            // FUN_005ddf20: the nearest player within 16 (FUN_005dc380).
+            const Player* by = nullptr;
+            int best = 16;
+            for (const auto& other : players) {
+                const int dist = d2d::rules::ai_distance(subtile(other->player.x) - subtile(prisoner.unit.x), subtile(other->player.y) - subtile(prisoner.unit.y));
+                if (dist < best) { best = dist; by = other.get(); }
+            }
+            view.player = by != nullptr;
+            view.door_broken = by && door_down(by->player.x, by->player.y);
+            if (by) view.player_id = by->id;
+            if (std::exchange(view.cried, false)) rescue.cried();
+            if (std::exchange(view.open_portal, false) && rescue.portal_due(slot)) {
+                // FUN_005888d0: the broken door within 15 of it, in the player's rooms.
+                const Monster* door = nullptr;
+                if (by) {
+                    const auto rooms = near_rooms(*game_data, *level, by->player.x, by->player.y);
+                    for (const auto& other : fight.monsters)
+                        if (!other.alive() && game_data->monsters.types[std::size_t(other.type)].base == d2d::rules::RescueQuest::kDoor
+                            && std::ranges::contains(rooms, std::pair{ level, room_of(*level, other.unit.x, other.unit.y) })
+                            && d2d::rules::ai_distance(subtile(other.unit.x) - subtile(prisoner.unit.x), subtile(other.unit.y) - subtile(prisoner.unit.y)) < 15) { door = &other; break; }
+                }
+                const Level* town = game_data->level(d2d::rules::level_ids::kHarrogath);
+                if (!door || !town || town->portal_spot.first < 0) { d2d::log::warn("Rescue on Mount Arreat: no portal (door {}, town spot {})", door != nullptr, town ? town->portal_spot.first : -2); continue; }
+                const auto [spot_x, spot_y] = level->nearest_free(door->unit.x + 2.f / 5, door->unit.y);
+                const auto [town_x, town_y] = town->nearest_free(town->portal_spot.first, town->portal_spot.second);
+                portal[kCagePortals + std::size_t(slot) * 2] = { level, spot_x, spot_y, now_ms };
+                portal[kCagePortals + std::size_t(slot) * 2 + 1] = { town, town_x, town_y, now_ms };
+                cues.cue("object_townportal", now_ms, spot_x, spot_y);
+                const auto opener = std::ranges::find(players, view.player_id, [](const auto& player) { return player->id; });
+                act_as(opener == players.end() ? lead() : **opener);
+                rescue.portal_opened(quests(), slot);
+                d2d::log::info("Rescue on Mount Arreat: cage {}'s portal ({} freed, {} dead of {})", slot, rescue.freed, rescue.dead, rescue.made);
+            }
+        }
+    }
+
 auto World::act5_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
+        rescue_update(now_ms);
         if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
