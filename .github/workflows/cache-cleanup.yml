@@ -1,0 +1,78 @@
+name: Cache cleanup
+
+# The repository gets 10 GB of Actions cache; past that GitHub evicts the
+# least recently used, which can be main's ccache and send builds in cold.
+# Keyed-per-run caches (ccache, Flatpak, CodeQL) pile up, and caches made for
+# a PR or a tag are never read again once it's closed or released:
+#   a PR closing   - delete what that PR's runs saved
+#   main's CI done - keep the newest of each kind on main, drop the rest
+#   daily          - the same, and whatever tag runs saved
+# Nothing is checked out: pull_request_target runs no PR code, it only needs
+# the write token a fork's pull_request event wouldn't get.
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+concurrency:
+  group: cache-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete the closed PR's caches
+        if: github.event_name == 'pull_request_target'
+        run: |
+          ref="refs/pull/${{ github.event.pull_request.number }}/merge"
+          gh cache list --ref "$ref" --limit 1000 --json id --jq '.[].id' |
+            while read -r id; do echo "delete $id ($ref)"; gh cache delete "$id"; done
+
+      - name: Keep the newest of each kind on main
+        if: github.event_name != 'pull_request_target'
+        shell: python
+        run: |
+          import json, re, subprocess
+          caches = json.loads(subprocess.run(
+              ["gh", "cache", "list", "--limit", "1000", "--json", "id,key,ref,createdAt"],
+              check=True, capture_output=True, text=True).stdout)
+          # What varies per save: a timestamp (ccache), a run id (Flatpak),
+          # a file hash (FFmpeg), the ISO week (apt), commit + run (CodeQL).
+          kinds = [
+              re.compile(r"^(ccache-.+?)-\d{4}-\d\d-\d\dT"),
+              re.compile(r"^(flatpak-builder-[^-]+)-"),
+              re.compile(r"^(ffmpeg-[^-]+)-"),
+              re.compile(r"^(apt-.+?)-\d{4}-\d\d$"),
+              re.compile(r"^(codeql-.+)-[0-9a-f]{40}-\d+-\d+$"),
+          ]
+          def kind(key):
+              for pattern in kinds:
+                  if match := pattern.match(key):
+                      return match.group(1)
+              return None   # a stable key (Qt, Windows deps): replaced in place
+          newest, stale = {}, []
+          for cache in sorted(caches, key=lambda c: c["createdAt"], reverse=True):
+              if cache["ref"].startswith("refs/tags/"):
+                  stale.append(cache)
+              elif cache["ref"] == "refs/heads/main" and (k := kind(cache["key"])):
+                  if k in newest:
+                      stale.append(cache)
+                  else:
+                      newest[k] = cache
+          for cache in stale:
+              print(f"delete {cache['id']} {cache['ref']} {cache['key']}")
+              subprocess.run(["gh", "cache", "delete", str(cache["id"])], check=True)
+          print(f"{len(stale)} deleted; kept {', '.join(sorted(newest)) or 'none'}")
