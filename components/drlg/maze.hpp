@@ -105,8 +105,33 @@ inline constexpr std::array<int, 16> kSpiderDefs = { 0, 0, 0, 0, 0, 659, 660, 0,
 // (FUN_00673b30), each the first non-special listed room with the def.
 inline constexpr std::array<std::pair<int, int>, 4> kSewer92Specials = { { { 0x2c5, 0x2df }, { 0x2c6, 0x2e0 }, { 0x2c9, 0x2e1 }, { 0x2ca, 0x2e2 } } };
 // The tombs' entrance room by the side left free (0x6ef888, 8-byte rows),
-// and the turn its def starts the specials on (FUN_00672be0).
+// and the turn its def starts the specials on (FUN_00672be0); the
+// Worldstone Keep's (0x6ef88c, FUN_006718c0).
 inline constexpr std::array<int, 4> kTombEntrance = { 447, 444, 446, 445 };
+inline constexpr std::array<int, 4> kWorldstoneEntrance = { 1075, 1077, 1076, 1074 };
+// Act 5's rooms by link mask (FUN_006709b0, 8-byte rows; 0 none): the
+// temple's (32, 0x6ef6d8) and the hell levels' (35, 0x6ef6dc).
+inline constexpr std::array<int, 16> kTempleDefs = { 0, 0, 0, 0, 0, 1045, 1044, 0, 0, 1043, 1042, 0, 0, 0, 0, 0 };
+inline constexpr std::array<int, 16> kHellDefs = { 0, 1056, 1055, 1057, 1054, 0, 0, 0, 1053, 0, 0, 0, 1058, 0, 0, 0 };
+// The hell levels' two rooms off the first (0x6ef828, FUN_00671430): by a
+// roll on the first room's seed, {def, side, file} twice.
+struct HellArm { int def, side, file; };
+inline constexpr std::array<std::array<HellArm, 2>, 4> kHellArms = { { { { { 1054, 1, 0 }, { 1053, 3, 1 } } }, { { { 1054, 1, 1 }, { 1053, 3, 0 } } },
+                                                                      { { { 1055, 0, 1 }, { 1056, 2, 0 } } }, { { { 1055, 0, 0 }, { 1056, 2, 1 } } } } };
+// Act 5's special tables (16-byte records): the temple's (FUN_00673000:
+// 0x6f02f8, three; 0x6f0328), the Worldstone Keep's (FUN_006730b0: 0x6f0368,
+// 0x6f03a8), the ice caves' (FUN_00673530: 0x6f0498, 0x6f04d8, 0x6f0518,
+// 0x6f0558, 0x6f0598).
+inline constexpr std::array<Special, 4> kTempleFirst = { { { 1042, 1046, -1, 1 }, { 1043, 1047, -1, 0 }, { 1045, 1048, -1, 3 }, { 1042, 1049, -1, 1 } } };
+inline constexpr std::array<Special, 4> kTempleSecond = { { { 1042, 1049, -1, 1 }, { 1043, 1050, -1, 0 }, { 1045, 1052, -1, 3 }, { 1044, 1051, -1, 2 } } };
+inline constexpr std::array<std::array<Special, 4>, 7> kAct5Specials = { {
+    { { { 1066, 1078, -1, 3 }, { 1060, 1080, -1, 0 }, { 1062, 1079, -1, 1 }, { 1059, 1081, -1, 2 } } },
+    { { { 1066, 1082, -1, 3 }, { 1060, 1084, -1, 0 }, { 1062, 1083, -1, 1 }, { 1059, 1085, -1, 2 } } },
+    { { { 1010, 1021, -1, 3 }, { 1004, 1019, -1, 0 }, { 1006, 1020, -1, 1 }, { 1003, 1018, -1, 2 } } },
+    { { { 1010, 1025, -1, 3 }, { 1004, 1023, -1, 0 }, { 1006, 1024, -1, 1 }, { 1003, 1022, -1, 2 } } },
+    { { { 1010, 1029, -1, 3 }, { 1004, 1027, -1, 0 }, { 1006, 1028, -1, 1 }, { 1003, 1026, -1, 2 } } },
+    { { { 1010, 1033, -1, 3 }, { 1004, 1031, -1, 0 }, { 1006, 1032, -1, 1 }, { 1003, 1030, -1, 2 } } },
+    { { { 1010, 1034, -1, 3 }, { 1004, 1036, -1, 0 }, { 1006, 1035, -1, 1 }, { 1003, 1037, -1, 2 } } } } };
 // The harem's (14) and cellars' (15) room by link mask (0x6ef758, 12-byte
 // rows; 0 = none, the room keeps its def).
 inline constexpr std::array<std::array<int, 2>, 16> kHaremDefs = { { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 356, 360 }, { 355, 359 }, { 0, 0 },
@@ -115,9 +140,12 @@ inline constexpr std::array<std::array<int, 2>, 16> kHaremDefs = { { { 0, 0 }, {
 // A LevelType's first maze def (FUN_006709b0, FUN_006735f0, FUN_006738c0):
 // act 1's caves (3), crypts (4), Barracks (7), Jail (8), Catacombs (10);
 // act 2's sewers (13), tombs (17), lair (18), Arcane Sanctuary (19);
-// act 3's Durance (22), Flayer Dungeon (24), sewers (25); act 4's lava (28).
+// act 3's Durance (22), Flayer Dungeon (24), sewers (25); act 4's lava (28);
+// act 5's ice caves (33), Worldstone Keep (34).
 inline int maze_base(int type) {
     switch (type) {
+    case 33: return 0x3ea;
+    case 34: return 0x422;
     case 22: return 0x2f1;
     case 28: return 836;                                    // act 4's River of Flame: LavaX + mask
     case 24: return 0x298;
@@ -136,7 +164,9 @@ inline int maze_base(int type) {
 // The types with theme rooms (FUN_006735f0) and with a file rotation
 // (FUN_006738c0), of acts 1 to 4 (the River of Flame rotates, no themes).
 inline bool maze_themes(int type) { return type == 3 || type == 4 || type == 7 || type == 8 || type == 10 || type == 13 || type == 17 || type == 22 || type == 24 || type == 25; }
-inline bool maze_rotates(int type) { return maze_themes(type) || type == 18 || type == 28; }
+inline bool maze_rotates(int type) { return maze_themes(type) || type == 18 || type == 28 || type == 33 || type == 34 || type == 35; }
+// The defs a rotation covers start past this (FUN_006738c0): the hell levels' at 0x41c.
+inline int rotation_base(int type) { return type == 35 ? 0x41c : maze_base(type); }
 
 struct Room {
     int x = 0, y = 0, width = 0, height = 0, def = 0, file = -1;
@@ -246,6 +276,8 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             def = kHaremDefs[std::size_t(mask)][maze.type == 14 ? 0 : 1];
             if (level == level_ids::kPalaceCellarLevel1 && def == 0x169) file = 2;
             if (level == level_ids::kPalaceCellarLevel3 && (def == 0x169 || def == 0x167)) file = 3;
+        } else if (maze.type == 32 || maze.type == 35) {           // act 5's temple and hell levels: a table, 0 none
+            def = (maze.type == 32 ? kTempleDefs : kHellDefs)[std::size_t(mask)];
         } else if (maze.type == 23) {                              // the spider caves: a table, 0 none
             def = kSpiderDefs[std::size_t(mask)];
             if (level == level_ids::kSpiderCave && def == 0x296) def = 0x298;
@@ -296,6 +328,15 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
     rooms[std::size_t(first)].x = (level_w - maze.width) / 2;
     rooms[std::size_t(first)].y = (level_h - maze.height) / 2;
     add(first);
+    // The Frozen River, Drifter Cavern and Icy Cellar: the first room alone,
+    // the Frozen River's def on a roll of the level seed (rand(2)).
+    const bool one_room = maze.type == 33 && (level == level_ids::kFrozenRiver || level == level_ids::kDrifterCavern || level == level_ids::kIcyCellar);
+    if (one_room) {
+        auto& room = rooms[std::size_t(first)];
+        room.def = level == level_ids::kFrozenRiver ? (seed(2) != 0 ? 0x40e : 0x40f) : level == level_ids::kDrifterCavern ? 0x410 : 0x411;
+        room.special = true;
+        room.file = -1;
+    }
 
     // Jail and Barracks: a ring of 2x2 rooms round the first (FUN_00670f60(2):
     // above, left, below, closed back on the first). Catacombs: arms off the
@@ -307,8 +348,9 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
     // Sewers' first level, 5, whose ring then has four rooms made special.
     bool grows = true;
     if (maze.type == 7 || maze.type == 8 || maze.type == 13 || maze.type == 14 || maze.type == 15 || maze.type == 18
-        || maze.type == 22 || maze.type == 23 || maze.type == 24 || maze.type == 25) {
-        grows = maze.type != 14 && maze.type != 15 && maze.type != 23;   // the harem, cellars and spider caves: the ring alone
+        || maze.type == 22 || maze.type == 23 || maze.type == 24 || maze.type == 25 || maze.type == 32
+        || (maze.type == 33 && !one_room)) {
+        grows = maze.type != 14 && maze.type != 15 && maze.type != 23 && maze.type != 32;   // the harem, cellars, spider caves and temple: the ring alone
         const int size = level == level_ids::kKurastSewersLevel1 ? 5 : 2;
         int last = first;
         for (const auto& [side, count] : { std::pair{ 1, size - 1 }, std::pair{ 0, size - 1 }, std::pair{ 3, size - 1 }, std::pair{ 2, size - 2 } })
@@ -364,19 +406,45 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         for (std::size_t index = 0; index < kept.size(); ++index)
             if (kept[index] >= 0) rooms[std::size_t(kept[index])].file = (int(index) / 15 + rotation) & 3;
         rooms[std::size_t(first)].file = 4;
-    } else if (maze.type == 17) {
+    } else if (maze.type == 17 || maze.type == 34) {
         int def = 0x1e0;                                            // the Claw Viper Temple's second level: its one room
         if (level == level_ids::kClawViperTempleLevel2) grows = false;
         else {                                                      // FUN_006718c0: three arms off the first, the entrance faces the side left
             int side = int(seed.next() & 3);
             for (int arm_index = 0; arm_index < 3; ++arm_index, side = (side + 1) & 3) arm(first, side);
-            def = kTombEntrance[std::size_t(side)];
+            def = (maze.type == 17 ? kTombEntrance : kWorldstoneEntrance)[std::size_t(side)];
         }
         auto& room = rooms[std::size_t(first)];
         room.def = def;
         room.special = true;
         room.file = -1;
+    } else if (maze.type == 35) {
+        // The hell levels (FUN_00671430): two rooms off the first by a roll
+        // of its seed (FUN_00670de0), then 836 on every side of every room
+        // (FUN_00671320, as the River of Flame's fill).
+        grows = false;
+        const auto& arms = kHellArms[std::size_t(rooms[std::size_t(first)].seed.next() & 3)];
+        for (const auto& hell_arm : arms) {
+            const int index = alloc(maze.width, maze.height);
+            if (!place(index, first, hell_arm.side)) { rooms.pop_back(); continue; }
+            link(first, index, hell_arm.side);
+            add(index);
+            set_def(first);
+            auto& room = rooms[std::size_t(index)];
+            room.special = true; room.def = hell_arm.def; room.file = hell_arm.file;
+        }
+        const auto listed = list;
+        for (const int other_index : listed)
+            for (int side = 0; side < 8; ++side) {
+                const int index = alloc(maze.width, maze.height);
+                if (!place(index, other_index, side)) continue;
+                link(other_index, index, side);
+                add(index);
+                auto& room = rooms[std::size_t(index)];
+                room.special = true; room.def = 836; room.file = -1;
+            }
     }
+    if (one_room) grows = false;
 
     // Grow (FUN_00671210).
     // FUN_00671210: the boss tomb grows three times the rooms, the staff tomb twice.
@@ -402,7 +470,8 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         // (FUN_00672be0); the sewers' after a roll for level 47's last side
         // (FUN_00672810); none for the harem, cellars and Claw Viper 2.
         int sewer_side = 1, turn = 0;
-        const bool specials = maze.type != 14 && maze.type != 15 && maze.type != 23 && maze.type != 28 && !(maze.type == 17 && level == level_ids::kClawViperTempleLevel2);
+        const bool specials = maze.type != 14 && maze.type != 15 && maze.type != 23 && maze.type != 28 && maze.type != 35 && !one_room
+                              && !(maze.type == 17 && level == level_ids::kClawViperTempleLevel2);
         if (maze.type == 7) turn = std::max(court_file, 0);
         else if (maze.type == 17) {
             for (const int other_index : list)
@@ -410,7 +479,8 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         } else if (maze.type == 13) {
             sewer_side = int(seed.next() & 1) * 2 | 1;
             turn = int(seed.next() & 3);
-        } else if (specials) turn = int(seed.next() & 3);
+        } else if (maze.type == 32) turn = int(seed.next() % 3);    // FUN_00673000
+        else if (specials) turn = int(seed.next() & 3);
         auto special = [&](const Special& special_room) {
             bool done = false;
             for (const int other_index : list) {
@@ -532,6 +602,17 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             if (level == level_ids::kStonyTombLevel2 || level == level_ids::kClawViperTempleLevel2) special(kAct2Specials[10][std::size_t(turn)]);
             if (level == maze.boss_tomb) special(kAct2Specials[11][std::size_t(turn)]);
             if (level == maze.staff_tomb) special(kAct2Specials[12][std::size_t(turn)]);
+        } else if (maze.type == 32) {                                               // FUN_00673000
+            if (level != level_ids::kHallsOfVaught) special(kTempleFirst[std::size_t(turn)]);
+            if (level == level_ids::kHallsOfPain) special(kTempleSecond[std::size_t(turn)]);
+        } else if (maze.type == 33 && specials) {                                   // FUN_00673530
+            for (int table = 2; table <= 4; ++table) special(kAct5Specials[std::size_t(table)][std::size_t(turn)]);
+            if (level == level_ids::kGlacialTrail) special(kAct5Specials[5][std::size_t(turn)]);
+            if (level == level_ids::kCrystallinePassage || level == level_ids::kGlacialTrail || level == level_ids::kAncientsWay)
+                special(kAct5Specials[6][std::size_t(turn)]);
+        } else if (maze.type == 34) {                                               // FUN_006730b0
+            special(kAct5Specials[0][std::size_t(turn)]);
+            if (level == level_ids::kWorldstoneKeepLevel2) special(kAct5Specials[1][std::size_t(turn)]);
         } else if (maze.type == 24 || maze.type == 25) {                          // FUN_00672ea0 / FUN_00672f00
             special(kAct3Specials[maze.type == 24 ? 0 : 2][std::size_t(turn)]);
             special(kAct3Specials[maze.type == 24 ? 1 : 3][std::size_t(turn)]);
@@ -654,7 +735,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         const auto& preset = found->second;
         int file = seed(preset.files);                        // FUN_00666ed0
         if (room.file != -1) file = room.file;                 // FUN_006738c0
-        else if (maze_rotates(maze.type) && room.def > maze_base(maze.type) && room.def < maze_base(maze.type) + 0x10) {
+        else if (maze_rotates(maze.type) && room.def > rotation_base(maze.type) && room.def < rotation_base(maze.type) + 0x10) {
             auto rot = rotation.find(room.def);
             if (rot == rotation.end()) rot = rotation.emplace(room.def, seed(preset.files)).first;
             file = rot->second = preset.files ? (rot->second + 1) % preset.files : 0;

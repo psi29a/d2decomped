@@ -449,8 +449,8 @@ int main(int argc, char** argv) try {
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
         for (auto seed = first;; ++seed) {
             std::ostringstream out;
-            if (id >= level_ids::kPandemoniumFortress) {     // act 4, as drlg.act4_layout_dump
-                auto layout = act4_layout(defs, act_seed(seed));
+            if (id >= level_ids::kPandemoniumFortress) {     // acts 4 and 5, as drlg.act4_layout_dump
+                auto layout = id >= level_ids::kHarrogath ? act5_layout(defs, act_seed(seed)) : act4_layout(defs, act_seed(seed));
                 std::ranges::sort(layout, {}, &Placed::level);
                 for (const auto& placement : layout)
                     out << "level " << placement.level << " at " << placement.x << ',' << placement.y << " size " << placement.width << 'x' << placement.height << '\n';

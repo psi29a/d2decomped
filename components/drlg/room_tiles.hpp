@@ -33,7 +33,9 @@ namespace d2d::drlg {
 // A level's warp slot (Levels.txt Warp0..7): its LvlWarp row — Id, lit
 // (LitVersion), the warp unit's offset from its tile (OffsetX / Y), and
 // the lit wall's sequence bits (Tiles).
-struct WarpSlot { int id = -1; bool lit = false; int off_x = 0, off_y = 0, tiles = 0; };
+// off_x / off_y: its LvlWarp row's (Direction l or b); the r row's for an
+// orientation 11 wall (FUN_0066af50: act 5's warps have both).
+struct WarpSlot { int id = -1; bool lit = false; int off_x = 0, off_y = 0, tiles = 0, right_x = 0, right_y = 0; };
 
 // A tile a room holds: level-relative x, y; the word it came from.
 struct PlacedTile {
@@ -107,24 +109,29 @@ inline constexpr std::array<int, 20> kOrientClass = { -1, 0, 1, 2, -1, 3, 4, 5, 
 inline constexpr std::array<int, 42> kOrientMerge = { 0, 1, 3, 3, 4, 1, 3, 1, 1, 2, 3, 4, 3, 2, 2, 3, 3, 3, 4, 3, 3,              // 0x6ef574
                                                       3, 1, 3, 3, 4, 5, 6, 1, 3, 2, 3, 4, 3, 6, 2, 1, 2, 3, 4, 1, 2 };
 
-// Door objects of orientation 8 / 9 walls (FUN_0066d960): level -> first,
-// last row (0x6eefc8), each row {style, seq, orientation 9, object, dx, dy}
-// (0x6ef188, type 2: objects). Acts 1 and 2's rows (0..22).
-// ponytail: act 3+'s rows (23..33, some type 1: monsters by name) aren't here.
+// Door units of orientation 8 / 9 walls (FUN_0066d960): level -> first,
+// last row (0x6eefc8, inclusive), each row {style, seq, orientation 9, id,
+// type, dx, dy} (0x6ef188; type 2 an object, 1 a monster by MonStats row).
+// Act 5's: Harrogath's main gate (23), the barricades' doors and towers
+// (24..33, some monsters).
 struct DoorLevel { int level, first, last; };
-inline constexpr std::array<DoorLevel, 33> kDoorLevels = { { { 28, 0, 3 }, { 29, 0, 3 }, { 30, 0, 3 }, { 31, 0, 3 }, { 26, 4, 6 }, { 27, 4, 6 },
+inline constexpr std::array<DoorLevel, 37> kDoorLevels = { { { 28, 0, 3 }, { 29, 0, 3 }, { 30, 0, 3 }, { 31, 0, 3 }, { 26, 4, 6 }, { 27, 4, 6 },
                                                            { 32, 5, 9 }, { 33, 5, 9 }, { 34, 10, 11 }, { 35, 10, 11 }, { 36, 10, 11 }, { 37, 10, 12 },
                                                            { 51, 13, 14 }, { 52, 15, 18 }, { 53, 15, 18 }, { 54, 15, 18 }, { 55, 19, 20 }, { 56, 19, 20 },
                                                            { 57, 19, 20 }, { 58, 19, 20 }, { 59, 19, 20 }, { 60, 19, 20 }, { 61, 19, 20 }, { 66, 19, 20 },
                                                            { 67, 19, 20 }, { 68, 19, 20 }, { 69, 19, 20 }, { 70, 19, 20 }, { 71, 19, 20 }, { 72, 19, 20 },
-                                                           { 62, 21, 22 }, { 63, 21, 22 }, { 64, 21, 22 } } };
-struct DoorRow { int style, seq, is9, id, dx, dy; };
-inline constexpr std::array<DoorRow, 23> kDoorRows = { { { 7, 0, 1, 14, 5, 0 }, { 7, 0, 0, 13, 0, 5 }, { 5, 0, 1, 16, 0, 0 }, { 5, 0, 0, 15, 0, 0 },
-                                                       { 6, 0, 1, 27, 5, -2 }, { 4, 0, 1, 24, 1, 2 }, { 4, 0, 0, 23, 0, 0 }, { 4, 3, 1, 25, 1, 0 },
-                                                       { 1, 2, 0, 62, 0, 3 }, { 1, 2, 1, 63, 3, 0 }, { 0, 0, 1, 16, 0, 0 }, { 0, 0, 0, 64, 0, 0 },
-                                                       { 2, 0, 1, 47, 5, 0 }, { 0, 1, 1, 291, 2, 0 }, { 0, 1, 0, 290, 0, 2 }, { 5, 0, 1, 293, 2, 0 },
-                                                       { 4, 0, 0, 292, 0, 2 }, { 0, 0, 1, 295, 2, 0 }, { 0, 0, 0, 294, 0, 2 }, { 2, 4, 1, 92, 1, 0 },
-                                                       { 2, 1, 0, 91, 0, 2 }, { 0, 1, 1, 229, 0, 0 }, { 0, 1, 0, 230, 0, 0 } } };
+                                                           { 62, 21, 22 }, { 63, 21, 22 }, { 64, 21, 22 },
+                                                           { 109, 23, 24 }, { 111, 24, 33 }, { 112, 24, 33 }, { 117, 24, 33 } } };
+struct DoorRow { int style, seq, is9, id, type, dx, dy; };
+inline constexpr std::array<DoorRow, 34> kDoorRows = { { { 7, 0, 1, 14, 2, 5, 0 }, { 7, 0, 0, 13, 2, 0, 5 }, { 5, 0, 1, 16, 2, 0, 0 }, { 5, 0, 0, 15, 2, 0, 0 },
+                                                       { 6, 0, 1, 27, 2, 5, -2 }, { 4, 0, 1, 24, 2, 1, 2 }, { 4, 0, 0, 23, 2, 0, 0 }, { 4, 3, 1, 25, 2, 1, 0 },
+                                                       { 1, 2, 0, 62, 2, 0, 3 }, { 1, 2, 1, 63, 2, 3, 0 }, { 0, 0, 1, 16, 2, 0, 0 }, { 0, 0, 0, 64, 2, 0, 0 },
+                                                       { 2, 0, 1, 47, 2, 5, 0 }, { 0, 1, 1, 291, 2, 2, 0 }, { 0, 1, 0, 290, 2, 0, 2 }, { 5, 0, 1, 293, 2, 2, 0 },
+                                                       { 4, 0, 0, 292, 2, 0, 2 }, { 0, 0, 1, 295, 2, 2, 0 }, { 0, 0, 0, 294, 2, 0, 2 }, { 2, 4, 1, 92, 2, 1, 0 },
+                                                       { 2, 1, 0, 91, 2, 0, 2 }, { 0, 1, 1, 229, 2, 0, 0 }, { 0, 1, 0, 230, 2, 0, 0 },
+                                                       { 3, 3, 0, 449, 2, -2, 4 }, { 2, 1, 0, 435, 1, 1, 2 }, { 2, 1, 1, 435, 1, 2, 1 }, { 2, 6, 0, 435, 1, 1, 1 },
+                                                       { 2, 2, 0, 433, 1, 0, 1 }, { 2, 3, 1, 432, 1, 1, 0 }, { 26, 0, 0, 434, 1, 0, 1 }, { 2, 4, 1, 524, 1, 0, 0 },
+                                                       { 2, 4, 0, 525, 1, 0, 0 }, { 29, 0, 1, 60, 2, 2, 0 }, { 29, 0, 0, 60, 2, 0, 2 } } };
 
 // FUN_0066bc20 + FUN_0066bbc0: the level's rooms (list order, the first
 // `own`) within a 6-tile gap on both axes, itself included, then
@@ -435,15 +442,18 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                     if (row.style != style || row.seq != seq || row.is9 != is9) continue;
                     const int unit_x = (x - room.x) * 5 + row.dx, unit_y = (y - room.y) * 5 + row.dy;
                     if (unit_x < 0 || unit_y < 0 || unit_x >= room.width * 5 || unit_y >= room.height * 5) return;
-                    if (!((row.id == 0x5b || row.id == 0x5c) && rng(3) == 0)) room.units.insert(room.units.begin(), { 2, row.id, 0, unit_x, unit_y, 0 });
+                    if (row.type == 1) room.units.insert(room.units.begin(), { 1, row.id, 1, unit_x, unit_y, 0 });   // FUN_004e6c50: a MonStats row
+                    else if (!((row.id == 0x5b || row.id == 0x5c) && rng(3) == 0)) room.units.insert(room.units.begin(), { 2, row.id, 0, unit_x, unit_y, 0 });
                     if (tile) tile->door = true;
                     return;
                 }
             }
         };
-        auto warp_unit = [&](const WarpSlot& warp_slot, int x, int y) {                           // FUN_0066e1c0
+        auto warp_unit = [&](const WarpSlot& warp_slot, int x, int y, int tile_orient) {          // FUN_0066e1c0
             if (warp_slot.id < 0 || x - room.x == room.width || y - room.y == room.height) return false;
-            room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + warp_slot.off_x, (y - room.y) * 5 + warp_slot.off_y, 0 });
+            const bool right = tile_orient == 11;
+            room.units.insert(room.units.begin(), { 5, warp_slot.id, 0, (x - room.x) * 5 + (right ? warp_slot.right_x : warp_slot.off_x),
+                                                    (y - room.y) * 5 + (right ? warp_slot.right_y : warp_slot.off_y), 0 });
             return true;
         };
         // The room's warp records (+0x4c, by LvlWarp id): their +0xc tile
@@ -457,7 +467,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
             const int style = int((tile_word >> 20) & 0x3f), seq = int((tile_word >> 8) & 0xff);
             const auto& warp_slot = slots[std::size_t(style)];
             if (seq == 0 || seq == 4) {
-                if (!warp_unit(warp_slot, x, y)) return;
+                if (!warp_unit(warp_slot, x, y, tile_orient)) return;
                 room.wall_warps.push_back({ x, y, style });
             }
             auto& head = warp_lists.try_emplace(warp_slot.id, -1).first->second;
@@ -532,7 +542,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
                 if (tile_orient == 10 || tile_orient == 11) {                // FUN_0066e1c0 (the warp unit), FUN_0066e360
                     room.warps.push_back({ x, y, style });
                     const auto& warp_slot = slots[std::size_t(style)];   // style <= 7 here: the warp slot
-                    warp_unit(warp_slot, x, y);
+                    warp_unit(warp_slot, x, y, tile_orient);
                     if (!warp_slot.lit) return;
                     for (int k = 0; k < 4; ++k) {    // its lit floor, 2x2 up-left of it (0x6ef554)
                         const std::uint32_t warp_word = std::uint32_t(seq) << 20 | std::uint32_t(k | 4) << 8;
