@@ -34,8 +34,9 @@ struct Placed { int level = 0, x = 0, y = 0, width = 0, height = 0, dir = -1, fl
 
 // How a record places its level against its link (game.exe's callbacks).
 // Act 2's: RockyWaste (FUN_006769a0), Shifted (FUN_00676280), Flush
-// (FUN_00676ae0). Act 4's: OuterSteppes (FUN_00676c00).
-enum class Place { Anchor, Beside, BloodMoor, Town, Fixed, RockyWaste, Shifted, Flush, OuterSteppes };
+// (FUN_00676ae0). Act 4's: OuterSteppes (FUN_00676c00). Act 5's: Highlands
+// (FUN_0067d830), Plateau (FUN_0067d980), Tundra (FUN_0067d8e0).
+enum class Place { Anchor, Beside, BloodMoor, Town, Fixed, RockyWaste, Shifted, Flush, OuterSteppes, Highlands, Plateau, Tundra };
 struct Record { Place how; int level; int link; };
 
 // Act 1's two chains (0x6f0750, 0x6f0840): Stony Field anchors Cold
@@ -65,6 +66,18 @@ inline const std::vector<Record> kAct4Outdoors = {
     { Place::Beside, level_ids::kPlainsOfDespair, 1 },
     { Place::Beside, level_ids::kCityOfTheDamned, 2 } };
 inline const std::vector<Record> kAct4Chaos = { { Place::Anchor, level_ids::kChaosSanctuary, -1 } };
+
+// Act 5's chains (0x6f0de0, 0x6f0ed0, 0x6f0b10; FUN_00678a70): Harrogath and
+// the Bloody Foothills both at their Levels.txt offsets, the Frigid
+// Highlands and Arreat Plateau grown off them; the Frozen Tundra alone; the
+// Forgotten Sands and Uber Tristram anchored.
+inline const std::vector<Record> kAct5Outdoors = {
+    { Place::Anchor, level_ids::kHarrogath, -1 },
+    { Place::Anchor, level_ids::kBloodyFoothills, 0 },
+    { Place::Highlands, level_ids::kFrigidHighlands, 1 },
+    { Place::Plateau, level_ids::kArreatPlateau, 2 } };
+inline const std::vector<Record> kAct5Tundra = { { Place::Tundra, level_ids::kFrozenTundra, -1 } };
+inline const std::vector<Record> kAct5Uber = { { Place::Anchor, level_ids::kForgottenSands, -1 }, { Place::Anchor, level_ids::kUberTristram, -1 } };
 
 // Which (town dir, town flip, Blood Moor dir, Blood Moor flip) are allowed
 // (0x6f1158), indexed dir + 4 flip + 8 bm_dir + 32 bm_flip.
@@ -99,7 +112,7 @@ inline bool apart(const Placed& first, const Placed& second, int gap = 0) {
 // 1 — game.exe's check for that chain (FUN_00676eb0) shifts by 200 tiles
 // first, not ported.
 inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const LevelDefs& defs, d2d::rules::Rng seed,
-                                       bool town_rules, bool act1_flags = true) {
+                                       bool town_rules, bool act1_flags = true, bool checked = true) {
     const int count = int(recs.size());
     std::vector<Placed> placed(static_cast<std::size_t>(count));
     std::vector<int> start_dir(static_cast<std::size_t>(count), -1), start_flip(static_cast<std::size_t>(count), -1);
@@ -154,7 +167,34 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
             if (const auto found = defs.find(record.level); found != defs.end()) { placement.x = found->second.offset_x; placement.y = found->second.offset_y; }
             return true;
         }
+        // Act 5's: one roll picks the side and the shape, 64x160 (0) or 160x64 (1).
+        auto act5_shape = [&] { placement.width = placement.dir ? 160 : 64; placement.height = placement.dir ? 64 : 160; };
+        if (record.how == Place::Tundra) {                         // FUN_0067d8e0: at its Levels.txt offset
+            start_dir[std::size_t(index)] = placement.dir = int(seed.next() & 1);
+            act5_shape();
+            if (const auto found = defs.find(record.level); found != defs.end()) { placement.x = found->second.offset_x; placement.y = found->second.offset_y; }
+            return true;
+        }
         const auto& linked = placed[std::size_t(record.link)];
+        if (record.how == Place::Highlands) {                      // FUN_0067d830: left, bottoms 16 apart; never retried
+            start_dir[std::size_t(index)] = placement.dir = int(seed.next() & 1);
+            act5_shape();
+            placement.x = linked.x - placement.width;
+            placement.y = linked.y + linked.height - placement.height - 16;
+            return true;
+        }
+        if (record.how == Place::Plateau) {                        // FUN_0067d980: off the Highlands by both shapes (0x6f1f7c)
+            auto& start = start_dir[std::size_t(index)];
+            if (start == -1) start = placement.dir = int(seed.next() & 1);
+            else if (placement.dir == 0 ? start == 1 : start == 0) return false;
+            else placement.dir = placement.dir == 0 ? 1 : 0;
+            act5_shape();
+            static constexpr std::array<std::pair<int, int>, 4> kOffsets = { { { 0, -160 }, { -96, -64 }, { -64, -96 }, { -160, 0 } } };
+            const auto& offset = kOffsets[std::size_t(placement.dir + 2 * linked.dir)];
+            placement.x = linked.x + offset.first;
+            placement.y = linked.y + offset.second;
+            return true;
+        }
         if (record.how == Place::Fixed) {                          // FUN_006768c0: below, left-aligned
             placement.dir = 0;
             placement.x = linked.x;
@@ -237,7 +277,7 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
             if (--i < 0) break;
             continue;
         }
-        if (fits(i)) ++i;
+        if (!checked || fits(i)) ++i;                         // act 5's first two chains: no check (FUN_006772c0's null)
     }
     for (int i = 0; act1_flags && i < count; ++i) {           // FUN_00677180, act 1's chains
         const int dir = placed[std::size_t(i)].dir, next_dir = i + 1 < count ? placed[std::size_t(i + 1)].dir : -1;
@@ -288,6 +328,17 @@ inline std::vector<Placed> act4_layout(const LevelDefs& defs, d2d::rules::Rng ac
     auto outdoors = place_chain(kAct4Outdoors, defs, act_seed, false, false);
     const auto chaos = place_chain(kAct4Chaos, defs, act_seed, false, false);
     outdoors.insert(outdoors.end(), chaos.begin(), chaos.end());
+    return outdoors;
+}
+
+// Act 5's outdoor levels (FUN_00678a70), each chain from the act seed. No
+// chain check but the uber levels' (FUN_00677030, the plain overlap one).
+inline std::vector<Placed> act5_layout(const LevelDefs& defs, d2d::rules::Rng act_seed) {
+    auto outdoors = place_chain(kAct5Outdoors, defs, act_seed, false, false, false);
+    const auto tundra = place_chain(kAct5Tundra, defs, act_seed, false, false, false);
+    const auto uber = place_chain(kAct5Uber, defs, act_seed, false, false);
+    outdoors.insert(outdoors.end(), tundra.begin(), tundra.end());
+    outdoors.insert(outdoors.end(), uber.begin(), uber.end());
     return outdoors;
 }
 

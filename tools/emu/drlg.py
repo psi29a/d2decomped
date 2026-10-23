@@ -21,8 +21,13 @@ def boot(fresh=False):
     global _e
     if _e is None or fresh:
         _e = emu.Emu()
+        original = _e.read(0x524d30, 5)        # crt_init stubs the string lookup; expansion's hireling.txt check needs real ids
         emu.serve_files(_e)
         _e.crt_init()
+        _e.mu.mem_write(0x524d30, original)
+        _e.mu.ctl_remove_cache(0x524d30, 0x524d35)
+        _e.call(0x5259c0, 1, ecx=0, edx=_e.put(b"ENG\0"))   # 1: expansionstring.tbl too
+        _e.w32(0x74f0dc, 1); _e.w32(0x74f0d8, 1)   # FUN_00408f20: d2exp.mpq found (LvlPrest's expansion rows load)
         if _e.call(0x619300, 0, 1, 1) != 0: raise SystemExit("drlg: data tables failed to load")
     return _e
 
@@ -197,6 +202,7 @@ def act_of(lid):
 def layout_dump(e, seed, lid):
     """The act's outdoor rectangles (act 2: levels 40..46) and Lut Gholein's
     LvlPrest file, as drlg-dump ... layout prints them; nothing is built."""
+    if lid >= 109: return act4_layout_dump(e, seed, 4, (109, 110, 111, 112, 117, 134, 136))
     if lid >= 103: return act4_layout_dump(e, seed)
     if lid >= 75: return act3_layout_dump(e, seed)
     act = alloc_act(e, 1, seed, 0)            # act 2 for any level below 75
@@ -211,11 +217,11 @@ def layout_dump(e, seed, lid):
     return "\n".join(out)
 
 
-def act4_layout_dump(e, seed):
-    """Act 4's rectangles (103..106, 108, FUN_00678a20), as drlg-dump ... layout prints them."""
-    act = alloc_act(e, 3, seed, 0)
+def act4_layout_dump(e, seed, act_index=3, ids=(103, 104, 105, 106, 108)):
+    """Act 4's rectangles (103..106, 108, FUN_00678a20), or act 5's (FUN_00678a70), as drlg-dump ... layout prints them."""
+    act = alloc_act(e, act_index, seed, 0)
     out = []
-    for lid in (103, 104, 105, 106, 108):
+    for lid in ids:
         l = find_level(e, act, lid)
         x, y, w, h = (e.s32(l + 0x1c + 4 * i) for i in range(4))
         out.append(f"level {lid} at {x},{y} size {w}x{h}")

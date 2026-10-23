@@ -82,7 +82,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
     for (std::size_t row = 0; row < prest.size(); ++row) {
         const int def = to_int(prest.get(row, "Def"));
         const auto name = prest.get(row, std::optional<std::size_t>{ 0 });
-        if (def < 1 || !(name.starts_with("Act 1 - ") || name.starts_with("Act 2 - ") || name.starts_with("Act 3 - ") || name.starts_with("Act 4 - "))) continue;   // acts 1 to 4's presets
+        if (def < 1 || !name.starts_with("Act ")) continue;   // the acts' presets (not the Expansion header row)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
                   to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
@@ -105,7 +105,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
             sub_row.trials[std::size_t(type)] = to_int(sub.get(row, "Trials" + std::to_string(type)));
             sub_row.max[std::size_t(type)] = to_int(sub.get(row, "Max" + std::to_string(type)));
         }
-        if (sub_row.type >= 0 && sub_row.type <= 9) sub_row.map = ds1(sub.get(row, "File"));  // acts 1 and 2's rows
+        if (sub_row.type >= 0) sub_row.map = ds1(sub.get(row, "File"));
         assets.data.subs.push_back(sub_row);
     }
 }
@@ -140,10 +140,13 @@ inline std::array<WarpSlot, 8> warp_slots(const OutdoorAssets& assets, int id) {
     if (!row) return slots;
     for (int i = 0; i < 8; ++i) {
         const int warp = to_int(assets.levels.get(*row, "Warp" + std::to_string(i)), -1);
-        for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row)
-            if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) == warp)
-                slots[std::size_t(i)] = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, to_int(assets.lvl_warp.get(warp_row, "OffsetX")),
-                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")), to_int(assets.lvl_warp.get(warp_row, "Tiles")) };
+        auto& slot = slots[std::size_t(i)];
+        for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row) {
+            if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) != warp) continue;
+            const int off_x = to_int(assets.lvl_warp.get(warp_row, "OffsetX")), off_y = to_int(assets.lvl_warp.get(warp_row, "OffsetY"));
+            if (slot.id < 0) slot = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, off_x, off_y, to_int(assets.lvl_warp.get(warp_row, "Tiles")), off_x, off_y };
+            if (assets.lvl_warp.get(warp_row, "Direction") == "r") { slot.right_x = off_x; slot.right_y = off_y; }
+        }
     }
     return slots;
 }

@@ -102,7 +102,25 @@ inline constexpr int kChaosSanctuary = 108;
 inline constexpr int kBloodyFoothills = 110;
 inline constexpr int kFrigidHighlands = 111;
 inline constexpr int kArreatPlateau = 112;
+inline constexpr int kCrystallinePassage = 113;
+inline constexpr int kFrozenRiver = 114;
+inline constexpr int kGlacialTrail = 115;
+inline constexpr int kDrifterCavern = 116;
 inline constexpr int kFrozenTundra = 117;
+inline constexpr int kAncientsWay = 118;
+inline constexpr int kIcyCellar = 119;
+inline constexpr int kArreatSummit = 120;
+inline constexpr int kNihlathaksTemple = 121;
+inline constexpr int kHallsOfAnguish = 122;
+inline constexpr int kHallsOfPain = 123;
+inline constexpr int kHallsOfVaught = 124;
+inline constexpr int kWorldstoneKeepLevel1 = 128;
+inline constexpr int kWorldstoneKeepLevel2 = 129;
+inline constexpr int kWorldstoneKeepLevel3 = 130;
+inline constexpr int kThroneOfDestruction = 131;
+inline constexpr int kWorldstoneChamber = 132;
 inline constexpr int kMatronsDen = 133;
+inline constexpr int kForgottenSands = 134;
+inline constexpr int kUberTristram = 136;
 
 }  // namespace d2d::rules::level_ids
