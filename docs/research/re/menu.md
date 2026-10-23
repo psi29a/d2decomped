@@ -70,7 +70,8 @@ them times master/100.
   Left: x = W/2 - widest - 0xf9, frame f ? 8-f : 0. Right: x = W/2+0xf9,
   frame f. widest (`0x7bc95c`, `FUN_0047de80`) is the widest frame (52).
   Each frame draws at its DC6 offset (`FUN_004f6480` → the renderer):
-  widths 51..9, ox −1..21, oy 0, so it spins about x+25. f steps once a
+  widths 51, 43, 27, 9, 23, 40, 50, 52 with ox −1, 3, 11, 21, 15, 7,
+  1, −1 and oy 0, so it spins about x+25. f steps once a
   draw when more than 50 ms have passed since the last step
   (`FUN_00454850`, GetTickCount; no catch-up, its only caller).
 - How often that draw runs (the pause below): under UI 9 the client

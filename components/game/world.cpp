@@ -2247,6 +2247,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const auto* hireling = d2d::rules::hireling_row(game_data->rules, int(actor->character.header.merc_type), merc_row.level);
             const int slot = hireling ? d2d::rules::merc_slot(game_data->rules, *actor->held, hireling->cls, merc_str, merc_dex, merc_row.level) : 0;
             if (slot == 0) return;                                                         // FUN_00553380: no
+            cues.cue(item_sound(*game_data, *actor->held, false), now_ms, actor->player.x, actor->player.y);   // FUN_0048b7c0: its dropsound
             auto put = std::move(*actor->held);
             actor->held.reset();
             if (const auto found = std::ranges::find(worn, slot, &d2d::d2s::Item::slot); found != worn.end()) {   // what was there into the hand

@@ -605,18 +605,19 @@ inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item)
 
 // Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat
 // and level requirements), ignoring what's already equipped?
-// `required_level`: the item's full requirement (affixes, unique, set),
-// when above the base's; FUN_0062eaf0 checks level against FUN_0062b5b0's.
+// `required_level`: the item's full requirement (FUN_0062b5b0, which
+// FUN_0062eaf0 checks level against; stat 92 can take it below the
+// base's), or -1 for the base's levelreq.
 // ponytail: base str/dex only; FUN_0062eaf0 also takes stat 91
 // ("requirements -x%"), ethereal -10 and refuses an unidentified item.
-inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer, int required_level = 0) {
+inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer, int required_level = -1) {
     const auto* info = info_of(tables, item);
     if (!info) return false;
     const auto found = tables.types.find(info->type);
     if (found == tables.types.end() || slot < d2d::d2s::body_location::kFirst || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
     if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
         return false;
-    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= std::max(info->req_lvl, required_level);
+    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= (required_level >= 0 ? required_level : info->req_lvl);
 }
 
 // A two-handed weapon fills both hands (a Barbarian swings 1or2handed
@@ -679,7 +680,7 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
 // ponytail: that displacing is the D2 behaviour for two-handers; for the
 // second-weapon case it isn't checked against game.exe yet.
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                  int slot, const Wearer& wearer, int required_level = 0) {
+                  int slot, const Wearer& wearer, int required_level = -1) {
     if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;
     const bool hand = slot == d2d::d2s::body_location::kRightArm || slot == d2d::d2s::body_location::kLeftArm;
     const int other = hand ? d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot : 0;
