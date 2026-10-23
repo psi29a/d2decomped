@@ -48,6 +48,9 @@
 
 namespace d2d::game {
 
+// The waypoint (Levels.txt Waypoint) of level `level_id`, -1 none.
+int waypoint_index(const GameData& game_data, int level_id);
+
 // What the server tells the client (the S -> C side, network.md).
 namespace ev {
 // The player's level changed (`from`): a crossing or warp (`keep_map`:

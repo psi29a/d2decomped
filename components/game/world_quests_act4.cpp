@@ -349,12 +349,17 @@ auto World::act4_operate(int npc_index, std::uint32_t now_ms) -> bool {
             return true;
         }
         // Tyrael's portal (OperateFn 73, FUN_005b5880): LoD, Terror's End done or
-        // in this game: word 0x1c bits 0 and 13, then to Harrogath (109).
-        // ponytail: Act 5 isn't built; it stops here.
+        // in this game: word 0x1c bits 0 and 13, then to Harrogath (FUN_0054b830(0x6d, 5):
+        // its start, its waypoint).
+        // ponytail: FUN_005531c0(0x55a)'s cinematic and the save FUN_00554190 asks
+        // for aren't run.
         if (object.operate_fn == kLastPortal) {
             if (!actor->character.header.expansion() || (!d2d::rules::quest::bit(quests(), d2d::rules::TerrorQuest::kQuest, 0) && !d2d::rules::quest::bit(quests(), d2d::rules::TerrorQuest::kQuest, 13))) return true;
             if (!d2d::rules::quest::bit(quests(), 0x1c, 0)) { d2d::rules::quest::set(quests(), 0x1c, 0); d2d::rules::quest::set(quests(), 0x1c, 13); }
-            d2d::log::info("Tyrael's portal: Harrogath (Act 5) isn't built yet");
+            const Level* harrogath = game_data->level(d2d::rules::level_ids::kHarrogath);
+            if (!harrogath || harrogath->start.first < 0) { d2d::log::warn("Harrogath didn't build; Tyrael's portal stays shut"); return true; }
+            set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kHarrogath));
+            arrive(harrogath, harrogath->start.first, harrogath->start.second, "Tyrael's portal");
             return true;
         }
         return false;

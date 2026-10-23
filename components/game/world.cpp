@@ -60,7 +60,7 @@ static void grow_states(std::vector<UnitState>& states, const Level& level) {
     states.insert(states.end(), fresh.begin() + std::ptrdiff_t(states.size()), fresh.end());
 }
 
-static int waypoint_index(const GameData& game_data, int level_id) {
+int waypoint_index(const GameData& game_data, int level_id) {
     for (const auto& act_levels : game_data.waypoint_levels)
         if (const auto found = std::ranges::find(act_levels, level_id, &GameData::WaypointLevel::level); found != act_levels.end()) return found->waypoint;
     return -1;

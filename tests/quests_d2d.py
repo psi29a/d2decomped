@@ -740,6 +740,12 @@ def act4():
     go(103)
     talk_until("Tyrael", lambda: bits(0x1a) & 0x200, "Tyrael's portal not given")
     until("the portal", lambda: "Tyrael opens the way" in log_text(), 5)
+    portal = objects(73)                                    # Tyrael's last portal (OperateFn 73) to Harrogath
+    assert portal, "no portal to Harrogath"
+    cmd(f"debug warp {portal[0][1]} {portal[0][2]}"); time.sleep(0.5)
+    cmd(f"debug operate {portal[0][0]}")
+    until("in Harrogath", lambda: level() == 109, 30)
+    assert bits(0x1c) & 0x2001 == 0x2001, f"word 0x1c: {bits(0x1c):#x}"
     print("OK: Terror's End (a4q2)")
 
 
