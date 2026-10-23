@@ -192,6 +192,8 @@ struct Town {
     int net_warp_to = -1;                                    // the level the host's warp takes us to (its 0x15 lands us there)
     auto add_chat(const std::string& text, int colour = 0, std::size_t gold = 0) -> void;
     auto draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
+    auto draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void;
+    static constexpr int kCoopPortraitX = 6, kCoopPortraitWidth = 0x42;   // the column, from the frame's left edge
     struct Said { std::uint16_t string = 0; std::uint32_t until = 0; };
     std::map<std::uint64_t, Said> net_said;                 // the host's overhead messages by unit key (0x26 type 5)
     bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
@@ -262,6 +264,9 @@ struct Town {
     // Typed text for a roster's name (Steam's keyboard on a Deck); whether one wants it.
     void coop_text(std::string_view text, bool backspace);
     [[nodiscard]] bool coop_typing() const;
+    // Local co-op with two players in or more: no HUD (orbs, belt, skills,
+    // mini-panel), each player's portrait down the left edge instead (draw_coop_portraits).
+    [[nodiscard]] bool coop_hud_hidden() const { return !net_game && world.players.size() > 1; }
     // The keyboard's Enter on that name: the new character is made, as the pad's A.
     void coop_enter();
     // A seat's pad this frame: its field play, as that player's orders.

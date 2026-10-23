@@ -53,5 +53,7 @@ void roster_text(Roster& roster, std::string_view text, bool backspace);
 // Seat `seat`'s box (0..3 across the screen), its pick marked by the
 // seat's cursor in its colour (0..3, kSeatColours).
 void draw_roster(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Roster& roster, int seat, int colour);
+// The same box with its top left at `x`, `top`; its height.
+int draw_roster_at(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Roster& roster, int x, int top, int colour);
 
 }  // namespace d2d::client

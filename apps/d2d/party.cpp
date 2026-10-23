@@ -50,6 +50,7 @@ PartyPanel::Click PartyPanel::input(const Mouse& mouse, const std::vector<Row>& 
     }
     if (!mouse.press_this_frame) return {};
     if (inside(mouse.x, mouse.y, kCloseX, kCloseBottom, 0x20, 0x20)) { close_down = true; return {}; }
+    if (own.fixed) return {};
     if (own.party != 0xffff && inside(mouse.x, mouse.y, kLeaveX, kLeaveBottom, 0x35, 0xb)) return { Click::kLeave };
     for (std::size_t i = 0; i < rows.size() && int(i) < kMostRows; ++i) {
         const int bottom = kFirstRow + kRowStep * int(i);
@@ -91,7 +92,7 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     cel(scene.party_panel, 3, 0x100, height - 0x30 - kTop * 2);
     // FUN_0049a580: the player's name, centred at 0x69; FUN_0049a510: LEAVE in a party.
     put(font16, own.name, 0x69, 0x1f, 0, true);
-    if (own.party != 0xffff) {
+    if (own.party != 0xffff && !own.fixed) {
         cel(scene.party_buttons, 0, kLeaveX, kLeaveBottom);
         put(font8, string_id(scene, 0x1038), kLeaveX + 0x1b, 0x21, 2, true);
     }
@@ -112,6 +113,7 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         put(font8, string_id(scene, kClassName[std::size_t(std::clamp(row.cls, 0, 6))]), 0x24, bottom + 12, colour, false);
         put(font8, string_id(scene, 0xd28) + string_id(scene, 0xf9d) + string_id(scene, 0xf9b) + std::to_string(row.level), 0x10a, bottom + 12, colour, false);
         if (!row.area.empty() && row.party != 0xffff && row.party == own.party) put(font8, cut(font8, row.area, 0x8c), 0x7e, bottom + 12, colour, false);
+        if (own.fixed) continue;
         if (row.relation != 1) {
             cel(scene.party_buttons, 0, 0xbe, bottom);
             const std::uint16_t word = row.relation == 0 ? 0x1036 : row.relation == 2 ? 0x1037 : row.relation == 3 ? 0x1038 : 0;
@@ -150,7 +152,7 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         }
     }
     cel(scene.store_buttons, close_down ? 11 : 10, kCloseX, kCloseBottom);
-    if (own.party != 0xffff && inside(mouse_x, mouse_y, kLeaveX, kLeaveBottom, 0x35, 0xb)) { tip_first = string_id(scene, 0x1018); tip_second.clear(); tip_x = 0xd5; }
+    if (own.party != 0xffff && !own.fixed && inside(mouse_x, mouse_y, kLeaveX, kLeaveBottom, 0x35, 0xb)) { tip_first = string_id(scene, 0x1018); tip_second.clear(); tip_x = 0xd5; }
     if (!tip_first.empty()) {                                       // FUN_0049aaf0: a dark box, the lines centred
         const int width = std::max(font8.measure(tip_first), font8.measure(tip_second)) + 10, lines = tip_second.empty() ? 1 : 2;
         const int box_top = kTop + 0x32 - 12, box_left = kLeft + tip_x - width / 2;

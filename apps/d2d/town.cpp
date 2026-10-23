@@ -941,15 +941,25 @@ auto Town::clear_screen() -> void {
 // ponytail: game.exe's roster keeps the order they joined in.
 auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
+        const auto area_name = [&](int area) -> std::string {
+            if (!scene || area <= 0) return {};
+            const auto found = scene->level_names.find(area);
+            if (found == scene->level_names.end()) return {};
+            const auto text = lookup_string(*scene, std::string_view(found->second));
+            return text ? u16_to_latin1(*text) : found->second;
+        };
+        if (coop_hud_hidden()) {                      // local co-op: everyone else on the screen, all in its one party
+            for (const auto& player : world.players)
+                if (player->id != focus_id())
+                    rows.push_back({ std::uint32_t(player->id), player->character.name, int(player->character.header.cls), int(player->character.stats.get(d2d::d2s::kLevel)),
+                                     1, 1, 0, area_name(level ? level->id : 0), false });
+            return rows;
+        }
         if (!net_game) return party_preview;
         for (const auto& [unit_key, unit] : net_game->units) {
             if (unit.type != 0 || unit.id == net_game->self_id || unit.name.empty()) continue;
             PartyPanel::Row row{ unit.id, unit.name, unit.cls, unit.level, unit.party, unit.relation, unit.flags, {}, (unit.flags & 8) != 0 };
-            if (scene && unit.area > 0)
-                if (const auto found = scene->level_names.find(unit.area); found != scene->level_names.end()) {
-                    const auto text = lookup_string(*scene, std::string_view(found->second));
-                    row.area = text ? u16_to_latin1(*text) : found->second;
-                }
+            row.area = area_name(unit.area);
             rows.push_back(std::move(row));
         }
         std::ranges::sort(rows, {}, &PartyPanel::Row::id);
@@ -958,6 +968,7 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
 
 auto Town::party_own() const -> PartyPanel::Own {
         PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
+        if (coop_hud_hidden()) { own.party = 1; own.fixed = true; }   // the screen's player (`character`), in local co-op's one party
         if (net_game)
             if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own.party = self->second.party;
         return own;
@@ -1098,14 +1109,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
-        if (party.open && net_game && !help.open && !controls.open && !game_menu.open) {
+        if (party.open && (net_game || coop_hud_hidden()) && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
-            if (click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
-            if (click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
-            if (click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
+            if (net_game && click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
+            if (net_game && click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
+            if (net_game && click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
-        if (party.open && !net_game && party_preview.empty()) party.open = false;
+        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty()) party.open = false;
         // The Hireling screen's clicks: its close button, an item on or off the merc (0x61).
         if (hireling.open && !help.open && !controls.open && !game_menu.open) {
             if (!view.merc_sheet) hireling.open = false;
@@ -1192,8 +1203,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kSkillSpeedBar)) skillbar.picking = skillbar.picking == 2 ? 0 : 2;   // 0x468b00: UI 3, the right hand's picker (0x7c07fc = 0)
             if (fires(keys::kMessageLog)) message_log = !message_log;
             if (fires(keys::kHelp)) toggle_help();
-            // 0x468960: UI 0x16, in a multiplayer game only (FUN_0044db30); a left-hand panel.
-            if (fires(keys::kParty) && net_game) {
+            // 0x468960: UI 0x16, in a multiplayer game only (FUN_0044db30), local co-op's too; a left-hand panel.
+            if (fires(keys::kParty) && (net_game || coop_hud_hidden())) {
                 party.open = !party.open;
                 if (party.open) char_open = stash_open = cube_open = quest_log.open = hireling.open = false;
             }
@@ -1268,7 +1279,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
             const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
             int action = -1;
-            hud_click = mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
+            hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
             if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
@@ -1330,7 +1341,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         const auto& belt = scene->belts[std::size_t(belt_index(*scene, character.items))];
         const auto& first_box = belt.box[0];
         const auto& fourth_box = belt.box[3];
-        const bool over_belt =
+        const bool over_belt = !coop_hud_hidden() &&
             mouse.x >= first_box[0] && mouse.x <= fourth_box[1]
             && ((mouse.y >= first_box[2] && mouse.y <= first_box[3])
                 || (belt_open && mouse.y >= belt.box[std::size_t(std::max(belt.boxes - 1, 0))][2]
@@ -1725,7 +1736,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         // The run button: the same press and click (FUN_00499500); let go
         // over it and run toggles, as R does (FUN_004996a0).
-        const bool on_run = over_run_button(mouse.x, mouse.y);
+        const bool on_run = !coop_hud_hidden() && over_run_button(mouse.x, mouse.y);
         const bool run_click = mouse.press_this_frame && on_run;
         if (run_click) { run_down = true; audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0); }
         if (mouse.release_this_frame) {
@@ -1733,7 +1744,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             run_down = false;
         }
         // Holding an item, a click on the world drops it (C→S 0x17).
-        const bool bar_click = skillbar.click(mouse);
+        const bool bar_click = (!coop_hud_hidden() || skillbar.picking) && skillbar.click(mouse);
         if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click && !run_click
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
@@ -2028,7 +2039,8 @@ auto Town::coop_leave(int seat) -> void {
         const auto found = std::ranges::find(coop, seat, &CoopPlayer::seat);
         if (found == coop.end()) return;
         if (found->id == focus_id()) take_focus(hero.id);   // their screen goes back first
-        if (const auto why = world.leave(found->id); !why.empty()) d2d::log::warn("co-op seat {}: {}", seat, why);
+        if (found->id > 0)                              // still choosing: no one in the game to leave
+            if (const auto why = world.leave(found->id); !why.empty()) d2d::log::warn("co-op seat {}: {}", seat, why);
         coop.erase(found);
     }
 
@@ -2821,13 +2833,19 @@ auto Town::open_menu(int npc) -> void {
 // and everything else into its centre 800x600, as it always did.
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
     const int screen_w = fb_width(framebuffer);
-    if (screen_w == int(kScreenWidth)) return draw_view(framebuffer, nullptr, mouse, frame_ms);
+    const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open;
+    if (screen_w == int(kScreenWidth)) {
+        draw_view(framebuffer, nullptr, mouse, frame_ms);
+        draw_coop_portraits(framebuffer, left_open);
+        return;
+    }
     const int off = (screen_w - int(kScreenWidth)) / 2;
     ui_buffer.resize(std::size_t(kScreenWidth) * kScreenHeight * 4);
     draw_view(ui_buffer, &framebuffer, mouse, frame_ms);
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
+    draw_coop_portraits(framebuffer, left_open);       // on the whole frame: widescreen's spare width
 }
 
 auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
@@ -2950,14 +2968,14 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
-                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0 }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
+                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
                 draw_raise_aura(framebuffer, int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))), kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), body.raised, frame_ms);
             }
         view_overlays(framebuffer, *scene, view, hovered_monster());
-        skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
+        if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
             std::vector<d2d::d2s::Item> theirs;
@@ -2991,15 +3009,19 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
-        mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
+        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
-        if (party.open && (net_game || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
+        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (help.open) help.draw(framebuffer, *scene, key_table);
         if (controls.open) controls.draw(framebuffer, *scene, now_ms);
-        for (const auto& coop_player : coop)              // a joining pad's pick
-            if (coop_player.roster) draw_roster(framebuffer, *scene, *coop_player.roster, coop_player.seat, coop_player.colour);
+        // A joining pad's pick: down the left, clear of the action in the middle and of the portraits' column.
+        const int spare = wide ? (fb_width(*wide) - int(kScreenWidth)) / 2 : 0;
+        const int roster_x = std::max(15, kCoopPortraitX + kCoopPortraitWidth + 8 - spare);
+        int roster_top = 0x60;
+        for (const auto& coop_player : coop)
+            if (coop_player.roster) roster_top += draw_roster_at(framebuffer, *scene, *coop_player.roster, roster_x, roster_top, coop_player.colour) + 4;
     }
 
 
@@ -3163,6 +3185,22 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
     }
 }
 
+namespace {
+// A portrait's bar: `percent` of `width` filled `rgb`, the rest black.
+void fill_bar(std::vector<std::uint8_t>& framebuffer, int x, int top, int width, int height, int percent, const std::array<std::uint8_t, 3>& rgb) {
+    const int frame_w = fb_width(framebuffer), filled = x + std::clamp(percent, 0, 100) * width / 100;
+    for (int y = std::max(top, 0); y < std::min(top + height, int(kScreenHeight)); ++y)
+        for (int column = std::max(x, 0); column < std::min(x + width, frame_w); ++column) {
+            auto* pixel = &framebuffer[(std::size_t(y) * std::size_t(frame_w) + std::size_t(column)) * 4];
+            for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = column < filled ? rgb[channel] : 0;
+        }
+}
+// FUN_00493a00's: green, from under 50 % yellow, under 25 % red.
+std::array<std::uint8_t, 3> life_colour(int life) {
+    return life < 25 ? std::array<std::uint8_t, 3>{ 0xff, 0, 0 } : life < 50 ? std::array<std::uint8_t, 3>{ 0xc0, 0xc0, 0 } : std::array<std::uint8_t, 3>{ 0, 0x80, 0 };
+}
+}  // namespace
+
 // The party's portraits (FUN_00494020 -> FUN_00493b50): each other player
 // in our party, left to right from x 15, 0x38 apart: the class's
 // Hireables icon with its bottom at y 0x3c, a life bar above it
@@ -3176,7 +3214,8 @@ auto Town::event_text(const NetGame::Event& event) const -> std::string {
 // mode 5 blend is drawn solid.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
-    if (!net_game || left_open || portraits_hidden) return;
+    if (left_open || portraits_hidden) return;
+    if (!net_game) return;                            // local co-op's: draw_coop_portraits
     const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
     if (self == net_game->units.end() || self->second.party == 0xffff) return;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
@@ -3189,19 +3228,54 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
             const auto& frame = icon.frame(0, 0);
             blit_sprite(framebuffer, frame, pal, x, 0x3c - int(frame.height) + 1);
         }
-        const int life = std::clamp(unit.party_life, 0, 100), filled = x + life * 0x2e / 100;
-        const std::array<std::uint8_t, 3> rgb = life < 25 ? std::array<std::uint8_t, 3>{ 0xff, 0, 0 } : life < 50 ? std::array<std::uint8_t, 3>{ 0xc0, 0xc0, 0 } : std::array<std::uint8_t, 3>{ 0, 0x80, 0 };
-        for (int y = 0xe; y < 0x13; ++y)
-            for (int column = x; column < x + 0x2e; ++column) {
-                auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(column)) * 4];
-                for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = column < filled ? rgb[channel] : 0;
-            }
+        const int life = std::clamp(unit.party_life, 0, 100);
+        fill_bar(framebuffer, x, 0xe, 0x2e, 5, life, life_colour(life));
         std::string name = unit.name;
         while (!name.empty() && font.measure(name) > 0x42) name.pop_back();
         font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::max(x + 0x16 - font.measure(name) / 2, 0), name_y - font.line_height() + 1, name);
         name_y = name_y == 0x48 ? 0x52 : 0x48;
         x += 0x38;
         portraits_shown = true;
+    }
+}
+
+// Local co-op's portraits (d2d's own): every player, the first first, one
+// under the other down the frame's left edge (widescreen's spare width when
+// there is some, clear of the 800x600 UI), each a life and a mana bar, the
+// class icon and the name in the seat's colour. Room to their right for
+// more. Under a left panel (no spare width) they don't show.
+auto Town::draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
+    if (!coop_hud_hidden() || portraits_hidden) return;
+    const int frame_w = fb_width(framebuffer), spare = (frame_w - int(kScreenWidth)) / 2;
+    if (left_open && spare < kCoopPortraitX + kCoopPortraitWidth) return;
+    using namespace d2d::d2s;
+    const auto percent = [](const Stats& stats, int now, int most) {
+        return int(std::clamp<std::int64_t>(stats.fixed(now) * 100 / std::max<std::int64_t>(stats.fixed(most), 1), 0, 100));
+    };
+    const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+    const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
+    constexpr int kBarWidth = 0x2e;
+    const int x = kCoopPortraitX, bar_x = x + (kCoopPortraitWidth - kBarWidth) / 2;
+    int top = 8;
+    for (const auto& player : world.players) {
+        const int cls = int(player->character.header.cls);
+        if (cls < 0 || cls > 6) continue;
+        const auto& stats = player->character.stats;
+        const int life = percent(stats, kLife, kMaxLife);
+        fill_bar(framebuffer, bar_x, top, kBarWidth, 5, life, life_colour(life));
+        fill_bar(framebuffer, bar_x, top + 6, kBarWidth, 3, percent(stats, kMana, kMaxMana), { 0x20, 0x40, 0xe0 });
+        int below = top + 12;
+        if (const auto& icon = scene->class_icons[std::size_t(cls)]; icon.total_frames() > 0) {
+            const auto& frame = icon.frame(0, 0);
+            blit_sprite(framebuffer, frame, pal, x + (kCoopPortraitWidth - int(frame.width)) / 2, below);
+            below += int(frame.height);
+        }
+        const auto seat = std::ranges::find(coop, player->id, &CoopPlayer::id);
+        const auto& colour = kSeatColours[std::size_t(std::clamp(seat == coop.end() ? lead_colour : seat->colour, 0, 3))];
+        std::string name = player->character.name;
+        while (!name.empty() && font.measure(name) > kCoopPortraitWidth) name.pop_back();
+        font.draw_tinted(framebuffer, std::uint32_t(frame_w), kScreenHeight, pal, x + (kCoopPortraitWidth - font.measure(name)) / 2, below + 2, name, colour[0], colour[1], colour[2]);
+        top = below + 2 + font.line_height() + 10;
     }
 }
 

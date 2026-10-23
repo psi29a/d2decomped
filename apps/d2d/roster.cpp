@@ -106,14 +106,18 @@ void roster_text(Roster& roster, std::string_view text, bool backspace) {
 }
 
 void draw_roster(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Roster& roster, int seat, int colour_index) {
+    (void)draw_roster_at(framebuffer, scene, roster, box_x(seat), kTop, colour_index);
+}
+
+int draw_roster_at(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Roster& roster, int x, int top, int colour_index) {
     const auto shown = lines(scene, roster);
-    const int x = box_x(seat), height = (int(shown.size()) + 2) * kLineHeight + 8;
-    shade_box(framebuffer, x, kTop, kBoxWidth, height);
+    const int height = (int(shown.size()) + 2) * kLineHeight + 8;
+    shade_box(framebuffer, x, top, kBoxWidth, height);
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto& colour = kSeatColours[std::size_t(std::clamp(colour_index, 0, 3))];
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     const char* title = roster.stage == Roster::Stage::character ? "choose a character" : roster.stage == Roster::Stage::cls ? "choose a class" : "type a name";
-    int base = kTop + kLineHeight;
+    int base = top + kLineHeight;
     scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + 10, base - cell + 1, std::format("Player {}: {}", colour_index + 1, title), colour[0], colour[1], colour[2]);
     for (std::size_t i = 0; i < shown.size(); ++i) {
         base += kLineHeight;
@@ -128,6 +132,7 @@ void draw_roster(std::vector<std::uint8_t>& framebuffer, const Scene& scene, con
             blit_sprite(framebuffer, frame, tinted(pal, colour[0], colour[1], colour[2]), tip_x + frame.offset_x, tip_y + frame.offset_y - int(frame.height) + 1);
         }
     }
+    return height;
 }
 
 }  // namespace d2d::client

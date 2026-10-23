@@ -19,7 +19,9 @@ struct PartyPanel {
     // party (0xffff none), the party button's state, our flags toward it,
     // where it is (a party member's level name, "" not shown), hostile to us.
     struct Row { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = 0xffff, relation = 0, flags = 0; std::string area; bool hostile = false; };
-    struct Own { std::string name; int level = 0, party = 0xffff; bool in_town = false; };
+    // `fixed`: local co-op's one party, everyone in it from joining: no
+    // LEAVE, party buttons or boxes, only the close button takes a click.
+    struct Own { std::string name; int level = 0, party = 0xffff; bool in_town = false, fixed = false; };
     // What a click asks for.
     struct Click { enum Kind { kNone, kClose, kButton, kFlag, kLeave } kind = kNone; std::uint32_t player = 0; int flag = 0; };
     bool open = false;
