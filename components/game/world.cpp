@@ -7,6 +7,7 @@
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "inventory.hpp"
+#include "item_text.hpp"
 #include "log.hpp"
 #include "npc_menu.hpp"
 #include "protocol.hpp"
