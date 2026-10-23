@@ -14,7 +14,111 @@ finish-args:
   - --socket=pulseaudio
   - --filesystem=~/.local/share/Steam/userdata  # the launcher's Add to Steam: shortcuts.vdf + grid art
   - --filesystem=~/.steam/steam/userdata        # the same, where Steam keeps its own tree there
+# Each dependency is its own module: flatpak-builder caches a module until
+# its recipe or sources change, so a commit rebuilds only d2decomped (whose
+# compiles ccache then mostly serves). Their headers and static archives are
+# cleaned out of the app at the end.
 modules:
+  # The Bink-only FFmpeg: keep these options in step with ffmpeg_options in
+  # apps/d2d/CMakeLists.txt.
+  - name: ffmpeg
+    config-opts:
+      - --disable-everything
+      - --disable-autodetect
+      - --disable-programs
+      - --disable-doc
+      - --disable-network
+      - --disable-avdevice
+      - --disable-avfilter
+      - --disable-faan
+      - --disable-iamf
+      - --disable-swscale-alpha
+      - --disable-pthreads
+      - --disable-runtime-cpudetect
+      - --disable-debug
+      - --enable-static
+      - --disable-shared
+      - --enable-pic
+      - --disable-x86asm
+      - --enable-demuxer=bink
+      - --enable-decoder=bink,binkaudio_rdft,binkaudio_dct
+    cleanup:
+      - /include
+      - /lib/*.a
+      - /lib/pkgconfig
+      - /share/ffmpeg
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+        sha256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+
+  - name: stormlib
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=OFF
+      - -DSTORM_USE_BUNDLED_LIBRARIES=OFF
+    cleanup:
+      - /include
+      - /lib/*.a
+      - /share/StormLib
+    sources:
+      - type: archive
+        url: https://github.com/ladislav-zezula/StormLib/archive/refs/tags/v9.30.tar.gz
+        sha256: a709a6b034d206404f5297d85e474371203ff5483639955195d99b737bbf7dfe
+
+  # Sentry Native 0.17.3 with Crashpad (its submodules as archives); the
+  # options apps/d2d/CMakeLists.txt sets for its own source build.
+  - name: sentry-native
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - -DSENTRY_BACKEND=crashpad
+      - -DSENTRY_BUILD_SHARED_LIBS=OFF
+      - -DSENTRY_BUILD_TESTS=OFF
+      - -DSENTRY_BUILD_EXAMPLES=OFF
+      - -DSENTRY_BUILD_BENCHMARKS=OFF
+      - -DSENTRY_SCREENSHOT=none
+    post-install:
+      - install -Dm644 LICENSE /app/share/licenses/sentry-native/LICENSE
+      - install -Dm644 external/crashpad/LICENSE /app/share/licenses/crashpad/LICENSE
+      - install -Dm644 external/crashpad/third_party/mini_chromium/mini_chromium/LICENSE /app/share/licenses/mini-chromium/LICENSE
+      - install -Dm644 external/crashpad/third_party/lss/lss/LICENSE /app/share/licenses/crashpad-lss/LICENSE
+      - install -Dm644 external/third_party/lss/LICENSE /app/share/licenses/sentry-lss/LICENSE
+      - install -Dm644 external/crashpad/third_party/zlib/zlib/LICENSE /app/share/licenses/crashpad-zlib/LICENSE
+      - install -Dm644 external/crashpad/third_party/cpp-httplib/cpp-httplib/LICENSE /app/share/licenses/cpp-httplib/LICENSE
+      - install -Dm644 external/crashpad/third_party/getopt/LICENSE /app/share/licenses/crashpad-getopt/LICENSE
+      - install -Dm644 external/crashpad/third_party/mpack/LICENSE /app/share/licenses/crashpad-mpack/LICENSE
+      - install -Dm644 vendor/libunwind/COPYING /app/share/licenses/sentry-libunwind/COPYING
+    cleanup:
+      - /include
+      - /lib/*.a
+      - /lib/cmake
+    sources:
+      - type: archive
+        url: https://github.com/getsentry/sentry-native/archive/fb2a04d4a9ca78d83c9cc5d10e33cfac79eed77f.tar.gz
+        sha256: 6dea69ab9ee440386f576364bb6982f38a7f13763aa2bbd586e17db5037934c3
+      - type: archive
+        url: https://github.com/getsentry/crashpad/archive/493151b224a6536bcedc3467d042863a063addc4.tar.gz
+        sha256: 8c1238234c4607c52425f70d26047a77f2af84c4d9565a15483268b0422327f5
+        dest: external/crashpad
+      - type: archive
+        url: https://github.com/getsentry/chromium-linux-syscall-support/archive/ed31caa60f20a4f6569883b2d752ef7522de51e0.tar.gz
+        sha256: d9eda91c50360d66a306c42d1bfa0a7cbb937d8383486e17202880eee5c249e2
+        dest: external/third_party/lss
+      - type: archive
+        url: https://github.com/getsentry/chromium-linux-syscall-support/archive/9719c1e1e676814c456b55f5f070eabad6709d31.tar.gz
+        sha256: a858367f0de0fd22a22172c562d750c29edb43f586cb6ff94be1941b77656bf3
+        dest: external/crashpad/third_party/lss/lss
+      - type: archive
+        url: https://github.com/getsentry/mini_chromium/archive/2f5c168fa462cf3836c4a7801b4f4955496d975d.tar.gz
+        sha256: 00f60d55f810dd66a64cf882cb8f4d241809e9e14c24baaaa96031b66ca79ac4
+        dest: external/crashpad/third_party/mini_chromium/mini_chromium
+      - type: archive
+        url: https://github.com/getsentry/chromium-zlib/archive/fef58692c1d7bec94c4ed3d030a45a1832a9615d.tar.gz
+        sha256: d49b88d645b17ccbad19406f95cd495527784b104b8fba1347a2475b08346224
+        dest: external/crashpad/third_party/zlib/zlib
+
   - name: d2decomped
     buildsystem: simple
     build-commands:
@@ -22,11 +126,8 @@ modules:
         cmake -S project -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
         -DCMAKE_INSTALL_PREFIX=/app -DCMAKE_PREFIX_PATH=/app
         -DD2D_FLATPAK=ON -DD2D_BUILD_TOOLS=OFF -DD2D_BUILD_TESTS=OFF
-        -DD2D_BUNDLED_STORMLIB=ON
+        -DD2D_BUNDLED_STORMLIB=OFF -DD2D_FFMPEG_PREFIX=/app -DD2D_SENTRY_PREFIX=/app
         -DFETCHCONTENT_SOURCE_DIR_CLI11=$PWD/project/third_party/cli11
-        -DFETCHCONTENT_SOURCE_DIR_SENTRY_NATIVE=$PWD/project/third_party/sentry-native
-        -DFETCHCONTENT_SOURCE_DIR_STORMLIB=$PWD/project/third_party/stormlib
-        -DD2D_FFMPEG_SOURCE_DIR=$PWD/project/third_party/ffmpeg
       - cmake --build build --parallel 4
       - cmake --install build
     sources:
@@ -34,38 +135,6 @@ modules:
         path: ../../build/flatpak-source
         dest: project
       - type: archive
-        url: https://github.com/getsentry/sentry-native/archive/fb2a04d4a9ca78d83c9cc5d10e33cfac79eed77f.tar.gz
-        sha256: 6dea69ab9ee440386f576364bb6982f38a7f13763aa2bbd586e17db5037934c3
-        dest: project/third_party/sentry-native
-      - type: archive
-        url: https://github.com/getsentry/crashpad/archive/493151b224a6536bcedc3467d042863a063addc4.tar.gz
-        sha256: 8c1238234c4607c52425f70d26047a77f2af84c4d9565a15483268b0422327f5
-        dest: project/third_party/sentry-native/external/crashpad
-      - type: archive
-        url: https://github.com/getsentry/chromium-linux-syscall-support/archive/ed31caa60f20a4f6569883b2d752ef7522de51e0.tar.gz
-        sha256: d9eda91c50360d66a306c42d1bfa0a7cbb937d8383486e17202880eee5c249e2
-        dest: project/third_party/sentry-native/external/third_party/lss
-      - type: archive
-        url: https://github.com/getsentry/chromium-linux-syscall-support/archive/9719c1e1e676814c456b55f5f070eabad6709d31.tar.gz
-        sha256: a858367f0de0fd22a22172c562d750c29edb43f586cb6ff94be1941b77656bf3
-        dest: project/third_party/sentry-native/external/crashpad/third_party/lss/lss
-      - type: archive
-        url: https://github.com/getsentry/mini_chromium/archive/2f5c168fa462cf3836c4a7801b4f4955496d975d.tar.gz
-        sha256: 00f60d55f810dd66a64cf882cb8f4d241809e9e14c24baaaa96031b66ca79ac4
-        dest: project/third_party/sentry-native/external/crashpad/third_party/mini_chromium/mini_chromium
-      - type: archive
-        url: https://github.com/getsentry/chromium-zlib/archive/fef58692c1d7bec94c4ed3d030a45a1832a9615d.tar.gz
-        sha256: d49b88d645b17ccbad19406f95cd495527784b104b8fba1347a2475b08346224
-        dest: project/third_party/sentry-native/external/crashpad/third_party/zlib/zlib
-      - type: archive
         url: https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.6.2.tar.gz
         sha256: c6ea6b2e5608b3ea8617999bd5f47420c71b2ebdb8dc4767c1034d1da5785711
         dest: project/third_party/cli11
-      - type: archive
-        url: https://github.com/ladislav-zezula/StormLib/archive/refs/tags/v9.30.tar.gz
-        sha256: a709a6b034d206404f5297d85e474371203ff5483639955195d99b737bbf7dfe
-        dest: project/third_party/stormlib
-      - type: archive
-        url: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
-        sha256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
-        dest: project/third_party/ffmpeg

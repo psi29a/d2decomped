@@ -53,13 +53,35 @@ jobs:
         with:
           persist-credentials: false
 
+      # The .debs come from the Actions cache, not the Azure mirror: it once
+      # took 35 min for these 82 MB (2026-10-22). Refreshed weekly; apt
+      # fetches only what changed since.
+      - name: Week for the apt cache key (Linux)
+        if: runner.os == 'Linux'
+        id: apt-week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt packages (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-${{ matrix.os }}-${{ steps.apt-week.outputs.week }}
+          restore-keys: apt-${{ matrix.os }}-
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build build-essential pkg-config libcurl4-openssl-dev \
+          mkdir -p ~/apt-archives/partial
+          apt_opts=(-o Dir::Cache::Archives="$HOME/apt-archives" -o APT::Keep-Downloaded-Packages=true
+                    -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
+          sudo rm -f /var/lib/man-db/auto-update   # skip the man-db trigger
+          sudo apt-get "${apt_opts[@]}" update -qq
+          sudo apt-get "${apt_opts[@]}" install -y cmake ninja-build build-essential pkg-config libcurl4-openssl-dev \
             libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
             clang-tidy
+          sudo apt-get "${apt_opts[@]}" autoclean -qq   # drop superseded versions from the cache
+          sudo chown -R "$USER" ~/apt-archives          # so the cache step can read them
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -137,11 +159,12 @@ jobs:
 
       # ccache 4.x handles MSVC too; CMake picks it up via
       # CMAKE_*_COMPILER_LAUNCHER. StormLib and CLI11 (FetchContent) share it.
+      # MSVC's /Z7 objects carry their debug info: Windows gets 2 GB.
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           key: ${{ matrix.os }}
-          max-size: 1G
+          max-size: ${{ runner.os == 'Windows' && '2G' || '1G' }}
           # Only main saves: each branch run's ~1 GB copy pushed the repo past
           # GitHub's 10 GB and evicted main's, so builds started cold. PRs
           # restore main's.
@@ -185,10 +208,16 @@ jobs:
           $z = "$deps\vcpkg\x64-windows"
           $env:PKG_CONFIG_PATH = "$ff\lib\pkgconfig"
           # BtbN's .pc files are relocatable (prefix=${pcfiledir}/../..).
+          # Embedded (/Z7), not RelWithDebInfo's /Zi: ccache can't cache a
+          # compile that writes a shared .pdb ("Unsupported compiler option",
+          # every call). The linker still writes the .pdb Sentry gets. The
+          # policy default reaches Sentry/Crashpad's older-minimum CMake too.
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER_LAUNCHER=ccache `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+            -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
             "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
             "-DSDL3_DIR=$sdl\cmake" `
             "-DOPENAL_INCLUDE_DIR=$al\include" `
@@ -370,6 +399,13 @@ jobs:
           arch: ${{ matrix.arch }}
           build-dir: flatpak_app-${{ matrix.arch }}
           keep-build-dirs: true
+          # The action's default key is the manifest's hash: saved once, then
+          # restored as-is, its ccache ever staler. A key per run (the action
+          # appends the arch; restore takes the newest flatpak-builder-<arch>*)
+          # keeps it current. Only main saves, as for ccache above: a PR's
+          # copy (2.3 GB once) evicts main's.
+          cache-key: flatpak-builder-${{ matrix.arch }}-${{ github.run_id }}
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Upload Flatpak Sentry debug information
         if: startsWith(github.ref, 'refs/tags/')

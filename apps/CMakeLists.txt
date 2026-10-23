@@ -41,7 +41,10 @@ if(D2D_FLATPAK)
     configure_file("${PROJECT_SOURCE_DIR}/assets/flatpak/desktop.in" "${_flatpak_desktop}" @ONLY)
     configure_file("${PROJECT_SOURCE_DIR}/assets/flatpak/metainfo.xml.in" "${_flatpak_metainfo}" @ONLY)
 
-    install(TARGETS d2d-launcher d2d crashpad_handler RUNTIME DESTINATION bin)
+    install(TARGETS d2d-launcher d2d RUNTIME DESTINATION bin)
+    if(NOT D2D_SENTRY_PREFIX)   # a prebuilt Sentry put its handler in bin itself
+        install(TARGETS crashpad_handler RUNTIME DESTINATION bin)
+    endif()
     install(FILES "${_flatpak_desktop}" DESTINATION share/applications)
     install(FILES "${_flatpak_metainfo}" DESTINATION share/metainfo)
     install(FILES "${PROJECT_SOURCE_DIR}/assets/icon/d2d.png"
