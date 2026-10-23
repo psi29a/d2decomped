@@ -1868,12 +1868,18 @@ auto Town::pad_field() const -> bool {
 // What the pad's A would act on now: a monster in reach in the facing (the
 // held target first), else, with `uses` (a fresh press), the ground item,
 // then the NPC, object, town portal or corpse in reach there.
-auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const -> PadPick {
+auto Town::pad_aim(int skill) const -> pad::Aim {
+        const auto* info = scene ? scene->skills.get(skill) : nullptr;
+        if (info && info->range == "rng") return { 12.f, 14.f, 0.7f };   // ~45 degrees either side: the one you face, not one beside you
+        return {};
+    }
+
+auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim) const -> PadPick {
         const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
         std::vector<pad::Candidate> monsters;
         for (const auto& monster : view.monsters)
             if (monster.alive()) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });
-        if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target); hit >= 0)
+        if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target, aim); hit >= 0)
             return { PadPick::kMonster, monsters[std::size_t(hit)].id, monsters[std::size_t(hit)].x, monsters[std::size_t(hit)].y };
         if (!uses) return {};
         std::vector<pad::Candidate> drops;
@@ -1916,7 +1922,7 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
         }
         const bool left = !move.alt;
         const int skill = left ? left_skill : right_skill;
-        const PadPick pick = pad_pick(player_pad, unit, left && move.attack);
+        const PadPick pick = pad_pick(player_pad, unit, left && move.attack, pad_aim(skill));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
             out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, left });

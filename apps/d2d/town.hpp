@@ -238,7 +238,9 @@ struct Town {
     // panel or menu is up), the commands out through `out`.
     void pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out);
     struct PadPick { enum Kind { kNone, kMonster, kItem, kThing } kind = kNone; int id = -1; float x = 0, y = 0; };
-    [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses) const;
+    [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim = {}) const;
+    // The pad's reach for `skill`: a ranged one's (Skills.txt range "rng") locks on across the screen.
+    [[nodiscard]] pad::Aim pad_aim(int skill) const;
     bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
     pad::Family pad_family = pad::Family::Xbox;   // the screen's pad's button labels (main sets it)
     void draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const;
