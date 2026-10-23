@@ -1217,6 +1217,9 @@ struct ThinkIn {
     // -1) and none found for it (FUN_005e6020); room for its young
     // (FUN_005fd350).
     bool catapult_gone = false, strike_spot = true, spawn_unset = false, spawn_found = true, spawn_room = true;
+    // The putrid defiler's: a unit within 25 its search takes (FUN_005efa50:
+    // FUN_005d2140's test), in reach (FUN_00622c40: `reach`).
+    bool defile = false;
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1227,7 +1230,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 83> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 86> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1238,7 +1241,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3236,6 +3239,40 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (roll() < aip[1]) return walk_in;
         } else if (roll() < aip[0]) return { MonAct::a1 };
         return { MonAct::idle, 15 };
+    }
+    // PutridDefiler (137, FUN_005efa90): in melee A1. Its find within 25
+    // (FUN_005efa50): in reach skill 300 (mode 8) at it, else straight at it;
+    // none: within aip1 it backs off aip2, else stands 25.
+    if (ai_name == "PutridDefiler") {
+        if (input.target && input.in_melee) return { MonAct::a1 };
+        if (!input.defile) {
+            if (input.dist < aip[0]) { (void)away(aip[1] & 0xff, false); return { MonAct::none }; }
+            return { MonAct::idle, 25 };
+        }
+        if (input.reach) { Think out{ MonAct::skill, 300 }; out.unit = ThinkUnit::kin; return out; }
+        Think out{ MonAct::direct }; out.unit = ThinkUnit::kin; return out;
+    }
+    // BaalTentacle (139, FUN_005ef820; Festering Appendages): its master gone
+    // or busy, it goes (FUN_0057ccb0). Its life (state3) aip3 + rand(aip3)
+    // x 25 frames from its first think; past it, it goes; till then in melee
+    // aip1 % A1, else stands aip2.
+    if (ai_name == "BaalTentacle") {
+        if (!input.rider || input.command_busy) return { MonAct::die };
+        if (*input.state3 == 0) { const int extra = rng(aip[2]); *input.state3 = input.frame + (extra + aip[2]) * 25; }
+        if (*input.state3 < input.frame) return { MonAct::die };
+        if (input.in_melee && rng(100) < aip[0]) return { MonAct::a1 };
+        return idle2;
+    }
+    // BaalMinion (141, FUN_005ef910; the waves' minions): out of melee (or no
+    // target) aip2 % straight at it; in it aip1 %: Skill1 aip3 % (rand), else
+    // A1; else stands aip3. A wait of aip4 after.
+    if (ai_name == "BaalMinion") {
+        Think out{ MonAct::none };
+        if (!input.target || !input.in_melee) { if (roll() < aip[1]) out = { MonAct::direct }; }
+        else if (roll() < aip[0]) out = input.skill[0] && rng(100) < aip[2] ? cast(0) : Think{ MonAct::a1 };
+        else out = { MonAct::idle, aip[2] };
+        out.wait = aip[3];
+        return out;
     }
     return { MonAct::untraced };
 }

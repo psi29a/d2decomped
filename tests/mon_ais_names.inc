@@ -65,3 +65,6 @@
 { "NpcBarb", false, true, true, true },
 { "GenericSpawner", false, true, true, true },
 { "DeathMauler", false, true, true, true },
+{ "PutridDefiler", false, true, true, true },
+{ "BaalTentacle", false, true, true, true },
+{ "BaalMinion", false, true, true, true },
