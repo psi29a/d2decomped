@@ -2271,7 +2271,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const int cls = actor->character.header.cls;
         // Picked up: the item's usesound (FUN_00487740, FUN_00498a90); put in a
         // grid, the belt or a body slot: its dropsound (FUN_004c1d60's callers).
-        const auto item_cue = [&](const d2d::d2s::Item& item, bool use) { cues.cue(item_sound(*game_data, item, use), now_ms, actor->player.x, actor->player.y); };
+        // The put_* calls move the held item away, so its name is read first.
+        const auto sound_cue = [&](std::string_view sound) { cues.cue(sound, now_ms, actor->player.x, actor->player.y); };
+        const auto item_cue = [&](const d2d::d2s::Item& item, bool use) { sound_cue(item_sound(*game_data, item, use)); };
         if (const auto* to_cursor = std::get_if<cmd::ToCursor>(&command)) {
             const auto found = std::ranges::find(actor->character.items, to_cursor->item, &d2d::d2s::Item::id);
             if (!actor->held && found != actor->character.items.end()
@@ -2291,8 +2293,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             const auto* layout = to_grid->panel == d2d::d2s::item_panel::kInventory ? &game_data->inv_layout[std::size_t(cls)] : to_grid->panel == d2d::d2s::item_panel::kCube ? &game_data->cube_layout
                           : to_grid->panel == d2d::d2s::item_panel::kStash ? &game_data->stash_layout[actor->character.expansion ? 1 : 0] : nullptr;
             if (actor->held && layout) {
-                const auto put = *actor->held;
-                if (d2d::rules::put_in_grid(tables, actor->character.items, actor->held, to_grid->panel, layout->cols, layout->rows, to_grid->col, to_grid->row)) item_cue(put, false);
+                const auto sound = item_sound(*game_data, *actor->held, false);
+                if (d2d::rules::put_in_grid(tables, actor->character.items, actor->held, to_grid->panel, layout->cols, layout->rows, to_grid->col, to_grid->row)) sound_cue(sound);
             }
             return;
         }
@@ -2301,10 +2303,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // only the stats / level are short, else "impossible" (0x13).
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
-                const auto put = *actor->held;
-                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), required_level(*game_data, put)))
-                    item_cue(put, false);
-                else if (!d2d::rules::can_wear(tables, put, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), required_level(*game_data, put)))
+                const auto sound = item_sound(*game_data, *actor->held, false);
+                const int level_needed = required_level(*game_data, *actor->held);
+                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
+                    sound_cue(sound);
+                else if (const auto& put = *actor->held;                         // refused: equip left it in hand
+                         !d2d::rules::can_wear(tables, put, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
                     class_cue(d2d::rules::can_wear(tables, put, to_body->slot, { cls, std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), std::numeric_limits<int>::max() }) ? "cantuseyet" : "impossible_1", now_ms);
             }
             return;
@@ -2334,8 +2338,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
             if (actor->held && to_belt->box >= 0 && to_belt->box < belt.boxes) {
-                const auto put = *actor->held;
-                if (d2d::rules::put_in_belt(tables, actor->character.items, actor->held, to_belt->box, belt.boxes)) item_cue(put, false);
+                const auto sound = item_sound(*game_data, *actor->held, false);
+                if (d2d::rules::put_in_belt(tables, actor->character.items, actor->held, to_belt->box, belt.boxes)) sound_cue(sound);
             }
             return;
         }

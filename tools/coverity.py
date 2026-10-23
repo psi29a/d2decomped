@@ -9,7 +9,9 @@
 Auth, first that's set:
   - an authentication key in the macOS Keychain (scan8: user menu, Authentication Keys):
       security add-generic-password -s coverity-scan -a SCAN_USERNAME -w
-  - COVERITY_USER + COVERITY_KEY in the environment (Linux)
+  - COVERITY_USER + COVERITY_KEY in the environment
+  - the authentication key file Coverity downloads (JSON with username and key),
+    at COVERITY_KEY_FILE or ~/.coverity.key
   - the browser's session: COVERITY_SESSION (cookie COVJSESSIONID-build) + COVERITY_XSRF
     (cookie XSRF-TOKEN), from devtools; expires about an hour idle
 COVERITY_HOST (scan8.scan.coverity.com) and COVERITY_PROJECT (psi29a-d2decomped) override.
@@ -41,6 +43,10 @@ def auth_headers() -> dict[str, str]:
         password = re.search(r'^password: "(.*)"$', found.stderr, re.M)
         if account and password:
             user, key = account.group(1), password.group(1)
+    key_file = pathlib.Path(os.environ.get("COVERITY_KEY_FILE", pathlib.Path.home() / ".coverity.key"))
+    if not (user and key) and key_file.is_file():
+        stored = json.loads(key_file.read_text())
+        user, key = stored.get("username"), stored.get("key")
     if user and key:
         return {"Authorization": "Basic " + base64.b64encode(f"{user}:{key}".encode()).decode()}
     session, xsrf = os.environ.get("COVERITY_SESSION"), os.environ.get("COVERITY_XSRF")

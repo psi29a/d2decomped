@@ -272,7 +272,7 @@ struct Point { int x = 0, y = 0; };
 
 class Mapper {
 public:
-    explicit Mapper(Config config = {}) : config_(std::move(config)) {}
+    explicit Mapper(const Config& config = {}) : config_(config) {}
 
     // `seconds` since the last frame. A pad that went away is a default
     // Sample: every button lets go, so nothing stays held.
