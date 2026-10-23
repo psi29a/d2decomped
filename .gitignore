@@ -2,6 +2,7 @@ build/
 build-*/
 cmake-build-*/
 .flatpak-builder/
+*.flatpak
 _deps/
 .cache/
 compile_commands.json

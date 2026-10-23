@@ -30,7 +30,7 @@ It starts the launcher. Your own Diablo II + LoD files are still needed.
 
 | You want | Do |
 |---|---|
-| Build the Flatpak yourself | `mkdir -p build/flatpak-source && git archive HEAD \| tar -x -C build/flatpak-source`, then `flatpak-builder --user --install build-flatpak .github/flatpak/ci-manifest.yml` |
+| Build the Flatpak yourself | `make flatpak` (installs it), `make bundle` (a `.flatpak` file), `make deck` (onto a Deck over ssh); `make` lists them. They build the working tree, uncommitted edits too |
 | Change the build recipe | `.github/flatpak/ci-manifest.yml` (CI only, not for Flathub) |
 | Play from Steam's Gaming Mode | Exit Steam, then the launcher's **Add to Steam** (shortcut + library art) |
 | Update to a newer build | `flatpak install --user --reinstall --bundle ./d2decomped-x86_64.flatpak`: the Steam entry stays |
