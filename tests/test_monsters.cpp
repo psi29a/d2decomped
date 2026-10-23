@@ -1152,7 +1152,7 @@ int main() {
         assert(mon_think("Brute", think_in, roll, no_away).act == MonAct::idle && steps(6, roll) == 2);
         think_in.aip[2] = 100; roll = Rng{ 6 };
         assert(mon_think("Brute", think_in, roll, no_away).act != MonAct::circle && steps(6, roll) == 2);
-        assert(!traced_ai("Imp") && mon_think("Imp", think_in, roll, no_away).act == MonAct::untraced);
+        assert(!traced_ai("BaalTaunt") && mon_think("BaalTaunt", think_in, roll, no_away).act == MonAct::untraced);
         // Griswold: in melee 80 % A1, else 50 % walks in, else stands 10;
         // the Smith walks in at half the life % he's lost.
         int state2 = 0, state3 = 0, pace = 0;
