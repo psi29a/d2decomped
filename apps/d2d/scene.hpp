@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace d2d::client {
@@ -220,6 +221,11 @@ struct Scene : GameData {
     mutable std::map<std::string, PlayerAnim> npc_anims;   // by root/code/mode/components
     const PlayerAnim& npc_anim(const Npc& npc, std::string_view mode) const;
     const PlayerAnim& composite(int d2s_class, int mode, const Appearance& gfx) const;
+    // D2D_ANIM_LOG=<file>: each animation's first draw ("chars AMA1HTH",
+    // "monsters FANUHTH", "missiles firebolt", ...) is appended to it, for
+    // tools/anim_coverage.py. Nothing is written when it isn't set.
+    mutable std::unordered_set<std::string> drawn;
+    void note_drawn(std::string_view kind, std::string_view name) const;
     std::vector<AutomapRule> automap_rules;
 
 };

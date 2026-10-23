@@ -33,6 +33,7 @@ the command to run first.
 | `validate-linux.sh` | CI's Linux build, clang-tidy and tests, in Docker (`validate-linux.Dockerfile`; its own `build-linux/`). Run before every push | `tools/validate-linux.sh` (exit status 0 = good) |
 | `tidy-pr-select.py` | CI only: picks the files a PR needs clang-tidy on | not run by hand |
 | `sound_coverage.py` | Lists the base game's sounds d2d can't play yet, by the table column or game.exe code that plays them (needs a build, for mpq-cat) | `tools/sound_coverage.py ~/Workspace/private/diablo2` |
+| `anim_coverage.py` | Lists the base game's animations (player, monster and object COFs, missiles, overlays, item drops) d2d hasn't drawn in the runs given, by kind and mode. d2d logs what it draws when `D2D_ANIM_LOG=<file>` is set (needs a build, for mpq-cat) | `D2D_ANIM_LOG=$PWD/build/anims.log ctest --test-dir build -R 'quests_act\|_d2d'`, then `tools/anim_coverage.py ~/Workspace/private/diablo2 build/anims.log` |
 | `coverity.py` | Lists Coverity Scan issues with file:line, shows one, marks them False Positive / Intentional / Bug (auth: `--help`) | `tools/coverity.py list` |
 
 ## Before any of them
