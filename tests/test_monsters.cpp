@@ -709,6 +709,8 @@ int main() {
                         input.reach = read() != 0; input.command_busy = read() != 0;
                         input.attacker = read() != 0; input.hurt_minion = read() != 0; input.free_minion = read() != 0;
                         for (auto& row : input.imp_aip) for (auto& value : row) value = read();
+                        input.catapult_gone = read() != 0; input.strike_spot = read() != 0; input.spawn_unset = read() != 0;
+                        input.spawn_found = read() != 0; input.spawn_room = read() != 0;
                     }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));

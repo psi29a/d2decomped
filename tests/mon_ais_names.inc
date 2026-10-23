@@ -61,3 +61,7 @@
 { "Catapult", false, true, true, true },
 { "FrozenHorror", false, true, true, true },
 { "BloodLord", false, true, true, true },
+{ "CatapultSpotter", false, true, true, true },
+{ "NpcBarb", false, true, true, true },
+{ "GenericSpawner", false, true, true, true },
+{ "DeathMauler", false, true, true, true },
