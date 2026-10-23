@@ -39,6 +39,7 @@ struct ItemInfo {
     std::string flippy;                // flippyfile: the on-the-ground animation
     std::string drop_sound;            // dropsound, played at flippy frame dropsfxframe
     int drop_frame = 0;
+    std::string use_sound;             // usesound, played when the item is picked up, put down or worn
 };
 // ItemTypes.txt by Code: the Equiv parents, the BodyLocs.txt slots the
 // type can be worn in (BodyLoc1/2, not inherited), its class (ama, sor,

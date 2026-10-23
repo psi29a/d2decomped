@@ -792,7 +792,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 table == &weapons && table->get(row, "2handed") == "1", table == &weapons && table->get(row, "1or2handed") == "1",
                 std::atoi(std::string(table->get(row, "reqstr")).c_str()), std::atoi(std::string(table->get(row, "reqdex")).c_str()),
                 std::atoi(std::string(table->get(row, "levelreq")).c_str()), std::string(table->get(row, "flippyfile")),
-                std::string(table->get(row, "dropsound")), std::atoi(std::string(table->get(row, "dropsfxframe")).c_str()) };
+                std::string(table->get(row, "dropsound")), std::atoi(std::string(table->get(row, "dropsfxframe")).c_str()),
+                std::string(table->get(row, "usesound")) };
     std::vector<std::string> type_order;
     for (std::size_t row = 0; row < types.size(); ++row) {
         const std::string code(types.get(row, "Code"));
@@ -1156,6 +1157,12 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                                           { &game_data.unique_req, "UniqueItems", "lvl req", false },
                                                           { &game_data.set_req, "SetItems", "lvl req", false } })
             for (const auto& level : pairs(file_name, column, column, all)) target->push_back(level.first);
+        for (const auto& [target, file_name] : { std::pair{ &game_data.unique_sounds, "UniqueItems" }, { &game_data.set_sounds, "SetItems" } })
+            if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+                const d2d::txt::Table table(*bytes, false);
+                for (std::size_t row = 0; row < table.size(); ++row)
+                    target->push_back({ std::string(table.get(row, "dropsound")), std::string(table.get(row, "usesound")) });
+            }
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
         auto affixes = [&](const char* file_name) {

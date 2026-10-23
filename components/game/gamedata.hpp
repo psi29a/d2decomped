@@ -485,6 +485,8 @@ struct GameData {
     };
     std::unordered_map<std::string, ItemDesc> item_desc;
     std::vector<int> prefix_req, suffix_req, unique_req, set_req;
+    // UniqueItems / SetItems dropsound, usesound by row (item_sound).
+    std::vector<std::array<std::string, 2>> unique_sounds, set_sounds;
     // ItemStatCost.txt description columns, by stat ID, and what the skill
     // descfuncs need: skill name keys by skill ID, CharStats strings by class.
     struct StatDesc {

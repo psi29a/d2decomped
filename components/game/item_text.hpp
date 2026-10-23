@@ -273,6 +273,22 @@ inline int required_level(const GameData& game_data, const d2d::d2s::Item& item)
     return std::max(level, 0);
 }
 
+// An item's drop sound (FUN_004c1d60, put down) or use sound (FUN_004c17f0,
+// picked up): misc / armor / weapons.txt's, then a unique's or set item's
+// own row instead. A row counts only when its dropsound is set, for the
+// usesound too.
+// ponytail: the flippy's sound (loot.hpp, FUN_004c16d0) doesn't take the
+// unique / set rows yet.
+inline std::string item_sound(const GameData& game_data, const d2d::d2s::Item& item, bool use) {
+    std::string sound;
+    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end() && !info->second.drop_sound.empty())
+        sound = use ? info->second.use_sound : info->second.drop_sound;
+    const auto* rows = item.quality == 7 ? &game_data.unique_sounds : item.quality == 5 ? &game_data.set_sounds : nullptr;
+    const int row = item.quality == 7 ? item.unique_id : item.set_id;
+    if (rows && row >= 0 && std::size_t(row) < rows->size() && !(*rows)[std::size_t(row)][0].empty()) sound = (*rows)[std::size_t(row)][use ? 1 : 0];
+    return sound;
+}
+
 // An item's hover text as the client's FUN_0048dd90 (UI\inv.cpp) builds
 // it. The string is drawn bottom-up, so its segments, top line first:
 // name (FUN_0048c060), defense (FUN_00485ee0), block (FUN_00485be0),

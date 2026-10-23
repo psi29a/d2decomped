@@ -155,6 +155,29 @@ Object 0x3d's loops are by mode at 0x728338. The 13 objects sharing record
 0x729328 play only going to a later mode. Dumped whole into
 `components/rules/object_sounds.hpp`.
 
+## Items in the panels (client, UI\inv.cpp)
+
+The item record (misc / armor / weapons.txt): dropsound +0x124,
+usesound +0x126 (words, Sounds.txt rows), dropsfxframe +0x128.
+- `FUN_004c1d60` (drop) / `FUN_004c17f0` (use, via `FUN_004c1e20`): the
+  base's sound, then UniqueItems (quality 7: dropsound +0x84, usesound
+  +0x86) or SetItems (quality 5: +0x82, +0x84) instead. A row counts only
+  when its dropsound is > 0, for the usesound too.
+- Use sound: as the cursor takes an item from a grid (`FUN_00487740`) or
+  the belt (`FUN_00498a90`, no shift).
+- Drop sound: as one goes into a body slot (`FUN_00490780` / `00490ba0`
+  hands, `FUN_00490fc0` and others), the belt (`FUN_00498870`) or the
+  merc's slots (`FUN_0048b7c0`). Taking a worn item off plays nothing there.
+- Refused in a body slot: `FUN_0063de60` says no; if it would fit ignoring
+  requirements (flag 1) and the item's class is none (7) or the player's,
+  voice 0x14 cantuseyet, else 0x13 impossible (`FUN_004cb9c0`). The merc
+  refused: `FUN_004cbde0(0x55)`, hireable female 0x1204 / male 0x1208
+  "I can't use that" (monstats 0x10f, the rogue, is the female).
+- Requirements `FUN_0062eaf0(item, unit, …, &str, &dex, &lvl)`: str/dex
+  from ItemsTxt +0x10a / +0x10c, less stat 91's percent, −10 each
+  ethereal; level against `FUN_0062b5b0` (the hover's Required Level);
+  false for an unidentified item (flag 0x10) and a wrong class.
+
 ## NPC greetings (FUN_004e0590)
 
 By MonStats class (FUN_004e0370's records from 0x72ae28, 0x18 bytes):
