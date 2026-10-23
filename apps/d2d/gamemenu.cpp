@@ -332,11 +332,19 @@ void GameMenu::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene) 
         }
     }
     // The pentagrams either side of the selection, spinning opposite ways.
+    // The frames differ in size; each sits at its DC6 offset (x 21 for the
+    // 9-wide edge-on one), so the spin stays about the middle. widest is
+    // FUN_0047de80's 0x7bc95c.
     int widest = 0;
     for (std::uint32_t i = 0; i < scene.pentspin.frames_per_direction(); ++i) widest = std::max(widest, int(scene.pentspin.frame(0, i).width));
     const int pent_y = first + def.step * sel + def.pent_dy;
-    cel(framebuffer, scene, scene.pentspin, pent ? 8 - pent : 0, kWidth / 2 - widest - 0xf9, pent_y, false);
-    cel(framebuffer, scene, scene.pentspin, pent, kWidth / 2 + 0xf9, pent_y, false);
+    const auto spin = [&](int frame, int x) {
+        if (frame < 0 || frame >= int(scene.pentspin.frames_per_direction())) return;
+        const auto& image = scene.pentspin.frame(0, std::uint32_t(frame));
+        cel(framebuffer, scene, scene.pentspin, frame, x + image.offset_x, pent_y + image.offset_y, false);
+    };
+    spin(pent ? 8 - pent : 0, kWidth / 2 - widest - 0xf9);
+    spin(pent, kWidth / 2 + 0xf9);
 }
 
 namespace {

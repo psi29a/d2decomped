@@ -68,7 +68,9 @@ them times master/100.
   - The skull `OptSkull` (`0x7bc958`) at (knob, sy - (centred ? 0 : 1) - 1).
 - Pentspin (`CURSOR\pentspin`) by the selected row, y = sel_y + hdr3.
   Left: x = W/2 - widest - 0xf9, frame f ? 8-f : 0. Right: x = W/2+0xf9,
-  frame f. f steps once a draw when more than 50 ms have passed
+  frame f. widest (`0x7bc95c`, `FUN_0047de80`) is the widest frame (52).
+  Each frame draws at its DC6 offset (`FUN_004f6480` → the renderer):
+  widths 51..9, ox −1..21, oy 0, so it spins about x+25. f steps once a draw when more than 50 ms have passed
   since the last step (`FUN_00454850`, GetTickCount; no catch-up).
 - `FUN_00502680` draws a multi-frame image 0x100 apart. Align 1:
   x += -1 - (totalW >> 1); align 2: x -= totalW.
