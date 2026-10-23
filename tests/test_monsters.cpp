@@ -644,10 +644,11 @@ int main() {
 #include "mon_ais3_cases.inc"
 #include "mon_ais_coldworm_cases.inc"
 #include "mon_ais4_cases.inc"
+#include "mon_ais5_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
-                // whether it's an other think, whether its scene has Act 3's / Act 4's fields.
-                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene; };
+                // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's fields.
+                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene, act5_scene; };
                 static constexpr AiCase kAis[] = {
 #include "mon_ais_names.inc"
                 };
@@ -701,6 +702,12 @@ int main() {
                                                                    input.in_chaos = read() != 0; input.target_light_res = read(); input.target_player = read() != 0;
                                                                    input.target_life_pct = input.life_pct;   // FUN_00621f20 answers one life for any unit
                                                                } }
+                    if (kAis[std::size_t(which)].act5_scene) {
+                        input.lines_clear = read() != 0; input.skill1_range = read(); input.rider = read() != 0; input.self_dead = read() != 0; input.state69 = read() != 0;
+                        input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_mana = read(); input.target_max_mana = read();
+                        input.self_life_pct = input.life_pct; input.target_life_pct = read(); input.command_until = read(); input.target_player = read() != 0;
+                        input.reach = read() != 0; input.command_busy = read() != 0;
+                    }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
                     seed.high = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));

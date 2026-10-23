@@ -1081,7 +1081,9 @@ struct ThinkEffect {
     // word 1..3), bless (a stat on the player it's at: id the stat).
     // Izual's first think: a4q1's greeting (FUN_005b4390).
     // Diablo's kept point set (mark: id x, value y; FUN_0058ef40 kind 10).
-    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark } kind;
+    // Act 5's: the siege beast takes a rider (FUN_005e17e0: the imp's AI word
+    // +0x14 its id), a minion takes its command's unit as target (FUN_006416d0).
+    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget } kind;
     int id = 0, value = 0;
 };
 struct ThinkIn {
@@ -1191,6 +1193,16 @@ struct ThinkIn {
     int left_level = 0, right_level = 0;            // the hands' levels (FUN_006442a0, each its own)
     bool has_word = false, stuck = false, reach = false, target_state_b = false, target_player = false, in_chaos = false;
     int self_size = 2, target_size = 2;             // FUN_00620510: the units' sizes (the distances take them off)
+    // Act 5's: three lines to the target clear of 0x805 (FUN_005dc640);
+    // Skill1's Skills.txt +0x158 (FUN_004e6c70, its reach); the siege
+    // beast's rider (FUN_00552fd0), it lies dead (FUN_0063ea40: mode 0 or
+    // 12), its state 0x69 test (FUN_006259b0), an imp within aip1 to take on
+    // (FUN_005dd0b0, FUN_005e1720); the target in state 0x20 (FUN_00625760),
+    // its FUN_00625d10 / FUN_00625d60 values, its own life % (FUN_00621f20
+    // on itself); its command's last frame (+0x14) and its unit busy
+    // (FUN_005541b0).
+    bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
+    int skill1_range = 0, target_mana = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1201,7 +1213,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 67> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 72> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1209,7 +1221,8 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "MaggotEgg", "MaggotLarva", "DarkWanderer", "SandMaggotQueen",
                                                                "Mosquito", "ThornHulk", "ZakarumZealot", "ZakarumPriest", "FrogDemon", "Tentacle", "TentacleHead",
                                                                "FetishShaman", "HighPriest", "Hydra", "FetishBlowgun", "Mephisto", "WillOWisp",
-                                                               "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul" };
+                                                               "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
+                                                               "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -2931,6 +2944,86 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         }
         if (*input.state3 < 1 && roll() >= aip[1]) return input.dist < 11 ? Think{ MonAct::idle, input.aidel } : Think{ MonAct::keep, 6, 9, 2 };
         return walk;
+    }
+    // ---- Act 5's (monster-ai.md "Act 5's MonAIs"; tools/emu/mon_ais.py).
+    auto keep_off = [&](int most, int want) { return Think{ MonAct::keep, most, want, 2 }; };   // FUN_005de6d0 -> FUN_005de4e0(.., 2, ..)
+    const Think walk_in{ MonAct::walk, 0 };                                                       // FUN_005dec80(target, 0)
+    // ReanimatedHorde (114, FUN_005e1540): in melee aip1 % A1, else stands
+    // aip2. Skill2 (its revive, Sk2mode) with three clear lines to a target
+    // between 5 and aip3 off, aip4 %; aip5 % walks in; aip6 % keeps 4 off;
+    // else stands aip7.
+    if (ai_name == "ReanimatedHorde") {
+        if (input.in_melee) return roll() < aip[0] ? Think{ MonAct::a1 } : idle2;
+        if (input.skill[1] && input.lines_clear && input.dist < aip[2] && input.dist > 5 && roll() < aip[3]) return cast(1);
+        if (roll() < aip[4]) return walk_in;
+        if (roll() < aip[5]) return keep_off(4, 0);
+        return { MonAct::idle, aip[6] };
+    }
+    // SiegeBeast (115, FUN_005e1900): nothing once dead (mode 0 / 12).
+    // Riderless and not under state 0x69's test, an imp within aip1 takes it
+    // (FUN_005e17e0). In melee aip3 % Skill1 (at no unit), aip2 % A1, else
+    // stands aip4; out of it Skill1 within its reach aip5 %; with clear
+    // lines aip6 % keeps 12 off at aip7 % pace; else keeps 12 off.
+    if (ai_name == "SiegeBeast") {
+        if (input.self_dead) return { MonAct::none };
+        if (!input.rider && !input.state69 && input.imp_near) effect(ThinkEffect::mount);
+        if (input.in_melee) {
+            if (input.skill[0] && roll() < aip[2]) return cast(0, ThinkUnit::none);
+            return roll() < aip[1] ? Think{ MonAct::a1 } : Think{ MonAct::idle, aip[3] };
+        }
+        if (input.skill[0] && input.dist < input.skill1_range && roll() < aip[4]) return cast(0, ThinkUnit::none);
+        if (input.lines_clear && roll() < aip[5]) set_pace(std::clamp(aip[6], 0, 0x7f), 0);
+        return keep_off(12, 0);
+    }
+    // Minion (116, FUN_005e1b60): a live command of kind 1 (its frame not
+    // past) whose unit's found and free makes that its target (and in melee
+    // by reach); else the command's done. Out of melee, uncommanded, aip3 %
+    // walks in, else stands aip4; commanded it walks in. In melee,
+    // uncommanded, stands aip2 unless aip1 %; then aip2 % A2, else A1.
+    if (ai_name == "Minion") {
+        bool commanded = false, melee = input.in_melee;
+        ThinkUnit at = ThinkUnit::target;
+        if (*input.command != 0) {
+            if (*input.command == 1 && input.frame < input.command_until && input.command_unit && !input.command_busy) {
+                commanded = true;
+                at = ThinkUnit::kin;
+                effect(ThinkEffect::retarget);
+                melee = input.reach;
+            } else effect(ThinkEffect::command_done);
+        }
+        auto to = [&](Think out) { out.unit = at; return out; };
+        if (!melee) {
+            if (!commanded && roll() >= aip[2]) return { MonAct::idle, aip[3] };
+            return to(walk_in);
+        }
+        if (!commanded && roll() >= aip[0]) return { MonAct::idle, aip[1] };
+        return to(roll() < aip[1] ? Think{ MonAct::a2 } : Think{ MonAct::a1 });
+    }
+    // SuicideMinion (117, FUN_005e1d30): its fuse (state) lit in melee at
+    // aip5 frames on; past it, it blows (mode 0 at the target). Out of melee
+    // unlit aip3 % walks in; else stands aip2.
+    if (ai_name == "SuicideMinion") {
+        if (*input.state != 0) { if (*input.state < input.frame) return { MonAct::die }; }
+        else if (!input.in_melee) { if (roll() < aip[2]) return walk_in; }
+        else *input.state = aip[4] + input.frame;
+        return idle2;
+    }
+    // Succubus (118, FUN_005e1e00): the target not in state 0x20, within
+    // aip4, aip3 %: Skill1 at a target with at least aip7 % life; Skill2 with
+    // its own at most aip8 %; Skill3 unless the target is a player with
+    // FUN_00625d60 at least FUN_00625d10; Skill4 at a player. In melee aip1 %
+    // A1, else stands aip5. Skill5 aip8 % (on the unit seed) at the second
+    // target; aip2 % walks in; else stands aip6.
+    if (ai_name == "Succubus") {
+        if (!input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
+            if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
+            if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
+            if (input.skill[2] && (input.target_max_mana < input.target_mana || !input.target || !input.target_player)) return cast(2);
+            if (input.skill45[0] && input.target && input.target_player) return cast(3);
+        }
+        if (input.in_melee) return roll() >= aip[0] ? Think{ MonAct::idle, aip[4] } : Think{ MonAct::a1 };
+        if (input.skill45[1] && aip[7] > 0 && input.second && rng(100) < aip[7]) return cast(4, ThinkUnit::second);
+        return roll() >= aip[1] ? Think{ MonAct::idle, aip[5] } : walk_in;
     }
     return { MonAct::untraced };
 }
